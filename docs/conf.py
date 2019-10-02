@@ -36,6 +36,10 @@ except ImportError:
     print('ERROR: the documentation requires the sphinx-astropy package to be installed')
     sys.exit(1)
 
+extensions.remove("numpydoc")
+extensions.insert(0, "sphinx.ext.napoleon")
+
+
 # Get configuration information from setup.cfg
 from configparser import ConfigParser
 conf = ConfigParser()

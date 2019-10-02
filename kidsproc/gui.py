@@ -1,0 +1,470 @@
+#! /usr/bin/env python
+"""The GUI  entry point."""
+
+import sys
+from pathlib import Path
+import psutil
+from datetime import datetime
+from astropy import log
+from .utils.colors import Palette
+from .utils.fmt import pformat_dict
+from .utils.gui import qt5app, QThreadTarget
+from .utils.cli import argparser_with_common_options
+from .version import version
+
+from .db import get_databases
+from .fs.toltec import DataFileStore
+
+from PyQt5 import uic, QtWidgets, QtCore, QtGui
+from PyQt5.QtCore import Qt
+
+Ui_MainWindow, Ui_MainWindowBase = uic.loadUiType(
+        Path(__file__).parent.joinpath("gui").joinpath("kidsprocgui.ui"))
+Ui_DBStatus, Ui_DBStatusBase = uic.loadUiType(
+        Path(__file__).parent.joinpath("gui").joinpath("dbstatus.ui"))
+Ui_FileView, Ui_FileViewBase = uic.loadUiType(
+        Path(__file__).parent.joinpath("gui").joinpath("fileview.ui"))
+
+palette = Palette()
+
+
+class DBStatusPanel(Ui_DBStatusBase):
+
+    connectionStatusChanged = QtCore.pyqtSignal(bool)
+
+    def __init__(self, database, parent=None):
+        super().__init__(parent)
+        self.ui = Ui_DBStatus()
+        self.ui.setupUi(self)
+
+        self._database = database
+
+    @property
+    def connected(self):
+        old = self._database.ok
+        self._database._test_db_connection()
+        status = self._database.ok
+        if status != old:
+            self.connectionStatus.emit(status)
+        # log.debug(f"database connection: {'OK' if status else 'ERROR'}")
+        self.ui.led_status.set_status(status)
+        return status
+
+
+class AnimatedItemDelegate(QtWidgets.QStyledItemDelegate):
+
+    def __init__(self, role=Qt.UserRole, parent=None):
+        super().__init__(parent)
+        self._role = role
+
+    def paint(self, painter, option, index):
+
+        model = index.model()
+        args = model.data(index, role=self._role)
+
+        if args is not None:
+            (t0, dt, c0, c1) = args
+            frac = (datetime.now() - t0).seconds / dt
+            frac = 0 if frac < 0 else frac
+            frac = 1 if frac > 1 else frac
+            c = palette.blend(c0, c1, frac, fmt='irgb')
+            # print(f"paint: {t0} {frac} {c}")
+            painter.fillRect(option.rect, QtGui.QColor(*c))
+        super().paint(painter, option, index)
+
+
+class DataFileInfoModel(QtCore.QAbstractTableModel):
+
+    item_update_role = Qt.UserRole
+    item_update_key = '_time_last_updated'
+    item_update_time = 1.
+
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+        self._info_keys = set()
+        self._info = dict()
+
+        def update_row(tl=None, br=None):
+            i0 = 0 if tl is None else tl.row()
+            i1 = self.rowCount() if br is None else br.row() + 1
+            log.debug(f"model row {i0} {i1} changed")
+        self.dataChanged.connect(update_row)
+        self.modelReset.connect(update_row)
+
+    def set(self, runtime_info, changed_items):
+        if len(changed_items) == len(runtime_info):
+            self.reset(runtime_info)
+        else:
+            for i, (k, v) in enumerate(self._info):
+                if k in changed_items:
+                    self._info[i] = (k, runtime_info[k])
+                    self._info[i][1][self.item_update_key] = datetime.now()
+                    self.dataChanged.emit(
+                        self.index(i, 0),
+                        self.index(i, self.columnCount() - 1))
+
+    def reset(self, runtime_info):
+        self.beginResetModel()
+        self._info = list(runtime_info.items())
+        for i in range(len(self._info)):
+            self._info[i][1][self.item_update_key] = datetime.now()
+        self.endResetModel()
+
+    def rowCount(self, parent=QtCore.QModelIndex()):
+        return len(self._info)
+
+    # (header, {role: callback})
+    _dispatch_columns = {
+            0: ("Link", {
+                Qt.DisplayRole: lambda k, v: k,
+                }),
+            1: ("Obs #", {
+                Qt.DisplayRole: lambda k, v: v['obsid']
+                }),
+            2: ("Kind", {
+                Qt.DisplayRole: lambda k, v: v['kindstr']
+                }),
+            3: ("File", {
+                Qt.DisplayRole: lambda k, v: str(v['source'].relative_to(
+                    v['rootpath']))
+                }),
+            }
+    _dispatch_row = {
+            # QtCore.Qt.BackgroundRole:
+            # lambda k, v: QtGui.QBrush(Qt.yellow)
+            item_update_role: lambda k, v: (
+                v[DataFileInfoModel.item_update_key],
+                DataFileInfoModel.item_update_time,
+                "yellow", "white")
+            }
+
+    def columnCount(self, parent=QtCore.QModelIndex()):
+        return max(
+                i for i in self._dispatch_columns.keys()) + 1
+
+    def headerData(self, col, orientation, role):
+        if orientation == QtCore.Qt.Horizontal and \
+                role == QtCore.Qt.DisplayRole:
+            if col in self._dispatch_columns:
+                return self._dispatch_columns[col][0]
+
+    def data(self, index, role=Qt.DisplayRole):
+        if index.isValid():
+            i = index.row()
+            j = index.column()
+            k, v = self._info[i]
+            if role in self._dispatch_row:
+                return self._dispatch_row[role](k, v)
+            if j in self._dispatch_columns:
+                dispatch = self._dispatch_columns[j][1]
+                if role in dispatch:
+                    return dispatch[role](k, v)
+
+
+class DataFileGroupModel(QtWidgets.QFileSystemModel):
+
+    def __init__(self, spec, parent=None):
+        super().__init__(parent=parent)
+        self._spec = spec
+        self.sortfilter_model = QtCore.QSortFilterProxyModel()
+        self.sortfilter_model.setSourceModel(self)
+        # self.sortfilter_model.setFilterKeyColumn(2)
+        # self.sortfilter_model.setFilterFixedString('')
+        # self.sortfilter_model.setFilterRegularExpression(r'.+')
+        # self.sortfilter_model.setRecursiveFilteringEnabled(True)
+
+    _dispatch_columns = {
+            0: ("Dir", {
+                Qt.DisplayRole: lambda v: v
+                }),
+            1: ("Obs #", {
+                Qt.DisplayRole: lambda v: v.get('obsid', None)
+                }),
+            2: ("Interface", {
+                Qt.DisplayRole: lambda v: v.get('interface', None)
+                }),
+            3: ("Kind", {
+                Qt.DisplayRole: lambda v: v.get('kindstr', None)
+                }),
+            4: ("File", {
+                # Qt.DisplayRole: lambda v: str(v['source'].relative_to(
+                #     v['rootpath']))
+                Qt.DisplayRole: lambda v: v.get('kindstr', None)
+                }),
+            }
+
+    def columnCount(self, parent=QtCore.QModelIndex()):
+        return max(
+                i for i in self._dispatch_columns.keys()) + 1
+
+    def headerData(self, col, orientation, role):
+        if orientation == QtCore.Qt.Horizontal and \
+                role == QtCore.Qt.DisplayRole:
+            if col in self._dispatch_columns:
+                return self._dispatch_columns[col][0]
+
+    def data(self, index, role=Qt.DisplayRole):
+        path = Path(self.filePath(index))
+        if path.is_dir():
+            if index.column() == 0:
+                return super().data(index, role)
+            return None
+        info = self._get_info(path)
+        info['rootpath'] = Path(source.rootPath())
+        if index.isValid():
+            print(self.columnCount())
+            j = index.column()
+            print(j)
+            if j in self._dispatch_columns:
+                dispatch = self._dispatch_columns[j][1]
+                if role in dispatch:
+                    return dispatch[role](info)
+        # return super().data(index, role)
+
+    def _get_info(self, path):
+        info = self._spec.info_from_filename(path) or {}
+        if 'source' not in info:
+            info['source'] = path
+        return info
+
+    def index_from_source(self, p):
+        return self.sortfilter_model.mapFromSource(
+                self.mapFromSource(self.sourceModel().index(p)))
+
+    def setRootPath(self, p):
+        self.file_model.setRootPath(p)
+
+
+class DataFilesView(Ui_FileViewBase):
+
+    rootpathChanged = QtCore.pyqtSignal(str)
+    runtimeInfoChanged = QtCore.pyqtSignal(dict, list)
+
+    def __init__(self, datafiles, parent=None):
+        super().__init__(parent)
+        self.ui = Ui_FileView()
+        self.ui.setupUi(self)
+
+        self._datafiles = datafiles
+        self.datafilegroup_model = DataFileGroupModel(
+                spec=datafiles.spec)
+
+        self.ui.tv_files.setModel(self.datafilegroup_model.sortfilter_model)
+        self.ui.le_rootpath.textChanged.connect(self._validate_rootpath)
+
+        def update_fileview():
+            p = str(self.rootpath)
+            self.datafilegroup_model.setRootPath(p)
+            self.ui.tv_files.setRootIndex(
+                    self.datafilegroup_model.index_from_source(p))
+            self.ui.le_rootpath.setText(str(p))
+        self.rootpathChanged.connect(update_fileview)
+        self.rootpathChanged.connect(lambda x: self.runtime_info)
+
+        self.runtime_info_model = DataFileInfoModel()
+        self.ui.tv_runtime_info.setSelectionBehavior(
+                QtWidgets.QTableView.SelectRows)
+        self.ui.tv_runtime_info.setModel(self.runtime_info_model)
+        self.ui.tv_runtime_info.setItemDelegate(AnimatedItemDelegate(
+            role=self.runtime_info_model.item_update_role))
+        self.ui.tv_runtime_info.horizontalHeader().setSectionResizeMode(
+                QtWidgets.QHeaderView.ResizeToContents)
+        self.runtimeInfoChanged.connect(self.runtime_info_model.set)
+        self.runtime_update_repaint_timer = QtCore.QTimer(self)
+        self.runtime_update_repaint_timer.setInterval(100.)
+        self.runtime_update_repaint_timer.timeout.connect(
+                self.ui.tv_runtime_info.viewport().repaint)
+
+        def update_repaint():
+            self.runtime_update_repaint_timer.start()
+
+            def on_stop():
+                self.runtime_update_repaint_timer.stop()
+                self.ui.tv_runtime_info.viewport().repaint()
+                QtWidgets.QApplication.processEvents()
+            QtCore.QTimer.singleShot(
+                    self.runtime_info_model.item_update_time * 1.5e3,
+                    on_stop)
+        self.runtimeInfoChanged.connect(update_repaint)
+
+        self.rootpathChanged.emit(str(self.rootpath))
+
+    @property
+    def rootpath(self):
+        return self._datafiles.rootpath
+
+    @rootpath.setter
+    def rootpath(self, path):
+        old = self._datafiles.rootpath
+        self._datafiles.rootpath = path
+        new = self._datafiles.rootpath
+        if old != new:
+            log.debug(f"change root path: {old} -> {new}")
+            self.rootpathChanged.emit(str(new))
+
+    def _validate_rootpath(self, path):
+        p = Path(path)
+        if p.is_dir():
+            self.rootpath = p
+            color = palette.hex('black')
+        else:
+            color = palette.hex('red')
+        sender = self.sender()
+        sender.setStyleSheet(f'color: {color};')
+
+    @staticmethod
+    def _runtime_info_changed(i1, i2):
+        i1keys = set(i1.keys()) if i1 is not None else set()
+        i2keys = set(i2.keys()) if i2 is not None else set()
+        if i1keys != i2keys:
+            log.debug(f"runtime info changed: {i1keys} -> {i2keys}")
+            return True, list(i2keys)
+        changed = []
+        for k in i1keys:
+            v1 = i1[k]
+            v2 = i2[k]
+            for vk in ('nwid', 'obsid', 'subobsid', 'scanid', 'ut'):
+                if v1[vk] != v2[vk]:
+                    log.debug(
+                            f"runtime info {k}.{vk} changed: "
+                            f"{v1[vk]} -> {v2[vk]}")
+                    changed.append(k)
+                    break
+        return len(changed) > 0, changed
+
+    @property
+    def runtime_info(self):
+        old = getattr(self, '_runtime_info', None)
+        self._update_runtime_info()
+        new = self._runtime_info
+        changed, changed_items = self._runtime_info_changed(old, new)
+        if changed:
+            self.runtimeInfoChanged.emit(new, changed_items)
+        return new
+
+    def _update_runtime_info(self):
+        _info = {}
+
+        def infokey(info):
+            return f"{info['master']}-{info['interface']}"
+        for link in self._datafiles.runtime_datafile_links():
+            info = self._datafiles.spec.info_from_filename(link)
+            if info is not None:
+                info['link'] = link
+                info['rootpath'] = self.rootpath
+                _info[infokey(info)] = info
+        self._runtime_info = _info
+
+
+class GuiRuntime(QtCore.QObject):
+
+    def __init__(self, config, parent=None):
+        super().__init__(parent=parent)
+        self.config = config
+        log.debug(f"runtime config: {pformat_dict(config)}")
+        self.databases = get_databases()
+        log.debug(f"runtime databases: {self.databases}")
+
+        self.datafiles = DataFileStore(rootpath=config['datapath'])
+
+    def init_db_monitors(self, gui, parent):
+        self._db_monitors = {}
+        for k, v in self.databases.items():
+            w = DBStatusPanel(v, parent=parent)
+            parent.layout().addRow(
+                    QtWidgets.QLabel(k), w)
+            gui.run_in_thread(QThreadTarget(2000, lambda: w.connected))
+
+    def init_df_view(self, gui, parent):
+        w = DataFilesView(self.datafiles, parent=parent)
+        parent.layout().addWidget(w)
+
+        def reset_rootpath():
+            w.rootpath = self.config['datapath']
+            w.ui.le_rootpath.setText(str(w.rootpath))
+        w.ui.btn_reset_rootpath.clicked.connect(reset_rootpath)
+        gui.run_in_thread(QThreadTarget(500, lambda: w.runtime_info))
+
+
+class KidsprocGui(Ui_MainWindowBase):
+
+    _title = f"Kidsproc v{version}"
+
+    def __init__(self, parent=None):
+        super().__init__()
+        self.ui = Ui_MainWindow()
+        self.ui.setupUi(self)
+        self.setWindowTitle(self._title)
+        self.ui.actionAbout.triggered.connect(self.about)
+
+        self._psutil_process = psutil.Process()
+        self.run_in_thread(QThreadTarget(1000, self._report_usage))
+
+    def init_runtime(self, config):
+        if hasattr(self, 'runtime'):
+            log.debug(f"runtime exists: {self.runtime}")
+            return
+        # rurntime
+        self.runtime = GuiRuntime(config, parent=self)
+        self.runtime.init_db_monitors(self, self.ui.gb_dbstatus)
+        self.runtime.init_df_view(self, self.ui.gb_datafiles)
+
+    def run_in_thread(self, target, start=True):
+        thread = QtCore.QThread(self)
+        target.moveToThread(thread)
+        target.finished.connect(thread.quit)
+        thread.started.connect(target.start)
+        if start:
+            thread.start()
+
+        if not hasattr(self, '_threads'):
+            self._threads = []
+        self._threads.append((thread, target))
+
+    def about(self):
+        return QtWidgets.QMessageBox.about(self, "About", "Surprise!")
+
+    def _report_usage(self):
+        p = self._psutil_process
+        # log.debug("report usage")
+        with p.oneshot():
+            message = \
+                    '    pid: {0}    cpu: {1} %    memory: {2:.1f} MB' \
+                    '    page: {3:.1f} MB    num_threads: {4}'.format(
+                        p.pid, p.cpu_percent(),
+                        p.memory_info().rss / 2. ** 20,
+                        p.memory_info().vms / 2. ** 20,
+                        p.num_threads()
+                        )
+            self.ui.statusbar.showMessage(message)
+
+
+def main():
+
+    parser, parse = argparser_with_common_options()
+
+    parser.add_argument(
+            "--datapath",
+            help="directory that contains the data files",
+            default=Path.cwd())
+    args, unparsed_args = parse(parser)
+
+    config = dict(
+            datapath=Path(args.datapath)
+            )
+
+    app = qt5app(unparsed_args)
+
+    gui = KidsprocGui()
+    gui.init_runtime(config)
+    gui.show()
+
+    import signal
+
+    def sigint_handler(*args):
+        """Handler for the SIGINT signal"""
+        sys.stderr.write('\rAborted with Ctrl-C\n')
+        gui.close()
+    signal.signal(signal.SIGINT, sigint_handler)
+
+    sys.exit(app.exec_())

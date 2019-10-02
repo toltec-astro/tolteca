@@ -1,4 +1,5 @@
-# Licensed under a 3-clause BSD style license - see LICENSE.rst
+from pathlib import Path
 
-# This sub-module is destined for common non-package specific utility
-# functions.
+
+def get_pkg_data_path():
+    return Path(__file__).parent.parent.joinpath("data")
