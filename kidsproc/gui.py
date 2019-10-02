@@ -125,8 +125,7 @@ class DataFileInfoModel(QtCore.QAbstractTableModel):
                 Qt.DisplayRole: lambda k, v: v['kindstr']
                 }),
             3: ("File", {
-                Qt.DisplayRole: lambda k, v: str(v['source'].relative_to(
-                    v['rootpath']))
+                Qt.DisplayRole: lambda k, v: str(v['source'])
                 }),
             }
     _dispatch_row = {
@@ -210,8 +209,7 @@ class DataFileGroupModel(QtWidgets.QFileSystemModel):
                 Qt.DisplayRole: lambda v: v.get('kindstr', None)
                 }),
             3: ("File", {
-                Qt.DisplayRole: lambda v: str(v['source'].relative_to(
-                    v['rootpath']))
+                Qt.DisplayRole: lambda v: str(v['source'])
                 }),
             }
 
@@ -232,7 +230,6 @@ class DataFileGroupModel(QtWidgets.QFileSystemModel):
                 return super().data(index, role)
             return None
         info = self._get_info(path)
-        info['rootpath'] = Path(self.rootPath())
         if index.isValid():
             j = index.column()
             if j in self._dispatch_columns:
