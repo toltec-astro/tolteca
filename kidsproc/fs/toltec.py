@@ -17,7 +17,7 @@ class ToltecDataFileSpec(object):
         re_toltec_file = (
             r'^(?P<interface>(?P<instru>toltec)(?P<nwid>\d+))_(?P<obsid>\d+)_'
             r'(?P<subobsid>\d+)_(?P<scanid>\d+)_(?P<ut>\d{4}_'
-            r'\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))(?:_(?P<kindstr>[^\/.]+))'
+            r'\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))(?:_(?P<kindstr>[^\/.]+))?'
             r'\.(?P<fileext>.+)$')
         dispatch_toltec = {
             'nwid': int,
@@ -28,8 +28,9 @@ class ToltecDataFileSpec(object):
                 }
 
         def post_toltec(info):
-            if info is not None and info['fileext'].lower() != "nc" and \
-                    'kindstr' in info:
+            if 'kindstr' not in info:
+                info['kindstr'] = 'timestream'
+            if info is not None and info['fileext'].lower() != "nc":
                 info['kindstr'] = 'ancillary'
 
         re_wyatt_file = (

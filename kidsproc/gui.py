@@ -161,35 +161,57 @@ class DataFileInfoModel(QtCore.QAbstractTableModel):
                     return dispatch[role](k, v)
 
 
+class DataFileGroupModelFilter(QtCore.QSortFilterProxyModel):
+
+    def __init__(self, key_column, parent=None):
+        super().__init__(parent=parent)
+        self._key_column = key_column
+
+    def filterAcceptsRow(self, source_row, source_parent):
+
+        source = self.sourceModel()
+        source_index = source.index(
+                source_row, self._key_column, source_parent)
+        p = Path(source.filePath(source_index))
+        if p.is_dir():
+            # has_data = False
+            # for i in range(source.rowCount(source_index)):
+            #     print(i)
+            #     idx = source.index(i, self._key_column, source_index)
+            #     if source.data(idx) is not None:
+            #         has_data = True
+            #         break
+            # return has_data
+            # return super().filterAcceptsRow(source_row, source_parent)
+            return True
+        else:
+            return source.data(source_index) is not None
+
+
 class DataFileGroupModel(QtWidgets.QFileSystemModel):
 
     def __init__(self, spec, parent=None):
         super().__init__(parent=parent)
         self._spec = spec
-        self.sortfilter_model = QtCore.QSortFilterProxyModel()
+        self.sortfilter_model = DataFileGroupModelFilter(1)  # Interface
         self.sortfilter_model.setSourceModel(self)
-        # self.sortfilter_model.setFilterKeyColumn(2)
-        # self.sortfilter_model.setFilterFixedString('')
-        # self.sortfilter_model.setFilterRegularExpression(r'.+')
-        # self.sortfilter_model.setRecursiveFilteringEnabled(True)
 
     _dispatch_columns = {
-            0: ("Dir", {
-                Qt.DisplayRole: lambda v: v
-                }),
-            1: ("Obs #", {
+            # 0: ("Dir", {
+            #     Qt.DisplayRole: lambda v: v
+            #     }),
+            0: ("Obs #", {
                 Qt.DisplayRole: lambda v: v.get('obsid', None)
                 }),
-            2: ("Interface", {
+            1: ("Interface", {
                 Qt.DisplayRole: lambda v: v.get('interface', None)
                 }),
-            3: ("Kind", {
+            2: ("Kind", {
                 Qt.DisplayRole: lambda v: v.get('kindstr', None)
                 }),
-            4: ("File", {
-                # Qt.DisplayRole: lambda v: str(v['source'].relative_to(
-                #     v['rootpath']))
-                Qt.DisplayRole: lambda v: v.get('kindstr', None)
+            3: ("File", {
+                Qt.DisplayRole: lambda v: str(v['source'].relative_to(
+                    v['rootpath']))
                 }),
             }
 
@@ -210,11 +232,9 @@ class DataFileGroupModel(QtWidgets.QFileSystemModel):
                 return super().data(index, role)
             return None
         info = self._get_info(path)
-        info['rootpath'] = Path(source.rootPath())
+        info['rootpath'] = Path(self.rootPath())
         if index.isValid():
-            print(self.columnCount())
             j = index.column()
-            print(j)
             if j in self._dispatch_columns:
                 dispatch = self._dispatch_columns[j][1]
                 if role in dispatch:
@@ -227,12 +247,8 @@ class DataFileGroupModel(QtWidgets.QFileSystemModel):
             info['source'] = path
         return info
 
-    def index_from_source(self, p):
-        return self.sortfilter_model.mapFromSource(
-                self.mapFromSource(self.sourceModel().index(p)))
-
-    def setRootPath(self, p):
-        self.file_model.setRootPath(p)
+    def sortfilter_model_index(self, p):
+        return self.sortfilter_model.mapFromSource(self.index(p))
 
 
 class DataFilesView(Ui_FileViewBase):
@@ -256,7 +272,7 @@ class DataFilesView(Ui_FileViewBase):
             p = str(self.rootpath)
             self.datafilegroup_model.setRootPath(p)
             self.ui.tv_files.setRootIndex(
-                    self.datafilegroup_model.index_from_source(p))
+                    self.datafilegroup_model.sortfilter_model_index(p))
             self.ui.le_rootpath.setText(str(p))
         self.rootpathChanged.connect(update_fileview)
         self.rootpathChanged.connect(lambda x: self.runtime_info)
