@@ -7,10 +7,8 @@ import os
 import click
 from contextlib import contextmanager
 
-
 CONTEXT_SETTINGS = dict(
             help_option_names=('-h', '--help'),
-            auto_envvar_prefix='kidsproc'
             )
 OPTION_SETTINGS = dict(
         allow_from_autoenv=False,
@@ -78,15 +76,6 @@ def resolve_path(ctx, param, value):
         return value
     except ValueError:
         raise click.BadParameter('invalid argument')
-
-    # try:
-    #     vs = []
-    #     for v in value:
-    #         vs.extend(re.split(r'[:;,]+', v))
-    #     paths = tuple(param.type.convert(v, param, ctx) for v in vs)
-    #     return paths
-    # except ValueError:
-    #     raise click.BadParameter('invalid argument')
 
 
 def getctxroot(ctx):

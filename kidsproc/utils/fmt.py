@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+import inspect
+
 
 def pformat_paths(paths, sep='\n'):
     return sep.join(f'{p!s}' for p in paths)
@@ -42,4 +44,45 @@ def pformat_list(l, indent, minw=60, fancy=True):
 
 
 def pformat_dict(d, indent=2, minw=60):
-    return pformat_list([e for e in d.items()], indent, fancy=False)
+    return pformat_list([e for e in d.items()], indent, fancy=False, minw=minw)
+
+
+def pformat_obj(m):
+    """Return info of python object."""
+    result = []
+    result.append(str(m))
+
+    if isinstance(m, list):
+        return str(m)
+    if isinstance(m, dict):
+        return pformat_dict(m)
+
+    def iskeep(n):
+        if n in ['logger', ]:
+            return False
+        return not n.startswith('__')
+
+    obj_attrs = [n for n in getattr(m, "__dict__", dict()).keys() if iskeep(n)]
+
+    def format_attrs(attrs):
+        result = []
+        for n in attrs:
+            a = getattr(m, n)
+            # d = getattr(a, '__doc__', None) or str(a)
+            d = str(a)
+            d = d.split('\n')[0]
+            if inspect.isfunction(a):
+                s = f"{n}{inspect.signature(a)}"
+            else:
+                s = f"{n}"
+            result.append((s, d))
+        width = max(len(n) for n, _ in result) + 1
+        return result, width
+
+    if obj_attrs:
+        fmt_obj_attrs, width = format_attrs(obj_attrs)
+
+        result.append("  attrs:")
+        for s, d in fmt_obj_attrs:
+            result.append(f"    {{:{width}}}: {{}}".format(s, d))
+    return '\n'.join(result)
