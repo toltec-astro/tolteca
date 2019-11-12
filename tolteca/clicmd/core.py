@@ -48,8 +48,9 @@ class CliRuntime(object):
             pass
         else:
             # relative to the package root
-            self._modules[name] = timeit(importlib.import_module)(
-                    qualname, package=__package__)
+            self._modules[name] = timeit(
+                    f"import module {name}")(importlib.import_module)(
+                        qualname, package=__package__)
             self.logger.debug(
                     f"imported module {name}: "
                     f"{getattr(self, name)}")
@@ -63,7 +64,7 @@ class CliRuntime(object):
         for name in names:
             self.load_module(name)
         self.logger.debug(
-                f"imported {len(names)} modules: {names}")
+                f"loaded {len(names)} modules: {names}")
 
     def reload_module(self, name):
         name, _ = self._normalize_module_name(name)

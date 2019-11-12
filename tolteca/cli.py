@@ -8,31 +8,27 @@ import signal
 import textwrap
 import traceback
 
-from . import version
+from . import version, PROGNAME
 from .utils.fmt import pformat_obj
 from .utils.log import get_logger, logit
 from .utils.cli import click_helpers as ch
-from .utils.cli import click_log
+from .utils.cli import click_log, cli_header
 from .utils.cli.click_helpers import (
         ctx_no_recreate_obj,
         )
 from .clicmd import CliRuntime
 
-PROGNAME = "Kidsproc"
-DESCRIPTION = "KIDs data processing toolkit"
-HELP_MESSAGE = (f"{PROGNAME} v{version.version} {version.timestamp}"
-                f" - {DESCRIPTION}")
 SHOW_BANNER = False
 CONTEXT_SETTINGS = dict(
         **ch.CONTEXT_SETTINGS,
-        auto_envvar_prefix='kidsproc'
+        auto_envvar_prefix=PROGNAME.lower()
         )
 OPTION_SETTINGS = ch.OPTION_SETTINGS
 
 
 @click.group(
         context_settings=CONTEXT_SETTINGS,
-        help=HELP_MESSAGE,
+        help=cli_header(),
         invoke_without_command=True,
         chain=True,
         )

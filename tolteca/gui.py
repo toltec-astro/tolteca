@@ -9,7 +9,7 @@ from astropy import log
 from .utils.colors import Palette
 from .utils.fmt import pformat_dict
 from .utils.gui import qt5app, QThreadTarget
-from .utils.cli import argparser_with_common_options
+from .utils.cli.argparse_helpers import argparser_with_common_options
 from .version import version
 
 from .db import get_databases
@@ -19,7 +19,7 @@ from PyQt5 import uic, QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import Qt
 
 Ui_MainWindow, Ui_MainWindowBase = uic.loadUiType(
-        Path(__file__).parent.joinpath("gui").joinpath("kidsprocgui.ui"))
+        Path(__file__).parent.joinpath("gui").joinpath("tolteca.ui"))
 Ui_DBStatus, Ui_DBStatusBase = uic.loadUiType(
         Path(__file__).parent.joinpath("gui").joinpath("dbstatus.ui"))
 Ui_FileView, Ui_FileViewBase = uic.loadUiType(
@@ -399,9 +399,9 @@ class GuiRuntime(QtCore.QObject):
         gui.run_in_thread(QThreadTarget(500, lambda: w.runtime_info))
 
 
-class KidsprocGui(Ui_MainWindowBase):
+class ToltecaGui(Ui_MainWindowBase):
 
-    _title = f"Kidsproc v{version}"
+    _title = f"TolTECA v{version}"
 
     def __init__(self, parent=None):
         super().__init__()
@@ -468,7 +468,7 @@ def main():
 
     app = qt5app(unparsed_args)
 
-    gui = KidsprocGui()
+    gui = ToltecaGui()
     gui.init_runtime(config)
     gui.show()
 

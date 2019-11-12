@@ -110,7 +110,7 @@ release = package.__version__
 
 
 html_theme_options = {
-    'logotext1': 'Kidsproc',  # white,  semi-bold
+    'logotext1': 'TolTECA',  # white,  semi-bold
     'logotext2': '',  # orange, light
     'logotext3': ':docs'   # white,  light
     }

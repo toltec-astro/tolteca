@@ -48,7 +48,7 @@ class KidsData(NDDataRef):
     Parameters
     -----------
     data : `numpy.ndarray`-like
-        The actual data contained in this `~kidsproc.kidsdata.KidsData` object.
+        The actual data contained in this `~tolteca.kidsdata.KidsData` object.
         Note that the data will always be saved by *reference*, so you should
         make a copy of the ``data`` before passing it in if that's the desired
         behavior.

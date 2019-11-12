@@ -57,6 +57,10 @@ def varg_command(cli, name, *others):
     return decorator
 
 
+def split_option_arg(arg):
+    return re.split(r'[,;]+', arg)
+
+
 def split_paths(ctx, param, value):
     try:
         vs = []

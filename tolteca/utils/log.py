@@ -6,6 +6,7 @@ import logging.config
 import inspect
 import functools
 import time
+from astropy.utils.console import human_time
 
 from . import deepmerge
 
@@ -64,21 +65,31 @@ def get_logger(name=None):
     return logging.getLogger(name)
 
 
-def timeit(func):
-    funcname = func.__name__
+def timeit(arg):
+    def format_time(time):
+        if time < 15:
+            return f"{time * 1e3:.0f}ms"
+        else:
+            return f"{human_time(time).strip()}"
 
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        logger = logging.getLogger("timeit")
-        logger.debug("{} ...".format(funcname))
-        s = time.time()
-        r = func(*args, **kwargs)
-        elapsed = time.time() - s
-        logger.debug("{} done in {}".format(
-            funcname,
-            "{:.0f}ms".format(elapsed * 1e3)))
-        return r
-    return wrapper
+    if isinstance(arg, str):
+        funcname = arg
+
+        def decorator(func):
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                logger = logging.getLogger("timeit")
+                logger.debug("{} ...".format(funcname))
+                s = time.time()
+                r = func(*args, **kwargs)
+                elapsed = time.time() - s
+                logger.debug("{} done in {}".format(
+                    funcname, format_time(elapsed)))
+                return r
+            return wrapper
+        return decorator
+    else:
+        return timeit(arg.__name__)(arg)
 
 
 class logit(ContextDecorator):

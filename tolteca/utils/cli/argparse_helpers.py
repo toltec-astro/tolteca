@@ -1,11 +1,11 @@
 #! /usr/bin/env python
 
 import argparse
-from .. import version
+from . import cli_header
 
 
 def argparser_with_common_options(desc=None):
-    desc_base = f"Kidsproc v{version.version} {version.timestamp}"
+    desc_base = cli_header()
     if desc:
         desc = "{}\n  - {}".format(desc_base, desc)
     else:

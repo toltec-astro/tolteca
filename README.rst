@@ -1,11 +1,11 @@
-A Package for KIDs data reduction
+A Package for TolTEC data reduction and analysis
 ---------------------------------
 
 .. image:: http://img.shields.io/badge/powered%20by-AstroPy-orange.svg?style=flat
     :target: http://www.astropy.org
     :alt: Powered by Astropy Badge
 
-Kidsproc is a package for reducing KIDs data
+TolTECA is a package for reducing and analyzing TolTEC data.
 
 
 License
@@ -21,7 +21,7 @@ more information.
 Contributing
 ------------
 
-We love contributions! Kidsproc is open source,
+We love contributions! TolTECA is open source,
 built on open source, and we'd love to have you hang out in our community.
 
 **Imposter syndrome disclaimer**: We want your help. No, really.
@@ -47,5 +47,5 @@ the errors and assumptions that seasoned contributors have glossed over.
 Note: This disclaimer was originally written by
 `Adrienne Lowe <https://github.com/adriennefriend>`_ for a
 `PyCon talk <https://www.youtube.com/watch?v=6Uj746j9Heo>`_, and was adapted by
-Kidsproc based on its use in the README file for the
+TolTECA based on its use in the README file for the
 `MetPy project <https://github.com/Unidata/MetPy>`_.
