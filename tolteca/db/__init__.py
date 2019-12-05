@@ -1,86 +1,161 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-
+from cached_property import cached_property
 import inspect
 import importlib
-from astropy import log
-from ..utils import get_pkg_data_path
-from .DatabaseConnection import connect_database
-
-DB_CONFIG = {
-
-        # 'debug_a': {
-
-        #     'uri': 'mysql+mysqldb://debug:debug@localhost/debug'
-        # },
-        'debug_b': {
-            'uri': f'sqlite+pysqlite:///'
-                   f'{get_pkg_data_path().joinpath("debug.sqlite")}',
-            'schema': 'toltecdatadb',
-        }
-    }
+import functools
+from .config import DB_CONFIG
+from ..utils.fmt import pformat_dict
+from ..utils.log import get_logger, logit, timeit
+from .connection import DatabaseConnection
 
 
-class DatabaseRuntime(object):
+class ConfigMixin(object):
+
+    logger = get_logger()
+
+    def __init__(self, config, validate=True):
+        if validate:
+            self.validate_config(config)
+        self._config = config
+        self._config = config
+
+    def validate_config(self, config):
+        if self._has_config_validator(self):
+            errors = self.config_validator(config)
+            if errors:
+                raise RuntimeError(f"invalid config: {errors}")
+
+    @staticmethod
+    def _has_config_validator(obj):
+        return hasattr(obj, "config_validator")
+
+    def __init_subclass__(cls, config_property_prefix="", **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls._has_config_validator(cls):
+            cls.config_validator.decorate_with_properties(
+                    cls, prefix=config_property_prefix)
+
+
+class ConfigValidator(object):
+
+    logger = get_logger()
+
+    def __init__(self):
+        self._validators = list()
+        self._keys = set()
+
+    def __call__(self, config):
+        errors = list()
+        for v in self._validators:
+            errors.extend(v(config))
+        self.logger.debug(f"validated config: {pformat_dict(config)}")
+        return errors
+
+    def required(self, *args):
+        def validate(config):
+            errors = list()
+            for a in args:
+                if a not in config:
+                    errors.append(f"missing required key {a}")
+            return errors
+        self._validators.append(validate)
+        self._keys.update(set(args))
+        return self
+
+    def optional(self, **kwargs):
+        def validate(config):
+            for a, d in kwargs.items():
+                if a not in config:
+                    self.logger.debug(f"use default {a}={d}")
+                    config[a] = d
+            return list()
+        self._validators.append(validate)
+        self._keys.update(set(kwargs.keys()))
+        return self
+
+    def decorate_with_properties(self, cls, prefix=""):
+
+        def getter(instance, key):
+            # self.logger.debug(f"get {key} from {instance}")
+            return instance._config[key]
+
+        for key in self._keys:
+            setattr(cls, f'{prefix}{key}', property(
+                functools.partial(getter, key=key)))
+            self.logger.debug(f"add property {prefix}{key} to {cls}")
+        return cls
+
+
+class DatabaseRuntime(ConfigMixin, config_property_prefix="_"):
     '''Class to hold database related states.'''
 
-    def __init__(self, name, uri, schema):
-        self.name = name
-        self.uri = uri
-        self.schema = schema
-        self.connection = None
-        self.session = None
-        self.models = {}
-        self.ok = False
-        self.error = []
-        self.initialize()
+    config_validator = ConfigValidator() \
+        .required("name", 'uri') \
+        .optional(schema=None, tables_from_reflection=False)
 
-    def initialize(self):
+    def __init__(self, config):
+        super().__init__(config)
+        self.logger = get_logger(f"db.{self._name}")
+
+    @cached_property
+    def connection(self):
         try:
-            self.connection = connect_database(self.uri)
+            connection = DatabaseConnection(self._uri)
         except Exception as e:
-            log.error(
-                    f"unable to connect to {self.name} {self.uri}: {e}")
-        else:
-            self._init_models()
-            self._init_session()
-            self._test_db_connection()
+            self.logger.error(
+                    f"unable to connect to {self._name} {self._uri}: {e}")
+        return connection
 
-    def _init_models(self):
-        log.debug("initialize database models")
+    @cached_property
+    def session(self):
+        return self.connection.Session()
 
-        try:
-            m = importlib.import_module(f".tables.{self.schema}", __name__)
-            m.create_tables(self.connection)
-        except Exception as e:
-            log.warning(f"unable to load {self.schema} tables: {e}")
-        else:
+    @cached_property
+    def models(self):
+        if self._schema is None:
+            return None
+        with logit(self.logger.debug, f"load database models {self._schema}"):
             try:
-                m = importlib.import_module(f".models.{self.schema}", __name__)
+                m = timeit(
+                    f"import models {self._schema}")(importlib.import_module)(
+                        f".models.{self._schema}", __name__)
             except Exception as e:
-                log.warning(f"unable to load {self.schema} models: {e}")
+                self.logger.warning(
+                        f"unable to load models.{self._schema}: {e}")
             else:
-                self.models[self.schema] = m
-        log.debug(f"database models: {self.models}")
+                return m
 
-    def _init_session(self):
-        self.session = self.connection.Session()
-
-    def _test_db_connection(self):
-        if self.connection and self.models:
+    @cached_property
+    def tables(self):
+        if self._schema is None or self._tables_from_reflection:
+            self.logger.debug("load tables with reflection")
+            return None
+        with logit(self.logger.debug, "load database tables {self._schema}"):
             try:
-                # self.session.query(
-                #     self.models["toltecdatadb"].version).first()
-                connection = self.session.connection()
+                m = timeit(
+                    f"import tables {self._schema}")(importlib.import_module)(
+                        f".tables.{self._schema}", __name__)
+                m.create_tables(self.connection)
             except Exception as e:
-                self.ok = False
-                # self.error.append(f'error connecting to database: {e}')
-                log.error(f'error querying database: {e}')
+                self.logger.warning(
+                        f"unable to load tables.{self._schema}: {e}")
             else:
-                self.ok = True
+                return m
+
+    @property
+    def is_alive(self):
+        if self.connection and self.session:
+            try:
+                self.session.connection()
+            except Exception as e:
+                self.logger.error(f'error querying database: {e}')
+                return False
+            else:
+                return True
         else:
-            self.ok = False
+            return False
 
     def modelclasses(self, name="default", lower=None):
         if name not in self.models:
@@ -98,5 +173,5 @@ class DatabaseRuntime(object):
 def get_databases(config=DB_CONFIG):
     result = dict()
     for k, v in config.items():
-        result[k] = DatabaseRuntime(k, **v)
+        result[k] = DatabaseRuntime(dict(name=k, **v))
     return result

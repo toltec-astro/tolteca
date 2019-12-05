@@ -11,7 +11,7 @@ from astropy.utils.console import human_time
 from . import deepmerge
 
 
-def init_logging(overrides):
+def init_logging(overrides=None):
     """Initialize logging facilities
     """
     config = {
@@ -52,7 +52,8 @@ def init_logging(overrides):
             },
         }
     }
-    deepmerge(config, overrides)
+    if overrides:
+        deepmerge(config, overrides)
     logging.config.dictConfig(config)
 
 

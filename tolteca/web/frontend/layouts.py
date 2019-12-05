@@ -16,9 +16,12 @@ def main_layout_header():
         [
             make_header(),
             dbc.Container(
-                dbc.Row(dbc.Col(id=server.config["CONTENT_CONTAINER_ID"])), fluid=True
+                dbc.Row(dbc.Col(id=server.config["CONTENT_CONTAINER_ID"])),
+                fluid=True
             ),
-            dcc.Location(id=server.config["LOCATION_COMPONENT_ID"], refresh=False),
+            dcc.Location(
+                id=server.config["LOCATION_COMPONENT_ID"],
+                refresh=False),
         ]
     )
 
@@ -32,12 +35,16 @@ def main_layout_sidebar():
                 children=dbc.Row(
                     [
                         dbc.Col(
-                            make_sidebar(className="px-2"), width=2, className="px-0"
+                            make_sidebar(className="px-2"), width=2,
+                            className="px-0"
                         ),
-                        dbc.Col(id=server.config["CONTENT_CONTAINER_ID"], width=10),
+                        dbc.Col(
+                            id=server.config["CONTENT_CONTAINER_ID"],
+                            width=10),
                     ]
                 ),
             ),
-            dcc.Location(id=server.config["LOCATION_COMPONENT_ID"], refresh=False),
+            dcc.Location(
+                id=server.config["LOCATION_COMPONENT_ID"], refresh=False),
         ]
     )

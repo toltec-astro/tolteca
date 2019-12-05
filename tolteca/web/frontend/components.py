@@ -33,7 +33,8 @@ def make_header(**kwargs):
         children=[
             make_brand(),
             html.Ul(
-                id=server.config["NAVBAR_CONTAINER_ID"], className="navbar-nav ml-auto"
+                id=server.config["NAVBAR_CONTAINER_ID"],
+                className="navbar-nav ml-auto"
             ),
         ],
         **kwargs,
@@ -45,6 +46,7 @@ def make_sidebar(**kwargs):
     return html.Nav(
         id=f"sidebar",
         className="nav navbar-dark bg-dark flex-column align-items-start",
-        children=[make_brand(), html.Div(id=server.config["NAVBAR_CONTAINER_ID"])],
+        children=[make_brand(), html.Div(
+            id=server.config["NAVBAR_CONTAINER_ID"])],
         **kwargs,
     )

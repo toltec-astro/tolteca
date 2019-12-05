@@ -1,35 +1,19 @@
 #! /usr/bin/env python
 
 from ...utils.fmt import pformat_dict
-from sqlalchemy import Table, Column, Integer, String, ForeignKey
-from astropy import log
+from sqlalchemy import Table, Column, Integer, String
+from ...utils.log import get_logger
 
 
 def create_tables(db):
+    logger = get_logger()
+
     tables = []
+
+    from ..utils.conventions import fk, pk, label  # noqa: F401
 
     def qualified(name):
         return name
-
-    def fk(other):
-        return Column(
-            f'{other}_pk', Integer,
-            ForeignKey(
-               f"{other}.pk", onupdate="cascade", ondelete="cascade"),
-            nullable=False)
-
-    def pfk(other):
-        return Column(
-            'pk', Integer,
-            ForeignKey(
-               f"{other}.pk", onupdate="cascade", ondelete="cascade"),
-            primary_key=True)
-
-    def pk():
-        return Column('pk', Integer, primary_key=True)
-
-    def label():
-        return Column('label', String)
 
     def tbl(name, *args):
         return Table(qualified(name), db.metadata, *args)
@@ -106,7 +90,7 @@ def create_tables(db):
     try:
         db.metadata.create_all(db.engine)
     except Exception as e:
-        log.error(f"unable to create tables: {e}")
+        logger.error(f"unable to create tables: {e}")
     else:
         db.metadata.reflect(db.engine)
-        log.debug(f"tables {pformat_dict(db.metadata.tables)}")
+        logger.debug(f"tables {pformat_dict(db.metadata.tables)}")

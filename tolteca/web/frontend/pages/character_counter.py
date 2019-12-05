@@ -6,7 +6,10 @@ import dash_html_components as html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, State, Output
 
-from ..app import app
+from .. import get_current_dash_app
+
+
+app = get_current_dash_app()
 
 
 def get_layout(**kwargs):

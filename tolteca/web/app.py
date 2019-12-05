@@ -1,18 +1,14 @@
-from . import create_flask, create_dash
-from .layouts import main_layout_header, main_layout_sidebar
+#! /usr/bin/env python
+
+"""Flask entry point."""
+
+if __package__:
+    from . import create_app  # noqa: F401
+else:
+    # this is to work around the connexion api resolver problem
+    from tolteca.web import create_app  # noqa: F401
 
 
-# The Flask instance
-server = create_flask()
-
-# The Dash instance
-app = create_dash(server)
-
-
-# Push an application context so we can use Flask's 'current_app'
-with server.app_context():
-    # load the rest of our Dash app
-    from . import index
-
-    # configure the Dash instance's layout
-    app.layout = main_layout_sidebar()
+def decode_token(*args):
+    print(*args)
+    return "abc"

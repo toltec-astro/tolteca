@@ -5,7 +5,7 @@
 
 # Your App's title. The value of this parameter will be propagated into
 # `app.title`
-TITLE = "TolTEC"
+TITLE = "TolTECA"
 
 # The value of this parameter will be propagated into both
 # `app.scripts.config.serve_locally` and `app.css.config.serve_locally`
@@ -52,3 +52,11 @@ CONTENT_CONTAINER_ID = "page-content"
 
 # The ID of the element used to inject the navbar items into
 NAVBAR_CONTAINER_ID = "navbar-items"
+
+# Meta tags for viewport responsiveness
+META_TAGS = [
+        {
+            "name": "viewport",
+            "content": "width=device-width, initial-scale=1, shrink-to-fit=no"
+        }
+    ]
