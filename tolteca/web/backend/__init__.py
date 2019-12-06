@@ -5,6 +5,8 @@ from . import cache_config
 from flask_sqlalchemy import SQLAlchemy
 from flask_caching import Cache
 from flask_migrate import Migrate
+import pandas as pd
+import flask
 from .db.models import Base
 from .db import setup_flask_db
 from .db.models import load_models
@@ -39,3 +41,21 @@ def init_app(server):
         setup_flask_db(db.session)
         # setup_jwt(server, db.session)
     return server
+
+
+def create_db_session(bind, server=None):
+    if server is None:
+        server = flask.current_app
+    return db.create_scoped_session(
+        options={'bind': db.get_engine(server, bind)})
+
+
+def dataframe_from_db(bind, query, **kwargs):
+    """Return dataframe from database."""
+    session = create_db_session(bind)
+
+    return pd.read_sql_query(
+            query,
+            con=session.bind,
+            parse_dates=['Date'],
+            )

@@ -1,212 +1,133 @@
-import dash_core_components as dcc
+import dash_bootstrap_components as dbc
+# import dash_core_components as dcc
 import dash_html_components as html
-import dash_table
+# import dash_table
 
 # from pandas import DataFrame
-import pandas as pd
+# import pandas as pd
 # import dash_bootstrap_components as dbc
-from dash.dependencies import Input, State, Output, ClientsideFunction
-from ...backend import db, cache
+from dash.dependencies import Input, State, Output
+from ...backend import dataframe_from_db
 from .. import get_current_dash_app
 from tolteca.utils.log import timeit
+from ..common import TableViewComponent, SyncedListComponent
 
 
 app = get_current_dash_app()
 
 
-@cache.memoize(timeout=0)
-def filter_table_cols(colnames):
-    # result = ['id', ]
-    result = ['id', 'ObsNum', ]
-    ignored = ('Time', 'FileName', 'id')
-    for colname in colnames:
-        if colname not in result and colname not in ignored:
-            result.append(colname)
-    return result
+UPDATE_INTERVAL = 4000  # ms
+N_RECORDS_INIT = 50
+N_RECORDS = 50
+QUERY_PARAMS = {'parse_dates': ["Date"]}
+
+sources = [
+        {
+            'label': 'user_log',
+            'title': 'User Log',
+            'bind': 'lmt_toltec',
+            'query': '',
+            'query_init': f'select * from lmtmc_notes.userlog'
+                          f' order by id desc limit {N_RECORDS_INIT}',
+            'query_update': f'select * from lmtmc_notes.userlog a'
+                            f' where a.id >= {{id_since}}'
+                            f' order by a.id desc limit {N_RECORDS}',
+            'query_params': QUERY_PARAMS,
+            },
+        {
+            'label': 'toltec_files',
+            'title': 'TolTEC Files',
+            'bind': 'lmt_toltec',
+            'query': '',
+            'query_init': f'select * from toltec.toltec'
+                          f' order by id desc limit {N_RECORDS_INIT}',
+            'query_update': f'select * from toltec.toltec b'
+                            f' where b.id >= {{id_since}}'
+                            f' order by b.id desc limit {N_RECORDS}',
+            'query_params': QUERY_PARAMS,
+            },
+    ]
 
 
-ctx = 'lmt-toltec-database'
-title = 'TolTEC Files'
-update_interval = 4000  # ms
-n_records_init = 50
-n_records = 200
+_sources_dict = {s['label']: s for s in sources}
 
 
-@timeit
-def _get_toltec_files(n_records, filter_cols, id_since=None):
+# setup layout factory and callbacks
+for src in sources:
 
-    session = db.create_scoped_session(
-            options={'bind': db.get_engine(app.server, 'lmt_toltec')})
+    src['_synced_list'] = sln = SyncedListComponent(src['label'])
+    src['_table_view'] = tbn = TableViewComponent(src['label'])
 
-    if id_since is None:
-        where = ''
-    else:
-        where = f'where a.id > {id_since}'
-    query = f"select a.*,b.Entry,b.User from toltec.toltec a" \
-            f" left join lmtmc_notes.userlog b" \
-            f" on a.ObsNum = b.ObsNum" \
-            f" {where} order by a.id desc" \
-            f" limit {n_records};"
-
-    df = pd.read_sql_query(
-            query,
-            con=session.bind,
-            parse_dates=['Date'],
-            )
-    if len(df) > 0:
-        df['Date'] = df['Date'] + df['Time']
-    if filter_cols is not None:
-        df = df[filter_cols(df.columns)]
-    return df
-
-
-@timeit
-@cache.memoize(timeout=60)
-def get_toltec_files():
-    return _get_toltec_files(
-            n_records=n_records_init,
-            filter_cols=filter_table_cols,
+    sln.make_callbacks(
+            app,
+            data_component=(tbn.table, 'data'),
+            cb_namespace='tolteca',
+            cb_state='array_summary',
+            cb_commit='array_concat',
             )
 
+    @timeit
+    @app.callback([
+            Output(sln.items, 'data'),
+            Output(tbn.is_loading, 'children')
+            ], [
+            Input(sln.timer, 'n_intervals')], [
+            State(sln.state, 'data')
+            ])
+    def update(n_intervals, state):
+        # it is critical to make sure the body does not refer to
+        # mutable global states
+        src = _sources_dict[state['label']]
+        try:
+            nrows = state['size']
+            first_row_id = state['first']['id']
+            # print(first_row_id)
+            if nrows < N_RECORDS:
+                first_row_id -= N_RECORDS - nrows
+            # if state['update_extra'] is not None:
+            #     first_row_id -= state['update_extra']
+        except Exception:
+            return list(), html.Div(dbc.Alert(
+                    "Refresh Failed", color="danger"),
+                    style={
+                        'padding': '15px 0px 0px 0px',
+                        })
+        else:
+            df = dataframe_from_db(
+                src['bind'],
+                src['query_update'].format(id_since=first_row_id + 1),
+                **src['query_params'])
+            return df.to_dict("records"), ""
 
-@timeit
-@cache.memoize(timeout=1)
-def update_toltec_files(id_since):
-    return _get_toltec_files(
-            n_records=n_records,
-            filter_cols=filter_table_cols,
-            id_since=id_since
-            )
 
+def _get_layout(src):
+    try:
+        df = dataframe_from_db(
+                src['bind'], src['query_init'],
+                **src['query_params'])
+    except Exception:
+        return html.Div("Unable to get data.")
 
-@timeit
-def get_layout(**kwargs):
-    df = get_toltec_files()
-    data = df.to_dict("records")
-    lo_table = dash_table.DataTable(
-            filter_action="native",
-            # sort_action="native",
-            sort_mode="multi",
-            # column_selectable="single",
-            # row_selectable="multi",
-            id=f'{ctx}-table',
-            # virtualization=True,
-            # persistence=True,
-            # persistence_type='session',
+    slc = src['_synced_list'].components(interval=UPDATE_INTERVAL)
+
+    components = src['_table_view'].components(
+            src['title'],
+            additional_components=slc,
             columns=[
                 {"name": i, "id": i} for i in df.columns],
-            data=data,
-            style_data_conditional=[
-                {
-                    'if': {'row_index': 'odd'},
-                    'backgroundColor': '#eeeeee'
-                }
-            ],
-            style_table={
-                'border': 'thin lightgrey solid'
-            },
-            style_data={
-                'whiteSpace': 'normal',
-                # 'height': 'auto'
-            },
-            style_header={
-                'backgroundColor': '#aaaaaa',
-                'fontWeight': 'bold'
-            },
-            fixed_rows={'headers': True, 'data': 0},
-            style_cell={
-                'textAlign': 'left',
-                'padding': '5px',
-                'max-width': '500px',
-                'min-width': '60px',
-            },
+            data=df.to_dict("records"),
             )
-    return html.Div([
-            html.Div(
-                [
-                    html.H1(
-                        title,
-                        style={
-                            'display': 'inline-block',
-                            'line-height': '70px',
-                            'vertical-align': 'middle',
-                            }
-                        ),
-                    dcc.Loading(
-                        id="table-is-loading",
-                        children=[
-                                html.Div(id="loading-output-1")
-                            ],
-                        style={
-                            'display': 'inline-block',
-                            'padding': '0 1em',
-                            'vertical-align': 'middle',
-                            },
-                        ),
-                ]),
-            html.Div(
-                id='table-wrapper',
-                children=[
-                    lo_table,
-                    dcc.Interval(
-                        id='table-update', interval=update_interval),
-                    dcc.Store(id='table-update-first-row-id'),
-                    dcc.Store(id='table-update-nrows'),
-                    dcc.Store(id='table-update-new-rows'),
-                    # dcc.Store(
-                    #     id='table-data', storage_type='session',
-                    #     data=data
-                    #     ),
-                    ],
-            )
-            # lo_table,
-        ])
+    return components
 
 
-app.clientside_callback(
-    ClientsideFunction(
-        namespace='tolteca',
-        function_name='array_first_id'
-    ),
-    Output('table-update-first-row-id', 'data'),
-    [Input(f'{ctx}-table', 'data')]
-)
+def get_layout(**kwargs):
+    '''Returns the layout that contains a table view to the source.'''
 
+    components = []
 
-app.clientside_callback(
-    ClientsideFunction(
-        namespace='tolteca',
-        function_name='array_size'
-    ),
-    Output('table-update-nrows', 'data'),
-    [Input(f'{ctx}-table', 'data')]
-)
+    width = 12 / len(sources)
+    for src in sources:
+        components.append(dbc.Col(
+            _get_layout(src), width=12, lg=width))
 
-
-app.clientside_callback(
-    ClientsideFunction(
-        namespace='tolteca',
-        function_name='array_concat'
-    ),
-    Output(f'{ctx}-table', 'data'),
-    [
-        Input('table-update-new-rows', 'data'),
-    ],
-    [State(f'{ctx}-table', 'data')]
-)
-
-
-@timeit
-@app.callback([
-        Output('table-update-new-rows', 'data'),
-        Output('table-is-loading', 'children')
-        ], [
-        Input('table-update', 'n_intervals')], [
-        State('table-update-first-row-id', 'data'),
-        State('table-update-nrows', 'data'),
-        ])
-def refresh_table(n_intervals, first_row_id, nrows):
-    if nrows is not None and nrows < n_records:
-        first_row_id -= n_records - nrows
-    df = update_toltec_files(first_row_id)
-    return df.to_dict("records"), ""
+    return html.Div([dbc.Row(components)])

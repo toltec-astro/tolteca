@@ -25,7 +25,7 @@ a:hover {color: #014c8c !important}
 .dash-spreadsheet-container
 {
     /* maxHeight: 90vh !important; */
-    max-height: 85vh !important;
-    height: 85vh;
+    max-height: 80vh !important;
+    height: 80vh;
     float: right !important;
 }
