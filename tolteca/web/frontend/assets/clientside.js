@@ -17,7 +17,8 @@ window.dash_clientside.tolteca = {
         // console.log("concat")
         // console.log(a)
         // console.log(b)
-        if (!a) {
+        if (!a || a.length == 0) {
+            // console.log("no update")
             return b
         }
         return a.concat(b)

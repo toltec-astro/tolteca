@@ -98,6 +98,7 @@ class TableViewComponent(SimpleComponent):
                 # virtualization=True,
                 # persistence=True,
                 # persistence_type='session',
+                page_action='none',
                 style_data_conditional=[
                     {
                         'if': {'row_index': 'odd'},
