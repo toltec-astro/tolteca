@@ -33,8 +33,9 @@ source_common = {
                           f' {{join}} {{group}}'
                           f' order by {{order}} limit {N_RECORDS_INIT}',
             'query_update': f'select {{use_cols}} from {{table}} a'
-                            f' {{join}} {{group}}'
+                            f' {{join}}'
                             f' where a.id >= {{id_since}}'
+                            f' {{group}}'
                             f' order by {{order}} limit {N_RECORDS}',
             'query_params': {'parse_dates': ["DateTime"]},
         }
@@ -80,6 +81,36 @@ sources = odict_from_list(map(lambda d: d.update(source_common) or d, [
             'group': 'group by a.ObsNum',
             'order': 'a.id desc'
             },
+        # {
+        #     'label': 'lmt',
+        #     'title': 'Test',
+        #     'bind': 'lmt_pico',
+        #     'table': 'lmtmc_header.Scans',
+        #     'use_cols': ', '.join([
+        #         # 'GROUP_CONCAT(a.id SEPARATOR ",") AS id',
+        #         'id', 'ObsNum',
+        #         # 'max(a.id) as id',
+        #         # 'a.Obsnum', 'a.SubObsNum', 'a.ScanNum',
+        #         'TIMESTAMP(a.Date, a.Time) as DateTime',
+        #         # 'GROUP_CONCAT('
+        #         # 'a.RoachIndex order by a.RoachIndex SEPARATOR ",")'
+        #         # ' AS RoachIndex',
+        #         # # 'a.RoachIndex',
+        #         # 'GROUP_CONCAT('
+        #         # 'distinct a.HostName order by a.RoachIndex SEPARATOR ",")'
+        #         # ' AS HostName',
+        #         # # 'a.HostName',
+        #         # 'b.label as ObsType',
+        #         # 'c.label as Master',
+        #         ]),
+        #     'join': '',
+        #     # 'join': f"inner join toltec.obstypes b on a.ObsType = b.id"
+        #     #         f" inner join toltec.masters c on a.Master = c.id",
+        #     'group': '',
+        #     # 'group': 'group by a.ObsNum',
+        #     'order': 'a.id desc'
+        #     },
+
     ]), key='label')
 
 
