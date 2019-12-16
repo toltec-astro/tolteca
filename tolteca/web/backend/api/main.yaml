@@ -80,9 +80,9 @@ paths:
                 type: boolean
                 x-content-type: application/json
               example: false
-      security:
-      - jwt:
-        - read:has_api_access
+              # security:
+              # - jwt:
+              # - read:has_api_access
   # /user:
   #   post:
   #     tags:
