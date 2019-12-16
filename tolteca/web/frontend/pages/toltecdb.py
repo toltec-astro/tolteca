@@ -6,7 +6,7 @@ import dash_html_components as html
 # from pandas import DataFrame
 # import pandas as pd
 # import dash_bootstrap_components as dbc
-from dash.dependencies import Input, State, Output
+from dash.dependencies import Input, State, Output  # , ClientsideFunction
 from ...backend import dataframe_from_db
 from .. import get_current_dash_app
 from tolteca.utils.log import timeit, get_logger
@@ -20,8 +20,8 @@ logger = get_logger()
 
 
 UPDATE_INTERVAL = 4000  # ms
-N_RECORDS_INIT = 500
-N_RECORDS = 500
+N_RECORDS_INIT = 50
+N_RECORDS = 50
 
 
 def odict_from_list(l, key):
@@ -68,8 +68,9 @@ sources = odict_from_list(map(lambda d: d.update(source_common) or d, [
                 'a.RoachIndex order by a.RoachIndex SEPARATOR ",")'
                 ' AS RoachIndex',
                 # 'a.RoachIndex',
-                'GROUP_CONCAT('
-                'distinct a.HostName order by a.RoachIndex SEPARATOR ",")'
+                'CONCAT("clip", GROUP_CONCAT('
+                'distinct right(a.HostName, 1)'
+                ' order by a.RoachIndex SEPARATOR "/"))'
                 ' AS HostName',
                 # 'a.HostName',
                 'b.label as ObsType',
@@ -164,6 +165,16 @@ for src in sources.values():
                 **src['query_params'])
             return df.to_dict("records"), ""
 
+    # app.clientside_callback(
+    #     ClientsideFunction(
+    #         namespace='ui',
+    #         function_name='replaceWithLinks'
+    #         ),
+    #     Output(f'{tbn.table}-dummy', 'children'),
+    #     [Input(tbn.table, 'derived_viewport_data')],
+    #     [State(tbn.table, 'id')]
+    # )
+
 
 def _get_layout(src):
     try:
@@ -179,6 +190,7 @@ def _get_layout(src):
                         })
 
     slc = src['_synced_list'].components(interval=UPDATE_INTERVAL)
+    slc.append(html.Div(id='{}-dummy'.format(src['_table_view'].table)))
 
     components = src['_table_view'].components(
             src['title'],
@@ -186,6 +198,7 @@ def _get_layout(src):
             columns=[
                 {"name": i, "id": i} for i in df.columns],
             data=df.to_dict("records"),
+            fixed_rows={'headers': True, 'data': 0},
             )
     return components
 

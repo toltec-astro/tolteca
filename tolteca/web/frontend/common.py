@@ -13,9 +13,19 @@ class SimpleComponent(object):
         self.label = label
         for id_ in ids:
             self.make_id(id_)
+        self._components_factory = dict()
 
     def make_id(self, s):
         setattr(self, s, f'{self.label}-{self.component_label}-{s}')
+
+    def add_component(self, s, f):
+        self.make_id(s)
+        self._components_factory[s] = f
+
+    def components(self, **kwargs):
+        return [
+            f(getattr(self, k)) for k, f in self._components_factory.items()
+            ]
 
 
 class SyncedListComponent(SimpleComponent):
@@ -32,11 +42,13 @@ class SyncedListComponent(SimpleComponent):
                 'label': self.label
                 }
 
-        return [
+        result = super().components()
+        result.extend([
                 dcc.Interval(id=self.timer, interval=interval),
                 dcc.Store(id=self.state, data=state_data),
                 dcc.Store(id=self.items),
-                ]
+                ])
+        return result
 
     def make_callbacks(
             self, app, data_component,
@@ -115,7 +127,6 @@ class TableViewComponent(SimpleComponent):
                     'backgroundColor': '#aaaaaa',
                     'fontWeight': 'bold'
                 },
-                fixed_rows={'headers': True, 'data': 0},
                 style_cell={
                     'textAlign': 'left',
                     'padding': '5px',
@@ -124,9 +135,10 @@ class TableViewComponent(SimpleComponent):
                 },
                 )
         tbl_kwargs.update(**kwargs)
-        components = [dash_table.DataTable(**tbl_kwargs), ]
+        result = super().components()
+        result.append(dash_table.DataTable(**tbl_kwargs))
         if additional_components is not None:
-            components.extend(additional_components)
+            result.extend(additional_components)
         return html.Div([
             # title row
             dbc.Row(
@@ -145,6 +157,6 @@ class TableViewComponent(SimpleComponent):
                                 ]),
                         width=2),
                     ]),
-            # content
-            dbc.Row([dbc.Col(html.Div(components), width=12), ]),
+            # content row
+            dbc.Row([dbc.Col(html.Div(result), width=12), ]),
             ])

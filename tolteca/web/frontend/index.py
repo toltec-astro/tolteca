@@ -1,7 +1,9 @@
 import dash_html_components as html
 
 from .utils import DashRouter, DashNavBar
-from .pages import character_counter, page2, page3, toltecdb
+from .pages import (
+        character_counter, page2, page3, toltecdb, kidsview, kscope,
+        thermometry)
 from .components import fa
 from . import get_current_dash_app
 
@@ -13,6 +15,9 @@ app = get_current_dash_app()
 urls = (
     ("", toltecdb.get_layout),
     ("toltecdb", toltecdb.get_layout),
+    ("kscope", kscope.get_layout),
+    ("thermometry", thermometry.get_layout),
+    ("kidsview", kidsview.get_layout),
     ("character-counter", character_counter.get_layout),
     ("page2", page2.layout),
     ("page3", page3.layout),
@@ -24,6 +29,12 @@ urls = (
 # keyword argument for a Dash component (ie a Dash Component or a string).
 nav_items = (
     ("toltecdb", html.Div([fa("fas fa-table"), "TolTEC Database"])),
+    ("kscope", html.Div(
+        [fa("fas fa-keyboard"), "Kids Scope"])),
+    ("thermometry", html.Div(
+        [fa("fas fa-keyboard"), "Thermometry"])),
+    ("kidsview", html.Div(
+        [fa("fas fa-keyboard"), "Kids Exam"])),
     ("character-counter", html.Div(
         [fa("fas fa-keyboard"), "Character Counter"])),
     ("page2", html.Div([fa("fas fa-chart-area"), "Page 2"])),
