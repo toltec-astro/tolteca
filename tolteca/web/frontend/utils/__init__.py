@@ -4,8 +4,16 @@ from urllib.parse import parse_qs
 import dash
 from flask import current_app as server
 from werkzeug.datastructures import MultiDict
-
+import datetime
+import pytz
 from collections import OrderedDict
+import numpy as np
+
+
+def tz_off_from_ut(tz):
+    tz_now = datetime.datetime.now(pytz.timezone(tz))
+    offset_hours = int(tz_now.utcoffset().total_seconds() / 3600)
+    return np.timedelta64(offset_hours, 'h')
 
 
 def get_query_params(search):

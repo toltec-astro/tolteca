@@ -13,6 +13,7 @@ from functools import lru_cache
 from plotly.subplots import make_subplots
 import numpy as np
 from pathlib import Path
+from ..utils import tz_off_from_ut
 
 
 app = get_current_dash_app()
@@ -28,7 +29,9 @@ UPDATE_INTERVAL = 30 * 1000  # ms
 src = {
     'label': 'thermometry',
     'title': 'Thermometry',
-    'runtime_link': '/data_toltec/thermetry/thermetry.nc'
+    # 'runtime_link': '/data_toltec/thermetry/thermetry.nc'
+    'runtime_link': '/Users/ma/Codes/toltec/kids/test_data/thermetry.nc',
+    'local_tz': 'EST',
     }
 
 
@@ -105,6 +108,26 @@ def get_layout(**kwargs):
                         'margin': '0px 5px',
                         }
                     ),
+                html.Div(className='mx-4'),
+                html.Div([
+                        html.Label(src['local_tz'], style={
+                            'font-size': '14px',
+                            'display': 'block',
+                            'margin': '0px 5px',
+                            }),
+                        daq.ToggleSwitch(
+                            id=f'{ctx}-control-toggle-ut',
+                            value=False,
+                            style={
+                                'margin': '0px 5px',
+                                }
+                            ),
+                        html.Label("UT", style={
+                            'font-size': '14px',
+                            'display': 'block',
+                            'margin': '0px 5px',
+                            }),
+                    ], className='d-flex align-items-center'),
                 ]),
             ], className='px-2')
     graph_view = html.Div([
@@ -124,6 +147,9 @@ def get_layout(**kwargs):
         ])
 
 
+utc_to_local_tz = tz_off_from_ut(src['local_tz'])
+
+
 def get_traces():
     tm = Thermetry.from_link(src['runtime_link'])
     n_times = 100
@@ -140,7 +166,7 @@ def get_traces():
         time_latest = np.max([t['x'][-1] for t in result if len(t['x']) > 0])
     except RuntimeError:
         logger.warning(f"data file {tm} is empty")
-        return list() 
+        return list()
     else:
         for t in result:
             mask = np.where(
@@ -151,7 +177,7 @@ def get_traces():
     return result
 
 
-def get_figure(collate=False):
+def get_figure(collate=False, use_ut=False):
     traces = get_traces()
     if collate:
         n_panels = 1
@@ -168,12 +194,16 @@ def get_figure(collate=False):
     fig.update_layout(
             height=fig_height,
             **fig_layout)
+    if not use_ut:
+        fig['layout']['xaxis']['title'] = src['local_tz']
     for i, t in enumerate(traces):
         if collate:
             row = 1
         else:
             row = i + 1
         col = 1
+        if not use_ut:
+            t['x'] = t['x'] + utc_to_local_tz
         fig.append_trace(t, row, col)
     return fig
 
@@ -182,9 +212,10 @@ def get_figure(collate=False):
         Output(f'{ctx}', 'figure')
         ], [
         Input(f'{ctx}-update-timer', 'n_intervals'),
-        Input(f'{ctx}-control-toggle-collate', 'on')
+        Input(f'{ctx}-control-toggle-collate', 'on'),
+        Input(f'{ctx}-control-toggle-ut', 'value')
         ], [
         ])
-def entry_update(n_intervals, collate):
-    print(f"called with {n_intervals} {collate}")
-    return get_figure(collate=collate),
+def entry_update(n_intervals, collate, use_ut):
+    print(f"called with {n_intervals} {collate} {use_ut}")
+    return get_figure(collate=collate, use_ut=use_ut),
