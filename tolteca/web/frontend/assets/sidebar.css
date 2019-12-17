@@ -1,0 +1,99 @@
+.brand i, .nav-link i {
+    padding: 0.5rem 1rem;
+    width: 50px;
+    text-align: center;
+}
+
+.brand a:hover{text-decoration: none}
+
+#sidebar a {color: white !important}
+
+#sidebar {
+  padding: 1rem 0rem;
+}
+
+#sidebar h2 {
+  margin-bottom: 0;
+}
+
+#sidebar-toggle {
+  display: none;
+}
+
+#sidebar .nav-link {
+  padding: 0.5rem 0rem;
+  font-size: 1.1em;
+}
+
+#nav-collapse .nav-pills {
+  margin: 1.0rem 0rem;
+}
+
+/* add the three horizontal bars icon for the toggle */
+.navbar-toggler-icon {
+  background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3e%3cpath stroke='rgba(0, 0, 0, 0.5)' stroke-width='2' stroke-linecap='round' stroke-miterlimit='10' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+#navbar-toggle, #sidebar-toggle *:visited { outline: none; }
+
+#page-content {
+  padding: 1rem 1rem;
+}
+
+@media (min-width: 64em) {
+  #sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 20rem;
+    text-align: left;
+    transition: margin 0.3s ease-in-out, padding 0.3s ease-in-out;
+  }
+
+  #sidebar-toggle {
+    display: inline-block;
+    position: relative;
+    top: 0;
+    transition: top 0.3s ease-in-out;
+  }
+
+  /* add negative margin to sidebar to achieve the collapse */
+  #sidebar.collapsed {
+    margin-left: -15.5rem;
+    padding-right: 0.5rem;
+  }
+
+  /* move the sidebar toggle up to the top left corner */
+  #sidebar.collapsed #sidebar-toggle {
+    top: -0.5rem;
+  }
+
+  /* also adjust margin of page content */
+  #sidebar.collapsed ~ #page-content {
+    margin-left: 5.5rem;
+  }
+
+  /* move all contents of navbar other than header (containing toggle) further
+     off-screen */
+  #sidebar.collapsed > *:not(:first-child) {
+    margin-left: -6rem;
+    margin-right: 6rem;
+  }
+
+  /* Hide the toggle on a large screen */
+  #navbar-toggle {
+    display: none;
+  }
+
+  #nav-collapse {
+    display: block;
+  }
+
+  /* set margins of the main content so that it doesn't overlap the sidebar */
+  #page-content {
+    margin-left: 21rem;
+    margin-right: 2rem;
+    transition: margin-left 0.3s ease-in-out;
+  }
+}
