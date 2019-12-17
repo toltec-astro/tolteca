@@ -29,8 +29,8 @@ UPDATE_INTERVAL = 30 * 1000  # ms
 src = {
     'label': 'thermometry',
     'title': 'Thermometry',
-    # 'runtime_link': '/data_toltec/thermetry/thermetry.nc'
-    'runtime_link': '/Users/ma/Codes/toltec/kids/test_data/thermetry.nc',
+    'runtime_link': '/data_toltec/thermetry/thermetry.nc',
+    # 'runtime_link': '/Users/ma/Codes/toltec/kids/test_data/thermetry.nc',
     'local_tz': 'EST',
     }
 
@@ -152,6 +152,7 @@ utc_to_local_tz = tz_off_from_ut(src['local_tz'])
 
 def get_traces():
     tm = Thermetry.from_link(src['runtime_link'])
+    tm.sync()
     n_times = 100
     result = []
     for i in range(tm.n_channels):
@@ -217,5 +218,5 @@ def get_figure(collate=False, use_ut=False):
         ], [
         ])
 def entry_update(n_intervals, collate, use_ut):
-    print(f"called with {n_intervals} {collate} {use_ut}")
+    logger.debug(f"update graph at {n_intervals} collate={collate} use_ut={use_ut}")
     return get_figure(collate=collate, use_ut=use_ut),

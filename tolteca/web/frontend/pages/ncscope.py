@@ -21,3 +21,6 @@ class NcScope(ExitStack):
         self.logger.debug("ncinfo: {}".format(ncinfo(nc)))
         self.nc = nc
         self.filepath = Path(nc.filepath())
+
+    def sync(self):
+        self.nc.sync()
