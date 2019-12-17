@@ -42,6 +42,21 @@ window.dash_clientside.tolteca = {
 
 // https://community.plot.ly/t/links-in-datatable-multipage-app/26081/6
 window.dash_clientside.ui = {
+    collapseWithClick: function(n, classname) {
+        console.log(n, classname)
+        if (n) {
+            if (classname && classname.includes(" collapsed")) {
+                return classname.replace(" collapsed", "")
+            }
+            return classname + " collapsed"
+        }
+        return classname
+    },
+    toggleWithClick: function(n, is_open) {
+        if (n)
+            return !is_open
+        return is_open
+    },
     replaceWithLinks: function(trigger, table_id) {
         let cells = document.getElementById(table_id)
             .getElementsByClassName("dash-cell column-1");

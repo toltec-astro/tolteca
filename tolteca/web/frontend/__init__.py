@@ -2,7 +2,6 @@
 
 from dash import Dash
 from .utils import get_dash_args_from_flask_config
-from .layouts import main_layout_sidebar
 from tolteca.utils.log import timeit
 import flask
 
@@ -31,7 +30,8 @@ def init_app(server):
     with server.app_context():
         server.dash_app = app
         from . import index  # noqa: F401
-        app.layout = main_layout_sidebar()
+        # app.layout = main_layout_sidebar()
+        app.layout = index.layout
 
     return server
 

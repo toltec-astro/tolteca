@@ -2,32 +2,27 @@
 
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc
+import dash_daq as daq
 import dash_html_components as html
-from dash.dependencies import Input, Output, State, ClientsideFunction
-from tolteca.utils.log import timeit, get_logger
-from ...backend import dataframe_from_db, cache
+from dash.dependencies import Input, Output
+from tolteca.utils.log import get_logger
 from .. import get_current_dash_app
-from ..common import TableViewComponent
-import dash
-import plotly
-from pathlib import Path
 from .ncscope import NcScope
-import astropy.units as u
 from cached_property import cached_property
-from tolteca.utils.nc import NcNodeMapper
 from functools import lru_cache
 from plotly.subplots import make_subplots
-import plotly.graph_objects as go
 import numpy as np
-import datetime
+from pathlib import Path
 
 
 app = get_current_dash_app()
 logger = get_logger()
 ctx = 'thermometry-graph'
 
+title_text = 'Thermometry'
+title_icon = 'fas fa-thermometer-half'
 
-UPDATE_INTERVAL = 1000  # ms
+UPDATE_INTERVAL = 5000  # ms
 
 
 src = {
@@ -95,27 +90,31 @@ fig_layout = dict(
 
 def get_layout(**kwargs):
     controls = html.Div([
-        dcc.Checklist(
-            id=f'{ctx}-control-toggles',
-            options=[
-                {'label': 'Collate', 'value': 'collate'},
-            ],
-            value=['collate', ]
-            ),
-        ])
+            dbc.Row([
+                daq.BooleanSwitch(
+                    id=f'{ctx}-control-toggle-collate',
+                    label={
+                        'label': 'Collate',
+                        'style': {
+                            'margin': '0px 5px',
+                            },
+                        },
+                    labelPosition='left',
+                    on=True,
+                    style={
+                        'margin': '0px 5px',
+                        }
+                    ),
+                ]),
+            ], className='px-2')
     graph_view = html.Div([
         dcc.Interval(
             id=f'{ctx}-update-timer',
             interval=UPDATE_INTERVAL),
         dcc.Graph(
             id=f'{ctx}',
-            figure=dict(
-                data=get_traces(),
-                layout=dict(
-                    height=1000,
-                    **fig_layout
-                    )),
-            animate=True,
+            figure=get_figure(collate=True),
+            # animate=True,
             )
         ])
     return html.Div([
@@ -147,16 +146,9 @@ def get_traces():
     return result
 
 
-@timeit
-@app.callback([
-        Output(f'{ctx}', 'figure')
-        ], [
-        Input(f'{ctx}-update-timer', 'n_intervals')], [
-        State(f'{ctx}-control-toggles', 'value')
-        ])
-def entry_update(n_intervals, control_toggles):
+def get_figure(collate=False):
     traces = get_traces()
-    if 'collate' in control_toggles:
+    if collate:
         n_panels = 1
         fig_height = 900
         fig_kwargs = dict()
@@ -172,10 +164,22 @@ def entry_update(n_intervals, control_toggles):
             height=fig_height,
             **fig_layout)
     for i, t in enumerate(traces):
-        if 'collate' in control_toggles:
+        if collate:
             row = 1
         else:
             row = i + 1
         col = 1
         fig.append_trace(t, row, col)
-    return fig,
+    return fig
+
+
+@app.callback([
+        Output(f'{ctx}', 'figure')
+        ], [
+        Input(f'{ctx}-update-timer', 'n_intervals'),
+        Input(f'{ctx}-control-toggle-collate', 'on')
+        ], [
+        ])
+def entry_update(n_intervals, collate):
+    print(f"called with {n_intervals} {collate}")
+    return get_figure(collate=collate),

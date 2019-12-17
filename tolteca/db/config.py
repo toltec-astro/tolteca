@@ -8,7 +8,7 @@ DB_CONFIG = {
         #     'tables_from_reflection': True
         # },
         'lmt_toltec': {
-            'uri': 'mysql+mysqldb://tol:tirra@clipy:3306',
+            'uri': 'mysql+mysqldb://tol:tirra@127.0.0.1:3307',
             'tables_from_reflection': True
         },
         'debug_b': {

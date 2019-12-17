@@ -16,6 +16,9 @@ from pathlib import Path
 app = get_current_dash_app()
 logger = get_logger()
 
+title_text = 'KScope'
+title_icon = 'fas fa-stethoscope'
+
 UPDATE_INTERVAL = 1000  # ms
 N_RECORDS_LATEST = 1
 

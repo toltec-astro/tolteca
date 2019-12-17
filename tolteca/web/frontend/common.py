@@ -5,6 +5,66 @@ from dash.dependencies import Input, State, Output, ClientsideFunction
 import dash_bootstrap_components as dbc
 import dash_table
 import dash_html_components as html
+from dash.development.base_component import Component
+from tolteca.utils.log import timeit
+from cached_property import cached_property
+import importlib
+# from .utils import get_url
+
+
+def fa(className):
+    return html.I(className=className)
+
+
+class SimplePage(object):
+
+    def __init__(self, label, module_prefix='.', route_prefix=''):
+        self._label = label
+        self._module_prefix = module_prefix
+        self._route_prefix = route_prefix
+
+    @property
+    def pathname(self):
+        return f'/{self._label}'
+
+    @cached_property
+    def page(self):
+        return timeit(f"load page {self.pathname}")(
+                importlib.import_module)(
+                    f'{self._module_prefix}{self._label}',
+                    package=__package__)
+
+    def get_layout(self, **kwargs):
+        layout = getattr(self.page, 'get_layout', None)
+        if isinstance(layout, Component):
+            return layout
+        elif callable(layout):
+            layout = layout(**kwargs)
+            if isinstance(layout, Component):
+                return layout
+        raise ValueError(
+                f"page {self.page} does not contain valid layout")
+
+    @property
+    def title(self):
+        try:
+            page = self.page
+        except Exception:
+            page = None
+        title = getattr(page, 'title_text', self._label)
+        icon = getattr(page, 'title_icon', 'fas fa-keyboard')
+        return fa(icon), title
+
+    @property
+    def nav_link(self):
+        return dbc.NavLink(
+                self.title,
+                href=f"{self._route_prefix}{self.pathname}",
+                id=self.nav_link_id)
+
+    @property
+    def nav_link_id(self):
+        return f"page-{self._label}-link"
 
 
 class SimpleComponent(object):
@@ -144,19 +204,24 @@ class TableViewComponent(SimpleComponent):
             dbc.Row(
                 [
                     dbc.Col(
-                        html.H1(title, style={
-                            'line-height': '80px',
-                            'vertical-align': 'middle',
-                            }),
-                        width=4),
-                    dbc.Col(
-                        dcc.Loading(
-                            id=self.is_loading,
-                            children=[
-                                    html.Div(id=self.is_loading_trigger)
-                                ]),
-                        width=2),
+                        html.Div([
+                            html.H1(
+                                title,
+                                className='d-inline-block align-middle',
+                                style={
+                                    'line-height': '80px'
+                                    }
+                                ),
+                            dcc.Loading(
+                                id=self.is_loading,
+                                children=[
+                                        html.Div(id=self.is_loading_trigger)
+                                    ],
+                                className='d-inline-block btn align-middle',
+                                ),
+                            ], className='px-0')
+                        ),
                     ]),
             # content row
-            dbc.Row([dbc.Col(html.Div(result), width=12), ]),
+            dbc.Row([dbc.Col(html.Div(result)), ]),
             ])

@@ -12,20 +12,19 @@ from .. import get_current_dash_app
 from tolteca.utils.log import timeit, get_logger
 from tolteca.utils.fmt import pformat_dict
 from ..common import TableViewComponent, SyncedListComponent
-from collections import OrderedDict
+from ..utils import odict_from_list
 
 
 app = get_current_dash_app()
 logger = get_logger()
 
+title_text = "TolTEC Database"
+title_icon = "fas fa-table"
+
 
 UPDATE_INTERVAL = 4000  # ms
 N_RECORDS_INIT = 50
 N_RECORDS = 50
-
-
-def odict_from_list(l, key):
-    return OrderedDict([(v[key], v) for v in l])
 
 
 source_common = {
@@ -112,7 +111,7 @@ sources = odict_from_list(map(lambda d: d.update(source_common) or d, [
         #     'order': 'a.id desc'
         #     },
 
-    ]), key='label')
+    ]), key=lambda v: v['label'])
 
 
 logger.debug(f"sources: {pformat_dict(sources)}")
