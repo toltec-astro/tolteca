@@ -6,7 +6,7 @@ import dash_bootstrap_components as dbc
 import dash_table
 import dash_html_components as html
 from dash.development.base_component import Component
-from tolteca.utils.log import timeit
+from tolteca.utils.log import timeit, get_logger
 from cached_property import cached_property
 import importlib
 # from .utils import get_url
@@ -69,6 +69,8 @@ class SimplePage(object):
 
 class SimpleComponent(object):
 
+    logger = get_logger()
+
     def __init__(self, label, ids):
         self.label = label
         for id_ in ids:
@@ -78,14 +80,25 @@ class SimpleComponent(object):
     def make_id(self, s):
         setattr(self, s, f'{self.label}-{self.component_label}-{s}')
 
-    def add_component(self, s, f):
+    def add_components_factory(self, s, f, use_ids=None):
         self.make_id(s)
         self._components_factory[s] = f
+        if use_ids is not None:
+            for s in use_ids:
+                setattr(self, s, getattr(f, s))
+
+    def make_components(self, s, **kwargs):
+        self.logger.debug(f"make components {s} {kwargs}")
+        f = self._components_factory[s]
+        if isinstance(f, SimpleComponent):
+            return f.components(**kwargs)
+        return f(getattr(self, s), **kwargs)
 
     def components(self, **kwargs):
-        return [
-            f(getattr(self, k)) for k, f in self._components_factory.items()
-            ]
+        return {
+            s: self.make_components(s, **kwargs.get(s, dict()))
+            for s in self._components_factory.keys()
+            }
 
 
 class SyncedListComponent(SimpleComponent):
@@ -102,7 +115,7 @@ class SyncedListComponent(SimpleComponent):
                 'label': self.label
                 }
 
-        result = super().components()
+        result = list(super().components().values())
         result.extend([
                 dcc.Interval(id=self.timer, interval=interval),
                 dcc.Store(id=self.state, data=state_data),
@@ -151,12 +164,44 @@ class SyncedListComponent(SimpleComponent):
             )
 
 
+class LiveTitleComponent(SimpleComponent):
+
+    component_label = 'live-title'
+
+    def __init__(self, label):
+        super().__init__(label, ('text', 'is_loading', 'is_loading_trigger'))
+
+    def components(self, title):
+
+        return html.Div([
+                html.H1(
+                    title,
+                    id=self.text,
+                    className='d-inline-block align-middle',
+                    style={
+                        'line-height': '80px'
+                        }
+                    ),
+                dcc.Loading(
+                    id=self.is_loading,
+                    children=[
+                            html.Div(id=self.is_loading_trigger)
+                        ],
+                    className='d-inline-block btn align-middle',
+                    ),
+                ], className='px-0')
+
+
 class TableViewComponent(SimpleComponent):
 
     component_label = 'table-view'
 
     def __init__(self, label):
-        super().__init__(label, ('table', 'is_loading', 'is_loading_trigger'))
+        super().__init__(label, ('table', 'title'))
+        self.add_components_factory(
+                'title',
+                LiveTitleComponent(self.title),
+                use_ids=['is_loading', 'is_loading_trigger'])
 
     def components(self, title, additional_components=None, **kwargs):
 
@@ -195,33 +240,19 @@ class TableViewComponent(SimpleComponent):
                 },
                 )
         tbl_kwargs.update(**kwargs)
-        result = super().components()
+        result = super().components(title={
+            'title': title
+            })
+        title_components = result.pop("title")
+        result = list(result.values())
         result.append(dash_table.DataTable(**tbl_kwargs))
         if additional_components is not None:
             result.extend(additional_components)
         return html.Div([
             # title row
-            dbc.Row(
-                [
-                    dbc.Col(
-                        html.Div([
-                            html.H1(
-                                title,
-                                className='d-inline-block align-middle',
-                                style={
-                                    'line-height': '80px'
-                                    }
-                                ),
-                            dcc.Loading(
-                                id=self.is_loading,
-                                children=[
-                                        html.Div(id=self.is_loading_trigger)
-                                    ],
-                                className='d-inline-block btn align-middle',
-                                ),
-                            ], className='px-0')
-                        ),
-                    ]),
+            dbc.Row([
+                dbc.Col(title_components),
+                ]),
             # content row
             dbc.Row([dbc.Col(html.Div(result)), ]),
             ])

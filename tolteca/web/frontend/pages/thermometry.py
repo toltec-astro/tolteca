@@ -14,6 +14,7 @@ from plotly.subplots import make_subplots
 import numpy as np
 from pathlib import Path
 from ..utils import tz_off_from_ut
+from ..common import LiveTitleComponent
 
 
 app = get_current_dash_app()
@@ -28,10 +29,11 @@ UPDATE_INTERVAL = 30 * 1000  # ms
 
 src = {
     'label': 'thermometry',
-    'title': 'Thermometry',
-    'runtime_link': '/data_toltec/thermetry/thermetry.nc',
-    # 'runtime_link': '/Users/ma/Codes/toltec/kids/test_data/thermetry.nc',
+    'title': title_text,
+    # 'runtime_link': '/data_toltec/thermetry/thermetry.nc'
+    'runtime_link': '/Users/ma/Codes/toltec/kids/test_data/thermetry.nc',
     'local_tz': 'EST',
+    '_title_view': LiveTitleComponent(f'{ctx}')
     }
 
 
@@ -141,7 +143,7 @@ def get_layout(**kwargs):
             )
         ])
     return html.Div([
-        dbc.Row([dbc.Col(html.H1(src['title'])), ]),
+        dbc.Row([dbc.Col(src['_title_view'].components(src['title'])), ]),
         dbc.Row([dbc.Col(controls), ]),
         dbc.Row([dbc.Col(graph_view), ]),
         ])
@@ -210,7 +212,8 @@ def get_figure(collate=False, use_ut=False):
 
 
 @app.callback([
-        Output(f'{ctx}', 'figure')
+        Output(f'{ctx}', 'figure'),
+        Output(src['_title_view'].is_loading, 'children')
         ], [
         Input(f'{ctx}-update-timer', 'n_intervals'),
         Input(f'{ctx}-control-toggle-collate', 'on'),
@@ -219,4 +222,4 @@ def get_figure(collate=False, use_ut=False):
         ])
 def entry_update(n_intervals, collate, use_ut):
     logger.debug(f"update graph at {n_intervals} collate={collate} use_ut={use_ut}")
-    return get_figure(collate=collate, use_ut=use_ut),
+    return get_figure(collate=collate, use_ut=use_ut), ""
