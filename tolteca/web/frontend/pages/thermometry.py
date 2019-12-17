@@ -22,13 +22,13 @@ ctx = 'thermometry-graph'
 title_text = 'Thermometry'
 title_icon = 'fas fa-thermometer-half'
 
-UPDATE_INTERVAL = 5000  # ms
+UPDATE_INTERVAL = 30 * 1000  # ms
 
 
 src = {
     'label': 'thermometry',
     'title': 'Thermometry',
-    'runtime_link': '/Users/ma/Codes/toltec/kids/test_data/thermetry.nc'
+    'runtime_link': '/data_toltec/thermetry/thermetry.nc'
     }
 
 
@@ -136,13 +136,18 @@ def get_traces():
             'mode': 'lines+markers',
             'type': 'scatter'
         })
-    time_latest = np.max([t['x'][-1] for t in result])
-    for t in result:
-        mask = np.where(
-                (t['x'] >= (time_latest - np.timedelta64(24, 'h'))) &
-                (t['y'] > 0.))[0]
-        t['x'] = t['x'][mask]
-        t['y'] = t['y'][mask]
+    try:
+        time_latest = np.max([t['x'][-1] for t in result if len(t['x']) > 0])
+    except RuntimeError:
+        logger.warning(f"data file {tm} is empty")
+        return list() 
+    else:
+        for t in result:
+            mask = np.where(
+                    (t['x'] >= (time_latest - np.timedelta64(24, 'h'))) &
+                    (t['y'] > 0.))[0]
+            t['x'] = t['x'][mask]
+            t['y'] = t['y'][mask]
     return result
 
 
