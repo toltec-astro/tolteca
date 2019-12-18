@@ -70,7 +70,7 @@ class ToltecDataFileSpec(object):
         if info is not None:
             info['source'] = path
             master = path.parent.name
-            if master == f'info{"nwname"}':
+            if master == f'{info["interface"]}':
                 master = path.parent.parent.name
             info['master'] = master
         return info

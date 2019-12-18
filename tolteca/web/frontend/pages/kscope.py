@@ -4,13 +4,18 @@ import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State, ClientsideFunction
+from tolteca.utils.fmt import pformat_dict
 from tolteca.utils.log import timeit, get_logger
-from ...backend import dataframe_from_db, cache
+from tolteca.io.toltec import NcFileIO
+from ...backend import dataframe_from_db
 from .. import get_current_dash_app
 from ..common import TableViewComponent
 import dash
-import plotly
+from plotly.subplots import make_subplots
+from .ncscope import NcScope
+from functools import lru_cache
 from pathlib import Path
+import numpy as np
 
 
 app = get_current_dash_app()
@@ -42,11 +47,11 @@ src = {
         'distinct right(a.HostName, 1) order by a.RoachIndex SEPARATOR "/"))'
         ' AS HostName',
         'b.label as ObsType',
-        # 'c.label as Master',
+        'c.label as Master',
         'd.Entry as Comment',
         ]),
     'join': f"inner join toltec.obstypes b on a.ObsType = b.id"
-            # f" inner join toltec.masters c on a.Master = c.id"
+            f" inner join toltec.masters c on a.Master = c.id"
             f" inner join lmtmc_notes.userlog d on a.Obsnum = d.Obsnum",
     # 'group': ''
     'group': 'group by a.ObsNum',
@@ -54,74 +59,100 @@ src = {
     'query_params': {'parse_dates': ["DateTime"]},
     }
 
+# data_rootpaths = {
+#         'clipa': '/clipa',
+#         'clipo': '/clipo',
+#         }
 
-class NcScope(object):
+data_rootpaths = {
+        'clipa': '/Users/ma/Codes/toltec/kids/test_data2/clipa',
+        'clipo': '/Users/ma/Codes/toltec/kids/test_data2/clipo',
+        }
 
-    logger = get_logger()
-
-    def __init__(self, source):
-        self._source = source
-
-    @cache.memoize(timeout=60)
-    @classmethod
-    def from_file(cls, filepath):
-        cls.logger.debug(f"create {cls} for {filepath}")
-        return cls(source=Path(filepath))
-
-    def iter_data(size):
-        head = 0
-        tail = 100
-        def iter():
-            while head < tail:
-                yield range(head, head + size)
-                head += size
+roach_ids = list(range(13))
 
 
-class KidsScope(NcScope):
-
-    logger = get_logger()
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    @classmethod
-    def from_db(cls, **kwargs):
-        return cls(source=None)
+def get_data_rootpath(roach_id):
+    if roach_id in range(0, 7):
+        return Path(data_rootpaths['clipa'])
+    elif roach_id in range(7, 13):
+        return Path(data_rootpaths['clipo'])
+    raise RuntimeError(f"unknown roach_id {roach_id}")
 
 
-class Thermetry(NcScope):
+def roach_ids_from_toltecdb_entry(entry):
+    return [int(i) for i in entry['RoachIndex'].split(",")]
+
+
+class KScope(NcScope):
 
     logger = get_logger()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.io = NcFileIO(self.nc)
 
     @classmethod
-    def from_db(cls, **kwargs):
-        return cls(source=None)
+    @lru_cache(maxsize=128)
+    def from_filepath(cls, filepath):
+        return cls(source=filepath)
+
+    @classmethod
+    def from_toltecdb_entry(cls, entry):
+        roach_ids = roach_ids_from_toltecdb_entry(entry)
+        master = entry['Master'].lower()
+        result = []
+        for roach_id in roach_ids:
+            rootpath = get_data_rootpath(roach_id)
+            path = rootpath.joinpath(
+                    f'{master}/toltec{roach_id}/toltec{roach_id}.nc')
+            result.append(cls.from_filepath(path))
+        return result
+
+    def get_iqts(self, time, tone_slice=None):
+
+        # make sure we update the meta
+        self.io.sync()
+
+        var = self.io.nm.getvar
+        meta = self.io.meta
+
+        n_samples = int(time * meta['fsmp'])
+
+        time_total = meta['ntimes_all'] / meta['fsmp']
+
+        if n_samples < 0:
+            mask = slice(n_samples, None)
+            add_time = time_total
+        else:
+            mask = slice(None, n_samples)
+            add_time = 0.
+
+        if tone_slice is None:
+            tone_slice = slice()
+
+        self.logger.debug(
+                f"get iqs n_samples={n_samples}"
+                f" {time}/{time_total} mask={mask}")
+        # iqs have dim [tone, time] after .T
+        iqs = var('is')[mask, tone_slice].T + \
+            1.j * var('qs')[mask, tone_slice].T
+        ts = np.arange(iqs.shape[-1]) / meta['fsmp'] + time + add_time
+        self.logger.debug(f"got iqs.shape {iqs.shape} ts.shape {ts.shape}")
+        return iqs, ts
 
 
 tbn = TableViewComponent(src['label'])
-tbn.add_component(
+tbn.add_components_factory(
         'timer',
         lambda id_: dcc.Interval(id_, interval=UPDATE_INTERVAL))
-tbn.add_component(
+tbn.add_components_factory(
         'entry_updated',
         lambda id_: dcc.Store(id_, data=True))
 
-
-interfaces = [
-        f'toltec{i}' for i in range(13)
-        ]
-
-
-def interfaces_from_entry(entry):
-    return [f'toltec{i}' for i in entry['RoachIndex'].split(",")]
-
-
-interface_options = [{'label': interface,
-                      'value': interface}
-                     for interface in interfaces]
+interface_options = [{
+    'label': 'toltec{i}',
+    'value': i} for i in roach_ids]
 
 
 def get_layout(**kwargs):
@@ -142,19 +173,19 @@ def get_layout(**kwargs):
             #                 tooltip={'always_visible': True},
             #             ),
             #             ])),
-            # interface
+            # interface select
             dbc.Row(dbc.Col(html.Div([
                         dcc.Dropdown(
                             id='interface-dropdown',
                             options=interface_options,
                             multi=True,
-                            value=interfaces,
+                            value=roach_ids,
                             # className="dcc_control"
                         ),
                         ])),
                     ),
             ], style={
-                    'padding': '2em 0',
+                    'padding': '1em 0',
                     })
 
     def _table_view():
@@ -184,11 +215,28 @@ def get_layout(**kwargs):
             ])
     graph_view = html.Div([
         html.Label(id='entry-updated'),
-        dcc.Graph(id='kscope-graph')
+        # dcc.Graph(id='kscope-graph')
+        html.Div(id='graph-content'),
         ])
+
+    file_info = html.Div([
+                dbc.Button(
+                        "File Info",
+                        id="file-info-toggle",
+                        className="mb-2",
+                        size='sm',
+                        color='info',
+                    ),
+                dbc.Collapse(
+                    html.Div(id='file-info-content'),
+                    id="file-info-collapse"
+                    ),
+            ])
+
     return html.Div([
         dbc.Row([dbc.Col(_table_view()), ]),
         dbc.Row([dbc.Col(controls), ]),
+        dbc.Row([dbc.Col(file_info), ]),
         dbc.Row([dbc.Col(graph_view), ]),
         ])
 
@@ -223,35 +271,112 @@ def update(n_intervals, data):
 @timeit
 @app.callback([
         Output('entry-updated', 'children'),
-        Output('kscope-graph', 'figure')
+        Output('file-info-content', 'children'),
+        Output('graph-content', 'children'),
+        # Output('kscope-graph', 'figure')
         ], [
-        Input(tbn.entry_updated, 'data')], [
+        Input(tbn.entry_updated, 'data'),
+        Input('interface-dropdown', 'value'),
+        ], [
+        State(tbn.table, 'data'),
         ])
-def entry_update(entry_updated):
-    if entry_updated:
-        kscope = KScope.from_db()
-        fig = plotly.tools.make_subplots(rows=2, cols=1, vertical_spacing=0.2)
-        fig['layout']['margin'] = {
-            'l': 30, 'r': 10, 'b': 30, 't': 10
-        }
-        fig['layout']['legend'] = {'x': 0, 'y': 1, 'xanchor': 'left'}
-        import numpy as np
-        fig.append_trace({
-            'x': np.arange(10),
-            'y': np.sin(np.arange(10)),
-            'name': 'Altitude',
-            'mode': 'lines+markers',
-            'type': 'scatter'
-        }, 1, 1)
-        fig.append_trace({
-            'x': np.arange(20),
-            'y': np.tan(np.arange(20)),
-            'text': np.arange(20),
-            'name': 'Longitude vs Latitude',
-            'mode': 'lines+markers',
-            'type': 'scatter'
-        }, 2, 1)
-        return html.Div("Updated"), fig
+def entry_update(entry_updated, use_roach_ids, data):
+    # if entry_updated:
+    if True:
+        entry = data[0]
+        use_roach_ids = set(roach_ids_from_toltecdb_entry(entry)).intersection(
+                set(use_roach_ids))
+        print(entry)
+        print(use_roach_ids)
+        entry['RoachIndex'] = ','.join(map(str, use_roach_ids))
+        scopes = KScope.from_toltecdb_entry(entry)
+        if len(scopes) == 0:
+            raise dash.exceptions.PreventUpdate("no scopes found.")
+        print(scopes[0].io)
+        print(scopes[0].io.kind_cls)
+        print(scopes[0].io.kind)
+        print(scopes[0].io.meta)
+
+        def make_info_card(scope):
+            return dbc.Card([
+                        # dbc.CardHeader(dbc.Button(scope.io.meta['interface'])),
+                        dbc.CardBody([
+                            html.H6(scope.io.meta['interface']),
+                            html.Pre(pformat_dict(scope.io.meta))
+                            ])
+                        ])
+
+        def make_plot(scope):
+
+            graph_fs = dcc.Graph(figure={
+                'data': [{
+                        'x': np.arange(10),
+                        'y': np.sin(np.arange(10)),
+                        'name': 'Tones',
+                        'mode': 'markers',
+                        'type': 'scatter'
+                    }],
+                'layout': dict(
+                    uirevision=True,
+                    yaxis={
+                        'autorange': True,
+                        'title': 'Qr'
+                        },
+                    xaxis={
+                        'autorange': True,
+                        'title': 'Frequency (MHz)'
+                        },
+                    )})
+
+            iqs, ts = scope.get_iqts(-10., tone_slice=range(10))
+            print(iqs.shape)
+            print(ts.shape)
+            n_panels = 1
+            fig = make_subplots(
+                rows=n_panels, cols=1)
+            fig.update_layout(
+                    uirevision=True,
+                    yaxis={
+                        'autorange': True,
+                        'title': 'I'
+                        },
+                    xaxis={
+                        'autorange': True,
+                        'title': 'time (s)'
+                        },
+                    )
+            for i in range(iqs.shape[0]):
+                fig.append_trace({
+                        'x': ts,
+                        'y': iqs.real[i, :],
+                        'name': f'tone{i}',
+                        'mode': 'lines+markers',
+                        'type': 'scattergl',
+                        'marker': dict(size=2),
+                        'line': dict(width=0.5),
+                    }, 1, 1)
+
+            graph_iqt = dcc.Graph(figure=fig)
+
+            return html.Div([
+                    # dbc.Row([dbc.Col(graph_fs), ]),
+                    dbc.Row([dbc.Col(graph_iqt), ]),
+                ])
+
+        def make_plot_card(scope):
+            return dbc.Card([
+                        # dbc.CardHeader(dbc.Button(scope.io.meta['interface'])),
+                        dbc.CardBody([
+                            html.H6(scope.io.meta['interface']),
+                            make_plot(scope)
+                            ])
+                        ])
+
+        # cards_container = dbc.CarDeck
+        cards_container = html.Div
+        info_cards = cards_container([make_info_card(s) for s in scopes])
+        plot_cards = cards_container([make_plot_card(s) for s in scopes])
+        return html.Div("Updated"), info_cards, plot_cards
     raise dash.exceptions.PreventUpdate()
 
 
@@ -269,4 +394,15 @@ app.clientside_callback(
             State(tbn.table, 'data'),
             State('interface-dropdown', 'options'),
         ]
+    )
+
+
+app.clientside_callback(
+        ClientsideFunction(
+            namespace='ui',
+            function_name='toggleWithClick',
+        ),
+        Output("file-info-collapse", 'is_open'),
+        [Input("file-info-toggle", "n_clicks")],
+        [State("file-info-collapse", 'is_open')],
     )

@@ -9,7 +9,7 @@ window.dash_clientside.tolteca = {
         data[0]['RoachIndex'].split(',').forEach(
             e => options.push({
                 'label': "toltec" + e,
-                'value': "toltec" + e
+                'value': parseInt(e)
                 })
         )
         return options

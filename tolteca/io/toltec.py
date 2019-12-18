@@ -3,12 +3,14 @@
 from cached_property import cached_property
 
 from ..kidsdata import (
+        Sweep,
         RawTimeStream, SolvedTimeStream, VnaSweep, TargetSweep)
 from ..utils.nc import ncopen, ncinfo, NcNodeMapper
 from ..utils.log import get_logger
 from .registry import register_io_class
 from pathlib import Path
 from contextlib import ExitStack
+from ..fs.toltec import ToltecDataFileSpec
 import re
 
 
@@ -28,6 +30,8 @@ def identify_toltec_nc(filepath):
 class NcFileIO(ExitStack):
     """This class provides methods to access data in netCDF files."""
 
+    spec = ToltecDataFileSpec
+
     logger = get_logger()
 
     def __init__(self, source):
@@ -35,13 +39,43 @@ class NcFileIO(ExitStack):
         self._open_nc(source)
         # setup mappers
         self.nm = NcNodeMapper(self.nc, {
-                "kind": "Header.Toltec.ObsType",
+                # data
                 "is": "Data.Toltec.Is",
                 "qs": "Data.Toltec.Qs",
+                "flos": "Data.Toltec.LoFreq",
                 "sweeps": "Data.Toltec.SweepFreq",
                 "tones": "Header.Toltec.ToneFreq",
                 "rs": "Data.Generic.Rs",
                 "xs": "Data.Generic.Xs",
+                # meta
+                "kindvar": "Header.Toltec.ObsType",
+                "ntones_design": "loclen",
+                "ntones_max": "Header.Toltec.MaxNumTones",
+                "fsmp": "Header.Toltec.SampleFreq",
+                "atten_in": "Header.Toltec.InputAtten",
+                "atten_out": "Header.Toltec.OutputAtten",
+                "source_orig": "Header.Toltec.Filename",
+                "mastervar": "Header.Toltec.Master",
+                "roachid": "Header.Toltec.RoachIndex",
+                "obsid": "Header.Toltec.ObsNum",
+                "subobsid": "Header.Toltec.SubObsNum",
+                "scanid": "Header.Toltec.ScanNum",
+                # meta -- deprecated
+                "flo": "Header.Toltec.LoFreq",
+                "flo_offset": "Header.Toltec.LoOffset",
+                # assoc
+                "cal_roachid": "Header.Toltec.RoachIndex",
+                "cal_obsid": "Header.Toltec.TargSweepObsNum",
+                "cal_subobsid": "Header.Toltec.TargSweepSubObsNum",
+                "cal_scanid": "Header.Toltec.TargSweepScanNum",
+                # data shape
+                "ntimes_all": "time",
+                "ntones": "iqlen",
+                "ntones_": "toneFreqLen",
+                "nreps": "Header.Toltec.NumSamplesPerSweepStep",
+                "nsweepsteps": "Header.Toltec.NumSweepSteps",
+                "nsweeps_all": "numSweeps",
+                "ntonemodelparams": "modelParamsNum",
                 })
 
     def __repr__(self):
@@ -69,9 +103,9 @@ class NcFileIO(ExitStack):
         m = self.nm
         kind_cls = None
         # check header info
-        if m.hasvar('kind'):
-            kindvar = m.getvar('kind')
-            self.logger.debug(f"found kindvar={kindvar} from {m['kind']}")
+        if m.hasvar('kindvar'):
+            kindvar = m.getscalar('kindvar')
+            self.logger.debug(f"found kindvar={kindvar} from {m['kindvar']}")
 
             kind_cls = {
                     1: RawTimeStream,
@@ -98,9 +132,68 @@ class NcFileIO(ExitStack):
         cls = self.kind_cls
         return UNKNOWN_KIND if cls is None else cls.__name__
 
+    def sync(self):
+        self.nc.sync()
+        for k in ('ntimes_all', ):
+            old = self.meta[k]
+            new = self.nm.getdim(k)
+            if old != new:
+                self.logger.info(f"updated {k} {old}->{new} via sync")
+            self.meta[k] = new
+
     @cached_property
     def meta(self):
-        return {}
+        nm = self.nm
+
+        def logged_update_dict(l, r):
+            for k, v in r.items():
+                if k in l and l[k] != v:
+                    self.logger.error(
+                            f"inconsistent entry during update"
+                            f" {k} {l[k]} -> {v}")
+                l[k] = v
+
+        result = {}
+        # all
+        for k in (
+                "kindvar", "ntones_design", "ntones_max", "fsmp",
+                "atten_in", "atten_out", "mastervar", "source_orig",
+                "roachid", "obsid", "subobsid", "scanid",
+                "cal_roachid", "cal_obsid", "cal_subobsid", "cal_scanid",
+                "ntimes_all", "ntones", "ntones_", ):
+            try:
+                result[k] = nm.get(k)
+            except Exception:
+                self.logger.error(f"missing item in data {k}", exc_info=True)
+                continue
+        # sweep only
+        if issubclass(self.kind_cls, Sweep):
+            for k in (
+                    "nreps", "nsweepsteps",
+                    "nsweeps_all", "ntonemodelparams"):
+                try:
+                    result[k] = nm.get(k)
+                except Exception:
+                    self.logger.error(
+                            f"missing item in data {k}", exc_info=True)
+                    continue
+
+        # handle lofreqs, which are no longer there in new files
+        if nm.hasvar("flo", "flo_offset"):
+            logged_update_dict(result, {
+                "flo": nm.getscalar('flo'),
+                "flo_offset": nm.getscalar('flo_offset'),
+            })
+        else:
+            logged_update_dict(result, {
+                'flo': 0.,
+                'flo_offset': 0.,
+                })
+
+        logged_update_dict(
+                result, self.spec.info_from_filename(
+                    self.filepath, resolve=True))
+        return result
 
     @cached_property
     def tone_axis(self):

@@ -91,8 +91,29 @@ class NcNodeMapper(object):
     def getvar(self, k):
         return self.nc.variables[self[k]]
 
+    def getdim(self, k):
+        return self.nc.dimensions[self[k]].size
+
     def getscalar(self, k):
         return np.asscalar(self.getvar(k)[:])
 
+    def getstr(self, k):
+        return ncstr(self.getvar(k))
+
     def __getitem__(self, k):
         return self._[k]
+
+    def get(self, k):
+        if self.hasvar(k):
+            v = self.getvar(k)
+            if not v.dimensions or (v.dtype == '|S1' and len(
+                    v.dimensions) == 1):
+                v = v[:]
+                try:
+                    if v.dtype == "|S1":
+                        return ncstr(v)
+                    return np.asscalar(v)
+                except ValueError:
+                    return v
+            return v
+        return self.getdim(k)
