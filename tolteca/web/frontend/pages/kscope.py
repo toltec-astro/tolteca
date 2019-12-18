@@ -24,7 +24,7 @@ logger = get_logger()
 title_text = 'KScope'
 title_icon = 'fas fa-stethoscope'
 
-UPDATE_INTERVAL = 1000  # ms
+UPDATE_INTERVAL = 1.5 * 1000  # ms
 N_RECORDS_LATEST = 1
 
 
@@ -52,7 +52,7 @@ src = {
         ]),
     'join': f"inner join toltec.obstypes b on a.ObsType = b.id"
             f" inner join toltec.masters c on a.Master = c.id"
-            f" inner join lmtmc_notes.userlog d on a.Obsnum = d.Obsnum",
+            f" left join lmtmc_notes.userlog d on a.Obsnum = d.Obsnum",
     # 'group': ''
     'group': 'group by a.ObsNum',
     'order': 'a.id desc',
@@ -367,7 +367,10 @@ def entry_update(entry_updated, use_roach_ids, data):
             return dbc.Card([
                         # dbc.CardHeader(dbc.Button(scope.io.meta['interface'])),
                         dbc.CardBody([
-                            html.H6(scope.io.meta['interface']),
+                            dbc.Badge(
+                                '{interface}_{obsid}_{subobsid}'
+                                '_{scanid}_{kindstr}'.format(
+                                    **scope.io.meta)),
                             make_plot(scope)
                             ])
                         ])
