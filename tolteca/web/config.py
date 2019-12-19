@@ -1,3 +1,4 @@
+import os
 # Variables defined in this file will be passed to the 'config' attribute of
 # the Flask instance used by the Dash app. Any values corresponding to Dash
 # keyword arguments will be passed They must be in UPPER CASE in order to take
@@ -11,6 +12,7 @@ TITLE = "TolTECA"
 # `app.scripts.config.serve_locally` and `app.css.config.serve_locally`
 SERVE_LOCALLY = True
 
+SECRET_KEY = os.environ.get('TOLTECA_SECRET_KEY', "")
 
 #
 # Dash.__init__ keyword arguments

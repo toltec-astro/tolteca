@@ -24,7 +24,8 @@ logger = get_logger()
 title_text = 'KScope'
 title_icon = 'fas fa-stethoscope'
 
-UPDATE_INTERVAL = 1.5 * 1000  # ms
+UPDATE_INTERVAL = 5 * 1000  # ms
+
 N_RECORDS_LATEST = 1
 
 
@@ -59,15 +60,15 @@ src = {
     'query_params': {'parse_dates': ["DateTime"]},
     }
 
-# data_rootpaths = {
-#         'clipa': '/clipa',
-#         'clipo': '/clipo',
-#         }
-
 data_rootpaths = {
-        'clipa': '/Users/ma/Codes/toltec/kids/test_data2/clipa',
-        'clipo': '/Users/ma/Codes/toltec/kids/test_data2/clipo',
+        'clipa': '/clipa/toltec',
+        'clipo': '/clipo/toltec',
         }
+
+# data_rootpaths = {
+#         'clipa': '/Users/ma/Codes/toltec/kids/test_data2/clipa',
+#         'clipo': '/Users/ma/Codes/toltec/kids/test_data2/clipo',
+#         }
 
 roach_ids = list(range(13))
 
@@ -95,9 +96,11 @@ class KScope(NcScope):
     @classmethod
     @lru_cache(maxsize=128)
     def from_filepath(cls, filepath):
+        cls.logger.info(f"create sclope for {filepath}")
         return cls(source=filepath)
 
     @classmethod
+    @timeit
     def from_toltecdb_entry(cls, entry):
         roach_ids = roach_ids_from_toltecdb_entry(entry)
         master = entry['Master'].lower()
@@ -105,10 +108,12 @@ class KScope(NcScope):
         for roach_id in roach_ids:
             rootpath = get_data_rootpath(roach_id)
             path = rootpath.joinpath(
-                    f'{master}/toltec{roach_id}/toltec{roach_id}.nc')
+                    f'{master}/toltec{roach_id}/toltec{roach_id}.nc').resolve()
+            cls.logger.info(f"get scope for {path}")
             result.append(cls.from_filepath(path))
         return result
 
+    @timeit
     def get_iqts(self, time, tone_slice=None):
 
         # make sure we update the meta
@@ -120,6 +125,7 @@ class KScope(NcScope):
         n_samples = int(time * meta['fsmp'])
 
         time_total = meta['ntimes_all'] / meta['fsmp']
+        self.logger.debug(f"current total length {time_total}")
 
         if n_samples < 0:
             mask = slice(n_samples, None)
@@ -155,6 +161,7 @@ interface_options = [{
     'value': i} for i in roach_ids]
 
 
+@timeit("kscope.get_layout")
 def get_layout(**kwargs):
     '''Returns the layout that contains a table view to the source.'''
     controls = html.Div([
@@ -190,7 +197,7 @@ def get_layout(**kwargs):
 
     def _table_view():
         try:
-            df = dataframe_from_db(
+            df = timeit(dataframe_from_db)(
                     src['bind'], src['query'].format(**src),
                     **src['query_params'])
         except Exception as e:
@@ -268,7 +275,6 @@ def update(n_intervals, data):
                         }), False
 
 
-@timeit
 @app.callback([
         Output('entry-updated', 'children'),
         Output('file-info-content', 'children'),
@@ -280,22 +286,18 @@ def update(n_intervals, data):
         ], [
         State(tbn.table, 'data'),
         ])
+@timeit
 def entry_update(entry_updated, use_roach_ids, data):
     # if entry_updated:
     if True:
         entry = data[0]
         use_roach_ids = set(roach_ids_from_toltecdb_entry(entry)).intersection(
                 set(use_roach_ids))
-        print(entry)
-        print(use_roach_ids)
+        logger.info(f"update for new entry {entry} with {use_roach_ids}")
         entry['RoachIndex'] = ','.join(map(str, use_roach_ids))
         scopes = KScope.from_toltecdb_entry(entry)
         if len(scopes) == 0:
             raise dash.exceptions.PreventUpdate("no scopes found.")
-        print(scopes[0].io)
-        print(scopes[0].io.kind_cls)
-        print(scopes[0].io.kind)
-        print(scopes[0].io.meta)
 
         def make_info_card(scope):
             return dbc.Card([
@@ -328,7 +330,7 @@ def entry_update(entry_updated, use_roach_ids, data):
                         },
                     )})
 
-            iqs, ts = scope.get_iqts(-10., tone_slice=range(10))
+            iqs, ts = scope.get_iqts(-1., tone_slice=range(10))
             print(iqs.shape)
             print(ts.shape)
             n_panels = 1
@@ -356,7 +358,7 @@ def entry_update(entry_updated, use_roach_ids, data):
                         'line': dict(width=0.5),
                     }, 1, 1)
 
-            graph_iqt = dcc.Graph(figure=fig)
+            graph_iqt = dcc.Graph(figure=fig, animate=False)
 
             return html.Div([
                     # dbc.Row([dbc.Col(graph_fs), ]),
