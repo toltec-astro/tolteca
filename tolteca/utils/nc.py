@@ -103,6 +103,9 @@ class NcNodeMapper(object):
     def __getitem__(self, k):
         return self._[k]
 
+    def __contains__(self, k):
+        return k in self._
+
     def get(self, k):
         if self.hasvar(k):
             v = self.getvar(k)

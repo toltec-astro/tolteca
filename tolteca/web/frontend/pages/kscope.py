@@ -25,7 +25,7 @@ title_text = 'KScope'
 title_icon = 'fas fa-stethoscope'
 
 
-TABLE_UPDATE_INTERVAL = 5 * 1000  # ms
+TABLE_UPDATE_INTERVAL = 2 * 1000  # ms
 GRAPH_UPDATE_INTERVAL = 1 * 1000  # ms
 N_RECORDS_LATEST = 1
 ROACH_IDS_AVAILABLE = list(range(13))
@@ -62,15 +62,15 @@ src = {
     'query_params': {'parse_dates': ["DateTime"]},
     }
 
-# data_rootpaths = {
-#         'clipa': '/clipa/toltec',
-#         'clipo': '/clipo/toltec',
-#         }
-
 data_rootpaths = {
-        'clipa': '/Users/ma/Codes/toltec/kids/test_data2/clipa',
-        'clipo': '/Users/ma/Codes/toltec/kids/test_data2/clipo',
+        'clipa': '/clipa/toltec',
+        'clipo': '/clipo/toltec',
         }
+
+# data_rootpaths = {
+#         'clipa': '/Users/ma/Codes/toltec/kids/test_data2/clipa',
+#         'clipo': '/Users/ma/Codes/toltec/kids/test_data2/clipo',
+#         }
 
 
 def get_data_rootpath(roach_id):
@@ -104,17 +104,21 @@ class KScope(NcScope):
     def from_toltecdb_entry(cls, entry):
         roach_ids = roach_ids_from_toltecdb_entry(entry)
         master = entry['Master'].lower()
+        obsid, subobsid, scanid = map(int, entry['ObsNum'].split('_'))
         result = []
         for roach_id in roach_ids:
             rootpath = get_data_rootpath(roach_id)
-            path = rootpath.joinpath(
-                    f'{master}/toltec{roach_id}/toltec{roach_id}.nc').resolve()
+            # path = rootpath.joinpath(
+            #        f'{master}/toltec{roach_id}/toltec{roach_id}.nc').resolve()
+            datapath = rootpath.joinpath(f'{master}/toltec{roach_id}')
+            pattern = f'toltec{roach_id}_{obsid:06d}_{subobsid:02d}_{scanid:04d}*.nc'
+            path = list(datapath.glob(pattern))[0]
             cls.logger.info(f"get scope for {path}")
             result.append(cls.from_filepath(path))
         return result
 
     @timeit
-    def get_iq_t(self, time_slice, tone_slice=None):
+    def get_data_slice(self, *datakeys, time_slice=None, tone_slice=None):
 
         # make sure we update the meta
         self.logger.debug("sync file")
@@ -140,6 +144,9 @@ class KScope(NcScope):
                 return v
             return None
 
+        if time_slice is None:
+            time_slice = slice()
+
         sample_slice = slice(*(
             time_to_sample(getattr(time_slice, p))
             for p in ('start', 'stop', 'step')
@@ -151,12 +158,29 @@ class KScope(NcScope):
         if tone_slice is None:
             tone_slice = slice()
 
-        # iqs have dim [tone, time] after .T
-        iqs = var('is')[sample_slice, tone_slice].T + \
-            1.j * var('qs')[sample_slice, tone_slice].T
-        ts = np.arange(*sample_slice.indices(n_samples_all)) / meta['fsmp']
-        self.logger.debug(f"got iqs.shape {iqs.shape} ts.shape {ts.shape}")
-        return iqs, ts
+        result = [] 
+        for key in datakeys:
+            if key in self.io.nm:
+                v = var(key)
+                if len(v.dimensions) == 2:
+                    v = v[sample_slice, tone_slice].T
+                elif len(v.dimensions) == 1:
+                    v = v[sample_slice]
+                else:
+                    self.logger.debug(f"unable to get var {k}")
+                    v = None
+            elif key == 'ts':  # times translated from sample indices
+                v = np.arange(*sample_slice.indices(n_samples_all)) / meta['fsmp']
+            elif key == 'fs':  # freqs shift by tone position 
+                v = var('flos')[sample_slice].T
+                tfs = self.io.tone_axis['tfs'][tone_slice]
+                v = (np.tile(v, (len(tfs), 1)).T + tfs).T
+            else:
+                self.logger.debug(f"unable to get var {k}")
+                v = None
+            self.logger.debug(f"got data key={key} shape={v.shape}")
+            result.append(v)
+        return result 
 
     @property
     def title(self):
@@ -210,12 +234,38 @@ class KScopeComponent(SimpleComponent):
     logger = get_logger()
 
     def __init__(self, label):
-        super().__init__(label, ('iq_t', ))
+        super().__init__(label, ('i_t', 'q_t', 'aiq_t', 'phase_t'))
 
-    def components(self, scope):
+    data_options = {
+            "I": {
+                'label': "I",
+                'func': lambda I, Q: I 
+                },
+            "Q": {
+                'label': "Q",
+                'func': lambda I, Q: Q 
+                },
+            "S21": {
+                'label': "S_21 (db)",
+                'func': lambda I, Q: 20 * np.log10(np.hypot(I, Q))
+                },
+            "Phase": {
+                'label': "Phase (rad)",
+                'func': lambda I, Q: np.unwrap(np.arctan2(Q, I)) 
+                },
+            }
+
+    def components(self, scope, data_option=None, tone_option=None):
+
+        if tone_option is None:
+            tone_option = 10
+
+        tone_slice = slice(tone_option)
 
         try:
-            iqs, ts = scope.get_iq_t(slice(-10., None), tone_slice=range(10))
+            is_, qs, fs, ts = scope.get_data_slice(
+                    'is', 'qs', 'fs', 'ts',
+                    time_slice=slice(-10., None), tone_slice=tone_slice)
         except Exception:
             self.logger.debug("Unable to read data from scope", exc_info=True)
             return html.Div(dbc.Alert(
@@ -224,6 +274,30 @@ class KScopeComponent(SimpleComponent):
                         'padding': '15px 0px 0px 0px',
                         })
 
+        self.logger.debug(f"generate figures for type sweep={scope.io.is_sweep}")
+        if scope.io.is_sweep:
+            xaxis = {
+                    'autorange': True,
+                    'title': 'Freqency (MHz)'
+                    }
+            def xdata(i):
+                return fs[i, :] * 1e-6
+        else:
+            xaxis = {
+                    'autorange': True,
+                    'title': 'Time (s)'
+                    }
+            def xdata(i):
+                return ts
+        if data_option is None:
+            data_option = 'S21'
+        yaxis = {
+                'autorange': True,
+                'title': self.data_options[data_option]['label']
+                }
+        def ydata(i):
+            return self.data_options[data_option]['func'](is_[i, :], qs[i, :])
+
         n_panels = 1
 
         fig = make_subplots(
@@ -231,20 +305,23 @@ class KScopeComponent(SimpleComponent):
 
         fig.update_layout(
                 uirevision=True,
-                yaxis={
-                    'autorange': True,
-                    'title': 'I'
-                    },
-                xaxis={
-                    'autorange': True,
-                    'title': 'time (s)'
-                    },
+                xaxis=xaxis,
+                yaxis=yaxis,
                 )
         # add all traces
-        for i in range(iqs.shape[0]):
+        for i in range(is_.shape[0]):
+            x = xdata(i)
+            y = ydata(i)
+#           badmask = (np.isnan(x) | np.isnan(y))
+#           if np.ma.is_masked(x):
+#               badmask |= x.mask
+#           if np.ma.is_masked(y):
+#               badmask |= y.mask
+#           x = x[~badmask]
+#           y = y[~badmask]
             fig.append_trace({
-                    'x': ts,
-                    'y': iqs.real[i, :],
+                    'x': x,
+                    'y': y,
                     'name': f'tone{i}',
                     'mode': 'lines+markers',
                     'type': 'scattergl',
@@ -252,11 +329,11 @@ class KScopeComponent(SimpleComponent):
                     'line': dict(width=0.5),
                 }, 1, 1)
 
-        graph_iqt = dcc.Graph(self.iq_t, figure=fig, animate=True)
+        graph_i_t = dcc.Graph(self.i_t, figure=fig, animate=False)
 
         return html.Div([
                 # dbc.Row([dbc.Col(graph_fs), ]),
-                dbc.Row([dbc.Col(graph_iqt), ]),
+                dbc.Row([dbc.Col(graph_i_t), ]),
             ])
 
 
@@ -321,6 +398,27 @@ def get_controls(entry):
                             value=roach_ids,
                         ))
                     ),
+            dbc.Row(dbc.Col(
+                        dcc.RadioItems(
+                            id='data-option-radio',
+                            options=[
+                                {'label': v['label'], 'value': k}
+                                for k, v in KScopeComponent.data_options.items()],
+                            value='S21',
+                            inputClassName='mx-4',
+                            labelClassName='mx-4',
+                        ))),
+
+            dbc.Row(dbc.Col(
+                        dcc.RadioItems(
+                            id='tone-option-radio',
+                            options=[
+                                {'label': f"{n}", 'value': n}
+                                for n in (1, 10, 100)],
+                            value=10,
+                            inputClassName='mx-4',
+                            labelClassName='mx-4',
+                        ))),
             ], style={
                     'padding': '1em 0',
                     })
@@ -405,11 +503,13 @@ def table_update(n_intervals, data):
         ], [
         Input(tbn.entry_changed, 'data'),
         Input('interface-dropdown', 'value'),
+        Input('data-option-radio', 'value'),
+        Input('tone-option-radio', 'value'),
         ], [
         State(tbn.table, 'data'),
         ])
 @timeit
-def on_entry_changed(entry_changed, use_roach_ids, data):
+def on_entry_changed(entry_changed, use_roach_ids, data_option, tone_option, data):
     entry = data[0]
     if not use_roach_ids:
         raise dash.exceptions.PreventUpdate("No interface specified")
@@ -437,7 +537,7 @@ def on_entry_changed(entry_changed, use_roach_ids, data):
                 # dbc.CardHeader(dbc.Button(scope.io.meta['interface'])),
                 dbc.CardBody([
                     dbc.Badge(scope.title),
-                    kscope_components_factory[roachid].components(scope),
+                    kscope_components_factory[roachid].components(scope, data_option=data_option, tone_option=tone_option),
                     ])
                 ])
 

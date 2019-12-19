@@ -47,6 +47,9 @@ class NcFileIO(ExitStack):
                 "tones": "Header.Toltec.ToneFreq",
                 "rs": "Data.Generic.Rs",
                 "xs": "Data.Generic.Xs",
+                # tone axis
+                "tonemodelparams": "Header.Toltec.ModelParams",
+                "tonemodelparamsheader": "Header.Toltec.ModelParamsHeader",
                 # meta
                 "kindvar": "Header.Toltec.ObsType",
                 "ntones_design": "loclen",
@@ -117,9 +120,6 @@ class NcFileIO(ExitStack):
                 self.logger.warn(f"kindvar={kindvar} unrecognized")
         self.logger.debug(f"check kind_cls hint={kind_cls}")
         # check data entries
-        if not m.hasvar("sweeps") and kind_cls in (VnaSweep, TargetSweep):
-            kind_cls = RawTimeStream
-            self.logger.debug(f"updated kind_cls={kind_cls}")
         if not m.hasvar('is', 'qs') and m.hasvar("rs", "xs"):
             if kind_cls != SolvedTimeStream:
                 kind_cls = SolvedTimeStream
@@ -167,7 +167,7 @@ class NcFileIO(ExitStack):
                 self.logger.error(f"missing item in data {k}", exc_info=True)
                 continue
         # sweep only
-        if issubclass(self.kind_cls, Sweep):
+        if self.is_sweep:
             for k in (
                     "nreps", "nsweepsteps",
                     "nsweeps_all", "ntonemodelparams"):
@@ -177,6 +177,8 @@ class NcFileIO(ExitStack):
                     self.logger.error(
                             f"missing item in data {k}", exc_info=True)
                     continue
+            ntimespersweep = result["nsweepsteps"] * result["nreps"]
+            result["nsweeps"] = result["ntimes_all"] / ntimespersweep
 
         # handle lofreqs, which are no longer there in new files
         if nm.hasvar("flo", "flo_offset"):
@@ -197,7 +199,26 @@ class NcFileIO(ExitStack):
 
     @cached_property
     def tone_axis(self):
-        return []
+        nm = self.nm
+        meta = self.meta
+        if not nm.hasvar("tones"):
+            raise RuntimeError("no tone data found")
+        # tone param header
+        # tone param data
+        n_tones = meta['ntones']
+        if self.is_sweep:
+            n_sweeps = meta['nsweeps']
+            last_sweep = n_sweeps - 1
+            self.logger.debug(f"load tones from {last_sweep} of {n_sweeps} sweep blocks")
+        else:
+            last_sweep = 0 
+        tfs = nm.getvar("tones")[last_sweep, :]
+
+        return dict(tfs=tfs)
+
+    @cached_property
+    def is_sweep(self):
+        return issubclass(self.kind_cls, Sweep)
 
     @cached_property
     def sweep_axis(self):
