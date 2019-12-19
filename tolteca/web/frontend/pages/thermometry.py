@@ -30,8 +30,8 @@ UPDATE_INTERVAL = 30 * 1000  # ms
 src = {
     'label': 'thermometry',
     'title': title_text,
-    'runtime_link': '/data_toltec/thermetry/thermetry.nc',
-    # 'runtime_link': '/Users/ma/Codes/toltec/kids/test_data/thermetry.nc',
+    # 'runtime_link': '/data_toltec/thermetry/thermetry.nc',
+    'runtime_link': '/Users/ma/Codes/toltec/kids/test_data/thermetry.nc',
     'local_tz': 'EST',
     '_title_view': LiveTitleComponent(f'{ctx}')
     }
@@ -221,5 +221,6 @@ def get_figure(collate=False, use_ut=False):
         ], [
         ])
 def entry_update(n_intervals, collate, use_ut):
-    logger.debug(f"update graph at {n_intervals} collate={collate} use_ut={use_ut}")
+    logger.debug(
+            f"update graph at {n_intervals} collate={collate} use_ut={use_ut}")
     return get_figure(collate=collate, use_ut=use_ut), ""
