@@ -47,9 +47,9 @@ class Led(QtWidgets.QPushButton):
         self.__height = 0
 
         self._on_color = self.palette.irgb(on_color)
-        print(self.palette.hex(on_color))
-        print(self.palette.rgb(on_color))
-        print(self.palette.irgb(on_color))
+        # print(self.palette.hex(on_color))
+        # print(self.palette.rgb(on_color))
+        # print(self.palette.irgb(on_color))
         self._off_color = self.palette.irgb(off_color)
         self._shape = shape
         self._height = self.sizeHint().height()

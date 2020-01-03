@@ -5,11 +5,11 @@ import sys
 from pathlib import Path
 import psutil
 from datetime import datetime
-from astropy import log
 from .utils.colors import Palette
 from .utils.fmt import pformat_dict
 from .utils.gui import qt5app, QThreadTarget
 from .utils.cli.argparse_helpers import argparser_with_common_options
+from .utils.log import get_logger
 from .version import version
 
 from .db import get_databases
@@ -18,12 +18,14 @@ from .fs.toltec import DataFileStore
 from PyQt5 import uic, QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import Qt
 
+UI_FILE_DIR = Path(__file__).parent.joinpath("ui")
+
 Ui_MainWindow, Ui_MainWindowBase = uic.loadUiType(
-        Path(__file__).parent.joinpath("gui").joinpath("tolteca.ui"))
+        UI_FILE_DIR.joinpath("tolteca.ui"))
 Ui_DBStatus, Ui_DBStatusBase = uic.loadUiType(
-        Path(__file__).parent.joinpath("gui").joinpath("dbstatus.ui"))
+        UI_FILE_DIR.joinpath("dbstatus.ui"))
 Ui_FileView, Ui_FileViewBase = uic.loadUiType(
-        Path(__file__).parent.joinpath("gui").joinpath("fileview.ui"))
+        UI_FILE_DIR.joinpath("fileview.ui"))
 
 palette = Palette()
 
@@ -32,23 +34,26 @@ class DBStatusPanel(Ui_DBStatusBase):
 
     connectionStatusChanged = QtCore.pyqtSignal(bool)
 
+    logger = get_logger()
+
     def __init__(self, database, parent=None):
         super().__init__(parent)
         self.ui = Ui_DBStatus()
         self.ui.setupUi(self)
 
         self._database = database
+        self._connected = False
 
     @property
     def connected(self):
-        old = self._database.ok
-        self._database._test_db_connection()
-        status = self._database.ok
-        if status != old:
-            self.connectionStatus.emit(status)
-        # log.debug(f"database connection: {'OK' if status else 'ERROR'}")
-        self.ui.led_status.set_status(status)
-        return status
+        is_alive = self._database.is_alive
+        if self._connected != is_alive:
+            self._connected = is_alive
+            self.connectionStatusChanged.emit(self._connected)
+        # self.logger.debug(
+            # f"database connection: {'OK' if self._connected else 'ERROR'}")
+        self.ui.led_status.set_status(self._connected)
+        return self._connected
 
 
 class AnimatedItemDelegate(QtWidgets.QStyledItemDelegate):
@@ -79,6 +84,8 @@ class DataFileInfoModel(QtCore.QAbstractTableModel):
     item_update_key = '_time_last_updated'
     item_update_time = 1.
 
+    logger = get_logger()
+
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self._info_keys = set()
@@ -87,7 +94,7 @@ class DataFileInfoModel(QtCore.QAbstractTableModel):
         def update_row(tl=None, br=None):
             i0 = 0 if tl is None else tl.row()
             i1 = self.rowCount() if br is None else br.row() + 1
-            log.debug(f"model row {i0} {i1} changed")
+            self.logger.debug(f"model row {i0} {i1} changed")
         self.dataChanged.connect(update_row)
         self.modelReset.connect(update_row)
 
@@ -253,6 +260,8 @@ class DataFilesView(Ui_FileViewBase):
     rootpathChanged = QtCore.pyqtSignal(str)
     runtimeInfoChanged = QtCore.pyqtSignal(dict, list)
 
+    logger = get_logger()
+
     def __init__(self, datafiles, parent=None):
         super().__init__(parent)
         self.ui = Ui_FileView()
@@ -312,7 +321,7 @@ class DataFilesView(Ui_FileViewBase):
         self._datafiles.rootpath = path
         new = self._datafiles.rootpath
         if old != new:
-            log.debug(f"change root path: {old} -> {new}")
+            self.logger.debug(f"change root path: {old} -> {new}")
             self.rootpathChanged.emit(str(new))
 
     def _validate_rootpath(self, path):
@@ -327,10 +336,11 @@ class DataFilesView(Ui_FileViewBase):
 
     @staticmethod
     def _runtime_info_changed(i1, i2):
+        logger = get_logger()
         i1keys = set(i1.keys()) if i1 is not None else set()
         i2keys = set(i2.keys()) if i2 is not None else set()
         if i1keys != i2keys:
-            log.debug(f"runtime info changed: {i1keys} -> {i2keys}")
+            logger.debug(f"runtime info changed: {i1keys} -> {i2keys}")
             return True, list(i2keys)
         changed = []
         for k in i1keys:
@@ -338,7 +348,7 @@ class DataFilesView(Ui_FileViewBase):
             v2 = i2[k]
             for vk in ('nwid', 'obsid', 'subobsid', 'scanid', 'ut'):
                 if v1[vk] != v2[vk]:
-                    log.debug(
+                    logger.debug(
                             f"runtime info {k}.{vk} changed: "
                             f"{v1[vk]} -> {v2[vk]}")
                     changed.append(k)
@@ -371,12 +381,14 @@ class DataFilesView(Ui_FileViewBase):
 
 class GuiRuntime(QtCore.QObject):
 
+    logger = get_logger()
+
     def __init__(self, config, parent=None):
         super().__init__(parent=parent)
         self.config = config
-        log.debug(f"runtime config: {pformat_dict(config)}")
+        self.logger.debug(f"runtime config: {pformat_dict(config)}")
         self.databases = get_databases()
-        log.debug(f"runtime databases: {self.databases}")
+        self.logger.debug(f"runtime databases: {self.databases}")
 
         self.datafiles = DataFileStore(rootpath=config['datapath'])
 
@@ -386,7 +398,8 @@ class GuiRuntime(QtCore.QObject):
             w = DBStatusPanel(v, parent=parent)
             parent.layout().addRow(
                     QtWidgets.QLabel(k), w)
-            gui.run_in_thread(QThreadTarget(2000, lambda: w.connected))
+            self._db_monitors[k] = w
+            gui.run_in_thread(QThreadTarget(2000, lambda w=w: w.connected))
 
     def init_df_view(self, gui, parent):
         w = DataFilesView(self.datafiles, parent=parent)
@@ -415,7 +428,7 @@ class ToltecaGui(Ui_MainWindowBase):
 
     def init_runtime(self, config):
         if hasattr(self, 'runtime'):
-            log.debug(f"runtime exists: {self.runtime}")
+            self.logger.debug(f"runtime exists: {self.runtime}")
             return
         # rurntime
         self.runtime = GuiRuntime(config, parent=self)

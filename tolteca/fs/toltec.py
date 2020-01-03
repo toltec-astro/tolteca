@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 from datetime import datetime
-import functools
+import os
 
 from astropy import log
 
@@ -80,6 +80,9 @@ class ToltecDataFileSpec(object):
         runtime_link_patterns = ['toltec[0-9].nc', 'toltec[0-9][0-9].nc']
         files = []
         for pattern in runtime_link_patterns:
+            if master is not None:
+                pattern = os.path.join(
+                        master, pattern.split('.')[0], pattern)
             files.extend(path.glob(pattern))
         return files
 
@@ -109,6 +112,10 @@ class DataFileStore(object):
 
     def runtime_datafile_links(self, master=None):
         path = self.rootpath
-        if master is not None:
-            path = path.joinpath(master)
-        return self.spec.runtime_datafile_links(path)
+        result = self.spec.runtime_datafile_links(path, master=None)
+        for p, m in ((path, ''), (path.parent, path.name)):
+            result = self.spec.runtime_datafile_links(p, master=m)
+            if result:
+                return result
+        else:
+            return list()

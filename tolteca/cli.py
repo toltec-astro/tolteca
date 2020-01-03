@@ -139,6 +139,7 @@ class OnExitHandler(object):
 # commands
 from .clicmd.dot import cmd_dot  # noqa: F401
 from .clicmd.ipy import cmd_ipy  # noqa: F401
+from .clicmd.setup import cmd_setup  # noqa: F401
 # ################################################
 
 

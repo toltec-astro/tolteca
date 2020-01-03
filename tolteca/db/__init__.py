@@ -146,7 +146,7 @@ class DatabaseRuntime(ConfigMixin, config_property_prefix="_"):
 
     @property
     def is_alive(self):
-        if self.connection and self.session:
+        if self.connection is not None and self.session is not None:
             try:
                 self.session.connection()
             except Exception as e:
@@ -155,6 +155,7 @@ class DatabaseRuntime(ConfigMixin, config_property_prefix="_"):
             else:
                 return True
         else:
+            self.logger.error(f'cannot connect to database')
             return False
 
     def modelclasses(self, name="default", lower=None):

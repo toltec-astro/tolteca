@@ -5,6 +5,7 @@ from types import ModuleType
 import sys
 import importlib
 from contextlib import ContextDecorator
+import os
 
 
 def get_pkg_data_path():
@@ -86,3 +87,8 @@ class hookit(ContextDecorator):
 
     def __exit__(self, *args):
         setattr(self.obj, self.name, self.func_hooked)
+
+
+def touch_file(out_file):
+    with open(out_file, 'a'):
+        os.utime(out_file, None)

@@ -2,6 +2,8 @@
 
 import argparse
 from . import cli_header
+# from astropy import log
+from ..log import init_logging
 
 
 def argparser_with_common_options(desc=None):
@@ -15,16 +17,21 @@ def argparser_with_common_options(desc=None):
     parser.add_argument("--quiet", help="disable debug logs",
                         action="store_true")
 
-    parser.add_argument(
-            "--figsize", help="plot window size in inches.",
-            nargs=2, type=int, default=(10, 10))
+    # parser.add_argument(
+    #         "--figsize", help="plot window size in inches.",
+    #         nargs=2, type=int, default=(10, 10))
 
     def parse(parser=parser):
         args, unparsed_args = parser.parse_known_args()
         level = 'DEBUG'
         if args.quiet:
             level = 'INFO'
-        from astropy import log
-        log.setLevel(level)
+        # log.setLevel(level)
+        init_logging({
+            'loggers': {
+                '': {'level': level},
+                }
+            })
+
         return args, unparsed_args
     return parser, parse
