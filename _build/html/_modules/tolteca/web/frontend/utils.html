@@ -1,0 +1,127 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>tolteca.web.frontend.utils &#8212; tolteca v0.0.1</title>
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/graphviz.css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../../" src="../../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/language_data.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">tolteca v0.0.1</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../web.html" >tolteca.web</a> &#187;</li>
+      <li><a href="../frontend.html" accesskey="U">tolteca.web.frontend</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tolteca.web.frontend.utils</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">from</span> <span class="nn">urllib.parse</span> <span class="k">import</span> <span class="n">parse_qs</span>
+
+<span class="kn">import</span> <span class="nn">dash</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="k">import</span> <span class="n">current_app</span> <span class="k">as</span> <span class="n">server</span>
+<span class="kn">from</span> <span class="nn">werkzeug.datastructures</span> <span class="k">import</span> <span class="n">MultiDict</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">pytz</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+
+<span class="k">def</span> <span class="nf">tz_off_from_ut</span><span class="p">(</span><span class="n">tz</span><span class="p">):</span>
+    <span class="n">tz_now</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(</span><span class="n">pytz</span><span class="o">.</span><span class="n">timezone</span><span class="p">(</span><span class="n">tz</span><span class="p">))</span>
+    <span class="n">offset_hours</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">tz_now</span><span class="o">.</span><span class="n">utcoffset</span><span class="p">()</span><span class="o">.</span><span class="n">total_seconds</span><span class="p">()</span> <span class="o">/</span> <span class="mi">3600</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">timedelta64</span><span class="p">(</span><span class="n">offset_hours</span><span class="p">,</span> <span class="s1">&#39;h&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">get_query_params</span><span class="p">(</span><span class="n">search</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">MultiDict</span><span class="p">(</span><span class="n">parse_qs</span><span class="p">(</span><span class="n">search</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s2">&quot;?&quot;</span><span class="p">)))</span>
+
+
+<span class="k">def</span> <span class="nf">odict_from_list</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">key</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">l</span><span class="p">])</span>
+
+
+<div class="viewcode-block" id="get_dash_args_from_flask_config"><a class="viewcode-back" href="../../../../api/tolteca.web.frontend.get_dash_args_from_flask_config.html#tolteca.web.frontend.get_dash_args_from_flask_config">[docs]</a><span class="k">def</span> <span class="nf">get_dash_args_from_flask_config</span><span class="p">(</span><span class="n">config</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Get a dict of Dash params that were specified &quot;&quot;&quot;</span>
+    <span class="c1"># all arg names less &#39;self&#39;</span>
+    <span class="n">dash_args</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">inspect</span><span class="o">.</span><span class="n">getfullargspec</span><span class="p">(</span><span class="n">dash</span><span class="o">.</span><span class="n">Dash</span><span class="o">.</span><span class="fm">__init__</span><span class="p">)</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+    <span class="k">return</span> <span class="p">{</span><span class="n">key</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span> <span class="n">val</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">config</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="n">dash_args</span><span class="p">}</span></div>
+
+
+<span class="k">def</span> <span class="nf">get_url</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Expands an internal URL to include prefix the app is mounted at&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">f</span><span class="s2">&quot;</span><span class="si">{server.config[&#39;ROUTES_PATHNAME_PREFIX&#39;]}{path}</span><span class="s2">&quot;</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2020, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.2.1. &nbsp;
+    Last built 06 Jan 2020. <br/>
+  </p>
+</footer>
+  </body>
+</html>

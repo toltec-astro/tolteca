@@ -1,0 +1,127 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>setup_workdir &#8212; tolteca v0.0.1</title>
+    <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="PipelineRuntime" href="tolteca.pipeline.PipelineRuntime.html" />
+    <link rel="prev" title="VnaSweep" href="tolteca.kidsdata.VnaSweep.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="tolteca.pipeline.PipelineRuntime.html" title="PipelineRuntime">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="tolteca.kidsdata.VnaSweep.html" title="VnaSweep">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v0.0.1</a>
+	 &#187;
+      </li>
+      <li><a href="../tolteca/index.html" accesskey="U">TolTECA Documentation</a> &#187;</li>
+      
+      <li>setup_workdir</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="setup-workdir">
+<h1>setup_workdir<a class="headerlink" href="#setup-workdir" title="Permalink to this headline">¶</a></h1>
+<dl class="function">
+<dt id="tolteca.pipeline.setup_workdir">
+<code class="sig-prename descclassname">tolteca.pipeline.</code><code class="sig-name descname">setup_workdir</code><span class="sig-paren">(</span><em class="sig-param">dirpath</em>, <em class="sig-param">empty_only=True</em>, <em class="sig-param">backup=True</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/pipeline.html#setup_workdir"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.pipeline.setup_workdir" title="Permalink to this definition">¶</a></dt>
+<dd><p>Setup execution environment and dump default configuration file
+:param dirpath: The dir to store the created dirs and files.
+:type dirpath: pathlib.Path
+:param empty_only: When set to True, raise RuntimeError if the workdir is not empty
+:type empty_only: bool
+:param backup: When not empty_only, this controls whether or not to create</p>
+<blockquote>
+<div><p>backups for existing files.</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>kwargs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.8)"><em>dict</em></a>) – Entries that are passed directly into the created configuration file.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">setup_workdir</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/api/tolteca.pipeline.setup_workdir.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2020, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.2.1. &nbsp;
+    Last built 06 Jan 2020. <br/>
+  </p>
+</footer>
+  </body>
+</html>

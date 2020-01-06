@@ -1,0 +1,137 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>tolteca.web &#8212; tolteca v0.0.1</title>
+    <link rel="stylesheet" href="../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/language_data.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../index.html">tolteca v0.0.1</a>
+	 &#187;
+      </li>
+      <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tolteca.web</h1><div class="highlight"><pre>
+<span></span><span class="c1"># import prance</span>
+<span class="c1"># from pathlib import Path</span>
+<span class="c1"># from flask import Flask</span>
+
+<span class="kn">import</span> <span class="nn">connexion</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">config</span>
+<span class="kn">from</span> <span class="nn">tolteca.utils.log</span> <span class="k">import</span> <span class="n">timeit</span>
+
+
+<div class="viewcode-block" id="create_app"><a class="viewcode-back" href="../../api/tolteca.web.create_app.html#tolteca.web.create_app">[docs]</a><span class="k">def</span> <span class="nf">create_app</span><span class="p">():</span>
+
+    <span class="nd">@timeit</span>
+    <span class="k">def</span> <span class="nf">setup_backend</span><span class="p">():</span>
+        <span class="n">app</span> <span class="o">=</span> <span class="n">connexion</span><span class="o">.</span><span class="n">FlaskApp</span><span class="p">(</span>
+                <span class="vm">__name__</span><span class="p">,</span>
+                <span class="n">specification_dir</span><span class="o">=</span><span class="s1">&#39;backend/api&#39;</span><span class="p">,</span>
+                <span class="p">)</span>
+        <span class="n">app</span><span class="o">.</span><span class="n">add_api</span><span class="p">(</span>
+                <span class="s1">&#39;main.yaml&#39;</span><span class="p">,</span>
+                <span class="n">resolver</span><span class="o">=</span><span class="n">connexion</span><span class="o">.</span><span class="n">RestyResolver</span><span class="p">(</span><span class="s1">&#39;tolteca.web.backend.api&#39;</span><span class="p">))</span>
+
+        <span class="c1"># def get_bundled_specs(main_file):</span>
+        <span class="c1">#     parser = prance.ResolvingParser(</span>
+        <span class="c1">#              main_file.absolute().as_posix(),</span>
+        <span class="c1">#              lazy=True,</span>
+        <span class="c1">#              backend=&#39;openapi-spec-validator&#39;)</span>
+        <span class="c1">#     parser.parse()</span>
+        <span class="c1">#     return parser.specification</span>
+
+        <span class="c1"># app.add_api(get_bundled_specs(</span>
+        <span class="c1">#     Path(__file__).parent.joinpath(&quot;backend/api/main.yaml&quot;)))</span>
+
+        <span class="c1"># get flask server</span>
+        <span class="n">server</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">app</span>
+        <span class="n">server</span><span class="o">.</span><span class="n">connexion_app</span> <span class="o">=</span> <span class="n">app</span>
+
+        <span class="n">server</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">from_object</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+
+        <span class="c1"># server db backend</span>
+        <span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">backend</span>
+        <span class="n">backend</span><span class="o">.</span><span class="n">init_app</span><span class="p">(</span><span class="n">server</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">server</span>
+
+    <span class="n">server</span> <span class="o">=</span> <span class="n">setup_backend</span><span class="p">()</span>
+
+    <span class="c1"># dash/plotly app</span>
+    <span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">frontend</span>
+    <span class="n">frontend</span><span class="o">.</span><span class="n">init_app</span><span class="p">(</span><span class="n">server</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">server</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2020, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.2.1. &nbsp;
+    Last built 06 Jan 2020. <br/>
+  </p>
+</footer>
+  </body>
+</html>

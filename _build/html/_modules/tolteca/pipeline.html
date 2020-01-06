@@ -1,0 +1,441 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>tolteca.pipeline &#8212; tolteca v0.0.1</title>
+    <link rel="stylesheet" href="../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/language_data.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../index.html">tolteca v0.0.1</a>
+	 &#187;
+      </li>
+      <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tolteca.pipeline</h1><div class="highlight"><pre>
+<span></span><span class="ch">#! /usr/bin/env python</span>
+
+
+<span class="sd">&quot;&quot;&quot;This module helps setup and run the reduction pipeline.&quot;&quot;&quot;</span>
+
+
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="k">import</span> <span class="n">touch_file</span>
+<span class="kn">from</span> <span class="nn">..utils.log</span> <span class="k">import</span> <span class="n">get_logger</span><span class="p">,</span> <span class="n">timeit</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="k">import</span> <span class="n">datetime</span>
+<span class="kn">import</span> <span class="nn">os</span>
+
+
+<div class="viewcode-block" id="PipelineRuntime"><a class="viewcode-back" href="../../api/tolteca.pipeline.PipelineRuntime.html#tolteca.pipeline.PipelineRuntime">[docs]</a><span class="k">class</span> <span class="nc">PipelineRuntime</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="n">_workdir_contents</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;logdir&#39;</span><span class="p">:</span> <span class="s1">&#39;logs&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;externdir&#39;</span><span class="p">:</span> <span class="s1">&#39;extern&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;configfile&#39;</span><span class="p">:</span> <span class="s1">&#39;config_base.yaml&#39;</span>
+            <span class="p">}</span>
+    <span class="n">_backup_time_fmt</span> <span class="o">=</span> <span class="s2">&quot;%Y_%m_</span><span class="si">%d</span><span class="s2">_%H_%M_%S&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">workdir</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">workdir</span> <span class="o">=</span> <span class="n">workdir</span>
+
+    <span class="k">def</span> <span class="nf">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_workdir_contents</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_content_path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">workdir</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__getattribute__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_get_content_path</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">root</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">root</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_workdir_contents</span><span class="p">[</span><span class="n">item</span><span class="p">])</span>
+
+<div class="viewcode-block" id="PipelineRuntime.from_dir"><a class="viewcode-back" href="../../api/tolteca.pipeline.PipelineRuntime.html#tolteca.pipeline.PipelineRuntime.from_dir">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">from_dir</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">backup</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">create</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+        <span class="n">items_to_backup</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;configfile&#39;</span><span class="p">,</span> <span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">items_to_backup</span><span class="p">:</span>
+            <span class="n">content_path</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_get_content_path</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">content_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">backup</span><span class="p">:</span>
+                    <span class="n">timestamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span>
+                        <span class="n">content_path</span><span class="o">.</span><span class="n">lstat</span><span class="p">()</span><span class="o">.</span><span class="n">st_mtime</span><span class="p">)</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span>
+                            <span class="bp">cls</span><span class="o">.</span><span class="n">_backup_time_fmt</span><span class="p">)</span>
+                    <span class="n">backup_path</span> <span class="o">=</span> <span class="n">content_path</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span>
+                            <span class="n">f</span><span class="s2">&quot;</span><span class="si">{content_path.stem}</span><span class="s2">_</span><span class="si">{timestamp}</span><span class="s2">&quot;</span>
+                            <span class="n">f</span><span class="s2">&quot;</span><span class="si">{content_path.suffix}</span><span class="s2">&quot;</span>
+                            <span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;backup existing </span><span class="si">{item}</span><span class="s2"> to </span><span class="si">{backup_path}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">content_path</span><span class="p">,</span> <span class="n">backup_path</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                            <span class="n">f</span><span class="s2">&quot;overwrite existing </span><span class="si">{item}</span><span class="s2"> </span><span class="si">{content_path}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">create_item_path</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;dir&#39;</span><span class="p">):</span>
+                <span class="n">path</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">item</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;file&#39;</span><span class="p">):</span>
+                <span class="n">touch_file</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_workdir_contents</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">content_path</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_get_content_path</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">create</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">content_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                        <span class="n">f</span><span class="s2">&quot;unable to create pipeline runtime from </span><span class="si">{dir}</span><span class="s2">:&quot;</span>
+                        <span class="n">f</span><span class="s2">&quot; missing item </span><span class="si">{item}</span><span class="s2"> </span><span class="si">{content_path.name}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">create</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">content_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;create </span><span class="si">{item}</span><span class="s2"> </span><span class="si">{content_path}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">create_item_path</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">content_path</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">path</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="setup_workdir"><a class="viewcode-back" href="../../api/tolteca.pipeline.setup_workdir.html#tolteca.pipeline.setup_workdir">[docs]</a><span class="nd">@timeit</span>
+<span class="k">def</span> <span class="nf">setup_workdir</span><span class="p">(</span><span class="n">dirpath</span><span class="p">,</span> <span class="n">empty_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">backup</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Setup execution environment and dump default configuration file</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    dirpath: pathlib.Path</span>
+<span class="sd">        The dir to store the created dirs and files.</span>
+<span class="sd">    empty_only: bool</span>
+<span class="sd">        When set to True, raise RuntimeError if the workdir is not empty</span>
+<span class="sd">    backup: bool</span>
+<span class="sd">        When not empty_only, this controls whether or not to create</span>
+<span class="sd">        backups for existing files.</span>
+<span class="sd">    kwargs: dict</span>
+<span class="sd">        Entries that are passed directly into the created configuration file.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;setup </span><span class="si">{dirpath}</span><span class="s2"> as workdir&quot;</span><span class="p">)</span>
+
+    <span class="n">pipeline_runtime</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="c1"># validate workdir</span>
+    <span class="k">if</span> <span class="n">dirpath</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="nb">next</span><span class="p">(</span><span class="n">dirpath</span><span class="o">.</span><span class="n">iterdir</span><span class="p">())</span>
+        <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># dirpath is not empty</span>
+            <span class="k">if</span> <span class="n">empty_only</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                        <span class="n">f</span><span class="s2">&quot;</span><span class="si">{dirpath}</span><span class="s2"> is not empty &quot;</span>
+                        <span class="n">f</span><span class="s2">&quot;but empty_only is set to </span><span class="si">{empty_only}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="n">f</span><span class="s2">&quot;use non-empty workdir </span><span class="si">{dirpath}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">pipeline_runtime</span> <span class="o">=</span> <span class="n">PipelineRuntime</span><span class="o">.</span><span class="n">from_dir</span><span class="p">(</span>
+                        <span class="n">dirpath</span><span class="p">,</span> <span class="n">backup</span><span class="o">=</span><span class="n">backup</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="n">f</span><span class="s2">&quot;unable to create pipeline runtime from </span><span class="si">{dirpath}</span><span class="s2">: </span><span class="si">{e}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span>
+    <span class="c1"># external dependencies</span>
+    <span class="n">externdir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">workdir</span><span class="p">,</span> <span class="n">externdir</span><span class="p">)</span>
+    <span class="n">which_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">externdir</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;:&#39;</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;PATH&#39;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">externdir</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;use existing extern dir </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">externdir</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">externdir</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;create extern dir </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">externdir</span><span class="p">))</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;check external dependencies&quot;</span><span class="p">)</span>
+    <span class="n">astromatic_prefix</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">cmds</span><span class="p">,</span> <span class="n">datadir</span> <span class="ow">in</span> <span class="p">[</span>
+            <span class="p">(</span><span class="s2">&quot;SExtractor&quot;</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;sex&quot;</span><span class="p">,</span> <span class="s1">&#39;ldactoasc&#39;</span><span class="p">),</span> <span class="s2">&quot;sextractor&quot;</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;SCAMP&quot;</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;scamp&quot;</span><span class="p">,</span> <span class="p">),</span> <span class="s2">&quot;scamp&quot;</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;SWarp&quot;</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;swarp&quot;</span><span class="p">,</span> <span class="p">),</span> <span class="s2">&quot;swarp&quot;</span><span class="p">)]:</span>
+        <span class="n">cmds</span> <span class="o">=</span> <span class="p">[</span><span class="n">which</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="n">which_path</span><span class="p">)</span> <span class="k">for</span> <span class="n">cmd</span> <span class="ow">in</span> <span class="n">cmds</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">c</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cmds</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;not able to locate </span><span class="si">{}</span><span class="s2">&quot;</span>
+                               <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+        <span class="n">prefix</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">normpath</span><span class="p">(</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">cmds</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="s1">&#39;../&#39;</span><span class="p">))</span>
+        <span class="n">datadir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">prefix</span><span class="p">,</span> <span class="s2">&quot;share&quot;</span><span class="p">,</span> <span class="n">datadir</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">datadir</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="s2">&quot;not able to locate data files for </span><span class="si">{0}</span><span class="s2">. It is likely that </span><span class="si">{0}</span><span class="s2"> &quot;</span>
+                <span class="s2">&quot;is compiled within the source directory but without proper &quot;</span>
+                <span class="s2">&quot;installation. To resolve the issue, either run `make install`&quot;</span>
+                <span class="s2">&quot; in the source directory, or manually link the data &quot;</span>
+                <span class="s2">&quot;directory to </span><span class="si">{1}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">datadir</span><span class="p">))</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{0:10s}</span><span class="s2"> ... OK&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+        <span class="n">astromatic_prefix</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">astromatic_prefix</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="s2">&quot;it seems that the SExtractor, SCAMP and SWarp are not installed &quot;</span>
+            <span class="s2">&quot;into the same prefix. </span><span class="si">{app_name}</span><span class="s2"> for now does not deal with this &quot;</span>
+            <span class="s2">&quot;situation. Try to re-configure SExtractor, SCAMP and SWarp with &quot;</span>
+            <span class="s2">&quot;--prefix=&lt;prefixpath&gt;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">app_name</span><span class="o">=</span><span class="n">APP_NAME</span><span class="p">))</span>
+    <span class="n">astromatic_prefix</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">normpath</span><span class="p">(</span><span class="n">astromatic_prefix</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;use shared astromatic prefix </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">astromatic_prefix</span><span class="p">))</span>
+    <span class="n">stilts_cmd</span> <span class="o">=</span> <span class="n">which</span><span class="p">(</span><span class="s2">&quot;stilts&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="n">which_path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">stilts_cmd</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;not able to find stilts. Get from internet&quot;</span><span class="p">)</span>
+        <span class="c1"># retrieve stilts</span>
+        <span class="kn">from</span> <span class="nn">astropy.utils.data</span> <span class="k">import</span> <span class="n">download_file</span>
+        <span class="n">stilts_jar_tmp</span> <span class="o">=</span> <span class="n">download_file</span><span class="p">(</span>
+                <span class="s2">&quot;http://www.star.bris.ac.uk/</span><span class="si">%7E</span><span class="s2">mbt/stilts/stilts.jar&quot;</span><span class="p">,</span>
+                <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">stilts_jar</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">externdir</span><span class="p">,</span> <span class="s1">&#39;stilts.jar&#39;</span><span class="p">)</span>
+        <span class="n">shutil</span><span class="o">.</span><span class="n">copyfile</span><span class="p">(</span><span class="n">stilts_jar_tmp</span><span class="p">,</span> <span class="n">stilts_jar</span><span class="p">)</span>
+        <span class="n">stilts_cmd</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">externdir</span><span class="p">,</span> <span class="s1">&#39;stilts&#39;</span><span class="p">)</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">stilts_cmd</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
+            <span class="n">fo</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;#!/bin/sh</span>
+<span class="s2">java -Xmx4000M -classpath &quot;</span><span class="si">{0}</span><span class="s2">:$CLASSPATH&quot; uk.ac.starlink.ttools.Stilts &quot;$@&quot;</span>
+<span class="s2">&quot;&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">stilts_jar</span><span class="p">)))</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">chmod</span><span class="p">(</span><span class="n">stilts_cmd</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">stat</span><span class="p">(</span><span class="n">stilts_cmd</span><span class="p">)</span><span class="o">.</span><span class="n">st_mode</span> <span class="o">|</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_IEXEC</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{0:10s}</span><span class="s2"> ... OK&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s2">&quot;stilts&quot;</span><span class="p">))</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;use stilts </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">stilts_cmd</span><span class="p">))</span>
+    <span class="n">funpack_cmd</span> <span class="o">=</span> <span class="n">which</span><span class="p">(</span><span class="s2">&quot;funpack&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="n">which_path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">funpack_cmd</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;not able to find funpack. Get from internet&quot;</span><span class="p">)</span>
+        <span class="c1"># retrieve stilts</span>
+        <span class="kn">from</span> <span class="nn">astropy.utils.data</span> <span class="k">import</span> <span class="n">download_file</span>
+        <span class="n">funpack_tmp</span> <span class="o">=</span> <span class="n">download_file</span><span class="p">(</span>
+                <span class="s2">&quot;http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/&quot;</span>
+                <span class="s2">&quot;cfitsio_latest.tar.gz&quot;</span><span class="p">,</span>
+                <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">funpack_src</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">externdir</span><span class="p">,</span> <span class="s1">&#39;cfitsio&#39;</span><span class="p">)</span>
+        <span class="kn">import</span> <span class="nn">tarfile</span>
+        <span class="k">with</span> <span class="n">tarfile</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">funpack_tmp</span><span class="p">)</span> <span class="k">as</span> <span class="n">tar</span><span class="p">:</span>
+            <span class="n">tar</span><span class="o">.</span><span class="n">extractall</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="n">externdir</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;try compiling funpack&quot;</span><span class="p">)</span>
+        <span class="kn">import</span> <span class="nn">subprocess</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">command</span> <span class="ow">in</span> <span class="p">[</span>
+                    <span class="s1">&#39;./configure&#39;</span><span class="p">,</span> <span class="s1">&#39;make&#39;</span><span class="p">,</span> <span class="s1">&#39;make fpack&#39;</span><span class="p">,</span> <span class="s1">&#39;make funpack&#39;</span><span class="p">]:</span>
+                <span class="n">subprocess</span><span class="o">.</span><span class="n">check_call</span><span class="p">(</span><span class="n">command</span><span class="o">.</span><span class="n">split</span><span class="p">(),</span> <span class="n">cwd</span><span class="o">=</span><span class="n">funpack_src</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">CalledProcessError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;unable to compile funpack&quot;</span><span class="p">)</span>
+        <span class="n">funpack_cmd</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">externdir</span><span class="p">,</span> <span class="s1">&#39;funpack&#39;</span><span class="p">)</span>
+        <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">externdir</span><span class="p">,</span> <span class="s1">&#39;cfitsio&#39;</span><span class="p">,</span> <span class="s1">&#39;funpack&#39;</span><span class="p">),</span>
+                <span class="n">funpack_cmd</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{0:10s}</span><span class="s2"> ... OK&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s2">&quot;funpack&quot;</span><span class="p">))</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;use funpack </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">funpack_cmd</span><span class="p">))</span>
+
+    <span class="c1"># create logging directory</span>
+    <span class="n">logdir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">workdir</span><span class="p">,</span> <span class="n">logdir</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">logdir</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;use existing log dir </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">logdir</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">logdir</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;create log dir </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">logdir</span><span class="p">))</span>
+
+    <span class="c1"># setup scratch space</span>
+    <span class="n">tmpdir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">workdir</span><span class="p">,</span> <span class="n">tmpdir</span><span class="p">)</span>
+    <span class="c1"># def freespace_GiB(path):</span>
+    <span class="c1">#     stat = os.statvfs(path)</span>
+    <span class="c1">#     return stat.f_bfree * stat.f_frsize / 1024 ** 3</span>
+
+    <span class="c1"># logger.info(&quot;{:.2f} GiB free in {}&quot;.format(</span>
+    <span class="c1">#     freespace_GiB(scratch_dir), scratch_dir))</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">tmpdir</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;use existing tmp dir </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">tmpdir</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">tmpdir</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;create tmp dir </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">tmpdir</span><span class="p">))</span>
+
+    <span class="c1"># dump default config</span>
+    <span class="n">time_fmt</span> <span class="o">=</span> <span class="s2">&quot;%b-</span><span class="si">%d</span><span class="s2">-%Y_%H-%M-%S&quot;</span>
+    <span class="n">base_fmt</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;</span><span class="si">{obsid}</span><span class="s2">_</span><span class="si">{object}</span><span class="s2">_</span><span class="si">{instru}</span><span class="s2">_</span><span class="si">{band}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;## config file of </span><span class="si">{app_name:s}</span><span class="s2"></span>
+<span class="s2">## </span><span class="si">{time:s}</span><span class="s2"></span>
+<span class="s2"># calib setting</span>
+<span class="s2">phot_model_flags: &#39;color,chip,expo&#39;</span>
+<span class="s2"># qa inputs</span>
+<span class="s2">qa_headers:</span>
+<span class="s2">    odi: [</span>
+<span class="s2">        &#39;OBSID&#39;, &#39;CRVAL1&#39;, &#39;CRVAL2&#39;, &#39;OBJECT&#39;, &#39;EXPMEAS&#39;, &#39;AIRMASS&#39;,</span>
+<span class="s2">        &#39;SEEING&#39;, &#39;SKY_MEDI&#39;, &#39;SKY_STD&#39;,</span>
+<span class="s2">        &#39;FILTER&#39;, &#39;INSTRUME&#39;, &#39;MJD-OBS&#39;</span>
+<span class="s2">        ]</span>
+<span class="s2">    decam: [</span>
+<span class="s2">        &#39;OBSID&#39;, &#39;CRVAL1&#39;, &#39;CRVAL2&#39;, &#39;OBJECT&#39;, &#39;EXPTIME&#39;, &#39;AIRMASS&#39;,</span>
+<span class="s2">        &#39;FWHM&#39;,  &#39;AVSKY&#39;, &#39;SKYSIGMA&#39;,</span>
+<span class="s2">        &#39;FILTER&#39;, &#39;INSTRUME&#39;, &#39;MJD-OBS&#39;</span>
+<span class="s2">    ]</span>
+<span class="s2"># naming</span>
+<span class="s2">reg_arch: &#39;</span><span class="si">{reg_arch:s}</span><span class="s2">&#39;  # regex to parse the filenames from data archive</span>
+<span class="s2">fmt_orig: &#39;{{imflag}}</span><span class="si">{base_fmt}</span><span class="s2">.{{ext}}&#39;</span>
+<span class="s2">reg_orig: &#39;</span><span class="si">{reg_orig:s}</span><span class="s2">&#39;  # regex to parse the filenames in job-in dir</span>
+<span class="s2">reg_inputs: &#39;</span><span class="si">{reg_inputs:s}</span><span class="s2">&#39;  # regex to parse the filenames in jobdir</span>
+<span class="s2">fmt_inputs: &#39;orig_</span><span class="si">{base_fmt}</span><span class="s2">.{{ext}}&#39;  # format string for image in jobdir</span>
+<span class="s2">sel_inputs: [&#39;orig_*_?.fits&#39;, &#39;orig_*_?.fits.fz&#39;]</span>
+<span class="s2">fmt_masked: &#39;masked_</span><span class="si">{base_fmt:s}</span><span class="s2">.fits&#39;  # format string of masked images</span>
+<span class="s2">sel_masked: &#39;masked_*_?.fits&#39;   # selection string of masked images</span>
+<span class="s2">fmt_selected: &#39;{{ppflag}}{{imflag}}_</span><span class="si">{base_fmt:s}</span><span class="s2">.fits&#39;</span>
+<span class="s2">sel_fcomb: &#39;fcomb[0-9]*_masked_*.fits&#39;</span>
+<span class="s2">fmt_objcat: &#39;{{ppflag}}objcat_</span><span class="si">{base_fmt:s}</span><span class="s2">.cat&#39;  # format of object catalog</span>
+<span class="s2">fmt_objmask: &#39;{{ppflag}}objmask_</span><span class="si">{base_fmt:s}</span><span class="s2">.fits&#39;  # format of object masks</span>
+<span class="s2">sel_objmask: &#39;fcomb[0-9]*_objmask_*.fits&#39;   # selection string of object masks</span>
+<span class="s2">fmt_sky: &#39;{{ppflag}}sky_</span><span class="si">{base_fmt:s}</span><span class="s2">.fits&#39;  # format string of sky images</span>
+<span class="s2">fmt_fcomb: &#39;{{ppflag}}combined.fits&#39;</span>
+<span class="s2">reg_fcomb: &#39;</span><span class="si">{reg_fcomb:s}</span><span class="s2">&#39;  # regex to parse grouped master</span>
+<span class="s2">fmt_fsmooth: &#39;{{ppflag}}smoothed.fits&#39;</span>
+<span class="s2">sel_fsub: &#39;fsub[0-9]*_masked_*.fits&#39;</span>
+<span class="s2">fmt_fsub_fsmooth: &#39;fcomb{{grpid}}_smoothed.fits&#39;  # fmt for subtract fcomb</span>
+<span class="s2">fmt_fsub: &#39;fsub_</span><span class="si">{base_fmt:s}</span><span class="s2">.fits&#39;</span>
+<span class="s2">sel_fsubed: &#39;fsub_*.fits&#39;</span>
+<span class="s2">sel_phot: &#39;phot[0-9]*_*_*.fits&#39;</span>
+<span class="s2">fmt_photcat: &#39;{{ppflag}}{{imflag}}_</span><span class="si">{base_fmt:s}</span><span class="s2">.cat&#39;</span>
+<span class="s2">fmt_photcat_cleaned: &#39;{{ppflag}}{{imflag}}_</span><span class="si">{base_fmt:s}</span><span class="s2">.cln.cat&#39;</span>
+<span class="s2">fmt_photcat_matched: &#39;{{ppflag}}{{imflag}}_</span><span class="si">{base_fmt:s}</span><span class="s2">.zp.cat&#39;</span>
+<span class="s2">fmt_phot: &#39;{{ppflag}}{{instru}}_{{band}}.cat&#39;</span>
+<span class="s2">reg_phot: &#39;</span><span class="si">{reg_phot:s}</span><span class="s2">&#39;  # regex to parse grouped phot master</span>
+<span class="s2">phot_hdr_suffix: &#39;hdr_phot&#39;</span>
+<span class="s2">phot_hdr_glob: &#39;phot[0-9]*_*{{obsid}}*{{instru}}_{{band}}.hdr_phot&#39;</span>
+<span class="s2">sel_mosaic: &#39;mosaic[0-9]*_*_*.fits&#39;</span>
+<span class="s2">fmt_mosaic_orig: &#39;swarp{{grpid}}_{{imflag}}_{{instru}}_{{band}}.fits&#39;</span>
+<span class="s2">fmt_mosaic_hdr: &#39;coadd{{grpid}}.mosaic&#39;</span>
+<span class="s2">fmt_mosaic: &#39;coadd{{grpid}}_{{imflag}}_{{instru}}_{{band}}.fits&#39;</span>
+<span class="s2">fmt_mosaic_wht: &#39;coadd{{grpid}}_{{imflag}}_{{instru}}_{{band}}.wht.fits&#39;</span>
+<span class="s2">reg_mosaic: </span><span class="si">{reg_mosaic:s}</span><span class="s2"></span>
+<span class="s2">reg_mosaic_fits: </span><span class="si">{reg_mosaic_fits:s}</span><span class="s2"></span>
+<span class="s2">fmt_msccat_matched: &#39;coadd{{grpid}}{{imflag}}_{{instru}}_{{band}}.zp.cat&#39;</span>
+<span class="s2">reg_grp: &#39;</span><span class="si">{reg_grp:s}</span><span class="s2">&#39;  # regex to parse grouped images</span>
+<span class="s2">fmt_grp: &#39;{{ppflag}}{{grpid}}_{{imflag}}_</span><span class="si">{base_fmt:s}</span><span class="s2">.fits&#39;</span>
+<span class="s2"># environ</span>
+<span class="s2">workdir: </span><span class="si">{workdir}</span><span class="s2"></span>
+<span class="s2">tmpdir: </span><span class="si">{tmpdir}</span><span class="s2"></span>
+<span class="s2">logdir: </span><span class="si">{logdir}</span><span class="s2"></span>
+<span class="s2">astromatic_prefix: </span><span class="si">{astromatic_prefix}</span><span class="s2"></span>
+<span class="s2">stilts_cmd: </span><span class="si">{stilts_cmd}</span><span class="s2"></span>
+<span class="s2">funpack_cmd: </span><span class="si">{funpack_cmd}</span><span class="s2"></span>
+<span class="s2">&quot;&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">app_name</span><span class="o">=</span><span class="n">APP_NAME</span><span class="p">,</span>
+           <span class="n">time</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="n">time_fmt</span><span class="p">),</span>
+           <span class="n">version</span><span class="o">=</span><span class="s2">&quot;0.0&quot;</span><span class="p">,</span>
+           <span class="n">reg_arch</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;(?P&lt;imflag&gt;[^_/]+_)?&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;(?P&lt;obsid&gt;[^_/]*20\d</span><span class="si">{6}</span><span class="s1">[Tt]\d</span><span class="si">{6}</span><span class="s1">(?:\.\d)?)&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;_(?P&lt;object&gt;.+?)&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;_(?P&lt;instru&gt;odi|decam)_(?P&lt;band&gt;[ugrizY])(?:_.+)?\.&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;(?P&lt;ext&gt;fits|fits\.fz)$&#39;</span><span class="p">,</span>
+           <span class="n">reg_orig</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;(?P&lt;ppflag&gt;[^_/]+_)?(?P&lt;imflag&gt;[^_/]+)_&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;(?P&lt;obsid&gt;[^_/]*20\d</span><span class="si">{6}</span><span class="s1">[Tt]\d</span><span class="si">{6}</span><span class="s1">(?:\.\d)?)&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;_(?P&lt;object&gt;.+?)&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;_(?P&lt;instru&gt;odi|decam)_(?P&lt;band&gt;[ugrizY])&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;\.(?P&lt;ext&gt;fits|fits\.fz)$&#39;</span><span class="p">,</span>
+           <span class="n">reg_inputs</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;(?P&lt;ppflag&gt;[^_/]+_)?(?P&lt;imflag&gt;[^_/]+)_&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;(?P&lt;obsid&gt;[^_/]*20\d</span><span class="si">{6}</span><span class="s1">[Tt]\d</span><span class="si">{6}</span><span class="s1">(?:\.\d)?)&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;_(?P&lt;object&gt;.+?)&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;_(?P&lt;instru&gt;odi|decam)_(?P&lt;band&gt;[ugrizY])&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;\.(?P&lt;ext&gt;[^/]+)$&#39;</span><span class="p">,</span>
+           <span class="n">reg_fcomb</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;(?P&lt;ppflag&gt;[^_/]+_)(?P&lt;imflag&gt;[^/]+)\.fits&#39;</span><span class="p">,</span>
+           <span class="n">reg_phot</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;(?P&lt;ppflag&gt;[^_/]+)&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;_(?P&lt;instru&gt;odi|decam)_(?P&lt;band&gt;[ugrizY])&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;\.(?P&lt;ext&gt;[^/]+)&#39;</span><span class="p">,</span>
+           <span class="n">reg_mosaic</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;(?P&lt;ppflag&gt;[a-z]+)(?P&lt;grpid&gt;\d+)_(?P&lt;imflag&gt;[^_/]+)&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;_(?P&lt;instru&gt;odi|decam)_(?P&lt;band&gt;[ugrizY])&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;\.(?P&lt;ext&gt;[^/]+)$&#39;</span><span class="p">,</span>
+           <span class="n">reg_mosaic_fits</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;(?P&lt;ppflag&gt;[a-z]+)(?P&lt;grpid&gt;\d+)&#39;</span>
+                           <span class="sa">r</span><span class="s1">&#39;_(?P&lt;imflag&gt;[^_/]+)&#39;</span>
+                           <span class="sa">r</span><span class="s1">&#39;_(?P&lt;instru&gt;odi|decam)_(?P&lt;band&gt;[ugrizY])&#39;</span>
+                           <span class="sa">r</span><span class="s1">&#39;\.fits$&#39;</span><span class="p">,</span>
+           <span class="n">reg_grp</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;(?P&lt;ppflag&gt;[a-z]+)(?P&lt;grpid&gt;\d+)_(?P&lt;imflag&gt;[^_/]+)_&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;(?P&lt;obsid&gt;[^_/]*20\d</span><span class="si">{6}</span><span class="s1">[Tt]\d</span><span class="si">{6}</span><span class="s1">(?:\.\d)?)&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;_(?P&lt;object&gt;.+?)&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;_(?P&lt;instru&gt;odi|decam)_(?P&lt;band&gt;[ugrizY])&#39;</span>
+                    <span class="sa">r</span><span class="s1">&#39;\.(?P&lt;ext&gt;[^/]+)$&#39;</span><span class="p">,</span>
+           <span class="c1"># reg_inputs=r&#39;(?P&lt;ppflag&gt;[^_/]+_)?(?P&lt;imflag&gt;[^_/]+)_&#39;</span>
+           <span class="c1">#            r&#39;(?P&lt;obsid&gt;20\d{6}T\d{6}\.\d)_(?P&lt;object&gt;.+?)&#39;</span>
+           <span class="c1">#            r&#39;_odi_(?P&lt;band&gt;[ugriz])&#39;</span>
+           <span class="c1">#            r&#39;_(?P&lt;featgrp&gt;\d+)_(?P&lt;photgrp&gt;\d+)_(?P&lt;mscgrp&gt;\d+)&#39;</span>
+           <span class="c1">#            r&#39;\.(?P&lt;ext&gt;fits|fits\.fz)$&#39;,</span>
+           <span class="o">**</span><span class="nb">locals</span><span class="p">())</span>
+    <span class="n">configfile</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">workdir</span><span class="p">,</span> <span class="n">configfile</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">configfile</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">backup_config</span><span class="p">:</span>
+            <span class="n">timestamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getmtime</span><span class="p">(</span><span class="n">configfile</span><span class="p">))</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="n">time_fmt</span><span class="p">)</span>
+            <span class="n">bakfile</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="n">workdir</span><span class="p">,</span>
+                <span class="s2">&quot;</span><span class="si">{1}</span><span class="s2">_</span><span class="si">{0}{2}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">timestamp</span><span class="p">,</span> <span class="o">*</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">configfile</span><span class="p">)))</span>
+                <span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;backup existing config file to </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">bakfile</span><span class="p">))</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">configfile</span><span class="p">,</span> <span class="n">bakfile</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">&quot;overwrite existing config file </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">configfile</span><span class="p">))</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">configfile</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
+        <span class="n">fo</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">config</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2020, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.2.1. &nbsp;
+    Last built 06 Jan 2020. <br/>
+  </p>
+</footer>
+  </body>
+</html>
