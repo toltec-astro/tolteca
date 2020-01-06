@@ -199,3 +199,9 @@ github_issues_url = 'https://github.com/{0}/issues/'.format(setup_cfg['github_pr
 #     dtype, target = line.split(None, 1)
 #     target = target.strip()
 #     nitpick_ignore.append((dtype, six.u(target)))
+
+# extensions += ['sphinxcontrib.apidoc', ]
+# apidoc_module_dir = '../tolteca'
+# apidoc_output_dir = 'apidoc'
+# apidoc_excluded_paths = ['tests']
+# apidoc_separate_modules = True
