@@ -79,18 +79,10 @@
 <dl class="function">
 <dt id="tolteca.pipeline.setup_workdir">
 <code class="sig-prename descclassname">tolteca.pipeline.</code><code class="sig-name descname">setup_workdir</code><span class="sig-paren">(</span><em class="sig-param">dirpath</em>, <em class="sig-param">empty_only=True</em>, <em class="sig-param">backup=True</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/pipeline.html#setup_workdir"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.pipeline.setup_workdir" title="Permalink to this definition">¶</a></dt>
-<dd><p>Setup execution environment and dump default configuration file
-:param dirpath: The dir to store the created dirs and files.
-:type dirpath: pathlib.Path
-:param empty_only: When set to True, raise RuntimeError if the workdir is not empty
-:type empty_only: bool
-:param backup: When not empty_only, this controls whether or not to create</p>
-<blockquote>
-<div><p>backups for existing files.</p>
-</div></blockquote>
+<dd><p>Setup workdir.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>kwargs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.8)"><em>dict</em></a>) – Entries that are passed directly into the created configuration file.</p>
+<dd class="field-odd"><p><strong>dirpath</strong> (<a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.8)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pathlib.Path</span></code></a>) – The path to setup as workdir.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -120,7 +112,7 @@
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
     Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.2.1. &nbsp;
-    Last built 06 Jan 2020. <br/>
+    Last built 07 Jan 2020. <br/>
   </p>
 </footer>
   </body>

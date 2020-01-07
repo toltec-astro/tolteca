@@ -76,6 +76,189 @@
   <div class="section" id="tolteca-documentation">
 <h1>TolTECA Documentation<a class="headerlink" href="#tolteca-documentation" title="Permalink to this headline">¶</a></h1>
 <p>This is the documentation for TolTECA.</p>
+<div class="section" id="tolteca-workflow">
+<h2>TolTECA workflow<a class="headerlink" href="#tolteca-workflow" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><p>Pipeline Setup</p></li>
+</ul>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span>$ tolteca setup DIR
+</pre></div>
+</div>
+<p>This will setup <code class="xref py py-obj docutils literal notranslate"><span class="pre">DIR</span></code> as the working directory for running TolTECA.</p>
+<blockquote>
+<div><blockquote>
+<div><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span>$ tolteca setup test_workspace
+$ ls test_workspace
+</pre></div>
+</div>
+<p>bin/  cal/  config_base.yaml  log/  idx/</p>
+</div></blockquote>
+<ul>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">bin/</span></code>: The directory that contains external executables, in particular,
+the <code class="xref py py-obj docutils literal notranslate"><span class="pre">citlali</span></code> pipeline executables.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">cal/</span></code>: The directory that contains calibration objects. The naming
+conventions is <code class="xref py py-obj docutils literal notranslate"><span class="pre">{type}_{ver}.{ext}</span></code>, where <code class="xref py py-obj docutils literal notranslate"><span class="pre">{type}</span></code> could be <code class="xref py py-obj docutils literal notranslate"><span class="pre">beammap</span></code>,
+<code class="xref py py-obj docutils literal notranslate"><span class="pre">extinction</span></code>, or the packed form <code class="xref py py-obj docutils literal notranslate"><span class="pre">calobj</span></code> (TBD).</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">log/</span></code>: The directory where log files live.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">idx/</span></code>: The directory where databases for file index live.</p></li>
+<li><p>(TBA) more directories as necessary</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">config_base.yaml</span></code>: The file that contains info on the state
+of TolTECA and this working directory. An example:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># generated on xxxx-xx-xx xx:xx:xx</span>
+<span class="n">namespace</span><span class="p">:</span> <span class="n">null</span>
+<span class="n">system_info</span><span class="p">:</span>
+    <span class="n">hostname</span><span class="p">:</span> <span class="n">clipy</span>
+
+<span class="n">manager</span><span class="p">:</span>
+    <span class="nb">bin</span><span class="p">:</span> <span class="o">/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">tolteca</span><span class="o">/</span><span class="nb">bin</span>
+    <span class="n">version</span><span class="p">:</span> <span class="mf">0.0</span><span class="o">.</span><span class="mi">1</span>
+
+<span class="n">pipeline_runtime</span><span class="p">:</span>
+    <span class="n">rootpath</span><span class="p">:</span> <span class="o">.</span>
+    <span class="n">logdir</span><span class="p">:</span> <span class="o">./</span><span class="n">log</span>
+    <span class="n">bindir</span><span class="p">:</span> <span class="o">./</span><span class="nb">bin</span>
+    <span class="n">caldir</span><span class="p">:</span> <span class="o">./</span><span class="n">cal</span>
+    <span class="n">idxdir</span><span class="p">:</span> <span class="o">./</span><span class="n">idx</span>
+    <span class="n">configfile</span><span class="p">:</span>
+        <span class="o">-</span> <span class="n">config_base</span><span class="o">.</span><span class="n">yaml</span>
+
+<span class="n">pipeline</span><span class="p">:</span>
+    <span class="nb">bin</span><span class="p">:</span> <span class="o">/</span><span class="nb">bin</span><span class="o">/</span><span class="n">citlali</span>
+    <span class="n">version</span><span class="p">:</span> <span class="mf">0.0</span><span class="o">.</span><span class="mi">1</span>
+</pre></div>
+</div>
+</li>
+</ul>
+</div></blockquote>
+<ul class="simple">
+<li><p>Pipeline Prepare</p></li>
+</ul>
+<p>Within an already setup work directory,</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span>$ tolteca prepare [-i INPUT_CONFIG] [--key0 value0 [--key1 value1 ...]] JOBDIR
+</pre></div>
+</div>
+<p>This will create and setup subdirectory <code class="xref py py-obj docutils literal notranslate"><span class="pre">JOBDIR</span></code> using information
+provided in <code class="xref py py-obj docutils literal notranslate"><span class="pre">INPUT_CONFIG</span></code>, optionally overwritten by <code class="xref py py-obj docutils literal notranslate"><span class="pre">--key</span> <span class="pre">value</span></code> pairs.</p>
+<p>There are several ways to specify what input files to use in <code class="xref py py-obj docutils literal notranslate"><span class="pre">INPUT_CONFIG</span></code>,
+among which the most fundamental one is to use an SQL query to the <code class="xref py py-obj docutils literal notranslate"><span class="pre">idx</span></code>
+database, e.g.,</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># job0_in.yaml</span>
+
+<span class="n">source</span><span class="p">:</span> <span class="n">idx</span>
+<span class="n">sql_query</span><span class="p">:</span> <span class="s2">&quot;select * from toltecdb.toltec limit 10&quot;</span>
+</pre></div>
+</div>
+<p>This will get 10 entries from table <code class="xref py py-obj docutils literal notranslate"><span class="pre">toltecdb.toltec</span></code>.</p>
+<p>The created <code class="xref py py-obj docutils literal notranslate"><span class="pre">JOBDIR</span></code> contains the follows:</p>
+<blockquote>
+<div><blockquote>
+<div><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span>$ tolteca prepare -i job0_in.yaml job0
+$ ls -l job0/
+00_base.yaml*
+30_citlali.yaml
+60_inputs.yaml
+_raw/
+_cal/
+</pre></div>
+</div>
+</div></blockquote>
+<ul>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">??_*.yaml</span></code>: The configurations that will be picked up by the pipeline.</p>
+<ul>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">00_base.yaml</span></code>: This is a symbolic link to ../config_base.yaml</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">30_citlali.yaml</span></code>: This is a dump of the default pipeline program config.
+Under the hood, it runs the follows</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span>$ pipeline_bin --dump --all &gt; config
+</pre></div>
+</div>
+<p>where <code class="xref py py-obj docutils literal notranslate"><span class="pre">pipeline_bin</span></code> is <code class="xref py py-obj docutils literal notranslate"><span class="pre">pipeline.bin</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">00_base.yaml</span></code>, i.e., the
+<code class="xref py py-obj docutils literal notranslate"><span class="pre">citlali</span></code> executable. An example file:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">namespace</span><span class="p">:</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">config</span>
+<span class="n">io</span><span class="p">:</span>
+    <span class="n">time_chunking</span><span class="p">:</span>
+        <span class="n">enabled</span><span class="p">:</span> <span class="n">yes</span>
+        <span class="n">method</span><span class="p">:</span>
+            <span class="n">value</span><span class="p">:</span> <span class="s2">&quot;fixed&quot;</span>
+            <span class="n">choises</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;hold_signal&quot;</span><span class="p">,</span> <span class="s2">&quot;fixed_length&quot;</span><span class="p">]</span>
+        <span class="n">parameters</span><span class="p">:</span>
+           <span class="n">hold_signal</span><span class="p">:</span>
+                <span class="n">value</span><span class="p">:</span> <span class="mi">1</span>
+           <span class="n">fixed_length</span><span class="p">:</span>
+                <span class="n">value</span><span class="p">:</span> <span class="mi">10</span>
+                <span class="n">unit</span><span class="p">:</span> <span class="n">second</span>
+<span class="n">reduce</span><span class="p">:</span>
+    <span class="n">map_making</span><span class="p">:</span>
+        <span class="n">coordsys</span><span class="p">:</span>
+            <span class="n">value</span><span class="p">:</span> <span class="s2">&quot;equatorial&quot;</span>
+            <span class="n">choises</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;equatorial&quot;</span><span class="p">,</span> <span class="s2">&quot;horizontal&quot;</span><span class="p">,</span> <span class="s1">&#39;galactic&#39;</span><span class="p">]</span>
+</pre></div>
+</div>
+</li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">60_inputs.yaml</span></code>: This is a file that include all found data files
+to be reduced, organized as follows:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">namespace</span><span class="p">:</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">io</span>
+<span class="n">inputs</span><span class="p">:</span>
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">obs1</span>
+    <span class="n">data_items</span><span class="p">:</span>
+      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">toltec0</span>
+        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/toltec0_obs1.nc&quot;</span>
+      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">toltec1</span>
+        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/toltec1_obs1.nc&quot;</span>
+      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">toltec2</span>
+        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/toltec2_obs1.nc&quot;</span>
+      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">lmt</span>
+        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/lmt_obs1.nc&quot;</span>
+      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">hwp</span>
+        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/hwp_obs1.nc&quot;</span>
+    <span class="n">cal_items</span><span class="p">:</span>
+      <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">beammap</span>
+        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_cal/beammap_obs1.nc&quot;</span>
+      <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">extinction</span>
+        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_cal/extinction_obs1.nc&quot;</span>
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">obs2</span>
+    <span class="n">data_items</span><span class="p">:</span>
+      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">toltec0</span>
+        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/toltec0_obs2.nc&quot;</span>
+      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">toltec1</span>
+        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/toltec1_obs2.nc&quot;</span>
+      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">toltec2</span>
+        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/toltec2_obs2.nc&quot;</span>
+      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">lmt</span>
+        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/lmt_obs2.nc&quot;</span>
+      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">hwp</span>
+        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/hwp_obs2.nc&quot;</span>
+    <span class="n">cal_items</span><span class="p">:</span>
+      <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">beammap</span>
+        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_cal/beammap_obs2.nc&quot;</span>
+      <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">extinction</span>
+        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_cal/extinction_obs2.nc&quot;</span>
+</pre></div>
+</div>
+</li>
+</ul>
+</li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">_raw/</span></code>: The directory that contains symbolic links to all data files,
+collected from querying the <code class="xref py py-obj docutils literal notranslate"><span class="pre">idx</span></code> database, using information provided
+in <code class="xref py py-obj docutils literal notranslate"><span class="pre">INPUT_CONFIG</span></code>.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">_cal/</span></code>: The directory that contains <em>interpreted</em> calibration objects,
+from using the files in <code class="xref py py-obj docutils literal notranslate"><span class="pre">/cal</span></code>.</p></li>
+</ul>
+</div></blockquote>
+<ul class="simple">
+<li><p>Pipeline execution</p></li>
+</ul>
+<p>The pipeline can be executed by</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span>$ tolteca run [OPTIONS] JOBDIR
+</pre></div>
+</div>
+<p>This will invoke the pipeline. A unique suffix is generated, which is used
+to create a output directory <code class="xref py py-obj docutils literal notranslate"><span class="pre">JOBDIR.suffix</span></code>. A unified config file <code class="xref py py-obj docutils literal notranslate"><span class="pre">jobkey_somerandomhash.yaml</span></code>
+is produced out of all <code class="xref py py-obj docutils literal notranslate"><span class="pre">??_*.yaml</span></code> files and put into it as well. Finally,
+the pipeline is run by effectively:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span>$ pipeline_bin -c JOBDIR.suffix/JOBDIR_suffix.yaml -o JOBDIR.suffix
+</pre></div>
+</div>
+</div>
 <div class="section" id="reference-api">
 <h2>Reference/API<a class="headerlink" href="#reference-api" title="Permalink to this headline">¶</a></h2>
 <div class="section" id="module-tolteca">
@@ -242,7 +425,7 @@
 <td><p></p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.pipeline.setup_workdir.html#tolteca.pipeline.setup_workdir" title="tolteca.pipeline.setup_workdir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_workdir</span></code></a>(dirpath[, empty_only, backup])</p></td>
-<td><p>Setup execution environment and dump default configuration file :param dirpath: The dir to store the created dirs and files.</p></td>
+<td><p>Setup workdir.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">timeit</span></code>(arg)</p></td>
 <td><p></p></td>
@@ -261,11 +444,14 @@
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.pipeline.PipelineRuntime.html#tolteca.pipeline.PipelineRuntime" title="tolteca.pipeline.PipelineRuntime"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PipelineRuntime</span></code></a>(workdir)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.pipeline.PipelineRuntime.html#tolteca.pipeline.PipelineRuntime" title="tolteca.pipeline.PipelineRuntime"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PipelineRuntime</span></code></a>(rootpath)</p></td>
 <td><p></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime</span></code>(year, month, day[, hour[, minute[, …)</p></td>
 <td><p>The year, month and day arguments are required.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">logit</span></code>(func, msg)</p></td>
+<td><p></p></td>
 </tr>
 </tbody>
 </table>
@@ -343,10 +529,13 @@
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.web.create_app.html#tolteca.web.create_app" title="tolteca.web.create_app"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create_app</span></code></a>()</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.web.create_server.html#tolteca.web.create_server" title="tolteca.web.create_server"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create_server</span></code></a>([default_config])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">timeit</span></code>(arg)</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">init_log</span></code>(level[, file_])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">timeit</span></code>(arg)</p></td>
 <td><p></p></td>
 </tr>
 </tbody>
@@ -381,35 +570,6 @@
 </div>
 <div class="section" id="module-tolteca.web.backend">
 <span id="tolteca-web-backend-package"></span><h3>tolteca.web.backend Package<a class="headerlink" href="#module-tolteca.web.backend" title="Permalink to this headline">¶</a></h3>
-<div class="section" id="id14">
-<h4>Functions<a class="headerlink" href="#id14" title="Permalink to this headline">¶</a></h4>
-<table class="longtable docutils align-default">
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 90%" />
-</colgroup>
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.web.backend.create_db_session.html#tolteca.web.backend.create_db_session" title="tolteca.web.backend.create_db_session"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create_db_session</span></code></a>(bind[, server])</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.web.backend.dataframe_from_db.html#tolteca.web.backend.dataframe_from_db" title="tolteca.web.backend.dataframe_from_db"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataframe_from_db</span></code></a>(bind, query, **kwargs)</p></td>
-<td><p>Return dataframe from database.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.web.backend.init_app.html#tolteca.web.backend.init_app" title="tolteca.web.backend.init_app"><code class="xref py py-obj docutils literal notranslate"><span class="pre">init_app</span></code></a>(server)</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">init_log</span></code>(level[, file_])</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.web.backend.load_models.html#tolteca.web.backend.load_models" title="tolteca.web.backend.load_models"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_models</span></code></a>(db)</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.web.backend.setup_flask_db.html#tolteca.web.backend.setup_flask_db" title="tolteca.web.backend.setup_flask_db"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_flask_db</span></code></a>(session)</p></td>
-<td><p></p></td>
-</tr>
-</tbody>
-</table>
-</div>
 </div>
 </div>
 </div>
@@ -422,6 +582,7 @@
         <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
 <ul>
 <li><a class="reference internal" href="#">TolTECA Documentation</a><ul>
+<li><a class="reference internal" href="#tolteca-workflow">TolTECA workflow</a></li>
 <li><a class="reference internal" href="#reference-api">Reference/API</a><ul>
 <li><a class="reference internal" href="#module-tolteca">tolteca Package</a></li>
 <li><a class="reference internal" href="#module-tolteca.db">tolteca.db Package</a><ul>
@@ -462,10 +623,7 @@
 <li><a class="reference internal" href="#id13">Functions</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#module-tolteca.web.backend">tolteca.web.backend Package</a><ul>
-<li><a class="reference internal" href="#id14">Functions</a></li>
-</ul>
-</li>
+<li><a class="reference internal" href="#module-tolteca.web.backend">tolteca.web.backend Package</a></li>
 </ul>
 </li>
 </ul>
@@ -485,7 +643,7 @@
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
     Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.2.1. &nbsp;
-    Last built 06 Jan 2020. <br/>
+    Last built 07 Jan 2020. <br/>
   </p>
 </footer>
   </body>

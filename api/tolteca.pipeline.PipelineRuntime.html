@@ -78,7 +78,7 @@
 <h1>PipelineRuntime<a class="headerlink" href="#pipelineruntime" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="tolteca.pipeline.PipelineRuntime">
-<em class="property">class </em><code class="sig-prename descclassname">tolteca.pipeline.</code><code class="sig-name descname">PipelineRuntime</code><span class="sig-paren">(</span><em class="sig-param">workdir</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/pipeline.html#PipelineRuntime"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.pipeline.PipelineRuntime" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">tolteca.pipeline.</code><code class="sig-name descname">PipelineRuntime</code><span class="sig-paren">(</span><em class="sig-param">rootpath</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/pipeline.html#PipelineRuntime"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.pipeline.PipelineRuntime" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.8)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
 <p class="rubric">Methods Summary</p>
 <table class="longtable docutils align-default">
@@ -87,16 +87,32 @@
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.pipeline.PipelineRuntime.from_dir" title="tolteca.pipeline.PipelineRuntime.from_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_dir</span></code></a>(path[, backup, create])</p></td>
-<td><p></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.pipeline.PipelineRuntime.from_dir" title="tolteca.pipeline.PipelineRuntime.from_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_dir</span></code></a>(path[, empty_only, backup, create, …])</p></td>
+<td><p>Create <a class="reference internal" href="#tolteca.pipeline.PipelineRuntime" title="tolteca.pipeline.PipelineRuntime"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PipelineRuntime</span></code></a> from directory.</p></td>
 </tr>
 </tbody>
 </table>
 <p class="rubric">Methods Documentation</p>
 <dl class="method">
 <dt id="tolteca.pipeline.PipelineRuntime.from_dir">
-<em class="property">classmethod </em><code class="sig-name descname">from_dir</code><span class="sig-paren">(</span><em class="sig-param">path</em>, <em class="sig-param">backup=True</em>, <em class="sig-param">create=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/pipeline.html#PipelineRuntime.from_dir"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.pipeline.PipelineRuntime.from_dir" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<em class="property">classmethod </em><code class="sig-name descname">from_dir</code><span class="sig-paren">(</span><em class="sig-param">path</em>, <em class="sig-param">empty_only=True</em>, <em class="sig-param">backup=True</em>, <em class="sig-param">create=True</em>, <em class="sig-param">dry_run=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/pipeline.html#PipelineRuntime.from_dir"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.pipeline.PipelineRuntime.from_dir" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create <a class="reference internal" href="#tolteca.pipeline.PipelineRuntime" title="tolteca.pipeline.PipelineRuntime"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PipelineRuntime</span></code></a> from directory.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> (<a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.8)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pathlib.Path</span></code></a>) – The path to the work directory.</p></li>
+<li><p><strong>empty_only</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.8)"><em>bool</em></a>) – When set to True, raise <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.8)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RuntimeError</span></code></a> if <code class="xref py py-obj docutils literal notranslate"><span class="pre">path</span></code> is not empty</p></li>
+<li><p><strong>backup</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.8)"><em>bool</em></a>) – When not <code class="xref py py-obj docutils literal notranslate"><span class="pre">empty_only</span></code>, this controls whether or not to create
+backups for existing files.</p></li>
+<li><p><strong>create</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.8)"><em>bool</em></a>) – When set to False, raise <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.8)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RuntimeError</span></code></a> if <code class="xref py py-obj docutils literal notranslate"><span class="pre">path</span></code> does not already
+have all content items. Otherwise, create missing items.</p></li>
+<li><p><strong>dry_run</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.8)"><em>bool</em></a>) – If set, no actual file/dir is changed.</p></li>
+<li><p><strong>kwargs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.8)"><em>dict</em></a>) – Entries that are passed directly into the created
+default configuration file.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
 
 </dd></dl>
 
@@ -125,7 +141,7 @@
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
     Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.2.1. &nbsp;
-    Last built 06 Jan 2020. <br/>
+    Last built 07 Jan 2020. <br/>
   </p>
 </footer>
   </body>
