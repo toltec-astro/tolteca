@@ -7,7 +7,7 @@ import dash_html_components as html
 # import pandas as pd
 # import dash_bootstrap_components as dbc
 from dash.dependencies import Input, State, Output  # , ClientsideFunction
-from ...backend import dataframe_from_db
+from dashpages.web.backend import dataframe_from_db
 from .. import get_current_dash_app
 from tolteca.utils.log import timeit, get_logger
 from tolteca.utils.fmt import pformat_dict
