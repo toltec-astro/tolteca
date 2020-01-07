@@ -3,7 +3,7 @@
 # from flask import Flask
 
 import connexion
-from . import config
+# from . import config
 from tolteca.utils.log import timeit
 from tolteca.utils.cli.click_log import init as init_log
 
@@ -33,6 +33,6 @@ def create_server(default_config=None):
     server = app.app
     server.connexion_app = app
     server.config.from_object(default_config)
-    server.config.from_object(config)
+    # server.config.from_object(config)
     init_log(level='DEBUG' if server.debug else 'INFO')
     return server
