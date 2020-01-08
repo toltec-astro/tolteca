@@ -5,7 +5,7 @@ import os
 TITLE = "TolTECA"
 SECRET_KEY = os.environ.get('TOLTECA_SECRET_KEY', "")
 
-from .backend.config import *  # noqa: F401, F403
+from ..backend.config import *  # noqa: F401, F403
 
 # from .backend.db.models import Base as db_Base  # noqa: F401
 
@@ -26,4 +26,19 @@ from .backend.config import *  # noqa: F401, F403
 #         setup_flask_db(db.session)
 
 
-from . import frontend  # noqa: F401
+# from . import frontend  # noqa: F401
+
+def dict_from_module(m, **kwargs):
+    result = {k: getattr(m, k) for k in m.__all__}
+    result.update(**kwargs)
+    return result
+
+
+from . import toltecdb  # noqa: E402
+
+pages = [
+        dict_from_module(toltecdb),
+        dict_from_module(
+            toltecdb, title_text="Test", label="test",
+            n_records=5, update_interval=1000),
+        ]

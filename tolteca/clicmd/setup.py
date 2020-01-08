@@ -12,7 +12,7 @@ from ..utils.cli import cli_header
 from ..utils.cli.click_helpers import split_option_arg, resolve_path
 # from functools import lru_cache
 # import inspect
-from ..pipeline import setup_workdir
+from ..pipeline import PipelineRuntime
 from pathlib import Path
 
 
@@ -23,7 +23,7 @@ from pathlib import Path
             exists=False,
             file_okay=False, dir_okay=True,
             writable=True, readable=True),
-        required=False,
+        required=True,
         callback=resolve_path,
         metavar='DIR',
         )
@@ -53,7 +53,7 @@ from pathlib import Path
         "-f", "--force",
         is_flag=True,
         default=False,
-        help="Force the setup even if DIR is not empty",
+        help="Force the setup even if DIR is not empty.",
         )
 @click.option(
         "-o", "--overwrite",
@@ -62,9 +62,16 @@ from pathlib import Path
         help="Overwrite any existing files without backup in case "
              "a forced setup is requested"
         )
+@click.option(
+        "-n", "--dry_run",
+        is_flag=True,
+        default=False,
+        help="Run without actually create files.",
+        )
 @click.pass_obj
 @timeit
-def cmd_setup(rt, workdir, pipeline_bindir, calib_dir, force, overwrite):
+def cmd_setup(
+        rt, workdir, pipeline_bindir, calib_dir, force, overwrite, dry_run):
     """Setup DIR as the workdir for the reduction pipeline.
 
     The current dir is used if DIR is not specified.',
@@ -74,9 +81,17 @@ def cmd_setup(rt, workdir, pipeline_bindir, calib_dir, force, overwrite):
     #     f"setup {workdir} as workdir with pipeline_bindir={pipeline_bindir}"
     #     f" calib_dir={calib_dir}"
     #     )
-    setup_workdir(
+
+    prt = PipelineRuntime.from_dir(
             Path(workdir),
-            empty_only=not force, backup=not overwrite,
-            pipeline_bindir=pipeline_bindir,
-            calib_dir=calib_dir,
+            empty_only=not force,
+            backup=not overwrite,
+            create=True,
+            dry_run=dry_run,
             )
+    print(prt)
+    # setup_workdir(
+    #         Path(workdir),
+    #         pipeline_bindir=pipeline_bindir,
+    #         calib_dir=calib_dir,
+    #         )

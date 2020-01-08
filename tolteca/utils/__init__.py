@@ -6,6 +6,7 @@ import sys
 import importlib
 from contextlib import ContextDecorator
 import os
+from collections import OrderedDict
 
 
 def get_pkg_data_path():
@@ -92,3 +93,7 @@ class hookit(ContextDecorator):
 def touch_file(out_file):
     with open(out_file, 'a'):
         os.utime(out_file, None)
+
+
+def odict_from_list(l, key):
+    return OrderedDict([(key(v), v) for v in l])

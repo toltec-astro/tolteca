@@ -4,6 +4,10 @@ TolTECA Documentation
 
 This is the documentation for TolTECA.
 
+
+.. include::  tolteca_workflow.rst
+
+
 Reference/API
 =============
 

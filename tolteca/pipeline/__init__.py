@@ -5,72 +5,139 @@
 
 
 from ..utils import touch_file
-from ..utils.log import get_logger, timeit
+from ..utils.log import get_logger, timeit, logit
 from datetime import datetime
 import os
 
 
 class PipelineRuntime(object):
 
-    _workdir_contents = {
-            'logdir': 'logs',
-            'externdir': 'extern',
+    _file_contents = {
+            'logdir': 'log',
+            'bindir': 'bin',
+            'caldir': 'cal',
             'configfile': 'config_base.yaml'
             }
+    _backup_items = ['configfile', ]
     _backup_time_fmt = "%Y_%m_%d_%H_%M_%S"
 
-    def __init__(self, workdir):
-        self.workdir = workdir
+    logger = get_logger()
+
+    def __init__(self, rootpath):
+        self.rootpath = rootpath.resolve()
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.rootpath})"
 
     def __getattr__(self, name, *args):
-        if name in self._workdir_contents:
-            return self._get_content_path(self.workdir, name)
+        if name in self._file_contents:
+            return self._get_content_path(self.rootpath, name)
         return super().__getattribute__(name, *args)
 
     @classmethod
-    def _get_content_path(cls, root, item):
-        return root.joinpath(cls._workdir_contents[item])
+    def _get_content_path(cls, rootpath, item):
+        return rootpath.joinpath(cls._file_contents[item])
 
     @classmethod
-    def from_dir(cls, path, backup=True, create=True):
-        logger = get_logger()
-        items_to_backup = ['configfile', ]
+    def _create_backup(cls, path, dry_run=False):
+        timestamp = datetime.fromtimestamp(
+            path.lstat().st_mtime).strftime(
+                cls._backup_time_fmt)
+        backup_path = path.with_name(
+                f"{path.stem}_{timestamp}{path.suffix}"
+                )
+        with logit(cls.logger.info, f"backup {path} -> {backup_path}"):
+            if not dry_run:
+                os.rename(path, backup_path)
+        return backup_path
 
-        for item in items_to_backup:
+    @classmethod
+    def from_dir(
+            cls, path, empty_only=True, backup=True, create=True,
+            dry_run=False
+            ):
+        """
+        Create `PipelineRuntime` from directory.
+
+        Parameters
+        ----------
+        path: `pathlib.Path`
+            The path to the work directory.
+
+        empty_only: bool
+            When set to True, raise `RuntimeError` if `path` is not empty
+
+        backup: bool
+            When not `empty_only`, this controls whether or not to create
+            backups for existing files.
+
+        create: bool
+            When set to False, raise `RuntimeError` if `path` does not already
+            have all content items. Otherwise, create missing items.
+
+        dry_run: bool
+            If set, no actual file/dir is changed.
+
+        kwargs: dict
+            Entries that are passed directly into the created
+            default configuration file.
+        """
+
+        path_is_ok = False
+        if path.exists():
+            if path.is_dir():
+                try:
+                    next(path.iterdir())
+                except StopIteration:
+                    # empty dir
+                    path_is_ok = True
+                else:
+                    # nonempty dir
+                    if empty_only:
+                        raise RuntimeError(
+                                f"path {path} is not empty. Set"
+                                f" empty_only=False to proceed anyways")
+                    path_is_ok = True
+            else:
+                # not a dir
+                raise RuntimeError(
+                        f"path {path} exists but is not a valid directory."
+                        )
+        else:
+            # non exists
+            path_is_ok = True
+        assert path_is_ok
+
+        for item in cls._backup_items:
             content_path = cls._get_content_path(path, item)
             if content_path.exists():
                 if backup:
-                    timestamp = datetime.fromtimestamp(
-                        content_path.lstat().st_mtime).strftime(
-                            cls._backup_time_fmt)
-                    backup_path = content_path.with_name(
-                            f"{content_path.stem}_{timestamp}"
-                            f"{content_path.suffix}"
-                            )
-                    logger.warning(f"backup existing {item} to {backup_path}")
-                    os.rename(content_path, backup_path)
-                else:
-                    logger.warning(
-                            f"overwrite existing {item} {content_path}")
+                    cls._create_backup(content_path)
 
-        def create_item_path(item, path):
-            if item.endswith('dir'):
-                path.mkdir(parents=True, exist_ok=True)
-            elif item.endswith('file'):
-                touch_file(path)
+        def get_or_create_item_path(item, path, dry_run=False):
+            if path.exists():
+                cls.logger.debug(
+                    f"{'overwrite' if item in cls._backup_items else 'use'}"
+                    f" existing {item} {path}")
             else:
-                pass
+                with logit(cls.logger.debug, f"create {item} {path}"):
+                    if not dry_run:
+                        if item.endswith('dir'):
+                            path.mkdir(parents=True, exist_ok=False)
+                        elif item.endswith('file'):
+                            touch_file(path)
+                        else:
+                            raise ValueError(f"unknown {item}")
 
-        for item in cls._workdir_contents.keys():
+        for item in cls._file_contents.keys():
             content_path = cls._get_content_path(path, item)
             if not create and not content_path.exists():
                 raise RuntimeError(
-                        f"unable to create pipeline runtime from {dir}:"
-                        f" missing item {item} {content_path.name}")
+                        f"unable to initialize pipeline runtime from {dir}:"
+                        f" missing {item} {content_path.name}. Set"
+                        f" create=True to create missing items")
             if create:
-                if not content_path.exists():
-                    logger.info(f"create {item} {content_path}")
-                create_item_path(item, content_path)
+                get_or_create_item_path(item, content_path)
 
         return cls(path)
 
@@ -78,48 +145,22 @@ class PipelineRuntime(object):
 @timeit
 def setup_workdir(dirpath, empty_only=True, backup=True, **kwargs):
     """
-    Setup execution environment and dump default configuration file
+    Setup workdir.
+
     Parameters
     ----------
-    dirpath: pathlib.Path
-        The dir to store the created dirs and files.
-    empty_only: bool
-        When set to True, raise RuntimeError if the workdir is not empty
-    backup: bool
-        When not empty_only, this controls whether or not to create
-        backups for existing files.
-    kwargs: dict
-        Entries that are passed directly into the created configuration file.
+    dirpath: `pathlib.Path`
+        The path to setup as workdir.
     """
 
     logger = get_logger()
 
     logger.info(f"setup {dirpath} as workdir")
 
-    pipeline_runtime = None
+    pipeline_runtime = PipelineRuntime.from_dir(
+                dirpath, empty_only=empty_only, backup=backup)
 
-    # validate workdir
-    if dirpath.exists():
-        try:
-            next(dirpath.iterdir())
-        except StopIteration:
-            pass
-        else:
-            # dirpath is not empty
-            if empty_only:
-                raise RuntimeError(
-                        f"{dirpath} is not empty "
-                        f"but empty_only is set to {empty_only}")
-            logger.warning(
-                    f"use non-empty workdir {dirpath}")
-            try:
-                pipeline_runtime = PipelineRuntime.from_dir(
-                        dirpath, backup=backup)
-            except Exception as e:
-                raise RuntimeError(
-                    f"unable to create pipeline runtime from {dirpath}: {e}")
-
-    return
+    return pipeline_runtime
     # external dependencies
     externdir = os.path.join(workdir, externdir)
     which_path = os.path.abspath(externdir) + ':' + os.environ['PATH']
