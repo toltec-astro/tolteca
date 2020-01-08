@@ -77,10 +77,6 @@ def cmd_setup(
     The current dir is used if DIR is not specified.',
     """
     logger = get_logger()
-    # logger.info(
-    #     f"setup {workdir} as workdir with pipeline_bindir={pipeline_bindir}"
-    #     f" calib_dir={calib_dir}"
-    #     )
 
     prt = PipelineRuntime.from_dir(
             Path(workdir),
@@ -89,9 +85,3 @@ def cmd_setup(
             create=True,
             dry_run=dry_run,
             )
-    print(prt)
-    # setup_workdir(
-    #         Path(workdir),
-    #         pipeline_bindir=pipeline_bindir,
-    #         calib_dir=calib_dir,
-    #         )
