@@ -10,9 +10,8 @@ __all__ = [
         'template',
         'title_text',
         'title_icon',
-        'fig_layout',
         'update_interval',
-        'source',
+        'sources',
         ]
 
 logger = get_logger()
@@ -21,14 +20,6 @@ label = 'thermometry'
 template = 'live_ncfile_view'
 title_text = 'Thermometry'
 title_icon = 'fas fa-thermometer-half'
-
-fig_layout = dict(
-    yaxis={
-        'type': 'log',
-        'autorange': True,
-        'title': 'Temperature (K)'
-        },
-    )
 
 update_interval = 30 * 1000  # ms
 
@@ -78,7 +69,17 @@ def get_traces(src):
             'y': tm.v_temp(i)[-n_times:],
             'name': tm.channel_labels[i],
             'mode': 'lines+markers',
-            'type': 'scatter'
+            'type': 'scatter',
+            '_is_timeseries': True,
+            '_x_tz': 'UTC',
+            'subplot_layout': {
+                'xaxis': {
+                    'title': 'Time',
+                    },
+                'yaxis': {
+                    'title': 'Temperature (K)',
+                    }
+                }
         })
     try:
         time_latest = np.max([t['x'][-1] for t in result if len(t['x']) > 0])
@@ -92,76 +93,22 @@ def get_traces(src):
                     (t['y'] > 0.))[0]
             t['x'] = t['x'][mask]
             t['y'] = t['y'][mask]
-    return result
+    return result, tm
 
 
-source = {
-    'label': 'all_thermometers',
-    # 'runtime_link': '/data_toltec/thermetry/thermetry.nc',
-    'runtime_link': '/Users/ma/Codes/toltec/kids/test_data/thermetry.nc',
-    'local_tz': 'EST',
-    'traces': get_traces,
-    'controls': ['toggle-collate', 'toggle-ut'],
-    }
-
-
-# source = {
-#     'label': 'tel',
-#     # 'runtime_link': '/data_toltec/thermetry/thermetry.nc',
-#     'runtime_link': '/Users/ma/Codes/toltec/kids/test_data/thermetry.nc',
-#     'local_tz': 'EST',
-#     'n_points': 100
-#     'traces': [
-#             {
-#                 "x": 'Data.Lmt.RA',
-#                 'y': 'Data.Lmt.Dec',
-#                 'x_label': 'RA',
-#                 'y_label': 'Dec',
-#                 'name': 'Telescope Position (2D)',
-#                 'mode': 'lines+markers',
-#                 'type': 'scatter',
-#                 },
-
-#             {
-#                 "x": 'Data.TempTime'%i,
-#                 'x_type': 'Time',
-#                 # 'x_range': slice(None, None),
-#                 'x_slice': lambda v: v[::100]
-#                 'y': 'Data.TempValue{i}',
-#                 'y_trans': lambda x: x * 100.,
-#                 'y_label': 'RA (arcsec)'
-#                 'name': 'RA',
-#                 'mode': 'lines+markers',
-#                 'type': 'scatter',
-#                 'data_mask': lambda x, y: x > x[-1] - 24.
-#                 'x_label': 'Header...ChanLabel'
-#                 ''
-#                 # x = v[slice]   # reading
-#                 # x = x[mask]    # 
-#                 },
-#             {
-#                 "x": 'Data.Lmt.Time',
-#                 'x_type': 'Time',
-#                 # 'x_range': slice(None, None),
-#                 'x_slice': lambda v: v[::100]
-#                 'y': 'Data.Lmt.RA',
-#                 'y_trans': lambda x: x * 100.,
-#                 'y_label': 'RA (arcsec)'
-#                 'name': 'RA',
-#                 'mode': 'lines+markers',
-#                 'type': 'scatter',
-#                 'data_mask': lambda x, y: x > x[-1] - 24.
-#                 'x_label': 'Header...ChanLabel'
-#                 ''
-#                 # x = v[slice]   # reading
-#                 # x = x[mask]    # 
-#                 },
-#             {
-#                 "x": 'Data.Lmt.Time',
-#                 'y': 'Data.Lmt.Dec',
-#                 'name': 'RA',
-#                 'mode': 'lines+markers',
-#                 'type': 'scatter',
-#                 },
-#         ],
-#     }
+sources = [
+    {
+        'label': 'all_thermometers',
+        # 'runtime_link': '/data_toltec/thermetry/thermetry.nc',
+        'runtime_link': '/Users/ma/Codes/toltec/kids/test_data/thermetry.nc',
+        'local_tz': 'EST',
+        'title': 'Thermometry',
+        'traces': get_traces,
+        'controls': ['toggle-collate', 'toggle-tz'],
+        'fig_layout': {
+            'yaxis': {
+                'type': 'log',
+                },
+            },
+    },
+    ]
