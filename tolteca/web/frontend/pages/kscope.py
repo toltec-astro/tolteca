@@ -7,7 +7,7 @@ from dash.dependencies import Input, Output, State, ClientsideFunction
 from tolteca.utils.fmt import pformat_dict
 from tolteca.utils.log import timeit, get_logger
 from tolteca.io.toltec import NcFileIO
-from dashpages.web.backend import dataframe_from_db
+from dasha.web.backend import dataframe_from_db
 from .. import get_current_dash_app
 from ..common import TableViewComponent, SimpleComponent
 import dash
@@ -63,8 +63,8 @@ src = {
     }
 
 data_rootpaths = {
-        'clipa': '/clipa/toltec',
-        'clipo': '/clipo/toltec',
+        'clipa': '/data/toltec',
+        'clipo': '/data/toltec',
         }
 
 # data_rootpaths = {
