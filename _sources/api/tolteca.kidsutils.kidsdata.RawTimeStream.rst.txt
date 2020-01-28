@@ -1,0 +1,7 @@
+RawTimeStream
+=============
+
+.. currentmodule:: tolteca.kidsutils.kidsdata
+
+.. autoclass:: RawTimeStream
+   :show-inheritance:

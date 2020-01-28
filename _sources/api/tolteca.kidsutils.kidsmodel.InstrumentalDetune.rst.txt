@@ -1,0 +1,31 @@
+InstrumentalDetune
+==================
+
+.. currentmodule:: tolteca.kidsutils.kidsmodel
+
+.. autoclass:: InstrumentalDetune
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~InstrumentalDetune.n_inputs
+      ~InstrumentalDetune.n_outputs
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~InstrumentalDetune.__call__
+      ~InstrumentalDetune.evaluate
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: n_inputs
+   .. autoattribute:: n_outputs
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: evaluate

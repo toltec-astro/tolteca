@@ -1,0 +1,131 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>simulate_hwp &#8212; tolteca v0.0.1</title>
+    <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="get_databases" href="tolteca.db.get_databases.html" />
+    <link rel="prev" title="make_tabular_legend" href="tolteca.recipes.simu_hwp_noise.make_tabular_legend.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="tolteca.db.get_databases.html" title="get_databases">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="tolteca.recipes.simu_hwp_noise.make_tabular_legend.html" title="make_tabular_legend">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v0.0.1</a>
+	 &#187;
+      </li>
+      <li><a href="../tolteca/index.html" >TolTECA Documentation</a> &#187;</li>
+      <li><a href="../tolteca/tolteca_recipes.html" accesskey="U">TolTECA Recipes</a> &#187;</li>
+      
+      <li>simulate_hwp</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="simulate-hwp">
+<h1>simulate_hwp<a class="headerlink" href="#simulate-hwp" title="Permalink to this headline">¶</a></h1>
+<dl class="function">
+<dt id="tolteca.recipes.simu_hwp_noise.simulate_hwp">
+<code class="sig-prename descclassname">tolteca.recipes.simu_hwp_noise.</code><code class="sig-name descname">simulate_hwp</code><span class="sig-paren">(</span><em class="sig-param">Qr</em>, <em class="sig-param">readout_noise</em>, <em class="sig-param">hwp_var_temp</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/recipes/simu_hwp_noise.html#simulate_hwp"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.recipes.simu_hwp_noise.simulate_hwp" title="Permalink to this definition">¶</a></dt>
+<dd><p>Make simulated timestream and calculate some useful quantities
+of the HWP under some assumed parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>Qr</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.8)"><em>float</em></a>) – Qr of the detector.</p></li>
+<li><p><strong>readout_noise</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.8)"><em>float</em></a>) – Readout noise specified in the same unit as Qr.</p></li>
+<li><p><strong>hwp_var_temp</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.8)"><em>float</em></a>) – The HWP temperature variation, peak-to-peak.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Dict that contains all stated local variables.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.8)">dict</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">simulate_hwp</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/api/tolteca.recipes.simu_hwp_noise.simulate_hwp.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2020, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.3.1. &nbsp;
+    Last built 28 Jan 2020. <br/>
+  </p>
+</footer>
+  </body>
+</html>

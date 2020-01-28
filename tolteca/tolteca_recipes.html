@@ -1,0 +1,144 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>TolTECA Recipes &#8212; tolteca v0.0.1</title>
+    <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="main" href="../api/tolteca.recipes.simu_hwp_noise.main.html" />
+    <link rel="prev" title="TolTECA workflow" href="tolteca_workflow.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="../api/tolteca.recipes.simu_hwp_noise.main.html" title="main">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="tolteca_workflow.html" title="TolTECA workflow">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v0.0.1</a>
+	 &#187;
+      </li>
+      <li><a href="index.html" accesskey="U">TolTECA Documentation</a> &#187;</li>
+      
+      <li>TolTECA Recipes</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="tolteca-recipes">
+<h1>TolTECA Recipes<a class="headerlink" href="#tolteca-recipes" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="module-tolteca.recipes">
+<span id="tolteca-recipes-package"></span><h2>tolteca.recipes Package<a class="headerlink" href="#module-tolteca.recipes" title="Permalink to this headline">¶</a></h2>
+<p>This package contains a set of recipes that make use of <a class="reference internal" href="index.html#module-tolteca" title="tolteca"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tolteca</span></code></a>.</p>
+</div>
+<div class="section" id="module-tolteca.recipes.simu_hwp_noise">
+<span id="tolteca-recipes-simu-hwp-noise-module"></span><h2>tolteca.recipes.simu_hwp_noise Module<a class="headerlink" href="#module-tolteca.recipes.simu_hwp_noise" title="Permalink to this headline">¶</a></h2>
+<p>This recipe makes use of the <code class="xref py py-obj docutils literal notranslate"><span class="pre">KidsSimulator</span></code> to investigate
+the impact of the half wave plate to the observed noise.</p>
+<div class="section" id="functions">
+<h3>Functions<a class="headerlink" href="#functions" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.main.html#tolteca.recipes.simu_hwp_noise.main" title="tolteca.recipes.simu_hwp_noise.main"><code class="xref py py-obj docutils literal notranslate"><span class="pre">main</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.make_tabular_legend.html#tolteca.recipes.simu_hwp_noise.make_tabular_legend" title="tolteca.recipes.simu_hwp_noise.make_tabular_legend"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_tabular_legend</span></code></a>(ax, handles, *cols[, …])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.simulate_hwp.html#tolteca.recipes.simu_hwp_noise.simulate_hwp" title="tolteca.recipes.simu_hwp_noise.simulate_hwp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">simulate_hwp</span></code></a>(Qr, readout_noise, hwp_var_temp)</p></td>
+<td><p>Make simulated timestream and calculate some useful quantities of the HWP under some assumed parameters.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">TolTECA Recipes</a><ul>
+<li><a class="reference internal" href="#module-tolteca.recipes">tolteca.recipes Package</a></li>
+<li><a class="reference internal" href="#module-tolteca.recipes.simu_hwp_noise">tolteca.recipes.simu_hwp_noise Module</a><ul>
+<li><a class="reference internal" href="#functions">Functions</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/tolteca/tolteca_recipes.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2020, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.3.1. &nbsp;
+    Last built 28 Jan 2020. <br/>
+  </p>
+</footer>
+  </body>
+</html>

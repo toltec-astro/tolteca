@@ -1,0 +1,7 @@
+Sweep
+=====
+
+.. currentmodule:: tolteca.kidsutils.kidsdata
+
+.. autoclass:: Sweep
+   :show-inheritance:

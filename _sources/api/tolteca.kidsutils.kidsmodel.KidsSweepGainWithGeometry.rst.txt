@@ -1,0 +1,17 @@
+KidsSweepGainWithGeometry
+=========================
+
+.. currentmodule:: tolteca.kidsutils.kidsmodel
+
+.. autoclass:: KidsSweepGainWithGeometry
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~KidsSweepGainWithGeometry.evaluate
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: evaluate

@@ -1,0 +1,168 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>ResonanceCircleSweepComplex &#8212; tolteca v0.0.1</title>
+    <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="setup_workdir" href="tolteca.pipeline.setup_workdir.html" />
+    <link rel="prev" title="ResonanceCircleSweep" href="tolteca.kidsutils.kidsmodel.ResonanceCircleSweep.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="tolteca.pipeline.setup_workdir.html" title="setup_workdir">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="tolteca.kidsutils.kidsmodel.ResonanceCircleSweep.html" title="ResonanceCircleSweep">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v0.0.1</a>
+	 &#187;
+      </li>
+      <li><a href="../tolteca/index.html" accesskey="U">TolTECA Documentation</a> &#187;</li>
+      
+      <li>ResonanceCircleSweepComplex</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="resonancecirclesweepcomplex">
+<h1>ResonanceCircleSweepComplex<a class="headerlink" href="#resonancecirclesweepcomplex" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex">
+<em class="property">class </em><code class="sig-prename descclassname">tolteca.kidsutils.kidsmodel.</code><code class="sig-name descname">ResonanceCircleSweepComplex</code><span class="sig-paren">(</span><em class="sig-param">fr=&lt;Quantity 1.e+09 Hz&gt;</em>, <em class="sig-param">Qr=20000.0</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/kidsutils/kidsmodel.html#ResonanceCircleSweepComplex"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">tolteca.kidsutils.kidsmodel._ResonanceCircleSweepMixin</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">tolteca.kidsutils.kidsmodel._ReadoutReprComplexMixin</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">tolteca.kidsutils.kidsmodel._ComposableModelBase</span></code></p>
+<p>The same as <a class="reference internal" href="tolteca.kidsutils.kidsmodel.ResonanceCircleSweep.html#tolteca.kidsutils.kidsmodel.ResonanceCircleSweep" title="tolteca.kidsutils.kidsmodel.ResonanceCircleSweep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResonanceCircleSweep</span></code></a>, but the result is the complex S21.</p>
+<p class="rubric">Attributes Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.Qr" title="tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.Qr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Qr</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.fr" title="tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.fr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fr</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.param_names" title="tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.param_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">param_names</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.evaluate" title="tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.evaluate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">evaluate</span></code></a>(f, fr, Qr)</p></td>
+<td><p>Evaluate the model on some input variables.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Attributes Documentation</p>
+<dl class="attribute">
+<dt id="tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.Qr">
+<code class="sig-name descname">Qr</code><em class="property"> = Parameter('Qr', value=20000.0)</em><a class="headerlink" href="#tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.Qr" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.fr">
+<code class="sig-name descname">fr</code><em class="property"> = Parameter('fr', value=1000000000.0, unit=Hz, bounds=(0.0, None))</em><a class="headerlink" href="#tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.fr" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.param_names">
+<code class="sig-name descname">param_names</code><em class="property"> = ('fr', 'Qr')</em><a class="headerlink" href="#tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.param_names" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p class="rubric">Methods Documentation</p>
+<dl class="method">
+<dt id="tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.evaluate">
+<em class="property">static </em><code class="sig-name descname">evaluate</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">fr</em>, <em class="sig-param">Qr</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/kidsutils/kidsmodel.html#ResonanceCircleSweepComplex.evaluate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.evaluate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluate the model on some input variables.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">ResonanceCircleSweepComplex</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/api/tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2020, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.3.1. &nbsp;
+    Last built 28 Jan 2020. <br/>
+  </p>
+</footer>
+  </body>
+</html>

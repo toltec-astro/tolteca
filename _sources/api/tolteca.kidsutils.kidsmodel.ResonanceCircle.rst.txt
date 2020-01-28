@@ -1,0 +1,17 @@
+ResonanceCircle
+===============
+
+.. currentmodule:: tolteca.kidsutils.kidsmodel
+
+.. autoclass:: ResonanceCircle
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~ResonanceCircle.inverse
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: inverse

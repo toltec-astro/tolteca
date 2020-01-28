@@ -1,0 +1,7 @@
+ResonanceCircleSweep
+====================
+
+.. currentmodule:: tolteca.kidsutils.kidsmodel
+
+.. autoclass:: ResonanceCircleSweep
+   :show-inheritance:

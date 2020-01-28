@@ -1,0 +1,162 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>ReadoutComplexToIQ &#8212; tolteca v0.0.1</title>
+    <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="ReadoutIQToComplex" href="tolteca.kidsutils.kidsmodel.ReadoutIQToComplex.html" />
+    <link rel="prev" title="OpticalDetune" href="tolteca.kidsutils.kidsmodel.OpticalDetune.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="tolteca.kidsutils.kidsmodel.ReadoutIQToComplex.html" title="ReadoutIQToComplex">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="tolteca.kidsutils.kidsmodel.OpticalDetune.html" title="OpticalDetune">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v0.0.1</a>
+	 &#187;
+      </li>
+      <li><a href="../tolteca/index.html" accesskey="U">TolTECA Documentation</a> &#187;</li>
+      
+      <li>ReadoutComplexToIQ</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="readoutcomplextoiq">
+<h1>ReadoutComplexToIQ<a class="headerlink" href="#readoutcomplextoiq" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ">
+<em class="property">class </em><code class="sig-prename descclassname">tolteca.kidsutils.kidsmodel.</code><code class="sig-name descname">ReadoutComplexToIQ</code><span class="sig-paren">(</span><em class="sig-param">*args</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/kidsutils/kidsmodel.html#ReadoutComplexToIQ"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">tolteca.kidsutils.kidsmodel._ReadoutRepr2Mixin</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">tolteca.kidsutils.kidsmodel._ComposableModelBase</span></code></p>
+<p>Utility model to convert from complex S21 to (I, Q).</p>
+<p class="rubric">Attributes Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ.n_inputs" title="tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ.n_inputs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">n_inputs</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ.__call__" title="tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ.__call__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__call__</span></code></a>(*inputs[, model_set_axis, …])</p></td>
+<td><p>Evaluate this model using the given input(s) and the parameter values that were specified when the model was instantiated.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ.evaluate" title="tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ.evaluate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">evaluate</span></code></a>(S)</p></td>
+<td><p>Evaluate the model on some input variables.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Attributes Documentation</p>
+<dl class="attribute">
+<dt id="tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ.n_inputs">
+<code class="sig-name descname">n_inputs</code><em class="property"> = 1</em><a class="headerlink" href="#tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ.n_inputs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p class="rubric">Methods Documentation</p>
+<dl class="method">
+<dt id="tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ.__call__">
+<code class="sig-name descname">__call__</code><span class="sig-paren">(</span><em class="sig-param">*inputs</em>, <em class="sig-param">model_set_axis=None</em>, <em class="sig-param">with_bounding_box=False</em>, <em class="sig-param">fill_value=nan</em>, <em class="sig-param">equivalencies=None</em>, <em class="sig-param">inputs_map=None</em>, <em class="sig-param">**new_inputs</em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ.__call__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluate this model using the given input(s) and the parameter values
+that were specified when the model was instantiated.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ.evaluate">
+<em class="property">static </em><code class="sig-name descname">evaluate</code><span class="sig-paren">(</span><em class="sig-param">S</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/kidsutils/kidsmodel.html#ReadoutComplexToIQ.evaluate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ.evaluate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluate the model on some input variables.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">ReadoutComplexToIQ</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/api/tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2020, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.3.1. &nbsp;
+    Last built 28 Jan 2020. <br/>
+  </p>
+</footer>
+  </body>
+</html>

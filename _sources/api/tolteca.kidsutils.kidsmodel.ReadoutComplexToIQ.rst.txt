@@ -1,0 +1,29 @@
+ReadoutComplexToIQ
+==================
+
+.. currentmodule:: tolteca.kidsutils.kidsmodel
+
+.. autoclass:: ReadoutComplexToIQ
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~ReadoutComplexToIQ.n_inputs
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~ReadoutComplexToIQ.__call__
+      ~ReadoutComplexToIQ.evaluate
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: n_inputs
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: evaluate

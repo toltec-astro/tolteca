@@ -1,0 +1,6 @@
+odict_from_list
+===============
+
+.. currentmodule:: tolteca.utils
+
+.. autofunction:: odict_from_list

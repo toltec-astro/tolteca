@@ -1,0 +1,17 @@
+KidsSweepGainWithLinTrend
+=========================
+
+.. currentmodule:: tolteca.kidsutils.kidsmodel
+
+.. autoclass:: KidsSweepGainWithLinTrend
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~KidsSweepGainWithLinTrend.evaluate
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: evaluate

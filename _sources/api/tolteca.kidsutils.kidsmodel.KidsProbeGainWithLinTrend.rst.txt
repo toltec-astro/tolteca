@@ -1,0 +1,17 @@
+KidsProbeGainWithLinTrend
+=========================
+
+.. currentmodule:: tolteca.kidsutils.kidsmodel
+
+.. autoclass:: KidsProbeGainWithLinTrend
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~KidsProbeGainWithLinTrend.evaluate
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: evaluate

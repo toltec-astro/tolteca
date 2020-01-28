@@ -1,0 +1,7 @@
+SweepMixin
+==========
+
+.. currentmodule:: tolteca.kidsutils.kidsdata
+
+.. autoclass:: SweepMixin
+   :show-inheritance:

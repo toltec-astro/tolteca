@@ -1,0 +1,17 @@
+ResonanceCircleProbeComplex
+===========================
+
+.. currentmodule:: tolteca.kidsutils.kidsmodel
+
+.. autoclass:: ResonanceCircleProbeComplex
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~ResonanceCircleProbeComplex.evaluate
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: evaluate

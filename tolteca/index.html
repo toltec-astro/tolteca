@@ -19,7 +19,7 @@
     <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="get_databases" href="../api/tolteca.db.get_databases.html" />
+    <link rel="next" title="TolTECA workflow" href="tolteca_workflow.html" />
     <link rel="prev" title="Documentation" href="../index.html" />
     <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
 
@@ -48,7 +48,7 @@
     <h3>Navigation</h3>
     <ul>
       <li class="right">
-	<a href="../api/tolteca.db.get_databases.html" title="get_databases">
+	<a href="tolteca_workflow.html" title="TolTECA workflow">
 	  next &raquo;
 	</a>
       </li>
@@ -76,188 +76,15 @@
   <div class="section" id="tolteca-documentation">
 <h1>TolTECA Documentation<a class="headerlink" href="#tolteca-documentation" title="Permalink to this headline">¶</a></h1>
 <p>This is the documentation for TolTECA.</p>
-<div class="section" id="tolteca-workflow">
-<h2>TolTECA workflow<a class="headerlink" href="#tolteca-workflow" title="Permalink to this headline">¶</a></h2>
-<ul class="simple">
-<li><p>Pipeline Setup</p></li>
-</ul>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span>$ tolteca setup DIR
-</pre></div>
-</div>
-<p>This will setup <code class="xref py py-obj docutils literal notranslate"><span class="pre">DIR</span></code> as the working directory for running TolTECA.</p>
-<blockquote>
-<div><blockquote>
-<div><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span>$ tolteca setup test_workspace
-$ ls test_workspace
-</pre></div>
-</div>
-<p>bin/  cal/  config_base.yaml  log/  idx/</p>
-</div></blockquote>
+<div class="toctree-wrapper compound">
 <ul>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">bin/</span></code>: The directory that contains external executables, in particular,
-the <code class="xref py py-obj docutils literal notranslate"><span class="pre">citlali</span></code> pipeline executables.</p></li>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">cal/</span></code>: The directory that contains calibration objects. The naming
-conventions is <code class="xref py py-obj docutils literal notranslate"><span class="pre">{type}_{ver}.{ext}</span></code>, where <code class="xref py py-obj docutils literal notranslate"><span class="pre">{type}</span></code> could be <code class="xref py py-obj docutils literal notranslate"><span class="pre">beammap</span></code>,
-<code class="xref py py-obj docutils literal notranslate"><span class="pre">extinction</span></code>, or the packed form <code class="xref py py-obj docutils literal notranslate"><span class="pre">calobj</span></code> (TBD).</p></li>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">log/</span></code>: The directory where log files live.</p></li>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">idx/</span></code>: The directory where databases for file index live.</p></li>
-<li><p>(TBA) more directories as necessary</p></li>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">config_base.yaml</span></code>: The file that contains info on the state
-of TolTECA and this working directory. An example:</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># generated on xxxx-xx-xx xx:xx:xx</span>
-<span class="n">namespace</span><span class="p">:</span> <span class="n">null</span>
-<span class="n">system_info</span><span class="p">:</span>
-    <span class="n">hostname</span><span class="p">:</span> <span class="n">clipy</span>
-
-<span class="n">manager</span><span class="p">:</span>
-    <span class="nb">bin</span><span class="p">:</span> <span class="o">/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">tolteca</span><span class="o">/</span><span class="nb">bin</span>
-    <span class="n">version</span><span class="p">:</span> <span class="mf">0.0</span><span class="o">.</span><span class="mi">1</span>
-
-<span class="n">pipeline_runtime</span><span class="p">:</span>
-    <span class="n">rootpath</span><span class="p">:</span> <span class="o">.</span>
-    <span class="n">logdir</span><span class="p">:</span> <span class="o">./</span><span class="n">log</span>
-    <span class="n">bindir</span><span class="p">:</span> <span class="o">./</span><span class="nb">bin</span>
-    <span class="n">caldir</span><span class="p">:</span> <span class="o">./</span><span class="n">cal</span>
-    <span class="n">idxdir</span><span class="p">:</span> <span class="o">./</span><span class="n">idx</span>
-    <span class="n">configfile</span><span class="p">:</span>
-        <span class="o">-</span> <span class="n">config_base</span><span class="o">.</span><span class="n">yaml</span>
-
-<span class="n">pipeline</span><span class="p">:</span>
-    <span class="nb">bin</span><span class="p">:</span> <span class="o">/</span><span class="nb">bin</span><span class="o">/</span><span class="n">citlali</span>
-    <span class="n">version</span><span class="p">:</span> <span class="mf">0.0</span><span class="o">.</span><span class="mi">1</span>
-</pre></div>
-</div>
-</li>
-</ul>
-</div></blockquote>
-<ul class="simple">
-<li><p>Pipeline Prepare</p></li>
-</ul>
-<p>Within an already setup work directory,</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span>$ tolteca prepare [-i INPUT_CONFIG] [--key0 value0 [--key1 value1 ...]] JOBDIR
-</pre></div>
-</div>
-<p>This will create and setup subdirectory <code class="xref py py-obj docutils literal notranslate"><span class="pre">JOBDIR</span></code> using information
-provided in <code class="xref py py-obj docutils literal notranslate"><span class="pre">INPUT_CONFIG</span></code>, optionally overwritten by <code class="xref py py-obj docutils literal notranslate"><span class="pre">--key</span> <span class="pre">value</span></code> pairs.</p>
-<p>There are several ways to specify what input files to use in <code class="xref py py-obj docutils literal notranslate"><span class="pre">INPUT_CONFIG</span></code>,
-among which the most fundamental one is to use an SQL query to the <code class="xref py py-obj docutils literal notranslate"><span class="pre">idx</span></code>
-database, e.g.,</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># job0_in.yaml</span>
-
-<span class="n">source</span><span class="p">:</span> <span class="n">idx</span>
-<span class="n">sql_query</span><span class="p">:</span> <span class="s2">&quot;select * from toltecdb.toltec limit 10&quot;</span>
-</pre></div>
-</div>
-<p>This will get 10 entries from table <code class="xref py py-obj docutils literal notranslate"><span class="pre">toltecdb.toltec</span></code>.</p>
-<p>The created <code class="xref py py-obj docutils literal notranslate"><span class="pre">JOBDIR</span></code> contains the follows:</p>
-<blockquote>
-<div><blockquote>
-<div><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span>$ tolteca prepare -i job0_in.yaml job0
-$ ls -l job0/
-00_base.yaml*
-30_citlali.yaml
-60_inputs.yaml
-_raw/
-_cal/
-</pre></div>
-</div>
-</div></blockquote>
-<ul>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">??_*.yaml</span></code>: The configurations that will be picked up by the pipeline.</p>
-<ul>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">00_base.yaml</span></code>: This is a symbolic link to ../config_base.yaml</p></li>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">30_citlali.yaml</span></code>: This is a dump of the default pipeline program config.
-Under the hood, it runs the follows</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span>$ pipeline_bin --dump --all &gt; config
-</pre></div>
-</div>
-<p>where <code class="xref py py-obj docutils literal notranslate"><span class="pre">pipeline_bin</span></code> is <code class="xref py py-obj docutils literal notranslate"><span class="pre">pipeline.bin</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">00_base.yaml</span></code>, i.e., the
-<code class="xref py py-obj docutils literal notranslate"><span class="pre">citlali</span></code> executable. An example file:</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">namespace</span><span class="p">:</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">config</span>
-<span class="n">io</span><span class="p">:</span>
-    <span class="n">time_chunking</span><span class="p">:</span>
-        <span class="n">enabled</span><span class="p">:</span> <span class="n">yes</span>
-        <span class="n">method</span><span class="p">:</span>
-            <span class="n">value</span><span class="p">:</span> <span class="s2">&quot;fixed&quot;</span>
-            <span class="n">choises</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;hold_signal&quot;</span><span class="p">,</span> <span class="s2">&quot;fixed_length&quot;</span><span class="p">]</span>
-        <span class="n">parameters</span><span class="p">:</span>
-           <span class="n">hold_signal</span><span class="p">:</span>
-                <span class="n">value</span><span class="p">:</span> <span class="mi">1</span>
-           <span class="n">fixed_length</span><span class="p">:</span>
-                <span class="n">value</span><span class="p">:</span> <span class="mi">10</span>
-                <span class="n">unit</span><span class="p">:</span> <span class="n">second</span>
-<span class="n">reduce</span><span class="p">:</span>
-    <span class="n">map_making</span><span class="p">:</span>
-        <span class="n">coordsys</span><span class="p">:</span>
-            <span class="n">value</span><span class="p">:</span> <span class="s2">&quot;equatorial&quot;</span>
-            <span class="n">choises</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;equatorial&quot;</span><span class="p">,</span> <span class="s2">&quot;horizontal&quot;</span><span class="p">,</span> <span class="s1">&#39;galactic&#39;</span><span class="p">]</span>
-</pre></div>
-</div>
-</li>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">60_inputs.yaml</span></code>: This is a file that include all found data files
-to be reduced, organized as follows:</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">namespace</span><span class="p">:</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">io</span>
-<span class="n">inputs</span><span class="p">:</span>
-  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">obs1</span>
-    <span class="n">data_items</span><span class="p">:</span>
-      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">toltec0</span>
-        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/toltec0_obs1.nc&quot;</span>
-      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">toltec1</span>
-        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/toltec1_obs1.nc&quot;</span>
-      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">toltec2</span>
-        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/toltec2_obs1.nc&quot;</span>
-      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">lmt</span>
-        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/lmt_obs1.nc&quot;</span>
-      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">hwp</span>
-        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/hwp_obs1.nc&quot;</span>
-    <span class="n">cal_items</span><span class="p">:</span>
-      <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">beammap</span>
-        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_cal/beammap_obs1.nc&quot;</span>
-      <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">extinction</span>
-        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_cal/extinction_obs1.nc&quot;</span>
-  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">obs2</span>
-    <span class="n">data_items</span><span class="p">:</span>
-      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">toltec0</span>
-        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/toltec0_obs2.nc&quot;</span>
-      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">toltec1</span>
-        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/toltec1_obs2.nc&quot;</span>
-      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">toltec2</span>
-        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/toltec2_obs2.nc&quot;</span>
-      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">lmt</span>
-        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/lmt_obs2.nc&quot;</span>
-      <span class="o">-</span> <span class="n">interface</span><span class="p">:</span> <span class="n">hwp</span>
-        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_raw/hwp_obs2.nc&quot;</span>
-    <span class="n">cal_items</span><span class="p">:</span>
-      <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">beammap</span>
-        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_cal/beammap_obs2.nc&quot;</span>
-      <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">extinction</span>
-        <span class="n">filepath</span><span class="p">:</span> <span class="s2">&quot;_cal/extinction_obs2.nc&quot;</span>
-</pre></div>
-</div>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="tolteca_workflow.html">TolTECA workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tolteca_recipes.html">TolTECA Recipes</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="tolteca_recipes.html#module-tolteca.recipes">tolteca.recipes Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tolteca_recipes.html#module-tolteca.recipes.simu_hwp_noise">tolteca.recipes.simu_hwp_noise Module</a></li>
 </ul>
 </li>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">_raw/</span></code>: The directory that contains symbolic links to all data files,
-collected from querying the <code class="xref py py-obj docutils literal notranslate"><span class="pre">idx</span></code> database, using information provided
-in <code class="xref py py-obj docutils literal notranslate"><span class="pre">INPUT_CONFIG</span></code>.</p></li>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">_cal/</span></code>: The directory that contains <em>interpreted</em> calibration objects,
-from using the files in <code class="xref py py-obj docutils literal notranslate"><span class="pre">/cal</span></code>.</p></li>
 </ul>
-</div></blockquote>
-<ul class="simple">
-<li><p>Pipeline execution</p></li>
-</ul>
-<p>The pipeline can be executed by</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span>$ tolteca run [OPTIONS] JOBDIR
-</pre></div>
-</div>
-<p>This will invoke the pipeline. A unique suffix is generated, which is used
-to create a output directory <code class="xref py py-obj docutils literal notranslate"><span class="pre">JOBDIR.suffix</span></code>. A unified config file <code class="xref py py-obj docutils literal notranslate"><span class="pre">jobkey_somerandomhash.yaml</span></code>
-is produced out of all <code class="xref py py-obj docutils literal notranslate"><span class="pre">??_*.yaml</span></code> files and put into it as well. Finally,
-the pipeline is run by effectively:</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span>$ pipeline_bin -c JOBDIR.suffix/JOBDIR_suffix.yaml -o JOBDIR.suffix
-</pre></div>
-</div>
 </div>
 <div class="section" id="reference-api">
 <h2>Reference/API<a class="headerlink" href="#reference-api" title="Permalink to this headline">¶</a></h2>
@@ -320,7 +147,7 @@ the pipeline is run by effectively:</p>
 </div>
 <div class="section" id="class-inheritance-diagram">
 <h4>Class Inheritance Diagram<a class="headerlink" href="#class-inheritance-diagram" title="Permalink to this headline">¶</a></h4>
-<div class="graphviz"><object data="../_images/inheritance-7eb8ff91bea2154704502896bb3aa1023a36fbde.svg" type="image/svg+xml" class="inheritance graphviz">
+<div class="graphviz"><object data="../_images/inheritance-6082798e53186af9092afbb668ba3bb352eb6252.svg" type="image/svg+xml" class="inheritance graphviz">
 <p class="warning">Inheritance diagram of tolteca.db.ConfigMixin, tolteca.db.ConfigValidator, tolteca.db.connection.DatabaseConnection, tolteca.db.DatabaseRuntime</p></object></div>
 </div>
 </div>
@@ -359,12 +186,15 @@ the pipeline is run by effectively:</p>
 </div>
 <div class="section" id="id3">
 <h4>Class Inheritance Diagram<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h4>
-<div class="graphviz"><object data="../_images/inheritance-89a4bb7252f44d3a30e2b27d2187199d513c563c.svg" type="image/svg+xml" class="inheritance graphviz">
+<div class="graphviz"><object data="../_images/inheritance-711e6dc962ff481334f367a18c6629075b8ed590.svg" type="image/svg+xml" class="inheritance graphviz">
 <p class="warning">Inheritance diagram of tolteca.io.toltec.NcFileIO</p></object></div>
 </div>
 </div>
-<div class="section" id="module-tolteca.kidsdata">
-<span id="tolteca-kidsdata-package"></span><h3>tolteca.kidsdata Package<a class="headerlink" href="#module-tolteca.kidsdata" title="Permalink to this headline">¶</a></h3>
+<div class="section" id="module-tolteca.kidsutils">
+<span id="tolteca-kidsutils-package"></span><h3>tolteca.kidsutils Package<a class="headerlink" href="#module-tolteca.kidsutils" title="Permalink to this headline">¶</a></h3>
+</div>
+<div class="section" id="module-tolteca.kidsutils.kidsdata">
+<span id="tolteca-kidsutils-kidsdata-package"></span><h3>tolteca.kidsutils.kidsdata Package<a class="headerlink" href="#module-tolteca.kidsutils.kidsdata" title="Permalink to this headline">¶</a></h3>
 <p>This module implements the container classes for KIDs data.</p>
 <div class="section" id="id4">
 <h4>Classes<a class="headerlink" href="#id4" title="Permalink to this headline">¶</a></h4>
@@ -377,28 +207,28 @@ the pipeline is run by effectively:</p>
 <tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">NDDataRef</span></code>(data[, uncertainty, mask, wcs, …])</p></td>
 <td><p>Implements <code class="xref py py-obj docutils literal notranslate"><span class="pre">NDData</span></code> with all Mixins.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.kidsdata.RawTimeStream.html#tolteca.kidsdata.RawTimeStream" title="tolteca.kidsdata.RawTimeStream"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RawTimeStream</span></code></a>(data[, uncertainty, mask, …])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsdata.RawTimeStream.html#tolteca.kidsutils.kidsdata.RawTimeStream" title="tolteca.kidsutils.kidsdata.RawTimeStream"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RawTimeStream</span></code></a>(data[, uncertainty, mask, …])</p></td>
 <td><p>Container for the raw in-phase (i) and quadrature (q) data.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsdata.SolvedTimeStream.html#tolteca.kidsdata.SolvedTimeStream" title="tolteca.kidsdata.SolvedTimeStream"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SolvedTimeStream</span></code></a>(data[, uncertainty, mask, …])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsdata.SolvedTimeStream.html#tolteca.kidsutils.kidsdata.SolvedTimeStream" title="tolteca.kidsutils.kidsdata.SolvedTimeStream"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SolvedTimeStream</span></code></a>(data[, uncertainty, mask, …])</p></td>
 <td><p>Container for the solved detuning (x) and loss (r) data.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.kidsdata.Sweep.html#tolteca.kidsdata.Sweep" title="tolteca.kidsdata.Sweep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Sweep</span></code></a>(data[, uncertainty, mask, wcs, meta, …])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsdata.Sweep.html#tolteca.kidsutils.kidsdata.Sweep" title="tolteca.kidsutils.kidsdata.Sweep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Sweep</span></code></a>(data[, uncertainty, mask, wcs, meta, …])</p></td>
 <td><p>Container for frequency sweep data.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsdata.SweepMixin.html#tolteca.kidsdata.SweepMixin" title="tolteca.kidsdata.SweepMixin"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SweepMixin</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsdata.SweepMixin.html#tolteca.kidsutils.kidsdata.SweepMixin" title="tolteca.kidsutils.kidsdata.SweepMixin"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SweepMixin</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.kidsdata.TargetSweep.html#tolteca.kidsdata.TargetSweep" title="tolteca.kidsdata.TargetSweep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TargetSweep</span></code></a>(data[, uncertainty, mask, wcs, …])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsdata.TargetSweep.html#tolteca.kidsutils.kidsdata.TargetSweep" title="tolteca.kidsutils.kidsdata.TargetSweep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TargetSweep</span></code></a>(data[, uncertainty, mask, wcs, …])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsdata.TimeStream.html#tolteca.kidsdata.TimeStream" title="tolteca.kidsdata.TimeStream"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TimeStream</span></code></a>(data[, uncertainty, mask, wcs, …])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsdata.TimeStream.html#tolteca.kidsutils.kidsdata.TimeStream" title="tolteca.kidsutils.kidsdata.TimeStream"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TimeStream</span></code></a>(data[, uncertainty, mask, wcs, …])</p></td>
 <td><p>Container for time stream data.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">TimeStreamMixin</span></code></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsdata.VnaSweep.html#tolteca.kidsdata.VnaSweep" title="tolteca.kidsdata.VnaSweep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">VnaSweep</span></code></a>(data[, uncertainty, mask, wcs, …])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsdata.VnaSweep.html#tolteca.kidsutils.kidsdata.VnaSweep" title="tolteca.kidsutils.kidsdata.VnaSweep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">VnaSweep</span></code></a>(data[, uncertainty, mask, wcs, …])</p></td>
 <td><p></p></td>
 </tr>
 </tbody>
@@ -406,15 +236,94 @@ the pipeline is run by effectively:</p>
 </div>
 <div class="section" id="id5">
 <h4>Class Inheritance Diagram<a class="headerlink" href="#id5" title="Permalink to this headline">¶</a></h4>
-<div class="graphviz"><object data="../_images/inheritance-252b9ad28f4c2601e29342f4a68b0c6b95acd36d.svg" type="image/svg+xml" class="inheritance graphviz">
-<p class="warning">Inheritance diagram of tolteca.kidsdata.RawTimeStream, tolteca.kidsdata.SolvedTimeStream, tolteca.kidsdata.Sweep, tolteca.kidsdata.sweep_mixin.SweepMixin, tolteca.kidsdata.TargetSweep, tolteca.kidsdata.TimeStream, tolteca.kidsdata.VnaSweep</p></object></div>
+<div class="graphviz"><object data="../_images/inheritance-ec5cfc6db951bba818062ab05f839e95da3f89f9.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.kidsutils.kidsdata.RawTimeStream, tolteca.kidsutils.kidsdata.SolvedTimeStream, tolteca.kidsutils.kidsdata.Sweep, tolteca.kidsutils.kidsdata.sweep_mixin.SweepMixin, tolteca.kidsutils.kidsdata.TargetSweep, tolteca.kidsutils.kidsdata.TimeStream, tolteca.kidsutils.kidsdata.VnaSweep</p></object></div>
+</div>
+</div>
+<div class="section" id="module-tolteca.kidsutils.kidsmodel">
+<span id="tolteca-kidsutils-kidsmodel-package"></span><h3>tolteca.kidsutils.kidsmodel Package<a class="headerlink" href="#module-tolteca.kidsutils.kidsmodel" title="Permalink to this headline">¶</a></h3>
+<div class="section" id="id6">
+<h4>Classes<a class="headerlink" href="#id6" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.InstrumentalDetune.html#tolteca.kidsutils.kidsmodel.InstrumentalDetune" title="tolteca.kidsutils.kidsmodel.InstrumentalDetune"><code class="xref py py-obj docutils literal notranslate"><span class="pre">InstrumentalDetune</span></code></a>(*args, **kwargs)</p></td>
+<td><p>Model that describes the detuning in terms of the probe tone and detector intrinsics.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.KidsProbeGainWithGeometry.html#tolteca.kidsutils.kidsmodel.KidsProbeGainWithGeometry" title="tolteca.kidsutils.kidsmodel.KidsProbeGainWithGeometry"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KidsProbeGainWithGeometry</span></code></a>(*args, **kwargs)</p></td>
+<td><p>Model that describes the S21 probed at fixed frequencies with the geometry parameters.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.KidsProbeGainWithLinTrend.html#tolteca.kidsutils.kidsmodel.KidsProbeGainWithLinTrend" title="tolteca.kidsutils.kidsmodel.KidsProbeGainWithLinTrend"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KidsProbeGainWithLinTrend</span></code></a>(*args, **kwargs)</p></td>
+<td><p>Model that describes the S21 probed at fixed frequencies with an effective gain and a linear baseline trend.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.KidsSweepGainWithGeometry.html#tolteca.kidsutils.kidsmodel.KidsSweepGainWithGeometry" title="tolteca.kidsutils.kidsmodel.KidsSweepGainWithGeometry"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KidsSweepGainWithGeometry</span></code></a>([fr, Qr])</p></td>
+<td><p>Model that describes the S21 for frequency sweep with the geometry parameters.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.KidsSweepGainWithLinTrend.html#tolteca.kidsutils.kidsmodel.KidsSweepGainWithLinTrend" title="tolteca.kidsutils.kidsmodel.KidsSweepGainWithLinTrend"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KidsSweepGainWithLinTrend</span></code></a>([fr, Qr])</p></td>
+<td><p>Model that describes the S21 for frequency sweep with an effective gain and a linear baseline trend.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Model</span></code>(*args[, meta, name])</p></td>
+<td><p>Base class for all models.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.OpticalDetune.html#tolteca.kidsutils.kidsmodel.OpticalDetune" title="tolteca.kidsutils.kidsmodel.OpticalDetune"><code class="xref py py-obj docutils literal notranslate"><span class="pre">OpticalDetune</span></code></a>(*args, **kwargs)</p></td>
+<td><p>Model that describes detuning of KIDs in response to incident optical power.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Parameter</span></code>([name, description, default, …])</p></td>
+<td><p>Wraps individual parameters.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ.html#tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ" title="tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ReadoutComplexToIQ</span></code></a>(*args, **kwargs)</p></td>
+<td><p>Utility model to convert from complex S21 to (I, Q).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ReadoutIQToComplex.html#tolteca.kidsutils.kidsmodel.ReadoutIQToComplex" title="tolteca.kidsutils.kidsmodel.ReadoutIQToComplex"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ReadoutIQToComplex</span></code></a>(*args, **kwargs)</p></td>
+<td><p>Utility model to convert from (I, Q) to complex S21.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ResonanceCircle.html#tolteca.kidsutils.kidsmodel.ResonanceCircle" title="tolteca.kidsutils.kidsmodel.ResonanceCircle"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResonanceCircle</span></code></a>(*args, **kwargs)</p></td>
+<td><p>Same as <a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ResonanceCircleComplex.html#tolteca.kidsutils.kidsmodel.ResonanceCircleComplex" title="tolteca.kidsutils.kidsmodel.ResonanceCircleComplex"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResonanceCircleComplex</span></code></a>, but with separate real and imaginary parts as inputs and outputs.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ResonanceCircleComplex.html#tolteca.kidsutils.kidsmodel.ResonanceCircleComplex" title="tolteca.kidsutils.kidsmodel.ResonanceCircleComplex"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResonanceCircleComplex</span></code></a>(*args, **kwargs)</p></td>
+<td><p>Model that describes the resonance circle of KIDs in complex plane.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ResonanceCircleComplexInv.html#tolteca.kidsutils.kidsmodel.ResonanceCircleComplexInv" title="tolteca.kidsutils.kidsmodel.ResonanceCircleComplexInv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResonanceCircleComplexInv</span></code></a>(*args, **kwargs)</p></td>
+<td><p>Inversion of <a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ResonanceCircleComplex.html#tolteca.kidsutils.kidsmodel.ResonanceCircleComplex" title="tolteca.kidsutils.kidsmodel.ResonanceCircleComplex"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResonanceCircleComplex</span></code></a>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ResonanceCircleInv.html#tolteca.kidsutils.kidsmodel.ResonanceCircleInv" title="tolteca.kidsutils.kidsmodel.ResonanceCircleInv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResonanceCircleInv</span></code></a>(*args, **kwargs)</p></td>
+<td><p>Inversion of <a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ResonanceCircle.html#tolteca.kidsutils.kidsmodel.ResonanceCircle" title="tolteca.kidsutils.kidsmodel.ResonanceCircle"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResonanceCircle</span></code></a>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ResonanceCircleProbe.html#tolteca.kidsutils.kidsmodel.ResonanceCircleProbe" title="tolteca.kidsutils.kidsmodel.ResonanceCircleProbe"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResonanceCircleProbe</span></code></a>(*args, **kwargs)</p></td>
+<td><p>Model that describes the probing of The resonance circle.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ResonanceCircleProbeComplex.html#tolteca.kidsutils.kidsmodel.ResonanceCircleProbeComplex" title="tolteca.kidsutils.kidsmodel.ResonanceCircleProbeComplex"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResonanceCircleProbeComplex</span></code></a>(*args, **kwargs)</p></td>
+<td><p>The same as <a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ResonanceCircleProbe.html#tolteca.kidsutils.kidsmodel.ResonanceCircleProbe" title="tolteca.kidsutils.kidsmodel.ResonanceCircleProbe"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResonanceCircleProbe</span></code></a>, but the result is the complex S21.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ResonanceCircleQr.html#tolteca.kidsutils.kidsmodel.ResonanceCircleQr" title="tolteca.kidsutils.kidsmodel.ResonanceCircleQr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResonanceCircleQr</span></code></a>(*args, **kwargs)</p></td>
+<td><p>Model that describes the relation of <code class="xref py py-obj docutils literal notranslate"><span class="pre">r</span></code> and <code class="xref py py-obj docutils literal notranslate"><span class="pre">Qr</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ResonanceCircleQrInv.html#tolteca.kidsutils.kidsmodel.ResonanceCircleQrInv" title="tolteca.kidsutils.kidsmodel.ResonanceCircleQrInv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResonanceCircleQrInv</span></code></a>(*args, **kwargs)</p></td>
+<td><p>Inversion of <a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ResonanceCircleQr.html#tolteca.kidsutils.kidsmodel.ResonanceCircleQr" title="tolteca.kidsutils.kidsmodel.ResonanceCircleQr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResonanceCircleQr</span></code></a></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ResonanceCircleSweep.html#tolteca.kidsutils.kidsmodel.ResonanceCircleSweep" title="tolteca.kidsutils.kidsmodel.ResonanceCircleSweep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResonanceCircleSweep</span></code></a>(*args, **kwargs)</p></td>
+<td><p>Model that describes the frequency sweep of The resonance circle.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex.html#tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex" title="tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResonanceCircleSweepComplex</span></code></a>([fr, Qr])</p></td>
+<td><p>The same as <a class="reference internal" href="../api/tolteca.kidsutils.kidsmodel.ResonanceCircleSweep.html#tolteca.kidsutils.kidsmodel.ResonanceCircleSweep" title="tolteca.kidsutils.kidsmodel.ResonanceCircleSweep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResonanceCircleSweep</span></code></a>, but the result is the complex S21.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="id7">
+<h4>Class Inheritance Diagram<a class="headerlink" href="#id7" title="Permalink to this headline">¶</a></h4>
+<div class="graphviz"><object data="../_images/inheritance-0a7e314bd0d0f2995cf3c7e31bf4ed811ccd1cad.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.kidsutils.kidsmodel.InstrumentalDetune, tolteca.kidsutils.kidsmodel.KidsProbeGainWithGeometry, tolteca.kidsutils.kidsmodel.KidsProbeGainWithLinTrend, tolteca.kidsutils.kidsmodel.KidsSweepGainWithGeometry, tolteca.kidsutils.kidsmodel.KidsSweepGainWithLinTrend, tolteca.kidsutils.kidsmodel.OpticalDetune, tolteca.kidsutils.kidsmodel.ReadoutComplexToIQ, tolteca.kidsutils.kidsmodel.ReadoutIQToComplex, tolteca.kidsutils.kidsmodel.ResonanceCircle, tolteca.kidsutils.kidsmodel.ResonanceCircleComplex, tolteca.kidsutils.kidsmodel.ResonanceCircleComplexInv, tolteca.kidsutils.kidsmodel.ResonanceCircleInv, tolteca.kidsutils.kidsmodel.ResonanceCircleProbe, tolteca.kidsutils.kidsmodel.ResonanceCircleProbeComplex, tolteca.kidsutils.kidsmodel.ResonanceCircleQr, tolteca.kidsutils.kidsmodel.ResonanceCircleQrInv, tolteca.kidsutils.kidsmodel.ResonanceCircleSweep, tolteca.kidsutils.kidsmodel.ResonanceCircleSweepComplex</p></object></div>
 </div>
 </div>
 <div class="section" id="module-tolteca.pipeline">
 <span id="tolteca-pipeline-package"></span><h3>tolteca.pipeline Package<a class="headerlink" href="#module-tolteca.pipeline" title="Permalink to this headline">¶</a></h3>
 <p>This module helps setup and run the reduction pipeline.</p>
-<div class="section" id="id6">
-<h4>Functions<a class="headerlink" href="#id6" title="Permalink to this headline">¶</a></h4>
+<div class="section" id="id8">
+<h4>Functions<a class="headerlink" href="#id8" title="Permalink to this headline">¶</a></h4>
 <table class="longtable docutils align-default">
 <colgroup>
 <col style="width: 10%" />
@@ -436,8 +345,8 @@ the pipeline is run by effectively:</p>
 </tbody>
 </table>
 </div>
-<div class="section" id="id7">
-<h4>Classes<a class="headerlink" href="#id7" title="Permalink to this headline">¶</a></h4>
+<div class="section" id="id9">
+<h4>Classes<a class="headerlink" href="#id9" title="Permalink to this headline">¶</a></h4>
 <table class="longtable docutils align-default">
 <colgroup>
 <col style="width: 10%" />
@@ -456,16 +365,16 @@ the pipeline is run by effectively:</p>
 </tbody>
 </table>
 </div>
-<div class="section" id="id8">
-<h4>Class Inheritance Diagram<a class="headerlink" href="#id8" title="Permalink to this headline">¶</a></h4>
-<div class="graphviz"><object data="../_images/inheritance-4547d8a16dc7d6aeea8be4aa5af4baae3c054b9e.svg" type="image/svg+xml" class="inheritance graphviz">
+<div class="section" id="id10">
+<h4>Class Inheritance Diagram<a class="headerlink" href="#id10" title="Permalink to this headline">¶</a></h4>
+<div class="graphviz"><object data="../_images/inheritance-f35a831ddce5b9fb002f92e53c1430cc51537356.svg" type="image/svg+xml" class="inheritance graphviz">
 <p class="warning">Inheritance diagram of tolteca.pipeline.PipelineRuntime</p></object></div>
 </div>
 </div>
 <div class="section" id="module-tolteca.utils">
 <span id="tolteca-utils-package"></span><h3>tolteca.utils Package<a class="headerlink" href="#module-tolteca.utils" title="Permalink to this headline">¶</a></h3>
-<div class="section" id="id9">
-<h4>Functions<a class="headerlink" href="#id9" title="Permalink to this headline">¶</a></h4>
+<div class="section" id="id11">
+<h4>Functions<a class="headerlink" href="#id11" title="Permalink to this headline">¶</a></h4>
 <table class="longtable docutils align-default">
 <colgroup>
 <col style="width: 10%" />
@@ -478,20 +387,23 @@ the pipeline is run by effectively:</p>
 <tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.utils.get_pkg_data_path.html#tolteca.utils.get_pkg_data_path" title="tolteca.utils.get_pkg_data_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_pkg_data_path</span></code></a>()</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.utils.rgetattr.html#tolteca.utils.rgetattr" title="tolteca.utils.rgetattr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rgetattr</span></code></a>(obj, attr, *args)</p></td>
-<td><p>Get attribute recursively.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.utils.rreload.html#tolteca.utils.rreload" title="tolteca.utils.rreload"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rreload</span></code></a>(m)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.utils.odict_from_list.html#tolteca.utils.odict_from_list" title="tolteca.utils.odict_from_list"><code class="xref py py-obj docutils literal notranslate"><span class="pre">odict_from_list</span></code></a>(l, key)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.utils.touch_file.html#tolteca.utils.touch_file" title="tolteca.utils.touch_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">touch_file</span></code></a>(out_file)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.utils.rgetattr.html#tolteca.utils.rgetattr" title="tolteca.utils.rgetattr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rgetattr</span></code></a>(obj, attr, *args)</p></td>
+<td><p>Get attribute recursively.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.utils.rreload.html#tolteca.utils.rreload" title="tolteca.utils.rreload"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rreload</span></code></a>(m)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.utils.touch_file.html#tolteca.utils.touch_file" title="tolteca.utils.touch_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">touch_file</span></code></a>(out_file)</p></td>
 <td><p></p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<div class="section" id="id10">
-<h4>Classes<a class="headerlink" href="#id10" title="Permalink to this headline">¶</a></h4>
+<div class="section" id="id12">
+<h4>Classes<a class="headerlink" href="#id12" title="Permalink to this headline">¶</a></h4>
 <table class="longtable docutils align-default">
 <colgroup>
 <col style="width: 10%" />
@@ -504,25 +416,28 @@ the pipeline is run by effectively:</p>
 <tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">ModuleType</span></code></p></td>
 <td><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">builtins.module</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Path</span></code></p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">OrderedDict</span></code></p></td>
+<td><p>Dictionary that remembers insertion order</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Path</span></code></p></td>
 <td><p>PurePath subclass that can make system calls.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.utils.hookit.html#tolteca.utils.hookit" title="tolteca.utils.hookit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hookit</span></code></a>(obj, name)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.utils.hookit.html#tolteca.utils.hookit" title="tolteca.utils.hookit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hookit</span></code></a>(obj, name)</p></td>
 <td><p></p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<div class="section" id="id11">
-<h4>Class Inheritance Diagram<a class="headerlink" href="#id11" title="Permalink to this headline">¶</a></h4>
-<div class="graphviz"><object data="../_images/inheritance-113f8b15700bcd2ab3e400749a5c93a99e3df98c.svg" type="image/svg+xml" class="inheritance graphviz">
+<div class="section" id="id13">
+<h4>Class Inheritance Diagram<a class="headerlink" href="#id13" title="Permalink to this headline">¶</a></h4>
+<div class="graphviz"><object data="../_images/inheritance-0a49968852145bff0d881b984ce01aa4a688d9e9.svg" type="image/svg+xml" class="inheritance graphviz">
 <p class="warning">Inheritance diagram of tolteca.utils.hookit</p></object></div>
 </div>
 </div>
 <div class="section" id="module-tolteca.web">
 <span id="tolteca-web-package"></span><h3>tolteca.web Package<a class="headerlink" href="#module-tolteca.web" title="Permalink to this headline">¶</a></h3>
-<div class="section" id="id12">
-<h4>Functions<a class="headerlink" href="#id12" title="Permalink to this headline">¶</a></h4>
+<div class="section" id="id14">
+<h4>Functions<a class="headerlink" href="#id14" title="Permalink to this headline">¶</a></h4>
 <table class="longtable docutils align-default">
 <colgroup>
 <col style="width: 10%" />
@@ -544,8 +459,8 @@ the pipeline is run by effectively:</p>
 </div>
 <div class="section" id="module-tolteca.web.frontend">
 <span id="tolteca-web-frontend-package"></span><h3>tolteca.web.frontend Package<a class="headerlink" href="#module-tolteca.web.frontend" title="Permalink to this headline">¶</a></h3>
-<div class="section" id="id13">
-<h4>Functions<a class="headerlink" href="#id13" title="Permalink to this headline">¶</a></h4>
+<div class="section" id="id15">
+<h4>Functions<a class="headerlink" href="#id15" title="Permalink to this headline">¶</a></h4>
 <table class="longtable docutils align-default">
 <colgroup>
 <col style="width: 10%" />
@@ -582,7 +497,6 @@ the pipeline is run by effectively:</p>
         <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
 <ul>
 <li><a class="reference internal" href="#">TolTECA Documentation</a><ul>
-<li><a class="reference internal" href="#tolteca-workflow">TolTECA workflow</a></li>
 <li><a class="reference internal" href="#reference-api">Reference/API</a><ul>
 <li><a class="reference internal" href="#module-tolteca">tolteca Package</a></li>
 <li><a class="reference internal" href="#module-tolteca.db">tolteca.db Package</a><ul>
@@ -598,29 +512,35 @@ the pipeline is run by effectively:</p>
 <li><a class="reference internal" href="#id3">Class Inheritance Diagram</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#module-tolteca.kidsdata">tolteca.kidsdata Package</a><ul>
+<li><a class="reference internal" href="#module-tolteca.kidsutils">tolteca.kidsutils Package</a></li>
+<li><a class="reference internal" href="#module-tolteca.kidsutils.kidsdata">tolteca.kidsutils.kidsdata Package</a><ul>
 <li><a class="reference internal" href="#id4">Classes</a></li>
 <li><a class="reference internal" href="#id5">Class Inheritance Diagram</a></li>
 </ul>
 </li>
+<li><a class="reference internal" href="#module-tolteca.kidsutils.kidsmodel">tolteca.kidsutils.kidsmodel Package</a><ul>
+<li><a class="reference internal" href="#id6">Classes</a></li>
+<li><a class="reference internal" href="#id7">Class Inheritance Diagram</a></li>
+</ul>
+</li>
 <li><a class="reference internal" href="#module-tolteca.pipeline">tolteca.pipeline Package</a><ul>
-<li><a class="reference internal" href="#id6">Functions</a></li>
-<li><a class="reference internal" href="#id7">Classes</a></li>
-<li><a class="reference internal" href="#id8">Class Inheritance Diagram</a></li>
+<li><a class="reference internal" href="#id8">Functions</a></li>
+<li><a class="reference internal" href="#id9">Classes</a></li>
+<li><a class="reference internal" href="#id10">Class Inheritance Diagram</a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-tolteca.utils">tolteca.utils Package</a><ul>
-<li><a class="reference internal" href="#id9">Functions</a></li>
-<li><a class="reference internal" href="#id10">Classes</a></li>
-<li><a class="reference internal" href="#id11">Class Inheritance Diagram</a></li>
+<li><a class="reference internal" href="#id11">Functions</a></li>
+<li><a class="reference internal" href="#id12">Classes</a></li>
+<li><a class="reference internal" href="#id13">Class Inheritance Diagram</a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-tolteca.web">tolteca.web Package</a><ul>
-<li><a class="reference internal" href="#id12">Functions</a></li>
+<li><a class="reference internal" href="#id14">Functions</a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-tolteca.web.frontend">tolteca.web.frontend Package</a><ul>
-<li><a class="reference internal" href="#id13">Functions</a></li>
+<li><a class="reference internal" href="#id15">Functions</a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-tolteca.web.backend">tolteca.web.backend Package</a></li>
@@ -642,8 +562,8 @@ the pipeline is run by effectively:</p>
     <a href="#">Back to Top</a></p>
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.2.1. &nbsp;
-    Last built 07 Jan 2020. <br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.3.1. &nbsp;
+    Last built 28 Jan 2020. <br/>
   </p>
 </footer>
   </body>

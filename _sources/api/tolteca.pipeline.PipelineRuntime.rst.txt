@@ -6,11 +6,21 @@ PipelineRuntime
 .. autoclass:: PipelineRuntime
    :show-inheritance:
 
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~PipelineRuntime.logger
+
    .. rubric:: Methods Summary
 
    .. autosummary::
 
       ~PipelineRuntime.from_dir
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: logger
 
    .. rubric:: Methods Documentation
 
