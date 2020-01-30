@@ -5,7 +5,11 @@ TolTECA Documentation
 This is the documentation for TolTECA.
 
 
-.. include::  tolteca_workflow.rst
+.. toctree::
+   :maxdepth: 2
+
+   tolteca_workflow
+   tolteca_recipes
 
 
 Reference/API
@@ -19,7 +23,11 @@ Reference/API
 
 .. automodapi:: tolteca.io
 
-.. automodapi:: tolteca.kidsdata
+.. automodapi:: tolteca.kidsutils
+
+.. automodapi:: tolteca.kidsutils.kidsdata
+
+.. automodapi:: tolteca.kidsutils.kidsmodel
 
 .. automodapi:: tolteca.pipeline
 

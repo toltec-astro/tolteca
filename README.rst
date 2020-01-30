@@ -8,6 +8,30 @@ A Package for TolTEC data reduction and analysis
 TolTECA is a package for reducing and analyzing TolTEC data.
 
 
+Install
+-------
+
+The package is now under active development. The best way to install is
+to clone the git repo and install as development version:
+
+.. code-block:: bash
+
+    $ git clone https://github.com/toltec-astro/tolteca
+    $ cd tolteca
+    $ pip install -e .
+
+The above steps can also be condensed to one step, with the price that you
+will not be able to modify the code in place:
+
+.. code-block:: bash
+
+    pip install git+https://github.com/toltec-astro/tolteca
+
+It is recommended to use a virtualenv manager (venv, pyenv, etc.) to install
+`tolteca` into its own virtualenv, which makes things super easy for
+uninstall or upgrade.
+
+
 License
 -------
 

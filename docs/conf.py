@@ -205,3 +205,5 @@ github_issues_url = 'https://github.com/{0}/issues/'.format(setup_cfg['github_pr
 # apidoc_output_dir = 'apidoc'
 # apidoc_excluded_paths = ['tests']
 # apidoc_separate_modules = True
+
+inheritance_graph_attrs = dict(rankdir="LR", size='""')
