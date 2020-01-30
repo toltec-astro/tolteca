@@ -99,8 +99,8 @@ def get_traces(src):
 sources = [
     {
         'label': 'all_thermometers',
-        # 'runtime_link': '/data_toltec/thermetry/thermetry.nc',
-        'runtime_link': '/Users/ma/Codes/toltec/kids/test_data/thermetry.nc',
+        'runtime_link': '/data_toltec/thermetry/thermetry.nc',
+        # 'runtime_link': '/Users/ma/Codes/toltec/kids/test_data/thermetry.nc',
         'local_tz': 'EST',
         'title': 'Thermometry',
         'traces': get_traces,

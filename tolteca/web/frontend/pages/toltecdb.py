@@ -23,8 +23,8 @@ title_icon = "fas fa-table"
 
 
 UPDATE_INTERVAL = 4000  # ms
-N_RECORDS_INIT = 50
-N_RECORDS = 50
+N_RECORDS_INIT = 500
+N_RECORDS = 500
 
 
 source_common = {

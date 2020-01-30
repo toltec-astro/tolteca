@@ -31,7 +31,8 @@ src = {
     'label': 'thermometry',
     'title': title_text,
     # 'runtime_link': '/data_toltec/thermetry/thermetry.nc',
-    'runtime_link': '/Users/ma/Codes/toltec/kids/test_data/thermetry.nc',
+    'runtime_link': '/data_lmt/thermetry/thermetry.nc',
+    # 'runtime_link': '/Users/ma/Codes/toltec/kids/test_data/thermetry.nc',
     'local_tz': 'EST',
     '_title_view': LiveTitleComponent(f'{ctx}')
     }
