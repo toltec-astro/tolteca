@@ -4,10 +4,14 @@
 #   Zhiyuan Ma
 #
 # Contributor(s):
-#   Grant Wilson
+#   Zhiyuan Ma, Giles Novak, Grant Wilson
 #
 # History:
-#   2020/01/28: First staged.
+#   2020/02/02 Zhiyuan Ma:
+#      - Handl all three TolTEC bands.
+#      - Include kappa values in legend.
+#   2020/01/28 Zhiyuan Ma:
+#      - First staged.
 
 """This recipe makes use of the `KidsSimulator` to investigate
 the impact of the half wave plate to the observed noise.
@@ -23,7 +27,7 @@ import itertools
 import matplotlib.patches
 
 
-def simulate_hwp(Qr, readout_noise, hwp_var_temp):
+def simulate_hwp(Qr, readout_noise, hwp_var_temp, band='T1'):
     """Make simulated timestream and calculate some useful quantities
     of the HWP under some assumed parameters.
 
@@ -38,6 +42,9 @@ def simulate_hwp(Qr, readout_noise, hwp_var_temp):
     hwp_var_temp: float
         The HWP temperature variation, peak-to-peak.
 
+    band: str
+        The TolTEC band to usage.
+
     Returns
     -------
     dict
@@ -45,10 +52,23 @@ def simulate_hwp(Qr, readout_noise, hwp_var_temp):
     """
 
     # some globals
-    background = 11.86 * u.pW
-    bkg_temp = 11.40 * u.K
-    responsivity = 5.794e-5 / u.pW
-    psd_phot = ((102.61 * u.aW * responsivity) ** 2 * 2.).decompose()
+    if band == 'T1':
+        background = 11.86 * u.pW
+        bkg_temp = 11.40 * u.K
+        responsivity = 5.794e-5 / u.pW
+        psd_phot = ((102.61 * u.aW * responsivity) ** 2 * 2.).decompose()
+    elif band == 'T2':
+        background = 8.23 * u.pW
+        bkg_temp = 10.84 * u.K
+        responsivity = 1.1e-4 / u.pW
+        psd_phot = ((79.38 * u.aW * responsivity) ** 2 * 2.).decompose()
+    elif band == 'T3':
+        background = 5.69 * u.pW
+        bkg_temp = 8.92 * u.K
+        responsivity = 1.1e-4 / u.pW
+        psd_phot = ((56.97 * u.aW * responsivity) ** 2 * 2.).decompose()
+    else:
+        raise ValueError(f'unknown band {band}. Select among T1, T2, and T3.')
     fsmp = 488. * u.Hz
     tlen = 60. * u.s
 
@@ -104,34 +124,50 @@ def simulate_hwp(Qr, readout_noise, hwp_var_temp):
 
 def make_tabular_legend(
         ax, handles, *cols,
-        colnames=None, colwidth=5, **kwargs):
+        colnames=None, colwidths=5, **kwargs):
 
     if set([len(handles)]) != set(map(len, cols)):
         raise ValueError("all columns need to have the same size")
 
     if colnames is not None and len(colnames) != len(cols):
         raise ValueError("size of colnames need to match that of the cols")
+    if isinstance(colwidths, int):
+        colwidths = [colwidths] * len(handles)
 
     dummy_patch = matplotlib.patches.Rectangle(
             (1, 1), 1, 1,
             fill=False, edgecolor='none', visible=False)
     handles = [dummy_patch, ] + list(handles)
     labels = []
-    fmt = f'{{:{colwidth}s}}'
     if colnames is not None:
-        labels.append(' '.join(fmt.format(colname) for colname in colnames))
+        label_row = []
+        for colwidth, colname in zip(colwidths, colnames):
+            if isinstance(colname, tuple):
+                name, width = colname
+            else:
+                name = colname
+                width = len(colname)
+            label_row.append(name + ' ' * (colwidth - width))
+        labels.append(' '.join(label_row))
     for i, row in enumerate(zip(*cols)):
-        labels.append(' '.join(fmt.format(str(value)) for value in row))
+        label_row = []
+        for j, value in enumerate(row):
+            fmt = f'{{:{colwidths[j]}s}}'
+            label_row.append(fmt.format(str(value)))
+        labels.append(' '.join(label_row))
 
     return ax.legend(handles, labels, **kwargs)
 
 
 def main():
+    import sys
+
+    band = sys.argv[1]
 
     # make a grid of hwp_simulations
     Qrs = [1e4, 1.5e4, 2.0e4]
     readout_noises = [10, 20, 40]
-    var_temps = np.array([0., 1.0, 2.0, 3.0]) * u.K
+    var_temps = np.array([0., 1.0, 1.5, 2.0]) * u.K
 
     hwp_stats = np.empty(
             (len(Qrs), len(readout_noises), len(var_temps)),
@@ -139,7 +175,9 @@ def main():
 
     for (i, Qr), (j, readout_noise), (k, var_temp) in itertools.product(
             enumerate(Qrs), enumerate(readout_noises), enumerate(var_temps)):
-        hwp_stats[i, j, k] = simulate_hwp(Qr, readout_noise, var_temp)
+        hwp_stats[i, j, k] = simulate_hwp(
+                Qr, readout_noise, var_temp, band=band)
+    psd_phot = hwp_stats[0, 0, 0]['psd_phot']
 
     # make some plots
     from astropy.visualization import quantity_support
@@ -154,7 +192,14 @@ def main():
         leg_handles = []
         leg_Qrs = []
         leg_readout_noises = []
-        leg_labels = ['$Q_r$', r'$\sigma_{readout}$']
+        leg_show_temps_mask = slice(0, -1)
+        leg_factors = []  # the temps
+        leg_labels = [
+                ('$Q_r$', 4),
+                (r'$\sigma_{readout}$', 4),
+                ] + [
+                (f"$\\kappa_{{{t:g}}}$", len(f'{t:g}'))
+                for t in var_temps[leg_show_temps_mask]]
         for i, j in itertools.product(*map(range, hwp_stats.shape[:2])):
             Qr = hwp_stats[i, j][0]['Qr']
             readout_noise = hwp_stats[i, j][0]['readout_noise']
@@ -163,19 +208,35 @@ def main():
 
             var_temps = [
                 s['hwp_var_temp'].to('K').value for s in hwp_stats[i, j]] * u.K
-            psd_x_levels = [s['psd_x_level'] for s in hwp_stats[i, j]]
+            psd_x_levels = np.asanyarray(
+                    [s['psd_x_level'] for s in hwp_stats[i, j]])
             color = f"C{i}"
             marker = ['o', 'x', 'D', '^', '.', 'v'][j]
             leg_handles.append(ax.plot(
                     var_temps, psd_x_levels,
                     color=color, marker=marker)[0])
-        psd_phot = hwp_stats[0, 0, 0]['psd_phot']
+            # psd_x_factors = (psd_x_levels / psd_x_levels[0])[
+            #         leg_show_temps_mask]
+            # phot_hwp_noise_facotor = (
+            #         psd_phot + psd_x_levels[leg_show_temps_mask]) / (
+            #         psd_phot + psd_x_levels[0])
+            phot_noise_facotor = (
+                    psd_phot / psd_x_levels[leg_show_temps_mask])
+            leg_factors.append([f'{f:.2f}' for f in phot_noise_facotor])
+            # for fi, f in enumerate(psd_x_factors):
+            #     ax.annotate(
+            #         f'{f:.1f}',
+            #         xy=(var_temps[fi], psd_x_levels[fi]),
+            #         xytext=(0, i - j),
+            #         textcoords='offset points',
+            #         )
         for i, blip_factor in enumerate((1, 4, 9, 16)):
             ax.axhline(
                     psd_phot / blip_factor,
                     color='#444444',
                     # label=f'BLIP={psd_phot:.2e}',
-                    linewidth=4 - i)
+                    linewidth=(2 - i) if 2 - i > 0 else 1,
+                    )
             if blip_factor == 1:
                 text = "BLIP"
             else:
@@ -195,7 +256,18 @@ def main():
         ax.set_xlim(-1, 3.5)
         make_tabular_legend(
                 ax, leg_handles, leg_Qrs, leg_readout_noises,
-                colnames=leg_labels, colwidth=6)
+                *zip(*leg_factors),
+                colnames=leg_labels, colwidths=[4, 3, 6, 6, 6],
+                prop={'family': 'monospace', 'size': 'small'},
+                )
+        from matplotlib.offsetbox import AnchoredText
+        ax.add_artist(AnchoredText(
+                "TolTEC {}".format(
+                    dict(T1='1.1mm', T2='1.4mm', T3='2.0mm')[band]
+                    ),
+                prop=dict(size=15), frameon=False,
+                loc='upper left',
+                ))
     plt.show()
 
 
