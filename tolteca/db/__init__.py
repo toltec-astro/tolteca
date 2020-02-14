@@ -6,8 +6,8 @@ import inspect
 import importlib
 import functools
 from .config import DB_CONFIG
-from ..utils.fmt import pformat_dict
-from ..utils.log import get_logger, logit, timeit
+from tollan.utils.fmt import pformat_dict
+from tollan.utils.log import get_logger, logit, timeit
 from .connection import DatabaseConnection
 
 

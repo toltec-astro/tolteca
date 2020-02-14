@@ -2,16 +2,20 @@
 
 from cached_property import cached_property
 
-from ..kidsdata import (
+import numpy as np
+from ..kidsutils.kidsdata import (
         Sweep,
         RawTimeStream, SolvedTimeStream, VnaSweep, TargetSweep)
-from ..utils.nc import ncopen, ncinfo, NcNodeMapper
-from ..utils.log import get_logger
+from tollan.utils.nc import ncopen, ncinfo, NcNodeMapper
+from tollan.utils.log import get_logger
 from .registry import register_io_class
 from pathlib import Path
 from contextlib import ExitStack
 from ..fs.toltec import ToltecDataFileSpec
 import re
+import astropy.units as u
+from astropy.table import Table
+from ..kidsutils import kidsmodel
 
 
 __all__ = ['NcFileIO']
@@ -205,13 +209,14 @@ class NcFileIO(ExitStack):
             raise RuntimeError("no tone data found")
         # tone param header
         # tone param data
-        n_tones = meta['ntones']
+        # n_tones = meta['ntones']
         if self.is_sweep:
             n_sweeps = meta['nsweeps']
             last_sweep = n_sweeps - 1
-            self.logger.debug(f"load tones from {last_sweep} of {n_sweeps} sweep blocks")
+            self.logger.debug(
+                    f"load tones from {last_sweep} of {n_sweeps} sweep blocks")
         else:
-            last_sweep = 0 
+            last_sweep = 0
         tfs = nm.getvar("tones")[last_sweep, :]
 
         return dict(tfs=tfs)
@@ -231,3 +236,80 @@ class NcFileIO(ExitStack):
     @cached_property
     def data(self):
         return []
+
+
+def identify_toltec_model_params(filepath):
+    filepath = Path(filepath)
+    pattern = r'^toltec.*\.txt$'
+    return re.match(pattern, filepath.name) is not None
+
+
+@register_io_class(
+        "txt.toltec.model_params", identifier=identify_toltec_model_params)
+class KidsModelParams(object):
+    """This class provides methods to access model parameter files."""
+
+    spec = ToltecDataFileSpec
+
+    logger = get_logger()
+
+    def __init__(self, source):
+        self.filepath = Path(source)
+        self._table = Table.read(
+                self.filepath, format='ascii.commented_header')
+        self.model_cls = self._get_model_cls(self._table)
+        self.model = self._get_model(self.model_cls, self._table)
+
+    @staticmethod
+    def _get_model_cls(tbl):
+        dispatch = {
+                kidsmodel.KidsSweepGainWithLinTrend: {
+                    'columns': [
+                        'fp', 'Qr',
+                        'Qc', 'fr', 'A',
+                        'normI', 'normQ', 'slopeI', 'slopeQ',
+                        'interceptI', 'interceptQ'
+                        ],
+                    }
+                }
+        for cls, v in dispatch.items():
+            # check column names
+            cols_required = set(v['columns'])
+            if cols_required.issubset(set(tbl.colnames)):
+                return cls
+        raise NotImplementedError
+
+    @staticmethod
+    def _get_model(model_cls, tbl):
+        if model_cls is kidsmodel.KidsSweepGainWithLinTrend:
+            # print(model_cls.model_params)
+            # print(model_cls)
+            dispatch = [
+                    ('fr', 'fr', u.Hz),
+                    ('Qr', 'Qr', None),
+                    ('g0', 'normI', None),
+                    ('g1', 'normQ', None),
+                    ('g', 'normI', None),
+                    ('phi_g', 'normQ', None),
+                    ('f0', 'fp', u.Hz),
+                    ('k0', 'slopeI', None),
+                    ('k1', 'slopeQ', None),
+                    ('m0', 'interceptI', None),
+                    ('m1', 'interceptQ', None),
+                    ]
+            args = []
+            for k, kk, unit in dispatch:
+                if kk is None:
+                    args.append(None)
+                elif unit is None:
+                    args.append(np.asanyarray(tbl[kk]))
+                else:
+                    args.append(np.asanyarray(tbl[kk]) * unit)
+            kwargs = dict(
+                    n_models=len(tbl)
+                    )
+            return model_cls(*args, **kwargs)
+        raise NotImplementedError
+
+    def __repr__(self):
+        return f"{self.model_cls.__name__}({self.filepath})"

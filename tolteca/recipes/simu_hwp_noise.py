@@ -42,6 +42,7 @@ from scipy.optimize import fsolve
 from tollan.utils.log import timeit, init_log
 import concurrent
 import psutil
+import sys
 
 
 init_log(level='DEBUG')
@@ -106,6 +107,7 @@ def simulate_hwp(Qr, readout_noise, hwp_var_temp, band='T1'):
         psd_phot = ((53.96 * u.aW * responsivity) ** 2 * 2.).decompose()
     else:
         raise ValueError(f'unknown band {band}. Select among T1, T2, and T3.')
+    print(psd_phot)
     fsmp = 488. * u.Hz
     tlen = 60. * u.s
 
@@ -512,7 +514,6 @@ def main(data_args, save_data=None):
 
 
 if __name__ == "__main__":
-    import sys
     data_args = sys.argv[1]
     if data_args in ['T1', 'T2', 'T3']:
         band = data_args

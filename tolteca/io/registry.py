@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
-from ..utils.log import get_logger
-from ..utils.registry import Registry
+from tollan.utils.log import get_logger
+from tollan.utils.registry import Registry
 
 
 _io_classes = Registry.create()

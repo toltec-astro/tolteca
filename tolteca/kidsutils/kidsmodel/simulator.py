@@ -47,6 +47,7 @@ class KidsSimulator(object):
         self._p_probe = (m_r & m_p_probe) | m_iq
         self._iq2rx = ResonanceCircleInv()
         self._iq2rxcomplex = ResonanceCircleComplexInv()
+        self._rx2iqcomplex = ResonanceCircleComplex()
 
         m_info = ['summary of kids simulator models:', ]
         sep = '-*' * 40

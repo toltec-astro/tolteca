@@ -316,8 +316,6 @@ class _ResonanceCircleSweepMixin(object):
     """Mixin class that sets up the frequency sweep model."""
 
     n_inputs = 1
-    # fr = Parameter(default=1e9, unit=u.Hz, min=0.)
-    # Qr = Parameter(default=2e4)
 
     def _set_inputs(self):
         self.inputs = ('f', )
@@ -333,7 +331,8 @@ class ResonanceCircleSweep(
         _ResonanceCircleSweepMixin, _ReadoutRepr2Mixin, _ComposableModelBase):
     """Model that describes the frequency sweep of The resonance circle."""
     # already separate in I, Q.
-    pass
+    fr = Parameter(default=1e9, unit=u.Hz, min=0.)
+    Qr = Parameter(default=2e4)
 
 
 class ResonanceCircleSweepComplex(
@@ -341,7 +340,6 @@ class ResonanceCircleSweepComplex(
         _ReadoutReprComplexMixin, _ComposableModelBase):
     """The same as `ResonanceCircleSweep`, but the result is the complex S21.
     """
-
     fr = Parameter(default=1e9, unit=u.Hz, min=0.)
     Qr = Parameter(default=2e4)
 
@@ -358,8 +356,6 @@ class _ResonanceCircleProbeMixin(object):
 
     n_inputs = 2
 
-    fp = Parameter(default=1e9, unit=u.Hz, min=0.)
-
     def _set_inputs(self):
         self.inputs = ('fr', 'Qr')
 
@@ -374,7 +370,7 @@ class ResonanceCircleProbe(
         _ResonanceCircleProbeMixin, _ReadoutRepr2Mixin, _ComposableModelBase):
     """Model that describes the probing of The resonance circle."""
     # already separate in I, Q.
-    pass
+    fp = Parameter(default=1e9, unit=u.Hz, min=0.)
 
 
 class ResonanceCircleProbeComplex(
@@ -382,6 +378,8 @@ class ResonanceCircleProbeComplex(
         _ComposableModelBase):
     """The same as `ResonanceCircleProbe`, but the result is the complex S21.
     """
+
+    fp = Parameter(default=1e9, unit=u.Hz, min=0.)
 
     @staticmethod
     def evaluate(fr, Qr, fp):
@@ -411,43 +409,44 @@ class _ReadoutTransformComplexMixin(object):
                 if a not in exclude_args]
 
 
-class _ReadoutGeometryParamsMixin(object):
-    """Mixin class that defines the KIDs parameters related to the
-    readout circuit geometry."""
+# class _ReadoutGeometryParamsMixin(_Model):
+#     """Mixin class that defines the KIDs parameters related to the
+#     readout circuit geometry."""
 
-    tau = Parameter(default=0., unit=u.s)
-    Qc = Parameter(default=4e4)  # optimal coupling
-    Qi = Parameter(tied=lambda m: m.Qr * m.Qc / (m.Qc - m.Qr))
-    phi_c = Parameter(default=0.)
-
-
-class _ReadoutGainParamsMixin(object):
-    """Mixin class that defines some general gain parameters.
-
-    Note that these parameters could mean different in different concrete
-    classes.
-    """
-
-    g0 = Parameter(default=1.)
-    g1 = Parameter(default=0.)
-    g = Parameter(tied=lambda m: np.hypot(m.g0, m.g1))
-    phi_g = Parameter(tied=lambda m: np.arctan2(m.g1, m.g0))
+#     tau = Parameter(default=0., unit=u.s)
+#     Qc = Parameter(default=4e4)  # optimal coupling
+#     Qi = Parameter(tied=lambda m: m.Qr * m.Qc / (m.Qc - m.Qr))
+#     phi_c = Parameter(default=0.)
 
 
-class _ReadoutLinTrendParamsMixin(object):
-    """Mixin class that defines parameters that describes a
-    linear baseline trend."""
+# class _ReadoutGainParamsMixin(_Model):
+#     """Mixin class that defines some general gain parameters.
 
-    f0 = Parameter(default=1e9, unit=u.Hz, min=0.)
-    k0 = Parameter(default=0.)
-    k1 = Parameter(default=0.)
-    m0 = Parameter(default=0.)
-    m1 = Parameter(default=0.)
+#     Note that these parameters could mean different in different concrete
+#     classes.
+#     """
+
+#     g0 = Parameter(default=1.)
+#     g1 = Parameter(default=0.)
+#     g = Parameter(tied=lambda m: np.hypot(m.g0, m.g1))
+#     phi_g = Parameter(tied=lambda m: np.arctan2(m.g1, m.g0))
+
+
+# class _ReadoutLinTrendParamsMixin(_Model):
+#     """Mixin class that defines parameters that describes a
+#     linear baseline trend."""
+
+#     f0 = Parameter(default=1e9, unit=u.Hz, min=0.)
+#     k0 = Parameter(default=0.)
+#     k1 = Parameter(default=0.)
+#     m0 = Parameter(default=0.)
+#     m1 = Parameter(default=0.)
 
 
 class _ReadoutGainWithLinTrendMixin(
-        _ReadoutGainParamsMixin, _ReadoutLinTrendParamsMixin,
         _ReadoutTransformComplexMixin,
+        # _ReadoutLinTrendParamsMixin,
+        # _ReadoutGainParamsMixin,
         ):
     """Mixin class that defines readout transform of S21 using an effective
     complex gain and a linear baseline trend."""
@@ -468,8 +467,9 @@ class _ReadoutGainWithLinTrendMixin(
 
 
 class _ReadoutGainWithGeometryMixin(
-        _ReadoutGainParamsMixin, _ReadoutGeometryParamsMixin,
         _ReadoutTransformComplexMixin,
+        # _ReadoutGeometryParamsMixin,
+        # _ReadoutGainParamsMixin,
         ):
     """Mixin class that defines readout transform of S21 using the
     geometry parameters."""
@@ -503,51 +503,106 @@ class _KidsReadoutMixin(object):
 
 
 class KidsSweepGainWithLinTrend(
-        _KidsReadoutMixin, _ReadoutGainWithLinTrendMixin,
-        ResonanceCircleSweepComplex):
+        _ResonanceCircleSweepMixin,
+        _ReadoutReprComplexMixin,
+        _KidsReadoutMixin,
+        _ReadoutGainWithLinTrendMixin,
+        _ComposableModelBase):
     """Model that describes the S21 for frequency sweep with
     an effective gain and a linear baseline trend.
     """
 
+    fr = Parameter(default=1e9, unit=u.Hz, min=0.)
+    Qr = Parameter(default=2e4)
+    g0 = Parameter(default=1.)
+    g1 = Parameter(default=0.)
+    g = Parameter(tied=lambda m: np.hypot(m.g0, m.g1))
+    phi_g = Parameter(tied=lambda m: np.arctan2(m.g1, m.g0))
+    f0 = Parameter(default=1e9, unit=u.Hz, min=0.)
+    k0 = Parameter(default=0.)
+    k1 = Parameter(default=0.)
+    m0 = Parameter(default=0.)
+    m1 = Parameter(default=0.)
+
     @staticmethod
     def evaluate(f, fr, Qr, g0, g1, g, phi_g, f0, k0, k1, m0, m1):
-        S = super().evaluate(f, fr, Qr)
+        S = ResonanceCircleSweepComplex.evaluate(f, fr, Qr)
         return super()._apply_transform(S, f, locals(), super())
 
 
 class KidsSweepGainWithGeometry(
-        _KidsReadoutMixin, _ReadoutGainWithGeometryMixin,
-        ResonanceCircleSweepComplex):
+        _ResonanceCircleSweepMixin,
+        _ReadoutReprComplexMixin,
+        _KidsReadoutMixin,
+        _ReadoutGainWithGeometryMixin,
+        _ComposableModelBase):
     """Model that describes the S21 for frequency sweep with the geometry
     parameters."""
 
+    fr = Parameter(default=1e9, unit=u.Hz, min=0.)
+    Qr = Parameter(default=2e4)
+    g0 = Parameter(default=1.)
+    g1 = Parameter(default=0.)
+    g = Parameter(tied=lambda m: np.hypot(m.g0, m.g1))
+    phi_g = Parameter(tied=lambda m: np.arctan2(m.g1, m.g0))
+    tau = Parameter(default=0., unit=u.s)
+    Qc = Parameter(default=4e4)  # optimal coupling
+    Qi = Parameter(tied=lambda m: m.Qr * m.Qc / (m.Qc - m.Qr))
+    phi_c = Parameter(default=0.)
+
     @staticmethod
     def evaluate(f, fr, Qr, g0, g1, g, phi_g, tau, Qc, Qi, phi_c):
-        S = super().evaluate(f, fr, Qr)
+        S = ResonanceCircleSweepComplex.evaluate(f, fr, Qr)
         return super()._apply_transform(S, f, locals(), super())
 
 
 class KidsProbeGainWithLinTrend(
-        _KidsReadoutMixin, _ReadoutGainWithLinTrendMixin,
-        ResonanceCircleProbeComplex):
+        _ResonanceCircleProbeMixin,
+        _ReadoutReprComplexMixin,
+        _KidsReadoutMixin,
+        _ReadoutGainWithLinTrendMixin,
+        _ComposableModelBase):
     """Model that describes the S21 probed at fixed frequencies with
     an effective gain and a linear baseline trend.
     """
+    fp = Parameter(default=1e9, unit=u.Hz, min=0.)
+    g0 = Parameter(default=1.)
+    g1 = Parameter(default=0.)
+    g = Parameter(tied=lambda m: np.hypot(m.g0, m.g1))
+    phi_g = Parameter(tied=lambda m: np.arctan2(m.g1, m.g0))
+    f0 = Parameter(default=1e9, unit=u.Hz, min=0.)
+    k0 = Parameter(default=0.)
+    k1 = Parameter(default=0.)
+    m0 = Parameter(default=0.)
+    m1 = Parameter(default=0.)
 
     @staticmethod
     def evaluate(fr, Qr, fp, g0, g1, g, phi_g, f0, k0, k1, m0, m1):
-        S = super().evaluate(fr, Qr, fp)
+        S = ResonanceCircleProbeComplex.evaluate(fr, Qr, fp)
         return super()._apply_transform(S, fp, locals(), super())
 
 
 class KidsProbeGainWithGeometry(
-        _KidsReadoutMixin, _ReadoutGainWithGeometryMixin,
-        ResonanceCircleProbeComplex):
+        _ResonanceCircleProbeMixin,
+        _ReadoutReprComplexMixin,
+        _KidsReadoutMixin,
+        _ReadoutGainWithGeometryMixin,
+        _ComposableModelBase):
     """Model that describes the S21 probed at fixed frequencies with
     the geometry parameters.
     """
 
+    fp = Parameter(default=1e9, unit=u.Hz, min=0.)
+    g0 = Parameter(default=1.)
+    g1 = Parameter(default=0.)
+    g = Parameter(tied=lambda m: np.hypot(m.g0, m.g1))
+    phi_g = Parameter(tied=lambda m: np.arctan2(m.g1, m.g0))
+    tau = Parameter(default=0., unit=u.s)
+    Qc = Parameter(default=4e4)  # optimal coupling
+    Qi = Parameter(tied=lambda m: m.Qr * m.Qc / (m.Qc - m.Qr))
+    phi_c = Parameter(default=0.)
+
     @staticmethod
     def evaluate(fr, Qr, fp, g0, g1, g, phi_g, tau, Qc, Qi, phi_c):
-        S = super().evaluate(fr, Qr, fp)
+        S = ResonanceCircleProbeComplex.evaluate(fr, Qr, fp)
         return super()._apply_transform(S, fp, locals(), super())
