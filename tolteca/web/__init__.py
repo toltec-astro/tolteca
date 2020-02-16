@@ -2,18 +2,23 @@
 
 """DashA site for TolTECA."""
 
+from tollan.utils.env import env_registry
 from pathlib import Path
+import os
 from tolteca.fs.toltec import DataFileStore
+
+env_registry.register(
+        "TOLTECA_TOLTEC_DB_URL", "The toltec database url")
+env_registry.register(
+        "TOLTECA_TOLTEC_DATA_ROOTPATH", "The root path to toltec data files")
 
 # service provider settings
 tolteca_app_db_filename = 'tolteca_app_db.sqlite'
 tolteca_app_db_path = Path(__file__).with_name(
         tolteca_app_db_filename).resolve().as_posix()
-# tolteca_toltec_db_url = 'mysql+mysqldb://tol:tirra@clipy:3306'
-tolteca_toltec_db_url = 'mysql+mysqldb://tol:tirra@127.0.0.1:3307'
+tolteca_toltec_db_url = env_registry.get("TOLTECA_TOLTEC_DB_URL")
 tolteca_redis_url = "redis://localhost:6379"
-tolteca_data_file_store = DataFileStore(
-        '~/Codes/toltec/kids/test_data3/data/toltec')
+tolteca_toltec_datastore = DataFileStore(env_registry.get("TOLTECA_TOLTEC_DATA_ROOTPATH"))
 
 
 # site configs
@@ -72,14 +77,14 @@ dasha_config.update(
                     'title_icon': 'fas fa-table',
                 },
                 {
-                    "template": "tolteca.web.pages.kidsview",
+                    "template": "tolteca.web.templates.kidsview",
                     "route_name": "kidsview",
                     'title_text': "Kids View",
                     'title_icon': 'fas fa-chart-line',
                     'update_interval': 1000.,
                 },
                 {
-                    "template": "tolteca.web.pages.taskview",
+                    "template": "tolteca.web.templates.taskview",
                     "route_name": "taskview",
                 },
             ],

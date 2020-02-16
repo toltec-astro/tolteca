@@ -8,7 +8,7 @@ from tolteca.io.toltec import KidsModelParams
 
 class KidsViewData(object):
 
-    from .. import tolteca_data_file_store as _datastore
+    from .. import tolteca_toltec_datastore as _datastore
 
     logger = get_logger()
 
