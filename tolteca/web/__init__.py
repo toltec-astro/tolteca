@@ -18,7 +18,8 @@ tolteca_app_db_path = Path(__file__).with_name(
         tolteca_app_db_filename).resolve().as_posix()
 tolteca_toltec_db_url = env_registry.get("TOLTECA_TOLTEC_DB_URL")
 tolteca_redis_url = "redis://localhost:6379"
-tolteca_toltec_datastore = DataFileStore(env_registry.get("TOLTECA_TOLTEC_DATA_ROOTPATH"))
+tolteca_toltec_data_rootpath = env_registry.get("TOLTECA_TOLTEC_DATA_ROOTPATH")
+tolteca_toltec_datastore = DataFileStore(tolteca_toltec_data_rootpath)
 
 
 # site configs

@@ -67,6 +67,12 @@ class KidsViewData(object):
                         f'{obsid:06d}_{subobsid:02d}_{scanid:04d}_*.nc'),
                     ]:
                 path = _get_filepath(key, pattern)
+                if path is None:
+                    if int(interface.lstrip('toltec')) < 7:
+                        host = 'clipa'
+                    else:
+                        host = 'clipo'
+                    path = _get_filepath(key, f"{host}/{pattern}")
                 if path is not None:
                     self.meta['filepaths'][key] = path
 

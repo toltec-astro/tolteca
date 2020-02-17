@@ -67,7 +67,7 @@ class KidsView(ComponentTemplate):
                         'value_cols': self._file_info_dict_keys,
                         'label_cols': self._file_dropdown_label_keys,
                         'label_join': self._file_info_join_char,
-                        'n_auto_select': 10,
+                        'n_auto_select': 1,
                         }
                     )
         self.interface_dropdown = fvcc.child(
@@ -135,7 +135,7 @@ class KidsView(ComponentTemplate):
                         html.Pre)
         viewer_debug_button = viewer_debug_container._button
         # viewer_datastore = viewer_container.child(dcc.Store)
-        viewer_timer = viewer_container.child(dcc.Interval, interval=1000)
+        viewer_timer = viewer_container.child(dcc.Interval, interval=5000)
         fig_sources_store = viewer_container.child(dcc.Store, data=dict())
         fig_sources = [
                 {
