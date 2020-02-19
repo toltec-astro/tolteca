@@ -4,7 +4,6 @@
 
 from tollan.utils.env import env_registry
 from pathlib import Path
-import os
 from tolteca.fs.toltec import DataFileStore
 
 env_registry.register(
@@ -51,7 +50,7 @@ celery_config = {
         }
 dasha_config = {
         "TITLE": "TolTECA",
-        "template": "slapdash",
+        "template": "dasha.web.templates.slapdash",
         }
 
 
