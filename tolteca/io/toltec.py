@@ -30,7 +30,7 @@ def identify_toltec_nc(filepath):
     return re.match(pattern, filepath.name) is not None
 
 
-@register_io_class("nc.toltec", identifier=identify_toltec_nc)
+@register_io_class("nc.toltec.kidsdata", identifier=identify_toltec_nc)
 class NcFileIO(ExitStack):
     """This class provides methods to access data in netCDF files."""
 
@@ -259,6 +259,11 @@ class KidsModelParams(object):
                 self.filepath, format='ascii.commented_header')
         self.model_cls = self._get_model_cls(self._table)
         self.model = self._get_model(self.model_cls, self._table)
+        self.meta = {
+                'source': source,
+                'model_cls': self.model_cls.__name__,
+                'n_models': len(self.model),
+                }
 
     @staticmethod
     def _get_model_cls(tbl):

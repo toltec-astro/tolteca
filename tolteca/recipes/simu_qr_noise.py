@@ -35,13 +35,10 @@ from astropy.visualization import quantity_support
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import pickle
-from tollan.utils.log import timeit, init_log
+from tollan.utils.log import timeit
 import concurrent
 import psutil
 from tolteca.recipes.simu_hwp_noise import save_or_show
-
-
-init_log(level='DEBUG')
 
 
 def simulate_qr(Qr, readout_noise, band='T1'):

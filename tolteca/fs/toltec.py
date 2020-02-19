@@ -4,8 +4,10 @@ import re
 from pathlib import Path
 from datetime import datetime
 import os
-
-from astropy import log
+from tollan.utils.log import get_logger
+import numpy as np
+from astropy.table import Table, Column
+import numexpr as ne
 
 
 class ToltecDataFileSpec(object):
@@ -104,10 +106,11 @@ class DataFileStore(object):
 
     @staticmethod
     def _normalize_path(p):
+        logger = get_logger()
         try:
             return Path(p).expanduser().absolute()
         except Exception:
-            log.error(f"unable to resolve path {p}")
+            logger.error(f"unable to expand user for path {p}")
             return Path(p).absolute()
 
     def runtime_datafile_links(self, master=None):
@@ -119,3 +122,145 @@ class DataFileStore(object):
                 return result
         else:
             return list()
+
+
+class ToltecDataset(object):
+    """This class provides convenient access to a set of TolTEC data files.
+    """
+    logger = get_logger()
+    spec = ToltecDataFileSpec
+
+    _col_file_object = 'file_object'
+
+    def __init__(self, index_table):
+        self._index_table = index_table
+        self._update_meta_from_file_objs()
+
+    @staticmethod
+    def _dispatch_dtype(v):
+        if isinstance(v, int):
+            return 'i8'
+        elif isinstance(v, float):
+            return 'd'
+        elif isinstance(v, str):
+            return 'S'
+
+    @staticmethod
+    def _col_score(c):
+        hs_keys = ['nwid', 'obsid', 'subobsid', 'scanid']
+        ls_keys = ['source', 'file_object']
+        if c in hs_keys:
+            return hs_keys.index(c) - len(hs_keys)
+        if c in ls_keys:
+            return ls_keys.index(c)
+        return 0
+
+    @classmethod
+    def from_files(cls, *filepaths):
+        if not filepaths:
+            raise ValueError("no file specified")
+
+        infolist = list(
+                filter(
+                    lambda i: i is not None,
+                    map(cls.spec.info_from_filename,
+                        map(DataFileStore._normalize_path, filepaths))))
+        colnames = list(infolist[0].keys())
+        # sort the keys to make it more human readable
+        colnames.sort(key=lambda k: cls._col_score(k))
+
+        dtypes = [
+                cls._dispatch_dtype(infolist[0][c]) for c in colnames]
+        tbl = Table(
+                rows=[[fi[k] for k in colnames] for fi in infolist],
+                names=colnames,
+                dtype=dtypes
+                )
+        tbl.sort(['obsid', 'subobsid', 'scanid', 'nwid'])
+        instance = cls(tbl)
+        cls.logger.debug(
+                f"loaded {instance}\n"
+                f"({len(instance)} out of {len(filepaths)} input paths)")
+        return instance
+
+    def __repr__(self):
+        tbl = self.index_table
+        blacklist_cols = ['source', self._col_file_object, 'source_orig']
+        use_cols = [c for c in tbl.colnames if c not in blacklist_cols]
+        pformat_tbl = tbl[use_cols].pformat(max_width=-1)
+        if pformat_tbl[-1].startswith("Length"):
+            pformat_tbl = pformat_tbl[:-1]
+        pformat_tbl = '\n'.join(pformat_tbl)
+        return f"{self.__class__.__name__}" \
+               f":\n{pformat_tbl}"
+
+    @property
+    def index_table(self):
+        return self._index_table
+
+    def __getitem__(self, col):
+        return self.index_table[col]
+
+    def __len__(self):
+        return self.index_table.__len__()
+
+    def select(self, cond):
+        """Return a subset of the dataset using numpy-like `cond`."""
+        tbl = self.index_table
+        if isinstance(cond, str):
+            _cond = ne.evaluate(
+                    cond, local_dict={c: tbl[c] for c in tbl.colnames})
+        else:
+            _cond == cond
+        tbl = tbl[_cond]
+        if len(tbl) == 0:
+            raise ValueError(f"no entries are selected by {cond}")
+        instance = self.__class__(tbl)
+        self.logger.debug(
+                f"selected {instance}\n"
+                f"({len(instance)} out of {len(self)} entries)")
+        return instance
+
+    def open_files(self):
+        from ..io import open as open_file
+
+        tbl = self.index_table
+        tbl[self._col_file_object] = Column(
+                [open_file(e['source']) for e in tbl],
+                name=self._col_file_object,
+                dtype=object
+                )
+        return self.__class__(tbl)
+
+    def _update_meta_from_file_objs(self):
+        logger = get_logger()
+        tbl = self.index_table
+        if self._col_file_object not in tbl.colnames:
+            return
+        fos = tbl[self._col_file_object]
+        # update from object meta
+        use_keys = None
+        for fo in fos:
+            if use_keys is None:
+                use_keys = set(fo.meta.keys())
+            else:
+                use_keys = use_keys.union(set(fo.meta.keys()))
+        if len(use_keys) > 0:
+            logger.debug(f"update meta keys {use_keys}")
+            for k in use_keys:
+                tbl[k] = Column(
+                        [fo.meta.get(k, None) for fo in fos],
+                        dtype=self._dispatch_dtype(fos[0].meta[k]))
+        colnames = sorted(tbl.colnames, key=lambda k: self._col_score(k))
+        # we only pull the common keys in all of the file objects
+        self._index_table = tbl[colnames]
+
+    def write_index_table(self, *args, colfilter=None, **kwargs):
+        tbl = self.index_table
+        # exclude the file object
+        use_cols = np.array([
+                c for c in tbl.colnames
+                if c != self._col_file_object])
+        if colfilter is not None:
+            use_cols = use_cols[colfilter]
+        tbl[use_cols.tolist()].write(*args, **kwargs)

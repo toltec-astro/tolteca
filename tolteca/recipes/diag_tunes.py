@@ -12,99 +12,10 @@ already installed. Please refer to http://www.star.bris.ac.uk/~mbt/stilts/
 for more information.
 """
 
-import numpy as np
-import subprocess
-import shutil
-from tolteca.recipes import get_extern_dir, get_logger, logit
-import os
-import stat
-import re
-import tempfile
-from contextlib import ExitStack
-from astropy.table import Table
-from tolteca.io.toltec import NcFileIO
-
-
-def ensure_stilts():
-    logger = get_logger()
-    extern_dir = get_extern_dir()
-    which_path = f"{extern_dir.resolve().as_posix()}:{os.getenv('PATH')}"
-    # which_path = f"{extern_dir.resolve().as_posix()}"
-    # logger.debug(f"extern search paths: {which_path}")
-    stilts_cmd = shutil.which("stilts", path=which_path)
-    if stilts_cmd is None:
-        logger.warning("unable to find stilts, download from internet")
-        with logit(logger.debug, "setup stilts"):
-            # retrieve stilts
-            from astropy.utils.data import download_file
-            stilts_jar_tmp = download_file(
-                    "http://www.star.bris.ac.uk/%7Embt/stilts/stilts.jar",
-                    cache=True)
-            stilts_jar = extern_dir.joinpath('stilts.jar')
-            shutil.copyfile(stilts_jar_tmp, stilts_jar)
-            stilts_cmd = extern_dir.joinpath('stilts')
-            with open(stilts_cmd, 'w') as fo:
-                fo.write("""#!/bin/sh
-java -Xmx4000M -classpath "{0}:$CLASSPATH" uk.ac.starlink.ttools.Stilts "$@"
-""".format(stilts_jar.resolve()))
-            os.chmod(
-                    stilts_cmd,
-                    os.stat(stilts_cmd).st_mode | stat.S_IEXEC)
-    # verify that stilts works
-    try:
-        output = subprocess.check_output(
-                (stilts_cmd, '-version'),
-                stderr=subprocess.STDOUT
-                ).decode().strip('\n')
-    except Exception as e:
-        raise RuntimeError(f"error when run stilts {stilts_cmd}: {e}")
-    else:
-        logger.debug(f"\n\n{output}\n")
-    return stilts_cmd
-
-
-def run_stilts(cmd, *tbls):
-    logger = get_logger()
-    with ExitStack() as es:
-        for i, c in enumerate(cmd):
-            s = re.match(r'(.+)=\$(\d+)', c)
-            if s is not None:
-                a = int(s.group(2)) - 1
-                t = tbls[a]
-                if not isinstance(t, str):
-                    f = es.enter_context(
-                            tempfile.NamedTemporaryFile())
-                    logger.debug(f"write table to {f.name}")
-                    t.write(
-                            f.name,
-                            format='ascii.commented_header', overwrite=True)
-                    t = f.name
-                cmd[i] = f"{s.group(1)}={t}"
-        logger.debug("run stilts: {}".format(' '.join(cmd)))
-        exitcode = subprocess.check_call(cmd)
-    return exitcode
-
-
-def stilts_match1d(tbl1, tbl2, colname, radius, stilts_cmd=None):
-    cmd = [
-        stilts_cmd or 'stilts',
-        "tmatch2",
-        "in1=$1", "ifmt1=ascii",
-        "in2=$2", "ifmt2=ascii",
-        "matcher=1d", f"params={radius}", f"values1='{colname}'",
-        f"values2='{colname}'",
-        # "action=keep1",
-        "out=$3", "ofmt=ascii"]
-
-    f = tempfile.NamedTemporaryFile()
-
-    try:
-        run_stilts(cmd, tbl1, tbl2, f.name)
-    except Exception as e:
-        raise RuntimeError(f"failed run {''.join(cmd)}: {e}")
-    else:
-        tbl = Table.read(f.name, format='ascii.commented_header')
-        return tbl
+from tolteca.recipes import get_logger
+from tolteca.fs.toltec import ToltecDataset
+from tollan.utils.cli import get_action_argparser
+from tollan.utils.wraps.stilts import ensure_stilts
 
 
 def main():
@@ -113,81 +24,77 @@ def main():
     logger.debug(f'use stilts: "{stilts_cmd}"')
 
 
-def build_index(files, keys=None):
-    """Return a table of meta data for given TolTEC *.nc files."""
+def match_tones(tunes):
     logger = get_logger()
-
-    logger.debug(f"build index for files {files}")
-
-    files = list(map(NcFileIO, files))
-
-    cols = [
-            ('ut', lambda f: f.meta['ut'].strftime('%Y_%m_%d_%H_%M_%S')),
-            'roachid', 'obsid', 'subobsid', 'scanid', 'kindstr']
-    if keys is not None:
-        for k in keys:
-            if k not in cols:
-                cols.append(k)
-
-    cols.append(('filepath', lambda f: f.filepath))
-    cols = [(c, lambda f, c=c: f.meta[c]) if isinstance(c, str) else c
-            for c in cols]
-    rows = []
-    for _, f in enumerate(files):
-        row = [None] * len(cols)
-        for j, c in enumerate(cols):
-            row[j] = c[1](f)
-        rows.append(row)
-    tbl = Table(rows=rows, names=[c[0] for c in cols])
-    pformat_tbl = '\n'.join(tbl[tbl.colnames[:-1]].pformat(max_width=-1))
-    logger.debug(f"index:\n{pformat_tbl}")
-    return tbl, files
-
-
-def match_tunes(tbl, files):
-    return tbl
+    logger.debug(f"input tune data: {tunes}")
+    return tunes
 
 
 if __name__ == "__main__":
     import sys
-    import argparse
     args = sys.argv[1:]
 
-    parser = argparse.ArgumentParser(
-        description="tune diagnostics."
-        )
-    subparsers = parser.add_subparsers(
-            title="actions",
-            help="available actions")
-    parser_index = subparsers.add_parser("index", help="create index file.")
-    parser_index.add_argument(
+    parser, add_action_parser, set_parser_action = get_action_argparser(
+            description="Diagnostics for a set of TolTEC KIDs tune files."
+            )
+    # Set up the `index` action.
+    # The purpose of this is to collect a set of tune files and
+    # try match the tones among them. This is necessary because
+    # consecutive tune files does not necessarily result in
+    # the same set of tune positions.
+    # The end result of this action group is to dump an index
+    # file that contains a list of tune files, such that neighbouring
+    # ones have at least 10 tones found to be referring to the same
+    # detector.
+    act_index = add_action_parser(
+            "index",
+            help="build an index file that have tones"
+            " matched for a set of tune files")
+    act_index.add_argument(
             "files",
             metavar="FILE",
             nargs='+',
-            help="The files to use.",
+            help="The files to use",
             )
-    parser_index.add_argument(
+    act_index.add_argument(
+            "-s", "--select",
+            metavar="COND",
+            help='A selection predicate, e.g.,:'
+            '"(obsid>8900) & (nwid==3) & (fileext==b"nc")"',
+            )
+    act_index.add_argument(
             "-o", "--output",
             metavar="OUTPUT_FILE",
             required=True,
-            help="The output index file.",
+            help="The output index file",
             )
-    parser_index.add_argument(
+    act_index.add_argument(
             "-f", "--overwrite",
             action='store_true',
-            help="If set, overwrite the existing index file.",
+            help="If set, overwrite the existing index file",
             )
 
-    def f_index(option):
-        tbl, files = build_index(option.files, keys=['atten_out', ])
-        if np.all(tbl['kindstr'] == 'tune'):
-            tbl = match_tunes(tbl, files)
-        tbl.write(
+    @set_parser_action(act_index)
+    def act_index(option):
+        # This function is called when `index` is specified in the cmd
+        # Collect the dataset from the command line arguments
+        dataset = ToltecDataset.from_files(*option.files).select(
+                '(kindstr==b"tune")'
+                )
+        # Apply any selection filtering
+        if option.select:
+            dataset = dataset.select(option.select).open_files()
+        else:
+            dataset = dataset.open_files()
+        # Run the tone matching algo.
+        dataset = match_tones(dataset)
+        # Dump the result file.
+        dataset.write_index_table(
                 option.output, overwrite=option.overwrite,
                 format='ascii.commented_header')
-    parser_index.set_defaults(func=f_index)
+
+    # bootstrap the parser actions
     option = parser.parse_args(args)
-    # execute the action
     if hasattr(option, 'func'):
         option.func(option)
     else:
