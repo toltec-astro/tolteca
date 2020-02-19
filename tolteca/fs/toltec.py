@@ -1,13 +1,13 @@
 #! /usr/bin/env python
 
 import re
-from pathlib import Path
 from datetime import datetime
 import os
 from tollan.utils.log import get_logger
 import numpy as np
 from astropy.table import Table, Column
 import numexpr as ne
+from . import DataFileStore
 
 
 class ToltecDataFileSpec(object):
@@ -89,29 +89,9 @@ class ToltecDataFileSpec(object):
         return files
 
 
-class DataFileStore(object):
+class ToltecDataFileStore(DataFileStore):
 
     spec = ToltecDataFileSpec
-
-    def __init__(self, rootpath=None):
-        self.rootpath = rootpath
-
-    @property
-    def rootpath(self):
-        return self._rootpath
-
-    @rootpath.setter
-    def rootpath(self, path):
-        self._rootpath = self._normalize_path(path)
-
-    @staticmethod
-    def _normalize_path(p):
-        logger = get_logger()
-        try:
-            return Path(p).expanduser().absolute()
-        except Exception:
-            logger.error(f"unable to expand user for path {p}")
-            return Path(p).absolute()
 
     def runtime_datafile_links(self, master=None):
         path = self.rootpath

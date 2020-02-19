@@ -31,7 +31,7 @@ def open(source, format=None, *args, **kwargs):
         identifiers = [(format, _get_identifier(format))]
     else:
         identifiers = list(_identifiers.items())
-    logger.debug(f"try open with identifiers: {identifiers}")
+    # logger.debug(f"try open with identifiers: {identifiers}")
     for format_, identifier in identifiers:
         if identifier(source):
             logger.debug(f"identified as format={format_}")
