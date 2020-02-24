@@ -3,30 +3,19 @@
 # Author:
 #   Zhiyuan Ma
 #
-# Contributor(s):
-#   Zhiyuan Ma, Giles Novak, Grant Wilson
-#
 # History:
-#   2020/02/05 Zhiyuan Ma:
-#       - Allow pickling the generated data.
-#       - Correct the quoted \kappa values.
-#         Previously they were (mistakenly) set to show \kappa^2.
-#       - Implement calculation of \kappa for given noise degradation.
-#       - Make the heatmaps of threshold temperatures.
-#   2020/02/02 Zhiyuan Ma:
-#       - Handle all three TolTEC bands.
-#       - Include kappa values in legend.
-#   2020/01/28 Zhiyuan Ma:
+#   2020/02/15 Zhiyuan Ma:
 #       - First staged.
 
-"""This recipe makes use of the `KidsSimulator` to investigate
-the impact of the half wave plate to the observed noise.
+"""
+This recipe makes use of the `KidsSimulator` to investigate
+the total PSD noise as function of Qr and the readout noise.
 
 """
 
 
 from astropy import units as u
-from tolteca.kidsutils.kidsmodel.simulator import KidsSimulator
+from kidsproc.kidsmodel.simulator import KidsSimulator
 import numpy as np
 from scipy import signal
 import itertools

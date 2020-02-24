@@ -6,8 +6,8 @@ import os
 from tollan.utils.log import get_logger
 import numpy as np
 from astropy.table import Table, Column
-import numexpr as ne
 from . import DataFileStore
+from astropy.time import Time
 
 
 class ToltecDataFileSpec(object):
@@ -21,12 +21,20 @@ class ToltecDataFileSpec(object):
             r'(?P<subobsid>\d+)_(?P<scanid>\d+)_(?P<ut>\d{4}_'
             r'\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))(?:_(?P<kindstr>[^\/.]+))?'
             r'\.(?P<fileext>.+)$')
+
+        def parse_ut(v):
+            result = Time(
+                datetime.strptime(v, '%Y_%m_%d_%H_%M_%S'),
+                scale='utc')
+            result.format = 'isot'
+            return result
+
         dispatch_toltec = {
             'nwid': int,
             'obsid': int,
             'subobsid': int,
             'scanid': int,
-            'ut': lambda v: datetime.strptime(v, '%Y_%m_%d_%H_%M_%S'),
+            'ut': parse_ut,
                 }
 
         def post_toltec(info):
@@ -110,7 +118,7 @@ class ToltecDataset(object):
     logger = get_logger()
     spec = ToltecDataFileSpec
 
-    _col_file_object = 'file_object'
+    _col_file_objs = 'file_obj'
 
     def __init__(self, index_table):
         self._index_table = index_table
@@ -123,7 +131,7 @@ class ToltecDataset(object):
         elif isinstance(v, float):
             return 'd'
         elif isinstance(v, str):
-            return 'S'
+            return 'U'
 
     @staticmethod
     def _col_score(c):
@@ -165,7 +173,7 @@ class ToltecDataset(object):
 
     def __repr__(self):
         tbl = self.index_table
-        blacklist_cols = ['source', self._col_file_object, 'source_orig']
+        blacklist_cols = ['source', self._col_file_objs, 'source_orig']
         use_cols = [c for c in tbl.colnames if c not in blacklist_cols]
         pformat_tbl = tbl[use_cols].pformat(max_width=-1)
         if pformat_tbl[-1].startswith("Length"):
@@ -176,7 +184,18 @@ class ToltecDataset(object):
 
     @property
     def index_table(self):
+        """The index table of the dataset."""
         return self._index_table
+
+    @property
+    def file_objs(self):
+        """The opened file objects of this dataset.
+
+        `None` if the dataset is not created by `open_files`.
+        """
+        if self._col_file_objs not in self.index_table.colnames:
+            return None
+        return self.index_table[self._col_file_objs]
 
     def __getitem__(self, col):
         return self.index_table[col]
@@ -186,13 +205,17 @@ class ToltecDataset(object):
 
     def select(self, cond):
         """Return a subset of the dataset using numpy-like `cond`."""
+
         tbl = self.index_table
+
         if isinstance(cond, str):
-            _cond = ne.evaluate(
-                    cond, local_dict={c: tbl[c] for c in tbl.colnames})
+            df = tbl.to_pandas()
+            df.query(cond, inplace=True)
+            tbl = Table.from_pandas(df)
+            # _cond = ne.evaluate(
+            #         cond, local_dict={c: tbl[c] for c in tbl.colnames})
         else:
-            _cond == cond
-        tbl = tbl[_cond]
+            tbl = tbl[cond]
         if len(tbl) == 0:
             raise ValueError(f"no entries are selected by {cond}")
         instance = self.__class__(tbl)
@@ -202,22 +225,23 @@ class ToltecDataset(object):
         return instance
 
     def open_files(self):
+        """Return an instance of `ToltecDataset` with the files opened."""
         from ..io import open as open_file
 
         tbl = self.index_table
-        tbl[self._col_file_object] = Column(
+        tbl[self._col_file_objs] = Column(
                 [open_file(e['source']) for e in tbl],
-                name=self._col_file_object,
+                name=self._col_file_objs,
                 dtype=object
                 )
         return self.__class__(tbl)
 
     def _update_meta_from_file_objs(self):
         logger = get_logger()
-        tbl = self.index_table
-        if self._col_file_object not in tbl.colnames:
+        fos = self.file_objs
+        if fos is None:
             return
-        fos = tbl[self._col_file_object]
+        tbl = self.index_table
         # update from object meta
         use_keys = None
         for fo in fos:
@@ -225,22 +249,35 @@ class ToltecDataset(object):
                 use_keys = set(fo.meta.keys())
             else:
                 use_keys = use_keys.union(set(fo.meta.keys()))
+
+        def filter_cell(v):
+            if not isinstance(v, (int, float, str, complex)):
+                logger.debug(f"ignore value of type {type(v)}")
+                return None
+            else:
+                return v
         if len(use_keys) > 0:
             logger.debug(f"update meta keys {use_keys}")
             for k in use_keys:
+                row = [filter_cell(fo.meta.get(k, None)) for fo in fos]
+                if all(c is None for c in row):
+                    continue
                 tbl[k] = Column(
-                        [fo.meta.get(k, None) for fo in fos],
+                        row,
                         dtype=self._dispatch_dtype(fos[0].meta[k]))
         colnames = sorted(tbl.colnames, key=lambda k: self._col_score(k))
         # we only pull the common keys in all of the file objects
         self._index_table = tbl[colnames]
 
     def write_index_table(self, *args, colfilter=None, **kwargs):
+        """Write the index table to file using the `astropy.table.Table.write`
+        function.
+        """
         tbl = self.index_table
         # exclude the file object
         use_cols = np.array([
                 c for c in tbl.colnames
-                if c != self._col_file_object])
+                if c != self._col_file_objs])
         if colfilter is not None:
             use_cols = use_cols[colfilter]
         tbl[use_cols.tolist()].write(*args, **kwargs)

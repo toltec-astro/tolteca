@@ -14,8 +14,10 @@ for more information.
 
 from tolteca.recipes import get_logger
 from tolteca.fs.toltec import ToltecDataset
-from tollan.utils.cli import get_action_argparser
+from tollan.utils.cli.multi_action_argparser import \
+        MultiActionArgumentParser
 from tollan.utils.wraps.stilts import ensure_stilts
+import numpy as np
 
 
 def main():
@@ -24,9 +26,63 @@ def main():
     logger.debug(f'use stilts: "{stilts_cmd}"')
 
 
+def diqs_df(iqs, fs):
+    diqs = np.empty_like(iqs)
+    for i in range(iqs.shape[0]):
+        diqs[i] = np.gradient(iqs[i], fs[i])
+    return diqs
+
+
 def match_tones(tunes):
     logger = get_logger()
-    logger.debug(f"input tune data: {tunes}")
+    logger.debug(f"tunes: {tunes}")
+
+    fos = tunes.file_objs
+
+    tones = list(range(10))
+    swps = [fo.itone[tones].isweep(index=1)[:].read() for fo in fos]
+
+    import matplotlib.pyplot as plt
+    fig, axes = plt.subplots(2, len(tones))
+    atten_in = []
+    atten_out = []
+    atten_total = []
+    d21max = []
+    for swp in swps:
+        atten_in.append(swp.meta['atten_in'])
+        atten_out.append(swp.meta['atten_out'])
+        atten_total.append(swp.meta['atten_in'] + swp.meta['atten_out'])
+        fs = np.tile(
+            swp.meta['sweeps']['flo'].T,
+            (len(swp.meta['tones']), 1)
+            ) + swp.meta['tones']['fc'][:, None]
+        iqs = swp.data
+        adiqs = np.abs(diqs_df(iqs, fs))
+        jd21max = np.argmax(adiqs, axis=-1)
+        d21max.append([
+            adiqs[i, jd21max[i]]
+            for i in range(fs.shape[0])
+            ])
+        for i in range(axes.shape[-1]):
+            ax = axes[0, i]
+            ax.plot(
+                iqs[i, :].real,
+                iqs[i, :].imag,
+                marker='.')
+            ax = axes[1, i]
+            ax.plot(fs[i, :], adiqs[i, :])
+    fig, axes = plt.subplots(len(tones))
+    for i in range(axes.shape[-1]):
+        ax = axes[i]
+        ax.plot(
+            atten_out,
+            [
+                d21max[j][i]
+                for j in range(len(swps))
+                ])
+    plt.show()
+
+    logger.debug(f"swps: {swps}")
     return tunes
 
 
@@ -34,7 +90,7 @@ if __name__ == "__main__":
     import sys
     args = sys.argv[1:]
 
-    parser, add_action_parser, set_parser_action = get_action_argparser(
+    maap = MultiActionArgumentParser(
             description="Diagnostics for a set of TolTEC KIDs tune files."
             )
     # Set up the `index` action.
@@ -46,10 +102,11 @@ if __name__ == "__main__":
     # file that contains a list of tune files, such that neighbouring
     # ones have at least 10 tones found to be referring to the same
     # detector.
-    act_index = add_action_parser(
-            "index",
-            help="build an index file that have tones"
-            " matched for a set of tune files")
+    act_index = maap.add_action_parser(
+            'index',
+            help="Build an index file that have tones"
+            " matched for a set of tune files"
+            )
     act_index.add_argument(
             "files",
             metavar="FILE",
@@ -60,7 +117,7 @@ if __name__ == "__main__":
             "-s", "--select",
             metavar="COND",
             help='A selection predicate, e.g.,:'
-            '"(obsid>8900) & (nwid==3) & (fileext==b"nc")"',
+            '"(obsid>8900) & (nwid==3) & (fileext=="nc")"',
             )
     act_index.add_argument(
             "-o", "--output",
@@ -74,12 +131,12 @@ if __name__ == "__main__":
             help="If set, overwrite the existing index file",
             )
 
-    @set_parser_action(act_index)
-    def act_index(option):
+    @act_index.parser_action
+    def index_action(option):
         # This function is called when `index` is specified in the cmd
         # Collect the dataset from the command line arguments
         dataset = ToltecDataset.from_files(*option.files).select(
-                '(kindstr==b"tune")'
+                '(kindstr=="tune")'
                 )
         # Apply any selection filtering
         if option.select:
@@ -93,9 +150,17 @@ if __name__ == "__main__":
                 option.output, overwrite=option.overwrite,
                 format='ascii.commented_header')
 
-    # bootstrap the parser actions
-    option = parser.parse_args(args)
-    if hasattr(option, 'func'):
-        option.func(option)
-    else:
-        parser.print_help()
+    act_plot = maap.add_action_parser(
+            'plot',
+            help="Make diagnostic plots"
+            )
+    act_plot.add_argument(
+            'something', nargs='*'
+            )
+
+    @act_plot.parser_action
+    def plot_action(option):
+        print(option)
+
+    option = maap.parse_args(args)
+    maap.bootstrap_actions(option)

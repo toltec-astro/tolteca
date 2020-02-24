@@ -27,7 +27,7 @@ the impact of the half wave plate to the observed noise.
 
 from astropy import units as u
 from astropy import log
-from tolteca.kidsutils.kidsmodel.simulator import KidsSimulator
+from kidsproc.kidsmodel.simulator import KidsSimulator
 import numpy as np
 from scipy import signal
 import itertools
