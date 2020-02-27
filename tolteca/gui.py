@@ -5,15 +5,15 @@ import sys
 from pathlib import Path
 import psutil
 from datetime import datetime
-from .utils.colors import Palette
-from .utils.fmt import pformat_dict
-from .utils.gui import qt5app, QThreadTarget
-from .utils.cli.argparse_helpers import argparser_with_common_options
-from .utils.log import get_logger
+from tollan.utils.fmt import pformat_dict
+from tollan.utils.qt import qt5app, QThreadTarget
+from tollan.utils.qt.colors import Palette
+from tollan.utils.log import get_logger
+import argparse
 from .version import version
 
 from .db import get_databases
-from .fs.toltec import DataFileStore
+from .fs.toltec import ToltecDataFileStore
 
 from PyQt5 import uic, QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import Qt
@@ -390,7 +390,7 @@ class GuiRuntime(QtCore.QObject):
         self.databases = get_databases()
         self.logger.debug(f"runtime databases: {self.databases}")
 
-        self.datafiles = DataFileStore(rootpath=config['datapath'])
+        self.datafiles = ToltecDataFileStore(rootpath=config['datapath'])
 
     def init_db_monitors(self, gui, parent):
         self._db_monitors = {}
@@ -467,13 +467,13 @@ class ToltecaGui(Ui_MainWindowBase):
 
 def main():
 
-    parser, parse = argparser_with_common_options()
+    parser = argparse.ArgumentParser()
 
     parser.add_argument(
             "--datapath",
             help="directory that contains the data files",
             default=Path.cwd())
-    args, unparsed_args = parse(parser)
+    args, unparsed_args = parser.parse_known_args()
 
     config = dict(
             datapath=Path(args.datapath)

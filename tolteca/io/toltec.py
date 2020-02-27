@@ -8,8 +8,9 @@ from kidsproc.kidsdata import (
         RawTimeStream, SolvedTimeStream, VnaSweep, TargetSweep)
 from tollan.utils.nc import ncopen, ncinfo, NcNodeMapper
 from tollan.utils.log import get_logger
-from tollan.utils.slice_chain import BoundedSliceChain
+from tollan.utils.slice import BoundedSliceChain, XLoc
 from tollan.utils.numpy_dance import flex_reshape
+from tollan.utils.fmt import pformat_fancy_index
 from .registry import register_io_class
 from pathlib import Path
 from contextlib import ExitStack
@@ -227,6 +228,7 @@ class NcFileIO(ExitStack):
             df = tbl.to_pandas()
             df.query(slice_, inplace=True)
             return Table.from_pandas(df)
+        tbl.meta['slice'] = slice_
         return tbl[slice_]
 
     def _get_block_index(self, index):
@@ -261,7 +263,7 @@ class NcFileIO(ExitStack):
         # tone param header
         # tone param data
         # n_tones = meta['ntones']
-        self.logger.debug("get tones for block_index={block_index}")
+        self.logger.debug(f"get tones for block_index={index}")
         iblock, n_blocks, n_blocks_max = self._get_block_index(index)
         tfs = nm.getvar("tones")[iblock, :]
         tis = range(len(tfs))
@@ -290,7 +292,7 @@ class NcFileIO(ExitStack):
 
     def _block_to_sample_slice(self, index):
         """Return the sample slice to the block of given index."""
-        self.logger.debug("get sample slice for block_index={block_index}")
+        self.logger.debug(f"get sample slice for block_index={index}")
         meta = self.meta
         iblock, n_blocks, n_blocks_max = self._get_block_index(index)
         s = meta['n_timesperblock']
@@ -298,7 +300,7 @@ class NcFileIO(ExitStack):
 
     def _sweep_axis_data(self, index):
         if not self.is_sweep:
-            raise ValueError("data of {self.kind} does not have sweep axis")
+            raise ValueError(f"data of {self.kind} does not have sweep axis")
         logger = get_logger()
         nm = self.nm
 
@@ -352,31 +354,6 @@ class NcFileIO(ExitStack):
     def time_axis(self):
         return self.sample_axis
 
-    class ILoc(object):
-        """
-        This provide a interface similar to that of pandas DataFrame.xloc.
-        """
-        def __init__(self, file_obj, axis_name):
-            self._fo = file_obj
-            self._axis_name = axis_name
-            self._pop_kwargs()
-
-        def _pop_kwargs(self):
-            kwargs = getattr(self, '_kwargs', None)
-            self._kwargs = dict()
-            return kwargs
-
-        def _push_kwrags(self, kwargs):
-            self._kwargs.update(kwargs)
-
-        def __getitem__(self, *args):
-            return getattr(self._fo, f'select_{self._axis_name}')(
-                    *args, **self._pop_kwargs())
-
-        def __call__(self, **kwargs):
-            self._push_kwrags(kwargs)
-            return self
-
     def _reset_selection(self, axis_name):
         """Reset the select registry for specified axis."""
         setattr(self, f'_{axis_name}_axis_cb', None)
@@ -385,7 +362,7 @@ class NcFileIO(ExitStack):
         """Reset the selection registry for all axis."""
         for name in ('tone', 'sample', 'sweep', 'time'):
             self._reset_selection(name)
-            setattr(self, f'i{name}', self.ILoc(self, name))
+            setattr(self, f'{name}loc', XLoc(getattr(self, f"select_{name}")))
 
     def select_tone(self, *args):
         """Register tone selection callback."""
@@ -440,6 +417,13 @@ class NcFileIO(ExitStack):
         # no args
         return self
 
+    def select_time(self, *args):
+        """Register callback for selecting using time range."""
+        for n in ('sweep', 'sample'):
+            if getattr(self, f'_{n}_axis_cb') is not None:
+                raise ValueError("can only select one of {sample,sweep,time}")
+        raise NotImplementedError
+
     def select_sweep(self, *args, index=None):
         """Register callback for selecting sweeps."""
 
@@ -457,7 +441,7 @@ class NcFileIO(ExitStack):
 
             def cb(slice_=arg, index=index, cb0=self._sweep_axis_cb):
                 if cb0 is not None:
-                    tbl0, slice0, rfunc0 = cb0()
+                    tbl0, rfunc0 = cb0()
                     tbl1 = self._slice_table(tbl0, slice_)
                     rslice = tbl1['id'].tolist()
 
@@ -503,6 +487,8 @@ class NcFileIO(ExitStack):
         meta = self.meta
         kwargs = {'meta': meta}
 
+        if self._tone_axis_cb is None:
+            self.toneloc[:]
         tone_axis_data = self._tone_axis_cb()
         kwargs['meta']['tones'] = tone_axis_data
 
@@ -510,6 +496,10 @@ class NcFileIO(ExitStack):
 
         tone_slice = tone_axis_data['id'].tolist()
 
+        if self.is_sweep:
+            # default use the last block for sweep if not selected
+            if self._sweep_axis_cb is None:
+                self.sweeploc(index=-1)[:]
         if self._sample_axis_cb is not None:
             sample_slice, rfunc = self._sample_axis_cb()
         elif self._sweep_axis_cb is not None:
@@ -521,8 +511,10 @@ class NcFileIO(ExitStack):
             raise NotImplementedError
         sample_slice = sample_slice.to_slice()
         logger.debug(
-                f"read data with sample_slice={sample_slice}"
-                f" tone_slice={tone_slice}")
+                f"read data with sample_slice="
+                f"{pformat_fancy_index(sample_slice)}"
+                f" tone_slice="
+                f"{pformat_fancy_index(tone_axis_data.meta['slice'])}")
         # actually read the data
         nm = self.nm
         is_ = nm.getvar('is')[sample_slice, tone_slice].T
@@ -530,93 +522,6 @@ class NcFileIO(ExitStack):
         iqs = ne.evaluate('I + 1.j * Q', local_dict={'I': is_, 'Q': qs})
         # call the reduce function
         kwargs.update(rfunc({'data': iqs}))
-        return self.kind_cls(**kwargs)
-
-    def read0(
-            self,
-            tone_slice=None,
-            sample_slice=None,
-            time_slice=None,
-            sweep_slice=None,
-            ):
-        """Return kids data instance from reading the file.
-
-        Parameters
-        ----------
-        tone_slice: slice, str, or None
-            The tones to use. Effective for all kinds.
-
-        sample_slice: slice, str, or None
-            The sample index to use. Effective for all kinds.
-
-        time_slice: slice, str, or None
-            The times to use. Effective for all kinds.
-
-        sweep_slice: slice, str, or None
-            The sweep steps to use. Effective for sweeps.
-        """
-        logger = get_logger()
-        logger.debug(f'read {self.kind_cls.__name__} data')
-
-        if tone_slice is None:
-            row_slice = slice(None)
-            logger.debug(
-                f"read all {len(self.tone_axis)} tones")
-        else:
-            tones_axis = self.slice_tone_axis(tone_slice)
-            row_slice = tones_axis['id'].tolist()
-            logger.debug(
-                f"slice {len(row_slice)} out of {len(self.tone_axis)} tones")
-
-        col_slices = [sample_slice, time_slice, sweep_slice]
-        n_col_slices = sum(0 if s is None else 1 for s in col_slices)
-        if n_col_slices > 1:
-            raise ValueError(
-                    "can only have one of {sample,time,sweep}_slice specified")
-        elif n_col_slices == 0:
-            col_slice = self.sample_axis.to_slice()
-            if self.is_sweep:
-                logger.debug(
-                    f"read all {len(self.sweep_axis)} sweep steps")
-            else:
-                logger.debug(
-                    f"read all {len(self.sample_axis)} samples")
-        elif sweep_slice is not None:
-            col_slice = self.slice_sweep_axis(sweep_slice)
-            logger.debug(
-                    f"slice {len(col_slice)} out of "
-                    f"{len(self.sweep_axis)} sweep steps")
-            logger.debug(f"sweep axis:\n{col_slice}")
-            col_slice, n_reps = self._sweep_to_sample_slice
-
-            def reduce_func(arr):
-                rfunc = np.mean
-                sfunc = np.std
-                rshape = (arr.shape[0], -1, n_reps)
-                rarr = rfunc(arr.reshape(rshape), axis=-1)
-                sarr = sfunc(np.abs(arr).reshape(rshape), axis=-1)
-                sarr = StdDevUncertainty(sarr)
-                return {'data': rarr, 'uncertainty': sarr}
-        elif sample_slice is not None:
-            col_slice = self.slice_sample_axis(sample_slice)
-            logger.debug(
-                    f"slice {len(col_slice)} out of "
-                    f"{len(self.sample_axis)} samples")
-            logger.debug(f"slice object {col_slice}")
-            col_slice = col_slice.to_slice()
-            reduce_func = None
-        else:
-            raise NotImplementedError
-
-        # actually read the data
-        nm = self.nm
-        meta = self.meta
-        is_ = nm.getvar('is')[col_slice, row_slice].T
-        qs = nm.getvar('qs')[col_slice, row_slice].T
-        iqs = ne.evaluate('I + 1.j * Q', local_dict={'I': is_, 'Q': qs})
-        kwargs = {'data': iqs, 'meta': meta}
-        if reduce_func is not None:
-            kwargs.update(reduce_func(kwargs['data']))
         return self.kind_cls(**kwargs)
 
 

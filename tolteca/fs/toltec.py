@@ -118,8 +118,6 @@ class ToltecDataset(object):
     logger = get_logger()
     spec = ToltecDataFileSpec
 
-    _col_file_objs = 'file_obj'
-
     def __init__(self, index_table):
         self._index_table = index_table
         self._update_meta_from_file_objs()
@@ -136,7 +134,7 @@ class ToltecDataset(object):
     @staticmethod
     def _col_score(c):
         hs_keys = ['nwid', 'obsid', 'subobsid', 'scanid']
-        ls_keys = ['source', 'file_object']
+        ls_keys = ['source', 'file_obj', 'data_obj']
         if c in hs_keys:
             return hs_keys.index(c) - len(hs_keys)
         if c in ls_keys:
@@ -173,7 +171,7 @@ class ToltecDataset(object):
 
     def __repr__(self):
         tbl = self.index_table
-        blacklist_cols = ['source', self._col_file_objs, 'source_orig']
+        blacklist_cols = ['source', 'source_orig', 'file_obj', 'data_obj']
         use_cols = [c for c in tbl.colnames if c not in blacklist_cols]
         pformat_tbl = tbl[use_cols].pformat(max_width=-1)
         if pformat_tbl[-1].startswith("Length"):
@@ -193,12 +191,25 @@ class ToltecDataset(object):
 
         `None` if the dataset is not created by `open_files`.
         """
-        if self._col_file_objs not in self.index_table.colnames:
+        if "file_obj" not in self.index_table.colnames:
             return None
-        return self.index_table[self._col_file_objs]
+        return self.index_table['file_obj']
 
-    def __getitem__(self, col):
-        return self.index_table[col]
+    @property
+    def data_objs(self):
+        """The created data objects of this dataset.
+
+        `None` if the dataset is not created by `load_data`.
+        """
+        if 'data_obj' not in self.index_table.colnames:
+            return None
+        return self.index_table['data_obj']
+
+    def __getitem__(self, arg):
+        return self.index_table[arg]
+
+    def __setitem__(self, arg, value):
+        self.index_table[arg] = value
 
     def __len__(self):
         return self.index_table.__len__()
@@ -229,11 +240,25 @@ class ToltecDataset(object):
         from ..io import open as open_file
 
         tbl = self.index_table
-        tbl[self._col_file_objs] = Column(
-                [open_file(e['source']) for e in tbl],
-                name=self._col_file_objs,
-                dtype=object
-                )
+        tbl['file_obj'] = [open_file(e['source']) for e in tbl]
+        return self.__class__(tbl)
+
+    def load_data(self, func=None):
+        """Return an instance of `ToltecDataset` with the data loaded.
+
+        Parameters
+        ----------
+        func: callable, optional
+            If not None, `func` is used instead of the default
+            `file_obj.read` method to get the actual data objects.
+        """
+        if self.file_objs is None:
+            return self.open_files().load_data(func=func)
+        tbl = self.index_table
+        tbl['data_obj'] = [
+                func(fo) if func is not None else fo.read()
+                for fo in self.file_objs
+                ]
         return self.__class__(tbl)
 
     def _update_meta_from_file_objs(self):
@@ -245,14 +270,16 @@ class ToltecDataset(object):
         # update from object meta
         use_keys = None
         for fo in fos:
+            keys = filter(
+                lambda k: not k.startswith('__'), fo.meta.keys())
             if use_keys is None:
-                use_keys = set(fo.meta.keys())
+                use_keys = set(keys)
             else:
-                use_keys = use_keys.union(set(fo.meta.keys()))
+                use_keys = use_keys.union(keys)
 
         def filter_cell(v):
-            if not isinstance(v, (int, float, str, complex)):
-                logger.debug(f"ignore value of type {type(v)}")
+            if not isinstance(v, (str, int, float, complex)):
+                # logger.debug(f"ignore value of type {type(v)} {v}")
                 return None
             else:
                 return v
@@ -277,7 +304,7 @@ class ToltecDataset(object):
         # exclude the file object
         use_cols = np.array([
                 c for c in tbl.colnames
-                if c != self._col_file_objs])
+                if c not in ['file_obj', 'data_obj']])
         if colfilter is not None:
             use_cols = use_cols[colfilter]
         tbl[use_cols.tolist()].write(*args, **kwargs)

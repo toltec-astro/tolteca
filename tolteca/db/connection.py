@@ -4,11 +4,11 @@
 from sqlalchemy import create_engine, MetaData
 from sqlalchemy.orm import sessionmaker, scoped_session
 # from sqlalchemy.ext.declarative import declarative_base
-from ..utils.log import get_logger, logit
-from ..utils.registry import Registry
-from ..utils import deepmerge
+from tollan.utils.log import get_logger, logit
+from tollan.utils.registry import Registry
+from tollan.utils import rupdate
 from copy import deepcopy
-from ..utils.fmt import pformat_dict
+from tollan.utils.fmt import pformat_dict
 
 
 _sa_connections = Registry.create()
@@ -30,7 +30,7 @@ class DatabaseConnection(object):
 
     def __init__(self, uri, **kwargs):
         config = deepcopy(self.__class__._config)
-        deepmerge(config, kwargs)
+        rupdate(config, kwargs)
         with logit(self.logger.debug, f"connect to database {uri}"):
             self._uri = uri
             self.engine = create_engine(

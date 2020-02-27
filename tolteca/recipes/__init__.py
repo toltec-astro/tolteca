@@ -6,5 +6,4 @@
 from tollan.utils.log import init_log
 from tollan.utils.log import get_logger  # noqa: F401
 
-
 init_log(level='DEBUG')

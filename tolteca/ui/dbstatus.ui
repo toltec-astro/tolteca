@@ -45,7 +45,7 @@
   <customwidget>
    <class>Led</class>
    <extends>QPushButton</extends>
-   <header location="global">tolteca.utils.widgets.led</header>
+   <header location="global">tollan.utils.qt.led</header>
   </customwidget>
  </customwidgets>
  <resources/>
