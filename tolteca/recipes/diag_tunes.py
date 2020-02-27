@@ -21,6 +21,8 @@ import numpy as np
 import functools
 import matplotlib.pyplot as plt
 from tollan.utils.mpl import save_or_show
+from pathlib import Path
+from kneed import KneeLocator
 
 
 def main():
@@ -85,7 +87,7 @@ def d21_worker(args, **kwargs):
     return i, swp.d21(**kwargs)
 
 
-def match_tones(tunes, pairing='diff', roi=None, fig_title=None):
+def match_tones(dataset, pairing='diff', roi=None, fig_title=None):
     """Given a set of tune files, try find the relative shift of the
     resonance frequencies of all detectors among them.
 
@@ -107,12 +109,25 @@ def match_tones(tunes, pairing='diff', roi=None, fig_title=None):
     """
 
     logger = get_logger()
-    logger.debug(f"match tunes: {tunes}")
+    logger.debug(f"match tones: {dataset}")
     logger.debug(f"roi: {roi}")
 
+    # split the dataset for tunes and reduced files
+    tunes = dataset.select('kindstr=="tune"')
+    calibs = dataset.select('fileext=="txt"')
+    # Read the sweep object from the file IO object. A TolTEC tune file
+    # contains multipe sweep blocks, and here we read the last one using the
+    # `sweeploc` method.
     swps = tunes.load_data(
             lambda fo: fo.sweeploc(index=-1)[:].read()).data_objs
+    join_keys = ['nwid', 'obsid', 'subobsid', 'scanid']
+    tunes = tunes.left_join(
+            calibs.load_data(lambda fo: fo),
+            join_keys, [('data_obj', 'mdl_obj'), ], )
+    # join the mdls to swps
+    logger.debug(f"tunes: {tunes}")
 
+    # Compute the D21
     d21_kwargs = dict(fstep=1000, flim=(4.0e8, 1.0e9), smooth=0)
     import psutil
     max_workers = psutil.cpu_count(logical=False)
@@ -122,8 +137,9 @@ def match_tones(tunes, pairing='diff', roi=None, fig_title=None):
         for i, d21 in executor.map(functools.partial(
                 d21_worker, **d21_kwargs), enumerate(swps)):
             swps[i]._d21 = d21
-    tunes.index_table['data_objs'] = swps
+    tunes.index_table['data_obj'] = swps
     del executor
+    # load the model params
 
     _roi = dict()
     # resolve roi dict
@@ -141,10 +157,7 @@ def match_tones(tunes, pairing='diff', roi=None, fig_title=None):
     else:
         roi = dict()
 
-    # Read the sweep object from the file IO object. A TolTEC tune file
-    # contains multipe sweep blocks, and here we read the last one using the
-    # `sweeploc` method.
-
+    # Do the actuall matching
     panel_size = (6, 2)
     n_panels = len(swps) - 1
     fig, axes = plt.subplots(
@@ -171,7 +184,8 @@ def match_tones(tunes, pairing='diff', roi=None, fig_title=None):
                 right.d21(**d21_kwargs),
                 roi=roi.get(right), ax=ax)
         shifts[right] = (left, shift)
-    # update the table
+    # Update the table with found shift
+    # The shift is defined as self = other + shift
     tunes['tone_match_id_self'] = range(len(tunes))
     tunes['tone_match_fshift'] = [0., ] * len(tunes)
     tunes['tone_match_id_other'] = [0, ] * len(tunes)
@@ -192,45 +206,125 @@ def match_tones(tunes, pairing='diff', roi=None, fig_title=None):
     return tunes
 
 
-def plot_trend(swps):
+def plot_auto_drive(tunes):
     logger = get_logger()
-    import matplotlib.pyplot as plt
-    tones = list(range(10))
-    fig, axes = plt.subplots(2, len(tones))
-    atten_in = []
-    atten_out = []
-    atten_total = []
-    d21max = []
-    for swp in swps:
-        atten_in.append(swp.meta['atten_in'])
-        atten_out.append(swp.meta['atten_out'])
-        atten_total.append(swp.meta['atten_in'] + swp.meta['atten_out'])
-        jd21max = np.argmax(swp.adiqs_df, axis=-1)
-        d21max.append([
-            swp.adiqs[i, jd21max[i]]
-            for i in range(swp.fs.shape[0])
-            ])
-        for i in range(axes.shape[-1]):
-            ax = axes[0, i]
-            ax.plot(
-                swp.iqs[i, :].real,
-                swp.iqs[i, :].imag,
-                marker='.')
-            ax = axes[1, i]
-            ax.plot(swp.fs[i, :], swp.adiqs[i, :])
-    fig, axes = plt.subplots(len(tones))
-    for i in range(axes.shape[-1]):
-        ax = axes[i]
-        ax.plot(
-            atten_out,
-            [
-                d21max[j][i]
-                for j in range(len(swps))
-                ])
-    plt.show()
+    swps = tunes.data_objs
+    mdls = tunes['mdl_obj']
+    for _, (swp, mdl) in enumerate(zip(swps, mdls)):
+        swp.mdl = mdl
+        # import pdb
+        # pdb.set_trace()
+        swp.iqs_mdl = mdl.model(swp.fs)
+        swp.iqs_derot = swp.mdl.model.derotate(swp.iqs, swp.fs)
 
     logger.debug(f"swps: {swps}")
-    return swps
+
+    tis = list(range(10))
+    panel_size = (24, 6)
+    n_panels = len(tis)
+    fig, axes = plt.subplots(
+            n_panels, 4,
+            figsize=(panel_size[0], panel_size[1] * n_panels),
+            dpi=40,
+            constrained_layout=True,
+            )
+    a_drv_bests = np.empty((len(tis), ), dtype=float)
+    for i, ti in enumerate(tis):
+        ax = axes[ti, 0]  # (I, Q)
+        bx = axes[ti, 1]  # (I, Q) derotated
+        cx = axes[ti, 2]  # adiqs
+        dx = axes[ti, 3]  # max(adiqs) vs a_drv
+        a_drvs = np.empty((len(swps), ), dtype=float)
+        a_tots = np.empty((len(swps), ), dtype=float)
+        adiqs_derot_max = np.empty((len(swps), ), dtype=float)
+        for k, swp in enumerate(swps):
+            a_drvs[k] = a_drv = swp.meta['atten_out']
+            a_tots[k] = a_tot = swp.meta['atten_in'] + swp.meta['atten_out']
+            id_ = f"{swp.meta['obsid']}"
+            fs = swp.fs[ti, :].to('Hz').value
+            iqs = swp.iqs[ti, :]
+            iqs_mdl = swp.iqs_mdl[ti, :]
+            iqs_derot = swp.iqs_derot[ti, :]
+            adiqs_derot = np.abs(np.gradient(iqs_derot, fs))
+            fr = swp.mdl.model.fr[ti]
+            fwhm = fr / swp.mdl.model.Qr[ti]
+            flim = (fr - fwhm), (fr + fwhm)
+            fm = (fs >= flim[0]) & (fs < flim[1])
+            adiqs_derot_max[k] = np.max(adiqs_derot[fm])
+            # import pdb
+            # pdb.set_trace()
+            ax.plot(
+                iqs.real, iqs.imag,
+                label=f'${id_}\\ A_{{drive}}={a_drv},\\ A_{{tot}}={a_tot}$',
+                marker='o',
+                )
+            ax.plot(
+                    iqs_mdl.real, iqs_mdl.imag,
+                    )
+            bx.plot(
+                    iqs_derot.real, iqs_derot.imag,
+                    )
+            cx.plot(fs, adiqs_derot)
+            cx.axvline(flim[0], color='#cccccc')
+            cx.axvline(flim[1], color='#cccccc')
+        # trend
+        dx.plot(a_drvs, adiqs_derot_max)
+        kneedle = KneeLocator(
+                a_drvs, adiqs_derot_max,
+                S=1.0,
+                curve='convex',
+                direction='decreasing',
+                interp_method='polynomial')
+        a_drv_bests[i] = a_drv_best = kneedle.knee
+        dx.axvline(
+                a_drv_best,
+                color='#000000',
+                linewidth=3,
+                label=f'$A_{{drv, best}}={a_drv_best}$')
+        ax.legend(loc='upper right')
+        dx.legend(loc='upper right')
+    fig2, ax = plt.subplots(1, 1)
+    ax.hist(a_drv_bests)
+    fig2.show()
+    save_or_show(
+        fig, 'fig_diag_tunes.png', window_type='scrollable',
+        size=(panel_size[0], panel_size[1])
+        )
+
+#     atten_in = []
+#     atten_out = []
+#     atten_total = []
+#     d21max = []
+#     for swp in swps:
+#         atten_in.append(swp.meta['atten_in'])
+#         atten_out.append(swp.meta['atten_out'])
+#         atten_total.append(swp.meta['atten_in'] + swp.meta['atten_out'])
+#         jd21max = np.argmax(swp.adiqs_df, axis=-1)
+#         d21max.append([
+#             swp.adiqs[i, jd21max[i]]
+#             for i in range(swp.fs.shape[0])
+#             ])
+#         for i in range(axes.shape[-1]):
+#             ax = axes[0, i]
+#             ax.plot(
+#                 swp.iqs[i, :].real,
+#                 swp.iqs[i, :].imag,
+#                 marker='.')
+#             ax = axes[1, i]
+#             ax.plot(swp.fs[i, :], swp.adiqs[i, :])
+#     fig, axes = plt.subplots(len(tones))
+#     for i in range(axes.shape[-1]):
+#         ax = axes[i]
+#         ax.plot(
+#             atten_out,
+#             [
+#                 d21max[j][i]
+#                 for j in range(len(swps))
+#                 ])
+#     plt.show()
+
+#     logger.debug(f"swps: {swps}")
+#     return swps
 
 
 if __name__ == "__main__":
@@ -251,7 +345,7 @@ if __name__ == "__main__":
     # detector.
     act_index = maap.add_action_parser(
             'index',
-            help="Build an index file that have tones"
+            help="Build an index table that have tones"
             " matched for a set of tune files"
             )
     act_index.add_argument(
@@ -270,7 +364,7 @@ if __name__ == "__main__":
             "-o", "--output",
             metavar="OUTPUT_FILE",
             required=True,
-            help="The output index file",
+            help="The output filename",
             )
     act_index.add_argument(
             "-f", "--overwrite",
@@ -280,11 +374,13 @@ if __name__ == "__main__":
 
     @act_index.parser_action
     def index_action(option):
+        output = Path(option.output)
+        if output.exists() and not option.overwrite:
+            raise RuntimeError(
+                    f"output file {output} exists, use -f to overwrite")
         # This function is called when `index` is specified in the cmd
         # Collect the dataset from the command line arguments
-        dataset = ToltecDataset.from_files(*option.files).select(
-                '(kindstr=="tune")'
-                )
+        dataset = ToltecDataset.from_files(*option.files)
         # Apply any selection filtering
         if option.select:
             dataset = dataset.select(option.select).open_files()
@@ -292,22 +388,26 @@ if __name__ == "__main__":
             dataset = dataset.open_files()
         # Run the tone matching algo.
         dataset = match_tones(dataset, pairing='first')
-        # Dump the result file.
-        dataset.write_index_table(
-                option.output, overwrite=option.overwrite,
-                format='ascii.commented_header')
+        # Dump the results.
+        # dataset.write_index_table(
+        #         option.output, overwrite=option.overwrite,
+        #         format='ascii.commented_header')
+        dataset.dump(option.output)
 
     act_plot = maap.add_action_parser(
             'plot',
-            help="Make diagnostic plots"
+            help="Make diagnostic plots for a set of loaded tune data."
             )
     act_plot.add_argument(
-            'something', nargs='*'
+            '-i', '--input',
+            help='The input filename, created by the "index" action.'
             )
 
     @act_plot.parser_action
     def plot_action(option):
-        print(option)
+        input_ = Path(option.input)
+        dataset = ToltecDataset.load(input_)
+        plot_auto_drive(dataset)
 
     option = maap.parse_args(args)
     maap.bootstrap_actions(option)

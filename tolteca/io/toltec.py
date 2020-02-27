@@ -7,7 +7,7 @@ from kidsproc.kidsdata import (
         Sweep,
         RawTimeStream, SolvedTimeStream, VnaSweep, TargetSweep)
 from tollan.utils.nc import ncopen, ncinfo, NcNodeMapper
-from tollan.utils.log import get_logger
+from tollan.utils.log import get_logger, logit
 from tollan.utils.slice import BoundedSliceChain, XLoc
 from tollan.utils.numpy_dance import flex_reshape
 from tollan.utils.fmt import pformat_fancy_index
@@ -42,12 +42,9 @@ class NcFileIO(ExitStack):
     spec = ToltecDataFileSpec
     logger = get_logger()
 
-    def __init__(self, source):
-        super().__init__()
-        self._open_nc(source)
-        # setup key mappers
-        # items with __ is no longer valid for new files
-        self.nm = NcNodeMapper(self.nc, {
+    # setup key mappers
+    # items with __ is no longer valid for new files
+    _nc_mapper_keys = {
                 # data
                 "is": "Data.Toltec.Is",
                 "qs": "Data.Toltec.Qs",
@@ -87,7 +84,11 @@ class NcFileIO(ExitStack):
                 "n_sweepsteps": "Header.Toltec.NumSweepSteps",
                 "n_sweeps_max": "numSweeps",
                 "n_kidsmodelparams": "modelParamsNum",
-                })
+                }
+
+    def __init__(self, source):
+        super().__init__()
+        self._open_nc(source)
         self.reset_selections()
 
     def __repr__(self):
@@ -106,6 +107,14 @@ class NcFileIO(ExitStack):
         self.logger.debug("ncinfo: {}".format(ncinfo(nc)))
         self.nc = nc
         self.filepath = Path(nc.filepath())
+        self.nm = NcNodeMapper(self.nc, self._nc_mapper_keys)
+
+    def close(self):
+        super().close()
+        # reset the states so that the object can be pickled.
+        self.nm = None
+        self.nc = None
+        self.reset_selections()
 
     def open(self):
         self._open_nc(self.filepath)
@@ -524,6 +533,17 @@ class NcFileIO(ExitStack):
         kwargs.update(rfunc({'data': iqs}))
         return self.kind_cls(**kwargs)
 
+    def __getstate__(self):
+        # need to reset the object before pickling
+        self.close()
+        return self.__dict__
+
+    def __setstate__(self, state):
+        # Restore instance attributes (i.e., filename and lineno).
+        self.__dict__.update(state)
+        # recreate nc and nm
+        self._open_nc(self.filepath)
+
 
 def identify_toltec_model_params(filepath):
     filepath = Path(filepath)
@@ -584,8 +604,8 @@ class KidsModelParams(object):
                     ('g', 'normI', None),
                     ('phi_g', 'normQ', None),
                     ('f0', 'fp', u.Hz),
-                    ('k0', 'slopeI', None),
-                    ('k1', 'slopeQ', None),
+                    ('k0', 'slopeI', 1. / u.Hz),
+                    ('k1', 'slopeQ', 1. / u.Hz),
                     ('m0', 'interceptI', None),
                     ('m1', 'interceptQ', None),
                     ]

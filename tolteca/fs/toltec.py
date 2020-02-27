@@ -5,9 +5,10 @@ from datetime import datetime
 import os
 from tollan.utils.log import get_logger
 import numpy as np
-from astropy.table import Table, Column
+from astropy.table import Table, Column, join
 from . import DataFileStore
 from astropy.time import Time
+import pickle
 
 
 class ToltecDataFileSpec(object):
@@ -125,11 +126,12 @@ class ToltecDataset(object):
     @staticmethod
     def _dispatch_dtype(v):
         if isinstance(v, int):
-            return 'i8'
+            return 'i8', -99
         elif isinstance(v, float):
-            return 'd'
+            return 'd', np.nan
         elif isinstance(v, str):
-            return 'U'
+            return 'U', ""
+        return None, None
 
     @staticmethod
     def _col_score(c):
@@ -156,7 +158,7 @@ class ToltecDataset(object):
         colnames.sort(key=lambda k: cls._col_score(k))
 
         dtypes = [
-                cls._dispatch_dtype(infolist[0][c]) for c in colnames]
+                cls._dispatch_dtype(infolist[0][c])[0] for c in colnames]
         tbl = Table(
                 rows=[[fi[k] for k in colnames] for fi in infolist],
                 names=colnames,
@@ -210,6 +212,26 @@ class ToltecDataset(object):
 
     def __setitem__(self, arg, value):
         self.index_table[arg] = value
+
+    def left_join(self, other, keys, cols):
+        tbl = self.index_table
+        other_tbl = other.index_table
+        # make new cols
+        use_cols = list(keys)
+        for col in cols:
+            if isinstance(col, tuple):
+                on, nn = col
+                other_tbl[nn] = other_tbl[on]
+                use_cols.append(nn)
+            else:
+                use_cols.append(col)
+        joined = join(
+                tbl, other_tbl[use_cols],
+                keys=keys, join_type='left')
+        instance = self.__class__(joined)
+        self.logger.debug(
+                f"left joined {instance}")
+        return instance
 
     def __len__(self):
         return self.index_table.__len__()
@@ -286,12 +308,23 @@ class ToltecDataset(object):
         if len(use_keys) > 0:
             logger.debug(f"update meta keys {use_keys}")
             for k in use_keys:
-                row = [filter_cell(fo.meta.get(k, None)) for fo in fos]
-                if all(c is None for c in row):
+                col = [filter_cell(fo.meta.get(k, None)) for fo in fos]
+                if all(c is None for c in col):
                     continue
-                tbl[k] = Column(
-                        row,
-                        dtype=self._dispatch_dtype(fos[0].meta[k]))
+                dtype = None
+                for c in col:
+                    dtype, fill = self._dispatch_dtype(c)
+                if dtype is None:
+                    continue
+                if k in tbl.colnames:
+                    # update
+                    for i, c in enumerate(col):
+                        if c is not None:
+                            tbl[i][k] = c
+                else:
+                    tbl[k] = Column(
+                        [fill if c is None else c for c in col],
+                        dtype=dtype)
         colnames = sorted(tbl.colnames, key=lambda k: self._col_score(k))
         # we only pull the common keys in all of the file objects
         self._index_table = tbl[colnames]
@@ -302,9 +335,19 @@ class ToltecDataset(object):
         """
         tbl = self.index_table
         # exclude the file object
+        blacklist_cols = ['file_obj', 'data_obj', 'source_orig']
         use_cols = np.array([
                 c for c in tbl.colnames
-                if c not in ['file_obj', 'data_obj']])
+                if c not in blacklist_cols])
         if colfilter is not None:
             use_cols = use_cols[colfilter]
         tbl[use_cols.tolist()].write(*args, **kwargs)
+
+    def dump(self, filepath):
+        with open(filepath, 'wb') as fo:
+            pickle.dump(self, fo)
+
+    @classmethod
+    def load(self, filepath):
+        with open(filepath, 'rb') as fo:
+            return pickle.load(fo)
