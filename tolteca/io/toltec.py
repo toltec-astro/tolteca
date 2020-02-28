@@ -7,7 +7,7 @@ from kidsproc.kidsdata import (
         Sweep,
         RawTimeStream, SolvedTimeStream, VnaSweep, TargetSweep)
 from tollan.utils.nc import ncopen, ncinfo, NcNodeMapper
-from tollan.utils.log import get_logger, logit
+from tollan.utils.log import get_logger
 from tollan.utils.slice import BoundedSliceChain, XLoc
 from tollan.utils.numpy_dance import flex_reshape
 from tollan.utils.fmt import pformat_fancy_index
@@ -542,7 +542,7 @@ class NcFileIO(ExitStack):
         # Restore instance attributes (i.e., filename and lineno).
         self.__dict__.update(state)
         # recreate nc and nm
-        self._open_nc(self.filepath)
+        # self._open_nc(self.filepath)
 
 
 def identify_toltec_model_params(filepath):
