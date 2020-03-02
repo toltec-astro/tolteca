@@ -9,7 +9,7 @@ from kidsproc.kidsdata import (
 from tollan.utils.nc import ncopen, ncinfo, NcNodeMapper
 from tollan.utils.log import get_logger
 from tollan.utils.slice import BoundedSliceChain, XLoc
-from tollan.utils.numpy_dance import flex_reshape
+from tollan.utils.np import flex_reshape
 from tollan.utils.fmt import pformat_fancy_index
 from .registry import register_io_class
 from pathlib import Path
