@@ -36,10 +36,6 @@ except ImportError:
     print('ERROR: the documentation requires the sphinx-astropy package to be installed')
     sys.exit(1)
 
-extensions.remove("numpydoc")
-extensions.insert(0, "sphinx.ext.napoleon")
-
-
 # Get configuration information from setup.cfg
 from configparser import ConfigParser
 conf = ConfigParser()
@@ -155,18 +151,16 @@ latex_documents = [('index', project + '.tex', project + u' Documentation',
 man_pages = [('index', project.lower(), project + u' Documentation',
               [author], 1)]
 
+inheritance_graph_attrs = dict(rankdir="LR", size='""')
 
 # -- Options for the edit_on_github extension ---------------------------------
 
-if eval(setup_cfg.get('edit_on_github')):
+if setup_cfg.get('edit_on_github').lower() == 'true':
+
     extensions += ['sphinx_astropy.ext.edit_on_github']
 
-    versionmod = __import__(setup_cfg['package_name'] + '.version')
     edit_on_github_project = setup_cfg['github_project']
-    if versionmod.version.release:
-        edit_on_github_branch = "v" + versionmod.version.version
-    else:
-        edit_on_github_branch = "master"
+    edit_on_github_branch = "master"
 
     edit_on_github_source_root = ""
     edit_on_github_doc_root = "docs"
@@ -205,5 +199,3 @@ github_issues_url = 'https://github.com/{0}/issues/'.format(setup_cfg['github_pr
 # apidoc_output_dir = 'apidoc'
 # apidoc_excluded_paths = ['tests']
 # apidoc_separate_modules = True
-
-inheritance_graph_attrs = dict(rankdir="LR", size='""')

@@ -6,27 +6,4 @@
 from ._astropy_init import *   # noqa
 # ----------------------------------------------------------------------------
 
-# Enforce Python version check during package import.
-# This is the same check as the one at the top of setup.py
-import sys
-from distutils.version import LooseVersion
-
-__minimum_python_version__ = "3.6"
-
 __all__ = []
-
-
-PROGNAME = "TolTECA"
-DESCRIPTION = "TolTEC data reduction and analysis"
-
-
-class UnsupportedPythonError(Exception):
-    pass
-
-
-if LooseVersion(sys.version) < LooseVersion(__minimum_python_version__):
-    raise UnsupportedPythonError("{} does not support Python < {}"
-                                 .format(PROGNAME, __minimum_python_version__))
-
-if not _ASTROPY_SETUP_:   # noqa
-    pass

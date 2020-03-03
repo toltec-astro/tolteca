@@ -1,6 +1,6 @@
-**********************
+*********************
 TolTECA Documentation
-**********************
+*********************
 
 This is the documentation for TolTECA.
 
@@ -34,7 +34,3 @@ Reference/API
 .. automodapi:: tolteca.utils
 
 .. automodapi:: tolteca.web
-
-.. automodapi:: tolteca.web.frontend
-
-.. automodapi:: tolteca.web.backend

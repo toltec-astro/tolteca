@@ -1,11 +1,11 @@
-A Package for TolTEC data reduction and analysis
----------------------------------
+A package for analyzing TolTEC data
+-----------------------------------
 
 .. image:: http://img.shields.io/badge/powered%20by-AstroPy-orange.svg?style=flat
     :target: http://www.astropy.org
     :alt: Powered by Astropy Badge
 
-TolTECA is a package for reducing and analyzing TolTEC data.
+TolTECA is a package for analyzing TolTEC data.
 
 
 Install
