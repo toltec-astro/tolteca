@@ -1,7 +1,0 @@
-ResonanceCircleProbe
-====================
-
-.. currentmodule:: tolteca.kidsutils.kidsmodel
-
-.. autoclass:: ResonanceCircleProbe
-   :show-inheritance:

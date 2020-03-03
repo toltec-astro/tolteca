@@ -1,0 +1,6 @@
+make_plot
+=========
+
+.. currentmodule:: tolteca.recipes.simu_hwp_noise
+
+.. autofunction:: make_plot

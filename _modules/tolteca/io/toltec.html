@@ -4,16 +4,16 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta charset="utf-8" />
-    <title>tolteca.io.toltec &#8212; tolteca v0.0.1</title>
+    <title>tolteca.io.toltec &#8212; tolteca v0.1.dev62+g21e4fb5</title>
     <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
     <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css" />
     
-    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../../../_static/jquery.js"></script>
-    <script type="text/javascript" src="../../../_static/underscore.js"></script>
-    <script type="text/javascript" src="../../../_static/doctools.js"></script>
-    <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    <script id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/jquery.js"></script>
+    <script src="../../../_static/underscore.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/language_data.js"></script>
     <script type="text/javascript" src="../../../_static/sidebar.js"></script>
     <script type="text/javascript" src="../../../_static/copybutton.js"></script>
     <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
@@ -46,7 +46,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../../index.html">tolteca v0.0.1</a>
+	<a href="../../../index.html">tolteca v0.1.dev62+g21e4fb5</a>
 	 &#187;
       </li>
       <li><a href="../../index.html" accesskey="U">Module code</a> &#187;</li>
@@ -66,16 +66,25 @@
 
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="kn">import</span> <span class="n">cached_property</span>
 
-<span class="kn">from</span> <span class="nn">..kidsdata</span> <span class="kn">import</span> <span class="p">(</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">kidsproc.kidsdata</span> <span class="kn">import</span> <span class="p">(</span>
         <span class="n">Sweep</span><span class="p">,</span>
         <span class="n">RawTimeStream</span><span class="p">,</span> <span class="n">SolvedTimeStream</span><span class="p">,</span> <span class="n">VnaSweep</span><span class="p">,</span> <span class="n">TargetSweep</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">..utils.nc</span> <span class="kn">import</span> <span class="n">ncopen</span><span class="p">,</span> <span class="n">ncinfo</span><span class="p">,</span> <span class="n">NcNodeMapper</span>
-<span class="kn">from</span> <span class="nn">..utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.nc</span> <span class="kn">import</span> <span class="n">ncopen</span><span class="p">,</span> <span class="n">ncinfo</span><span class="p">,</span> <span class="n">NcNodeMapper</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.slice</span> <span class="kn">import</span> <span class="n">BoundedSliceChain</span><span class="p">,</span> <span class="n">XLoc</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.np</span> <span class="kn">import</span> <span class="n">flex_reshape</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_fancy_index</span>
 <span class="kn">from</span> <span class="nn">.registry</span> <span class="kn">import</span> <span class="n">register_io_class</span>
 <span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span> <span class="nn">contextlib</span> <span class="kn">import</span> <span class="n">ExitStack</span>
 <span class="kn">from</span> <span class="nn">..fs.toltec</span> <span class="kn">import</span> <span class="n">ToltecDataFileSpec</span>
 <span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">u</span>
+<span class="kn">from</span> <span class="nn">astropy.table</span> <span class="kn">import</span> <span class="n">Table</span><span class="p">,</span> <span class="n">Column</span>
+<span class="kn">from</span> <span class="nn">astropy.nddata</span> <span class="kn">import</span> <span class="n">StdDevUncertainty</span>
+<span class="kn">from</span> <span class="nn">kidsproc</span> <span class="kn">import</span> <span class="n">kidsmodel</span>
+<span class="kn">import</span> <span class="nn">numexpr</span> <span class="k">as</span> <span class="nn">ne</span>
 
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;NcFileIO&#39;</span><span class="p">]</span>
@@ -90,34 +99,31 @@
     <span class="k">return</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">filepath</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
 
 
-<div class="viewcode-block" id="NcFileIO"><a class="viewcode-back" href="../../../api/tolteca.io.NcFileIO.html#tolteca.io.NcFileIO">[docs]</a><span class="nd">@register_io_class</span><span class="p">(</span><span class="s2">&quot;nc.toltec&quot;</span><span class="p">,</span> <span class="n">identifier</span><span class="o">=</span><span class="n">identify_toltec_nc</span><span class="p">)</span>
+<div class="viewcode-block" id="NcFileIO"><a class="viewcode-back" href="../../../api/tolteca.io.NcFileIO.html#tolteca.io.NcFileIO">[docs]</a><span class="nd">@register_io_class</span><span class="p">(</span><span class="s2">&quot;nc.toltec.kidsdata&quot;</span><span class="p">,</span> <span class="n">identifier</span><span class="o">=</span><span class="n">identify_toltec_nc</span><span class="p">)</span>
 <span class="k">class</span> <span class="nc">NcFileIO</span><span class="p">(</span><span class="n">ExitStack</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;This class provides methods to access data in netCDF files.&quot;&quot;&quot;</span>
 
     <span class="n">spec</span> <span class="o">=</span> <span class="n">ToltecDataFileSpec</span>
-
     <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_open_nc</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
-        <span class="c1"># setup mappers</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">nm</span> <span class="o">=</span> <span class="n">NcNodeMapper</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nc</span><span class="p">,</span> <span class="p">{</span>
+    <span class="c1"># setup key mappers</span>
+    <span class="c1"># items with __ is no longer valid for new files</span>
+    <span class="n">_nc_mapper_keys</span> <span class="o">=</span> <span class="p">{</span>
                 <span class="c1"># data</span>
                 <span class="s2">&quot;is&quot;</span><span class="p">:</span> <span class="s2">&quot;Data.Toltec.Is&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;qs&quot;</span><span class="p">:</span> <span class="s2">&quot;Data.Toltec.Qs&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;flos&quot;</span><span class="p">:</span> <span class="s2">&quot;Data.Toltec.LoFreq&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;sweeps&quot;</span><span class="p">:</span> <span class="s2">&quot;Data.Toltec.SweepFreq&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;__sweeps&quot;</span><span class="p">:</span> <span class="s2">&quot;Data.Toltec.SweepFreq&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;tones&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.ToneFreq&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;rs&quot;</span><span class="p">:</span> <span class="s2">&quot;Data.Generic.Rs&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;xs&quot;</span><span class="p">:</span> <span class="s2">&quot;Data.Generic.Xs&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;rs&quot;</span><span class="p">:</span> <span class="s2">&quot;Data.Kids.rs&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;xs&quot;</span><span class="p">:</span> <span class="s2">&quot;Data.Kids.xs&quot;</span><span class="p">,</span>
                 <span class="c1"># tone axis</span>
-                <span class="s2">&quot;tonemodelparams&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.ModelParams&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;tonemodelparamsheader&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.ModelParamsHeader&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;__tonemodelparams&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.ModelParams&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;__tonemodelparamsheader&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.ModelParamsHeader&quot;</span><span class="p">,</span>
                 <span class="c1"># meta</span>
                 <span class="s2">&quot;kindvar&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.ObsType&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;ntones_design&quot;</span><span class="p">:</span> <span class="s2">&quot;loclen&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;ntones_max&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.MaxNumTones&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;n_tones_design&quot;</span><span class="p">:</span> <span class="s2">&quot;loclen&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;n_tones_max&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.MaxNumTones&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;fsmp&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.SampleFreq&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;atten_in&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.InputAtten&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;atten_out&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.OutputAtten&quot;</span><span class="p">,</span>
@@ -127,23 +133,27 @@
                 <span class="s2">&quot;obsid&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.ObsNum&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;subobsid&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.SubObsNum&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;scanid&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.ScanNum&quot;</span><span class="p">,</span>
-                <span class="c1"># meta -- deprecated</span>
-                <span class="s2">&quot;flo&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.LoFreq&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;flo_offset&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.LoOffset&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;__flo&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.LoFreq&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;__flo_offset&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.LoOffset&quot;</span><span class="p">,</span>
                 <span class="c1"># assoc</span>
                 <span class="s2">&quot;cal_roachid&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.RoachIndex&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;cal_obsid&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.TargSweepObsNum&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;cal_subobsid&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.TargSweepSubObsNum&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;cal_scanid&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.TargSweepScanNum&quot;</span><span class="p">,</span>
                 <span class="c1"># data shape</span>
-                <span class="s2">&quot;ntimes_all&quot;</span><span class="p">:</span> <span class="s2">&quot;time&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;ntones&quot;</span><span class="p">:</span> <span class="s2">&quot;iqlen&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;ntones_&quot;</span><span class="p">:</span> <span class="s2">&quot;toneFreqLen&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;nreps&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.NumSamplesPerSweepStep&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;nsweepsteps&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.NumSweepSteps&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;nsweeps_all&quot;</span><span class="p">:</span> <span class="s2">&quot;numSweeps&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;ntonemodelparams&quot;</span><span class="p">:</span> <span class="s2">&quot;modelParamsNum&quot;</span><span class="p">,</span>
-                <span class="p">})</span>
+                <span class="s2">&quot;n_times&quot;</span><span class="p">:</span> <span class="s2">&quot;time&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;n_tones&quot;</span><span class="p">:</span> <span class="s2">&quot;iqlen&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;__n_tones&quot;</span><span class="p">:</span> <span class="s2">&quot;toneFreqLen&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;n_sweepreps&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.NumSamplesPerSweepStep&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;n_sweepsteps&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.NumSweepSteps&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;n_sweeps_max&quot;</span><span class="p">:</span> <span class="s2">&quot;numSweeps&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;n_kidsmodelparams&quot;</span><span class="p">:</span> <span class="s2">&quot;modelParamsNum&quot;</span><span class="p">,</span>
+                <span class="p">}</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_open_nc</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reset_selections</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">r</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{self.__class__.__name__}</span><span class="s2">(</span><span class="si">{self.filepath}</span><span class="s2">)&quot;</span>
@@ -161,6 +171,14 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;ncinfo: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ncinfo</span><span class="p">(</span><span class="n">nc</span><span class="p">)))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nc</span> <span class="o">=</span> <span class="n">nc</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">filepath</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">nc</span><span class="o">.</span><span class="n">filepath</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nm</span> <span class="o">=</span> <span class="n">NcNodeMapper</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nc</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nc_mapper_keys</span><span class="p">)</span>
+
+<div class="viewcode-block" id="NcFileIO.close"><a class="viewcode-back" href="../../../api/tolteca.io.NcFileIO.html#tolteca.io.NcFileIO.close">[docs]</a>    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="c1"># reset the states so that the object can be pickled.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nm</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nc</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reset_selections</span><span class="p">()</span></div>
 
 <div class="viewcode-block" id="NcFileIO.open"><a class="viewcode-back" href="../../../api/tolteca.io.NcFileIO.html#tolteca.io.NcFileIO.open">[docs]</a>    <span class="k">def</span> <span class="nf">open</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_open_nc</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filepath</span><span class="p">)</span></div>
@@ -196,14 +214,40 @@
         <span class="bp">cls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kind_cls</span>
         <span class="k">return</span> <span class="n">UNKNOWN_KIND</span> <span class="k">if</span> <span class="bp">cls</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span>
 
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">is_sweep</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">issubclass</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">kind_cls</span><span class="p">,</span> <span class="n">Sweep</span><span class="p">)</span>
+
 <div class="viewcode-block" id="NcFileIO.sync"><a class="viewcode-back" href="../../../api/tolteca.io.NcFileIO.html#tolteca.io.NcFileIO.sync">[docs]</a>    <span class="k">def</span> <span class="nf">sync</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nc</span><span class="o">.</span><span class="n">sync</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;ntimes_all&#39;</span><span class="p">,</span> <span class="p">):</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;n_times&#39;</span><span class="p">,</span> <span class="p">):</span>
             <span class="n">old</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
             <span class="n">new</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nm</span><span class="o">.</span><span class="n">getdim</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">old</span> <span class="o">!=</span> <span class="n">new</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;updated </span><span class="si">{k}</span><span class="s2"> </span><span class="si">{old}</span><span class="s2">-&gt;</span><span class="si">{new}</span><span class="s2"> via sync&quot;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">new</span></div>
+
+    <span class="k">def</span> <span class="nf">_get_sweep_meta</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">meta</span><span class="p">):</span>
+        <span class="n">nm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nm</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span>
+                <span class="s2">&quot;n_sweepreps&quot;</span><span class="p">,</span> <span class="s2">&quot;n_sweepsteps&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;n_sweeps_max&quot;</span><span class="p">,</span> <span class="s2">&quot;n_kidsmodelparams&quot;</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">result</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">nm</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;missing item in data </span><span class="si">{k}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">exc_info</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="k">continue</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_timespersweep&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;n_sweepsteps&quot;</span><span class="p">]</span> <span class="o">*</span> \
+            <span class="n">result</span><span class="p">[</span><span class="s2">&quot;n_sweepreps&quot;</span><span class="p">]</span>
+        <span class="n">result</span><span class="p">[</span><span class="s2">&quot;n_sweeps&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s2">&quot;n_times&quot;</span><span class="p">]</span> <span class="o">//</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_timespersweep&#39;</span><span class="p">]</span>
+        <span class="c1"># populate block meta</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_blocks_max&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_sweeps_max&#39;</span><span class="p">]</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_blocks&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_sweeps&#39;</span><span class="p">]</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_timesperblock&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_timespersweep&#39;</span><span class="p">]</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;block_shape&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_sweepreps&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">result</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">meta</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -213,18 +257,18 @@
             <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">r</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                 <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">l</span> <span class="ow">and</span> <span class="n">l</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">!=</span> <span class="n">v</span><span class="p">:</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
-                            <span class="sa">f</span><span class="s2">&quot;inconsistent entry during update&quot;</span>
+                            <span class="sa">f</span><span class="s2">&quot;entry changed&quot;</span>
                             <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{k}</span><span class="s2"> </span><span class="si">{l[k]}</span><span class="s2"> -&gt; </span><span class="si">{v}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="n">l</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
 
-        <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="c1"># all</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="c1"># all kind</span>
         <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span>
-                <span class="s2">&quot;kindvar&quot;</span><span class="p">,</span> <span class="s2">&quot;ntones_design&quot;</span><span class="p">,</span> <span class="s2">&quot;ntones_max&quot;</span><span class="p">,</span> <span class="s2">&quot;fsmp&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;kindvar&quot;</span><span class="p">,</span> <span class="s2">&quot;n_tones_design&quot;</span><span class="p">,</span> <span class="s2">&quot;n_tones_max&quot;</span><span class="p">,</span> <span class="s2">&quot;fsmp&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;atten_in&quot;</span><span class="p">,</span> <span class="s2">&quot;atten_out&quot;</span><span class="p">,</span> <span class="s2">&quot;mastervar&quot;</span><span class="p">,</span> <span class="s2">&quot;source_orig&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;roachid&quot;</span><span class="p">,</span> <span class="s2">&quot;obsid&quot;</span><span class="p">,</span> <span class="s2">&quot;subobsid&quot;</span><span class="p">,</span> <span class="s2">&quot;scanid&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;cal_roachid&quot;</span><span class="p">,</span> <span class="s2">&quot;cal_obsid&quot;</span><span class="p">,</span> <span class="s2">&quot;cal_subobsid&quot;</span><span class="p">,</span> <span class="s2">&quot;cal_scanid&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;ntimes_all&quot;</span><span class="p">,</span> <span class="s2">&quot;ntones&quot;</span><span class="p">,</span> <span class="s2">&quot;ntones_&quot;</span><span class="p">,</span> <span class="p">):</span>
+                <span class="s2">&quot;n_times&quot;</span><span class="p">,</span> <span class="s2">&quot;n_tones&quot;</span><span class="p">,</span> <span class="s2">&quot;__n_tones&quot;</span><span class="p">,</span> <span class="p">):</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">result</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">nm</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
@@ -232,23 +276,13 @@
                 <span class="k">continue</span>
         <span class="c1"># sweep only</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_sweep</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span>
-                    <span class="s2">&quot;nreps&quot;</span><span class="p">,</span> <span class="s2">&quot;nsweepsteps&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;nsweeps_all&quot;</span><span class="p">,</span> <span class="s2">&quot;ntonemodelparams&quot;</span><span class="p">):</span>
-                <span class="k">try</span><span class="p">:</span>
-                    <span class="n">result</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">nm</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
-                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
-                            <span class="sa">f</span><span class="s2">&quot;missing item in data </span><span class="si">{k}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">exc_info</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                    <span class="k">continue</span>
-            <span class="n">ntimespersweep</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;nsweepsteps&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;nreps&quot;</span><span class="p">]</span>
-            <span class="n">result</span><span class="p">[</span><span class="s2">&quot;nsweeps&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;ntimes_all&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="n">ntimespersweep</span>
+            <span class="n">logged_update_dict</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_sweep_meta</span><span class="p">(</span><span class="n">result</span><span class="p">))</span>
 
         <span class="c1"># handle lofreqs, which are no longer there in new files</span>
-        <span class="k">if</span> <span class="n">nm</span><span class="o">.</span><span class="n">hasvar</span><span class="p">(</span><span class="s2">&quot;flo&quot;</span><span class="p">,</span> <span class="s2">&quot;flo_offset&quot;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">nm</span><span class="o">.</span><span class="n">hasvar</span><span class="p">(</span><span class="s2">&quot;__flo&quot;</span><span class="p">,</span> <span class="s2">&quot;__flo_offset&quot;</span><span class="p">):</span>
             <span class="n">logged_update_dict</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="p">{</span>
-                <span class="s2">&quot;flo&quot;</span><span class="p">:</span> <span class="n">nm</span><span class="o">.</span><span class="n">getscalar</span><span class="p">(</span><span class="s1">&#39;flo&#39;</span><span class="p">),</span>
-                <span class="s2">&quot;flo_offset&quot;</span><span class="p">:</span> <span class="n">nm</span><span class="o">.</span><span class="n">getscalar</span><span class="p">(</span><span class="s1">&#39;flo_offset&#39;</span><span class="p">),</span>
+                <span class="s2">&quot;flo&quot;</span><span class="p">:</span> <span class="n">nm</span><span class="o">.</span><span class="n">getscalar</span><span class="p">(</span><span class="s1">&#39;__flo&#39;</span><span class="p">),</span>
+                <span class="s2">&quot;flo_offset&quot;</span><span class="p">:</span> <span class="n">nm</span><span class="o">.</span><span class="n">getscalar</span><span class="p">(</span><span class="s1">&#39;__flo_offset&#39;</span><span class="p">),</span>
             <span class="p">})</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">logged_update_dict</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="p">{</span>
@@ -261,40 +295,400 @@
                     <span class="bp">self</span><span class="o">.</span><span class="n">filepath</span><span class="p">,</span> <span class="n">resolve</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">result</span>
 
-    <span class="nd">@cached_property</span>
-    <span class="k">def</span> <span class="nf">tone_axis</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">nm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nm</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_slice_table</span><span class="p">(</span><span class="n">tbl</span><span class="p">,</span> <span class="n">slice_</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">slice_</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">tbl</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
+            <span class="n">df</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">slice_</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">Table</span><span class="o">.</span><span class="n">from_pandas</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+        <span class="n">tbl</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;slice&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">slice_</span>
+        <span class="k">return</span> <span class="n">tbl</span><span class="p">[</span><span class="n">slice_</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">_get_block_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
         <span class="n">meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span>
+        <span class="n">n_blocks</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;n_blocks&#39;</span><span class="p">]</span>
+        <span class="n">n_blocks_max</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;n_blocks_max&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">iblock</span> <span class="o">=</span> <span class="n">n_blocks</span>
+        <span class="k">elif</span> <span class="n">index</span> <span class="o">&gt;=</span> <span class="n">n_blocks_max</span> <span class="ow">or</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="o">-</span><span class="n">n_blocks_max</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;invalid block index </span><span class="si">{index}</span><span class="s2">&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot; (n_blocks_max=</span><span class="si">{n_blocks_max}</span><span class="s2">)&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">iblock</span> <span class="o">=</span> <span class="p">(</span><span class="n">n_blocks_max</span> <span class="o">+</span> <span class="n">index</span><span class="p">)</span> <span class="o">%</span> <span class="n">n_blocks_max</span>
+        <span class="k">if</span> <span class="n">iblock</span> <span class="o">==</span> <span class="n">n_blocks_max</span><span class="p">:</span>
+            <span class="n">iblock</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;get block </span><span class="si">{iblock}</span><span class="s2"> of &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{n_blocks}</span><span class="s2"> blocks (n_blocks_max=</span><span class="si">{n_blocks_max}</span><span class="s2">)&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">iblock</span><span class="p">,</span> <span class="n">n_blocks</span><span class="p">,</span> <span class="n">n_blocks_max</span>
+
+    <span class="k">def</span> <span class="nf">_get_tone_axis_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns the tone table for given block index.</span>
+
+<span class="sd">        If index is None, the used index is the **actual** last block,</span>
+<span class="sd">        and if index is -1, the used index is the last block of all</span>
+<span class="sd">        pre-allocated blocks.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">nm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nm</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">nm</span><span class="o">.</span><span class="n">hasvar</span><span class="p">(</span><span class="s2">&quot;tones&quot;</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;no tone data found&quot;</span><span class="p">)</span>
         <span class="c1"># tone param header</span>
         <span class="c1"># tone param data</span>
-        <span class="n">n_tones</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;ntones&#39;</span><span class="p">]</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_sweep</span><span class="p">:</span>
-            <span class="n">n_sweeps</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;nsweeps&#39;</span><span class="p">]</span>
-            <span class="n">last_sweep</span> <span class="o">=</span> <span class="n">n_sweeps</span> <span class="o">-</span> <span class="mi">1</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;load tones from </span><span class="si">{last_sweep}</span><span class="s2"> of </span><span class="si">{n_sweeps}</span><span class="s2"> sweep blocks&quot;</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">last_sweep</span> <span class="o">=</span> <span class="mi">0</span> 
-        <span class="n">tfs</span> <span class="o">=</span> <span class="n">nm</span><span class="o">.</span><span class="n">getvar</span><span class="p">(</span><span class="s2">&quot;tones&quot;</span><span class="p">)[</span><span class="n">last_sweep</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="c1"># n_tones = meta[&#39;ntones&#39;]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;get tones for block_index=</span><span class="si">{index}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">iblock</span><span class="p">,</span> <span class="n">n_blocks</span><span class="p">,</span> <span class="n">n_blocks_max</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_block_index</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+        <span class="n">tfs</span> <span class="o">=</span> <span class="n">nm</span><span class="o">.</span><span class="n">getvar</span><span class="p">(</span><span class="s2">&quot;tones&quot;</span><span class="p">)[</span><span class="n">iblock</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="n">tis</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tfs</span><span class="p">))</span>
 
-        <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">tfs</span><span class="o">=</span><span class="n">tfs</span><span class="p">)</span>
+        <span class="n">tone_axis_data</span> <span class="o">=</span> <span class="n">Table</span><span class="p">([</span>
+            <span class="n">Column</span><span class="p">(</span><span class="n">tis</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;id&#39;</span><span class="p">),</span>
+            <span class="n">Column</span><span class="p">(</span><span class="n">tfs</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;fc&#39;</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">)</span>
+            <span class="p">])</span>
+        <span class="n">tone_axis_data</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+                <span class="s1">&#39;n_blocks_max&#39;</span><span class="p">:</span> <span class="n">n_blocks_max</span><span class="p">,</span>
+                <span class="s1">&#39;n_blocks&#39;</span><span class="p">:</span> <span class="n">n_blocks</span><span class="p">,</span>
+                <span class="s1">&#39;block_index&#39;</span><span class="p">:</span> <span class="n">iblock</span><span class="p">,</span>
+                <span class="p">})</span>
+        <span class="k">return</span> <span class="n">tone_axis_data</span>
 
     <span class="nd">@cached_property</span>
-    <span class="k">def</span> <span class="nf">is_sweep</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">issubclass</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">kind_cls</span><span class="p">,</span> <span class="n">Sweep</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">tone_axis</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns the last tone table.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_tone_axis_data</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">sample_axis</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;n_times&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">BoundedSliceChain</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">n</span><span class="p">),</span> <span class="n">n</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_block_to_sample_slice</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the sample slice to the block of given index.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;get sample slice for block_index=</span><span class="si">{index}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span>
+        <span class="n">iblock</span><span class="p">,</span> <span class="n">n_blocks</span><span class="p">,</span> <span class="n">n_blocks_max</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_block_index</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;n_timesperblock&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="nb">slice</span><span class="p">(</span><span class="n">iblock</span> <span class="o">*</span> <span class="n">s</span><span class="p">,</span> <span class="p">(</span><span class="n">iblock</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">s</span><span class="p">),</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;block_shape&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">_sweep_axis_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_sweep</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;data of </span><span class="si">{self.kind}</span><span class="s2"> does not have sweep axis&quot;</span><span class="p">)</span>
+        <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+        <span class="n">nm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nm</span>
+
+        <span class="c1"># get sample_slice for block index</span>
+        <span class="n">sample_slice</span><span class="p">,</span> <span class="n">block_shape</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_block_to_sample_slice</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+        <span class="n">sfs</span> <span class="o">=</span> <span class="n">nm</span><span class="o">.</span><span class="n">getvar</span><span class="p">(</span><span class="s2">&quot;flos&quot;</span><span class="p">)[</span><span class="n">sample_slice</span><span class="p">]</span>
+        <span class="n">sfs</span> <span class="o">=</span> <span class="n">flex_reshape</span><span class="p">(</span><span class="n">sfs</span><span class="p">,</span> <span class="n">block_shape</span><span class="p">)</span>
+        <span class="c1"># do reduction</span>
+        <span class="n">rsfs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">rn</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">r0</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">r1</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># do the reduce</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">sfs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+            <span class="c1"># check that fs are the same</span>
+            <span class="n">fs</span> <span class="o">=</span> <span class="n">sfs</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span>
+            <span class="n">fs</span> <span class="o">=</span> <span class="n">fs</span><span class="p">[</span><span class="n">fs</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>  <span class="c1"># sometimes the value could be 0</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">fs</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">block_shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;fs of sweep step </span><span class="si">{i}</span><span class="s2"> has {block_shape[-1] - len(fs)}&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot; missing data: </span><span class="si">{fs}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">fs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">rsfs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+                <span class="n">rn</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">fs</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;fs of sweep step </span><span class="si">{i}</span><span class="s2"> is not uniform: </span><span class="si">{fs}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">rsfs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">rn</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">fs</span><span class="p">))</span>
+            <span class="n">r0</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sample_slice</span><span class="o">.</span><span class="n">start</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">block_shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">r1</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sample_slice</span><span class="o">.</span><span class="n">start</span> <span class="o">+</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">block_shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">irsfs</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">rsfs</span><span class="p">))</span>
+        <span class="n">sweep_axis_data</span> <span class="o">=</span> <span class="n">Table</span><span class="p">([</span>
+            <span class="n">Column</span><span class="p">(</span><span class="n">irsfs</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;id&#39;</span><span class="p">),</span>
+            <span class="n">Column</span><span class="p">(</span><span class="n">rsfs</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;flo&#39;</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">),</span>
+            <span class="n">Column</span><span class="p">(</span><span class="n">rn</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;n_samples&#39;</span><span class="p">),</span>
+            <span class="n">Column</span><span class="p">(</span><span class="n">r0</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;sample_start&#39;</span><span class="p">),</span>
+            <span class="n">Column</span><span class="p">(</span><span class="n">r1</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;sample_end&#39;</span><span class="p">),</span>
+            <span class="p">])</span>
+        <span class="n">sweep_axis_data</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+                <span class="s1">&#39;sample_slice&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample_axis</span><span class="p">[</span><span class="n">sample_slice</span><span class="p">],</span>
+                <span class="s1">&#39;block_shape&#39;</span><span class="p">:</span> <span class="n">block_shape</span><span class="p">,</span>
+                <span class="p">})</span>
+        <span class="k">return</span> <span class="n">sweep_axis_data</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">sweep_axis</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">[]</span>
+        <span class="sd">&quot;&quot;&quot;Returns the last sweep table.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sweep_axis_data</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
 
-    <span class="nd">@cached_property</span>
-    <span class="k">def</span> <span class="nf">time_axis</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">[]</span>
+<div class="viewcode-block" id="NcFileIO.time_axis"><a class="viewcode-back" href="../../../api/tolteca.io.NcFileIO.html#tolteca.io.NcFileIO.time_axis">[docs]</a>    <span class="k">def</span> <span class="nf">time_axis</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample_axis</span></div>
 
-    <span class="nd">@cached_property</span>
-    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">[]</span></div>
+    <span class="k">def</span> <span class="nf">_reset_selection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">axis_name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Reset the select registry for specified axis.&quot;&quot;&quot;</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;_</span><span class="si">{axis_name}</span><span class="s1">_axis_cb&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+<div class="viewcode-block" id="NcFileIO.reset_selections"><a class="viewcode-back" href="../../../api/tolteca.io.NcFileIO.html#tolteca.io.NcFileIO.reset_selections">[docs]</a>    <span class="k">def</span> <span class="nf">reset_selections</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Reset the selection registry for all axis.&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;tone&#39;</span><span class="p">,</span> <span class="s1">&#39;sample&#39;</span><span class="p">,</span> <span class="s1">&#39;sweep&#39;</span><span class="p">,</span> <span class="s1">&#39;time&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_reset_selection</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{name}</span><span class="s1">loc&#39;</span><span class="p">,</span> <span class="n">XLoc</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;select_</span><span class="si">{name}</span><span class="s2">&quot;</span><span class="p">)))</span></div>
+
+<div class="viewcode-block" id="NcFileIO.select_tone"><a class="viewcode-back" href="../../../api/tolteca.io.NcFileIO.html#tolteca.io.NcFileIO.select_tone">[docs]</a>    <span class="k">def</span> <span class="nf">select_tone</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Register tone selection callback.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">select_tone</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">arg</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="n">arg</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">arg</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+            <span class="k">def</span> <span class="nf">cb</span><span class="p">(</span><span class="n">slice_</span><span class="o">=</span><span class="n">arg</span><span class="p">,</span> <span class="n">cb0</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_tone_axis_cb</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">cb0</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">tbl</span> <span class="o">=</span> <span class="n">cb0</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">tbl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tone_axis</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice_table</span><span class="p">(</span><span class="n">tbl</span><span class="p">,</span> <span class="n">slice_</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_tone_axis_cb</span> <span class="o">=</span> <span class="n">cb</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="c1"># no args</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+<div class="viewcode-block" id="NcFileIO.select_sample"><a class="viewcode-back" href="../../../api/tolteca.io.NcFileIO.html#tolteca.io.NcFileIO.select_sample">[docs]</a>    <span class="k">def</span> <span class="nf">select_sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">rfunc</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Register callback for selecting samples.&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;sweep&#39;</span><span class="p">,</span> <span class="s1">&#39;time&#39;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;_</span><span class="si">{n}</span><span class="s1">_axis_cb&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;can only select one of {sample,sweep,time}&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">select_sample</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">),</span> <span class="n">rfunc</span><span class="o">=</span><span class="n">rfunc</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">arg</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="n">arg</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">arg</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+            <span class="k">def</span> <span class="nf">cb</span><span class="p">(</span><span class="n">slice_</span><span class="o">=</span><span class="n">arg</span><span class="p">,</span> <span class="n">rfunc</span><span class="o">=</span><span class="n">rfunc</span><span class="p">,</span> <span class="n">cb0</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sample_axis_cb</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">cb0</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">slice0</span><span class="p">,</span> <span class="n">rfunc0</span> <span class="o">=</span> <span class="n">cb0</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">slice0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample_axis</span>
+
+                    <span class="k">def</span> <span class="nf">rfunc0</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
+                        <span class="k">return</span> <span class="n">d</span>
+
+                <span class="k">if</span> <span class="n">rfunc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">def</span> <span class="nf">rfunc1</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">rfunc</span><span class="o">=</span><span class="n">rfunc</span><span class="p">,</span> <span class="n">rfunc0</span><span class="o">=</span><span class="n">rfunc0</span><span class="p">):</span>
+                        <span class="k">return</span> <span class="n">rfunc</span><span class="p">(</span><span class="n">rfunc0</span><span class="p">(</span><span class="n">d</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">rfunc1</span> <span class="o">=</span> <span class="n">rfunc0</span>
+                <span class="k">return</span> <span class="n">slice0</span><span class="p">[</span><span class="n">slice_</span><span class="p">],</span> <span class="n">rfunc1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_sample_axis_cb</span> <span class="o">=</span> <span class="n">cb</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="c1"># no args</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+<div class="viewcode-block" id="NcFileIO.select_time"><a class="viewcode-back" href="../../../api/tolteca.io.NcFileIO.html#tolteca.io.NcFileIO.select_time">[docs]</a>    <span class="k">def</span> <span class="nf">select_time</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Register callback for selecting using time range.&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;sweep&#39;</span><span class="p">,</span> <span class="s1">&#39;sample&#39;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;_</span><span class="si">{n}</span><span class="s1">_axis_cb&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;can only select one of {sample,sweep,time}&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
+
+<div class="viewcode-block" id="NcFileIO.select_sweep"><a class="viewcode-back" href="../../../api/tolteca.io.NcFileIO.html#tolteca.io.NcFileIO.select_sweep">[docs]</a>    <span class="k">def</span> <span class="nf">select_sweep</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Register callback for selecting sweeps.&quot;&quot;&quot;</span>
+
+        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;sample&#39;</span><span class="p">,</span> <span class="s1">&#39;time&#39;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;_</span><span class="si">{n}</span><span class="s1">_axis_cb&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;can only select one of {sample,sweep,time}&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">select_sweep</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">),</span> <span class="n">index</span><span class="o">=</span><span class="n">index</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">arg</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="n">arg</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">arg</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+            <span class="k">def</span> <span class="nf">cb</span><span class="p">(</span><span class="n">slice_</span><span class="o">=</span><span class="n">arg</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="n">index</span><span class="p">,</span> <span class="n">cb0</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sweep_axis_cb</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">cb0</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">tbl0</span><span class="p">,</span> <span class="n">rfunc0</span> <span class="o">=</span> <span class="n">cb0</span><span class="p">()</span>
+                    <span class="n">tbl1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice_table</span><span class="p">(</span><span class="n">tbl0</span><span class="p">,</span> <span class="n">slice_</span><span class="p">)</span>
+                    <span class="n">rslice</span> <span class="o">=</span> <span class="n">tbl1</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+
+                    <span class="c1"># this function slice on existing reduced data object.</span>
+                    <span class="k">def</span> <span class="nf">rfunc1</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">rslice</span><span class="o">=</span><span class="n">rslice</span><span class="p">,</span> <span class="n">rfunc0</span><span class="o">=</span><span class="n">rfunc0</span><span class="p">):</span>
+                        <span class="k">return</span> <span class="p">{</span>
+                                <span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="p">[:,</span> <span class="n">rslice</span><span class="p">]</span>
+                                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">rfunc0</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                                <span class="p">}</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">tbl0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sweep_axis_data</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+                    <span class="n">tbl1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice_table</span><span class="p">(</span><span class="n">tbl0</span><span class="p">,</span> <span class="n">slice_</span><span class="p">)</span>
+                    <span class="n">rslice</span> <span class="o">=</span> <span class="n">tbl1</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+
+                    <span class="c1"># this function slice on the raw data object after slice</span>
+                    <span class="k">def</span> <span class="nf">rfunc1</span><span class="p">(</span>
+                            <span class="n">d</span><span class="p">,</span>
+                            <span class="n">rshape</span><span class="o">=</span><span class="n">tbl1</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;block_shape&#39;</span><span class="p">],</span>
+                            <span class="n">rslice</span><span class="o">=</span><span class="n">rslice</span><span class="p">,</span>
+                            <span class="p">):</span>
+                        <span class="n">a</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">]</span>
+                        <span class="n">mf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span>
+                        <span class="n">sf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span>
+                        <span class="n">rs</span> <span class="o">=</span> <span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">)</span> <span class="o">+</span> <span class="n">rshape</span>
+                        <span class="n">ma</span> <span class="o">=</span> <span class="n">mf</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">rs</span><span class="p">),</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)[:,</span> <span class="n">rslice</span><span class="p">]</span>
+                        <span class="n">sa</span> <span class="o">=</span> <span class="n">sf</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">rs</span><span class="p">),</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)[:,</span> <span class="n">rslice</span><span class="p">]</span>
+                        <span class="n">sa</span> <span class="o">=</span> <span class="n">StdDevUncertainty</span><span class="p">(</span><span class="n">sa</span><span class="p">)</span>
+                        <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="o">**</span><span class="p">{</span><span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="n">ma</span><span class="p">,</span> <span class="s1">&#39;uncertainty&#39;</span><span class="p">:</span> <span class="n">sa</span><span class="p">})</span>
+                <span class="k">return</span> <span class="n">tbl1</span><span class="p">,</span> <span class="n">rfunc1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_sweep_axis_cb</span> <span class="o">=</span> <span class="n">cb</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="c1"># no args</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">select_sweep</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">),</span> <span class="n">index</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="NcFileIO.read"><a class="viewcode-back" href="../../../api/tolteca.io.NcFileIO.html#tolteca.io.NcFileIO.read">[docs]</a>    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return KIDs data instance from reading the file.</span>
+
+<span class="sd">        The selection callbacks are evaluated here.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;read </span><span class="si">{self.kind_cls.__name__}</span><span class="s1"> data&#39;</span><span class="p">)</span>
+
+        <span class="n">meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span>
+        <span class="n">kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;meta&#39;</span><span class="p">:</span> <span class="n">meta</span><span class="p">}</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tone_axis_cb</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">toneloc</span><span class="p">[:]</span>
+        <span class="n">tone_axis_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tone_axis_cb</span><span class="p">()</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;meta&#39;</span><span class="p">][</span><span class="s1">&#39;tones&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tone_axis_data</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;selected tone axis:</span><span class="se">\n</span><span class="si">{tone_axis_data}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="n">tone_slice</span> <span class="o">=</span> <span class="n">tone_axis_data</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_sweep</span><span class="p">:</span>
+            <span class="c1"># default use the last block for sweep if not selected</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sweep_axis_cb</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">sweeploc</span><span class="p">(</span><span class="n">index</span><span class="o">=-</span><span class="mi">1</span><span class="p">)[:]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sample_axis_cb</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">sample_slice</span><span class="p">,</span> <span class="n">rfunc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sample_axis_cb</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sweep_axis_cb</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">sweep_axis_data</span><span class="p">,</span> <span class="n">rfunc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sweep_axis_cb</span><span class="p">()</span>
+            <span class="n">sample_slice</span> <span class="o">=</span> <span class="n">sweep_axis_data</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;sample_slice&#39;</span><span class="p">]</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;meta&#39;</span><span class="p">][</span><span class="s1">&#39;sweeps&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sweep_axis_data</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;selected sweep axis:</span><span class="se">\n</span><span class="si">{sweep_axis_data}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+        <span class="n">sample_slice</span> <span class="o">=</span> <span class="n">sample_slice</span><span class="o">.</span><span class="n">to_slice</span><span class="p">()</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;read data with sample_slice=&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;{pformat_fancy_index(sample_slice)}&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; tone_slice=&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;{pformat_fancy_index(tone_axis_data.meta[&#39;slice&#39;])}&quot;</span><span class="p">)</span>
+        <span class="c1"># actually read the data</span>
+        <span class="n">nm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nm</span>
+        <span class="n">is_</span> <span class="o">=</span> <span class="n">nm</span><span class="o">.</span><span class="n">getvar</span><span class="p">(</span><span class="s1">&#39;is&#39;</span><span class="p">)[</span><span class="n">sample_slice</span><span class="p">,</span> <span class="n">tone_slice</span><span class="p">]</span><span class="o">.</span><span class="n">T</span>
+        <span class="n">qs</span> <span class="o">=</span> <span class="n">nm</span><span class="o">.</span><span class="n">getvar</span><span class="p">(</span><span class="s1">&#39;qs&#39;</span><span class="p">)[</span><span class="n">sample_slice</span><span class="p">,</span> <span class="n">tone_slice</span><span class="p">]</span><span class="o">.</span><span class="n">T</span>
+        <span class="n">iqs</span> <span class="o">=</span> <span class="n">ne</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="s1">&#39;I + 1.j * Q&#39;</span><span class="p">,</span> <span class="n">local_dict</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;I&#39;</span><span class="p">:</span> <span class="n">is_</span><span class="p">,</span> <span class="s1">&#39;Q&#39;</span><span class="p">:</span> <span class="n">qs</span><span class="p">})</span>
+        <span class="c1"># call the reduce function</span>
+        <span class="n">kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">rfunc</span><span class="p">({</span><span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="n">iqs</span><span class="p">}))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">kind_cls</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># need to reset the object before pickling</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span>
+
+    <span class="k">def</span> <span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="c1"># Restore instance attributes (i.e., filename and lineno).</span>
+        <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">state</span><span class="p">)</span></div>
+        <span class="c1"># recreate nc and nm</span>
+        <span class="c1"># self._open_nc(self.filepath)</span>
+
+
+<span class="k">def</span> <span class="nf">identify_toltec_model_params</span><span class="p">(</span><span class="n">filepath</span><span class="p">):</span>
+    <span class="n">filepath</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
+    <span class="n">pattern</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;^toltec.*\.txt$&#39;</span>
+    <span class="k">return</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">filepath</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+
+<span class="nd">@register_io_class</span><span class="p">(</span>
+        <span class="s2">&quot;txt.toltec.model_params&quot;</span><span class="p">,</span> <span class="n">identifier</span><span class="o">=</span><span class="n">identify_toltec_model_params</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">KidsModelParams</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This class provides methods to access model parameter files.&quot;&quot;&quot;</span>
+
+    <span class="n">spec</span> <span class="o">=</span> <span class="n">ToltecDataFileSpec</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filepath</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_table</span> <span class="o">=</span> <span class="n">Table</span><span class="o">.</span><span class="n">read</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">filepath</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;ascii.commented_header&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model_cls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_model_cls</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_table</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model_cls</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_table</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meta</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;source&#39;</span><span class="p">:</span> <span class="n">source</span><span class="p">,</span>
+                <span class="s1">&#39;model_cls&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_cls</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+                <span class="s1">&#39;n_models&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">),</span>
+                <span class="p">}</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_get_model_cls</span><span class="p">(</span><span class="n">tbl</span><span class="p">):</span>
+        <span class="n">dispatch</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="n">kidsmodel</span><span class="o">.</span><span class="n">KidsSweepGainWithLinTrend</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;columns&#39;</span><span class="p">:</span> <span class="p">[</span>
+                        <span class="s1">&#39;fp&#39;</span><span class="p">,</span> <span class="s1">&#39;Qr&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;Qc&#39;</span><span class="p">,</span> <span class="s1">&#39;fr&#39;</span><span class="p">,</span> <span class="s1">&#39;A&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;normI&#39;</span><span class="p">,</span> <span class="s1">&#39;normQ&#39;</span><span class="p">,</span> <span class="s1">&#39;slopeI&#39;</span><span class="p">,</span> <span class="s1">&#39;slopeQ&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;interceptI&#39;</span><span class="p">,</span> <span class="s1">&#39;interceptQ&#39;</span>
+                        <span class="p">],</span>
+                    <span class="p">}</span>
+                <span class="p">}</span>
+        <span class="k">for</span> <span class="bp">cls</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">dispatch</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="c1"># check column names</span>
+            <span class="n">cols_required</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="s1">&#39;columns&#39;</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">cols_required</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">tbl</span><span class="o">.</span><span class="n">colnames</span><span class="p">)):</span>
+                <span class="k">return</span> <span class="bp">cls</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_get_model</span><span class="p">(</span><span class="n">model_cls</span><span class="p">,</span> <span class="n">tbl</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">model_cls</span> <span class="ow">is</span> <span class="n">kidsmodel</span><span class="o">.</span><span class="n">KidsSweepGainWithLinTrend</span><span class="p">:</span>
+            <span class="c1"># print(model_cls.model_params)</span>
+            <span class="c1"># print(model_cls)</span>
+            <span class="n">dispatch</span> <span class="o">=</span> <span class="p">[</span>
+                    <span class="p">(</span><span class="s1">&#39;fr&#39;</span><span class="p">,</span> <span class="s1">&#39;fr&#39;</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">),</span>
+                    <span class="p">(</span><span class="s1">&#39;Qr&#39;</span><span class="p">,</span> <span class="s1">&#39;Qr&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                    <span class="p">(</span><span class="s1">&#39;g0&#39;</span><span class="p">,</span> <span class="s1">&#39;normI&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                    <span class="p">(</span><span class="s1">&#39;g1&#39;</span><span class="p">,</span> <span class="s1">&#39;normQ&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                    <span class="p">(</span><span class="s1">&#39;g&#39;</span><span class="p">,</span> <span class="s1">&#39;normI&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                    <span class="p">(</span><span class="s1">&#39;phi_g&#39;</span><span class="p">,</span> <span class="s1">&#39;normQ&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                    <span class="p">(</span><span class="s1">&#39;f0&#39;</span><span class="p">,</span> <span class="s1">&#39;fp&#39;</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">),</span>
+                    <span class="p">(</span><span class="s1">&#39;k0&#39;</span><span class="p">,</span> <span class="s1">&#39;slopeI&#39;</span><span class="p">,</span> <span class="mf">1.</span> <span class="o">/</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">),</span>
+                    <span class="p">(</span><span class="s1">&#39;k1&#39;</span><span class="p">,</span> <span class="s1">&#39;slopeQ&#39;</span><span class="p">,</span> <span class="mf">1.</span> <span class="o">/</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">),</span>
+                    <span class="p">(</span><span class="s1">&#39;m0&#39;</span><span class="p">,</span> <span class="s1">&#39;interceptI&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                    <span class="p">(</span><span class="s1">&#39;m1&#39;</span><span class="p">,</span> <span class="s1">&#39;interceptQ&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                    <span class="p">]</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">kk</span><span class="p">,</span> <span class="n">unit</span> <span class="ow">in</span> <span class="n">dispatch</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">kk</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">tbl</span><span class="p">[</span><span class="n">kk</span><span class="p">]))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">tbl</span><span class="p">[</span><span class="n">kk</span><span class="p">])</span> <span class="o">*</span> <span class="n">unit</span><span class="p">)</span>
+            <span class="n">kwargs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+                    <span class="n">n_models</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">tbl</span><span class="p">)</span>
+                    <span class="p">)</span>
+            <span class="k">return</span> <span class="n">model_cls</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{self.model_cls.__name__}</span><span class="s2">(</span><span class="si">{self.filepath}</span><span class="s2">)&quot;</span>
 </pre></div>
 
           </div>
@@ -313,8 +707,8 @@
     <a href="#">Back to Top</a></p>
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.3.1. &nbsp;
-    Last built 28 Jan 2020. <br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
+    Last built 02 Mar 2020. <br/>
   </p>
 </footer>
   </body>

@@ -1,0 +1,17 @@
+AnimatedItemDelegate
+====================
+
+.. currentmodule:: tolteca.gui
+
+.. autoclass:: AnimatedItemDelegate
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~AnimatedItemDelegate.paint
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: paint

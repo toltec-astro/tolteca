@@ -1,0 +1,6 @@
+cli_header
+==========
+
+.. currentmodule:: tolteca.cli
+
+.. autofunction:: cli_header

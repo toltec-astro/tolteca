@@ -1,0 +1,21 @@
+DBStatusPanel
+=============
+
+.. currentmodule:: tolteca.gui
+
+.. autoclass:: DBStatusPanel
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~DBStatusPanel.connected
+      ~DBStatusPanel.connectionStatusChanged
+      ~DBStatusPanel.logger
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: connected
+   .. autoattribute:: connectionStatusChanged
+   .. autoattribute:: logger

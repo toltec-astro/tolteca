@@ -1,0 +1,6 @@
+save_or_show
+============
+
+.. currentmodule:: tolteca.recipes.simu_hwp_noise
+
+.. autofunction:: save_or_show

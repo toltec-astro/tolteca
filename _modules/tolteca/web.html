@@ -4,16 +4,16 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta charset="utf-8" />
-    <title>tolteca.web &#8212; tolteca v0.0.1</title>
+    <title>tolteca.web &#8212; tolteca v0.1.dev62+g21e4fb5</title>
     <link rel="stylesheet" href="../../_static/bootstrap-astropy.css" type="text/css" />
     <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
     
-    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../../_static/jquery.js"></script>
-    <script type="text/javascript" src="../../_static/underscore.js"></script>
-    <script type="text/javascript" src="../../_static/doctools.js"></script>
-    <script type="text/javascript" src="../../_static/language_data.js"></script>
+    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/language_data.js"></script>
     <script type="text/javascript" src="../../_static/sidebar.js"></script>
     <script type="text/javascript" src="../../_static/copybutton.js"></script>
     <link rel="shortcut icon" href="../../_static/astropy_logo.ico"/>
@@ -46,7 +46,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../index.html">tolteca v0.0.1</a>
+	<a href="../../index.html">tolteca v0.1.dev62+g21e4fb5</a>
 	 &#187;
       </li>
       <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li>
@@ -62,44 +62,125 @@
           <div class="body" role="main">
             
   <h1>Source code for tolteca.web</h1><div class="highlight"><pre>
-<span></span><span class="c1"># import prance</span>
-<span class="c1"># from pathlib import Path</span>
-<span class="c1"># from flask import Flask</span>
+<span></span><span class="ch">#! /usr/bin/env python</span>
 
-<span class="kn">import</span> <span class="nn">connexion</span>
-<span class="c1"># from . import config</span>
-<span class="kn">from</span> <span class="nn">tolteca.utils.log</span> <span class="kn">import</span> <span class="n">timeit</span>
-<span class="kn">from</span> <span class="nn">tolteca.utils.cli.click_log</span> <span class="kn">import</span> <span class="n">init</span> <span class="k">as</span> <span class="n">init_log</span>
+<span class="sd">&quot;&quot;&quot;DashA site for TolTECA.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">tollan.utils.env</span> <span class="kn">import</span> <span class="n">env_registry</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span> <span class="nn">tolteca.fs.toltec</span> <span class="kn">import</span> <span class="n">DataFileStore</span>
+
+<span class="n">env_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+        <span class="s2">&quot;TOLTECA_TOLTEC_DB_URL&quot;</span><span class="p">,</span> <span class="s2">&quot;The toltec database url&quot;</span><span class="p">)</span>
+<span class="n">env_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+        <span class="s2">&quot;TOLTECA_TOLTEC_DATA_ROOTPATH&quot;</span><span class="p">,</span> <span class="s2">&quot;The root path to toltec data files&quot;</span><span class="p">)</span>
+
+<span class="c1"># service provider settings</span>
+<span class="n">tolteca_app_db_filename</span> <span class="o">=</span> <span class="s1">&#39;tolteca_app_db.sqlite&#39;</span>
+<span class="n">tolteca_app_db_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span>
+        <span class="n">tolteca_app_db_filename</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span>
+<span class="n">tolteca_toltec_db_url</span> <span class="o">=</span> <span class="n">env_registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;TOLTECA_TOLTEC_DB_URL&quot;</span><span class="p">)</span>
+<span class="n">tolteca_redis_url</span> <span class="o">=</span> <span class="s2">&quot;redis://localhost:6379&quot;</span>
+<span class="n">tolteca_toltec_data_rootpath</span> <span class="o">=</span> <span class="n">env_registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;TOLTECA_TOLTEC_DATA_ROOTPATH&quot;</span><span class="p">)</span>
+<span class="n">tolteca_toltec_datastore</span> <span class="o">=</span> <span class="n">DataFileStore</span><span class="p">(</span><span class="n">tolteca_toltec_data_rootpath</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="create_server"><a class="viewcode-back" href="../../api/tolteca.web.create_server.html#tolteca.web.create_server">[docs]</a><span class="nd">@timeit</span>
-<span class="k">def</span> <span class="nf">create_server</span><span class="p">(</span><span class="n">default_config</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="n">app</span> <span class="o">=</span> <span class="n">connexion</span><span class="o">.</span><span class="n">FlaskApp</span><span class="p">(</span>
-            <span class="vm">__name__</span><span class="p">,</span>
-            <span class="n">specification_dir</span><span class="o">=</span><span class="s1">&#39;backend/api&#39;</span><span class="p">,</span>
-            <span class="p">)</span>
-    <span class="n">app</span><span class="o">.</span><span class="n">add_api</span><span class="p">(</span>
-            <span class="s1">&#39;main.yaml&#39;</span><span class="p">,</span>
-            <span class="n">resolver</span><span class="o">=</span><span class="n">connexion</span><span class="o">.</span><span class="n">RestyResolver</span><span class="p">(</span><span class="s1">&#39;tolteca.web.backend.api&#39;</span><span class="p">))</span>
+<span class="c1"># site configs</span>
+<span class="n">db_config</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;SQLALCHEMY_TRACK_MODIFICATIONS&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">&quot;SQLALCHEMY_BINDS&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;appdb&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;sqlite:////</span><span class="si">{tolteca_app_db_path}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="s1">&#39;toltecdb&#39;</span><span class="p">:</span> <span class="n">tolteca_toltec_db_url</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+<span class="n">cache_config</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;CACHE_TYPE&quot;</span><span class="p">:</span> <span class="s1">&#39;redis&#39;</span><span class="p">,</span>
+        <span class="s2">&quot;CACHE_DEFAULT_TIMEOUT&quot;</span><span class="p">:</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">5</span><span class="p">,</span>  <span class="c1"># second</span>
+        <span class="s2">&quot;CACHE_KEY_PREFIX&quot;</span><span class="p">:</span> <span class="s1">&#39;tolteca_&#39;</span><span class="p">,</span>
+        <span class="s2">&quot;CACHE_REDIS_URL&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{tolteca_redis_url}</span><span class="s2">/0&quot;</span><span class="p">,</span>
+        <span class="p">}</span>
+<span class="n">ipc_config</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;backends&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;redis&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;url&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{tolteca_redis_url}</span><span class="s2">/2&quot;</span><span class="p">,</span>
+                <span class="p">},</span>
+            <span class="s1">&#39;cache&#39;</span><span class="p">:</span> <span class="p">{}</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+<span class="n">celery_config</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;CELERY_RESULT_BACKEND&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{tolteca_redis_url}</span><span class="s2">/1&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;CELERY_RESULT_EXPIRES&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>  <span class="c1"># second</span>
+        <span class="s2">&quot;CELERY_BROKER_URL&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{tolteca_redis_url}</span><span class="s2">/1&quot;</span><span class="p">,</span>
+        <span class="p">}</span>
+<span class="n">dasha_config</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;TITLE&quot;</span><span class="p">:</span> <span class="s2">&quot;TolTECA&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;dasha.web.templates.slapdash&quot;</span><span class="p">,</span>
+        <span class="p">}</span>
 
-    <span class="c1"># def get_bundled_specs(main_file):</span>
-    <span class="c1">#     parser = prance.ResolvingParser(</span>
-    <span class="c1">#              main_file.absolute().as_posix(),</span>
-    <span class="c1">#              lazy=True,</span>
-    <span class="c1">#              backend=&#39;openapi-spec-validator&#39;)</span>
-    <span class="c1">#     parser.parse()</span>
-    <span class="c1">#     return parser.specification</span>
 
-    <span class="c1"># app.add_api(get_bundled_specs(</span>
-    <span class="c1">#     Path(__file__).parent.joinpath(&quot;backend/api/main.yaml&quot;)))</span>
+<span class="c1"># tolteca payloads</span>
+<span class="kn">from</span> <span class="nn">.tasks</span> <span class="kn">import</span> <span class="n">toltecdb</span>  <span class="c1"># noqa: E402</span>
 
-    <span class="c1"># get flask server</span>
-    <span class="n">server</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">app</span>
-    <span class="n">server</span><span class="o">.</span><span class="n">connexion_app</span> <span class="o">=</span> <span class="n">app</span>
-    <span class="n">server</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">from_object</span><span class="p">(</span><span class="n">default_config</span><span class="p">)</span>
-    <span class="c1"># server.config.from_object(config)</span>
-    <span class="n">init_log</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="s1">&#39;DEBUG&#39;</span> <span class="k">if</span> <span class="n">server</span><span class="o">.</span><span class="n">debug</span> <span class="k">else</span> <span class="s1">&#39;INFO&#39;</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">server</span></div>
+
+<div class="viewcode-block" id="load_task_modules"><a class="viewcode-back" href="../../api/tolteca.web.load_task_modules.html#tolteca.web.load_task_modules">[docs]</a><span class="k">def</span> <span class="nf">load_task_modules</span><span class="p">():</span>
+    <span class="kn">from</span> <span class="nn">.tasks</span> <span class="kn">import</span> <span class="n">kidsview</span>  <span class="c1"># noqa: F401</span></div>
+
+
+<span class="n">celery_config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+        <span class="n">tasks</span><span class="o">=</span><span class="n">toltecdb</span><span class="o">.</span><span class="n">tasks</span><span class="p">,</span>
+        <span class="n">post_init_app</span><span class="o">=</span><span class="n">load_task_modules</span>
+        <span class="p">)</span>
+
+<span class="n">dasha_config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+        <span class="n">pages</span><span class="o">=</span><span class="p">[</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;dasha.web.templates.viewgrid&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;toltecdb&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;views&quot;</span><span class="p">:</span> <span class="n">toltecdb</span><span class="o">.</span><span class="n">views</span><span class="p">,</span>
+                    <span class="s1">&#39;title_text&#39;</span><span class="p">:</span> <span class="s2">&quot;Databases&quot;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-table&#39;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.kidsview&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;kidsview&quot;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_text&#39;</span><span class="p">:</span> <span class="s2">&quot;Kids View&quot;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-chart-line&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;update_interval&#39;</span><span class="p">:</span> <span class="mf">1000.</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.taskview&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;taskview&quot;</span><span class="p">,</span>
+                <span class="p">},</span>
+            <span class="p">],</span>
+        <span class="p">)</span>
+
+
+<span class="c1"># site runtime</span>
+<span class="n">_dasha_ext_module_parent</span> <span class="o">=</span> <span class="s1">&#39;dasha.web.extensions&#39;</span>
+<span class="n">extensions</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span>
+        <span class="s1">&#39;module&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{_dasha_ext_module_parent}</span><span class="s1">.db&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;config&#39;</span><span class="p">:</span> <span class="n">db_config</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">{</span>
+        <span class="s1">&#39;module&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{_dasha_ext_module_parent}</span><span class="s1">.cache&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;config&#39;</span><span class="p">:</span> <span class="n">cache_config</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">{</span>
+        <span class="s1">&#39;module&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{_dasha_ext_module_parent}</span><span class="s2">.ipc&quot;</span><span class="p">,</span>
+        <span class="s1">&#39;config&#39;</span><span class="p">:</span> <span class="n">ipc_config</span>
+        <span class="p">},</span>
+    <span class="p">{</span>
+        <span class="s1">&#39;module&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{_dasha_ext_module_parent}</span><span class="s2">.celery&quot;</span><span class="p">,</span>
+        <span class="s1">&#39;config&#39;</span><span class="p">:</span> <span class="n">celery_config</span>
+        <span class="p">},</span>
+    <span class="p">{</span>
+        <span class="s1">&#39;module&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{_dasha_ext_module_parent}</span><span class="s1">.dasha&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;config&#39;</span><span class="p">:</span> <span class="n">dasha_config</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">]</span>
+
+<span class="c1"># from .defaults import create_server  # noqa: F401</span>
 </pre></div>
 
           </div>
@@ -118,8 +199,8 @@
     <a href="#">Back to Top</a></p>
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.3.1. &nbsp;
-    Last built 28 Jan 2020. <br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
+    Last built 02 Mar 2020. <br/>
   </p>
 </footer>
   </body>

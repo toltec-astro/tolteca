@@ -1,0 +1,268 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>tolteca.cli &#8212; tolteca v0.1.dev62+g21e4fb5</title>
+    <link rel="stylesheet" href="../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    
+    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../index.html">tolteca v0.1.dev62+g21e4fb5</a>
+	 &#187;
+      </li>
+      <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tolteca.cli</h1><div class="highlight"><pre>
+<span></span><span class="ch">#! /usr/bin/env python</span>
+<span class="sd">&quot;&quot;&quot;The CLI entry point.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">click</span>
+<span class="kn">import</span> <span class="nn">signal</span>
+<span class="kn">import</span> <span class="nn">textwrap</span>
+<span class="kn">import</span> <span class="nn">traceback</span>
+
+<span class="kn">from</span> <span class="nn">..</span> <span class="kn">import</span> <span class="n">version</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_obj</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span><span class="p">,</span> <span class="n">logit</span><span class="p">,</span> <span class="n">init_log</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.cli</span> <span class="kn">import</span> <span class="n">click_helpers</span> <span class="k">as</span> <span class="n">ch</span>
+<span class="kn">from</span> <span class="nn">.core</span> <span class="kn">import</span> <span class="n">CliRuntime</span>
+
+<span class="n">PROGNAME</span> <span class="o">=</span> <span class="s1">&#39;TolTECA&#39;</span>
+<span class="n">DESCRIPTION</span> <span class="o">=</span> <span class="s1">&#39;A package for analyzing TolTEC Data.&#39;</span>
+<span class="n">SHOW_BANNER</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="n">CONTEXT_SETTINGS</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+        <span class="o">**</span><span class="n">ch</span><span class="o">.</span><span class="n">CONTEXT_SETTINGS</span><span class="p">,</span>
+        <span class="n">auto_envvar_prefix</span><span class="o">=</span><span class="n">PROGNAME</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="p">)</span>
+<span class="n">OPTION_SETTINGS</span> <span class="o">=</span> <span class="n">ch</span><span class="o">.</span><span class="n">OPTION_SETTINGS</span>
+
+
+<div class="viewcode-block" id="cli_header"><a class="viewcode-back" href="../../api/tolteca.cli.cli_header.html#tolteca.cli.cli_header">[docs]</a><span class="k">def</span> <span class="nf">cli_header</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{PROGNAME}</span><span class="s2"> v</span><span class="si">{version.version}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot; - </span><span class="si">{DESCRIPTION}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<span class="nd">@click</span><span class="o">.</span><span class="n">group</span><span class="p">(</span>
+        <span class="n">context_settings</span><span class="o">=</span><span class="n">CONTEXT_SETTINGS</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="n">cli_header</span><span class="p">(),</span>
+        <span class="n">invoke_without_command</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">chain</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span>
+        <span class="s1">&#39;--debug&#39;</span><span class="p">,</span>
+        <span class="n">is_flag</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Enable debug messages.&#39;</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">OPTION_SETTINGS</span><span class="p">)</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span>
+        <span class="s1">&#39;--logfile&#39;</span><span class="p">,</span>
+        <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;FILE&#39;</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="n">click</span><span class="o">.</span><span class="n">STRING</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Write logging messages to file.&#39;</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">OPTION_SETTINGS</span><span class="p">)</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">version_option</span><span class="p">(</span>
+        <span class="n">version</span><span class="o">.</span><span class="n">version</span><span class="p">,</span>
+        <span class="s1">&#39;-v&#39;</span><span class="p">,</span> <span class="s1">&#39;--version&#39;</span><span class="p">,</span>
+        <span class="n">message</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%(version)s</span><span class="s1">&#39;</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">OPTION_SETTINGS</span><span class="p">,</span>
+        <span class="p">)</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">pass_context</span>
+<span class="k">def</span> <span class="nf">cli</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">debug</span><span class="p">,</span> <span class="n">logfile</span><span class="p">):</span>
+    <span class="c1"># the below will check if the command is invoke from other command,</span>
+    <span class="c1"># if so we reuse the existing runtime object.</span>
+    <span class="k">if</span> <span class="n">ch</span><span class="o">.</span><span class="n">ctx_no_recreate_obj</span><span class="p">(</span><span class="n">ctx</span><span class="p">):</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">obj</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+        <span class="k">return</span>
+    <span class="c1"># here the command is invoked for the first time</span>
+    <span class="n">init_log</span><span class="p">(</span>
+            <span class="n">level</span><span class="o">=</span><span class="s1">&#39;INFO&#39;</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">debug</span> <span class="k">else</span> <span class="s1">&#39;DEBUG&#39;</span><span class="p">,</span>
+            <span class="n">file_</span><span class="o">=</span><span class="n">logfile</span>
+            <span class="p">)</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">invoked_subcommand</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">click</span><span class="o">.</span><span class="n">UsageError</span><span class="p">(</span>
+                <span class="s2">&quot;No command specified. Run -h/--help for usage.&quot;</span><span class="p">)</span>
+
+    <span class="n">rt</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">ensure_object</span><span class="p">(</span><span class="n">CliRuntime</span><span class="p">)</span>
+    <span class="n">rt</span><span class="o">.</span><span class="n">_ctx</span> <span class="o">=</span> <span class="n">ctx</span>
+    <span class="c1"># register the close method</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">call_on_close</span><span class="p">(</span><span class="n">rt</span><span class="o">.</span><span class="n">close</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;cli runtime: {pformat_obj(rt)}&quot;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="process_callbacks"><a class="viewcode-back" href="../../api/tolteca.cli.process_callbacks.html#tolteca.cli.process_callbacks">[docs]</a><span class="nd">@cli</span><span class="o">.</span><span class="n">resultcallback</span><span class="p">()</span>
+<span class="k">def</span> <span class="nf">process_callbacks</span><span class="p">(</span><span class="n">cbs</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+    <span class="n">cbs</span> <span class="o">=</span> <span class="p">[</span><span class="n">cb</span> <span class="k">for</span> <span class="n">cb</span> <span class="ow">in</span> <span class="n">cbs</span> <span class="k">if</span> <span class="n">cb</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">cbs</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;run registered callbacks: </span><span class="si">{cbs}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">cb</span> <span class="ow">in</span> <span class="n">cbs</span><span class="p">:</span>
+            <span class="n">cb</span><span class="p">()</span>
+    <span class="k">return</span> <span class="mi">0</span></div>
+
+
+<div class="viewcode-block" id="OnExitHandler"><a class="viewcode-back" href="../../api/tolteca.cli.OnExitHandler.html#tolteca.cli.OnExitHandler">[docs]</a><span class="k">class</span> <span class="nc">OnExitHandler</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+    <span class="n">ctx</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">code</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">exception_to_raise</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="c1"># avoid calling this multiple times</span>
+    <span class="n">_called_once</span> <span class="o">=</span> <span class="kc">False</span>
+
+<div class="viewcode-block" id="OnExitHandler.__call__"><a class="viewcode-back" href="../../api/tolteca.cli.OnExitHandler.html#tolteca.cli.OnExitHandler.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">frame</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_called_once</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_called_once</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">msg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">msg</span> <span class="o">=</span> <span class="n">msg</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">msg</span> <span class="o">=</span> <span class="n">signal</span><span class="o">.</span><span class="n">Signals</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span><span class="o">.</span><span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s1">&#39;exit </span><span class="si">{self.code}</span><span class="s1">: </span><span class="si">{self.msg}</span><span class="s1"> &#39;</span>
+                <span class="sa">f</span><span class="s1">&#39;frame=</span><span class="si">{frame}</span><span class="s1"> exc=</span><span class="si">{self.exception_to_raise}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ctx</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="o">.</span><span class="n">obj</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># this should in general not happen</span>
+            <span class="k">with</span> <span class="n">logit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span> <span class="s2">&quot;final cleanup&quot;</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="o">.</span><span class="n">obj</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">exception_to_raise</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="bp">self</span><span class="o">.</span><span class="n">exception_to_raise</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">tb</span> <span class="o">=</span> <span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">()</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">tb</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;NoneType:&quot;</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;traceback: </span><span class="si">{tb}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">SHOW_BANNER</span><span class="p">:</span>
+                <span class="n">banner</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="s2">&quot;&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;*************************&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;|                       |&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;|      Jobs Done!       |&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;|                       |&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;*+++++++++++++++++++++++*&quot;</span><span class="p">)</span>
+                <span class="n">indent</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">bw</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">banner</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+                <span class="n">w</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">click</span><span class="o">.</span><span class="n">get_terminal_size</span><span class="p">()</span>
+                <span class="n">indent</span> <span class="o">=</span> <span class="p">(</span><span class="n">w</span> <span class="o">-</span> <span class="n">bw</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+                <span class="k">if</span> <span class="n">indent</span> <span class="o">&gt;</span> <span class="n">bw</span><span class="p">:</span>
+                    <span class="n">indent</span> <span class="o">=</span> <span class="n">bw</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">textwrap</span><span class="o">.</span><span class="n">indent</span><span class="p">(</span>
+                            <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">banner</span><span class="p">),</span> <span class="s1">&#39; &#39;</span> <span class="o">*</span> <span class="n">indent</span><span class="p">))</span></div></div>
+
+
+<span class="c1"># ################################################</span>
+<span class="c1"># commands</span>
+<span class="kn">from</span> <span class="nn">.dot</span> <span class="kn">import</span> <span class="n">cmd_dot</span>  <span class="c1"># noqa: F401</span>
+<span class="kn">from</span> <span class="nn">.ipy</span> <span class="kn">import</span> <span class="n">cmd_ipy</span>  <span class="c1"># noqa: F401</span>
+<span class="kn">from</span> <span class="nn">.setup</span> <span class="kn">import</span> <span class="n">cmd_setup</span>  <span class="c1"># noqa: F401</span>
+<span class="c1"># ################################################</span>
+
+
+<div class="viewcode-block" id="main"><a class="viewcode-back" href="../../api/tolteca.cli.main.html#tolteca.cli.main">[docs]</a><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+
+    <span class="n">on_exit_handler</span> <span class="o">=</span> <span class="n">OnExitHandler</span><span class="p">()</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">ctx</span> <span class="o">=</span> <span class="n">cli</span><span class="o">.</span><span class="n">make_context</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+        <span class="n">on_exit_handler</span><span class="o">.</span><span class="n">ctx</span> <span class="o">=</span> <span class="n">ctx</span>
+        <span class="n">on_exit_handler</span><span class="o">.</span><span class="n">code</span> <span class="o">=</span> <span class="n">cli</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">click</span><span class="o">.</span><span class="n">exceptions</span><span class="o">.</span><span class="n">Exit</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">on_exit_handler</span><span class="o">.</span><span class="n">msg</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+        <span class="n">on_exit_handler</span><span class="o">.</span><span class="n">code</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">Exception</span><span class="p">,</span> <span class="ne">KeyboardInterrupt</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="c1"># logger = getNamedLogger()</span>
+        <span class="c1"># tb = traceback.format_exc()</span>
+        <span class="c1"># logger.debug(f&#39;{tb}&#39;)</span>
+        <span class="n">on_exit_handler</span><span class="o">.</span><span class="n">msg</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+        <span class="n">on_exit_handler</span><span class="o">.</span><span class="n">code</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">click</span><span class="o">.</span><span class="n">ClickException</span><span class="p">):</span>
+            <span class="n">e</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="ne">KeyboardInterrupt</span><span class="p">):</span>
+            <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">on_exit_handler</span><span class="o">.</span><span class="n">exception_to_raise</span> <span class="o">=</span> <span class="n">e</span>
+        <span class="c1"># raise e</span>
+    <span class="k">except</span> <span class="ne">BaseException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">on_exit_handler</span><span class="o">.</span><span class="n">msg</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+        <span class="k">raise</span> <span class="n">e</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">on_exit_handler</span><span class="p">()</span></div>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>  <span class="c1"># pragma: no cover</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2020, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
+    Last built 02 Mar 2020. <br/>
+  </p>
+</footer>
+  </body>
+</html>

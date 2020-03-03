@@ -1,7 +1,0 @@
-TargetSweep
-===========
-
-.. currentmodule:: tolteca.kidsutils.kidsdata
-
-.. autoclass:: TargetSweep
-   :show-inheritance:

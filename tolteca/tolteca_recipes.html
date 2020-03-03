@@ -4,16 +4,16 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta charset="utf-8" />
-    <title>TolTECA Recipes &#8212; tolteca v0.0.1</title>
+    <title>TolTECA Recipes &#8212; tolteca v0.1.dev62+g21e4fb5</title>
     <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
     
-    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
     <script type="text/javascript" src="../_static/sidebar.js"></script>
     <script type="text/javascript" src="../_static/copybutton.js"></script>
     <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
@@ -59,7 +59,7 @@
 	 |
       </li>
       <li>
-	<a href="../index.html">tolteca v0.0.1</a>
+	<a href="../index.html">tolteca v0.1.dev62+g21e4fb5</a>
 	 &#187;
       </li>
       <li><a href="index.html" accesskey="U">TolTECA Documentation</a> &#187;</li>
@@ -92,17 +92,72 @@ the impact of the half wave plate to the observed noise.</p>
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.main.html#tolteca.recipes.simu_hwp_noise.main" title="tolteca.recipes.simu_hwp_noise.main"><code class="xref py py-obj docutils literal notranslate"><span class="pre">main</span></code></a>()</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">fsolve</span></code>(func, x0[, args, fprime, …])</p></td>
+<td><p>Find the roots of a function.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">gaussian_filter1d</span></code>(input, sigma[, axis, …])</p></td>
+<td><p>One-dimensional Gaussian filter.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">init_log</span></code>([preset, level, file_, colored])</p></td>
+<td><p>Initialize logging with some sensible presets.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.main.html#tolteca.recipes.simu_hwp_noise.main" title="tolteca.recipes.simu_hwp_noise.main"><code class="xref py py-obj docutils literal notranslate"><span class="pre">main</span></code></a>(data_args[, save_data])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.make_tabular_legend.html#tolteca.recipes.simu_hwp_noise.make_tabular_legend" title="tolteca.recipes.simu_hwp_noise.make_tabular_legend"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_tabular_legend</span></code></a>(ax, handles, *cols[, …])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.make_data.html#tolteca.recipes.simu_hwp_noise.make_data" title="tolteca.recipes.simu_hwp_noise.make_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_data</span></code></a>(band, Qrs, readout_noises, var_temps)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.simulate_hwp.html#tolteca.recipes.simu_hwp_noise.simulate_hwp" title="tolteca.recipes.simu_hwp_noise.simulate_hwp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">simulate_hwp</span></code></a>(Qr, readout_noise, hwp_var_temp)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.make_plot.html#tolteca.recipes.simu_hwp_noise.make_plot" title="tolteca.recipes.simu_hwp_noise.make_plot"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_plot</span></code></a>(data)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.make_tabular_legend.html#tolteca.recipes.simu_hwp_noise.make_tabular_legend" title="tolteca.recipes.simu_hwp_noise.make_tabular_legend"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_tabular_legend</span></code></a>(ax, handles, \*cols[, …])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">quantity_support</span></code>([format])</p></td>
+<td><p>Enable support for plotting <a class="reference external" href="http://docs.astropy.org/en/stable/api/astropy.units.Quantity.html#astropy.units.Quantity" title="(in Astropy v4.0)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">astropy.units.Quantity</span></code></a> instances in matplotlib.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.save_or_show.html#tolteca.recipes.simu_hwp_noise.save_or_show" title="tolteca.recipes.simu_hwp_noise.save_or_show"><code class="xref py py-obj docutils literal notranslate"><span class="pre">save_or_show</span></code></a>(fig, filepath[, bbox_inches])</p></td>
+<td><p>Save figure or show  plot, depending on the last sys.argv</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.simulate_hwp.html#tolteca.recipes.simu_hwp_noise.simulate_hwp" title="tolteca.recipes.simu_hwp_noise.simulate_hwp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">simulate_hwp</span></code></a>(Qr, readout_noise, hwp_var_temp)</p></td>
 <td><p>Make simulated timestream and calculate some useful quantities of the HWP under some assumed parameters.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">timeit</span></code>(arg)</p></td>
+<td><p>Decorator that logs the execution time of the decorated item.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.worker.html#tolteca.recipes.simu_hwp_noise.worker" title="tolteca.recipes.simu_hwp_noise.worker"><code class="xref py py-obj docutils literal notranslate"><span class="pre">worker</span></code></a>(args)</p></td>
+<td><p></p></td>
 </tr>
 </tbody>
 </table>
+</div>
+<div class="section" id="classes">
+<h3>Classes<a class="headerlink" href="#classes" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.HwpConstraint.html#tolteca.recipes.simu_hwp_noise.HwpConstraint" title="tolteca.recipes.simu_hwp_noise.HwpConstraint"><code class="xref py py-obj docutils literal notranslate"><span class="pre">HwpConstraint</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.HwpTrend.html#tolteca.recipes.simu_hwp_noise.HwpTrend" title="tolteca.recipes.simu_hwp_noise.HwpTrend"><code class="xref py py-obj docutils literal notranslate"><span class="pre">HwpTrend</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">KidsSimulator</span></code>([fr, Qr, background, responsivity])</p></td>
+<td><p>Class that make simulated kids data.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Path</span></code></p></td>
+<td><p>PurePath subclass that can make system calls.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="class-inheritance-diagram">
+<h3>Class Inheritance Diagram<a class="headerlink" href="#class-inheritance-diagram" title="Permalink to this headline">¶</a></h3>
+<div class="graphviz"><object data="../_images/inheritance-b4d05e438a165e57eab44619d3f79355bb190ebf.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.recipes.simu_hwp_noise.HwpConstraint, tolteca.recipes.simu_hwp_noise.HwpTrend</p></object></div>
 </div>
 </div>
 </div>
@@ -118,6 +173,8 @@ the impact of the half wave plate to the observed noise.</p>
 <li><a class="reference internal" href="#module-tolteca.recipes">tolteca.recipes Package</a></li>
 <li><a class="reference internal" href="#module-tolteca.recipes.simu_hwp_noise">tolteca.recipes.simu_hwp_noise Module</a><ul>
 <li><a class="reference internal" href="#functions">Functions</a></li>
+<li><a class="reference internal" href="#classes">Classes</a></li>
+<li><a class="reference internal" href="#class-inheritance-diagram">Class Inheritance Diagram</a></li>
 </ul>
 </li>
 </ul>
@@ -136,8 +193,8 @@ the impact of the half wave plate to the observed noise.</p>
     <a href="#">Back to Top</a></p>
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.3.1. &nbsp;
-    Last built 28 Jan 2020. <br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
+    Last built 02 Mar 2020. <br/>
   </p>
 </footer>
   </body>

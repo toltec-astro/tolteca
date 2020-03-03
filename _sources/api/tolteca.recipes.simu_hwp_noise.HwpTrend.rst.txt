@@ -1,0 +1,7 @@
+HwpTrend
+========
+
+.. currentmodule:: tolteca.recipes.simu_hwp_noise
+
+.. autoclass:: HwpTrend
+   :show-inheritance:

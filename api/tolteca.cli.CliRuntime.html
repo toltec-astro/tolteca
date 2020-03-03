@@ -1,0 +1,199 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>CliRuntime &#8212; tolteca v0.1.dev62+g21e4fb5</title>
+    <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="OnExitHandler" href="tolteca.cli.OnExitHandler.html" />
+    <link rel="prev" title="process_callbacks" href="tolteca.cli.process_callbacks.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="tolteca.cli.OnExitHandler.html" title="OnExitHandler">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="tolteca.cli.process_callbacks.html" title="process_callbacks">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v0.1.dev62+g21e4fb5</a>
+	 &#187;
+      </li>
+      <li><a href="../tolteca/index.html" accesskey="U">TolTECA Documentation</a> &#187;</li>
+      
+      <li>CliRuntime</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="cliruntime">
+<h1>CliRuntime<a class="headerlink" href="#cliruntime" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="tolteca.cli.CliRuntime">
+<em class="property">class </em><code class="sig-prename descclassname">tolteca.cli.</code><code class="sig-name descname">CliRuntime</code><span class="sig-paren">(</span><em class="sig-param">site_config=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/cli/core.html#CliRuntime"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.cli.CliRuntime" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.8)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>This class manages all states for the CLI.</p>
+<p class="rubric">Attributes Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.cli.CliRuntime.config" title="tolteca.cli.CliRuntime.config"><code class="xref py py-obj docutils literal notranslate"><span class="pre">config</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.cli.CliRuntime.logger" title="tolteca.cli.CliRuntime.logger"><code class="xref py py-obj docutils literal notranslate"><span class="pre">logger</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.cli.CliRuntime.modules" title="tolteca.cli.CliRuntime.modules"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modules</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.cli.CliRuntime.close" title="tolteca.cli.CliRuntime.close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close</span></code></a>(self)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.cli.CliRuntime.load_module" title="tolteca.cli.CliRuntime.load_module"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_module</span></code></a>(self, name)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.cli.CliRuntime.load_modules" title="tolteca.cli.CliRuntime.load_modules"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_modules</span></code></a>(self, \*args[, with_default])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.cli.CliRuntime.reload_module" title="tolteca.cli.CliRuntime.reload_module"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reload_module</span></code></a>(self, name)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.cli.CliRuntime.reload_modules" title="tolteca.cli.CliRuntime.reload_modules"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reload_modules</span></code></a>(self)</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Attributes Documentation</p>
+<dl class="attribute">
+<dt id="tolteca.cli.CliRuntime.config">
+<code class="sig-name descname">config</code><em class="property"> = {'default_modules': ('io', 'db')}</em><a class="headerlink" href="#tolteca.cli.CliRuntime.config" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="tolteca.cli.CliRuntime.logger">
+<code class="sig-name descname">logger</code><em class="property"> = &lt;Logger CliRuntime (DEBUG)&gt;</em><a class="headerlink" href="#tolteca.cli.CliRuntime.logger" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="tolteca.cli.CliRuntime.modules">
+<code class="sig-name descname">modules</code><a class="headerlink" href="#tolteca.cli.CliRuntime.modules" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p class="rubric">Methods Documentation</p>
+<dl class="method">
+<dt id="tolteca.cli.CliRuntime.close">
+<code class="sig-name descname">close</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/cli/core.html#CliRuntime.close"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.cli.CliRuntime.close" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tolteca.cli.CliRuntime.load_module">
+<code class="sig-name descname">load_module</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">name</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/cli/core.html#CliRuntime.load_module"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.cli.CliRuntime.load_module" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tolteca.cli.CliRuntime.load_modules">
+<code class="sig-name descname">load_modules</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">*args</em>, <em class="sig-param">with_default=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/cli/core.html#CliRuntime.load_modules"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.cli.CliRuntime.load_modules" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tolteca.cli.CliRuntime.reload_module">
+<code class="sig-name descname">reload_module</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">name</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/cli/core.html#CliRuntime.reload_module"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.cli.CliRuntime.reload_module" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tolteca.cli.CliRuntime.reload_modules">
+<code class="sig-name descname">reload_modules</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/cli/core.html#CliRuntime.reload_modules"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.cli.CliRuntime.reload_modules" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">CliRuntime</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/api/tolteca.cli.CliRuntime.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2020, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
+    Last built 02 Mar 2020. <br/>
+  </p>
+</footer>
+  </body>
+</html>

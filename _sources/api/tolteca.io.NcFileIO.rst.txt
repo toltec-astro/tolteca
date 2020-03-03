@@ -10,36 +10,50 @@ NcFileIO
 
    .. autosummary::
 
-      ~NcFileIO.data
       ~NcFileIO.is_sweep
       ~NcFileIO.kind
       ~NcFileIO.kind_cls
       ~NcFileIO.logger
       ~NcFileIO.meta
+      ~NcFileIO.sample_axis
       ~NcFileIO.sweep_axis
-      ~NcFileIO.time_axis
       ~NcFileIO.tone_axis
 
    .. rubric:: Methods Summary
 
    .. autosummary::
 
+      ~NcFileIO.close
       ~NcFileIO.open
+      ~NcFileIO.read
+      ~NcFileIO.reset_selections
+      ~NcFileIO.select_sample
+      ~NcFileIO.select_sweep
+      ~NcFileIO.select_time
+      ~NcFileIO.select_tone
       ~NcFileIO.sync
+      ~NcFileIO.time_axis
 
    .. rubric:: Attributes Documentation
 
-   .. autoattribute:: data
    .. autoattribute:: is_sweep
    .. autoattribute:: kind
    .. autoattribute:: kind_cls
    .. autoattribute:: logger
    .. autoattribute:: meta
+   .. autoattribute:: sample_axis
    .. autoattribute:: sweep_axis
-   .. autoattribute:: time_axis
    .. autoattribute:: tone_axis
 
    .. rubric:: Methods Documentation
 
+   .. automethod:: close
    .. automethod:: open
+   .. automethod:: read
+   .. automethod:: reset_selections
+   .. automethod:: select_sample
+   .. automethod:: select_sweep
+   .. automethod:: select_time
+   .. automethod:: select_tone
    .. automethod:: sync
+   .. automethod:: time_axis

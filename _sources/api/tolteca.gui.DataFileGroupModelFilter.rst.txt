@@ -1,0 +1,17 @@
+DataFileGroupModelFilter
+========================
+
+.. currentmodule:: tolteca.gui
+
+.. autoclass:: DataFileGroupModelFilter
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~DataFileGroupModelFilter.filterAcceptsRow
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: filterAcceptsRow

@@ -4,22 +4,22 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta charset="utf-8" />
-    <title>NcFileIO &#8212; tolteca v0.0.1</title>
+    <title>NcFileIO &#8212; tolteca v0.1.dev62+g21e4fb5</title>
     <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
     
-    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
     <script type="text/javascript" src="../_static/sidebar.js"></script>
     <script type="text/javascript" src="../_static/copybutton.js"></script>
     <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="RawTimeStream" href="tolteca.kidsutils.kidsdata.RawTimeStream.html" />
+    <link rel="next" title="setup_workdir" href="tolteca.pipeline.setup_workdir.html" />
     <link rel="prev" title="open" href="tolteca.io.open.html" />
     <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
 
@@ -48,7 +48,7 @@
     <h3>Navigation</h3>
     <ul>
       <li class="right">
-	<a href="tolteca.kidsutils.kidsdata.RawTimeStream.html" title="RawTimeStream">
+	<a href="tolteca.pipeline.setup_workdir.html" title="setup_workdir">
 	  next &raquo;
 	</a>
       </li>
@@ -59,7 +59,7 @@
 	 |
       </li>
       <li>
-	<a href="../index.html">tolteca v0.0.1</a>
+	<a href="../index.html">tolteca v0.1.dev62+g21e4fb5</a>
 	 &#187;
       </li>
       <li><a href="../tolteca/index.html" accesskey="U">TolTECA Documentation</a> &#187;</li>
@@ -88,32 +88,29 @@
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.data" title="tolteca.io.NcFileIO.data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.is_sweep" title="tolteca.io.NcFileIO.is_sweep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_sweep</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.is_sweep" title="tolteca.io.NcFileIO.is_sweep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_sweep</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.kind" title="tolteca.io.NcFileIO.kind"><code class="xref py py-obj docutils literal notranslate"><span class="pre">kind</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.kind" title="tolteca.io.NcFileIO.kind"><code class="xref py py-obj docutils literal notranslate"><span class="pre">kind</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.kind_cls" title="tolteca.io.NcFileIO.kind_cls"><code class="xref py py-obj docutils literal notranslate"><span class="pre">kind_cls</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.kind_cls" title="tolteca.io.NcFileIO.kind_cls"><code class="xref py py-obj docutils literal notranslate"><span class="pre">kind_cls</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.logger" title="tolteca.io.NcFileIO.logger"><code class="xref py py-obj docutils literal notranslate"><span class="pre">logger</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.logger" title="tolteca.io.NcFileIO.logger"><code class="xref py py-obj docutils literal notranslate"><span class="pre">logger</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.meta" title="tolteca.io.NcFileIO.meta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">meta</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.meta" title="tolteca.io.NcFileIO.meta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">meta</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.sample_axis" title="tolteca.io.NcFileIO.sample_axis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_axis</span></code></a></p></td>
 <td><p></p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.sweep_axis" title="tolteca.io.NcFileIO.sweep_axis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sweep_axis</span></code></a></p></td>
-<td><p></p></td>
+<td><p>Returns the last sweep table.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.time_axis" title="tolteca.io.NcFileIO.time_axis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">time_axis</span></code></a></p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.tone_axis" title="tolteca.io.NcFileIO.tone_axis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tone_axis</span></code></a></p></td>
-<td><p></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.tone_axis" title="tolteca.io.NcFileIO.tone_axis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tone_axis</span></code></a></p></td>
+<td><p>Returns the last tone table.</p></td>
 </tr>
 </tbody>
 </table>
@@ -124,20 +121,39 @@
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.open" title="tolteca.io.NcFileIO.open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">open</span></code></a>()</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.close" title="tolteca.io.NcFileIO.close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close</span></code></a>(self)</p></td>
+<td><p>Immediately unwind the context stack.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.open" title="tolteca.io.NcFileIO.open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">open</span></code></a>(self)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.sync" title="tolteca.io.NcFileIO.sync"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sync</span></code></a>()</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.read" title="tolteca.io.NcFileIO.read"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read</span></code></a>(self)</p></td>
+<td><p>Return KIDs data instance from reading the file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.reset_selections" title="tolteca.io.NcFileIO.reset_selections"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_selections</span></code></a>(self)</p></td>
+<td><p>Reset the selection registry for all axis.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.select_sample" title="tolteca.io.NcFileIO.select_sample"><code class="xref py py-obj docutils literal notranslate"><span class="pre">select_sample</span></code></a>(self, \*args[, rfunc])</p></td>
+<td><p>Register callback for selecting samples.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.select_sweep" title="tolteca.io.NcFileIO.select_sweep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">select_sweep</span></code></a>(self, \*args[, index])</p></td>
+<td><p>Register callback for selecting sweeps.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.select_time" title="tolteca.io.NcFileIO.select_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">select_time</span></code></a>(self, \*args)</p></td>
+<td><p>Register callback for selecting using time range.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.select_tone" title="tolteca.io.NcFileIO.select_tone"><code class="xref py py-obj docutils literal notranslate"><span class="pre">select_tone</span></code></a>(self, \*args)</p></td>
+<td><p>Register tone selection callback.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.sync" title="tolteca.io.NcFileIO.sync"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sync</span></code></a>(self)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.io.NcFileIO.time_axis" title="tolteca.io.NcFileIO.time_axis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">time_axis</span></code></a>(self)</p></td>
 <td><p></p></td>
 </tr>
 </tbody>
 </table>
 <p class="rubric">Attributes Documentation</p>
-<dl class="attribute">
-<dt id="tolteca.io.NcFileIO.data">
-<code class="sig-name descname">data</code><a class="headerlink" href="#tolteca.io.NcFileIO.data" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 <dl class="attribute">
 <dt id="tolteca.io.NcFileIO.is_sweep">
 <code class="sig-name descname">is_sweep</code><a class="headerlink" href="#tolteca.io.NcFileIO.is_sweep" title="Permalink to this definition">¶</a></dt>
@@ -155,7 +171,7 @@
 
 <dl class="attribute">
 <dt id="tolteca.io.NcFileIO.logger">
-<code class="sig-name descname">logger</code><em class="property"> = &lt;Logger NcFileIO (WARNING)&gt;</em><a class="headerlink" href="#tolteca.io.NcFileIO.logger" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">logger</code><em class="property"> = &lt;Logger NcFileIO (DEBUG)&gt;</em><a class="headerlink" href="#tolteca.io.NcFileIO.logger" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
@@ -164,29 +180,79 @@
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="tolteca.io.NcFileIO.sweep_axis">
-<code class="sig-name descname">sweep_axis</code><a class="headerlink" href="#tolteca.io.NcFileIO.sweep_axis" title="Permalink to this definition">¶</a></dt>
+<dt id="tolteca.io.NcFileIO.sample_axis">
+<code class="sig-name descname">sample_axis</code><a class="headerlink" href="#tolteca.io.NcFileIO.sample_axis" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="tolteca.io.NcFileIO.time_axis">
-<code class="sig-name descname">time_axis</code><a class="headerlink" href="#tolteca.io.NcFileIO.time_axis" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dt id="tolteca.io.NcFileIO.sweep_axis">
+<code class="sig-name descname">sweep_axis</code><a class="headerlink" href="#tolteca.io.NcFileIO.sweep_axis" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the last sweep table.</p>
+</dd></dl>
 
 <dl class="attribute">
 <dt id="tolteca.io.NcFileIO.tone_axis">
 <code class="sig-name descname">tone_axis</code><a class="headerlink" href="#tolteca.io.NcFileIO.tone_axis" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Returns the last tone table.</p>
+</dd></dl>
 
 <p class="rubric">Methods Documentation</p>
 <dl class="method">
+<dt id="tolteca.io.NcFileIO.close">
+<code class="sig-name descname">close</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.close"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.close" title="Permalink to this definition">¶</a></dt>
+<dd><p>Immediately unwind the context stack.</p>
+</dd></dl>
+
+<dl class="method">
 <dt id="tolteca.io.NcFileIO.open">
-<code class="sig-name descname">open</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.open"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.open" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">open</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.open"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.open" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
+<dt id="tolteca.io.NcFileIO.read">
+<code class="sig-name descname">read</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.read"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.read" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return KIDs data instance from reading the file.</p>
+<p>The selection callbacks are evaluated here.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="tolteca.io.NcFileIO.reset_selections">
+<code class="sig-name descname">reset_selections</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.reset_selections"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.reset_selections" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reset the selection registry for all axis.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="tolteca.io.NcFileIO.select_sample">
+<code class="sig-name descname">select_sample</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">*args</em>, <em class="sig-param">rfunc=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.select_sample"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.select_sample" title="Permalink to this definition">¶</a></dt>
+<dd><p>Register callback for selecting samples.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="tolteca.io.NcFileIO.select_sweep">
+<code class="sig-name descname">select_sweep</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">*args</em>, <em class="sig-param">index=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.select_sweep"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.select_sweep" title="Permalink to this definition">¶</a></dt>
+<dd><p>Register callback for selecting sweeps.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="tolteca.io.NcFileIO.select_time">
+<code class="sig-name descname">select_time</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">*args</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.select_time"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.select_time" title="Permalink to this definition">¶</a></dt>
+<dd><p>Register callback for selecting using time range.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="tolteca.io.NcFileIO.select_tone">
+<code class="sig-name descname">select_tone</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">*args</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.select_tone"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.select_tone" title="Permalink to this definition">¶</a></dt>
+<dd><p>Register tone selection callback.</p>
+</dd></dl>
+
+<dl class="method">
 <dt id="tolteca.io.NcFileIO.sync">
-<code class="sig-name descname">sync</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.sync"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.sync" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">sync</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.sync"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.sync" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tolteca.io.NcFileIO.time_axis">
+<code class="sig-name descname">time_axis</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.time_axis"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.time_axis" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -215,8 +281,8 @@
     <a href="#">Back to Top</a></p>
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.3.1. &nbsp;
-    Last built 28 Jan 2020. <br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
+    Last built 02 Mar 2020. <br/>
   </p>
 </footer>
   </body>

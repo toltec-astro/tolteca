@@ -1,6 +1,0 @@
-create_server
-=============
-
-.. currentmodule:: tolteca.web
-
-.. autofunction:: create_server

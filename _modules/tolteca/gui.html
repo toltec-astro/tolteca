@@ -1,0 +1,584 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>tolteca.gui &#8212; tolteca v0.1.dev62+g21e4fb5</title>
+    <link rel="stylesheet" href="../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    
+    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../index.html">tolteca v0.1.dev62+g21e4fb5</a>
+	 &#187;
+      </li>
+      <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tolteca.gui</h1><div class="highlight"><pre>
+<span></span><span class="ch">#! /usr/bin/env python</span>
+<span class="sd">&quot;&quot;&quot;The GUI  entry point.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">import</span> <span class="nn">psutil</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_dict</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.qt</span> <span class="kn">import</span> <span class="n">qt5app</span><span class="p">,</span> <span class="n">QThreadTarget</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.qt.colors</span> <span class="kn">import</span> <span class="n">Palette</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span>
+<span class="kn">import</span> <span class="nn">argparse</span>
+<span class="kn">from</span> <span class="nn">..version</span> <span class="kn">import</span> <span class="n">version</span>
+
+<span class="kn">from</span> <span class="nn">..db</span> <span class="kn">import</span> <span class="n">get_databases</span>
+<span class="kn">from</span> <span class="nn">..fs.toltec</span> <span class="kn">import</span> <span class="n">ToltecDataFileStore</span>
+
+<span class="kn">from</span> <span class="nn">PyQt5</span> <span class="kn">import</span> <span class="n">uic</span><span class="p">,</span> <span class="n">QtWidgets</span><span class="p">,</span> <span class="n">QtCore</span><span class="p">,</span> <span class="n">QtGui</span>
+<span class="kn">from</span> <span class="nn">PyQt5.QtCore</span> <span class="kn">import</span> <span class="n">Qt</span>
+
+<span class="n">UI_FILE_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;ui&quot;</span><span class="p">)</span>
+
+<span class="n">Ui_MainWindow</span><span class="p">,</span> <span class="n">Ui_MainWindowBase</span> <span class="o">=</span> <span class="n">uic</span><span class="o">.</span><span class="n">loadUiType</span><span class="p">(</span>
+        <span class="n">UI_FILE_DIR</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;tolteca.ui&quot;</span><span class="p">))</span>
+<span class="n">Ui_DBStatus</span><span class="p">,</span> <span class="n">Ui_DBStatusBase</span> <span class="o">=</span> <span class="n">uic</span><span class="o">.</span><span class="n">loadUiType</span><span class="p">(</span>
+        <span class="n">UI_FILE_DIR</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;dbstatus.ui&quot;</span><span class="p">))</span>
+<span class="n">Ui_FileView</span><span class="p">,</span> <span class="n">Ui_FileViewBase</span> <span class="o">=</span> <span class="n">uic</span><span class="o">.</span><span class="n">loadUiType</span><span class="p">(</span>
+        <span class="n">UI_FILE_DIR</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;fileview.ui&quot;</span><span class="p">))</span>
+
+<span class="n">palette</span> <span class="o">=</span> <span class="n">Palette</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="DBStatusPanel"><a class="viewcode-back" href="../../api/tolteca.gui.DBStatusPanel.html#tolteca.gui.DBStatusPanel">[docs]</a><span class="k">class</span> <span class="nc">DBStatusPanel</span><span class="p">(</span><span class="n">Ui_DBStatusBase</span><span class="p">):</span>
+
+    <span class="n">connectionStatusChanged</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="nb">bool</span><span class="p">)</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">database</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">parent</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ui</span> <span class="o">=</span> <span class="n">Ui_DBStatus</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">setupUi</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_database</span> <span class="o">=</span> <span class="n">database</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">connected</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">is_alive</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_database</span><span class="o">.</span><span class="n">is_alive</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span> <span class="o">!=</span> <span class="n">is_alive</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span> <span class="o">=</span> <span class="n">is_alive</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connectionStatusChanged</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_connected</span><span class="p">)</span>
+        <span class="c1"># self.logger.debug(</span>
+            <span class="c1"># f&quot;database connection: {&#39;OK&#39; if self._connected else &#39;ERROR&#39;}&quot;)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">led_status</span><span class="o">.</span><span class="n">set_status</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_connected</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span></div>
+
+
+<div class="viewcode-block" id="AnimatedItemDelegate"><a class="viewcode-back" href="../../api/tolteca.gui.AnimatedItemDelegate.html#tolteca.gui.AnimatedItemDelegate">[docs]</a><span class="k">class</span> <span class="nc">AnimatedItemDelegate</span><span class="p">(</span><span class="n">QtWidgets</span><span class="o">.</span><span class="n">QStyledItemDelegate</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">role</span><span class="o">=</span><span class="n">Qt</span><span class="o">.</span><span class="n">UserRole</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">parent</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_role</span> <span class="o">=</span> <span class="n">role</span>
+
+<div class="viewcode-block" id="AnimatedItemDelegate.paint"><a class="viewcode-back" href="../../api/tolteca.gui.AnimatedItemDelegate.html#tolteca.gui.AnimatedItemDelegate.paint">[docs]</a>    <span class="k">def</span> <span class="nf">paint</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">painter</span><span class="p">,</span> <span class="n">option</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+
+        <span class="n">model</span> <span class="o">=</span> <span class="n">index</span><span class="o">.</span><span class="n">model</span><span class="p">()</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">data</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">role</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_role</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">args</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="p">(</span><span class="n">t0</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">c0</span><span class="p">,</span> <span class="n">c1</span><span class="p">)</span> <span class="o">=</span> <span class="n">args</span>
+            <span class="n">frac</span> <span class="o">=</span> <span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span> <span class="o">-</span> <span class="n">t0</span><span class="p">)</span><span class="o">.</span><span class="n">seconds</span> <span class="o">/</span> <span class="n">dt</span>
+            <span class="n">frac</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">frac</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">frac</span>
+            <span class="n">frac</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">frac</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">frac</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="n">palette</span><span class="o">.</span><span class="n">blend</span><span class="p">(</span><span class="n">c0</span><span class="p">,</span> <span class="n">c1</span><span class="p">,</span> <span class="n">frac</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;irgb&#39;</span><span class="p">)</span>
+            <span class="c1"># print(f&quot;paint: {t0} {frac} {c}&quot;)</span>
+            <span class="n">painter</span><span class="o">.</span><span class="n">fillRect</span><span class="p">(</span><span class="n">option</span><span class="o">.</span><span class="n">rect</span><span class="p">,</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QColor</span><span class="p">(</span><span class="o">*</span><span class="n">c</span><span class="p">))</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">paint</span><span class="p">(</span><span class="n">painter</span><span class="p">,</span> <span class="n">option</span><span class="p">,</span> <span class="n">index</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="DataFileInfoModel"><a class="viewcode-back" href="../../api/tolteca.gui.DataFileInfoModel.html#tolteca.gui.DataFileInfoModel">[docs]</a><span class="k">class</span> <span class="nc">DataFileInfoModel</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QAbstractTableModel</span><span class="p">):</span>
+
+    <span class="n">item_update_role</span> <span class="o">=</span> <span class="n">Qt</span><span class="o">.</span><span class="n">UserRole</span>
+    <span class="n">item_update_key</span> <span class="o">=</span> <span class="s1">&#39;_time_last_updated&#39;</span>
+    <span class="n">item_update_time</span> <span class="o">=</span> <span class="mf">1.</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_info_keys</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_info</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+
+        <span class="k">def</span> <span class="nf">update_row</span><span class="p">(</span><span class="n">tl</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">br</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+            <span class="n">i0</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">tl</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">tl</span><span class="o">.</span><span class="n">row</span><span class="p">()</span>
+            <span class="n">i1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rowCount</span><span class="p">()</span> <span class="k">if</span> <span class="n">br</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">br</span><span class="o">.</span><span class="n">row</span><span class="p">()</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;model row </span><span class="si">{i0}</span><span class="s2"> </span><span class="si">{i1}</span><span class="s2"> changed&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">update_row</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">modelReset</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">update_row</span><span class="p">)</span>
+
+<div class="viewcode-block" id="DataFileInfoModel.set"><a class="viewcode-back" href="../../api/tolteca.gui.DataFileInfoModel.html#tolteca.gui.DataFileInfoModel.set">[docs]</a>    <span class="k">def</span> <span class="nf">set</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">runtime_info</span><span class="p">,</span> <span class="n">changed_items</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">changed_items</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">runtime_info</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">runtime_info</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_info</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">changed_items</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_info</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">runtime_info</span><span class="p">[</span><span class="n">k</span><span class="p">])</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_info</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">item_update_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">dataChanged</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">columnCount</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="DataFileInfoModel.reset"><a class="viewcode-back" href="../../api/tolteca.gui.DataFileInfoModel.html#tolteca.gui.DataFileInfoModel.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">runtime_info</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">beginResetModel</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_info</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">runtime_info</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_info</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_info</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">item_update_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">endResetModel</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="DataFileInfoModel.rowCount"><a class="viewcode-back" href="../../api/tolteca.gui.DataFileInfoModel.html#tolteca.gui.DataFileInfoModel.rowCount">[docs]</a>    <span class="k">def</span> <span class="nf">rowCount</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QModelIndex</span><span class="p">()):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_info</span><span class="p">)</span></div>
+
+    <span class="c1"># (header, {role: callback})</span>
+    <span class="n">_dispatch_columns</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="mi">0</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;Link&quot;</span><span class="p">,</span> <span class="p">{</span>
+                <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">k</span><span class="p">,</span>
+                <span class="p">}),</span>
+            <span class="mi">1</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;Obs #&quot;</span><span class="p">,</span> <span class="p">{</span>
+                <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">v</span><span class="p">[</span><span class="s1">&#39;obsid&#39;</span><span class="p">]</span>
+                <span class="p">}),</span>
+            <span class="mi">2</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;Kind&quot;</span><span class="p">,</span> <span class="p">{</span>
+                <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">v</span><span class="p">[</span><span class="s1">&#39;kindstr&#39;</span><span class="p">]</span>
+                <span class="p">}),</span>
+            <span class="mi">3</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;File&quot;</span><span class="p">,</span> <span class="p">{</span>
+                <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="s1">&#39;source&#39;</span><span class="p">])</span>
+                <span class="p">}),</span>
+            <span class="p">}</span>
+    <span class="n">_dispatch_row</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="c1"># QtCore.Qt.BackgroundRole:</span>
+            <span class="c1"># lambda k, v: QtGui.QBrush(Qt.yellow)</span>
+            <span class="n">item_update_role</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="p">(</span>
+                <span class="n">v</span><span class="p">[</span><span class="n">DataFileInfoModel</span><span class="o">.</span><span class="n">item_update_key</span><span class="p">],</span>
+                <span class="n">DataFileInfoModel</span><span class="o">.</span><span class="n">item_update_time</span><span class="p">,</span>
+                <span class="s2">&quot;yellow&quot;</span><span class="p">,</span> <span class="s2">&quot;white&quot;</span><span class="p">)</span>
+            <span class="p">}</span>
+
+<div class="viewcode-block" id="DataFileInfoModel.columnCount"><a class="viewcode-back" href="../../api/tolteca.gui.DataFileInfoModel.html#tolteca.gui.DataFileInfoModel.columnCount">[docs]</a>    <span class="k">def</span> <span class="nf">columnCount</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QModelIndex</span><span class="p">()):</span>
+        <span class="k">return</span> <span class="nb">max</span><span class="p">(</span>
+                <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dispatch_columns</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">+</span> <span class="mi">1</span></div>
+
+<div class="viewcode-block" id="DataFileInfoModel.headerData"><a class="viewcode-back" href="../../api/tolteca.gui.DataFileInfoModel.html#tolteca.gui.DataFileInfoModel.headerData">[docs]</a>    <span class="k">def</span> <span class="nf">headerData</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">col</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="n">role</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">orientation</span> <span class="o">==</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Horizontal</span> <span class="ow">and</span> \
+                <span class="n">role</span> <span class="o">==</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dispatch_columns</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dispatch_columns</span><span class="p">[</span><span class="n">col</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="DataFileInfoModel.data"><a class="viewcode-back" href="../../api/tolteca.gui.DataFileInfoModel.html#tolteca.gui.DataFileInfoModel.data">[docs]</a>    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">role</span><span class="o">=</span><span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">index</span><span class="o">.</span><span class="n">isValid</span><span class="p">():</span>
+            <span class="n">i</span> <span class="o">=</span> <span class="n">index</span><span class="o">.</span><span class="n">row</span><span class="p">()</span>
+            <span class="n">j</span> <span class="o">=</span> <span class="n">index</span><span class="o">.</span><span class="n">column</span><span class="p">()</span>
+            <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_info</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">role</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dispatch_row</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dispatch_row</span><span class="p">[</span><span class="n">role</span><span class="p">](</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">j</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dispatch_columns</span><span class="p">:</span>
+                <span class="n">dispatch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dispatch_columns</span><span class="p">[</span><span class="n">j</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">dispatch</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">dispatch</span><span class="p">[</span><span class="n">role</span><span class="p">](</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="DataFileGroupModelFilter"><a class="viewcode-back" href="../../api/tolteca.gui.DataFileGroupModelFilter.html#tolteca.gui.DataFileGroupModelFilter">[docs]</a><span class="k">class</span> <span class="nc">DataFileGroupModelFilter</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QSortFilterProxyModel</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key_column</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_key_column</span> <span class="o">=</span> <span class="n">key_column</span>
+
+<div class="viewcode-block" id="DataFileGroupModelFilter.filterAcceptsRow"><a class="viewcode-back" href="../../api/tolteca.gui.DataFileGroupModelFilter.html#tolteca.gui.DataFileGroupModelFilter.filterAcceptsRow">[docs]</a>    <span class="k">def</span> <span class="nf">filterAcceptsRow</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source_row</span><span class="p">,</span> <span class="n">source_parent</span><span class="p">):</span>
+
+        <span class="n">source</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sourceModel</span><span class="p">()</span>
+        <span class="n">source_index</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">index</span><span class="p">(</span>
+                <span class="n">source_row</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_key_column</span><span class="p">,</span> <span class="n">source_parent</span><span class="p">)</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">filePath</span><span class="p">(</span><span class="n">source_index</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
+            <span class="c1"># has_data = False</span>
+            <span class="c1"># for i in range(source.rowCount(source_index)):</span>
+            <span class="c1">#     print(i)</span>
+            <span class="c1">#     idx = source.index(i, self._key_column, source_index)</span>
+            <span class="c1">#     if source.data(idx) is not None:</span>
+            <span class="c1">#         has_data = True</span>
+            <span class="c1">#         break</span>
+            <span class="c1"># return has_data</span>
+            <span class="c1"># return super().filterAcceptsRow(source_row, source_parent)</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">source</span><span class="o">.</span><span class="n">data</span><span class="p">(</span><span class="n">source_index</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span></div></div>
+
+
+<div class="viewcode-block" id="DataFileGroupModel"><a class="viewcode-back" href="../../api/tolteca.gui.DataFileGroupModel.html#tolteca.gui.DataFileGroupModel">[docs]</a><span class="k">class</span> <span class="nc">DataFileGroupModel</span><span class="p">(</span><span class="n">QtWidgets</span><span class="o">.</span><span class="n">QFileSystemModel</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">spec</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_spec</span> <span class="o">=</span> <span class="n">spec</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sortfilter_model</span> <span class="o">=</span> <span class="n">DataFileGroupModelFilter</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Interface</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sortfilter_model</span><span class="o">.</span><span class="n">setSourceModel</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="n">_dispatch_columns</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="c1"># 0: (&quot;Dir&quot;, {</span>
+            <span class="c1">#     Qt.DisplayRole: lambda v: v</span>
+            <span class="c1">#     }),</span>
+            <span class="mi">0</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;Obs #&quot;</span><span class="p">,</span> <span class="p">{</span>
+                <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;obsid&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="p">}),</span>
+            <span class="mi">1</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;Interface&quot;</span><span class="p">,</span> <span class="p">{</span>
+                <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;interface&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="p">}),</span>
+            <span class="mi">2</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;Kind&quot;</span><span class="p">,</span> <span class="p">{</span>
+                <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;kindstr&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="p">}),</span>
+            <span class="mi">3</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;File&quot;</span><span class="p">,</span> <span class="p">{</span>
+                <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="s1">&#39;source&#39;</span><span class="p">])</span>
+                <span class="p">}),</span>
+            <span class="p">}</span>
+
+<div class="viewcode-block" id="DataFileGroupModel.columnCount"><a class="viewcode-back" href="../../api/tolteca.gui.DataFileGroupModel.html#tolteca.gui.DataFileGroupModel.columnCount">[docs]</a>    <span class="k">def</span> <span class="nf">columnCount</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QModelIndex</span><span class="p">()):</span>
+        <span class="k">return</span> <span class="nb">max</span><span class="p">(</span>
+                <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dispatch_columns</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">+</span> <span class="mi">1</span></div>
+
+<div class="viewcode-block" id="DataFileGroupModel.headerData"><a class="viewcode-back" href="../../api/tolteca.gui.DataFileGroupModel.html#tolteca.gui.DataFileGroupModel.headerData">[docs]</a>    <span class="k">def</span> <span class="nf">headerData</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">col</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="n">role</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">orientation</span> <span class="o">==</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Horizontal</span> <span class="ow">and</span> \
+                <span class="n">role</span> <span class="o">==</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dispatch_columns</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dispatch_columns</span><span class="p">[</span><span class="n">col</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="DataFileGroupModel.data"><a class="viewcode-back" href="../../api/tolteca.gui.DataFileGroupModel.html#tolteca.gui.DataFileGroupModel.data">[docs]</a>    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">role</span><span class="o">=</span><span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">):</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filePath</span><span class="p">(</span><span class="n">index</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">index</span><span class="o">.</span><span class="n">column</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">data</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">role</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_info</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">index</span><span class="o">.</span><span class="n">isValid</span><span class="p">():</span>
+            <span class="n">j</span> <span class="o">=</span> <span class="n">index</span><span class="o">.</span><span class="n">column</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">j</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dispatch_columns</span><span class="p">:</span>
+                <span class="n">dispatch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dispatch_columns</span><span class="p">[</span><span class="n">j</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">dispatch</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">dispatch</span><span class="p">[</span><span class="n">role</span><span class="p">](</span><span class="n">info</span><span class="p">)</span></div>
+        <span class="c1"># return super().data(index, role)</span>
+
+    <span class="k">def</span> <span class="nf">_get_info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_spec</span><span class="o">.</span><span class="n">info_from_filename</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="s1">&#39;source&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">info</span><span class="p">:</span>
+            <span class="n">info</span><span class="p">[</span><span class="s1">&#39;source&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">path</span>
+        <span class="k">return</span> <span class="n">info</span>
+
+<div class="viewcode-block" id="DataFileGroupModel.sortfilter_model_index"><a class="viewcode-back" href="../../api/tolteca.gui.DataFileGroupModel.html#tolteca.gui.DataFileGroupModel.sortfilter_model_index">[docs]</a>    <span class="k">def</span> <span class="nf">sortfilter_model_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sortfilter_model</span><span class="o">.</span><span class="n">mapFromSource</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">p</span><span class="p">))</span></div></div>
+
+
+<div class="viewcode-block" id="DataFilesView"><a class="viewcode-back" href="../../api/tolteca.gui.DataFilesView.html#tolteca.gui.DataFilesView">[docs]</a><span class="k">class</span> <span class="nc">DataFilesView</span><span class="p">(</span><span class="n">Ui_FileViewBase</span><span class="p">):</span>
+
+    <span class="n">rootpathChanged</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
+    <span class="n">runtimeInfoChanged</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="nb">dict</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">datafiles</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">parent</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ui</span> <span class="o">=</span> <span class="n">Ui_FileView</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">setupUi</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_datafiles</span> <span class="o">=</span> <span class="n">datafiles</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">datafilegroup_model</span> <span class="o">=</span> <span class="n">DataFileGroupModel</span><span class="p">(</span>
+                <span class="n">spec</span><span class="o">=</span><span class="n">datafiles</span><span class="o">.</span><span class="n">spec</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">tv_files</span><span class="o">.</span><span class="n">setModel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">datafilegroup_model</span><span class="o">.</span><span class="n">sortfilter_model</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">le_rootpath</span><span class="o">.</span><span class="n">textChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_validate_rootpath</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">update_fileview</span><span class="p">():</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rootpath</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">datafilegroup_model</span><span class="o">.</span><span class="n">setRootPath</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">tv_files</span><span class="o">.</span><span class="n">setRootIndex</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">datafilegroup_model</span><span class="o">.</span><span class="n">sortfilter_model_index</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">le_rootpath</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rootpathChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">update_fileview</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rootpathChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">runtime_info</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">runtime_info_model</span> <span class="o">=</span> <span class="n">DataFileInfoModel</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">tv_runtime_info</span><span class="o">.</span><span class="n">setSelectionBehavior</span><span class="p">(</span>
+                <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QTableView</span><span class="o">.</span><span class="n">SelectRows</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">tv_runtime_info</span><span class="o">.</span><span class="n">setModel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">runtime_info_model</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">tv_runtime_info</span><span class="o">.</span><span class="n">setItemDelegate</span><span class="p">(</span><span class="n">AnimatedItemDelegate</span><span class="p">(</span>
+            <span class="n">role</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">runtime_info_model</span><span class="o">.</span><span class="n">item_update_role</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">tv_runtime_info</span><span class="o">.</span><span class="n">horizontalHeader</span><span class="p">()</span><span class="o">.</span><span class="n">setSectionResizeMode</span><span class="p">(</span>
+                <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QHeaderView</span><span class="o">.</span><span class="n">ResizeToContents</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">runtimeInfoChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">runtime_info_model</span><span class="o">.</span><span class="n">set</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">runtime_update_repaint_timer</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QTimer</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">runtime_update_repaint_timer</span><span class="o">.</span><span class="n">setInterval</span><span class="p">(</span><span class="mf">100.</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">runtime_update_repaint_timer</span><span class="o">.</span><span class="n">timeout</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">tv_runtime_info</span><span class="o">.</span><span class="n">viewport</span><span class="p">()</span><span class="o">.</span><span class="n">repaint</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">update_repaint</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">runtime_update_repaint_timer</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+            <span class="k">def</span> <span class="nf">on_stop</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">runtime_update_repaint_timer</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">tv_runtime_info</span><span class="o">.</span><span class="n">viewport</span><span class="p">()</span><span class="o">.</span><span class="n">repaint</span><span class="p">()</span>
+                <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QApplication</span><span class="o">.</span><span class="n">processEvents</span><span class="p">()</span>
+            <span class="n">QtCore</span><span class="o">.</span><span class="n">QTimer</span><span class="o">.</span><span class="n">singleShot</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">runtime_info_model</span><span class="o">.</span><span class="n">item_update_time</span> <span class="o">*</span> <span class="mf">1.5e3</span><span class="p">,</span>
+                    <span class="n">on_stop</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">runtimeInfoChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">update_repaint</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">rootpathChanged</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rootpath</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">rootpath</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_datafiles</span><span class="o">.</span><span class="n">rootpath</span>
+
+    <span class="nd">@rootpath</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">rootpath</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+        <span class="n">old</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_datafiles</span><span class="o">.</span><span class="n">rootpath</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_datafiles</span><span class="o">.</span><span class="n">rootpath</span> <span class="o">=</span> <span class="n">path</span>
+        <span class="n">new</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_datafiles</span><span class="o">.</span><span class="n">rootpath</span>
+        <span class="k">if</span> <span class="n">old</span> <span class="o">!=</span> <span class="n">new</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;change root path: </span><span class="si">{old}</span><span class="s2"> -&gt; </span><span class="si">{new}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rootpathChanged</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">new</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_validate_rootpath</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rootpath</span> <span class="o">=</span> <span class="n">p</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="n">palette</span><span class="o">.</span><span class="n">hex</span><span class="p">(</span><span class="s1">&#39;black&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="n">palette</span><span class="o">.</span><span class="n">hex</span><span class="p">(</span><span class="s1">&#39;red&#39;</span><span class="p">)</span>
+        <span class="n">sender</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sender</span><span class="p">()</span>
+        <span class="n">sender</span><span class="o">.</span><span class="n">setStyleSheet</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;color: </span><span class="si">{color}</span><span class="s1">;&#39;</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_runtime_info_changed</span><span class="p">(</span><span class="n">i1</span><span class="p">,</span> <span class="n">i2</span><span class="p">):</span>
+        <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+        <span class="n">i1keys</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">i1</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="k">if</span> <span class="n">i1</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">i2keys</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">i2</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="k">if</span> <span class="n">i2</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">i1keys</span> <span class="o">!=</span> <span class="n">i2keys</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;runtime info changed: </span><span class="si">{i1keys}</span><span class="s2"> -&gt; </span><span class="si">{i2keys}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">True</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">i2keys</span><span class="p">)</span>
+        <span class="n">changed</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">i1keys</span><span class="p">:</span>
+            <span class="n">v1</span> <span class="o">=</span> <span class="n">i1</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+            <span class="n">v2</span> <span class="o">=</span> <span class="n">i2</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">vk</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;nwid&#39;</span><span class="p">,</span> <span class="s1">&#39;obsid&#39;</span><span class="p">,</span> <span class="s1">&#39;subobsid&#39;</span><span class="p">,</span> <span class="s1">&#39;scanid&#39;</span><span class="p">,</span> <span class="s1">&#39;ut&#39;</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">v1</span><span class="p">[</span><span class="n">vk</span><span class="p">]</span> <span class="o">!=</span> <span class="n">v2</span><span class="p">[</span><span class="n">vk</span><span class="p">]:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">&quot;runtime info </span><span class="si">{k}</span><span class="s2">.</span><span class="si">{vk}</span><span class="s2"> changed: &quot;</span>
+                            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{v1[vk]}</span><span class="s2"> -&gt; </span><span class="si">{v2[vk]}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">changed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+                    <span class="k">break</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">changed</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">changed</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">runtime_info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">old</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_runtime_info&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_runtime_info</span><span class="p">()</span>
+        <span class="n">new</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_runtime_info</span>
+        <span class="n">changed</span><span class="p">,</span> <span class="n">changed_items</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_runtime_info_changed</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">changed</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">runtimeInfoChanged</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="n">changed_items</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">new</span>
+
+    <span class="k">def</span> <span class="nf">_update_runtime_info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">_info</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">def</span> <span class="nf">infokey</span><span class="p">(</span><span class="n">info</span><span class="p">):</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{info[&#39;master&#39;]}</span><span class="s2">-</span><span class="si">{info[&#39;interface&#39;]}</span><span class="s2">&quot;</span>
+        <span class="k">for</span> <span class="n">link</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_datafiles</span><span class="o">.</span><span class="n">runtime_datafile_links</span><span class="p">():</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_datafiles</span><span class="o">.</span><span class="n">spec</span><span class="o">.</span><span class="n">info_from_filename</span><span class="p">(</span><span class="n">link</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">info</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">info</span><span class="p">[</span><span class="s1">&#39;link&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">link</span>
+                <span class="n">info</span><span class="p">[</span><span class="s1">&#39;rootpath&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rootpath</span>
+                <span class="n">_info</span><span class="p">[</span><span class="n">infokey</span><span class="p">(</span><span class="n">info</span><span class="p">)]</span> <span class="o">=</span> <span class="n">info</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_runtime_info</span> <span class="o">=</span> <span class="n">_info</span></div>
+
+
+<div class="viewcode-block" id="GuiRuntime"><a class="viewcode-back" href="../../api/tolteca.gui.GuiRuntime.html#tolteca.gui.GuiRuntime">[docs]</a><span class="k">class</span> <span class="nc">GuiRuntime</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QObject</span><span class="p">):</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;runtime config: {pformat_dict(config)}&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">databases</span> <span class="o">=</span> <span class="n">get_databases</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;runtime databases: </span><span class="si">{self.databases}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">datafiles</span> <span class="o">=</span> <span class="n">ToltecDataFileStore</span><span class="p">(</span><span class="n">rootpath</span><span class="o">=</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;datapath&#39;</span><span class="p">])</span>
+
+<div class="viewcode-block" id="GuiRuntime.init_db_monitors"><a class="viewcode-back" href="../../api/tolteca.gui.GuiRuntime.html#tolteca.gui.GuiRuntime.init_db_monitors">[docs]</a>    <span class="k">def</span> <span class="nf">init_db_monitors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gui</span><span class="p">,</span> <span class="n">parent</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_db_monitors</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">databases</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">w</span> <span class="o">=</span> <span class="n">DBStatusPanel</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">)</span>
+            <span class="n">parent</span><span class="o">.</span><span class="n">layout</span><span class="p">()</span><span class="o">.</span><span class="n">addRow</span><span class="p">(</span>
+                    <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QLabel</span><span class="p">(</span><span class="n">k</span><span class="p">),</span> <span class="n">w</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_db_monitors</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">w</span>
+            <span class="n">gui</span><span class="o">.</span><span class="n">run_in_thread</span><span class="p">(</span><span class="n">QThreadTarget</span><span class="p">(</span><span class="mi">2000</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">w</span><span class="o">=</span><span class="n">w</span><span class="p">:</span> <span class="n">w</span><span class="o">.</span><span class="n">connected</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="GuiRuntime.init_df_view"><a class="viewcode-back" href="../../api/tolteca.gui.GuiRuntime.html#tolteca.gui.GuiRuntime.init_df_view">[docs]</a>    <span class="k">def</span> <span class="nf">init_df_view</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gui</span><span class="p">,</span> <span class="n">parent</span><span class="p">):</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">DataFilesView</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">datafiles</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">)</span>
+        <span class="n">parent</span><span class="o">.</span><span class="n">layout</span><span class="p">()</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="n">w</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">reset_rootpath</span><span class="p">():</span>
+            <span class="n">w</span><span class="o">.</span><span class="n">rootpath</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;datapath&#39;</span><span class="p">]</span>
+            <span class="n">w</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">le_rootpath</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">w</span><span class="o">.</span><span class="n">rootpath</span><span class="p">))</span>
+        <span class="n">w</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">btn_reset_rootpath</span><span class="o">.</span><span class="n">clicked</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">reset_rootpath</span><span class="p">)</span>
+        <span class="n">gui</span><span class="o">.</span><span class="n">run_in_thread</span><span class="p">(</span><span class="n">QThreadTarget</span><span class="p">(</span><span class="mi">500</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">w</span><span class="o">.</span><span class="n">runtime_info</span><span class="p">))</span></div></div>
+
+
+<div class="viewcode-block" id="ToltecaGui"><a class="viewcode-back" href="../../api/tolteca.gui.ToltecaGui.html#tolteca.gui.ToltecaGui">[docs]</a><span class="k">class</span> <span class="nc">ToltecaGui</span><span class="p">(</span><span class="n">Ui_MainWindowBase</span><span class="p">):</span>
+
+    <span class="n">_title</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;TolTECA v</span><span class="si">{version}</span><span class="s2">&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ui</span> <span class="o">=</span> <span class="n">Ui_MainWindow</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">setupUi</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setWindowTitle</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_title</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">actionAbout</span><span class="o">.</span><span class="n">triggered</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">about</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_psutil_process</span> <span class="o">=</span> <span class="n">psutil</span><span class="o">.</span><span class="n">Process</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_in_thread</span><span class="p">(</span><span class="n">QThreadTarget</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_report_usage</span><span class="p">))</span>
+
+<div class="viewcode-block" id="ToltecaGui.init_runtime"><a class="viewcode-back" href="../../api/tolteca.gui.ToltecaGui.html#tolteca.gui.ToltecaGui.init_runtime">[docs]</a>    <span class="k">def</span> <span class="nf">init_runtime</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;runtime&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;runtime exists: </span><span class="si">{self.runtime}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="c1"># rurntime</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span> <span class="o">=</span> <span class="n">GuiRuntime</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span><span class="o">.</span><span class="n">init_db_monitors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">gb_dbstatus</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span><span class="o">.</span><span class="n">init_df_view</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">gb_datafiles</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ToltecaGui.run_in_thread"><a class="viewcode-back" href="../../api/tolteca.gui.ToltecaGui.html#tolteca.gui.ToltecaGui.run_in_thread">[docs]</a>    <span class="k">def</span> <span class="nf">run_in_thread</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="n">thread</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QThread</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">target</span><span class="o">.</span><span class="n">moveToThread</span><span class="p">(</span><span class="n">thread</span><span class="p">)</span>
+        <span class="n">target</span><span class="o">.</span><span class="n">finished</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">thread</span><span class="o">.</span><span class="n">quit</span><span class="p">)</span>
+        <span class="n">thread</span><span class="o">.</span><span class="n">started</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">target</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">start</span><span class="p">:</span>
+            <span class="n">thread</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_threads&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_threads</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_threads</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">thread</span><span class="p">,</span> <span class="n">target</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="ToltecaGui.about"><a class="viewcode-back" href="../../api/tolteca.gui.ToltecaGui.html#tolteca.gui.ToltecaGui.about">[docs]</a>    <span class="k">def</span> <span class="nf">about</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">about</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;About&quot;</span><span class="p">,</span> <span class="s2">&quot;Surprise!&quot;</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_report_usage</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_psutil_process</span>
+        <span class="c1"># log.debug(&quot;report usage&quot;)</span>
+        <span class="k">with</span> <span class="n">p</span><span class="o">.</span><span class="n">oneshot</span><span class="p">():</span>
+            <span class="n">message</span> <span class="o">=</span> \
+                    <span class="s1">&#39;    pid: </span><span class="si">{0}</span><span class="s1">    cpu: </span><span class="si">{1}</span><span class="s1"> %    memory: </span><span class="si">{2:.1f}</span><span class="s1"> MB&#39;</span> \
+                    <span class="s1">&#39;    page: </span><span class="si">{3:.1f}</span><span class="s1"> MB    num_threads: </span><span class="si">{4}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">p</span><span class="o">.</span><span class="n">pid</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">cpu_percent</span><span class="p">(),</span>
+                        <span class="n">p</span><span class="o">.</span><span class="n">memory_info</span><span class="p">()</span><span class="o">.</span><span class="n">rss</span> <span class="o">/</span> <span class="mf">2.</span> <span class="o">**</span> <span class="mi">20</span><span class="p">,</span>
+                        <span class="n">p</span><span class="o">.</span><span class="n">memory_info</span><span class="p">()</span><span class="o">.</span><span class="n">vms</span> <span class="o">/</span> <span class="mf">2.</span> <span class="o">**</span> <span class="mi">20</span><span class="p">,</span>
+                        <span class="n">p</span><span class="o">.</span><span class="n">num_threads</span><span class="p">()</span>
+                        <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">statusbar</span><span class="o">.</span><span class="n">showMessage</span><span class="p">(</span><span class="n">message</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="main"><a class="viewcode-back" href="../../api/tolteca.gui.main.html#tolteca.gui.main">[docs]</a><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">()</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s2">&quot;--datapath&quot;</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;directory that contains the data files&quot;</span><span class="p">,</span>
+            <span class="n">default</span><span class="o">=</span><span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">())</span>
+    <span class="n">args</span><span class="p">,</span> <span class="n">unparsed_args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_known_args</span><span class="p">()</span>
+
+    <span class="n">config</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="n">datapath</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">datapath</span><span class="p">)</span>
+            <span class="p">)</span>
+
+    <span class="n">app</span> <span class="o">=</span> <span class="n">qt5app</span><span class="p">(</span><span class="n">unparsed_args</span><span class="p">)</span>
+
+    <span class="n">gui</span> <span class="o">=</span> <span class="n">ToltecaGui</span><span class="p">()</span>
+    <span class="n">gui</span><span class="o">.</span><span class="n">init_runtime</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+    <span class="n">gui</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+    <span class="kn">import</span> <span class="nn">signal</span>
+
+    <span class="k">def</span> <span class="nf">sigint_handler</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Handler for the SIGINT signal&quot;&quot;&quot;</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\r</span><span class="s1">Aborted with Ctrl-C</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">gui</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGINT</span><span class="p">,</span> <span class="n">sigint_handler</span><span class="p">)</span>
+
+    <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">exec_</span><span class="p">())</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2020, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
+    Last built 02 Mar 2020. <br/>
+  </p>
+</footer>
+  </body>
+</html>

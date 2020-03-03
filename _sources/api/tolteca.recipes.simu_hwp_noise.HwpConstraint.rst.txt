@@ -1,0 +1,7 @@
+HwpConstraint
+=============
+
+.. currentmodule:: tolteca.recipes.simu_hwp_noise
+
+.. autoclass:: HwpConstraint
+   :show-inheritance:

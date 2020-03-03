@@ -4,23 +4,23 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta charset="utf-8" />
-    <title>simulate_hwp &#8212; tolteca v0.0.1</title>
+    <title>simulate_hwp &#8212; tolteca v0.1.dev62+g21e4fb5</title>
     <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
     
-    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
     <script type="text/javascript" src="../_static/sidebar.js"></script>
     <script type="text/javascript" src="../_static/copybutton.js"></script>
     <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="get_databases" href="tolteca.db.get_databases.html" />
-    <link rel="prev" title="make_tabular_legend" href="tolteca.recipes.simu_hwp_noise.make_tabular_legend.html" />
+    <link rel="next" title="worker" href="tolteca.recipes.simu_hwp_noise.worker.html" />
+    <link rel="prev" title="save_or_show" href="tolteca.recipes.simu_hwp_noise.save_or_show.html" />
     <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
 
   </head><body>
@@ -48,18 +48,18 @@
     <h3>Navigation</h3>
     <ul>
       <li class="right">
-	<a href="tolteca.db.get_databases.html" title="get_databases">
+	<a href="tolteca.recipes.simu_hwp_noise.worker.html" title="worker">
 	  next &raquo;
 	</a>
       </li>
       <li class="right">
-	<a href="tolteca.recipes.simu_hwp_noise.make_tabular_legend.html" title="make_tabular_legend">
+	<a href="tolteca.recipes.simu_hwp_noise.save_or_show.html" title="save_or_show">
 	  &laquo; previous
 	</a>
 	 |
       </li>
       <li>
-	<a href="../index.html">tolteca v0.0.1</a>
+	<a href="../index.html">tolteca v0.1.dev62+g21e4fb5</a>
 	 &#187;
       </li>
       <li><a href="../tolteca/index.html" >TolTECA Documentation</a> &#187;</li>
@@ -79,22 +79,27 @@
 <h1>simulate_hwp<a class="headerlink" href="#simulate-hwp" title="Permalink to this headline">¶</a></h1>
 <dl class="function">
 <dt id="tolteca.recipes.simu_hwp_noise.simulate_hwp">
-<code class="sig-prename descclassname">tolteca.recipes.simu_hwp_noise.</code><code class="sig-name descname">simulate_hwp</code><span class="sig-paren">(</span><em class="sig-param">Qr</em>, <em class="sig-param">readout_noise</em>, <em class="sig-param">hwp_var_temp</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/recipes/simu_hwp_noise.html#simulate_hwp"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.recipes.simu_hwp_noise.simulate_hwp" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">tolteca.recipes.simu_hwp_noise.</code><code class="sig-name descname">simulate_hwp</code><span class="sig-paren">(</span><em class="sig-param">Qr</em>, <em class="sig-param">readout_noise</em>, <em class="sig-param">hwp_var_temp</em>, <em class="sig-param">band='T1'</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/recipes/simu_hwp_noise.html#simulate_hwp"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.recipes.simu_hwp_noise.simulate_hwp" title="Permalink to this definition">¶</a></dt>
 <dd><p>Make simulated timestream and calculate some useful quantities
 of the HWP under some assumed parameters.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>Qr</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.8)"><em>float</em></a>) – Qr of the detector.</p></li>
-<li><p><strong>readout_noise</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.8)"><em>float</em></a>) – Readout noise specified in the same unit as Qr.</p></li>
-<li><p><strong>hwp_var_temp</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.8)"><em>float</em></a>) – The HWP temperature variation, peak-to-peak.</p></li>
-</ul>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>Qr: float</strong></dt><dd><p>Qr of the detector.</p>
+</dd>
+<dt><strong>readout_noise: float</strong></dt><dd><p>Readout noise specified in the same unit as Qr.</p>
+</dd>
+<dt><strong>hwp_var_temp: float</strong></dt><dd><p>The HWP temperature variation, peak-to-peak.</p>
+</dd>
+<dt><strong>band: str</strong></dt><dd><p>The TolTEC band to usage.</p>
+</dd>
+</dl>
 </dd>
 <dt class="field-even">Returns</dt>
-<dd class="field-even"><p>Dict that contains all stated local variables.</p>
+<dd class="field-even"><dl class="simple">
+<dt>dict</dt><dd><p>Dict that contains all stated local variables.</p>
 </dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.8)">dict</a></p>
+</dl>
 </dd>
 </dl>
 </dd></dl>
@@ -123,8 +128,8 @@ of the HWP under some assumed parameters.</p>
     <a href="#">Back to Top</a></p>
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.3.1. &nbsp;
-    Last built 28 Jan 2020. <br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
+    Last built 02 Mar 2020. <br/>
   </p>
 </footer>
   </body>

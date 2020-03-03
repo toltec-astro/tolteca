@@ -4,22 +4,22 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta charset="utf-8" />
-    <title>PipelineRuntime &#8212; tolteca v0.0.1</title>
+    <title>PipelineRuntime &#8212; tolteca v0.1.dev62+g21e4fb5</title>
     <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
     
-    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
     <script type="text/javascript" src="../_static/sidebar.js"></script>
     <script type="text/javascript" src="../_static/copybutton.js"></script>
     <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="deepmerge" href="tolteca.utils.deepmerge.html" />
+    <link rel="next" title="get_pkg_data_path" href="tolteca.utils.get_pkg_data_path.html" />
     <link rel="prev" title="setup_workdir" href="tolteca.pipeline.setup_workdir.html" />
     <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
 
@@ -48,7 +48,7 @@
     <h3>Navigation</h3>
     <ul>
       <li class="right">
-	<a href="tolteca.utils.deepmerge.html" title="deepmerge">
+	<a href="tolteca.utils.get_pkg_data_path.html" title="get_pkg_data_path">
 	  next &raquo;
 	</a>
       </li>
@@ -59,7 +59,7 @@
 	 |
       </li>
       <li>
-	<a href="../index.html">tolteca v0.0.1</a>
+	<a href="../index.html">tolteca v0.1.dev62+g21e4fb5</a>
 	 &#187;
       </li>
       <li><a href="../tolteca/index.html" accesskey="U">TolTECA Documentation</a> &#187;</li>
@@ -107,7 +107,7 @@
 <p class="rubric">Attributes Documentation</p>
 <dl class="attribute">
 <dt id="tolteca.pipeline.PipelineRuntime.logger">
-<code class="sig-name descname">logger</code><em class="property"> = &lt;Logger PipelineRuntime (WARNING)&gt;</em><a class="headerlink" href="#tolteca.pipeline.PipelineRuntime.logger" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">logger</code><em class="property"> = &lt;Logger PipelineRuntime (DEBUG)&gt;</em><a class="headerlink" href="#tolteca.pipeline.PipelineRuntime.logger" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <p class="rubric">Methods Documentation</p>
@@ -117,17 +117,23 @@
 <dd><p>Create <a class="reference internal" href="#tolteca.pipeline.PipelineRuntime" title="tolteca.pipeline.PipelineRuntime"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PipelineRuntime</span></code></a> from directory.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>path</strong> (<a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.8)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pathlib.Path</span></code></a>) – The path to the work directory.</p></li>
-<li><p><strong>empty_only</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.8)"><em>bool</em></a>) – When set to True, raise <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.8)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RuntimeError</span></code></a> if <code class="xref py py-obj docutils literal notranslate"><span class="pre">path</span></code> is not empty</p></li>
-<li><p><strong>backup</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.8)"><em>bool</em></a>) – When not <code class="xref py py-obj docutils literal notranslate"><span class="pre">empty_only</span></code>, this controls whether or not to create
-backups for existing files.</p></li>
-<li><p><strong>create</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.8)"><em>bool</em></a>) – When set to False, raise <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.8)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RuntimeError</span></code></a> if <code class="xref py py-obj docutils literal notranslate"><span class="pre">path</span></code> does not already
-have all content items. Otherwise, create missing items.</p></li>
-<li><p><strong>dry_run</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.8)"><em>bool</em></a>) – If set, no actual file/dir is changed.</p></li>
-<li><p><strong>kwargs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.8)"><em>dict</em></a>) – Entries that are passed directly into the created
-default configuration file.</p></li>
-</ul>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>path: `pathlib.Path`</strong></dt><dd><p>The path to the work directory.</p>
+</dd>
+<dt><strong>empty_only: bool</strong></dt><dd><p>When set to True, raise <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.8)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RuntimeError</span></code></a> if <code class="xref py py-obj docutils literal notranslate"><span class="pre">path</span></code> is not empty</p>
+</dd>
+<dt><strong>backup: bool</strong></dt><dd><p>When not <code class="xref py py-obj docutils literal notranslate"><span class="pre">empty_only</span></code>, this controls whether or not to create
+backups for existing files.</p>
+</dd>
+<dt><strong>create: bool</strong></dt><dd><p>When set to False, raise <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.8)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RuntimeError</span></code></a> if <code class="xref py py-obj docutils literal notranslate"><span class="pre">path</span></code> does not already
+have all content items. Otherwise, create missing items.</p>
+</dd>
+<dt><strong>dry_run: bool</strong></dt><dd><p>If set, no actual file/dir is changed.</p>
+</dd>
+<dt><strong>kwargs: dict</strong></dt><dd><p>Entries that are passed directly into the created
+default configuration file.</p>
+</dd>
+</dl>
 </dd>
 </dl>
 </dd></dl>
@@ -158,8 +164,8 @@ default configuration file.</p></li>
     <a href="#">Back to Top</a></p>
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.3.1. &nbsp;
-    Last built 28 Jan 2020. <br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
+    Last built 02 Mar 2020. <br/>
   </p>
 </footer>
   </body>

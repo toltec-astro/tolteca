@@ -4,22 +4,22 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta charset="utf-8" />
-    <title>DatabaseRuntime &#8212; tolteca v0.0.1</title>
+    <title>DatabaseRuntime &#8212; tolteca v0.1.dev62+g21e4fb5</title>
     <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
     
-    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
     <script type="text/javascript" src="../_static/sidebar.js"></script>
     <script type="text/javascript" src="../_static/copybutton.js"></script>
     <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="open" href="tolteca.io.open.html" />
+    <link rel="next" title="DataFileStore" href="tolteca.fs.DataFileStore.html" />
     <link rel="prev" title="DatabaseConnection" href="tolteca.db.DatabaseConnection.html" />
     <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
 
@@ -48,7 +48,7 @@
     <h3>Navigation</h3>
     <ul>
       <li class="right">
-	<a href="tolteca.io.open.html" title="open">
+	<a href="tolteca.fs.DataFileStore.html" title="DataFileStore">
 	  next &raquo;
 	</a>
       </li>
@@ -59,7 +59,7 @@
 	 |
       </li>
       <li>
-	<a href="../index.html">tolteca v0.0.1</a>
+	<a href="../index.html">tolteca v0.1.dev62+g21e4fb5</a>
 	 &#187;
       </li>
       <li><a href="../tolteca/index.html" accesskey="U">TolTECA Documentation</a> &#187;</li>
@@ -88,7 +88,7 @@
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.db.DatabaseRuntime.config_validator" title="tolteca.db.DatabaseRuntime.config_validator"><code class="xref py py-obj docutils literal notranslate"><span class="pre">config_validator</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.db.DatabaseRuntime.config_validator" title="tolteca.db.DatabaseRuntime.config_validator"><code class="xref py py-obj docutils literal notranslate"><span class="pre">config_validator</span></code></a>(config)</p></td>
 <td><p></p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#tolteca.db.DatabaseRuntime.connection" title="tolteca.db.DatabaseRuntime.connection"><code class="xref py py-obj docutils literal notranslate"><span class="pre">connection</span></code></a></p></td>
@@ -115,7 +115,7 @@
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.db.DatabaseRuntime.modelclasses" title="tolteca.db.DatabaseRuntime.modelclasses"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelclasses</span></code></a>([name, lower])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.db.DatabaseRuntime.modelclasses" title="tolteca.db.DatabaseRuntime.modelclasses"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modelclasses</span></code></a>(self[, name, lower])</p></td>
 <td><p></p></td>
 </tr>
 </tbody>
@@ -123,7 +123,7 @@
 <p class="rubric">Attributes Documentation</p>
 <dl class="attribute">
 <dt id="tolteca.db.DatabaseRuntime.config_validator">
-<code class="sig-name descname">config_validator</code><em class="property"> = &lt;tolteca.db.ConfigValidator object&gt;</em><a class="headerlink" href="#tolteca.db.DatabaseRuntime.config_validator" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">config_validator</code><span class="sig-paren">(</span><em class="sig-param">config</em><span class="sig-paren">)</span><em class="property"> = &lt;tolteca.db.ConfigValidator object&gt;</em><a class="headerlink" href="#tolteca.db.DatabaseRuntime.config_validator" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
@@ -154,7 +154,7 @@
 <p class="rubric">Methods Documentation</p>
 <dl class="method">
 <dt id="tolteca.db.DatabaseRuntime.modelclasses">
-<code class="sig-name descname">modelclasses</code><span class="sig-paren">(</span><em class="sig-param">name='default'</em>, <em class="sig-param">lower=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/db.html#DatabaseRuntime.modelclasses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.db.DatabaseRuntime.modelclasses" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">modelclasses</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">name='default'</em>, <em class="sig-param">lower=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/db.html#DatabaseRuntime.modelclasses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.db.DatabaseRuntime.modelclasses" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -183,8 +183,8 @@
     <a href="#">Back to Top</a></p>
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.3.1. &nbsp;
-    Last built 28 Jan 2020. <br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
+    Last built 02 Mar 2020. <br/>
   </p>
 </footer>
   </body>

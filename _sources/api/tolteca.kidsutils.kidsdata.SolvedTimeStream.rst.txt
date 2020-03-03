@@ -1,7 +1,0 @@
-SolvedTimeStream
-================
-
-.. currentmodule:: tolteca.kidsutils.kidsdata
-
-.. autoclass:: SolvedTimeStream
-   :show-inheritance:

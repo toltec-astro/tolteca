@@ -1,7 +1,0 @@
-TimeStream
-==========
-
-.. currentmodule:: tolteca.kidsutils.kidsdata
-
-.. autoclass:: TimeStream
-   :show-inheritance:

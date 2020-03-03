@@ -1,0 +1,35 @@
+OnExitHandler
+=============
+
+.. currentmodule:: tolteca.cli
+
+.. autoclass:: OnExitHandler
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~OnExitHandler.code
+      ~OnExitHandler.ctx
+      ~OnExitHandler.exception_to_raise
+      ~OnExitHandler.logger
+      ~OnExitHandler.msg
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~OnExitHandler.__call__
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: code
+   .. autoattribute:: ctx
+   .. autoattribute:: exception_to_raise
+   .. autoattribute:: logger
+   .. autoattribute:: msg
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__

@@ -1,0 +1,25 @@
+DataFilesView
+=============
+
+.. currentmodule:: tolteca.gui
+
+.. autoclass:: DataFilesView
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~DataFilesView.logger
+      ~DataFilesView.rootpath
+      ~DataFilesView.rootpathChanged
+      ~DataFilesView.runtimeInfoChanged
+      ~DataFilesView.runtime_info
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: logger
+   .. autoattribute:: rootpath
+   .. autoattribute:: rootpathChanged
+   .. autoattribute:: runtimeInfoChanged
+   .. autoattribute:: runtime_info

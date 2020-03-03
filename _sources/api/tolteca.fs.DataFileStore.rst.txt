@@ -1,0 +1,17 @@
+DataFileStore
+=============
+
+.. currentmodule:: tolteca.fs
+
+.. autoclass:: DataFileStore
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~DataFileStore.rootpath
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: rootpath
