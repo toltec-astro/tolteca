@@ -8,22 +8,25 @@ import signal
 import textwrap
 import traceback
 
-from . import version, PROGNAME
-from .utils.fmt import pformat_obj
-from .utils.log import get_logger, logit
-from .utils.cli import click_helpers as ch
-from .utils.cli import click_log, cli_header
-from .utils.cli.click_helpers import (
-        ctx_no_recreate_obj,
-        )
-from .clicmd import CliRuntime
+from .. import version
+from tollan.utils.fmt import pformat_obj
+from tollan.utils.log import get_logger, logit, init_log
+from tollan.utils.cli import click_helpers as ch
+from .core import CliRuntime
 
+PROGNAME = 'TolTECA'
+DESCRIPTION = 'A package for analyzing TolTEC Data.'
 SHOW_BANNER = False
 CONTEXT_SETTINGS = dict(
         **ch.CONTEXT_SETTINGS,
         auto_envvar_prefix=PROGNAME.lower()
         )
 OPTION_SETTINGS = ch.OPTION_SETTINGS
+
+
+def cli_header():
+    return (f"{PROGNAME} v{version.version}"
+            f" - {DESCRIPTION}")
 
 
 @click.group(
@@ -54,11 +57,11 @@ OPTION_SETTINGS = ch.OPTION_SETTINGS
 def cli(ctx, debug, logfile):
     # the below will check if the command is invoke from other command,
     # if so we reuse the existing runtime object.
-    if ctx_no_recreate_obj(ctx):
+    if ch.ctx_no_recreate_obj(ctx):
         ctx.obj.reset()
         return
     # here the command is invoked for the first time
-    click_log.init(
+    init_log(
             level='INFO' if not debug else 'DEBUG',
             file_=logfile
             )
@@ -137,9 +140,9 @@ class OnExitHandler(object):
 
 # ################################################
 # commands
-from .clicmd.dot import cmd_dot  # noqa: F401
-from .clicmd.ipy import cmd_ipy  # noqa: F401
-from .clicmd.setup import cmd_setup  # noqa: F401
+from .dot import cmd_dot  # noqa: F401
+from .ipy import cmd_ipy  # noqa: F401
+from .setup import cmd_setup  # noqa: F401
 # ################################################
 
 

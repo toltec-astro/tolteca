@@ -4,8 +4,8 @@
 """This module helps setup and run the reduction pipeline."""
 
 
-from ..utils import touch_file
-from ..utils.log import get_logger, timeit, logit
+from tollan.utils import touch_file
+from tollan.utils.log import get_logger, timeit, logit
 from datetime import datetime
 import os
 

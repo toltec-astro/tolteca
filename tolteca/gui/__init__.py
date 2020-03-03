@@ -10,10 +10,10 @@ from tollan.utils.qt import qt5app, QThreadTarget
 from tollan.utils.qt.colors import Palette
 from tollan.utils.log import get_logger
 import argparse
-from .version import version
+from ..version import version
 
-from .db import get_databases
-from .fs.toltec import ToltecDataFileStore
+from ..db import get_databases
+from ..fs.toltec import ToltecDataFileStore
 
 from PyQt5 import uic, QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import Qt

@@ -17,17 +17,15 @@ Reference/API
 
 .. automodapi:: tolteca
 
+.. automodapi:: tolteca.cli
+
+.. automodapi:: tolteca.gui
+
 .. automodapi:: tolteca.db
 
 .. automodapi:: tolteca.fs
 
 .. automodapi:: tolteca.io
-
-.. automodapi:: tolteca.kidsutils
-
-.. automodapi:: tolteca.kidsutils.kidsdata
-
-.. automodapi:: tolteca.kidsutils.kidsmodel
 
 .. automodapi:: tolteca.pipeline
 

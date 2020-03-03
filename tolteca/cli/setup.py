@@ -4,12 +4,11 @@
 
 
 import click
-from ..utils import hookit
-from ..utils.log import get_logger, timeit, logit
-from ..utils.fmt import pformat_obj, pformat_dict
-from ..cli import cli, OPTION_SETTINGS
-from ..utils.cli import cli_header
-from ..utils.cli.click_helpers import split_option_arg, resolve_path
+from tollan.utils import hookit
+from tollan.utils.log import get_logger, timeit, logit
+from tollan.utils.fmt import pformat_obj, pformat_dict
+from . import cli, OPTION_SETTINGS, cli_header
+from tollan.utils.cli.click_helpers import split_option_arg, resolve_path
 # from functools import lru_cache
 # import inspect
 from ..pipeline import PipelineRuntime

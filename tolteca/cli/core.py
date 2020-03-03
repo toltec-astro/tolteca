@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
-from ..utils import rreload
-from ..utils.log import get_logger, timeit
+from tollan.utils import rreload
+from tollan.utils.log import get_logger, timeit
 from contextlib import ExitStack
 import importlib
 

@@ -6,11 +6,11 @@
 import click
 import inspect
 import itertools
-from ..utils.log import get_logger, timeit
-from ..utils.cli.click_helpers import varg_command, OPTION_SETTINGS
-from ..utils.fmt import pformat_obj
-from ..utils import rgetattr
-from ..cli import cli
+from tollan.utils.log import get_logger, timeit
+from tollan.utils.cli.click_helpers import varg_command, OPTION_SETTINGS
+from tollan.utils.fmt import pformat_obj
+from tollan.utils import rgetattr
+from . import cli
 
 
 @varg_command(
