@@ -1,16 +1,20 @@
 #! /usr/bin/env python
 """The GUI  entry point."""
 
+import yaml
+from ..utils import get_pkg_data_path
 import sys
 from pathlib import Path
 import psutil
 from datetime import datetime
-from tollan.utils.fmt import pformat_dict
-from tollan.utils.qt import qt5app, QThreadTarget
+from tollan.utils import rupdate
+from tollan.utils.fmt import pformat_yaml
+from tollan.utils.qt import qt5app, IntervalTarget
 from tollan.utils.qt.colors import Palette
-from tollan.utils.log import get_logger
+from tollan.utils.log import get_logger, init_log, logit, timeit
 import argparse
 from ..version import version
+import concurrent
 
 from ..db import get_databases
 from ..fs.toltec import ToltecDataFileStore
@@ -380,28 +384,34 @@ class DataFilesView(Ui_FileViewBase):
 
 
 class GuiRuntime(QtCore.QObject):
+    """This class manages the runtime resources."""
 
     logger = get_logger()
 
     def __init__(self, config, parent=None):
         super().__init__(parent=parent)
         self.config = config
-        self.logger.debug(f"runtime config: {pformat_dict(config)}")
-        self.databases = get_databases()
-        self.logger.debug(f"runtime databases: {self.databases}")
-
-        self.datafiles = ToltecDataFileStore(rootpath=config['datapath'])
+        self.logger.debug(f"runtime config: {pformat_yaml(self.config)}")
 
     def init_db_monitors(self, gui, parent):
+        if 'db' not in self.config:
+            return parent.hide()
+        db_config = self.config['db']
+        self.databases = timeit(get_databases)(db_config)
+        self.logger.debug(f"databases: {self.databases}")
         self._db_monitors = {}
         for k, v in self.databases.items():
             w = DBStatusPanel(v, parent=parent)
             parent.layout().addRow(
-                    QtWidgets.QLabel(k), w)
+                    QtWidgets.QLabel(v._config.get('label', k)), w)
             self._db_monitors[k] = w
-            gui.run_in_thread(QThreadTarget(2000, lambda w=w: w.connected))
+            gui.run_with_interval(2000, lambda w=w: w.connected)
 
     def init_df_view(self, gui, parent):
+        if 'fs' not in self.config:
+            return parent.hide()
+        self.datafiles = ToltecDataFileStore(
+                rootpath=self.config['fs']['rootpath'])
         w = DataFilesView(self.datafiles, parent=parent)
         parent.layout().addWidget(w)
 
@@ -409,12 +419,14 @@ class GuiRuntime(QtCore.QObject):
             w.rootpath = self.config['datapath']
             w.ui.le_rootpath.setText(str(w.rootpath))
         w.ui.btn_reset_rootpath.clicked.connect(reset_rootpath)
-        gui.run_in_thread(QThreadTarget(500, lambda: w.runtime_info))
+        gui.run_with_interval(500, lambda: w.runtime_info)
 
 
-class ToltecaGui(Ui_MainWindowBase):
+class Gui(Ui_MainWindowBase):
 
     _title = f"TolTECA v{version}"
+    _threads = None
+    logger = get_logger()
 
     def __init__(self, parent=None):
         super().__init__()
@@ -424,13 +436,9 @@ class ToltecaGui(Ui_MainWindowBase):
         self.ui.actionAbout.triggered.connect(self.about)
 
         self._psutil_process = psutil.Process()
-        self.run_in_thread(QThreadTarget(1000, self._report_usage))
+        self.run_with_interval(1000, self._report_usage)
 
     def init_runtime(self, config):
-        if hasattr(self, 'runtime'):
-            self.logger.debug(f"runtime exists: {self.runtime}")
-            return
-        # rurntime
         self.runtime = GuiRuntime(config, parent=self)
         self.runtime.init_db_monitors(self, self.ui.gb_dbstatus)
         self.runtime.init_df_view(self, self.ui.gb_datafiles)
@@ -443,9 +451,13 @@ class ToltecaGui(Ui_MainWindowBase):
         if start:
             thread.start()
 
-        if not hasattr(self, '_threads'):
+        if self._threads is None:
             self._threads = []
         self._threads.append((thread, target))
+
+    def run_with_interval(self, *args, start=True, **kwargs):
+        target = IntervalTarget(*args, **kwargs)
+        return self.run_in_thread(target, start=start)
 
     def about(self):
         return QtWidgets.QMessageBox.about(self, "About", "Surprise!")
@@ -464,33 +476,61 @@ class ToltecaGui(Ui_MainWindowBase):
                         )
             self.ui.statusbar.showMessage(message)
 
+    @staticmethod
+    def _close_thread(thread):
+        logger = get_logger()
+        with logit(logger.debug, f'close thread {thread}'):
+            thread.requestInterruption()
+            thread.quit()
+            thread.wait()
+
+    def closeEvent(self, event):
+        with logit(self.logger.debug, 'close window'):
+            # close all threads
+            with concurrent.futures.ThreadPoolExecutor(len(self._threads)) as \
+                    executor:
+                fs = [
+                        executor.submit(self._close_thread, thread)
+                        for thread, _ in self._threads]
+                concurrent.futures.wait(fs, timeout=0.1)
+
 
 def main():
 
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-            "--datapath",
-            help="directory that contains the data files",
-            default=Path.cwd())
+            "-c", "--config",
+            nargs='+',
+            help="The path to the config file(s). "
+                 "Multiple config files are merged.",
+            default=[get_pkg_data_path().joinpath("gtolteca.yaml")])
+    parser.add_argument(
+            "-q", "--quiet",
+            help="Suppress debug logs.",
+            action='store_true')
+
     args, unparsed_args = parser.parse_known_args()
 
-    config = dict(
-            datapath=Path(args.datapath)
-            )
+    if args.quiet:
+        loglevel = 'INFO'
+    else:
+        loglevel = 'DEBUG'
+    init_log(level=loglevel)
 
+    logger = get_logger()
+    logger.debug(f'load config from {args.config}')
+
+    conf = None
+    for c in args.config:
+        with open(c, 'r') as fo:
+            if conf is None:
+                conf = yaml.safe_load(fo)
+            else:
+                rupdate(conf, yaml.safe_load(fo))
     app = qt5app(unparsed_args)
 
-    gui = ToltecaGui()
-    gui.init_runtime(config)
+    gui = Gui()
+    gui.init_runtime(conf or dict())
     gui.show()
-
-    import signal
-
-    def sigint_handler(*args):
-        """Handler for the SIGINT signal"""
-        sys.stderr.write('\rAborted with Ctrl-C\n')
-        gui.close()
-    signal.signal(signal.SIGINT, sigint_handler)
-
     sys.exit(app.exec_())

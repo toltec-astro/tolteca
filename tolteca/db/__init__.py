@@ -5,7 +5,6 @@ from cached_property import cached_property
 import inspect
 import importlib
 import functools
-from .config import DB_CONFIG
 from tollan.utils.fmt import pformat_dict
 from tollan.utils.log import get_logger, logit, timeit
 from .connection import DatabaseConnection
@@ -91,6 +90,8 @@ class ConfigValidator(object):
 class DatabaseRuntime(ConfigMixin, config_property_prefix="_"):
     '''Class to hold database related states.'''
 
+    _connection = None
+    _is_connecting = False
     config_validator = ConfigValidator() \
         .required("name", 'uri') \
         .optional(schema=None, tables_from_reflection=False)
@@ -99,14 +100,18 @@ class DatabaseRuntime(ConfigMixin, config_property_prefix="_"):
         super().__init__(config)
         self.logger = get_logger(f"db.{self._name}")
 
-    @cached_property
+    @property
     def connection(self):
-        try:
-            connection = DatabaseConnection(self._uri)
-        except Exception as e:
-            self.logger.error(
-                    f"unable to connect to {self._name} {self._uri}: {e}")
-        return connection
+        if self._connection is None and not self._is_connecting:
+            try:
+                self._is_connecting = True
+                self._connection = DatabaseConnection(self._uri)
+                self._is_connecting = False
+            except Exception:
+                self.logger.error(
+                        f"unable to connect to {self._name} {self._uri}",
+                        exc_info=True)
+        return self._connection
 
     @cached_property
     def session(self):
@@ -171,7 +176,7 @@ class DatabaseRuntime(ConfigMixin, config_property_prefix="_"):
         return classes
 
 
-def get_databases(config=DB_CONFIG):
+def get_databases(config):
     result = dict()
     for k, v in config.items():
         result[k] = DatabaseRuntime(dict(name=k, **v))

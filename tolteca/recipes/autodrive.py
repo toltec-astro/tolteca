@@ -81,6 +81,67 @@ def find_best_a_naive(a, y, n_flat, thresh):
     return result
 
 
+def find_best_a_naive2(a, y, n_init, n_sigma):
+    """A simple brutal force finder of the best atten value.
+
+    The algorithm goes through the values in decreasing
+    order and looks for the first point hat has y higher by
+    some factor of the standard deviation.
+    """
+    logger = get_logger()
+    # sort in descending order so that the flat
+    # section is at start. the a
+    a = a[~np.isnan(y)]
+    if len(a) < n_init:
+        logger.debug("unable to find best a: not enough data")
+        return np.nan
+    i = np.argsort(a)[::-1]
+    aa = a[i]
+    yy = y[i]
+    ii = n_init  # the running index
+    y0 = np.mean(yy[:ii])
+    sig = np.std(yy[:ii])
+
+    while ii < len(aa):
+        if yy[ii] > y0 + n_sigma * sig:
+            result = aa[ii]
+            break
+        ii += 1
+    else:
+        logger.debug("unable to find best a: no more value to traverse.")
+        result = np.nan
+    return result
+
+
+def find_best_a_naive3(a, y, n_flat, thresh, n_accept):
+    """A simple brutal force finder of the best atten value.
+
+    The algorithm goes through the values in decreasing
+    order and looks for the first group of points that have y higher by
+    some factor.
+    """
+    logger = get_logger()
+    # sort in descending order so that the flat
+    # section is at start. the a
+    a = a[~np.isnan(y)]
+    if len(a) < n_flat:
+        logger.debug("unable to find best a: not enough data")
+        return np.nan
+    i = np.argsort(a)[::-1]
+    aa = a[i]
+    yy = y[i]
+    y0 = np.mean(yy[:n_flat])
+
+    cands = np.where(yy > y0 * thresh)[0]
+
+    for idx in cands:
+        if all(i in cands for i in range(idx, idx + n_accept)):
+            return aa[idx]
+    else:
+        logger.debug("unable to find best a: no more value to traverse.")
+        return np.nan
+
+
 def autodrive(
         targs, toneloc=None, plot=True, output_ref_atten=None, output=None):
     logger = get_logger()
@@ -146,11 +207,27 @@ def autodrive(
     # minimum a_drv that have adiqs_derot_max higher by
     # some factor of the "flat" section.
     a_drv_bests = np.empty((n_tis, ), dtype=np.double)
+    # finder = find_best_a_naive2
+    # finder_kwargs = dict(
+    #         n_init=min(10, len(a_drvs) / 5),
+    #         n_sigma=3,
+    #         )
+    finder = find_best_a_naive3
+    finder_kwargs = dict(
+            n_flat=min(10, len(a_drvs) / 5),
+            thresh=1.2,
+            n_accept=3,
+            )
+    logger.debug(f"finder={finder} kwargs={finder_kwargs}")
     for i, ti in enumerate(tis):
-        a_drv_bests[i] = find_best_a_naive(
+        # a_drv_bests[i] = find_best_a_naive(
+        #         a_drvs[i], adiqs_derot_max[i],
+        #         n_flat=5,
+        #         thresh=1.2,
+        #         )
+        a_drv_bests[i] = finder(
                 a_drvs[i], adiqs_derot_max[i],
-                n_flat=5,
-                thresh=1.2,
+                **finder_kwargs
                 )
         # kneedle = KneeLocator(
         #         a_drvs, adiqs_derot_max,
@@ -176,10 +253,15 @@ def autodrive(
             ampcor = 1.0
         ampcors[i] = ampcor
     if output is not None:
+        output = Path(output)
         with open(output, 'w') as fo:
             # fo.write(f"# a_drv_ref={a_drv_ref} dB\n")
             for ampcor in ampcors:
                 fo.write(f"{ampcor}\n")
+        with open(output.with_suffix('.a_drv'), 'w') as fo:
+            for a in a_drv_bests:
+                fo.write(f"{a}\n")
+
     ampcor_extra = np.mean(ampcors[i])
     # ampcor_extra = np.sqrt(np.sum(ampcors[i] ** 2)) / len(ampcors)
     a_drv_extra = -20. * np.log10(ampcor_extra)
@@ -192,11 +274,12 @@ def autodrive(
     # make plots of the failed cases
     # maximum number of panels is 10
     i_failed = np.where(np.isnan(a_drv_bests))[0]
-    i_good = np.where(~np.isnan(a_drv_bests))[0]
+    # i_good = np.where(~np.isnan(a_drv_bests))[0]
     n_failed = len(i_failed)
     logger.debug(f"n_tones with failed autodrive: {n_failed}")
 
-    i_plot = list(i_failed) + list(i_good[:n_failed])
+    # i_plot = list(i_failed) + list(i_good[:n_failed])
+    i_plot = list(range(10))
 
     panel_size = (20, 6)
     n_rows = len(i_plot)

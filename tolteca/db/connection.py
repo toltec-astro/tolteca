@@ -11,7 +11,7 @@ from copy import deepcopy
 from tollan.utils.fmt import pformat_dict
 
 
-_sa_connections = Registry.create()
+_conns = Registry.create()
 
 
 class DatabaseConnection(object):
@@ -29,10 +29,10 @@ class DatabaseConnection(object):
             }
 
     def __init__(self, uri, **kwargs):
+        self._uri = uri
         config = deepcopy(self.__class__._config)
         rupdate(config, kwargs)
         with logit(self.logger.debug, f"connect to database {uri}"):
-            self._uri = uri
             self.engine = create_engine(
                     self._uri, **config.get('engine', dict()))
             self.metadata = MetaData(bind=self.engine)
@@ -53,6 +53,6 @@ class DatabaseConnection(object):
         return f"{self.__class__.__name__}({self._uri.rsplit('//', 1)[-1]})"
 
     def __new__(cls, uri, *args, **kwargs):
-        if uri not in _sa_connections:
-            _sa_connections[uri] = super().__new__(cls)
-        return _sa_connections[uri]
+        if uri not in _conns:
+            _conns[uri] = super().__new__(cls)
+        return _conns[uri]

@@ -3,12 +3,13 @@
 import re
 from datetime import datetime
 import os
-from tollan.utils.log import get_logger
+from tollan.utils.log import get_logger, logit
 import numpy as np
 from astropy.table import Table, Column, join
-from . import DataFileStore
+from . import DataFileStore, RemoteDataFileStore
 from astropy.time import Time
 import pickle
+from ..utils import get_user_data_dir
 
 
 class ToltecDataFileSpec(object):
@@ -99,8 +100,67 @@ class ToltecDataFileSpec(object):
 
 
 class ToltecDataFileStore(DataFileStore):
+    """A class that provide access to TolTEC data files."""
 
     spec = ToltecDataFileSpec
+
+    def __init__(
+            self, rootpath, hostname=None, local_rootpath=None,
+            **kwargs):
+        if hostname is None:
+            super().__init__(rootpath, **kwargs)
+            self._remote = None
+        else:
+            config = kwargs.get('config', dict())
+            if local_rootpath is None:
+                local_rootpath = self._get_default_data_rootpath()
+            super().__init__(local_rootpath)
+
+            self._remote = RemoteDataFileStore(
+                    f'ssh://{hostname}:{rootpath}', **config)
+
+    @DataFileStore.accessor.getter
+    def accessor(self):
+        if self._remote is None:
+            return DataFileStore.accessor.fget(self)
+        return self._remote.accessor
+
+    @DataFileStore.rootpath.getter
+    def rootpath(self):
+        if self._remote is None:
+            return self.local_rootpath
+        return self._remote.rootpath
+
+    @property
+    def local_rootpath(self):
+        return DataFileStore.rootpath.fget(self)
+
+    @DataFileStore.rootpath.setter
+    def set_rootpath(self, value):
+        self._remote.rootpath = value
+
+    def __repr__(self):
+        if self._remote is not None:
+            return f'{self.__class__.__name__}("{self.rootpath}", ' \
+                f'remote="{self._remote}")'
+        else:
+            return f'{self.__class__.__name__}("{self.rootpath}")'
+
+    def glob(self, *patterns, **kwargs):
+        if self._remote is not None:
+            self._remote.check_sync(
+                    dest=self.local_rootpath,
+                    recursive=True, **kwargs)
+        return super().glob(*patterns)
+
+    @staticmethod
+    def _get_default_data_rootpath():
+        logger = get_logger()
+        p = get_user_data_dir().joinpath('datastore')
+        if not p.exists():
+            with logit(logger.debug, f"create {p}"):
+                p.mkdir(exist_ok=True, parents=True)
+        return p
 
     def runtime_datafile_links(self, master=None):
         path = self.rootpath
@@ -277,8 +337,20 @@ class ToltecDataset(object):
         if self.file_objs is None:
             return self.open_files().load_data(func=func)
         tbl = self.index_table
+
+        def _get_data(fo):
+            if hasattr(fo, 'open'):
+                fo.open()
+            if func is not None:
+                result = func(fo)
+            else:
+                result = fo.read()
+            if hasattr(fo, 'close'):
+                fo.close()
+            return result
+
         tbl['data_obj'] = [
-                func(fo) if func is not None else fo.read()
+                _get_data(fo)
                 for fo in self.file_objs
                 ]
         return self.__class__(tbl)

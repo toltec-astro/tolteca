@@ -88,8 +88,12 @@ class NcFileIO(ExitStack):
 
     def __init__(self, source):
         super().__init__()
-        self._open_nc(source)
+        self._source = source
         self.reset_selections()
+        self.open()
+        # create the meta
+        _ = self.meta  # noqa: F841
+        self.close()
 
     def __repr__(self):
         r = f"{self.__class__.__name__}({self.filepath})"
@@ -109,15 +113,15 @@ class NcFileIO(ExitStack):
         self.filepath = Path(nc.filepath())
         self.nm = NcNodeMapper(self.nc, self._nc_mapper_keys)
 
+    def open(self):
+        self._open_nc(self._source)
+
     def close(self):
         super().close()
         # reset the states so that the object can be pickled.
         self.nm = None
         self.nc = None
         self.reset_selections()
-
-    def open(self):
-        self._open_nc(self.filepath)
 
     @cached_property
     def kind_cls(self):
