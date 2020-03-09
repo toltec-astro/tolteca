@@ -114,4 +114,5 @@ def get_toltec_file_info(n_entries=50):
     #         for row in result['RoachIndex']
     #     ]
     # return result.drop(columns=['RoachIndex'])
+    result.reset_index(inplace=True, drop=True)
     return result

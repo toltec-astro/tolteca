@@ -89,12 +89,14 @@ class ToltecDataFileSpec(object):
 
     @staticmethod
     def runtime_datafile_links(path, master=None):
+        logger = get_logger()
         runtime_link_patterns = ['toltec[0-9].nc', 'toltec[0-9][0-9].nc']
         files = []
         for pattern in runtime_link_patterns:
             if master is not None:
                 pattern = os.path.join(
                         master, pattern.split('.')[0], pattern)
+            logger.debug(f"check runtime files in {path} {pattern}")
             files.extend(path.glob(pattern))
         return files
 
@@ -163,14 +165,18 @@ class ToltecDataFileStore(DataFileStore):
         return p
 
     def runtime_datafile_links(self, master=None):
-        path = self.rootpath
-        result = self.spec.runtime_datafile_links(path, master=None)
-        for p, m in ((path, ''), (path.parent, path.name)):
-            result = self.spec.runtime_datafile_links(p, master=m)
-            if result:
-                return result
-        else:
-            return list()
+        if master is None:
+            result = self.spec.runtime_datafile_links(
+                    self.rootpath, master=None)
+            return result
+        return self.spec.runtime_datafile_links(
+                self.rootpath.joinpath(master), master=None)
+        # for p, m in ((path, ''), (path.parent, path.name)):
+        #     result = self.spec.runtime_datafile_links(p, master=m)
+        #     if result:
+        #         return result
+        # else:
+        #     return list()
 
 
 class ToltecDataset(object):

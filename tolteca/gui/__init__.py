@@ -6,6 +6,7 @@ from ..utils import get_pkg_data_path
 import sys
 from pathlib import Path
 import psutil
+from collections import OrderedDict
 from datetime import datetime
 from tollan.utils import rupdate
 from tollan.utils.fmt import pformat_yaml
@@ -21,6 +22,10 @@ from ..fs.toltec import ToltecDataFileStore
 
 from PyQt5 import uic, QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import Qt
+import pyqtgraph.parametertree.parameterTypes as pTypes
+from pyqtgraph.parametertree import (
+        Parameter, ParameterTree, ParameterItem, registerParameterType)
+
 
 UI_FILE_DIR = Path(__file__).parent.joinpath("ui")
 
@@ -82,13 +87,21 @@ class AnimatedItemDelegate(QtWidgets.QStyledItemDelegate):
         super().paint(painter, option, index)
 
 
+def _get_datafile_info(spec, path):
+    info = spec.info_from_filename(path) or {}
+    info['uid'] = f'{info["obsid"]}-{info["subobsid"]}-{info["scanid"]}'
+    if 'source' not in info:
+        info['source'] = path
+    return info
+
+
 class DataFileInfoModel(QtCore.QAbstractTableModel):
+
+    logger = get_logger()
 
     item_update_role = Qt.UserRole
     item_update_key = '_time_last_updated'
     item_update_time = 1.
-
-    logger = get_logger()
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
@@ -130,12 +143,15 @@ class DataFileInfoModel(QtCore.QAbstractTableModel):
                 Qt.DisplayRole: lambda k, v: k,
                 }),
             1: ("Obs #", {
-                Qt.DisplayRole: lambda k, v: v['obsid']
+                Qt.DisplayRole: lambda k, v: v['uid'],
                 }),
             2: ("Kind", {
                 Qt.DisplayRole: lambda k, v: v['kindstr']
                 }),
-            3: ("File", {
+            3: ("Time", {
+                Qt.DisplayRole: lambda k, v: str(v['ut'])
+                }),
+            4: ("File", {
                 Qt.DisplayRole: lambda k, v: str(v['source'])
                 }),
             }
@@ -211,7 +227,7 @@ class DataFileGroupModel(QtWidgets.QFileSystemModel):
             #     Qt.DisplayRole: lambda v: v
             #     }),
             0: ("Obs #", {
-                Qt.DisplayRole: lambda v: v.get('obsid', None)
+                Qt.DisplayRole: lambda v: v.get('uid', None)
                 }),
             1: ("Interface", {
                 Qt.DisplayRole: lambda v: v.get('interface', None)
@@ -219,7 +235,10 @@ class DataFileGroupModel(QtWidgets.QFileSystemModel):
             2: ("Kind", {
                 Qt.DisplayRole: lambda v: v.get('kindstr', None)
                 }),
-            3: ("File", {
+            3: ("Time", {
+                Qt.DisplayRole: lambda v: str(v.get('ut', None))
+                }),
+            4: ("File", {
                 Qt.DisplayRole: lambda v: str(v['source'])
                 }),
             }
@@ -250,10 +269,7 @@ class DataFileGroupModel(QtWidgets.QFileSystemModel):
         # return super().data(index, role)
 
     def _get_info(self, path):
-        info = self._spec.info_from_filename(path) or {}
-        if 'source' not in info:
-            info['source'] = path
-        return info
+        return _get_datafile_info(self._spec, path)
 
     def sortfilter_model_index(self, p):
         return self.sortfilter_model.mapFromSource(self.index(p))
@@ -272,6 +288,8 @@ class DataFilesView(Ui_FileViewBase):
         self.ui.setupUi(self)
 
         self._datafiles = datafiles
+        self._rootpath_init = self.rootpath
+
         self.datafilegroup_model = DataFileGroupModel(
                 spec=datafiles.spec)
 
@@ -279,13 +297,18 @@ class DataFilesView(Ui_FileViewBase):
         self.ui.le_rootpath.textChanged.connect(self._validate_rootpath)
 
         def update_fileview():
-            p = str(self.rootpath)
+            p = self.rootpath.as_posix()
             self.datafilegroup_model.setRootPath(p)
             self.ui.tv_files.setRootIndex(
                     self.datafilegroup_model.sortfilter_model_index(p))
-            self.ui.le_rootpath.setText(str(p))
+            self.ui.le_rootpath.setText(p)
+
+        def reset_rootpath():
+            self.rootpath = self._rootpath_init
+
         self.rootpathChanged.connect(update_fileview)
         self.rootpathChanged.connect(lambda x: self.runtime_info)
+        self.ui.btn_reset_rootpath.clicked.connect(reset_rootpath)
 
         self.runtime_info_model = DataFileInfoModel()
         self.ui.tv_runtime_info.setSelectionBehavior(
@@ -313,7 +336,7 @@ class DataFilesView(Ui_FileViewBase):
                     on_stop)
         self.runtimeInfoChanged.connect(update_repaint)
 
-        self.rootpathChanged.emit(str(self.rootpath))
+        self.rootpathChanged.emit(self.rootpath.as_posix())
 
     @property
     def rootpath(self):
@@ -372,15 +395,16 @@ class DataFilesView(Ui_FileViewBase):
     def _update_runtime_info(self):
         _info = {}
 
-        def infokey(info):
-            return f"{info['master']}-{info['interface']}"
+        def link_key(info):
+            return f"{info['interface']}-{info['master']}"
+
         for link in self._datafiles.runtime_datafile_links():
-            info = self._datafiles.spec.info_from_filename(link)
-            if info is not None:
-                info['link'] = link
-                info['rootpath'] = self.rootpath
-                _info[infokey(info)] = info
-        self._runtime_info = _info
+            info = _get_datafile_info(self._datafiles.spec, link)
+            info['link'] = link
+            _info[link_key(info)] = info
+
+        self._runtime_info = OrderedDict(
+                sorted(_info.items(), key=lambda i: i[1]['nwid']))
 
 
 class GuiRuntime(QtCore.QObject):
@@ -407,19 +431,153 @@ class GuiRuntime(QtCore.QObject):
             self._db_monitors[k] = w
             gui.run_with_interval(2000, lambda w=w: w.connected)
 
+    def _get_datafile_rootpath(self):
+        return self.config['fs']['local']['rootpath']
+
     def init_df_view(self, gui, parent):
         if 'fs' not in self.config:
             return parent.hide()
         self.datafiles = ToltecDataFileStore(
-                rootpath=self.config['fs']['rootpath'])
+                rootpath=self._get_datafile_rootpath())
         w = DataFilesView(self.datafiles, parent=parent)
         parent.layout().addWidget(w)
 
-        def reset_rootpath():
-            w.rootpath = self.config['datapath']
-            w.ui.le_rootpath.setText(str(w.rootpath))
-        w.ui.btn_reset_rootpath.clicked.connect(reset_rootpath)
         gui.run_with_interval(500, lambda: w.runtime_info)
+
+    def init_sp_view(self, gui, parent):
+
+        class MutualExclusiveGroup(pTypes.GroupParameter):
+            def __init__(self, **opts):
+                pTypes.GroupParameter.__init__(self, **opts)
+
+                def set_enabled(enabled, value):
+                    if not value:
+                        return
+                    for c in self.children():
+                        e = c.param('enabled')
+                        e.setValue(
+                                enabled is e,
+                                blockSignal=set_enabled)
+                for c in self.children():
+                    c.param('enabled').sigValueChanged.connect(set_enabled)
+
+        params = [
+            {
+                'name': 'Interface',
+                'type': 'group',
+                'children': [{
+                    'name': 'Interface',
+                    'type': 'list',
+                    'values': {"one": 1, "two": "twosies"}, 'value': 'one'},
+                    ],
+                },
+            MutualExclusiveGroup(
+                name='Detector selection',
+                children=[
+                    {
+                        'name': 'fancy indexing',
+                        'type': 'group',
+                        'children': [
+                            {
+                                'name': 'enabled',
+                                'type': 'bool',
+                                'value': True,
+                                },
+                            {
+                                'name': 'value',
+                                'type': 'str',
+                                'value': '-1',
+                                },
+                            ],
+                        },
+                    {
+                        'name': 'query',
+                        'type': 'group',
+                        'children': [
+                            {
+                                'name': 'enabled',
+                                'type': 'bool',
+                                'value': False,
+                                },
+                            {
+                                'name': 'value',
+                                'type': 'str',
+                                'value': 'Qr>15000',
+                                },
+                            ],
+                        },
+                    ]
+                ),
+            MutualExclusiveGroup(
+                name='File selection',
+                children=[
+                    {
+                        'name': 'fancy indexing',
+                        'type': 'group',
+                        'children': [
+                            {
+                                'name': 'enabled',
+                                'type': 'bool',
+                                'value': True,
+                                },
+                            {
+                                'name': '',
+                                'type': 'str',
+                                'value': '-1',
+                                },
+                            ],
+                        },
+                    {
+                        'name': 'query',
+                        'type': 'group',
+                        'children': [
+                            {
+                                'name': 'enabled',
+                                'type': 'bool',
+                                'value': False,
+                                },
+                            {
+                                'name': '',
+                                'type': 'str',
+                                'value': 'obsid>9000',
+                                },
+                            ],
+                        },
+                    ]
+                ),
+            ]
+        params = Parameter.create(
+                name='Scope Params', type='group', children=params)
+
+        logger = get_logger()
+
+        def on_params_change(params, changes):
+            msg = ["tree changes:"]
+            for param, change, data in changes:
+                path = params.childPath(param)
+                if path is not None:
+                    childName = '.'.join(path)
+                else:
+                    childName = param.name()
+                msg.append(f'- parameter: {childName}')
+                msg.append(f'     change: {change}')
+                msg.append(f'       data: {data}')
+            logger.debug('\n'.join(msg))
+        params.sigTreeStateChanged.connect(on_params_change)
+
+        def on_value_changing(param, value):
+            logger.debug(f"value changing {param}, {value}")
+
+        def _connect_tree(p, sig, cb):
+            getattr(p, sig).connect(cb)
+            for c in p.children():
+                _connect_tree(c, sig, cb)
+
+        _connect_tree(params, 'sigValueChanging', on_value_changing)
+
+        w = ParameterTree(showHeader=False)
+        w.setParameters(params, showTop=True)
+        parent.layout().addWidget(w)
 
 
 class Gui(Ui_MainWindowBase):
@@ -442,6 +600,7 @@ class Gui(Ui_MainWindowBase):
         self.runtime = GuiRuntime(config, parent=self)
         self.runtime.init_db_monitors(self, self.ui.gb_dbstatus)
         self.runtime.init_df_view(self, self.ui.gb_datafiles)
+        self.runtime.init_sp_view(self, self.ui.gb_scopeparams)
 
     def run_in_thread(self, target, start=True):
         thread = QtCore.QThread(self)
@@ -504,7 +663,7 @@ def main():
             nargs='+',
             help="The path to the config file(s). "
                  "Multiple config files are merged.",
-            default=[get_pkg_data_path().joinpath("gtolteca.yaml")])
+            default=[get_pkg_data_path().joinpath("tolteca.yaml")])
     parser.add_argument(
             "-q", "--quiet",
             help="Suppress debug logs.",

@@ -19,7 +19,7 @@ class DatabaseConnection(object):
     logger = get_logger()
     _config = {
             'engine': {
-                'echo': True
+                # 'echo': True
                 },
 
             'session': {

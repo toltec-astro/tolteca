@@ -37,7 +37,7 @@ cache_config = {
         }
 ipc_config = {
         'backends': {
-            'redis': {
+            'rejson': {
                 'url': f"{tolteca_redis_url}/2",
                 },
             'cache': {}
@@ -60,6 +60,7 @@ from .tasks import toltecdb  # noqa: E402
 
 def load_task_modules():
     from .tasks import kidsview  # noqa: F401
+    from .tasks import kidsreduce  # noqa: F401
 
 
 celery_config.update(
@@ -86,6 +87,10 @@ dasha_config.update(
                 {
                     "template": "tolteca.web.templates.taskview",
                     "route_name": "taskview",
+                },
+                {
+                    "template": "tolteca.web.templates.kidsreduceview",
+                    "route_name": "kidsreduce",
                 },
             ],
         )
