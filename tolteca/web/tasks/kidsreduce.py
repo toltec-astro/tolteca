@@ -6,6 +6,7 @@ from tollan.utils.log import get_logger
 from tollan.utils.fmt import pformat_yaml
 from .toltecdb import get_toltec_file_info
 from .shareddata import SharedToltecDataset
+import subprocess
 
 
 celery = get_celery_app()
@@ -30,8 +31,15 @@ class ReducedKidsData(object):
 def _reduce_kidsdata(filepath):
     logger = get_logger()
     logger.debug(f"process file {filepath}")
-    cmd = 'reduce.sh'
-    logger.debug(f"reduce {cmd} {filepath}")
+    cmd = '/home/toltec/kids_bin/reduce.sh'
+    cmd = [cmd, filepath, '-r']
+    logger.debug(f"reduce cmd: {cmd}")
+    try:
+        result = subprocess.check_output(cmd)
+    except Exception:
+        logger.error(f"failed execute {cmd}", exc_info=True)
+    else:
+        logger.info(f"{result}")
 
 
 if celery is not None:
@@ -83,7 +91,7 @@ if celery is not None:
             if len(entry['reduced_files']) == 0:
                 files.extend(entry['raw_files'])
         logger.debug(f"dispatch reduce files {files}")
-        reduce_kidsdata.map(files)()
+        return reduce_kidsdata.map(files).delay()
 
     # run at 1s interval
     schedule_task(update_shared_toltec_dataset, schedule=1, args=tuple())

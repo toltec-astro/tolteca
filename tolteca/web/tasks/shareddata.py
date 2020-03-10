@@ -67,7 +67,7 @@ class SharedToltecDataset(object):
         return pd.read_json(self._index_table)
 
     @classmethod
-    @cache.memoize(timeout=30)
+    @cache.memoize(timeout=1)
     def files_from_info(cls, entry):
         logger = get_logger()
         pattern = \
