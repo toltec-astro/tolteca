@@ -479,8 +479,8 @@ class NcFileIO(ExitStack):
                         mf = np.mean
                         sf = np.std
                         rs = (a.shape[0], ) + rshape
-                        ma = mf(a.reshape(rs), axis=-1)[:, rslice]
-                        sa = sf(np.abs(a).reshape(rs), axis=-1)[:, rslice]
+                        ma = mf(flex_reshape(a, rs), axis=-1)[:, rslice]
+                        sa = sf(flex_reshape(np.abs(a), rs), axis=-1)[:, rslice]
                         sa = StdDevUncertainty(sa)
                         return dict(d, **{'data': ma, 'uncertainty': sa})
                 return tbl1, rfunc1
