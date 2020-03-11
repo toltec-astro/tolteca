@@ -4,7 +4,7 @@
 
 from tollan.utils.env import env_registry
 from pathlib import Path
-from tolteca.fs.toltec import DataFileStore
+from tolteca.fs.toltec import ToltecDataFileStore
 
 env_registry.register(
         "TOLTECA_TOLTEC_DB_URL", "The toltec database url")
@@ -18,7 +18,7 @@ tolteca_app_db_path = Path(__file__).with_name(
 tolteca_toltec_db_url = env_registry.get("TOLTECA_TOLTEC_DB_URL")
 tolteca_redis_url = "redis://localhost:6379"
 tolteca_toltec_data_rootpath = env_registry.get("TOLTECA_TOLTEC_DATA_ROOTPATH")
-tolteca_toltec_datastore = DataFileStore(tolteca_toltec_data_rootpath)
+tolteca_toltec_datastore = ToltecDataFileStore(tolteca_toltec_data_rootpath)
 
 
 # site configs
@@ -38,15 +38,18 @@ cache_config = {
 ipc_config = {
         'backends': {
             'rejson': {
+                'url': f"{tolteca_redis_url}/1",
+                },
+            'redis': {
                 'url': f"{tolteca_redis_url}/2",
                 },
             'cache': {}
             }
         }
 celery_config = {
-        "CELERY_RESULT_BACKEND": f"{tolteca_redis_url}/1",
+        "CELERY_RESULT_BACKEND": f"{tolteca_redis_url}/3",
         "CELERY_RESULT_EXPIRES": 0,  # second
-        "CELERY_BROKER_URL": f"{tolteca_redis_url}/1",
+        "CELERY_BROKER_URL": f"{tolteca_redis_url}/3",
         }
 dasha_config = {
         "TITLE": "TolTECA",

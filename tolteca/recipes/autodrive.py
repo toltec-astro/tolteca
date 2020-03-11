@@ -19,6 +19,7 @@ from tollan.utils.slice import parse_slice
 from pathlib import Path
 import itertools
 # from kneed import KneeLocator
+from astropy.table import Table
 
 
 def load_autodrive_data(dataset):
@@ -43,7 +44,7 @@ def load_autodrive_data(dataset):
     targs.load_data(
             lambda fo: fo.sweeploc(index=-1)[:].read())
     join_keys = ['nwid', 'obsid', 'subobsid', 'scanid']
-    targs = targs.left_join(
+    targs = targs.right_join(
             calibs.load_data(lambda fo: fo),
             join_keys, [('data_obj', 'mdl_obj'), ], )
     # join the mdls to swps
@@ -453,6 +454,58 @@ if __name__ == "__main__":
                 output_ref_atten=option.output_ref_atten,
                 output=option.output,
                 plot=option.plot)
+
+    act_collect = maap.add_action_parser(
+            'collect',
+            help="Collect autodrive result"
+            )
+    act_collect.add_argument(
+            "files",
+            metavar="FILE",
+            nargs='+',
+            help="The files to use",
+            )
+    act_collect.add_argument(
+            '-o', '--output',
+            help='The output drive attenution file.'
+            )
+    act_collect.add_argument(
+            "-f", "--overwrite",
+            action='store_true',
+            help="If set, overwrite the existing index file",
+            )
+    act_collect.add_argument(
+            '-p', '--plot',
+            action='store_true',
+            help='Make plots.'
+            )
+
+    @act_collect.parser_action
+    def collect_action(option):
+        output = Path(option.output)
+        if output.exists() and not option.overwrite:
+            raise RuntimeError(
+                    f"output file {output} exists, use -f to overwrite")
+
+        ps = [0, 0.05, 0.1, 0.5, 0.9, 0.95, 1]
+        result = []
+        colnames = ['filename', ] + [f'p{p * 100:.0f}' for p in ps]
+        data = []
+        for i, filepath in enumerate(option.files):
+            tbl = Table.read(filepath, format='ascii.no_header')
+            a = tbl['col1']
+            a = a[~np.isnan(a)]
+            result.append(
+                    [Path(filepath).stem, ] + [np.quantile(a, p) for p in ps])
+            data.append(a)
+        result = Table(rows=result, names=colnames)
+        result.write(option.output, format='ascii.commented_header')
+        if option.plot:
+            fig, axes = plt.subplots(len(filepaths), 1, sharex=True)
+            for i, a in enumerate(data):
+                ax = axes[i]
+                ax.hist(a)
+            save_or_show(fig, Path(option.output).with_suffix('.png').as_posix())
 
     option = maap.parse_args(args)
     maap.bootstrap_actions(option)

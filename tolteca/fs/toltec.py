@@ -279,7 +279,7 @@ class ToltecDataset(object):
     def __setitem__(self, arg, value):
         self.index_table[arg] = value
 
-    def left_join(self, other, keys, cols):
+    def _join(self, type_, other, keys, cols):
         tbl = self.index_table
         other_tbl = other.index_table
         # make new cols
@@ -293,11 +293,17 @@ class ToltecDataset(object):
                 use_cols.append(col)
         joined = join(
                 tbl, other_tbl[use_cols],
-                keys=keys, join_type='left')
+                keys=keys, join_type=type_)
         instance = self.__class__(joined)
         self.logger.debug(
-                f"left joined {instance}")
+                f"{type_} joined {instance}")
         return instance
+
+    def left_join(self, other, keys, cols):
+        return self._join('left', other, keys, cols)
+
+    def right_join(self, other, keys, cols):
+        return self._join('right', other, keys, cols)
 
     def __len__(self):
         return self.index_table.__len__()

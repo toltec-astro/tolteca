@@ -6,7 +6,14 @@ from tollan.utils.log import get_logger
 from tollan.utils.fmt import pformat_yaml
 from .toltecdb import get_toltec_file_info
 from .shareddata import SharedToltecDataset
+from .. import tolteca_toltec_datastore 
+from pathlib import Path
 import subprocess
+import shlex
+
+
+def shlex_join(split_command):
+    return ' '.join(shlex.quote(arg) for arg in split_command)
 
 
 celery = get_celery_app()
@@ -28,18 +35,47 @@ class ReducedKidsData(object):
         return cls(info)
 
 
+_reduce_state_store = ipc.get_or_create(
+                'rejson', label='reduce_state')
+
+
+def _make_reduce_state_key(filepath):
+    info = tolteca_toltec_datastore.spec.info_from_filename(Path(filepath))
+    return 'toltec{nwid}_{obsid}_{subobsid}_{scanid}'.format(**info)
+
+
 def _reduce_kidsdata(filepath):
     logger = get_logger()
     logger.debug(f"process file {filepath}")
     cmd = '/home/toltec/kids_bin/reduce.sh'
     cmd = [cmd, filepath, '-r']
     logger.debug(f"reduce cmd: {cmd}")
+
+    state = {
+            'cmd': shlex_join(cmd),
+            'filepath': filepath,
+            }
+        
+    def _decode(s):
+        if isinstance(s, (bytes, bytearray)):
+            return s.decode()
+        return s
+
     try:
-        result = subprocess.check_output(cmd)
-    except Exception:
-        logger.error(f"failed execute {cmd}", exc_info=True)
+        r = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    except Exception as e:
+        logger.error(f"failed execute {cmd} {e} {e.output}", exc_info=True)
+        state['state'] = 'failed'
+        state['returncode'] = e.returncode 
+        state['stdout'] = _decode(e.stdout)
+        state['stderr'] = _decode(e.stderr)
     else:
-        logger.info(f"{result}")
+        logger.info(f"{r}")
+        state['state'] = 'ok'
+        state['returncode'] = r.returncode 
+        state['stdout'] = _decode(r.stdout)
+        state['stderr'] = _decode(r.stderr)
+    _reduce_state_store.set(state, path=_make_reduce_state_key(filepath))
 
 
 if celery is not None:
@@ -50,7 +86,7 @@ if celery is not None:
     def update_shared_toltec_dataset():
         logger = get_logger()
         dataset = SharedToltecDataset(_dataset_label)
-        info = get_toltec_file_info(n_entries=50)
+        info = get_toltec_file_info(n_entries=20)
         # look in to datastore for files
         if info is None:
             return
@@ -88,8 +124,13 @@ if celery is not None:
         # make reduction file list
         files = []
         for i, entry in info.iterrows():
-            if len(entry['reduced_files']) == 0:
-                files.extend(entry['raw_files'])
+            if i == 0:
+                continue
+            for filepath in entry['raw_files']:
+                state = _reduce_state_store.get(_make_reduce_state_key(filepath))
+                logger.debug(f"check file status {filepath} {state}")
+                if state is None:
+                    files.append(filepath)
         logger.debug(f"dispatch reduce files {files}")
         return reduce_kidsdata.map(files).delay()
 

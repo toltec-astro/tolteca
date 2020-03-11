@@ -10,8 +10,10 @@ from dash.dependencies import Output, Input, State
 # from dasha.web.extensions.celery import get_celery_app
 from tollan.utils.fmt import pformat_yaml
 from ..tasks.shareddata import SharedToltecDataset
+from ..tasks.kidsreduce import _reduce_state_store, _make_reduce_state_key
 from .. import tolteca_toltec_datastore
 from dasha.web.extensions.cache import cache
+from pathlib import Path
 
 
 class KidsReduceView(ComponentTemplate):
@@ -36,6 +38,7 @@ class KidsReduceView(ComponentTemplate):
         self.interval = self.child(dcc.Interval, update_interval=1)
 
         _debug_datastore = self.child(html.Pre)
+        _debug_reducestore = self.child(html.Pre)
 
         n_rows = 50
         content = self.child(dbc.Row)
@@ -90,6 +93,20 @@ class KidsReduceView(ComponentTemplate):
             return debug
 
         @app.callback(
+                Output(_debug_reducestore.id, 'children'),
+                [Input(self.interval.id, 'n_intervals')],
+                []
+                )
+        def update(n_intervals):
+            ds = _reduce_state_store 
+            # d = ds.connection.jsonget(ds._key, '.')
+            # debug = {k: d[k] for k in [ds._revkey, ds._keykey]}
+            # debug[ds._objkey] = {k: d[ds._objkey][k]['state'] for k in d[ds._objkey].keys()}
+            debug = ds.connection.jsonget(ds._key, ds._revkey, ds._keykey)
+            debug = pformat_yaml(debug)
+            return debug
+
+        @app.callback(
                 Output(content.id, 'children'),
                 [Input(self.interval.id, 'n_intervals')],
                 []
@@ -101,8 +118,17 @@ class KidsReduceView(ComponentTemplate):
                 if i >= len(tbl):
                     break
                 entry = tbl[i]
+                reduce_state = dict() 
+                for filepath in entry['raw_files']:
+                    _info = self.datafiles.spec.info_from_filename(Path(filepath))
+                    try:
+                        reduce_state[_info['nwid']] = _reduce_state_store.get(_make_reduce_state_key(filepath))['state'] 
+                    except Exception:
+                        pass
+                entry['reduce_state'] = reduce_state
                 row = content_rows[i]
                 row.c_info.children = pformat_yaml(entry)
+                
                 # pattern = \
                 #     f'**/toltec*_' \
                 #     f'{entry["Obsnum"]:06d}' \
