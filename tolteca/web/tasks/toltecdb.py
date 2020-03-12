@@ -50,6 +50,7 @@ queries = [
                     ' AS HostName',
                     'b.label as ObsType',
                     'c.label as Master',
+                    'min(a.valid) as Valid',
                     ]),
                 'join': f"inner join toltec.obstypes b on a.ObsType = b.id"
                         f" inner join toltec.masters c on a.Master = c.id",
