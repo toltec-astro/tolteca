@@ -49,7 +49,7 @@ def _reduce_kidsdata(filepath):
     logger.debug(f"process file {filepath}")
     cmd = '/home/toltec/kids_bin/reduce.sh'
     cmd = [cmd, filepath, '-r']
-    logger.debug(f"reduce cmd: {cmd}")
+    logger.info(f"reduce cmd: {cmd}")
 
     state = {
             'cmd': shlex_join(cmd),
@@ -95,7 +95,10 @@ if celery is not None:
         raw = []
         for i, entry in info.iterrows():
             logger.debug(f"get entry [{i}] info {entry}")
-            f = dataset.files_from_info(entry)
+            f = dataset.files_from_info(entry, master='repeat/**')
+            fr = dataset.files_from_info(entry, master='reduced')
+            f.extend(fr)
+            logger.debug(f"found files {f}")
             files.append(f)
             logger.debug(f"entry {pformat_yaml(entry)}")
             reduced.append(
@@ -124,14 +127,17 @@ if celery is not None:
         # make reduction file list
         files = []
         for i, entry in info.iterrows():
-            if i == 0:
+            if entry['ObsType'] == 'Nominal':
+                logger.warn(f"skip files of obstype {entry['ObsType']} {entry}")
+                continue
+            if i == 0 and entry['Valid'] == 0:
                 continue
             for filepath in entry['raw_files']:
                 state = _reduce_state_store.get(_make_reduce_state_key(filepath))
                 logger.debug(f"check file status {filepath} {state}")
                 if state is None:
                     files.append(filepath)
-        logger.debug(f"dispatch reduce files {files}")
+        logger.info(f"dispatch reduce files {files}")
         return reduce_kidsdata.map(files).delay()
 
     # run at 1s interval

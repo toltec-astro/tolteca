@@ -68,10 +68,12 @@ class SharedToltecDataset(object):
 
     @classmethod
     @cache.memoize(timeout=1)
-    def files_from_info(cls, entry):
+    def files_from_info(cls, entry, master=None):
         logger = get_logger()
+        if master is None:
+            master = '**'
         pattern = \
-            f'**/toltec*_' \
+            f'{master}/toltec*_' \
             f'{entry["Obsnum"]:06d}' \
             f'_{entry["SubObsNum"]:02d}_{entry["ScanNum"]:04d}*'
         rpath = SharedToltecDataset.datafiles.rootpath

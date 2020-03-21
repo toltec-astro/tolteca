@@ -248,7 +248,7 @@ def autodrive(
         a_drv_ref = output_ref_atten
     ampcors = np.ones((n_tis, ), dtype=np.double)
     for i, ti in enumerate(tis):
-        a_drv = a_drv_bests[ti]
+        a_drv = a_drv_bests[i]
         ampcor = 10 ** ((a_drv_ref - a_drv) / 20.)
         if ampcor > 1.0 or np.isnan(ampcor):
             ampcor = 1.0
@@ -284,8 +284,8 @@ def autodrive(
 
     panel_size = (20, 6)
     n_rows = len(i_plot)
-    if n_rows > 5:
-        n_rows = 5
+    if n_rows > 10:
+        n_rows = 10 
     fig, axes = plt.subplots(
             n_rows, 6,
             figsize=(panel_size[0], panel_size[1] * n_rows),
@@ -322,7 +322,7 @@ def autodrive(
             cx.axvline(flim[0], color='#cccccc')
             cx.axvline(flim[1], color='#cccccc')
         # trend
-        assert tis[i] == i
+        # assert tis[i] == i
         dx.plot(
                 a_drvs[i],
                 adiqs_derot_max[i],
@@ -342,7 +342,7 @@ def autodrive(
     fig2, axes = plt.subplots(2, 1)
     ax, bx = axes
     ax.hist(a_drv_bests)
-    bx.plot([frs[ti, 0] for ti in tis],  ampcors)
+    bx.plot([frs[i, 0] for i, ti in enumerate(tis)],  ampcors)
     fig2.show()
     save_or_show(
         fig, 'fig_autodrive.png', window_type='scrollable',

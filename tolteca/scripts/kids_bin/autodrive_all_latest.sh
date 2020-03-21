@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [[ ! $1 ]]; then
-	echo -e "Compute autodrive ampcor file for all networks.\n Usage: $0 obsid_start [obsid_stop]"
+	echo -e "Compute autodrive ampcor file for all networks, using the last <num> of autodrive data.\n Usage: $0 <num>"
 	exit 1
 fi
 
@@ -17,17 +17,12 @@ echo "additional output to: ${scratchdir}"
 pyexec="${HOME}/zma/venvs/toltec/bin/python3"
 bin=$HOME/zma/tolteca/tolteca/recipes/autodrive.py
 
-runid=$1
-obsid0=$1
-obsid1=$2
-
-if [[ ! $obsid1 ]]; then
-	obsid1=10000000
-fi
+obsid1=$(${pyexec} ${scriptdir}/get_latest_obsnum.py)
+runid=obsid1
+obsid0="$(($obsid1 - $1))"
 
 echo "autodrive all obsid=${obsid0}:${obsid1}"
-
-
+exit 1
 seq 0 12 | parallel ${scriptdir}/autodrive.sh {} $@ 
 
 # collect

@@ -78,6 +78,7 @@ tasks = [
                 'query_init': d['query_base'].format(**d),
                 'query_update': lambda x, d=d: d['query_base'].format(
                     **dict(d, where=f'where a.id > {x.iloc[0]["id"]}'),),
+                'query_update': lambda x, d=d: d['query_base'].format(**d),
                 'query_params': d['query_params'],
                 'datastore': functools.partial(
                     _get_datastore, label=d['label']),
