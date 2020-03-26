@@ -114,14 +114,14 @@ elif [[ ${type} == "timestream" ]]; then
         # ${pyexec} ${kidspydir}/timestream.py ${file} --fitreportdir ${scratchdir} --output "${scratchdir}/{stem}_processed.nc" ${args} --noplot
         echo ${kidscppdir}/build/bin/kids \
 		--solver_fitreportdir ${scratchdir} \
-		--output "${scratchdir}/{stem}_processed.nc" ${file} ${args}
+		--output "${scratchdir}/{stem}_processed.nc" --solver_chunk_size 500000 --solver_extra_output ${file} ${args}
 	o=$(basename ${file})
         o=${scratchdir}/${o%.*}_processed.nc
 	echo rm ${o}
 	rm ${o}
         ${kidscppdir}/build/bin/kids \
 		--solver_fitreportdir ${scratchdir} \
-		--output "${scratchdir}/{stem}_processed.nc" ${file} ${args}
+		--output "${scratchdir}/{stem}_processed.nc" --solver_chunk_size 500000 --solver_extra_output ${file} ${args}
 
     elif [[ ${runmode} == "plot" ]]; then
         ${pyexec} ${kidspydir}/timestream.py --fitreportdir ${scratchdir} ${file} ${args} &
