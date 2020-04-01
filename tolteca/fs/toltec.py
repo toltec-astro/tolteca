@@ -5,10 +5,12 @@ from datetime import datetime
 import os
 from tollan.utils.log import get_logger, logit
 import numpy as np
-from astropy.table import Table, Column, join
+from astropy.table import Table, Column, join, vstack
 from . import DataFileStore, RemoteDataFileStore
 from astropy.time import Time
 import pickle
+from astropy.utils.metadata import MergeStrategy
+from astropy.utils.metadata import enable_merge_strategies
 from ..utils import get_user_data_dir
 
 
@@ -185,9 +187,11 @@ class ToltecDataset(object):
     logger = get_logger()
     spec = ToltecDataFileSpec
 
-    def __init__(self, index_table):
+    def __init__(self, index_table, meta=None):
         self._index_table = index_table
         self._update_meta_from_file_objs()
+        if meta is not None:
+            self._index_table.meta.update(meta)
 
     @staticmethod
     def _dispatch_dtype(v):
@@ -208,6 +212,40 @@ class ToltecDataset(object):
         if c in ls_keys:
             return ls_keys.index(c)
         return 0
+
+    class _MergeAsDict(MergeStrategy):
+        types = (object, object)  # left side types
+
+        @classmethod
+        def merge(cls, left, right):
+            return dict(left=left, right=right)
+
+    class _MergeAsList(MergeStrategy):
+        types = (object, object)  # left side types
+        _ctx = '_ctx_merge_as_list'
+
+        @classmethod
+        def _add_ctx(cls, v):
+            if not isinstance(v, list):
+                v = [v, ]
+            return (v, cls._ctx)
+
+        @classmethod
+        def _has_ctx(cls, v):
+            try:
+                return v[1] == cls._ctx
+            except IndexError:
+                return False
+
+        @classmethod
+        def merge(cls, left, right):
+
+            if not cls._has_ctx(left):
+                left = cls._add_ctx(left)
+
+            if not cls._has_ctx(right):
+                right = cls._add_ctx(right)
+            return cls._add_ctx([left[0] + right[0]])
 
     @classmethod
     def from_files(cls, *filepaths):
@@ -240,7 +278,16 @@ class ToltecDataset(object):
     def __repr__(self):
         tbl = self.index_table
         blacklist_cols = ['source', 'source_orig', 'file_obj', 'data_obj']
-        use_cols = [c for c in tbl.colnames if c not in blacklist_cols]
+        exclude_cols = '.+_obj'
+
+        def check_col(c):
+            if c in blacklist_cols:
+                return False
+            if isinstance(exclude_cols, str):
+                return re.match(exclude_cols, c) is None
+            return True
+
+        use_cols = [c for c in tbl.colnames if check_col(c)]
         pformat_tbl = tbl[use_cols].pformat(max_width=-1)
         if pformat_tbl[-1].startswith("Length"):
             pformat_tbl = pformat_tbl[:-1]
@@ -252,6 +299,11 @@ class ToltecDataset(object):
     def index_table(self):
         """The index table of the dataset."""
         return self._index_table
+
+    @property
+    def meta(self):
+        """Meta data of the dataset."""
+        return self._index_table.meta
 
     @property
     def file_objs(self):
@@ -280,21 +332,38 @@ class ToltecDataset(object):
         self.index_table[arg] = value
 
     def _join(self, type_, other, keys, cols):
+        logger = get_logger()
         tbl = self.index_table
         other_tbl = other.index_table
         # make new cols
         use_cols = list(keys)
+        if isinstance(cols, str):
+            cols = [cols, ]
         for col in cols:
             if isinstance(col, tuple):
                 on, nn = col
                 other_tbl[nn] = other_tbl[on]
                 use_cols.append(nn)
+            elif isinstance(col, str):
+                if col in other_tbl.colnames:
+                    use_cols.append(col)
+                else:
+                    # regex match
+                    for c in other_tbl.colnames:
+                        if re.match(col, c):
+                            use_cols.append(c)
             else:
-                use_cols.append(col)
-        joined = join(
-                tbl, other_tbl[use_cols],
-                keys=keys, join_type=type_)
-        instance = self.__class__(joined)
+                raise ValueError(f"invalid column {col}")
+        logger.debug(f"join_right_cols={use_cols}")
+        with enable_merge_strategies(self._MergeAsDict):
+            joined = join(
+                    tbl, other_tbl[use_cols],
+                    keys=keys, join_type=type_)
+        instance = self.__class__(joined, meta={
+            'join_keys': keys,
+            'join_type': type_,
+            'join_right_cols': use_cols,
+            })
         self.logger.debug(
                 f"{type_} joined {instance}")
         return instance
@@ -304,6 +373,31 @@ class ToltecDataset(object):
 
     def right_join(self, other, keys, cols):
         return self._join('right', other, keys, cols)
+
+    @classmethod
+    def vstack(cls, datasets, **kwargs):
+        with enable_merge_strategies(cls._MergeAsList):
+            return cls(vstack([d.index_table for d in datasets], **kwargs))
+
+    def split(self, *keys):
+        nvals = [len(np.unique(self[k])) for k in keys]
+        use_keys = []
+        for nv, k in zip(nvals, keys):
+            if nv > 1:
+                use_keys.append(k)
+        keys = use_keys
+        if len(keys) == 1:
+            key = keys[0]
+            for uv in np.unique(self[key]):
+                query = f'{key} == {uv}'
+                result = self.select(query)
+                result.meta['split_value'] = uv
+                yield result
+        elif len(keys) == 0:
+            yield self.__class__(self.index_table)
+        else:
+            yield self.split(keys[0]).split(keys[1:])
+        return
 
     def __len__(self):
         return self.index_table.__len__()
@@ -317,13 +411,17 @@ class ToltecDataset(object):
             df = tbl.to_pandas()
             df.query(cond, inplace=True)
             tbl = Table.from_pandas(df)
+            cond_str = cond
             # _cond = ne.evaluate(
             #         cond, local_dict={c: tbl[c] for c in tbl.colnames})
         else:
             tbl = tbl[cond]
+            cond_str = '<fancy index | mask>'
         if len(tbl) == 0:
             raise ValueError(f"no entries are selected by {cond}")
-        instance = self.__class__(tbl)
+        instance = self.__class__(tbl, meta={
+            'select_query': cond_str
+            })
         self.logger.debug(
                 f"selected {instance}\n"
                 f"({len(instance)} out of {len(self)} entries)")
@@ -413,19 +511,24 @@ class ToltecDataset(object):
         # we only pull the common keys in all of the file objects
         self._index_table = tbl[colnames]
 
-    def write_index_table(self, *args, colfilter=None, **kwargs):
+    def write_index_table(self, *args, exclude_cols=None, **kwargs):
         """Write the index table to file using the `astropy.table.Table.write`
         function.
         """
         tbl = self.index_table
         # exclude the file object
         blacklist_cols = ['file_obj', 'data_obj', 'source_orig']
-        use_cols = np.array([
+
+        def check_col(c):
+            if c in blacklist_cols:
+                return False
+            if isinstance(exclude_cols, str):
+                return re.match(exclude_cols, c) is None
+            return True
+        use_cols = [
                 c for c in tbl.colnames
-                if c not in blacklist_cols])
-        if colfilter is not None:
-            use_cols = use_cols[colfilter]
-        tbl[use_cols.tolist()].write(*args, **kwargs)
+                if check_col(c)]
+        tbl[use_cols].write(*args, **kwargs)
 
     def dump(self, filepath):
         with open(filepath, 'wb') as fo:

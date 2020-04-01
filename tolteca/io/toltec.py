@@ -168,6 +168,7 @@ class NcFileIO(ExitStack):
             self.meta[k] = new
 
     def _get_sweep_meta(self, meta):
+        logger = get_logger()
         nm = self.nm
         result = dict()
         for k in (
@@ -181,12 +182,42 @@ class NcFileIO(ExitStack):
                 continue
         result['n_timespersweep'] = result["n_sweepsteps"] * \
             result["n_sweepreps"]
-        result["n_sweeps"] = meta["n_times"] // result['n_timespersweep']
+        if meta["n_times"] % result['n_timespersweep'] > 0:
+            # incomplete sweep found. we need to loadin the sweep freq
+            # vector to figure out the layout
+            flos = self.nm.getvar('flos')[:]
+            assert(np.sum(flos <= 0) == 0)
+            sweep2_start = np.where(np.diff(flos) < 0)[0][-1] + 1
+            if sweep2_start != result['n_timespersweep']:
+                logger.warning("missing data in first sweep block.")
+            if (meta['n_times'] - sweep2_start) / result[
+                    'n_timespersweep'] < 0.9:
+                # too many missing data in second sweep
+                raise RuntimeError(
+                        f"incomplete sweep found ["
+                        f"{sweep2_start}:{meta['n_times']}]")
+            # get second sweep
+            # uflos, uiflos, urflos = np.unique(
+            #         flos,
+            #         return_index=True, return_counts=True)
+            # proceed with slightly missing data
+            result['n_sweeps'] = meta["n_times"] // result[
+                    'n_timespersweep'] + 1
+        else:
+            result["n_sweeps"] = meta["n_times"] // result['n_timespersweep']
         # populate block meta
         result['n_blocks_max'] = result['n_sweeps_max']
         result['n_blocks'] = result['n_sweeps']
         result['n_timesperblock'] = result['n_timespersweep']
-        result['block_shape'] = (-1, result['n_sweepreps'])
+        # result['block_shape'] = (
+        #         result['n_sweepsteps'], result['n_sweepreps'])
+        result['block_shape'] = (
+                -1, result['n_sweepreps'])
+        if nm.getscalar("kindvar") == 4:  # tune file
+            # 20200331: try to detector any missing sample in the tune files.
+            # this could be happening for the repeated data on taco.
+            assert(result['n_blocks_max'] == 2)
+            assert(result['n_blocks'] == 2)
         return result
 
     @cached_property
@@ -480,7 +511,8 @@ class NcFileIO(ExitStack):
                         sf = np.std
                         rs = (a.shape[0], ) + rshape
                         ma = mf(flex_reshape(a, rs), axis=-1)[:, rslice]
-                        sa = sf(flex_reshape(np.abs(a), rs), axis=-1)[:, rslice]
+                        sa = sf(flex_reshape(
+                            np.abs(a), rs), axis=-1)[:, rslice]
                         sa = StdDevUncertainty(sa)
                         return dict(d, **{'data': ma, 'uncertainty': sa})
                 return tbl1, rfunc1
@@ -567,14 +599,18 @@ class KidsModelParams(object):
     def __init__(self, source):
         self.filepath = Path(source)
         self._table = Table.read(
-                self.filepath, format='ascii.commented_header')
-        self.model_cls = self._get_model_cls(self._table)
-        self.model = self._get_model(self.model_cls, self._table)
+                self.filepath, format='ascii')
+        self.model_cls = self._get_model_cls(self.table)
+        self.model = self._get_model(self.model_cls, self.table)
         self.meta = {
                 'source': source,
                 'model_cls': self.model_cls.__name__,
                 'n_models': len(self.model),
                 }
+
+    @property
+    def table(self):
+        return self._table
 
     @staticmethod
     def _get_model_cls(tbl):
