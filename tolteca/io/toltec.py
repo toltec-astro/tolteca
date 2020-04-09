@@ -116,9 +116,12 @@ class NcFileIO(ExitStack):
     def open(self):
         self._open_nc(self._source)
 
-    def close(self):
-        super().close()
-        # reset the states so that the object can be pickled.
+    def __enter__(self):
+        self.open()
+        return super().__enter__()
+
+    def __exit__(self, *args):
+        super().__exit__(*args)
         self.nm = None
         self.nc = None
         self.reset_selections()
@@ -178,7 +181,7 @@ class NcFileIO(ExitStack):
                 result[k] = nm.get(k)
             except Exception:
                 self.logger.error(
-                        f"missing item in data {k}", exc_info=True)
+                        f"missing item in data {k}", exc_info=False)
                 continue
         result['n_timespersweep'] = result["n_sweepsteps"] * \
             result["n_sweepreps"]
@@ -601,7 +604,7 @@ class KidsModelParams(object):
         self._table = Table.read(
                 self.filepath, format='ascii')
         self.model_cls = self._get_model_cls(self.table)
-        self.model = self._get_model(self.model_cls, self.table)
+        self.model = self._get_model(self.model_cls, self._table)
         self.meta = {
                 'source': source,
                 'model_cls': self.model_cls.__name__,
