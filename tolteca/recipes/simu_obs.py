@@ -12,6 +12,7 @@ This recipe defines a TolTEC KIDs data simulator.
 
 """
 
+from tollan.utils.log import timeit
 from tollan.utils.cli.multi_action_argparser import \
         MultiActionArgumentParser
 from regions import PixCoord, PolygonPixelRegion
@@ -155,6 +156,7 @@ class WyattRasterScanModel(SkyMapModel):
         return self.n_scans * self.length / self.speed + (
                 self.n_scans - 1.) * self.t_turnover
 
+    @timeit
     def evaluate(
             self, t, length, space, n_scans, rot, speed, t_turnover):
         """This computes a raster patten around the origin.
@@ -308,7 +310,7 @@ class WyattProjModel(SkyProjModel):
             translation=(0., 0.) * u.cm)
         super().__init__(
                 crval0=ref_coord[0], crval1=ref_coord[1],
-                n_models=len(ref_coord[0]), **kwargs)
+                n_models=np.asarray(ref_coord[0]).size, **kwargs)
 
     def get_map_wcs(self, pixscale, ref_coord=None):
 
@@ -353,6 +355,7 @@ class WyattProjModel(SkyProjModel):
                 ]
         return wcs.WCS(pipeline)
 
+    @timeit
     def evaluate(self, x, y, crval0, crval1):
         c0, c1 = self._a2w_0(x, y)
         return c0 + crval0, c1 + crval1
@@ -411,18 +414,6 @@ class ToltecObsSimulator(object):
     @property
     def tones(self):
         return self._tones
-
-
-# def main(data_args, save_data=None):
-#     if isinstance(data_args, str):
-#         with open(data_args, 'rb') as fo:
-#             data = pickle.load(fo)
-#     else:
-#         data = timeit(make_data)(*data_args)
-#         if save_data is not None:
-#             with open(save_data, 'wb') as fo:
-#                 pickle.dump(data, fo)
-#     make_plot(data)
 
 
 def plot_wyatt_plane(calobj, **kwargs):
@@ -538,6 +529,8 @@ if __name__ == "__main__":
     @act_plot_raster_on_wyatt.parser_action
     def plot_raster_on_wyatt_action(option):
 
+        logger = get_logger()
+
         calobj = ToltecCalib.from_indexfile(option.calobj)
 
         wyatt_proj_kwargs = {
@@ -560,13 +553,12 @@ if __name__ == "__main__":
         t_total = m_obs.get_total_time()
         t = np.arange(0, t_total, 0.5) * u.s
 
+        logger.debug(f"create {len(t.value)} pointings")
         x_t, y_t = m_obs(t)
 
-        wyatt_proj_kwargs = {
-            'rot': -2. * u.deg,
-            'scale': (3., 3.),
-            'ref_coord': (x_t, y_t),
-            }
+        wyatt_proj_kwargs.update({
+                'ref_coord': (x_t, y_t)
+                })
 
         array_names = ['a1100', 'a1400', 'a2000']
         n_arrays = len(array_names)
@@ -582,6 +574,10 @@ if __name__ == "__main__":
             m_proj = WyattProjModel(
                     array_name=array_name,
                     **wyatt_proj_kwargs)
+
+            x_a = np.tile(tbl['x'].quantity.to(u.cm), (len(m_proj), 1))
+            y_a = np.tile(tbl['y'].quantity.to(u.cm), (len(m_proj), 1))
+            x_w, y_w = m_proj(x_a, y_a)
 
             verts = tbl[tbl.meta['edge_indices']]
             vx_a = np.tile(verts['x'].quantity.to(u.cm), (len(m_proj), 1))
