@@ -12,7 +12,10 @@ This recipe defines a TolTEC KIDs data simulator.
 
 """
 
-
+from regions import PixCoord, PolygonPixelRegion
+from astropy.visualization import quantity_support
+import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
 from kidsproc.kidsmodel.simulator import KidsSimulator
 import numpy as np
 from scipy import signal
@@ -244,21 +247,78 @@ class ToltecObsSimulator(object):
 #     make_plot(data)
 
 
-def plot_wyatt_plane(calobj, array_name, ax_array, ax_wyatt, **kwargs):
+def plot_wyatt_plane(calobj, **kwargs):
 
-    tbl = calobj.get_array_prop_table(array_name)
+    array_names = ['a1100', 'a1400', 'a2000']
+    n_arrays = len(array_names)
 
-    m_proj = WyattProjModel(
-            array_name=array_name,
-            **kwargs)
+    # make a color map
+    nws = np.arange(13)
+    from_list = mcolors.LinearSegmentedColormap.from_list
+    cm = from_list(None, plt.get_cmap('tab20')(nws), len(nws))
 
-    x_a = tbl['x'].quantity
-    y_a = tbl['y'].quantity
-    x_w, y_w = m_proj(x_a, y_a)
+    cm_kwargs = dict(cmap=cm, vmin=nws[0] - 0.5, vmax=nws[-1] + 0.5)
 
-    ax_array.scatter(x_a, y_a, c=tbl['nw'])
-    ax_wyatt.scatter(x_w, y_w, c=tbl['nw'])
-    ax_array.set_title(tbl.meta['name_long'])
+    fig, axes = plt.subplots(
+            2, n_arrays, squeeze=False,
+            sharex='row', sharey='row', subplot_kw={'aspect': 'equal'},
+            constrained_layout=True, figsize=(16, 8))
+
+    props = np.full((n_arrays, ), None, dtype=object)
+    for i, array_name in enumerate(array_names):
+        tbl = calobj.get_array_prop_table(array_name)
+        m_proj = WyattProjModel(
+                array_name=array_name,
+                **kwargs)
+
+        x_a = tbl['x'].quantity.to(u.cm)
+        y_a = tbl['y'].quantity.to(u.cm)
+        x_w, y_w = m_proj(x_a, y_a)
+
+        n_kids = len(tbl)
+        props[i] = (n_kids, tbl, m_proj, x_a, y_a, x_w, y_w)
+
+    for i, prop in enumerate(props):
+        n_kids, tbl, m_proj, x_a, y_a, x_w, y_w = prop
+        s = (
+                (props[0][0] / n_kids) ** 0.5 * tbl.meta['wl_center'] /
+                props[0][1].meta['wl_center']) * 3,
+        c = tbl['nw']
+        im = axes[0, i].scatter(
+                x_a, y_a, s=s, c=c, **cm_kwargs)
+        axes[0, i].plot(
+                0, 0,
+                marker='+', color='red')
+
+        im = axes[1, i].scatter(
+                x_w, y_w, s=s, c=c, **cm_kwargs)
+        axes[1, i].plot(
+                m_proj.crval0.value, m_proj.crval1.value,
+                marker='+', color='red')
+
+        axes[0, i].set_title(tbl.meta['name_long'])
+
+        verts = tbl[tbl.meta['edge_indices']]
+        vx_a = verts['x'].quantity
+        vy_a = verts['y'].quantity
+        vx_w, vy_w = m_proj(vx_a, vy_a)
+
+        reg_a = PolygonPixelRegion(
+                vertices=PixCoord(x=vx_a.to(u.cm), y=vy_a.to(u.cm)))
+        reg_w = PolygonPixelRegion(
+                vertices=PixCoord(x=vx_w.to(u.cm), y=vy_w.to(u.cm)))
+
+        axes[0, i].add_patch(reg_a.as_artist(
+            facecolor='none', edgecolor='red', lw=2))
+        axes[1, i].add_patch(reg_w.as_artist(
+            facecolor='none', edgecolor='red', lw=2))
+
+    cax = fig.colorbar(
+            im, ax=axes[:, -1], shrink=0.8, location='right', ticks=nws)
+    cax.set_label('Network')
+    axes[0, 0].set_ylabel(f"Array Plane ({y_a.unit})")
+    axes[1, 0].set_ylabel(f"Wyatt Plane ({y_w.unit})")
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -282,20 +342,10 @@ if __name__ == "__main__":
 
     calobj = ToltecCalib.from_indexfile(option.calobj)
 
-    array_names = ['a1100', 'a1400', 'a2000']
-    n_arrays = len(array_names)
-
     wyatt_proj_kwargs = {
-            'rot': 0 * u.deg,
-            'scale': (3., 3.)
+            'rot': -2. * u.deg,
+            'scale': (3., 3.),
+            'ref_coord': (12., 12.) * u.cm,
             }
 
-    import matplotlib.pyplot as plt
-
-    fig, axes = plt.subplots(2, n_arrays, squeeze=False)
-    for i, array_name in enumerate(array_names):
-        plot_wyatt_plane(
-                calobj, array_name, axes[0, i], axes[1, i],
-                **wyatt_proj_kwargs)
-
-    save_or_show(fig, None)
+    plot_wyatt_plane(calobj, **wyatt_proj_kwargs)
