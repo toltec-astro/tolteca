@@ -12,10 +12,13 @@ This recipe defines a TolTEC KIDs data simulator.
 
 """
 
+from astroplan import Observer
+from astropy.time import Time
+from pytz import timezone
 from tollan.utils.log import timeit
 from tollan.utils.cli.multi_action_argparser import \
         MultiActionArgumentParser
-from regions import PixCoord, PolygonPixelRegion
+from regions import PixCoord, PolygonPixelRegion, PolygonSkyRegion
 from astropy.visualization import quantity_support
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -31,12 +34,13 @@ import psutil
 from tolteca.recipes.simu_hwp_noise import save_or_show
 from astropy import coordinates as coord
 from astropy.modeling import Model, Parameter
+from astropy.modeling.functional_models import GAUSSIAN_SIGMA_TO_FWHM
 from astropy.modeling import models
 # from astropy import coordinates as coord
 from astropy import units as u
 from gwcs import wcs
 from gwcs import coordinate_frames as cf
-from astropy.table import Table
+from astropy.table import Table, Column
 from tolteca.recipes import get_logger
 from abc import ABCMeta
 
@@ -383,6 +387,109 @@ class WyattProjModel(SkyProjModel):
         return c0 + crval0, c1 + crval1
 
 
+class ToltecSkyProjModel(SkyProjModel):
+    """A sky model for TolTEC arrays.
+
+    This model projects the TolTEC arrays on to the sky.
+
+    Parameters
+    ----------
+    array_name: str
+        The name of the array, choose from 'a1100', 'a1400' and 'a2000'.
+    ref_coord: 2-tuple of `astropy.units.Quantity`
+        The coordinate of the TolTEC frame origin on the sky.
+    """
+
+    toltec_instru_spec = {
+            'a1100': {
+                'rot_from_a1100': 0. * u.deg
+                },
+            'a1400': {
+                'rot_from_a1100': 180. * u.deg
+                },
+            'a2000': {
+                'rot_from_a1100': 0. * u.deg
+                },
+            'toltec': {
+                'rot_from_a1100': 90. * u.deg,
+                'array_names': ('a1100', 'a1400', 'a2000'),
+                # 'plate_scale': ()
+                'fov_diam': 4. * u.arcmin,
+                'array_diam': 127049.101 * u.um  # from a1100 design spec.
+                },
+            'site': {
+                'name': 'LMT',
+                'name_long': 'Large Millimeter Telescope',
+                'location': coord.EarthLocation.from_geodetic(
+                        "-97d18m53s", '+18d59m06s', 4600 * u.m),
+                'timezone': timezone('America/Mexico_City'),
+                }
+            }
+
+    observer = Observer(
+            name=toltec_instru_spec['site']['name_long'],
+            location=toltec_instru_spec['site']['location'],
+            timezone=toltec_instru_spec['site']['timezone'],
+            )
+
+    crval0 = Parameter(default=180., unit=u.deg)
+    crval1 = Parameter(default=30., unit=u.deg)
+    mjd_obs = Parameter(
+            default=Time(2000.0, format='jyear').mjd, unit=u.day)
+
+    def __init__(
+            self, array_name,
+            ref_coord=(180., 0) * u.deg,
+            **kwargs
+            ):
+        spec = self.toltec_instru_spec
+        if array_name not in spec:
+            raise ValueError(
+                    f"array name shall be one of "
+                    f"{spec['toltec']['array_names']}")
+        self.array_name = array_name
+
+        # The mirror put array on the perspective of an observer.
+        m_mirr = np.array([[1, 0], [0, -1]])
+
+        # this rot and scale put the arrays on the on the sky in AzEl
+        rot = (
+                spec['toltec']['rot_from_a1100'] -
+                spec[self.array_name]['rot_from_a1100']
+                )
+        m_rot = models.Rotation2D._compute_matrix(angle=rot.to('rad').value)
+
+        plate_scale = spec['toltec']['fov_diam'] / spec['toltec']['array_diam']
+        self._a2s_0 = models.AffineTransformation2D(
+            (m_rot @ m_mirr) * u.um,
+            translation=(0., 0.) * u.um) | (
+                models.Multiply(plate_scale) & models.Multiply(plate_scale))
+        super().__init__(
+                crval0=ref_coord[0], crval1=ref_coord[1],
+                n_models=np.asarray(ref_coord[0]).size, **kwargs)
+
+    @timeit
+    def evaluate(self, x, y, crval0, crval1, mjd_obs):
+        # az el offset of each detector
+        c0, c1 = self._a2s_0(x, y)
+
+        ref_coord = self.observer.altaz(
+                Time(mjd_obs, format='mjd'),
+                target=coord.SkyCoord(
+                    crval0, crval1, frame='icrs')
+                )
+        frame = ref_coord.skyoffset_frame()
+        # The altaz offset does not have location attached so
+        # we need to convert first to ref_coord frame
+        det_coords = coord.SkyCoord(
+                c0, c1, frame=frame).transform_to(
+                        ref_coord.frame).transform_to('icrs')
+        return det_coords.ra, det_coords.dec
+
+    def get_obs_frame(self):
+        return self.observer.altaz(Time(self.mjd_obs, format='mjd'))
+
+
 class ToltecObsSimulator(object):
     """A class that make simulated observations for TolTEC.
 
@@ -438,10 +545,34 @@ class ToltecObsSimulator(object):
         return self._tones
 
 
-def plot_wyatt_plane(calobj, **kwargs):
+def plot_projected(calobj, proj_model, **kwargs):
 
     array_names = ['a1100', 'a1400', 'a2000']
     n_arrays = len(array_names)
+
+    props = np.full((n_arrays, ), None, dtype=object)
+    for i, array_name in enumerate(array_names):
+        tbl = calobj.get_array_prop_table(array_name)
+        m_proj = proj_model(
+                array_name=array_name,
+                **kwargs)
+
+        x_a = tbl['x'].quantity.to(u.cm)
+        y_a = tbl['y'].quantity.to(u.cm)
+        x_p, y_p = m_proj(x_a, y_a)
+
+        verts = tbl.meta['edge_indices']
+        vx_a = x_a[verts]
+        vy_a = y_a[verts]
+        vx_p = x_p[verts]
+        vy_p = y_p[verts]
+
+        n_kids = len(tbl)
+        props[i] = (
+                n_kids, tbl, m_proj,
+                x_a, y_a, x_p, y_p,
+                vx_a, vy_a, vx_p, vy_p,
+                )
 
     # make a color map
     nws = np.arange(13)
@@ -450,65 +581,91 @@ def plot_wyatt_plane(calobj, **kwargs):
 
     cm_kwargs = dict(cmap=cm, vmin=nws[0] - 0.5, vmax=nws[-1] + 0.5)
 
-    fig, axes = plt.subplots(
-            2, n_arrays, squeeze=False,
-            sharex='row', sharey='row', subplot_kw={'aspect': 'equal'},
-            constrained_layout=True, figsize=(16, 8))
-
-    props = np.full((n_arrays, ), None, dtype=object)
-    for i, array_name in enumerate(array_names):
-        tbl = calobj.get_array_prop_table(array_name)
-        m_proj = WyattProjModel(
-                array_name=array_name,
-                **kwargs)
-
-        x_a = tbl['x'].quantity.to(u.cm)
-        y_a = tbl['y'].quantity.to(u.cm)
-        x_w, y_w = m_proj(x_a, y_a)
-
-        n_kids = len(tbl)
-        props[i] = (n_kids, tbl, m_proj, x_a, y_a, x_w, y_w)
+    fig = plt.figure(constrained_layout=True, figsize=(16, 8))
+    axes = np.full((2, n_arrays), None, dtype=object)
+    for i in range(n_arrays):
+        m_proj = props[i][2]
+        subplot_kw = {
+                'aspect': 'equal',
+                'sharex': None if i == 0 else axes[0, 0],
+                'sharey': None if i == 0 else axes[0, 0],
+                'projection': None
+                }
+        axes[0, i] = fig.add_subplot(
+                2, n_arrays, i + 1, **subplot_kw)
+        if proj_model == ToltecSkyProjModel:
+            from astropy.wcs.utils import celestial_frame_to_wcs
+            w = celestial_frame_to_wcs(coord.ICRS())
+            w.wcs.crval = [
+                    m_proj.crval0.value,
+                    m_proj.crval1.value,
+                    ]
+            subplot_kw['projection'] = w
+        else:
+            pass
+        subplot_kw.update({
+                'sharex': None if i == 0 else axes[1, 0],
+                'sharey': None if i == 0 else axes[1, 0],
+                })
+        axes[1, i] = fig.add_subplot(
+                2, n_arrays, i + 1 + n_arrays, **subplot_kw)
 
     for i, prop in enumerate(props):
-        n_kids, tbl, m_proj, x_a, y_a, x_w, y_w = prop
+        (
+            n_kids, tbl, m_proj,
+            x_a, y_a, x_p, y_p,
+            vx_a, vy_a, vx_p, vy_p,
+            ) = prop
         s = (
                 (props[0][0] / n_kids) ** 0.5 * tbl.meta['wl_center'] /
                 props[0][1].meta['wl_center']) * 3,
         c = tbl['nw']
+
+        axes[0, i].set_title(tbl.meta['name_long'])
         im = axes[0, i].scatter(
                 x_a, y_a, s=s, c=c, **cm_kwargs)
         axes[0, i].plot(
                 0, 0,
                 marker='+', color='red')
 
-        im = axes[1, i].scatter(
-                x_w, y_w, s=s, c=c, **cm_kwargs)
-        axes[1, i].plot(
-                m_proj.crval0.value, m_proj.crval1.value,
-                marker='+', color='red')
-
-        axes[0, i].set_title(tbl.meta['name_long'])
-
-        verts = tbl[tbl.meta['edge_indices']]
-        vx_a = verts['x'].quantity
-        vy_a = verts['y'].quantity
-        vx_w, vy_w = m_proj(vx_a, vy_a)
-
         reg_a = PolygonPixelRegion(
                 vertices=PixCoord(x=vx_a.to(u.cm), y=vy_a.to(u.cm)))
-        reg_w = PolygonPixelRegion(
-                vertices=PixCoord(x=vx_w.to(u.cm), y=vy_w.to(u.cm)))
-
         axes[0, i].add_patch(reg_a.as_artist(
             facecolor='none', edgecolor='red', lw=2))
-        axes[1, i].add_patch(reg_w.as_artist(
-            facecolor='none', edgecolor='red', lw=2))
+
+        if proj_model == WyattProjModel:
+            im = axes[1, i].scatter(
+                    x_p, y_p, s=s, c=c, **cm_kwargs)
+            axes[1, i].plot(
+                    m_proj.crval0.value, m_proj.crval1.value,
+                    marker='+', color='red')
+
+            reg_p = PolygonPixelRegion(
+                    vertices=PixCoord(x=vx_p.to(u.cm), y=vy_p.to(u.cm)))
+            axes[1, i].add_patch(reg_p.as_artist(
+                facecolor='none', edgecolor='red', lw=2))
+        elif proj_model == ToltecSkyProjModel:
+            transform = axes[1, i].get_transform('icrs')
+            im = axes[1, i].scatter(
+                    x_p, y_p, s=s, c=c, transform=transform, **cm_kwargs)
+            axes[1, i].plot(
+                    m_proj.crval0.value, m_proj.crval1.value,
+                    marker='+', color='red',
+                    transform=transform
+                    )
+
+            reg_p = PolygonSkyRegion(
+                    vertices=coord.SkyCoord(ra=vx_p, dec=vy_p, frame='icrs'))
+            patch = reg_p.to_pixel(axes[1, i].wcs).as_artist(
+                    facecolor='none', edgecolor='red', lw=2)
+            axes[1, i].add_patch(patch)
 
     cax = fig.colorbar(
             im, ax=axes[:, -1], shrink=0.8, location='right', ticks=nws)
     cax.set_label('Network')
     axes[0, 0].set_ylabel(f"Array Plane ({y_a.unit})")
-    axes[1, 0].set_ylabel(f"Wyatt Plane ({y_w.unit})")
+    if proj_model == WyattProjModel:
+        axes[1, 0].set_ylabel(f"Wyatt Plane ({proj_model.crval0.unit})")
     plt.show()
 
 
@@ -662,21 +819,33 @@ if __name__ == "__main__":
             required=True
             )
 
-    act_plot_wyatt = maap.add_action_parser(
-            'plot_wyatt',
-            help='Plot the detectors on Wyatt plane.'
+    act_plot_projected = maap.add_action_parser(
+            'plot_projected',
+            help='Plot the projected detectors'
+            )
+    act_plot_projected.add_argument(
+            'proj_model',
+            choices=['wyatt', 'toltec']
             )
 
-    @act_plot_wyatt.parser_action
-    def plot_wyatt_action(option):
+    @act_plot_projected.parser_action
+    def plot_projected_action(option):
 
         calobj = ToltecCalib.from_indexfile(option.calobj)
-        wyatt_proj_kwargs = {
-                'rot': -2. * u.deg,
-                'scale': (3., 3.),
-                'ref_coord': (12., 12.) * u.cm,
-                }
-        plot_wyatt_plane(calobj, **wyatt_proj_kwargs)
+        if option.proj_model == 'wyatt':
+            proj_kwargs = {
+                    'rot': -2. * u.deg,
+                    'scale': (3., 3.),
+                    'ref_coord': (12., 12.) * u.cm,
+                    }
+            proj_model = WyattProjModel
+        elif option.proj_model == 'toltec':
+            proj_model = ToltecSkyProjModel
+            proj_kwargs = {
+                    'mjd_obs': Time("2020-04-13T00:00:00").mjd * u.day,
+                    'ref_coord': (180., 30.) * u.deg,
+                    }
+        plot_projected(calobj, proj_model, **proj_kwargs)
 
     act_plot_obs_on_wyatt = maap.add_action_parser(
             'plot_obs_on_wyatt',
@@ -711,8 +880,8 @@ if __name__ == "__main__":
                 'rot': 30. * u.deg,
                 'x_length': 50. * u.cm,
                 'y_length': 50. * u.cm,
-                'x_omega': 0.13 * np.pi * u.rad / u.s,
-                'y_omega': 0.19 * np.pi * u.rad / u.s,
+                'x_omega': 0.5 * np.pi * u.rad / u.s,
+                'y_omega': 0.7 * np.pi * u.rad / u.s,
                 'delta': 30 * u.deg
                 # 'delta': 60. * u.deg
                 }
@@ -748,14 +917,101 @@ if __name__ == "__main__":
                 'rot': 30. * u.deg,
                 'x_length': 2. * u.arcmin,
                 'y_length': 2. * u.arcmin,
-                'x_omega': 0.13 * np.pi * u.rad / u.s,
-                'y_omega': 0.19 * np.pi * u.rad / u.s,
+                'x_omega': 0.07 * np.pi * u.rad / u.s,
+                'y_omega': 0.05 * np.pi * u.rad / u.s,
                 'delta': 30 * u.deg
                 # 'delta': 60. * u.deg
                 }
             m_obs = SkyLissajousModel(**lissajous_kwargs)
         ref_obj = option.ref_obj
         plot_obs_on_sky(calobj, m_obs, ref_obj)
+
+    act_plot_simu_sky_point_source = maap.add_action_parser(
+            'plot_simu_sky_point_source',
+            help='Plot an end-to-end simulation.'
+            )
+    act_plot_simu_sky_point_source.add_argument(
+            "pattern", choices=['raster', 'lissajous'])
+
+    @act_plot_simu_sky_point_source.parser_action
+    def plot_simu_sky_point_source_action(option):
+
+        logger = get_logger()
+
+        calobj = ToltecCalib.from_indexfile(option.calobj)
+
+        if option.pattern == 'raster':
+            raster_scan_kwargs = {
+                'rot': 30. * u.deg,
+                'length': 2. * u.arcmin,
+                'space': 5. * u.arcsec,
+                'n_scans': 24 * u.dimensionless_unscaled,
+                'speed': 1. * u.arcsec / u.s,
+                't_turnover': 5 * u.s,
+                }
+            m_obs = SkyRasterScanModel(**raster_scan_kwargs)
+        elif option.pattern == 'lissajous':
+            lissajous_kwargs = {
+                'rot': 30. * u.deg,
+                'x_length': 2. * u.arcmin,
+                'y_length': 2. * u.arcmin,
+                'x_omega': 0.07 * np.pi * u.rad / u.s,
+                'y_omega': 0.05 * np.pi * u.rad / u.s,
+                'delta': 30 * u.deg
+                # 'delta': 60. * u.deg
+                }
+            m_obs = SkyLissajousModel(**lissajous_kwargs)
+
+        # get object flux model
+        beam_model = models.Gaussian2D
+        beam_kwargs = {
+                'x_fwhm': 5 * u.arcsec,
+                'y_fwhm': 5 * u.arcsec,
+                }
+
+        x_stddev = beam_kwargs['x_fwhm'] / GAUSSIAN_SIGMA_TO_FWHM
+        y_stddev = beam_kwargs['y_fwhm'] / GAUSSIAN_SIGMA_TO_FWHM
+        m_beam = beam_model(
+                amplitude=1. / (2 * np.pi * x_stddev * y_stddev) * u.mJy,
+                x_mean=0. * u.arcsec,
+                y_mean=0. * u.arcsec,
+                x_stddev=x_stddev,
+                y_stddev=y_stddev,
+                )
+        logger.debug(f"beam:\n{m_beam}")
+
+        # make a source catalog
+        sources = Table(
+                [
+                    Column(name='name', dtype='|S32'),
+                    Column(name='ra', unit=u.deg),
+                    Column(name='dec', unit=u.deg),
+                    Column(name='flux', unit=u.mJy),
+                    ])
+        sources.add_row(['src0', 180., 0., 1.])
+        sources.add_row(['src1', 180., 30. / 3600., 1.])
+
+        logger.debug(f"sources:\n{sources}")
+
+        # define a field center
+        ref_coord = coord.SkyCoord(
+                ra=sources['ra'].quantity[0],
+                dec=sources['dec'].quantity[0],
+                frame='icrs')
+
+        # define the instru sampling rate
+        fsmp = 12.2 * u.Hz
+        # t_exp = 5 * u.min
+        t_exp = 1 * u.s
+        t = np.arange(0, t_exp.to(u.s).value, (1 / fsmp).to(u.s).value) * u.s
+
+        # set the observer
+
+        t0_obs = Time('2020-04-13 00:00:00')
+
+        obs_coords = m_obs.evaluate_at(ref_coord, t)
+
+        print(obs_coords)
 
     option = maap.parse_args(sys.argv[1:])
     maap.bootstrap_actions(option)
