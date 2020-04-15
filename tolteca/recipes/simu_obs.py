@@ -12,6 +12,7 @@ This recipe defines a TolTEC KIDs data simulator.
 
 """
 
+from astropy.wcs.utils import celestial_frame_to_wcs
 from astroplan import Observer
 from astropy.time import Time
 from pytz import timezone
@@ -28,7 +29,7 @@ from scipy import signal
 import itertools
 from astropy.visualization import quantity_support
 import pickle
-from tollan.utils.log import timeit
+from tollan.utils.log import timeit, Timer
 import concurrent
 import psutil
 from tolteca.recipes.simu_hwp_noise import save_or_show
@@ -81,7 +82,7 @@ class RasterScanModelMeta(SkyMapModel.__class__):
 
         attrs['get_total_time'] = get_total_time
 
-        @timeit
+        @timeit(name)
         def evaluate(
                 self, t, length, space, n_scans, rot, speed, t_turnover):
             """This computes a raster patten around the origin.
@@ -174,7 +175,7 @@ class LissajousModelMeta(SkyMapModel.__class__):
 
         attrs['get_total_time'] = get_total_time
 
-        @timeit
+        @timeit(name)
         def evaluate(
                 self, t, x_length, y_length, x_omega, y_omega, delta, rot):
             """This computes a lissajous pattern around the origin.
@@ -240,46 +241,26 @@ class SkyLissajousModel(SkyMapModel, metaclass=LissajousModelMeta):
                 ref_coord.frame)
 
 
-class SkyProjModel(Model):
-    """A model that transforms the detector locations to
-    sky coordinates for a given pointing.
+class ProjModel(Model):
+    """Base class for models that transform the detector locations.
     """
-
-    n_inputs = 2
-    n_outputs = 2
 
     def __init__(self, *args, **kwargs):
+        inputs = kwargs.pop('inputs', self.input_frame.axes_names)
+        outputs = kwargs.pop('outputs', self.output_frame.axes_names)
         super().__init__(*args, **kwargs)
+        self.inputs = inputs
+        self.outputs = outputs
 
-    def evaluate(self, x, y):
-        return NotImplemented
-
-    @classmethod
-    def from_fitswcs(cls, w):
-        """Construct a sky projection model from fits WCS object."""
-        return NotImplemented
+    def mpl_axes_params(self):
+        return dict(aspect='equal')
 
 
-class WyattProjModel(SkyProjModel):
-    """A "Sky" model for the Wyatt robot arm.
+class ArrayProjModel(ProjModel):
+    """A model that transforms the detector locations per array to
+    a common instrument coordinate system.
 
-    This model is an affine transformation that projects the
-    designed positions of detectors on the array to a fiducial
-    plane in front of the cryostat window, on which the Wyatt
-    robot arm moves.
-
-    Parameters
-    ----------
-    array_name: str
-        The name of the array, choose from 'a1100', 'a1400' and 'a2000'.
-    rot: `astropy.units.Quantity`
-        Rotation angle between the Wyatt frame and the TolTEC frame.
-    scale: 2-tuple of float
-        Scale between the Wyatt frame and the TolTEC frame.
-    ref_coord: 2-tuple of `astropy.units.Quantity`
-        The coordinate of the TolTEC frame origin on the Wyatt frame.
     """
-
     toltec_instru_spec = {
             'a1100': {
                 'rot_from_a1100': 0. * u.deg
@@ -293,50 +274,132 @@ class WyattProjModel(SkyProjModel):
             'toltec': {
                 'rot_from_a1100': 90. * u.deg,
                 'array_names': ('a1100', 'a1400', 'a2000'),
-                }
+                # 'plate_scale': ()
+                'fov_diam': 4. * u.arcmin,
+                'array_diam': 127049.101 * u.um  # from a1100 design spec.
+                },
             }
+    input_frame = cf.Frame2D(
+                name='array',
+                axes_names=("x", "y"),
+                unit=(u.um, u.um))
+    output_frame = cf.Frame2D(
+                name='toltec',
+                axes_names=("az_offset", "alt_offset"),
+                unit=(u.deg, u.deg))
+    _name = f'{output_frame.name}_proj'
 
-    crval0 = Parameter(default=0., unit=u.cm)
-    crval1 = Parameter(default=0., unit=u.cm)
+    n_inputs = 3
+    n_outputs = 2
 
-    def __init__(
-            self, array_name,
-            rot,
-            scale,
-            ref_coord=(0, 0) * u.cm,
-            **kwargs
-            ):
+    def __init__(self, **kwargs):
         spec = self.toltec_instru_spec
-        if array_name not in spec:
-            raise ValueError(
-                    f"array name shall be one of "
-                    f"{spec['toltec']['array_names']}")
-        self.array_name = array_name
 
         # The mirror put array on the perspective of an observer.
         m_mirr = np.array([[1, 0], [0, -1]])
 
-        # the rotation consistent of the angle between wyatt and toltec,
-        # and between toltec and the array.
-        # the later is computed from subtracting angle between
-        # toltec to a1100 and the array to a1100.
-        rot = (
-                rot +
-                spec['toltec']['rot_from_a1100'] -
-                spec[self.array_name]['rot_from_a1100']
-                )
-        m_rot = models.Rotation2D._compute_matrix(angle=rot.to('rad').value)
-        m_scal = np.array([[scale[0], 0], [0, scale[1]]])
+        plate_scale = spec['toltec']['fov_diam'] / spec['toltec']['array_diam']
 
-        # This transforms detector coordinates on the array frame to
-        # the Wyatt frame, with respect to the ref_coord == (0, 0)
-        # the supplied ref_coord is set as params of the model.
-        self._a2w_0 = models.AffineTransformation2D(
-            (m_scal @ m_rot @ m_mirr) * u.cm,
-            translation=(0., 0.) * u.cm)
+        m_projs = dict()
+
+        for array_name in self.array_names:
+
+            # this rot and scale put the arrays on the on the sky in Altaz
+            rot = (
+                    spec['toltec']['rot_from_a1100'] -
+                    spec[array_name]['rot_from_a1100']
+                    )
+            m_rot = models.Rotation2D._compute_matrix(
+                    angle=rot.to('rad').value)
+
+            m_projs[array_name] = models.AffineTransformation2D(
+                (m_rot @ m_mirr) * u.cm,
+                translation=(0., 0.) * u.cm) | (
+                    models.Multiply(plate_scale) &
+                    models.Multiply(plate_scale))
+        self._m_projs = m_projs
         super().__init__(
-                crval0=ref_coord[0], crval1=ref_coord[1],
-                n_models=np.asarray(ref_coord[0]).size, **kwargs)
+                inputs=('axes_names', ) + self.input_frame.axes_names,
+                **kwargs)
+
+    @timeit(_name)
+    def evaluate(self, array_name, x, y):
+        out_unit = u.deg
+        x_out = np.empty(x.shape) * out_unit
+        y_out = np.empty(y.shape) * out_unit
+        for n in self.array_names:
+            m = np.where(array_name == n)[0]
+            xx, yy = self._m_projs[n](x[m], y[m])
+            x_out[m] = xx.to(out_unit)
+            y_out[m] = yy.to(out_unit)
+        return x_out, y_out
+
+    @property
+    def array_names(self):
+        return self.toltec_instru_spec['toltec']['array_names']
+
+    def prepare_inputs(self, *inputs, **kwargs):
+        # this is necessary to skip checking the type of the array_name
+        inputs_new, broadcasts = super().prepare_inputs(*inputs[1:], **kwargs)
+        inputs_new.insert(0, inputs[0])
+        broadcasts = broadcasts[:1] + broadcasts
+        return inputs_new, broadcasts
+
+
+class WyattProjModel(ProjModel):
+    """A projection model for the Wyatt robot arm.
+
+    This model is an affine transformation that projects the designed positions
+    of detectors on the toltec frame to a plane in front of the cryostat
+    window, on which the Wyatt robot arm moves.
+
+    Parameters
+    ----------
+    rot: `astropy.units.Quantity`
+        Rotation angle between the Wyatt frame and the TolTEC frame.
+    scale: 2-tuple of `astropy.units.Quantity`
+        Scale between the Wyatt frame and the TolTEC frame
+    ref_coord: 2-tuple of `astropy.units.Quantity`
+        The coordinate of the TolTEC frame origin on the Wyatt frame.
+    """
+
+    input_frame = ArrayProjModel.output_frame
+    output_frame = cf.Frame2D(
+                name='wyatt',
+                axes_names=("x", "y"),
+                unit=(u.cm, u.cm))
+    _name = f'{output_frame.name}_proj'
+
+    n_inputs = 2
+    n_outputs = 2
+
+    crval0 = Parameter(default=0., unit=output_frame.unit[0])
+    crval1 = Parameter(default=0., unit=output_frame.unit[1])
+
+    def __init__(self, rot, scale, ref_coord=None, **kwargs):
+        if not scale[0].unit.is_equivalent(u.m / u.deg):
+            raise ValueError("invalid unit for scale.")
+        if ref_coord is not None:
+            if 'crval0' in kwargs or 'crval1' in kwargs:
+                raise ValueError(
+                        "ref_coord cannot be specified along with crvals")
+            kwargs['crval0'] = ref_coord[0]
+            kwargs['crval1'] = ref_coord[1]
+            kwargs['n_models'] = np.asarray(ref_coord[0]).size
+
+        m_rot = models.Rotation2D._compute_matrix(angle=rot.to('rad').value)
+
+        self._t2w_0 = models.AffineTransformation2D(
+                m_rot * u.deg,
+                translation=(0., 0.) * u.deg) | (
+                    models.Multiply(scale[0]) & models.Multiply(scale[1])
+                    )
+        super().__init__(**kwargs)
+
+    @timeit(_name)
+    def evaluate(self, x, y, crval0, crval1):
+        c0, c1 = self._t2w_0(x, y)
+        return c0 + crval0, c1 + crval1
 
     def get_map_wcs(self, pixscale, ref_coord=None):
 
@@ -381,113 +444,108 @@ class WyattProjModel(SkyProjModel):
                 ]
         return wcs.WCS(pipeline)
 
-    @timeit
-    def evaluate(self, x, y, crval0, crval1):
-        c0, c1 = self._a2w_0(x, y)
-        return c0 + crval0, c1 + crval1
 
-
-class ToltecSkyProjModel(SkyProjModel):
-    """A sky model for TolTEC arrays.
-
-    This model projects the TolTEC arrays on to the sky.
+class SkyProjModel(ProjModel):
+    """A sky projection model for TolTEC.
 
     Parameters
     ----------
-    array_name: str
-        The name of the array, choose from 'a1100', 'a1400' and 'a2000'.
     ref_coord: 2-tuple of `astropy.units.Quantity`
         The coordinate of the TolTEC frame origin on the sky.
     """
 
-    toltec_instru_spec = {
-            'a1100': {
-                'rot_from_a1100': 0. * u.deg
-                },
-            'a1400': {
-                'rot_from_a1100': 180. * u.deg
-                },
-            'a2000': {
-                'rot_from_a1100': 0. * u.deg
-                },
-            'toltec': {
-                'rot_from_a1100': 90. * u.deg,
-                'array_names': ('a1100', 'a1400', 'a2000'),
-                # 'plate_scale': ()
-                'fov_diam': 4. * u.arcmin,
-                'array_diam': 127049.101 * u.um  # from a1100 design spec.
-                },
-            'site': {
-                'name': 'LMT',
-                'name_long': 'Large Millimeter Telescope',
-                'location': coord.EarthLocation.from_geodetic(
-                        "-97d18m53s", '+18d59m06s', 4600 * u.m),
-                'timezone': timezone('America/Mexico_City'),
-                }
-            }
+    site = {
+        'name': 'LMT',
+        'name_long': 'Large Millimeter Telescope',
+        'location': coord.EarthLocation.from_geodetic(
+                "-97d18m53s", '+18d59m06s', 4600 * u.m),
+        'timezone': timezone('America/Mexico_City'),
+        }
 
     observer = Observer(
-            name=toltec_instru_spec['site']['name_long'],
-            location=toltec_instru_spec['site']['location'],
-            timezone=toltec_instru_spec['site']['timezone'],
+            name=site['name_long'],
+            location=site['location'],
+            timezone=site['timezone'],
             )
 
-    crval0 = Parameter(default=180., unit=u.deg)
-    crval1 = Parameter(default=30., unit=u.deg)
-    mjd_obs = Parameter(
-            default=Time(2000.0, format='jyear').mjd, unit=u.day)
+    input_frame = ArrayProjModel.output_frame
+    output_frame = cf.Frame2D(
+                name='sky',
+                axes_names=("lon", "lat"),
+                unit=(u.deg, u.deg))
+    _name = f'{output_frame.name}_proj'
+
+    n_inputs = 2
+    n_outputs = 2
+
+    crval0 = Parameter(default=180., unit=output_frame.axes_names[0])
+    crval1 = Parameter(default=30., unit=output_frame.axes_names[1])
+    mjd_obs = Parameter(default=Time(2000.0, format='jyear').mjd, unit=u.day)
 
     def __init__(
-            self, array_name,
-            ref_coord=(180., 0) * u.deg,
-            **kwargs
-            ):
-        spec = self.toltec_instru_spec
-        if array_name not in spec:
-            raise ValueError(
-                    f"array name shall be one of "
-                    f"{spec['toltec']['array_names']}")
-        self.array_name = array_name
+            self, ref_coord=None, time_obs=None,
+            evaluate_frame=None, **kwargs):
+        if ref_coord is not None:
+            if 'crval0' in kwargs or 'crval1' in kwargs:
+                raise ValueError(
+                        "ref_coord cannot be specified along with crvals")
+            kwargs['crval0'] = ref_coord[0]
+            kwargs['crval1'] = ref_coord[1]
+            kwargs['n_models'] = np.asarray(ref_coord[0]).size
+        if time_obs is not None:
+            if 'mjd_obs' in kwargs:
+                raise ValueError(
+                        "time_obs cannot be specified along with mjd_obs")
+            kwargs['mjd_obs'] = time_obs.mjd * u.day
+        self.evaluate_frame = evaluate_frame
+        super().__init__(**kwargs)
 
-        # The mirror put array on the perspective of an observer.
-        m_mirr = np.array([[1, 0], [0, -1]])
-
-        # this rot and scale put the arrays on the on the sky in AzEl
-        rot = (
-                spec['toltec']['rot_from_a1100'] -
-                spec[self.array_name]['rot_from_a1100']
-                )
-        m_rot = models.Rotation2D._compute_matrix(angle=rot.to('rad').value)
-
-        plate_scale = spec['toltec']['fov_diam'] / spec['toltec']['array_diam']
-        self._a2s_0 = models.AffineTransformation2D(
-            (m_rot @ m_mirr) * u.um,
-            translation=(0., 0.) * u.um) | (
-                models.Multiply(plate_scale) & models.Multiply(plate_scale))
-        super().__init__(
-                crval0=ref_coord[0], crval1=ref_coord[1],
-                n_models=np.asarray(ref_coord[0]).size, **kwargs)
-
-    @timeit
+    @timeit(_name)
     def evaluate(self, x, y, crval0, crval1, mjd_obs):
-        # az el offset of each detector
-        c0, c1 = self._a2s_0(x, y)
 
-        ref_coord = self.observer.altaz(
-                Time(mjd_obs, format='mjd'),
-                target=coord.SkyCoord(
-                    crval0, crval1, frame='icrs')
-                )
-        frame = ref_coord.skyoffset_frame()
+        with Timer("get ref coord altaz frame"):
+            ref_frame = self.observer.altaz(
+                    Time(mjd_obs, format='mjd'),
+                    )
+        with Timer("get ref coord in altaz"):
+            ref_coord = coord.SkyCoord(
+                    crval0, crval1, frame='icrs').transform_to(ref_frame)
         # The altaz offset does not have location attached so
         # we need to convert first to ref_coord frame
-        det_coords = coord.SkyCoord(
-                c0, c1, frame=frame).transform_to(
-                        ref_coord.frame).transform_to('icrs')
-        return det_coords.ra, det_coords.dec
+        with Timer("get det coords in altaz"):
+            offset_frame = ref_coord.skyoffset_frame()
+            det_coords = coord.SkyCoord(
+                    x, y, frame=offset_frame).transform_to(
+                            ref_frame)
+        frame = self.evaluate_frame
+        if frame is None or frame == 'native':
+            return det_coords.az, det_coords.alt
+        with Timer(f"get det coords in {frame}"):
+            det_coords = det_coords.transform_to(frame)
+            attrs = list(
+                    det_coords.get_representation_component_names().keys())
+            return (getattr(det_coords, attrs[0]),
+                    getattr(det_coords, attrs[1]))
 
-    def get_obs_frame(self):
+    def __call__(self, *args, frame=None, **kwargs):
+        if frame is None:
+            frame = self.evaluate_frame
+        old_evaluate_frame = self.evaluate_frame
+        self.evaluate_frame = frame
+        result = super().__call__(*args, **kwargs)
+        self.evaluate_frame = old_evaluate_frame
+        return result
+
+    def get_native_frame(self):
         return self.observer.altaz(Time(self.mjd_obs, format='mjd'))
+
+    def mpl_axes_params(self):
+        w = celestial_frame_to_wcs(coord.ICRS())
+        w.wcs.crval = [
+                self.crval0.value,
+                self.crval1.value,
+                ]
+        return dict(super().mpl_axes_params(), projection=w)
 
 
 class ToltecObsSimulator(object):
@@ -545,127 +603,209 @@ class ToltecObsSimulator(object):
         return self._tones
 
 
-def plot_projected(calobj, proj_model, **kwargs):
-
-    array_names = ['a1100', 'a1400', 'a2000']
-    n_arrays = len(array_names)
-
-    props = np.full((n_arrays, ), None, dtype=object)
-    for i, array_name in enumerate(array_names):
-        tbl = calobj.get_array_prop_table(array_name)
-        m_proj = proj_model(
-                array_name=array_name,
-                **kwargs)
-
-        x_a = tbl['x'].quantity.to(u.cm)
-        y_a = tbl['y'].quantity.to(u.cm)
-        x_p, y_p = m_proj(x_a, y_a)
-
-        verts = tbl.meta['edge_indices']
-        vx_a = x_a[verts]
-        vy_a = y_a[verts]
-        vx_p = x_p[verts]
-        vy_p = y_p[verts]
-
-        n_kids = len(tbl)
-        props[i] = (
-                n_kids, tbl, m_proj,
-                x_a, y_a, x_p, y_p,
-                vx_a, vy_a, vx_p, vy_p,
-                )
-
+def _make_nw_cmap():
     # make a color map
     nws = np.arange(13)
     from_list = mcolors.LinearSegmentedColormap.from_list
-    cm = from_list(None, plt.get_cmap('tab20')(nws), len(nws))
+    cmap = from_list(None, plt.get_cmap('tab20')(nws), len(nws))
+    cmap_kwargs = dict(cmap=cmap, vmin=nws[0] - 0.5, vmax=nws[-1] + 0.5)
+    cax_ticks = nws
+    cax_label = 'Network'
+    return cax_ticks, cax_label, cmap_kwargs
 
-    cm_kwargs = dict(cmap=cm, vmin=nws[0] - 0.5, vmax=nws[-1] + 0.5)
+
+def plot_arrays(calobj):
+    logger = get_logger()
+
+    tbl = calobj.get_array_prop_table()
+    array_names = tbl.meta['array_names']
+    n_arrays = len(array_names)
+
+    logger.debug(f"array prop table:\n{tbl}")
+
+    x_a = tbl['x'].quantity.to(u.cm)
+    y_a = tbl['y'].quantity.to(u.cm)
+
+    m_proj = ArrayProjModel()
+    logger.debug(f"proj model:\n{m_proj}")
+
+    x_p, y_p = m_proj(tbl['array_name'], x_a, y_a)
+
+    fig, axes = plt.subplots(2, n_arrays, subplot_kw=m_proj.mpl_axes_params())
+
+    _, _, cmap_kwargs = _make_nw_cmap()
+    for i, array_name in enumerate(array_names):
+        m = tbl['array_name'] == array_name
+        mtbl = tbl[m]
+        mtbl.meta = tbl.meta[array_name]
+
+        # per array pos
+        mx_a = x_a[m]
+        my_a = y_a[m]
+        mx_p = x_p[m]
+        my_p = y_p[m]
+
+        n_detectors = mtbl.meta['n_detectors']
+        if i == 0:
+            n_detectors_0 = n_detectors
+            wl_center_0 = mtbl.meta['wl_center']
+        s = (
+                (n_detectors_0 / n_detectors) ** 0.5 *
+                mtbl.meta['wl_center'] /
+                wl_center_0) * 3,
+        c = mtbl['nw']
+
+        axes[0, i].scatter(mx_a, my_a, c=c, s=s, **cmap_kwargs)
+        axes[1, i].scatter(
+                mx_p.to(u.arcmin).value,
+                my_p.to(u.arcmin).value,
+                c=c, s=s, **cmap_kwargs)
+
+    axes[0, 0].set_ylabel(f"{m_proj.input_frame.name} frame ({y_a.unit})")
+    axes[1, 0].set_ylabel(f"{m_proj.output_frame.name} frame (arcmin)")
+    fig.tight_layout()
+    plt.show()
+
+
+def plot_projected(calobj, proj_model, **kwargs):
+
+    logger = get_logger()
+
+    tbl = calobj.get_array_prop_table()
+    array_names = tbl.meta['array_names']
+    n_arrays = len(array_names)
+    x_a = tbl['x'].quantity.to(u.cm)
+    y_a = tbl['y'].quantity.to(u.cm)
+    x_t, y_t = ArrayProjModel()(tbl['array_name'], x_a, y_a)
+
+    # combine the array projection with sky projection
+    m_proj = proj_model(**kwargs)
+    logger.debug(f"proj model:\n{m_proj}")
+
+    crvals = (
+            m_proj.crval0,
+            m_proj.crval1,
+            )
+    proj_unit = crvals[0].unit
+
+    x_p, y_p = m_proj(x_t, y_t)
+
+    props = np.full((n_arrays, ), None, dtype=object)
+    for i, array_name in enumerate(array_names):
+        m = tbl['array_name'] == array_name
+
+        mtbl = tbl[m]
+        mtbl.meta = tbl.meta[array_name]
+
+        # per array pos
+        mx_a = x_a[m]
+        my_a = y_a[m]
+        mx_p = x_p[m]
+        my_p = y_p[m]
+
+        # edge detectors for outline, note the vert indices are
+        # with respect to per array table
+        iv = tbl.meta[array_name]['edge_indices']
+        vx_a = mx_a[iv]
+        vy_a = my_a[iv]
+        vx_p = mx_p[iv]
+        vy_p = my_p[iv]
+
+        props[i] = (
+                mtbl,
+                mx_a, my_a, mx_p, my_p,
+                vx_a, vy_a, vx_p, vy_p,
+                )
+
+    cax_ticks, cax_label, cmap_kwargs = _make_nw_cmap()
 
     fig = plt.figure(constrained_layout=True, figsize=(16, 8))
     axes = np.full((2, n_arrays), None, dtype=object)
     for i in range(n_arrays):
-        m_proj = props[i][2]
-        subplot_kw = {
-                'aspect': 'equal',
-                'sharex': None if i == 0 else axes[0, 0],
-                'sharey': None if i == 0 else axes[0, 0],
-                'projection': None
-                }
         axes[0, i] = fig.add_subplot(
-                2, n_arrays, i + 1, **subplot_kw)
-        if proj_model == ToltecSkyProjModel:
-            from astropy.wcs.utils import celestial_frame_to_wcs
-            w = celestial_frame_to_wcs(coord.ICRS())
-            w.wcs.crval = [
-                    m_proj.crval0.value,
-                    m_proj.crval1.value,
-                    ]
-            subplot_kw['projection'] = w
-        else:
-            pass
-        subplot_kw.update({
-                'sharex': None if i == 0 else axes[1, 0],
-                'sharey': None if i == 0 else axes[1, 0],
-                })
+                2, n_arrays, i + 1, **dict(
+                    aspect='equal',
+                    sharex=None if i == 0 else axes[0, 0],
+                    sharey=None if i == 0 else axes[0, 0],
+                    ))
         axes[1, i] = fig.add_subplot(
-                2, n_arrays, i + 1 + n_arrays, **subplot_kw)
+                2, n_arrays, i + 1 + n_arrays, **dict(
+                    m_proj.mpl_axes_params(),
+                    aspect='equal',
+                    sharex=None if i == 0 else axes[1, 0],
+                    sharey=None if i == 0 else axes[1, 0],
+                    ))
+
+    axes[0, 0].set_ylabel(
+            f"{ArrayProjModel.input_frame.name} frame ({y_a.unit})")
+    axes[1, 0].set_ylabel(f"{m_proj.output_frame.name} frame ({proj_unit})")
 
     for i, prop in enumerate(props):
         (
-            n_kids, tbl, m_proj,
-            x_a, y_a, x_p, y_p,
+            mtbl,
+            mx_a, my_a, mx_p, my_p,
             vx_a, vy_a, vx_p, vy_p,
             ) = prop
+        n_detectors = mtbl.meta['n_detectors']
+        if i == 0:
+            n_detectors_0 = n_detectors
+            wl_center_0 = mtbl.meta['wl_center']
         s = (
-                (props[0][0] / n_kids) ** 0.5 * tbl.meta['wl_center'] /
-                props[0][1].meta['wl_center']) * 3,
-        c = tbl['nw']
+                (n_detectors_0 / n_detectors) ** 0.5 *
+                mtbl.meta['wl_center'] /
+                wl_center_0) * 3,
+        c = mtbl['nw']
 
-        axes[0, i].set_title(tbl.meta['name_long'])
+        axes[0, i].set_title(mtbl.meta['name_long'])
         im = axes[0, i].scatter(
-                x_a, y_a, s=s, c=c, **cm_kwargs)
+                mx_a, my_a, s=s, c=c, **cmap_kwargs)
         axes[0, i].plot(
                 0, 0,
                 marker='+', color='red')
 
+        # assuming 1cm = 1pix
         reg_a = PolygonPixelRegion(
-                vertices=PixCoord(x=vx_a.to(u.cm), y=vy_a.to(u.cm)))
+                vertices=PixCoord(x=vx_a, y=vy_a))
         axes[0, i].add_patch(reg_a.as_artist(
             facecolor='none', edgecolor='red', lw=2))
 
+        # projected plane
         if proj_model == WyattProjModel:
-            im = axes[1, i].scatter(
-                    x_p, y_p, s=s, c=c, **cm_kwargs)
-            axes[1, i].plot(
-                    m_proj.crval0.value, m_proj.crval1.value,
-                    marker='+', color='red')
+            plot_kw = dict()
+        else:
+            plot_kw = dict(transform=axes[1, i].get_transform('icrs'))
 
+        im = axes[1, i].scatter(
+                mx_p.to(proj_unit), my_p.to(proj_unit),
+                s=s, c=c, **cmap_kwargs, **plot_kw)
+
+        axes[1, i].plot(
+                crvals[0].value,
+                crvals[1].value,
+                marker='+', color='red', **plot_kw)
+
+        if proj_model == WyattProjModel:
             reg_p = PolygonPixelRegion(
-                    vertices=PixCoord(x=vx_p.to(u.cm), y=vy_p.to(u.cm)))
+                    vertices=PixCoord(
+                        x=vx_p.to(proj_unit),
+                        y=vy_p.to(proj_unit)))
             axes[1, i].add_patch(reg_p.as_artist(
                 facecolor='none', edgecolor='red', lw=2))
-        elif proj_model == ToltecSkyProjModel:
-            transform = axes[1, i].get_transform('icrs')
-            im = axes[1, i].scatter(
-                    x_p, y_p, s=s, c=c, transform=transform, **cm_kwargs)
-            axes[1, i].plot(
-                    m_proj.crval0.value, m_proj.crval1.value,
-                    marker='+', color='red',
-                    transform=transform
-                    )
-
+        elif proj_model == SkyProjModel:
             reg_p = PolygonSkyRegion(
                     vertices=coord.SkyCoord(ra=vx_p, dec=vy_p, frame='icrs'))
             patch = reg_p.to_pixel(axes[1, i].wcs).as_artist(
                     facecolor='none', edgecolor='red', lw=2)
             axes[1, i].add_patch(patch)
+            axes[1, i].coords.grid(
+                    color='#cccc66', linestyle='-')
+            overlay = axes[1, i].get_coords_overlay(
+                    m_proj.get_native_frame())
+            overlay.grid(color='#66aacc', ls='-')
 
     cax = fig.colorbar(
-            im, ax=axes[:, -1], shrink=0.8, location='right', ticks=nws)
-    cax.set_label('Network')
-    axes[0, 0].set_ylabel(f"Array Plane ({y_a.unit})")
-    if proj_model == WyattProjModel:
-        axes[1, 0].set_ylabel(f"Wyatt Plane ({proj_model.crval0.unit})")
+            im, ax=axes[:, -1], shrink=0.8, location='right', ticks=cax_ticks)
+    cax.set_label(cax_label)
     plt.show()
 
 
@@ -819,13 +959,30 @@ if __name__ == "__main__":
             required=True
             )
 
+    act_plot_arrays = maap.add_action_parser(
+            'plot_arrays',
+            help='Plot the projected detectors in toltec frame'
+            )
+
+    @act_plot_arrays.parser_action
+    def plot_arrays_action(option):
+
+        calobj = ToltecCalib.from_indexfile(option.calobj)
+        plot_arrays(calobj)
+
     act_plot_projected = maap.add_action_parser(
             'plot_projected',
             help='Plot the projected detectors'
             )
     act_plot_projected.add_argument(
             'proj_model',
-            choices=['wyatt', 'toltec']
+            choices=['wyatt', 'sky']
+            )
+
+    act_plot_projected.add_argument(
+            '--time_utc', '-t',
+            help='The time of the obs in UTC.',
+            default='2020-04-14T00:00:00'
             )
 
     @act_plot_projected.parser_action
@@ -833,17 +990,18 @@ if __name__ == "__main__":
 
         calobj = ToltecCalib.from_indexfile(option.calobj)
         if option.proj_model == 'wyatt':
+            proj_model = WyattProjModel
             proj_kwargs = {
                     'rot': -2. * u.deg,
-                    'scale': (3., 3.),
-                    'ref_coord': (12., 12.) * u.cm,
+                    'scale': (30. / 4., 30. / 4.) * u.cm / u.arcmin,
+                    'ref_coord': (15., 15.) * u.cm,
                     }
-            proj_model = WyattProjModel
-        elif option.proj_model == 'toltec':
-            proj_model = ToltecSkyProjModel
+        elif option.proj_model == 'sky':
+            proj_model = SkyProjModel
             proj_kwargs = {
-                    'mjd_obs': Time("2020-04-13T00:00:00").mjd * u.day,
+                    'mjd_obs': Time(option.time_utc).mjd * u.day,
                     'ref_coord': (180., 30.) * u.deg,
+                    'evaluate_frame': 'icrs'
                     }
         plot_projected(calobj, proj_model, **proj_kwargs)
 
@@ -1000,18 +1158,57 @@ if __name__ == "__main__":
                 frame='icrs')
 
         # define the instru sampling rate
-        fsmp = 12.2 * u.Hz
+        fsmp = 122. * u.Hz
         # t_exp = 5 * u.min
-        t_exp = 1 * u.s
+        t_exp = 10 * u.s
         t = np.arange(0, t_exp.to(u.s).value, (1 / fsmp).to(u.s).value) * u.s
 
-        # set the observer
-
-        t0_obs = Time('2020-04-13 00:00:00')
-
+        # these are the field center as a function of t
         obs_coords = m_obs.evaluate_at(ref_coord, t)
 
-        print(obs_coords)
+        # get detector positions, which requires absolute time
+        # to get the altaz to equatorial transformation
+        t0_obs = Time('2020-04-13 00:00:00')
+
+        array_names = ['a1100', 'a1400', 'a2000']
+
+        # here we only project in alt az, and we transform the source coord
+        # to alt az for faster computation.
+        m_projs = [
+                SkyProjModel(
+                    name,
+                    ref_coord=(obs_coords.ra, obs_coords.dec),
+                    mjd_obs=(t0_obs + t).mjd * u.day,
+                    return_in_obs_frame=True,
+                    )
+                for name in array_names]
+
+        # make the detector positions
+        det_coords_az = []
+        det_coords_alt = []
+        for array_name, m_proj in zip(array_names, m_projs):
+            tbl = calobj.get_array_prop_table(array_name)
+            x_a = np.tile(tbl['x'].quantity.to(u.cm), (len(m_proj), 1))
+            y_a = np.tile(tbl['y'].quantity.to(u.cm), (len(m_proj), 1))
+            x_p, y_p = m_proj(x_a, y_a)
+            det_coords_az.append(x_p)
+            det_coords_alt.append(y_p)
+        det_coords_az = np.hstack(det_coords_az)
+        det_coords_alt = np.hstack(det_coords_alt)
+
+        # convert the source positions to alt az
+        x_s = np.tile(sources['ra'], (len(m_projs[0]), 1)).T
+        y_s = np.tile(sources['dec'], (len(m_projs[0]), 1)).T
+        src_coord = coord.SkyCoord(
+                ra=x_s,
+                dec=y_s,
+                frame='icrs').transform_to(m_projs[0].get_obs_frame())
+        print(src_coord.shape)
+        print(det_coords_az.shape)
+        fig, ax = plt.subplots()
+        for i in range(len(sources)):
+            ax.plot(src_coord[i].az, src_coord[i].alt)
+        plt.show()
 
     option = maap.parse_args(sys.argv[1:])
     maap.bootstrap_actions(option)
