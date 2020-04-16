@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 from tollan.utils import file_uri_to_path
 from pathlib import Path
 from astropy.io.misc.yaml import load as yaml_load
-from astropy.table import Table
+from astropy.table import Table, vstack
 
 
 class ToltecCalib(object):
@@ -19,7 +19,28 @@ class ToltecCalib(object):
     def index(self):
         return self._index
 
-    def get_array_prop_table(self, array_name):
+    def get_array_prop_table(self, array_name=None):
+        if array_name is None:
+            # stack the tables
+            tbls = [
+                    self.get_array_prop_table(n)
+                    for n in self.index['array_names']
+                    ]
+
+            # strip the meta and attach array name
+            def _proc(t):
+                m = t.meta
+                t.meta = None
+                t['array_name'] = m['name']
+                return m
+
+            metas = [_proc(t) for t in tbls]
+
+            tbl = vstack(tbls, join_type='exact')
+            for meta in metas:
+                tbl.meta[meta['name']] = meta
+                tbl.meta['array_names'] = self.index['array_names']
+            return tbl
         filepath = self._rootpath.joinpath(
                 self.index['array_prop_table'][array_name]['path'])
         return Table.read(filepath.as_posix(), format='ascii')
