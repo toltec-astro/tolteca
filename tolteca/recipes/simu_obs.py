@@ -11,6 +11,10 @@
 This recipe defines a TolTEC KIDs data simulator.
 
 """
+
+from contextlib import contextmanager
+from astroquery.utils import parse_coordinates
+from kidsproc.kidsmodel.simulator import KidsSimulator
 from astroplan import Observer
 from astropy.wcs.utils import celestial_frame_to_wcs
 from astropy.time import Time
@@ -19,19 +23,10 @@ from tollan.utils.log import timeit
 from tollan.utils.cli.multi_action_argparser import \
         MultiActionArgumentParser
 from regions import PixCoord, PolygonPixelRegion, PolygonSkyRegion
-from astropy.visualization import quantity_support
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
-from kidsproc.kidsmodel.simulator import KidsSimulator
 import numpy as np
-from scipy import signal
-import itertools
-from astropy.visualization import quantity_support
-import pickle
-from tollan.utils.log import timeit, Timer
-import concurrent
-import psutil
-from tolteca.recipes.simu_hwp_noise import save_or_show
+from tollan.utils.log import Timer
 from astropy import coordinates as coord
 from astropy.modeling import Model, Parameter
 from astropy.modeling.functional_models import GAUSSIAN_SIGMA_TO_FWHM
@@ -42,7 +37,6 @@ from gwcs import wcs
 from gwcs import coordinate_frames as cf
 from astropy.table import Table, Column
 from tolteca.recipes import get_logger
-from abc import ABCMeta
 from astropy.coordinates.baseframe import frame_transform_graph
 
 
@@ -109,11 +103,12 @@ class RasterScanModelMeta(SkyMapModel.__class__):
             #         -bbox_width / 2., -bbox_height / 2.,
             #         bbox_width, bbox_height)
             t_per_scan = length / speed
-            ratio_scan_to_si = (t_per_scan / (t_turnover + t_per_scan)).value
-            ratio_scan_to_turnover = (t_per_scan / t_turnover).value
+            ratio_scan_to_si = (
+                    t_per_scan / (t_turnover + t_per_scan))
+            ratio_scan_to_turnover = (t_per_scan / t_turnover)
 
             # scan index
-            _si = (t / (t_turnover + t_per_scan)).value
+            _si = (t / (t_turnover + t_per_scan))
             si = _si.astype(int)
             si_frac = _si - si
 
@@ -133,7 +128,7 @@ class RasterScanModelMeta(SkyMapModel.__class__):
 
             # turnover part
             radius_t = space / 2
-            theta_t = turnover_frac[turnover] * np.pi
+            theta_t = turnover_frac[turnover] * np.pi * u.rad
             dy = radius_t * (1 - np.cos(theta_t))
             dx = radius_t * np.sin(theta_t)
             x[turnover] = x[turnover] + dx
@@ -144,7 +139,7 @@ class RasterScanModelMeta(SkyMapModel.__class__):
 
             m_rot = models.AffineTransformation2D(
                 models.Rotation2D._compute_matrix(
-                    angle=rot.to('rad').value) * self.frame_unit,
+                    angle=rot.to_value('rad')) * self.frame_unit,
                 translation=(0., 0.) * self.frame_unit)
             xx, yy = m_rot(x, y)
             return xx, yy
@@ -178,7 +173,7 @@ class LissajousModelMeta(SkyMapModel.__class__):
         def get_total_time(self):
             t_x = 2 * np.pi * u.rad / self.x_omega
             t_y = 2 * np.pi * u.rad / self.y_omega
-            r = (t_y / t_x).value
+            r = (t_y / t_x).to_value(u.dimensionless_unscaled)
             s = 100
             r = np.lcm(int(r * s), s) / s
             return t_x * r
@@ -198,7 +193,7 @@ class LissajousModelMeta(SkyMapModel.__class__):
 
             m_rot = models.AffineTransformation2D(
                 models.Rotation2D._compute_matrix(
-                    angle=rot.to('rad').value) * self.frame_unit,
+                    angle=rot.to_value('rad')) * self.frame_unit,
                 translation=(0., 0.) * self.frame_unit)
             xx, yy = m_rot(x, y)
             return xx, yy
@@ -266,6 +261,12 @@ class ProjModel(Model):
     def mpl_axes_params(self):
         return dict(aspect='equal')
 
+    @classmethod
+    def from_dict(cls, d, model_key='model'):
+        d = d.copy()
+        subcls = d.pop(model_key)
+        return subcls(**d)
+
 
 class ArrayProjModel(ProjModel):
     """A model that transforms the detector locations per array to
@@ -321,7 +322,7 @@ class ArrayProjModel(ProjModel):
                     spec[array_name]['rot_from_a1100']
                     )
             m_rot = models.Rotation2D._compute_matrix(
-                    angle=rot.to('rad').value)
+                    angle=rot.to_value('rad'))
 
             m_projs[array_name] = models.AffineTransformation2D(
                 (m_rot @ m_mirr) * u.cm,
@@ -395,11 +396,14 @@ class WyattProjModel(ProjModel):
             if 'crval0' in kwargs or 'crval1' in kwargs:
                 raise ValueError(
                         "ref_coord cannot be specified along with crvals")
+            if isinstance(ref_coord, coord.SkyCoord):
+                ref_coord = (
+                        ref_coord.ra.degree, ref_coord.dec.degree) * u.deg
             kwargs['crval0'] = ref_coord[0]
             kwargs['crval1'] = ref_coord[1]
             kwargs['n_models'] = np.asarray(ref_coord[0]).size
 
-        m_rot = models.Rotation2D._compute_matrix(angle=rot.to('rad').value)
+        m_rot = models.Rotation2D._compute_matrix(angle=rot.to_value('rad'))
 
         self._t2w_0 = models.AffineTransformation2D(
                 m_rot * u.deg,
@@ -501,6 +505,9 @@ class SkyProjModel(ProjModel):
             if 'crval0' in kwargs or 'crval1' in kwargs:
                 raise ValueError(
                         "ref_coord cannot be specified along with crvals")
+            if isinstance(ref_coord, coord.SkyCoord):
+                ref_coord = (
+                        ref_coord.ra.degree, ref_coord.dec.degree) * u.deg
             kwargs['crval0'] = ref_coord[0]
             kwargs['crval1'] = ref_coord[1]
             kwargs['n_models'] = np.asarray(ref_coord[0]).size
@@ -572,6 +579,73 @@ class SkyProjModel(ProjModel):
         return dict(super().mpl_axes_params(), projection=w)
 
 
+class BeamModel(Model):
+    """A model that describes the beam shape.
+    """
+    beam_props = {
+            'array_names': ('a1100', 'a1400', 'a2000'),
+            'model': models.Gaussian2D,
+            'x_fwhm_a1100': 5 * u.arcsec,
+            'y_fwhm_a1100': 5 * u.arcsec,
+            'a1100': {
+                'wl_center': 1.1 * u.mm
+                },
+            'a1400': {
+                'wl_center': 1.4 * u.mm
+                },
+            'a2000': {
+                'wl_center': 2.0 * u.mm
+                },
+            }
+    n_inputs = 3
+    n_outputs = 1
+
+    def __init__(self, **kwargs):
+        beam_props = self.beam_props
+        m_beams = dict()
+
+        for array_name in beam_props['array_names']:
+            x_fwhm = (
+                    beam_props['x_fwhm_a1100'] *
+                    beam_props[array_name]['wl_center'] /
+                    beam_props['a1100']['wl_center'])
+            y_fwhm = (
+                    beam_props['y_fwhm_a1100'] *
+                    beam_props[array_name]['wl_center'] /
+                    beam_props['a1100']['wl_center'])
+            x_stddev = x_fwhm / GAUSSIAN_SIGMA_TO_FWHM
+            y_stddev = y_fwhm / GAUSSIAN_SIGMA_TO_FWHM
+            beam_area = 2 * np.pi * x_stddev * y_stddev
+            m_beams[array_name] = beam_props['model'](
+                    amplitude=1. / beam_area,
+                    x_mean=0. * u.arcsec,
+                    y_mean=0. * u.arcsec,
+                    x_stddev=x_stddev,
+                    y_stddev=y_stddev,
+                    )
+        self._m_beams = m_beams
+        super().__init__(**kwargs)
+        self.inputs = ('array_name', ) + m_beams['a1100'].inputs
+        self.outputs = m_beams['a1100'].outputs
+
+    def evaluate(self, array_name, x, y):
+        out_unit = self._m_beams['a1100'].amplitude.unit
+        out = np.empty(x.shape) * out_unit
+        for n in self.beam_props['array_names']:
+            m = array_name == n
+            m_out = self._m_beams[n](x[m], y[m])
+            out[m] = m_out.to(out_unit)
+        return out
+
+    def prepare_inputs(self, array_name, *inputs, **kwargs):
+        # this is necessary to handle the array_name inputs
+        array_name_idx = np.arange(array_name.size).reshape(array_name.shape)
+        inputs_new, broadcasts = super().prepare_inputs(
+                array_name_idx, *inputs, **kwargs)
+        inputs_new[0] = np.ravel(array_name)[inputs_new[0].astype(int)]
+        return inputs_new, broadcasts
+
+
 class ToltecObsSimulator(object):
     """A class that make simulated observations for TolTEC.
 
@@ -585,11 +659,13 @@ class ToltecObsSimulator(object):
                                             v
                         projected detectors positions (lon, lat)
                                             |
+     sky/atmosphere model (lon, lat flux) ->|
                                             v
-    source catalogs (lon, lat, flux) -> [SkyModel]
+    source catalogs (lon, lat, flux) -> [BeamModel]
                                             |
+                        [filter passband] ->|
                                             v
-                            detector power loading  (power)
+                                    detector loading (pwr)
                                             |
                                             v
                                        [KidsProbeModel]
@@ -599,32 +675,149 @@ class ToltecObsSimulator(object):
 
     Parameters
     ----------
-    source: astorpy.model.Model
-        The optical power loading model, which computes the optical
-        power applied to the detectors at a given time.
+    array_prop_table: astropy.table.Table
+        The array property table that contains all necessary information
+        for the detectors.
+    """
 
-    model: astorpy.model.Model
-        The KIDs detector probe model, which computes I and Q for
-        given probe frequency and input optical power.
+    # these are generated from Grant's Mapping-Speed-Calculator code
+    # The below is for elev 45 deg, atm 25 quantiles
+    array_optical_props = {
+        'a1100': {
+            'background': 10.01 * u.pW,
+            'bkg_temp': 9.64 * u.K,
+            'responsivity': 5.794e-5 / u.pW,
+            'passband': 65 * u.GHz,
+            },
+        'a1400': {
+            'background': 7.15 * u.pW,
+            'bkg_temp': 9.43 * u.K,
+            'responsivity': 1.1e-4 / u.pW,
+            'passband': 50 * u.GHz,
+            },
+        'a2000': {
+            'background': 5.29 * u.pW,
+            'bkg_temp': 8.34 * u.K,
+            'responsivity': 1.1e-4 / u.pW,
+            'passband': 42 * u.GHz,
+            },
+        }
+    beam_model_cls = BeamModel
 
-    **kwargs:
-         Additional attributes that get stored as the meta data of this
-         simulator.
+    def __init__(self, array_prop_table):
 
-     """
+        tbl = self._table = self._prepare_table(array_prop_table)
+        self._m_beam = self.beam_model_cls()
 
-    def __init__(self, source=None, model=None, **kwargs):
-        self._source = source
-        self._model = model
-        self._meta = kwargs
+        # create the simulator
+        # kidssim = KidsSimulator(
+        #         fr=tbl['f'].quantity,
+        #         Qr=np.full((len(tbl),), 1e4),
+        #         background=tbl['background'].quantity,
+        #         responsivity=tbl['responsivity'].quantity)
+        # get detector position on the sky in the toltec frame
+        x_a = tbl['x'].quantity.to(u.cm)
+        y_a = tbl['y'].quantity.to(u.cm)
+        x_t, y_t = ArrayProjModel()(tbl['array_name'], x_a, y_a)
+        tbl.add_column(Column(x_t, name='x_t', unit=x_t.unit))
+        tbl.add_column(Column(y_t, name='y_t', unit=y_t.unit))
 
     @property
-    def meta(self):
-        return self._meta
+    def table(self):
+        return self._table
 
-    @property
-    def tones(self):
-        return self._tones
+    @contextmanager
+    def obs_context(self, obs_model, sources):
+        m_obs = obs_model
+        tbl = self.table
+        x_t = tbl['x_t'].quantity
+        y_t = tbl['y_t'].quantity
+
+        # define a field center
+        # here we use the first object in the sources catalog
+        # and realize the obs pattern around this center
+        ref_coord = coord.SkyCoord(
+                ra=sources['ra'].quantity[0],
+                dec=sources['dec'].quantity[0],
+                frame='icrs')
+
+        def evaluate(t0, t):
+            obs_coords = m_obs.evaluate_at(ref_coord, t)
+            # get detector positions, which requires absolute time
+            # to get the altaz to equatorial transformation
+            # here we only project in alt az, and we transform the source coord
+            # to alt az for faster computation.
+
+            # combine the array projection with sky projection
+            m_proj = SkyProjModel(
+                    ref_coord=obs_coords,
+                    time_obs=t0 + t
+                    )
+            # logger.debug(f"proj model:\n{m_proj}")
+
+            projected_frame, native_frame = m_proj.get_projected_frame(
+                also_return_native_frame=True)
+
+            # transform the sources on to the projected frame this has to be
+            # done in two steps due to limitation in astropy
+            with Timer("transform src coords to projected frame"):
+                src_coords = coord.SkyCoord(
+                    ra=sources['ra'][:, np.newaxis],
+                    dec=sources['dec'][:, np.newaxis],
+                    frame='icrs').transform_to(
+                            native_frame).transform_to(
+                                projected_frame)
+            # evaluate with beam_model and reduce on sources axes
+            with Timer("compute detector pwr loading"):
+                dx = x_t[np.newaxis, :, np.newaxis] - \
+                    src_coords.lon[:, np.newaxis, :]
+                dy = y_t[np.newaxis, :, np.newaxis] - \
+                    src_coords.lat[:, np.newaxis, :]
+                an = np.moveaxis(
+                        np.tile(tbl['array_name'], src_coords.shape + (1, )),
+                        1, 2)
+                s = self._m_beam(an, dx, dy)
+                # weighted sum with flux at each detector
+                # assume no polarization
+                s = np.squeeze(
+                        np.moveaxis(s, 0, -1) @ sources['flux'][:, np.newaxis],
+                        axis=-1)
+                # convert to brightness temperature and
+                # assuming a square pass band, we can get the power loading
+                # tbs = s.to(
+                #         u.K,
+                #         equivalencies=u.brightness_temperature(
+                #             tbl['wl_center'].quantity[:, np.newaxis]))
+                # pwrs = (
+                #         tbs.to(
+                #             u.J,
+                #             equivalencies=u.temperature_energy())
+                #         * tbl['passband'][:, np.newaxis]
+                #         ).to(u.pW)
+
+            # now we are ready to convert signal s to time stream data
+            # rs, xs, iqs = kidssim.probe_p(pwrs, fp=np.zeros((pwrs.shape[0])))
+            return s, locals()
+        yield evaluate
+
+    @classmethod
+    def _prepare_table(cls, tbl):
+        # make columns for additional array properties to be used
+        # for the kids simulator
+        tbl = tbl.copy()
+        meta_keys = ['wl_center', ]
+        for array_name in tbl.meta['array_names']:
+            m = tbl['array_name'] == array_name
+            props = dict(
+                    cls.array_optical_props[array_name],
+                    **{k: tbl.meta[array_name][k] for k in meta_keys})
+            for c in props.keys():
+                if c not in tbl.colnames:
+                    tbl.add_column(Column(
+                                np.empty((len(tbl), ), dtype=float),
+                                name=c, unit=props[c].unit))
+                tbl[c][m] = props[c]
+        return tbl
 
 
 def _make_nw_cmap():
@@ -681,8 +874,8 @@ def plot_arrays(calobj):
 
         axes[0, i].scatter(mx_a, my_a, c=c, s=s, **cmap_kwargs)
         axes[1, i].scatter(
-                mx_p.to(u.arcmin).value,
-                my_p.to(u.arcmin).value,
+                mx_p.to_value(u.arcmin),
+                my_p.to_value(u.arcmin),
                 c=c, s=s, **cmap_kwargs)
 
     axes[0, 0].set_ylabel(f"{m_proj.input_frame.name} frame ({y_a.unit})")
@@ -836,9 +1029,10 @@ def plot_projected(calobj, proj_model, **kwargs):
 def plot_obs_on_wyatt(calobj, m_obs, **wyatt_proj_kwargs):
 
     logger = get_logger()
+
     t_total = m_obs.get_total_time()
-    t = np.arange(0, t_total.to(u.s).value, 0.5) * u.s
-    n_pts = len(t.value)
+    t = np.arange(0, t_total.to_value(u.s), 0.5) * u.s
+    n_pts = t.size
 
     logger.debug(f"create {n_pts} pointings")
     x_t, y_t = m_obs(t)
@@ -921,15 +1115,14 @@ def plot_obs_on_wyatt(calobj, m_obs, **wyatt_proj_kwargs):
 
 def plot_obs_on_sky(calobj, m_obs, ref_obj):
 
-    from astroquery.utils import parse_coordinates
-
-    ref_coord = parse_coordinates(ref_obj)
-
     logger = get_logger()
 
+    ref_coord = parse_coordinates(ref_obj)
+    logger.debug(f"ref obj: {ref_obj} {ref_coord.to_string('hmsdms')}")
+
     t_total = m_obs.get_total_time()
-    t = np.arange(0, t_total.to(u.s).value, 0.5) * u.s
-    n_pts = len(t.value)
+    t = np.arange(0, t_total.to_value(u.s), 0.5) * u.s
+    n_pts = t.size
 
     logger.debug(f"create {n_pts} pointings")
 
@@ -942,8 +1135,11 @@ def plot_obs_on_sky(calobj, m_obs, ref_obj):
     # make rgb 2mass
     hdulists = SkyView.get_images(
             ref_coord,
-            survey=['2MASS-K', '2MASS-H', '2MASS-J'])
-    scales = [1.5, 1.0, 1.0]
+            # survey=['WISE 12', 'WISE 4.6', 'WISE 3.4'],
+            survey=['2MASS-K', '2MASS-H', '2MASS-J'],
+            )
+    # scales = [0.3, 0.8, 1.0]
+    scales = [1.5, 1.0, 1.0]  # white balance
 
     def _bkg_subtracted_data(hdu, scale=1.):
         ni, nj = hdu.data.shape
@@ -1021,100 +1217,98 @@ if __name__ == "__main__":
     def plot_projected_action(option):
 
         calobj = ToltecCalib.from_indexfile(option.calobj)
-        if option.proj_model == 'wyatt':
-            proj_model = WyattProjModel
-            proj_kwargs = {
+        projs = {
+                'wyatt': {
+                    'proj_model': WyattProjModel,
                     'rot': -2. * u.deg,
                     'scale': (30. / 4., 30. / 4.) * u.cm / u.arcmin,
                     'ref_coord': (15., 15.) * u.cm,
-                    }
-        elif option.proj_model == 'sky':
-            proj_model = SkyProjModel
-            proj_kwargs = {
+                    },
+                'sky': {
+                    'proj_model': SkyProjModel,
                     'mjd_obs': Time(option.time_utc).mjd * u.day,
                     'ref_coord': (180., 30.) * u.deg,
                     'evaluate_frame': 'icrs'
                     }
-        plot_projected(calobj, proj_model, **proj_kwargs)
+                }
+        plot_projected(calobj, **projs[option.proj_model])
 
-    act_plot_obs_on_wyatt = maap.add_action_parser(
-            'plot_obs_on_wyatt',
-            help='Plot an obs pattern on Waytt'
+    act_plot_obs = maap.add_action_parser(
+            'plot_obs',
+            help='Plot an obs pattern.'
             )
-    act_plot_obs_on_wyatt.add_argument(
+    act_plot_obs.add_argument(
             "pattern", choices=['raster', 'lissajous'])
 
-    @act_plot_obs_on_wyatt.parser_action
-    def plot_obs_on_wyatt_action(option):
+    act_plot_obs.add_argument(
+            "--target_frame", '-t', choices=['wyatt', 'sky'], required=True)
+
+    act_plot_obs.add_argument(
+            "--ref_obj", '-r', default='M51',
+            help='The reference object of target frame is sky.')
+
+    @act_plot_obs.parser_action
+    def plot_obs_action(option):
 
         calobj = ToltecCalib.from_indexfile(option.calobj)
 
-        wyatt_proj_kwargs = {
-            'rot': -2. * u.deg,
-            'scale': (30. / 4., 30. / 4.) * u.cm / u.arcmin,
-            'ref_coord': (15., 15.) * u.cm,
-            }
-
-        if option.pattern == 'raster':
-            raster_scan_kwargs = {
-                'rot': 30. * u.deg,
-                'length': 50. * u.cm,
-                'space': 5. * u.cm,
-                'n_scans': 10 * u.dimensionless_unscaled,
-                'speed': 1. * u.cm / u.s,
-                't_turnover': 5 * u.s,
+        proj_kw = {
+                'wyatt': {
+                    'rot': -2. * u.deg,
+                    'scale': (30. / 4., 30. / 4.) * u.cm / u.arcmin,
+                    'ref_coord': (15., 15.) * u.cm,
+                    },
+                'sky': {
+                    'ref_obj': option.ref_obj
+                    }
                 }
-            m_obs = WyattRasterScanModel(**raster_scan_kwargs)
-        elif option.pattern == 'lissajous':
-            lissajous_kwargs = {
-                'rot': 30. * u.deg,
-                'x_length': 50. * u.cm,
-                'y_length': 50. * u.cm,
-                'x_omega': 0.5 * np.pi * u.rad / u.s,
-                'y_omega': 0.7 * np.pi * u.rad / u.s,
-                'delta': 30 * u.deg
-                # 'delta': 60. * u.deg
-                }
-            m_obs = WyattLissajousModel(**lissajous_kwargs)
-        plot_obs_on_wyatt(calobj, m_obs, **wyatt_proj_kwargs)
-
-    act_plot_obs_on_sky = maap.add_action_parser(
-            'plot_obs_on_sky',
-            help='Plot an obs pattern on the sky'
-            )
-    act_plot_obs_on_sky.add_argument(
-            "pattern", choices=['raster', 'lissajous'])
-    act_plot_obs_on_sky.add_argument(
-            "--ref_obj", '-r', help='The reference object.')
-
-    @act_plot_obs_on_sky.parser_action
-    def plot_obs_on_sky_action(option):
-
-        calobj = ToltecCalib.from_indexfile(option.calobj)
-
-        if option.pattern == 'raster':
-            raster_scan_kwargs = {
-                'rot': 30. * u.deg,
-                'length': 2. * u.arcmin,
-                'space': 5. * u.arcsec,
-                'n_scans': 24 * u.dimensionless_unscaled,
-                'speed': 1. * u.arcsec / u.s,
-                't_turnover': 5 * u.s,
-                }
-            m_obs = SkyRasterScanModel(**raster_scan_kwargs)
-        elif option.pattern == 'lissajous':
-            lissajous_kwargs = {
-                'rot': 30. * u.deg,
-                'x_length': 2. * u.arcmin,
-                'y_length': 2. * u.arcmin,
-                'x_omega': 0.07 * np.pi * u.rad / u.s,
-                'y_omega': 0.05 * np.pi * u.rad / u.s,
-                'delta': 30 * u.deg
-                # 'delta': 60. * u.deg
-                }
-            m_obs = SkyLissajousModel(**lissajous_kwargs)
-        ref_obj = option.ref_obj
-        plot_obs_on_sky(calobj, m_obs, ref_obj)
+        if option.target_frame == 'wyatt':
+            patterns = {
+                    'raster': {
+                        'model': WyattRasterScanModel,
+                        'rot': 30. * u.deg,
+                        'length': 50. * u.cm,
+                        'space': 5. * u.cm,
+                        'n_scans': 10 * u.dimensionless_unscaled,
+                        'speed': 1. * u.cm / u.s,
+                        't_turnover': 5 * u.s,
+                        },
+                    'lissajous': {
+                        'model': WyattLissajousModel,
+                        'rot': 30. * u.deg,
+                        'x_length': 50. * u.cm,
+                        'y_length': 50. * u.cm,
+                        'x_omega': 0.5 * np.pi * u.rad / u.s,
+                        'y_omega': 0.7 * np.pi * u.rad / u.s,
+                        'delta': 30 * u.deg
+                        # 'delta': 60. * u.deg
+                        },
+                    }
+            m_obs = ProjModel.from_dict(patterns[option.pattern])
+            plot_obs_on_wyatt(calobj, m_obs, **proj_kw[option.target_frame])
+        elif option.target_frame == 'sky':
+            patterns = {
+                    'raster': {
+                        'model': SkyRasterScanModel,
+                        'rot': 30. * u.deg,
+                        'length': 2. * u.arcmin,
+                        'space': 5. * u.arcsec,
+                        'n_scans': 24 * u.dimensionless_unscaled,
+                        'speed': 1. * u.arcsec / u.s,
+                        't_turnover': 5 * u.s,
+                        },
+                    'lissajous': {
+                        'model': SkyLissajousModel,
+                        'rot': 30. * u.deg,
+                        'x_length': 2. * u.arcmin,
+                        'y_length': 2. * u.arcmin,
+                        'x_omega': 0.07 * np.pi * u.rad / u.s,
+                        'y_omega': 0.05 * np.pi * u.rad / u.s,
+                        'delta': 30 * u.deg
+                        }
+                    }
+            m_obs = ProjModel.from_dict(patterns[option.pattern])
+            plot_obs_on_sky(calobj, m_obs, **proj_kw[option.target_frame])
 
     act_plot_simu_sky_point_source = maap.add_action_parser(
             'plot_simu_sky_point_source',
@@ -1125,50 +1319,41 @@ if __name__ == "__main__":
 
     @act_plot_simu_sky_point_source.parser_action
     def plot_simu_sky_point_source_action(option):
-
         logger = get_logger()
 
         calobj = ToltecCalib.from_indexfile(option.calobj)
+        tbl = calobj.get_array_prop_table()
+        # tbl = tbl[tbl['nw'] == 3]
 
-        if option.pattern == 'raster':
-            raster_scan_kwargs = {
-                'rot': 30. * u.deg,
-                'length': 4. * u.arcmin,
-                'space': 5. * u.arcsec,
-                'n_scans': 24 * u.dimensionless_unscaled,
-                'speed': 30. * u.arcsec / u.s,
-                't_turnover': 5 * u.s,
-                }
-            m_obs = SkyRasterScanModel(**raster_scan_kwargs)
-        elif option.pattern == 'lissajous':
-            lissajous_kwargs = {
-                'rot': 30. * u.deg,
-                'x_length': 2. * u.arcmin,
-                'y_length': 2. * u.arcmin,
-                'x_omega': 0.07 * np.pi * u.rad / u.s,
-                'y_omega': 0.05 * np.pi * u.rad / u.s,
-                'delta': 30 * u.deg
-                # 'delta': 60. * u.deg
-                }
-            m_obs = SkyLissajousModel(**lissajous_kwargs)
+        simulator = ToltecObsSimulator(tbl)
 
-        # get object flux model
-        beam_model = models.Gaussian2D
-        beam_kwargs = {
-                'x_fwhm': 5 * u.arcsec,
-                'y_fwhm': 5 * u.arcsec,
-                }
-
-        x_stddev = beam_kwargs['x_fwhm'] / GAUSSIAN_SIGMA_TO_FWHM
-        y_stddev = beam_kwargs['y_fwhm'] / GAUSSIAN_SIGMA_TO_FWHM
-        m_beam = beam_model(
-                amplitude=1. / (2 * np.pi * x_stddev * y_stddev) * u.mJy,
-                x_mean=0. * u.arcsec,
-                y_mean=0. * u.arcsec,
-                x_stddev=x_stddev,
-                y_stddev=y_stddev,
-                )
-        logger.debug(f"beam:\n{m_beam}")
+        # the obs definition
+        obs_params = {
+            'patterns': {
+                'raster': {
+                    'model': SkyRasterScanModel,
+                    'rot': 30. * u.deg,
+                    'length': 4. * u.arcmin,
+                    'space': 5. * u.arcsec,
+                    'n_scans': 24 * u.dimensionless_unscaled,
+                    'speed': 30. * u.arcsec / u.s,
+                    't_turnover': 5 * u.s,
+                    },
+                'lissajous': {
+                    'model': SkyLissajousModel,
+                    'rot': 30. * u.deg,
+                    'x_length': 2. * u.arcmin,
+                    'y_length': 2. * u.arcmin,
+                    'x_omega': 0.7 * np.pi * u.rad / u.s,
+                    'y_omega': 0.5 * np.pi * u.rad / u.s,
+                    'delta': 30 * u.deg
+                    }
+                },
+            'fsmp': 12.2 * u.Hz,
+            't_exp': 2 * u.min,
+            't0': Time('2020-04-13 00:00:00')
+            }
+        m_obs = ProjModel.from_dict(obs_params['patterns'][option.pattern])
 
         # make a source catalog
         sources = Table(
@@ -1179,93 +1364,151 @@ if __name__ == "__main__":
                     Column(name='flux', unit=u.mJy),
                     ])
         sources.add_row(['src0', 180., 0., 1.])
-        sources.add_row(['src1', 180., 30. / 3600., 1.])
+        sources.add_row(['src1', 180., 30. / 3600., 0.25])
 
         logger.debug(f"sources:\n{sources}")
 
-        # define a field center
-        ref_coord = coord.SkyCoord(
-                ra=sources['ra'].quantity[0],
-                dec=sources['dec'].quantity[0],
-                frame='icrs')
+        with simulator.obs_context(obs_model=m_obs, sources=sources) as obs:
+            # make t grid
+            t = np.arange(
+                    0, obs_params['t_exp'].to_value(u.s),
+                    (1 / obs_params['fsmp']).to_value(u.s)) * u.s
+            s, obs_info = obs(obs_params['t0'], t)
 
-        # define the instru sampling rate
-        fsmp = 122. * u.Hz
-        # t_exp = 1 * u.min
-        t_exp = 1 * u.s
-        t = np.arange(0, t_exp.to(u.s).value, (1 / fsmp).to(u.s).value) * u.s
-        n_pts = len(t.value)
-
-        # these are the field center as a function of t
-        obs_coords = m_obs.evaluate_at(ref_coord, t)
-
-        # get detector positions, which requires absolute time
-        # to get the altaz to equatorial transformation
-        t0_obs = Time('2020-04-13 00:00:00')
-
-        # here we only project in alt az, and we transform the source coord
-        # to alt az for faster computation.
-
-        tbl = calobj.get_array_prop_table()
-
-        x_a = tbl['x'].quantity.to(u.cm)
-        y_a = tbl['y'].quantity.to(u.cm)
-        x_t, y_t = ArrayProjModel()(tbl['array_name'], x_a, y_a)
-
-        # combine the array projection with sky projection
-        m_proj = SkyProjModel(
-                ref_coord=(
-                    obs_coords.ra.degree, obs_coords.dec.degree) * u.deg,
-                mjd_obs=(t0_obs + t).mjd * u.day,
-                )
-        logger.debug(f"proj model:\n{m_proj}")
-
-        projected_frame, native_frame = m_proj.get_projected_frame(
-                also_return_native_frame=True)
-
-        # x_t and y_t are the coords in projected_frame
-        # make the detector positions in the projected frame
-        # az_p, alt_p = m_proj(
-        #         np.tile(x_t, (n_pts, 1)),
-        #         np.tile(y_t, (n_pts, 1)),
-        #         frame='native',
-        #         )
-
-        # transform the sources on to the projected frame
-        # this has to be done in two steps due to bug in
-        # astropy.
-        with Timer("make src coords"):
-            src_coords = coord.SkyCoord(
-                ra=sources['ra'][:, np.newaxis],
-                dec=sources['dec'][:, np.newaxis],
-                frame='icrs').transform_to(
-                        native_frame).transform_to(
-                            projected_frame)
-
-        print(src_coords.shape)
-        # now compute the distance for each detector to each source at each
-        # time step
-        dists = coord.angle_utilities.angular_separation(
-                x_t[np.newaxis, :, np.newaxis],
-                y_t[np.newaxis, :, np.newaxis],
-                src_coords.lon[:, np.newaxis, :],
-                src_coords.lat[:, np.newaxis, :]
-                )
-        print(dists.to(u.arcmin))
-        print(dists.shape)
-
-        fig, ax = plt.subplots(subplot_kw={'aspect': 'equal'})
+        # make some diagnostic plots
+        tbl = simulator.table
 
         m = tbl['array_name'] == 'a1100'
+        mtbl = tbl[m]
+        mtbl.meta = tbl.meta['a1100']
 
-        cax_ticks, cax_label, cmap_kwargs = _make_nw_cmap()
-        ax.scatter(
-                x_t[m].to(u.arcmin), y_t[m].to(u.arcmin),
-                c=tbl['nw'][m], **cmap_kwargs)
+        # unpack the obs_info
+        native_frame = obs_info['native_frame']
+        projected_frame = obs_info['projected_frame']
+        src_coords = obs_info['src_coords']
+
+        import animatplot as amp
+
+        fps = 2 * u.Hz
+        # fps = 12 * u.Hz
+        t_slice = slice(
+                None, None,
+                int(np.ceil(
+                    (obs_params['fsmp'] / fps).to_value(
+                        u.dimensionless_unscaled))))
+        fps = (obs_params['fsmp'] / t_slice.step).to_value(u.Hz)
+        timeline = amp.Timeline(
+                t[t_slice].to_value(u.s),
+                fps=1 if fps < 1 else fps,
+                units='s')
+        # xx = x_t[m].to_value(u.arcmin)
+        # yy = y_t[m].to_value(u.arcmin)
+        xx = mtbl['x_t'].quantity.to_value(u.deg)
+        yy = mtbl['y_t'].quantity.to_value(u.deg)
+
+        ss = s[m, t_slice].T.to_value(u.MJy/u.sr)
+        cmap = 'viridis'
+        cmap_kwargs = dict(
+                cmap=cmap,
+                vmin=np.min(ss),
+                vmax=np.max(ss),
+                )
+
+        import matplotlib.path as mpath
+        import matplotlib.markers as mmarkers
+        from matplotlib.transforms import Affine2D
+
+        def make_fg_marker(fg):
+            _transform = Affine2D().scale(0.5).rotate_deg(30)
+            polypath = mpath.Path.unit_regular_polygon(6)
+            verts = polypath.vertices
+            top = mpath.Path(verts[(1, 0, 5, 4, 1), :])
+            rot = [0, -60, -180, -240][fg]
+            marker = mmarkers.MarkerStyle(top)
+            marker._transform = _transform.rotate_deg(rot)
+            return marker
+
+        from astropy.visualization.wcsaxes import WCSAxesSubplot, conf
+        from astropy.visualization.wcsaxes.transforms import (
+                CoordinateTransform)
+
+        # coord_meta = {
+        #         'type': ('longitude', 'latitude'),
+        #         'unit': (u.deg, u.deg),
+        #         'wrap': (180, None),
+        #         'name': ('Az Offset', 'Alt Offset')}
+        from astropy.visualization.wcsaxes.utils import get_coord_meta
+        coord_meta = get_coord_meta(native_frame[0])
+        # coord_meta = get_coord_meta('icrs')
+        conf.coordinate_range_samples = 5
+        conf.frame_boundary_samples = 10
+        conf.grid_samples = 5
+        conf.contour_grid_samples = 5
+
+        fig = plt.figure()
+        ax = WCSAxesSubplot(
+                fig, 1, 1, 1,
+                aspect='equal',
+                # transform=Affine2D(),
+                transform=(
+                    # CoordinateTransform(native_frame[0], 'icrs') +
+                    CoordinateTransform(projected_frame[0], native_frame[0])
+                    ),
+                coord_meta=coord_meta,
+                )
+        fig.add_axes(ax)
+
+        def amp_post_update(block, i):
+            ax.reset_wcs(
+                    transform=(
+                        # CoordinateTransform(native_frame[i], 'icrs')
+                        CoordinateTransform(
+                            projected_frame[i], native_frame[i])
+                        ),
+                    coord_meta=coord_meta)
+        # fig, ax = plt.subplots(subplot_kw={'aspect': 'equal'})
+        # ax.set_facecolor(plt.get_cmap(cmap)(0.))
+        ax.set_facecolor('#4488aa')
+        nfg = 4
+        blocks = np.full((nfg, ), None, dtype=object)
+        for i in range(nfg):
+            mfg = mtbl['fg'] == i
+            blocks[i] = amp.blocks.Scatter(
+                    xx[mfg],
+                    yy[mfg],
+                    s=np.abs(np.hypot(xx[0] - xx[2], yy[0] - yy[2])),
+                    s_in_data_unit=True,
+                    c=ss[:, mfg],
+                    ax=ax,
+                    # post_update=None,
+                    post_update=amp_post_update if i == 0 else None,
+                    marker=make_fg_marker(i),
+                    # edgecolor='#cccccc',
+                    **cmap_kwargs
+                    )
+        anim = amp.Animation(blocks, timeline)
+
+        anim.controls()
+
+        # cax_ticks, cax_label, cmap_kwargs = _make_nw_cmap()
+        # im = ax.scatter(
+        #         x_t[m].to(u.arcmin), y_t[m].to(u.arcmin),
+        #         # c=dists[0, m, 0].to(u.arcmin)
+        #         c=s[0, m, 0].to_value(u.MJy / u.sr)
+        #         # c=tbl['nw'][m], **cmap_kwargs
+        #         )
+        # fig.colorbar(
+        #     im, ax=ax, shrink=0.8)
+        # normalize lw with flux
+        lws = 0.2 * sources['flux'] / np.max(sources['flux'])
         for i in range(len(sources)):
             ax.plot(
-                    src_coords[i].lon.arcminute,
-                    src_coords[i].lat.arcminute)
+                    src_coords[i].lon,
+                    src_coords[i].lat,
+                    linewidth=lws[i], color='#aaaaaa')
+        cax = fig.colorbar(
+            blocks[0].scat, ax=ax, shrink=0.8)
+        cax.set_label("Surface Brightness (MJy/sr)")
         plt.show()
 
     option = maap.parse_args(sys.argv[1:])
