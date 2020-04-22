@@ -7,6 +7,7 @@ from tollan.utils.log import get_logger, logit
 import numpy as np
 from astropy.table import Table, Column, join, vstack
 from . import DataFileStore, RemoteDataFileStore
+from .rsync_accessor import RsyncAccessor
 from astropy.time import Time
 import pickle
 from astropy.utils.metadata import MergeStrategy
@@ -187,7 +188,13 @@ class ToltecDataset(object):
     logger = get_logger()
     spec = ToltecDataFileSpec
 
+    _required_cols = [
+        'nwid', 'obsid', 'subobsid', 'scanid',
+        'interface', 'instru', 'ut', 'kindstr', 'fileext', 'master']
+
     def __init__(self, index_table, meta=None):
+        if not set(index_table.colnames).issuperset(set(self._required_cols)):
+            raise ValueError("required columns missing in index_table.")
         self._index_table = index_table
         self._update_meta_from_file_objs()
         if meta is not None:
@@ -274,6 +281,20 @@ class ToltecDataset(object):
                 f"loaded {instance}\n"
                 f"({len(instance)} out of {len(filepaths)} input paths)")
         return instance
+
+    @classmethod
+    def from_remote_files(cls, *args, accessor=RsyncAccessor, **kwargs):
+        """Return a dataset instance from globing a remote file accessor.
+
+        Parameters
+        ----------
+        accessor: `tolteca.fs.Accessor` instance
+            The accessor instance that implements the remote file glob
+            interface.
+        *args, **kwargs:
+            Arguments passed to the remote glob call.
+        """
+        return cls.from_files(*accessor.glob(*args, **kwargs))
 
     def __repr__(self):
         tbl = self.index_table

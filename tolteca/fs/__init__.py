@@ -7,6 +7,18 @@ import stat
 from tollan.utils import touch_file
 
 
+class Accessor(object):
+    """A common interface for accessing resources."""
+
+    def query(self, *args, **kwargs):
+        """Return a table info object."""
+        return NotImplemented
+
+    def glob(self, *args, **kwargs):
+        """Return a list of file paths."""
+        return NotImplemented
+
+
 class DataFileStore(object):
     """A base class that represent a path that stores data files."""
 
