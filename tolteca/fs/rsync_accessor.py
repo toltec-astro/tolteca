@@ -11,12 +11,33 @@ import re
 import sys
 import functools
 from io import TextIOWrapper
-
+from packaging.version import parse as parse_version
 
 class RsyncAccessor(Accessor):
     """This class provide access to remote files via rsync."""
 
     logger = get_logger()
+
+    @staticmethod
+    def _get_rsync_cmd():
+        """Get the rsync executable."""
+        rsync_cmd = 'rsync'
+        try:
+            output = subprocess.check_output(
+                    (rsync_cmd, '--version'),
+                    stderr=subprocess.STDOUT
+                    ).decode().split('\n')[0].strip()
+            version = re.match(
+                    r'rsync\s+version\s+(?P<version>\d+\.\d+(?:\.[^\s]+)?)',
+                    output).groupdict()['version']
+        except Exception as e:
+            raise RuntimeError(f"error in checking rsync version: {e}")
+        oldest_supported_version = '3.1.0'
+        if parse_version(version) < parse_version(oldest_supported_version):
+            raise RuntimeError(
+                    f"rsync version has to be >= {oldest_supported_version}"
+                    f", found {version}")
+        return rsync_cmd
 
     def __repr__(self):
         return f'{self.__class__.__name__}()'
@@ -73,7 +94,7 @@ class RsyncAccessor(Accessor):
                 #         src, dest.as_posix()
                 #         ]
                 cmd = [
-                        'rsync', '-avhP',
+                        cls._get_rsync_cmd(), '-avhP',
                         '--files-from',
                         fo.name, src, dest.as_posix()
                         ]
@@ -120,7 +141,8 @@ class RsyncAccessor(Accessor):
 
                 # get file list
                 rsync_cmd = [
-                        'rsync', '-rn', '--info=name', '--relative',
+                        cls._get_rsync_cmd(),
+                        '-rn', '--info=name', '--relative',
                         path, tmp]
                 for p in map(
                     _map_rsync_output,
