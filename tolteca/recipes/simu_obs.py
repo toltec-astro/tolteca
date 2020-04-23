@@ -10,6 +10,10 @@
 """
 This recipe defines a TolTEC KIDs data simulator.
 
+This recipe additionally requires to install a custom version of animatplot::
+
+    pip install git+https://github.com/Jerry-Ma/animatplot.git
+
 """
 
 from contextlib import contextmanager
@@ -710,11 +714,11 @@ class ToltecObsSimulator(object):
         self._m_beam = self.beam_model_cls()
 
         # create the simulator
-        # kidssim = KidsSimulator(
-        #         fr=tbl['f'].quantity,
-        #         Qr=np.full((len(tbl),), 1e4),
-        #         background=tbl['background'].quantity,
-        #         responsivity=tbl['responsivity'].quantity)
+        self._kidssim = KidsSimulator(
+                fr=tbl['f'].quantity,
+                Qr=np.full((len(tbl),), 1e4),
+                background=tbl['background'].quantity,
+                responsivity=tbl['responsivity'].quantity)
         # get detector position on the sky in the toltec frame
         x_a = tbl['x'].quantity.to(u.cm)
         y_a = tbl['y'].quantity.to(u.cm)
@@ -727,7 +731,37 @@ class ToltecObsSimulator(object):
         return self._table
 
     @contextmanager
+    def probe_context(self, fp=None):
+        """Return a function that can be used to get IQ for given flux
+        """
+        tbl = self.table
+        kidssim = self._kidssim
+        if fp is None:
+            fp = kidssim._fr
+
+        def evaluate(s):
+            # convert to brightness temperature and
+            # assuming a square pass band, we can get the power loading
+            tbs = s.to(
+                    u.K,
+                    equivalencies=u.brightness_temperature(
+                        self.table['wl_center'].quantity[:, np.newaxis]))
+            pwrs = (
+                    tbs.to(
+                        u.J,
+                        equivalencies=u.temperature_energy())
+                    * self.table['passband'][:, np.newaxis]
+                    ).to(u.pW)
+            return kidssim.probe_p(
+                    pwrs + tbl['background'].quantity[:, np.newaxis], fp=fp)
+
+        yield evaluate
+
+    @contextmanager
     def obs_context(self, obs_model, sources):
+        """
+        Return a function that can be used to get
+        input flux at each detector for given time."""
         m_obs = obs_model
         tbl = self.table
         x_t = tbl['x_t'].quantity
@@ -782,21 +816,7 @@ class ToltecObsSimulator(object):
                 s = np.squeeze(
                         np.moveaxis(s, 0, -1) @ sources['flux'][:, np.newaxis],
                         axis=-1)
-                # convert to brightness temperature and
-                # assuming a square pass band, we can get the power loading
-                # tbs = s.to(
-                #         u.K,
-                #         equivalencies=u.brightness_temperature(
-                #             tbl['wl_center'].quantity[:, np.newaxis]))
-                # pwrs = (
-                #         tbs.to(
-                #             u.J,
-                #             equivalencies=u.temperature_energy())
-                #         * tbl['passband'][:, np.newaxis]
-                #         ).to(u.pW)
 
-            # now we are ready to convert signal s to time stream data
-            # rs, xs, iqs = kidssim.probe_p(pwrs, fp=np.zeros((pwrs.shape[0])))
             return s, locals()
         yield evaluate
 
@@ -1375,6 +1395,9 @@ if __name__ == "__main__":
                     (1 / obs_params['fsmp']).to_value(u.s)) * u.s
             s, obs_info = obs(obs_params['t0'], t)
 
+        with simulator.probe_context(fp=None) as probe:
+            rs, xs, iqs = probe(s)
+
         # make some diagnostic plots
         tbl = simulator.table
 
@@ -1407,6 +1430,9 @@ if __name__ == "__main__":
         yy = mtbl['y_t'].quantity.to_value(u.deg)
 
         ss = s[m, t_slice].T.to_value(u.MJy/u.sr)
+        rrs = rs[m, t_slice].T
+        xxs = xs[m, t_slice].T
+
         cmap = 'viridis'
         cmap_kwargs = dict(
                 cmap=cmap,
@@ -1447,7 +1473,7 @@ if __name__ == "__main__":
 
         fig = plt.figure()
         ax = WCSAxesSubplot(
-                fig, 1, 1, 1,
+                fig, 3, 1, 1,
                 aspect='equal',
                 # transform=Affine2D(),
                 transform=(
@@ -1457,6 +1483,8 @@ if __name__ == "__main__":
                 coord_meta=coord_meta,
                 )
         fig.add_axes(ax)
+        bx = fig.add_subplot(3, 1, 2)
+        cx = fig.add_subplot(3, 1, 3)
 
         def amp_post_update(block, i):
             ax.reset_wcs(
@@ -1470,10 +1498,10 @@ if __name__ == "__main__":
         # ax.set_facecolor(plt.get_cmap(cmap)(0.))
         ax.set_facecolor('#4488aa')
         nfg = 4
-        blocks = np.full((nfg, ), None, dtype=object)
+        pos_blocks = np.full((nfg, ), None, dtype=object)
         for i in range(nfg):
             mfg = mtbl['fg'] == i
-            blocks[i] = amp.blocks.Scatter(
+            pos_blocks[i] = amp.blocks.Scatter(
                     xx[mfg],
                     yy[mfg],
                     s=np.abs(np.hypot(xx[0] - xx[2], yy[0] - yy[2])),
@@ -1486,7 +1514,17 @@ if __name__ == "__main__":
                     # edgecolor='#cccccc',
                     **cmap_kwargs
                     )
-        anim = amp.Animation(blocks, timeline)
+        # add a block for the IQ values
+        signal_blocks = np.full((2, ), None, dtype=object)
+        for i, (vv, aa) in enumerate(zip((rrs, xxs), (bx, cx))):
+            signal_blocks[i] = amp.blocks.Line(
+                    np.tile(mtbl['f'], (vv.shape[0], 1)),
+                    vv,
+                    ax=aa,
+                    marker='o',
+                    linestyle='none',
+                    )
+        anim = amp.Animation(np.hstack([pos_blocks, signal_blocks]), timeline)
 
         anim.controls()
 
@@ -1507,7 +1545,7 @@ if __name__ == "__main__":
                     src_coords[i].lat,
                     linewidth=lws[i], color='#aaaaaa')
         cax = fig.colorbar(
-            blocks[0].scat, ax=ax, shrink=0.8)
+            pos_blocks[0].scat, ax=ax, shrink=0.8)
         cax.set_label("Surface Brightness (MJy/sr)")
         plt.show()
 
