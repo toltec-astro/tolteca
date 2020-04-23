@@ -615,6 +615,10 @@ class KidsModelParams(object):
     def table(self):
         return self._table
 
+    def read(self):
+        # just return self because all the data are read at __init__.
+        return self
+
     @staticmethod
     def _get_model_cls(tbl):
         dispatch = {
