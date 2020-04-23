@@ -1,0 +1,31 @@
+SkyMapModel
+===========
+
+.. currentmodule:: tolteca.recipes.simu_obs
+
+.. autoclass:: SkyMapModel
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~SkyMapModel.n_inputs
+      ~SkyMapModel.n_outputs
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~SkyMapModel.__call__
+      ~SkyMapModel.evaluate
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: n_inputs
+   .. autoattribute:: n_outputs
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: evaluate

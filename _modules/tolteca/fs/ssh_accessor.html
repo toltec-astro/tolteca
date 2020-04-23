@@ -1,0 +1,158 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>tolteca.fs.ssh_accessor &#8212; tolteca v0.1.dev84+gfc9946a.d20200423</title>
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css" />
+    
+    <script id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/jquery.js"></script>
+    <script src="../../../_static/underscore.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/language_data.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">tolteca v0.1.dev84+gfc9946a.d20200423</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../fs.html" accesskey="U">tolteca.fs</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tolteca.fs.ssh_accessor</h1><div class="highlight"><pre>
+<span></span><span class="ch">#! /usr/bin/env python</span>
+
+<span class="sd">&quot;&quot;&quot;Access files via SSH.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">paramiko</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">logit</span><span class="p">,</span> <span class="n">get_logger</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">import</span> <span class="nn">stat</span>
+
+
+<div class="viewcode-block" id="SSHAccessor"><a class="viewcode-back" href="../../../api/tolteca.fs.SSHAccessor.html#tolteca.fs.SSHAccessor">[docs]</a><span class="k">class</span> <span class="nc">SSHAccessor</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+    <span class="n">_config</span> <span class="o">=</span> <span class="n">paramiko</span><span class="o">.</span><span class="n">SSHConfig</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hostname</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_hostname</span> <span class="o">=</span> <span class="n">hostname</span>
+
+        <span class="n">client</span> <span class="o">=</span> <span class="n">paramiko</span><span class="o">.</span><span class="n">SSHClient</span><span class="p">()</span>
+        <span class="n">client</span><span class="o">.</span><span class="n">load_system_host_keys</span><span class="p">()</span>
+        <span class="n">client</span><span class="o">.</span><span class="n">set_missing_host_key_policy</span><span class="p">(</span><span class="n">paramiko</span><span class="o">.</span><span class="n">WarningPolicy</span><span class="p">())</span>
+        <span class="k">with</span> <span class="n">logit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;connect to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">hostname</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="s1">&#39;proxycommand&#39;</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+                <span class="n">proxycommand</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;proxycommand&#39;</span><span class="p">)</span>
+                <span class="n">proxycommand</span> <span class="o">=</span> <span class="n">proxycommand</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;%h&quot;</span><span class="p">,</span> <span class="n">hostname</span><span class="p">)</span>
+                <span class="n">proxycommand</span> <span class="o">=</span> <span class="n">proxycommand</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
+                        <span class="s2">&quot;%p&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;port&#39;</span><span class="p">,</span> <span class="mi">22</span><span class="p">)))</span>
+                <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;sock&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">paramiko</span><span class="o">.</span><span class="n">ProxyCommand</span><span class="p">(</span><span class="n">proxycommand</span><span class="p">)</span>
+            <span class="k">if</span> <span class="s1">&#39;key_filename&#39;</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+                <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;key_filename&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span>
+                        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;key_filename&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;use proxycommand </span><span class="si">{</span><span class="n">proxycommand</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">client</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span>
+                    <span class="n">hostname</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">hostname</span><span class="p">,</span>
+                    <span class="o">**</span><span class="n">kwargs</span>
+                    <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_client</span> <span class="o">=</span> <span class="n">client</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_sftp</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">open_sftp</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">hostname</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hostname</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s1">(</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">hostname</span><span class="si">}</span><span class="s1">)&#39;</span>
+
+<div class="viewcode-block" id="SSHAccessor.glob"><a class="viewcode-back" href="../../../api/tolteca.fs.SSHAccessor.html#tolteca.fs.SSHAccessor.glob">[docs]</a>    <span class="k">def</span> <span class="nf">glob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dir_</span><span class="p">,</span> <span class="n">pattern</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sftp</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">dir_</span><span class="o">.</span><span class="n">as_posix</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="SSHAccessor.walk"><a class="viewcode-back" href="../../../api/tolteca.fs.SSHAccessor.html#tolteca.fs.SSHAccessor.walk">[docs]</a>    <span class="k">def</span> <span class="nf">walk</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">rootpath</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">skip</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">inc</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">return_attr</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sftp</span><span class="o">.</span><span class="n">listdir_attr</span><span class="p">(</span><span class="n">rootpath</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()):</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="n">rootpath</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">item</span><span class="o">.</span><span class="n">filename</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">inc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">inc</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+                    <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">skip</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">skip</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+                    <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">recursive</span> <span class="ow">and</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_ISDIR</span><span class="p">(</span><span class="n">item</span><span class="o">.</span><span class="n">st_mode</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span>
+                        <span class="n">path</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                        <span class="n">inc</span><span class="o">=</span><span class="n">inc</span><span class="p">,</span> <span class="n">skip</span><span class="o">=</span><span class="n">skip</span><span class="p">,</span> <span class="n">return_attr</span><span class="o">=</span><span class="n">return_attr</span><span class="p">):</span>
+                    <span class="k">yield</span> <span class="n">result</span>
+            <span class="k">if</span> <span class="n">return_attr</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="n">path</span><span class="p">,</span> <span class="n">item</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="n">path</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2020, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 3.0.2. &nbsp;
+    Last built 23 Apr 2020. <br/>
+  </p>
+</footer>
+  </body>
+</html>

@@ -1,10 +1,10 @@
 
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
   <head>
     <meta charset="utf-8" />
-    <title>tolteca.db.connection &#8212; tolteca v0.1.dev62+g21e4fb5</title>
+    <title>tolteca.db.connection &#8212; tolteca v0.1.dev84+gfc9946a.d20200423</title>
     <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
     <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css" />
@@ -46,7 +46,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../../index.html">tolteca v0.1.dev62+g21e4fb5</a>
+	<a href="../../../index.html">tolteca v0.1.dev84+gfc9946a.d20200423</a>
 	 &#187;
       </li>
       <li><a href="../../index.html" >Module code</a> &#187;</li>
@@ -76,7 +76,7 @@
 <span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_dict</span>
 
 
-<span class="n">_sa_connections</span> <span class="o">=</span> <span class="n">Registry</span><span class="o">.</span><span class="n">create</span><span class="p">()</span>
+<span class="n">_conns</span> <span class="o">=</span> <span class="n">Registry</span><span class="o">.</span><span class="n">create</span><span class="p">()</span>
 
 
 <div class="viewcode-block" id="DatabaseConnection"><a class="viewcode-back" href="../../../api/tolteca.db.DatabaseConnection.html#tolteca.db.DatabaseConnection">[docs]</a><span class="k">class</span> <span class="nc">DatabaseConnection</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -84,7 +84,7 @@
     <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
     <span class="n">_config</span> <span class="o">=</span> <span class="p">{</span>
             <span class="s1">&#39;engine&#39;</span><span class="p">:</span> <span class="p">{</span>
-                <span class="s1">&#39;echo&#39;</span><span class="p">:</span> <span class="kc">True</span>
+                <span class="c1"># &#39;echo&#39;: True</span>
                 <span class="p">},</span>
 
             <span class="s1">&#39;session&#39;</span><span class="p">:</span> <span class="p">{</span>
@@ -94,10 +94,10 @@
             <span class="p">}</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">uri</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_uri</span> <span class="o">=</span> <span class="n">uri</span>
         <span class="n">config</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="n">_config</span><span class="p">)</span>
         <span class="n">rupdate</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">)</span>
-        <span class="k">with</span> <span class="n">logit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;connect to database </span><span class="si">{uri}</span><span class="s2">&quot;</span><span class="p">):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_uri</span> <span class="o">=</span> <span class="n">uri</span>
+        <span class="k">with</span> <span class="n">logit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;connect to database </span><span class="si">{</span><span class="n">uri</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">engine</span> <span class="o">=</span> <span class="n">create_engine</span><span class="p">(</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">_uri</span><span class="p">,</span> <span class="o">**</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;engine&#39;</span><span class="p">,</span> <span class="nb">dict</span><span class="p">()))</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">MetaData</span><span class="p">(</span><span class="n">bind</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="p">)</span>
@@ -107,7 +107,7 @@
 
 <div class="viewcode-block" id="DatabaseConnection.reflect_tables"><a class="viewcode-back" href="../../../api/tolteca.db.DatabaseConnection.html#tolteca.db.DatabaseConnection.reflect_tables">[docs]</a>    <span class="k">def</span> <span class="nf">reflect_tables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">reflect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;tables {pformat_dict(self.metadata.tables)}&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;tables </span><span class="si">{</span><span class="n">pformat_dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">tables</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">tables</span></div>
 
 <div class="viewcode-block" id="DatabaseConnection.clear_tables"><a class="viewcode-back" href="../../../api/tolteca.db.DatabaseConnection.html#tolteca.db.DatabaseConnection.clear_tables">[docs]</a>    <span class="k">def</span> <span class="nf">clear_tables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -115,12 +115,12 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span></div>
 
     <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{self.__class__.__name__}</span><span class="s2">({self._uri.rsplit(&#39;//&#39;, 1)[-1]})&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_uri</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s1">&#39;//&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">)&quot;</span>
 
     <span class="k">def</span> <span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">uri</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">uri</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_sa_connections</span><span class="p">:</span>
-            <span class="n">_sa_connections</span><span class="p">[</span><span class="n">uri</span><span class="p">]</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">_sa_connections</span><span class="p">[</span><span class="n">uri</span><span class="p">]</span></div>
+        <span class="k">if</span> <span class="n">uri</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_conns</span><span class="p">:</span>
+            <span class="n">_conns</span><span class="p">[</span><span class="n">uri</span><span class="p">]</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_conns</span><span class="p">[</span><span class="n">uri</span><span class="p">]</span></div>
 </pre></div>
 
           </div>
@@ -139,8 +139,8 @@
     <a href="#">Back to Top</a></p>
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
-    Last built 02 Mar 2020. <br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 3.0.2. &nbsp;
+    Last built 23 Apr 2020. <br/>
   </p>
 </footer>
   </body>

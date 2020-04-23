@@ -1,10 +1,10 @@
 
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
   <head>
     <meta charset="utf-8" />
-    <title>tolteca.cli.core &#8212; tolteca v0.1.dev62+g21e4fb5</title>
+    <title>tolteca.cli.core &#8212; tolteca v0.1.dev84+gfc9946a.d20200423</title>
     <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
     <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css" />
@@ -46,7 +46,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../../index.html">tolteca v0.1.dev62+g21e4fb5</a>
+	<a href="../../../index.html">tolteca v0.1.dev84+gfc9946a.d20200423</a>
 	 &#187;
       </li>
       <li><a href="../../index.html" >Module code</a> &#187;</li>
@@ -100,7 +100,7 @@
         <span class="c1"># normalize the name to be all relative to</span>
         <span class="c1"># the package root</span>
         <span class="n">name</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)</span>
-        <span class="n">qualname</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;..</span><span class="si">{name}</span><span class="s1">&#39;</span>
+        <span class="n">qualname</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;..</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s1">&#39;</span>
         <span class="k">return</span> <span class="n">name</span><span class="p">,</span> <span class="n">qualname</span>
 
     <span class="nd">@property</span>
@@ -114,11 +114,11 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># relative to the package root</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_modules</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">timeit</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;import module </span><span class="si">{name}</span><span class="s2">&quot;</span><span class="p">)(</span><span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">)(</span>
+                    <span class="sa">f</span><span class="s2">&quot;import module </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)(</span><span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">)(</span>
                         <span class="n">qualname</span><span class="p">,</span> <span class="n">package</span><span class="o">=</span><span class="n">__package__</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;imported module </span><span class="si">{name}</span><span class="s2">: &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;{getattr(self, name)}&quot;</span><span class="p">)</span></div>
+                    <span class="sa">f</span><span class="s2">&quot;imported module </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="CliRuntime.load_modules"><a class="viewcode-back" href="../../../api/tolteca.cli.CliRuntime.html#tolteca.cli.CliRuntime.load_modules">[docs]</a>    <span class="nd">@timeit</span>
     <span class="k">def</span> <span class="nf">load_modules</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">with_default</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
@@ -129,13 +129,13 @@
         <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">load_module</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;loaded {len(names)} modules: </span><span class="si">{names}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+                <span class="sa">f</span><span class="s2">&quot;loaded </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">)</span><span class="si">}</span><span class="s2"> modules: </span><span class="si">{</span><span class="n">names</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="CliRuntime.reload_module"><a class="viewcode-back" href="../../../api/tolteca.cli.CliRuntime.html#tolteca.cli.CliRuntime.reload_module">[docs]</a>    <span class="k">def</span> <span class="nf">reload_module</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
         <span class="n">name</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_normalize_module_name</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;reload module </span><span class="si">{name}</span><span class="s2">: &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;{getattr(self, name)}&quot;</span><span class="p">)</span>
+                <span class="sa">f</span><span class="s2">&quot;reload module </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="c1"># recursively reload all submodules</span>
         <span class="n">timeit</span><span class="p">(</span><span class="n">rreload</span><span class="p">)(</span><span class="bp">self</span><span class="o">.</span><span class="n">_modules</span><span class="p">[</span><span class="n">name</span><span class="p">])</span></div>
 
@@ -161,8 +161,8 @@
     <a href="#">Back to Top</a></p>
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
-    Last built 02 Mar 2020. <br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 3.0.2. &nbsp;
+    Last built 23 Apr 2020. <br/>
   </p>
 </footer>
   </body>

@@ -1,10 +1,10 @@
 
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
   <head>
     <meta charset="utf-8" />
-    <title>TolTECA Documentation &#8212; tolteca v0.1.dev62+g21e4fb5</title>
+    <title>TolTECA Documentation &#8212; tolteca v0.1.dev84+gfc9946a.d20200423</title>
     <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
@@ -59,7 +59,7 @@
 	 |
       </li>
       <li>
-	<a href="../index.html">tolteca v0.1.dev62+g21e4fb5</a>
+	<a href="../index.html">tolteca v0.1.dev84+gfc9946a.d20200423</a>
 	 &#187;
       </li>
       
@@ -82,6 +82,11 @@
 <li class="toctree-l1"><a class="reference internal" href="tolteca_recipes.html">TolTECA Recipes</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="tolteca_recipes.html#module-tolteca.recipes">tolteca.recipes Package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tolteca_recipes.html#module-tolteca.recipes.simu_hwp_noise">tolteca.recipes.simu_hwp_noise Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tolteca_recipes.html#module-tolteca.recipes.simu_obs">tolteca.recipes.simu_obs Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tolteca_recipes.html#module-tolteca.recipes.autodrive">tolteca.recipes.autodrive Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tolteca_recipes.html#module-tolteca.recipes.dataset_rsync">tolteca.recipes.dataset_rsync Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tolteca_recipes.html#module-tolteca.recipes.dataset_simple_example">tolteca.recipes.dataset_simple_example Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tolteca_recipes.html#module-tolteca.recipes.match_tunes">tolteca.recipes.match_tunes Module</a></li>
 </ul>
 </li>
 </ul>
@@ -145,7 +150,7 @@
 </div>
 <div class="section" id="class-inheritance-diagram">
 <h4>Class Inheritance Diagram<a class="headerlink" href="#class-inheritance-diagram" title="Permalink to this headline">¶</a></h4>
-<div class="graphviz"><object data="../_images/inheritance-ddf9788e50c8cfa5a2291b0569c7c80f8f632414.svg" type="image/svg+xml" class="inheritance graphviz">
+<div class="graphviz"><object data="../_images/inheritance-7589f2860de96b350c8129b40abcaf3d5ae86953.svg" type="image/svg+xml" class="inheritance graphviz">
 <p class="warning">Inheritance diagram of tolteca.cli.core.CliRuntime, tolteca.cli.OnExitHandler</p></object></div>
 </div>
 </div>
@@ -160,20 +165,35 @@
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_databases</span></code>([config])</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_databases</span></code>(config)</p></td>
 <td><p></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_logger</span></code>([name])</p></td>
 <td><p>Return a logger named <code class="xref py py-obj docutils literal notranslate"><span class="pre">name</span></code> if specified, otherwise use the name of the calling context.</p></td>
 </tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_pkg_data_path</span></code>()</p></td>
+<td><p>Return the package data path.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">init_log</span></code>([preset, level, file_, colored])</p></td>
+<td><p>Initialize logging with some sensible presets.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.gui.main.html#tolteca.gui.main" title="tolteca.gui.main"><code class="xref py py-obj docutils literal notranslate"><span class="pre">main</span></code></a>()</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">pformat_dict</span></code>(d[, indent, minw])</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">pformat_yaml</span></code>(obj)</p></td>
 <td><p></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">qt5app</span></code>([args])</p></td>
 <td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">registerParameterType</span></code>(name, cls[, override])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">rupdate</span></code>(d, u)</p></td>
+<td><p>Update dict recursively.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">timeit</span></code>(arg)</p></td>
+<td><p>Decorator that logs the execution time of the decorated item.</p></td>
 </tr>
 </tbody>
 </table>
@@ -204,26 +224,38 @@
 <tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.gui.DataFilesView.html#tolteca.gui.DataFilesView" title="tolteca.gui.DataFilesView"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DataFilesView</span></code></a>(parent, flags, …)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.gui.GuiRuntime.html#tolteca.gui.GuiRuntime" title="tolteca.gui.GuiRuntime"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GuiRuntime</span></code></a>(parent)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.gui.Gui.html#tolteca.gui.Gui" title="tolteca.gui.Gui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Gui</span></code></a>(parent, flags, …)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Palette</span></code></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.gui.GuiRuntime.html#tolteca.gui.GuiRuntime" title="tolteca.gui.GuiRuntime"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GuiRuntime</span></code></a>(config[, parent])</p></td>
+<td><p>This class manages the runtime resources.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">IntervalTarget</span></code>(parent)</p></td>
 <td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">OrderedDict</span></code></p></td>
+<td><p>Dictionary that remembers insertion order</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Palette</span></code></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Parameter</span></code>(**opts)</p></td>
+<td><p>A Parameter is the basic unit of data in a parameter tree.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">ParameterItem</span></code>(param[, depth])</p></td>
+<td><p>Abstract ParameterTree item.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">ParameterTree</span></code>([parent, showHeader])</p></td>
+<td><p>Widget used to display or control data from a hierarchy of Parameters</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Path</span></code></p></td>
 <td><p>PurePath subclass that can make system calls.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">QThreadTarget</span></code>(parent)</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Qt</span></code></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Qt</span></code></p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">ToltecDataFileStore</span></code>([rootpath])</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.gui.ToltecaGui.html#tolteca.gui.ToltecaGui" title="tolteca.gui.ToltecaGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ToltecaGui</span></code></a>(parent, flags, …)</p></td>
-<td><p></p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">ToltecDataFileStore</span></code>(rootpath[, hostname, …])</p></td>
+<td><p>A class that provide access to TolTEC data files.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Ui_DBStatus</span></code></p></td>
 <td><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">builtins.Ui_Form</span></code></p></td>
@@ -246,13 +278,16 @@
 <tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime</span></code>(year, month, day[, hour[, minute[, …)</p></td>
 <td><p>The year, month and day arguments are required.</p></td>
 </tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">logit</span></code>(log, msg)</p></td>
+<td><p>Decorator that logs the execution of the decorated item.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
 <div class="section" id="id3">
 <h4>Class Inheritance Diagram<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h4>
-<div class="graphviz"><object data="../_images/inheritance-08a13003426e411346a982b98352a76e04796513.svg" type="image/svg+xml" class="inheritance graphviz">
-<p class="warning">Inheritance diagram of tolteca.gui.AnimatedItemDelegate, tolteca.gui.DBStatusPanel, tolteca.gui.DataFileGroupModel, tolteca.gui.DataFileGroupModelFilter, tolteca.gui.DataFileInfoModel, tolteca.gui.DataFilesView, tolteca.gui.GuiRuntime, tolteca.gui.ToltecaGui</p></object></div>
+<div class="graphviz"><object data="../_images/inheritance-d4dd20282889c62c06fe532cf06a7d5de2844959.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.gui.AnimatedItemDelegate, tolteca.gui.DBStatusPanel, tolteca.gui.DataFileGroupModel, tolteca.gui.DataFileGroupModelFilter, tolteca.gui.DataFileInfoModel, tolteca.gui.DataFilesView, tolteca.gui.Gui, tolteca.gui.GuiRuntime</p></object></div>
 </div>
 </div>
 <div class="section" id="module-tolteca.db">
@@ -265,7 +300,7 @@
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.db.get_databases.html#tolteca.db.get_databases" title="tolteca.db.get_databases"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_databases</span></code></a>([config])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.db.get_databases.html#tolteca.db.get_databases" title="tolteca.db.get_databases"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_databases</span></code></a>(config)</p></td>
 <td><p></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_logger</span></code>([name])</p></td>
@@ -311,7 +346,7 @@
 </div>
 <div class="section" id="id6">
 <h4>Class Inheritance Diagram<a class="headerlink" href="#id6" title="Permalink to this headline">¶</a></h4>
-<div class="graphviz"><object data="../_images/inheritance-6082798e53186af9092afbb668ba3bb352eb6252.svg" type="image/svg+xml" class="inheritance graphviz">
+<div class="graphviz"><object data="../_images/inheritance-56451f5a15a08d71bc3c2f6849022ca673da4877.svg" type="image/svg+xml" class="inheritance graphviz">
 <p class="warning">Inheritance diagram of tolteca.db.ConfigMixin, tolteca.db.ConfigValidator, tolteca.db.connection.DatabaseConnection, tolteca.db.DatabaseRuntime</p></object></div>
 </div>
 </div>
@@ -325,19 +360,28 @@
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.fs.DataFileStore.html#tolteca.fs.DataFileStore" title="tolteca.fs.DataFileStore"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DataFileStore</span></code></a>([rootpath])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.fs.Accessor.html#tolteca.fs.Accessor" title="tolteca.fs.Accessor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Accessor</span></code></a></p></td>
+<td><p>A common interface for accessing resources.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.fs.DataFileStore.html#tolteca.fs.DataFileStore" title="tolteca.fs.DataFileStore"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DataFileStore</span></code></a>(rootpath)</p></td>
 <td><p>A base class that represent a path that stores data files.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Path</span></code></p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Path</span></code></p></td>
 <td><p>PurePath subclass that can make system calls.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.fs.RemoteDataFileStore.html#tolteca.fs.RemoteDataFileStore" title="tolteca.fs.RemoteDataFileStore"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RemoteDataFileStore</span></code></a>(uri, **kwargs)</p></td>
+<td><p>A class that works with remote data files.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.fs.SSHAccessor.html#tolteca.fs.SSHAccessor" title="tolteca.fs.SSHAccessor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SSHAccessor</span></code></a>(hostname, **kwargs)</p></td>
+<td><p></p></td>
 </tr>
 </tbody>
 </table>
 </div>
 <div class="section" id="id8">
 <h4>Class Inheritance Diagram<a class="headerlink" href="#id8" title="Permalink to this headline">¶</a></h4>
-<div class="graphviz"><object data="../_images/inheritance-434c181f0bfd61da3262010eb76a304ae991b4f2.svg" type="image/svg+xml" class="inheritance graphviz">
-<p class="warning">Inheritance diagram of tolteca.fs.DataFileStore</p></object></div>
+<div class="graphviz"><object data="../_images/inheritance-e0d26beca42679d2f4080c10fdc352a2570667b7.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.fs.Accessor, tolteca.fs.DataFileStore, tolteca.fs.RemoteDataFileStore, tolteca.fs.ssh_accessor.SSHAccessor</p></object></div>
 </div>
 </div>
 <div class="section" id="module-tolteca.io">
@@ -372,7 +416,7 @@
 </div>
 <div class="section" id="id11">
 <h4>Class Inheritance Diagram<a class="headerlink" href="#id11" title="Permalink to this headline">¶</a></h4>
-<div class="graphviz"><object data="../_images/inheritance-711e6dc962ff481334f367a18c6629075b8ed590.svg" type="image/svg+xml" class="inheritance graphviz">
+<div class="graphviz"><object data="../_images/inheritance-c8528a1e4d4f6d81d089234dcca43887e29e935c.svg" type="image/svg+xml" class="inheritance graphviz">
 <p class="warning">Inheritance diagram of tolteca.io.toltec.NcFileIO</p></object></div>
 </div>
 </div>
@@ -424,7 +468,7 @@
 </div>
 <div class="section" id="id14">
 <h4>Class Inheritance Diagram<a class="headerlink" href="#id14" title="Permalink to this headline">¶</a></h4>
-<div class="graphviz"><object data="../_images/inheritance-f35a831ddce5b9fb002f92e53c1430cc51537356.svg" type="image/svg+xml" class="inheritance graphviz">
+<div class="graphviz"><object data="../_images/inheritance-01e1b71e5de26fed3cf946ef0cf4044b5072078b.svg" type="image/svg+xml" class="inheritance graphviz">
 <p class="warning">Inheritance diagram of tolteca.pipeline.PipelineRuntime</p></object></div>
 </div>
 </div>
@@ -441,6 +485,9 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.utils.get_pkg_data_path.html#tolteca.utils.get_pkg_data_path" title="tolteca.utils.get_pkg_data_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_pkg_data_path</span></code></a>()</p></td>
 <td><p>Return the package data path.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.utils.get_user_data_dir.html#tolteca.utils.get_user_data_dir" title="tolteca.utils.get_user_data_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_user_data_dir</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -456,7 +503,10 @@
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.web.load_task_modules.html#tolteca.web.load_task_modules" title="tolteca.web.load_task_modules"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_task_modules</span></code></a>()</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_user_data_dir</span></code>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.web.load_task_modules.html#tolteca.web.load_task_modules" title="tolteca.web.load_task_modules"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_task_modules</span></code></a>()</p></td>
 <td><p></p></td>
 </tr>
 </tbody>
@@ -537,8 +587,8 @@
     <a href="#">Back to Top</a></p>
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
-    Last built 02 Mar 2020. <br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 3.0.2. &nbsp;
+    Last built 23 Apr 2020. <br/>
   </p>
 </footer>
   </body>

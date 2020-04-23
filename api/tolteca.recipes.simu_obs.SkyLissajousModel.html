@@ -1,0 +1,233 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>SkyLissajousModel &#8212; tolteca v0.1.dev84+gfc9946a.d20200423</title>
+    <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="SkyMapModel" href="tolteca.recipes.simu_obs.SkyMapModel.html" />
+    <link rel="prev" title="RasterScanModelMeta" href="tolteca.recipes.simu_obs.RasterScanModelMeta.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="tolteca.recipes.simu_obs.SkyMapModel.html" title="SkyMapModel">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="tolteca.recipes.simu_obs.RasterScanModelMeta.html" title="RasterScanModelMeta">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v0.1.dev84+gfc9946a.d20200423</a>
+	 &#187;
+      </li>
+      <li><a href="../tolteca/index.html" >TolTECA Documentation</a> &#187;</li>
+      <li><a href="../tolteca/tolteca_recipes.html" accesskey="U">TolTECA Recipes</a> &#187;</li>
+      
+      <li>SkyLissajousModel</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="skylissajousmodel">
+<h1>SkyLissajousModel<a class="headerlink" href="#skylissajousmodel" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt id="tolteca.recipes.simu_obs.SkyLissajousModel">
+<em class="property">class </em><code class="sig-prename descclassname">tolteca.recipes.simu_obs.</code><code class="sig-name descname">SkyLissajousModel</code><span class="sig-paren">(</span><em class="sig-param">x_length=&lt;Quantity 10. deg&gt;</em>, <em class="sig-param">y_length=&lt;Quantity 10. deg&gt;</em>, <em class="sig-param">x_omega=&lt;Quantity 1. rad / s&gt;</em>, <em class="sig-param">y_omega=&lt;Quantity 1. rad / s&gt;</em>, <em class="sig-param">delta=&lt;Quantity 0. rad&gt;</em>, <em class="sig-param">rot=&lt;Quantity 0. deg&gt;</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/recipes/simu_obs.html#SkyLissajousModel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.recipes.simu_obs.SkyLissajousModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="tolteca.recipes.simu_obs.SkyMapModel.html#tolteca.recipes.simu_obs.SkyMapModel" title="tolteca.recipes.simu_obs.SkyMapModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">tolteca.recipes.simu_obs.SkyMapModel</span></code></a></p>
+<p class="rubric">Attributes Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.recipes.simu_obs.SkyLissajousModel.delta" title="tolteca.recipes.simu_obs.SkyLissajousModel.delta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">delta</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.recipes.simu_obs.SkyLissajousModel.frame" title="tolteca.recipes.simu_obs.SkyLissajousModel.frame"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frame</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.recipes.simu_obs.SkyLissajousModel.frame_unit" title="tolteca.recipes.simu_obs.SkyLissajousModel.frame_unit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frame_unit</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.recipes.simu_obs.SkyLissajousModel.param_names" title="tolteca.recipes.simu_obs.SkyLissajousModel.param_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">param_names</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.recipes.simu_obs.SkyLissajousModel.rot" title="tolteca.recipes.simu_obs.SkyLissajousModel.rot"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rot</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.recipes.simu_obs.SkyLissajousModel.x_length" title="tolteca.recipes.simu_obs.SkyLissajousModel.x_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">x_length</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.recipes.simu_obs.SkyLissajousModel.x_omega" title="tolteca.recipes.simu_obs.SkyLissajousModel.x_omega"><code class="xref py py-obj docutils literal notranslate"><span class="pre">x_omega</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.recipes.simu_obs.SkyLissajousModel.y_length" title="tolteca.recipes.simu_obs.SkyLissajousModel.y_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">y_length</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.recipes.simu_obs.SkyLissajousModel.y_omega" title="tolteca.recipes.simu_obs.SkyLissajousModel.y_omega"><code class="xref py py-obj docutils literal notranslate"><span class="pre">y_omega</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.recipes.simu_obs.SkyLissajousModel.evaluate" title="tolteca.recipes.simu_obs.SkyLissajousModel.evaluate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">evaluate</span></code></a>(self, t, x_length, y_length, …)</p></td>
+<td><p>This computes a lissajous pattern around the origin.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.recipes.simu_obs.SkyLissajousModel.evaluate_at" title="tolteca.recipes.simu_obs.SkyLissajousModel.evaluate_at"><code class="xref py py-obj docutils literal notranslate"><span class="pre">evaluate_at</span></code></a>(self, ref_coord, \*args)</p></td>
+<td><p>Returns the mapping pattern as evaluated at given coordinates.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.recipes.simu_obs.SkyLissajousModel.get_total_time" title="tolteca.recipes.simu_obs.SkyLissajousModel.get_total_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_total_time</span></code></a>(self)</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Attributes Documentation</p>
+<dl class="py attribute">
+<dt id="tolteca.recipes.simu_obs.SkyLissajousModel.delta">
+<code class="sig-name descname">delta</code><em class="property"> = Parameter('delta', value=0.0, unit=rad)</em><a class="headerlink" href="#tolteca.recipes.simu_obs.SkyLissajousModel.delta" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt id="tolteca.recipes.simu_obs.SkyLissajousModel.frame">
+<code class="sig-name descname">frame</code><em class="property"> = &lt;Frame2D(name=&quot;skyoffset&quot;, unit=(Unit(&quot;deg&quot;), Unit(&quot;deg&quot;)), axes_names=('lon', 'lat'), axes_order=(0, 1))&gt;</em><a class="headerlink" href="#tolteca.recipes.simu_obs.SkyLissajousModel.frame" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt id="tolteca.recipes.simu_obs.SkyLissajousModel.frame_unit">
+<code class="sig-name descname">frame_unit</code><em class="property"> = Unit(&quot;deg&quot;)</em><a class="headerlink" href="#tolteca.recipes.simu_obs.SkyLissajousModel.frame_unit" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt id="tolteca.recipes.simu_obs.SkyLissajousModel.param_names">
+<code class="sig-name descname">param_names</code><em class="property"> = ('x_length', 'y_length', 'x_omega', 'y_omega', 'delta', 'rot')</em><a class="headerlink" href="#tolteca.recipes.simu_obs.SkyLissajousModel.param_names" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt id="tolteca.recipes.simu_obs.SkyLissajousModel.rot">
+<code class="sig-name descname">rot</code><em class="property"> = Parameter('rot', value=0.0, unit=deg)</em><a class="headerlink" href="#tolteca.recipes.simu_obs.SkyLissajousModel.rot" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt id="tolteca.recipes.simu_obs.SkyLissajousModel.x_length">
+<code class="sig-name descname">x_length</code><em class="property"> = Parameter('x_length', value=10.0, unit=deg)</em><a class="headerlink" href="#tolteca.recipes.simu_obs.SkyLissajousModel.x_length" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt id="tolteca.recipes.simu_obs.SkyLissajousModel.x_omega">
+<code class="sig-name descname">x_omega</code><em class="property"> = Parameter('x_omega', value=1.0, unit=rad / s)</em><a class="headerlink" href="#tolteca.recipes.simu_obs.SkyLissajousModel.x_omega" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt id="tolteca.recipes.simu_obs.SkyLissajousModel.y_length">
+<code class="sig-name descname">y_length</code><em class="property"> = Parameter('y_length', value=10.0, unit=deg)</em><a class="headerlink" href="#tolteca.recipes.simu_obs.SkyLissajousModel.y_length" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt id="tolteca.recipes.simu_obs.SkyLissajousModel.y_omega">
+<code class="sig-name descname">y_omega</code><em class="property"> = Parameter('y_omega', value=1.0, unit=rad / s)</em><a class="headerlink" href="#tolteca.recipes.simu_obs.SkyLissajousModel.y_omega" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt id="tolteca.recipes.simu_obs.SkyLissajousModel.evaluate">
+<code class="sig-name descname">evaluate</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span></em>, <em class="sig-param"><span class="n">t</span></em>, <em class="sig-param"><span class="n">x_length</span></em>, <em class="sig-param"><span class="n">y_length</span></em>, <em class="sig-param"><span class="n">x_omega</span></em>, <em class="sig-param"><span class="n">y_omega</span></em>, <em class="sig-param"><span class="n">delta</span></em>, <em class="sig-param"><span class="n">rot</span></em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.recipes.simu_obs.SkyLissajousModel.evaluate" title="Permalink to this definition">¶</a></dt>
+<dd><p>This computes a lissajous pattern around the origin.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="tolteca.recipes.simu_obs.SkyLissajousModel.evaluate_at">
+<code class="sig-name descname">evaluate_at</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">ref_coord</em>, <em class="sig-param">\*args</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/recipes/simu_obs.html#SkyLissajousModel.evaluate_at"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.recipes.simu_obs.SkyLissajousModel.evaluate_at" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the mapping pattern as evaluated at given coordinates.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="tolteca.recipes.simu_obs.SkyLissajousModel.get_total_time">
+<code class="sig-name descname">get_total_time</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span></em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.recipes.simu_obs.SkyLissajousModel.get_total_time" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">SkyLissajousModel</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/api/tolteca.recipes.simu_obs.SkyLissajousModel.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2020, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 3.0.2. &nbsp;
+    Last built 23 Apr 2020. <br/>
+  </p>
+</footer>
+  </body>
+</html>

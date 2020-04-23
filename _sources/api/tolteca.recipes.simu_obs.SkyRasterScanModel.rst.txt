@@ -1,0 +1,47 @@
+SkyRasterScanModel
+==================
+
+.. currentmodule:: tolteca.recipes.simu_obs
+
+.. autoclass:: SkyRasterScanModel
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~SkyRasterScanModel.frame
+      ~SkyRasterScanModel.frame_unit
+      ~SkyRasterScanModel.length
+      ~SkyRasterScanModel.n_scans
+      ~SkyRasterScanModel.param_names
+      ~SkyRasterScanModel.rot
+      ~SkyRasterScanModel.space
+      ~SkyRasterScanModel.speed
+      ~SkyRasterScanModel.t_turnover
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~SkyRasterScanModel.evaluate
+      ~SkyRasterScanModel.evaluate_at
+      ~SkyRasterScanModel.get_total_time
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: frame
+   .. autoattribute:: frame_unit
+   .. autoattribute:: length
+   .. autoattribute:: n_scans
+   .. autoattribute:: param_names
+   .. autoattribute:: rot
+   .. autoattribute:: space
+   .. autoattribute:: speed
+   .. autoattribute:: t_turnover
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: evaluate
+   .. automethod:: evaluate_at
+   .. automethod:: get_total_time

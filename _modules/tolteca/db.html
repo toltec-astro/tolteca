@@ -1,10 +1,10 @@
 
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
   <head>
     <meta charset="utf-8" />
-    <title>tolteca.db &#8212; tolteca v0.1.dev62+g21e4fb5</title>
+    <title>tolteca.db &#8212; tolteca v0.1.dev84+gfc9946a.d20200423</title>
     <link rel="stylesheet" href="../../_static/bootstrap-astropy.css" type="text/css" />
     <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
@@ -46,7 +46,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../index.html">tolteca v0.1.dev62+g21e4fb5</a>
+	<a href="../../index.html">tolteca v0.1.dev84+gfc9946a.d20200423</a>
 	 &#187;
       </li>
       <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li>
@@ -69,7 +69,6 @@
 <span class="kn">import</span> <span class="nn">inspect</span>
 <span class="kn">import</span> <span class="nn">importlib</span>
 <span class="kn">import</span> <span class="nn">functools</span>
-<span class="kn">from</span> <span class="nn">.config</span> <span class="kn">import</span> <span class="n">DB_CONFIG</span>
 <span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_dict</span>
 <span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span><span class="p">,</span> <span class="n">logit</span><span class="p">,</span> <span class="n">timeit</span>
 <span class="kn">from</span> <span class="nn">.connection</span> <span class="kn">import</span> <span class="n">DatabaseConnection</span>
@@ -89,7 +88,7 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_config_validator</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
             <span class="n">errors</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config_validator</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">errors</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;invalid config: </span><span class="si">{errors}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;invalid config: </span><span class="si">{</span><span class="n">errors</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
 
     <span class="nd">@staticmethod</span>
     <span class="k">def</span> <span class="nf">_has_config_validator</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
@@ -114,7 +113,7 @@
         <span class="n">errors</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validators</span><span class="p">:</span>
             <span class="n">errors</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">v</span><span class="p">(</span><span class="n">config</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;validated config: {pformat_dict(config)}&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;validated config: </span><span class="si">{</span><span class="n">pformat_dict</span><span class="p">(</span><span class="n">config</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">errors</span></div>
 
 <div class="viewcode-block" id="ConfigValidator.required"><a class="viewcode-back" href="../../api/tolteca.db.ConfigValidator.html#tolteca.db.ConfigValidator.required">[docs]</a>    <span class="k">def</span> <span class="nf">required</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
@@ -122,7 +121,7 @@
             <span class="n">errors</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
             <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">a</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">config</span><span class="p">:</span>
-                    <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;missing required key </span><span class="si">{a}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;missing required key </span><span class="si">{</span><span class="n">a</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">errors</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_validators</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">validate</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_keys</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">args</span><span class="p">))</span>
@@ -132,7 +131,7 @@
         <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="n">config</span><span class="p">):</span>
             <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                 <span class="k">if</span> <span class="n">a</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">config</span><span class="p">:</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;use default </span><span class="si">{a}</span><span class="s2">=</span><span class="si">{d}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;use default </span><span class="si">{</span><span class="n">a</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">d</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                     <span class="n">config</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">=</span> <span class="n">d</span>
             <span class="k">return</span> <span class="nb">list</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_validators</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">validate</span><span class="p">)</span>
@@ -146,31 +145,37 @@
             <span class="k">return</span> <span class="n">instance</span><span class="o">.</span><span class="n">_config</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
 
         <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keys</span><span class="p">:</span>
-            <span class="nb">setattr</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{prefix}{key}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="nb">property</span><span class="p">(</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}{</span><span class="n">key</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="nb">property</span><span class="p">(</span>
                 <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="n">getter</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">)))</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;add property </span><span class="si">{prefix}{key}</span><span class="s2"> to </span><span class="si">{cls}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;add property </span><span class="si">{</span><span class="n">prefix</span><span class="si">}{</span><span class="n">key</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="bp">cls</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">cls</span></div></div>
 
 
 <div class="viewcode-block" id="DatabaseRuntime"><a class="viewcode-back" href="../../api/tolteca.db.DatabaseRuntime.html#tolteca.db.DatabaseRuntime">[docs]</a><span class="k">class</span> <span class="nc">DatabaseRuntime</span><span class="p">(</span><span class="n">ConfigMixin</span><span class="p">,</span> <span class="n">config_property_prefix</span><span class="o">=</span><span class="s2">&quot;_&quot;</span><span class="p">):</span>
     <span class="sd">&#39;&#39;&#39;Class to hold database related states.&#39;&#39;&#39;</span>
 
+    <span class="n">_connection</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">_is_connecting</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">config_validator</span> <span class="o">=</span> <span class="n">ConfigValidator</span><span class="p">()</span> \
         <span class="o">.</span><span class="n">required</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s1">&#39;uri&#39;</span><span class="p">)</span> \
         <span class="o">.</span><span class="n">optional</span><span class="p">(</span><span class="n">schema</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tables_from_reflection</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;db.</span><span class="si">{self._name}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;db.</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-    <span class="nd">@cached_property</span>
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">connection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">connection</span> <span class="o">=</span> <span class="n">DatabaseConnection</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_uri</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;unable to connect to </span><span class="si">{self._name}</span><span class="s2"> </span><span class="si">{self._uri}</span><span class="s2">: </span><span class="si">{e}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">connection</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connection</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_connecting</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_is_connecting</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_connection</span> <span class="o">=</span> <span class="n">DatabaseConnection</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_uri</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_is_connecting</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;unable to connect to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_name</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_uri</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                        <span class="n">exc_info</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connection</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">session</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -180,14 +185,14 @@
     <span class="k">def</span> <span class="nf">models</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_schema</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">None</span>
-        <span class="k">with</span> <span class="n">logit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;load database models </span><span class="si">{self._schema}</span><span class="s2">&quot;</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">logit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;load database models </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_schema</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">):</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">m</span> <span class="o">=</span> <span class="n">timeit</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;import models </span><span class="si">{self._schema}</span><span class="s2">&quot;</span><span class="p">)(</span><span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">)(</span>
-                        <span class="sa">f</span><span class="s2">&quot;.models.</span><span class="si">{self._schema}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">)</span>
+                    <span class="sa">f</span><span class="s2">&quot;import models </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_schema</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)(</span><span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">)(</span>
+                        <span class="sa">f</span><span class="s2">&quot;.models.</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_schema</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;unable to load models.</span><span class="si">{self._schema}</span><span class="s2">: </span><span class="si">{e}</span><span class="s2">&quot;</span><span class="p">)</span>
+                        <span class="sa">f</span><span class="s2">&quot;unable to load models.</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_schema</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">m</span>
 
@@ -199,12 +204,12 @@
         <span class="k">with</span> <span class="n">logit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span> <span class="s2">&quot;load database tables </span><span class="si">{self._schema}</span><span class="s2">&quot;</span><span class="p">):</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">m</span> <span class="o">=</span> <span class="n">timeit</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;import tables </span><span class="si">{self._schema}</span><span class="s2">&quot;</span><span class="p">)(</span><span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">)(</span>
-                        <span class="sa">f</span><span class="s2">&quot;.tables.</span><span class="si">{self._schema}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">)</span>
+                    <span class="sa">f</span><span class="s2">&quot;import tables </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_schema</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)(</span><span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">)(</span>
+                        <span class="sa">f</span><span class="s2">&quot;.tables.</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_schema</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">)</span>
                 <span class="n">m</span><span class="o">.</span><span class="n">create_tables</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">connection</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;unable to load tables.</span><span class="si">{self._schema}</span><span class="s2">: </span><span class="si">{e}</span><span class="s2">&quot;</span><span class="p">)</span>
+                        <span class="sa">f</span><span class="s2">&quot;unable to load tables.</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_schema</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">m</span>
 
@@ -214,7 +219,7 @@
             <span class="k">try</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">connection</span><span class="p">()</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;error querying database: </span><span class="si">{e}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;error querying database: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
                 <span class="k">return</span> <span class="kc">False</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">return</span> <span class="kc">True</span>
@@ -235,7 +240,7 @@
         <span class="k">return</span> <span class="n">classes</span></div></div>
 
 
-<div class="viewcode-block" id="get_databases"><a class="viewcode-back" href="../../api/tolteca.db.get_databases.html#tolteca.db.get_databases">[docs]</a><span class="k">def</span> <span class="nf">get_databases</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="n">DB_CONFIG</span><span class="p">):</span>
+<div class="viewcode-block" id="get_databases"><a class="viewcode-back" href="../../api/tolteca.db.get_databases.html#tolteca.db.get_databases">[docs]</a><span class="k">def</span> <span class="nf">get_databases</span><span class="p">(</span><span class="n">config</span><span class="p">):</span>
     <span class="n">result</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">config</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="n">result</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">DatabaseRuntime</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">k</span><span class="p">,</span> <span class="o">**</span><span class="n">v</span><span class="p">))</span>
@@ -258,8 +263,8 @@
     <a href="#">Back to Top</a></p>
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
-    Last built 02 Mar 2020. <br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 3.0.2. &nbsp;
+    Last built 23 Apr 2020. <br/>
   </p>
 </footer>
   </body>

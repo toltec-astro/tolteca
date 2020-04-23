@@ -1,0 +1,41 @@
+ArrayProjModel
+==============
+
+.. currentmodule:: tolteca.recipes.simu_obs
+
+.. autoclass:: ArrayProjModel
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~ArrayProjModel.array_names
+      ~ArrayProjModel.input_frame
+      ~ArrayProjModel.n_inputs
+      ~ArrayProjModel.n_outputs
+      ~ArrayProjModel.output_frame
+      ~ArrayProjModel.toltec_instru_spec
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~ArrayProjModel.__call__
+      ~ArrayProjModel.evaluate
+      ~ArrayProjModel.prepare_inputs
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: array_names
+   .. autoattribute:: input_frame
+   .. autoattribute:: n_inputs
+   .. autoattribute:: n_outputs
+   .. autoattribute:: output_frame
+   .. autoattribute:: toltec_instru_spec
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: evaluate
+   .. automethod:: prepare_inputs

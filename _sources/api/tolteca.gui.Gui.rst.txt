@@ -1,0 +1,35 @@
+Gui
+===
+
+.. currentmodule:: tolteca.gui
+
+.. autoclass:: Gui
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~Gui.logger
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~Gui.about
+      ~Gui.closeEvent
+      ~Gui.init_runtime
+      ~Gui.run_in_thread
+      ~Gui.run_with_interval
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: logger
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: about
+   .. automethod:: closeEvent
+   .. automethod:: init_runtime
+   .. automethod:: run_in_thread
+   .. automethod:: run_with_interval

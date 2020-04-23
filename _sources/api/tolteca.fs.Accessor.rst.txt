@@ -1,0 +1,19 @@
+Accessor
+========
+
+.. currentmodule:: tolteca.fs
+
+.. autoclass:: Accessor
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~Accessor.glob
+      ~Accessor.query
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: glob
+   .. automethod:: query

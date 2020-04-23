@@ -1,0 +1,142 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ProjModel &#8212; tolteca v0.1.dev84+gfc9946a.d20200423</title>
+    <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="RasterScanModelMeta" href="tolteca.recipes.simu_obs.RasterScanModelMeta.html" />
+    <link rel="prev" title="LissajousModelMeta" href="tolteca.recipes.simu_obs.LissajousModelMeta.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="tolteca.recipes.simu_obs.RasterScanModelMeta.html" title="RasterScanModelMeta">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="tolteca.recipes.simu_obs.LissajousModelMeta.html" title="LissajousModelMeta">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v0.1.dev84+gfc9946a.d20200423</a>
+	 &#187;
+      </li>
+      <li><a href="../tolteca/index.html" >TolTECA Documentation</a> &#187;</li>
+      <li><a href="../tolteca/tolteca_recipes.html" accesskey="U">TolTECA Recipes</a> &#187;</li>
+      
+      <li>ProjModel</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="projmodel">
+<h1>ProjModel<a class="headerlink" href="#projmodel" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt id="tolteca.recipes.simu_obs.ProjModel">
+<em class="property">class </em><code class="sig-prename descclassname">tolteca.recipes.simu_obs.</code><code class="sig-name descname">ProjModel</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/recipes/simu_obs.html#ProjModel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.recipes.simu_obs.ProjModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">astropy.modeling.core.Model</span></code></p>
+<p>Base class for models that transform the detector locations.</p>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.recipes.simu_obs.ProjModel.from_dict" title="tolteca.recipes.simu_obs.ProjModel.from_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_dict</span></code></a>(d[, model_key])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.recipes.simu_obs.ProjModel.mpl_axes_params" title="tolteca.recipes.simu_obs.ProjModel.mpl_axes_params"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mpl_axes_params</span></code></a>(self)</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt id="tolteca.recipes.simu_obs.ProjModel.from_dict">
+<em class="property">classmethod </em><code class="sig-name descname">from_dict</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">d</span></em>, <em class="sig-param"><span class="n">model_key</span><span class="o">=</span><span class="default_value">'model'</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/recipes/simu_obs.html#ProjModel.from_dict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.recipes.simu_obs.ProjModel.from_dict" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="tolteca.recipes.simu_obs.ProjModel.mpl_axes_params">
+<code class="sig-name descname">mpl_axes_params</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/recipes/simu_obs.html#ProjModel.mpl_axes_params"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.recipes.simu_obs.ProjModel.mpl_axes_params" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">ProjModel</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/api/tolteca.recipes.simu_obs.ProjModel.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2020, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 3.0.2. &nbsp;
+    Last built 23 Apr 2020. <br/>
+  </p>
+</footer>
+  </body>
+</html>

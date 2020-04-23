@@ -1,0 +1,6 @@
+autodrive
+=========
+
+.. currentmodule:: tolteca.recipes.autodrive
+
+.. autofunction:: autodrive

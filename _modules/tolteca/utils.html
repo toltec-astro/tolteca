@@ -1,10 +1,10 @@
 
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
   <head>
     <meta charset="utf-8" />
-    <title>tolteca.utils &#8212; tolteca v0.1.dev62+g21e4fb5</title>
+    <title>tolteca.utils &#8212; tolteca v0.1.dev84+gfc9946a.d20200423</title>
     <link rel="stylesheet" href="../../_static/bootstrap-astropy.css" type="text/css" />
     <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
@@ -46,7 +46,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../index.html">tolteca v0.1.dev62+g21e4fb5</a>
+	<a href="../../index.html">tolteca v0.1.dev84+gfc9946a.d20200423</a>
 	 &#187;
       </li>
       <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li>
@@ -64,12 +64,17 @@
   <h1>Source code for tolteca.utils</h1><div class="highlight"><pre>
 <span></span><span class="ch">#!/usr/bin/env python</span>
 
+<span class="kn">import</span> <span class="nn">appdirs</span>
 <span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
 
 
 <div class="viewcode-block" id="get_pkg_data_path"><a class="viewcode-back" href="../../api/tolteca.utils.get_pkg_data_path.html#tolteca.utils.get_pkg_data_path">[docs]</a><span class="k">def</span> <span class="nf">get_pkg_data_path</span><span class="p">():</span>
     <span class="sd">&quot;&quot;&quot;Return the package data path.&quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="get_user_data_dir"><a class="viewcode-back" href="../../api/tolteca.utils.get_user_data_dir.html#tolteca.utils.get_user_data_dir">[docs]</a><span class="k">def</span> <span class="nf">get_user_data_dir</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="n">appdirs</span><span class="o">.</span><span class="n">user_data_dir</span><span class="p">(</span><span class="s1">&#39;tolteca&#39;</span><span class="p">,</span> <span class="s1">&#39;toltec&#39;</span><span class="p">))</span></div>
 </pre></div>
 
           </div>
@@ -88,8 +93,8 @@
     <a href="#">Back to Top</a></p>
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
-    Last built 02 Mar 2020. <br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 3.0.2. &nbsp;
+    Last built 23 Apr 2020. <br/>
   </p>
 </footer>
   </body>

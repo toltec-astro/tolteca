@@ -1,0 +1,6 @@
+find_best_a_naive2
+==================
+
+.. currentmodule:: tolteca.recipes.autodrive
+
+.. autofunction:: find_best_a_naive2

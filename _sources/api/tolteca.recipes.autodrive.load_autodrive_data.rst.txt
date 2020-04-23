@@ -1,0 +1,6 @@
+load_autodrive_data
+===================
+
+.. currentmodule:: tolteca.recipes.autodrive
+
+.. autofunction:: load_autodrive_data

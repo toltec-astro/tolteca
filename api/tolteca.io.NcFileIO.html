@@ -1,10 +1,10 @@
 
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
   <head>
     <meta charset="utf-8" />
-    <title>NcFileIO &#8212; tolteca v0.1.dev62+g21e4fb5</title>
+    <title>NcFileIO &#8212; tolteca v0.1.dev84+gfc9946a.d20200423</title>
     <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
@@ -59,7 +59,7 @@
 	 |
       </li>
       <li>
-	<a href="../index.html">tolteca v0.1.dev62+g21e4fb5</a>
+	<a href="../index.html">tolteca v0.1.dev84+gfc9946a.d20200423</a>
 	 &#187;
       </li>
       <li><a href="../tolteca/index.html" accesskey="U">TolTECA Documentation</a> &#187;</li>
@@ -76,9 +76,9 @@
             
   <div class="section" id="ncfileio">
 <h1>NcFileIO<a class="headerlink" href="#ncfileio" title="Permalink to this headline">¶</a></h1>
-<dl class="class">
+<dl class="py class">
 <dt id="tolteca.io.NcFileIO">
-<em class="property">class </em><code class="sig-prename descclassname">tolteca.io.</code><code class="sig-name descname">NcFileIO</code><span class="sig-paren">(</span><em class="sig-param">source</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">tolteca.io.</code><code class="sig-name descname">NcFileIO</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">source</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/contextlib.html#contextlib.ExitStack" title="(in Python v3.8)"><code class="xref py py-class docutils literal notranslate"><span class="pre">contextlib.ExitStack</span></code></a></p>
 <p>This class provides methods to access data in netCDF files.</p>
 <p class="rubric">Attributes Summary</p>
@@ -154,105 +154,105 @@
 </tbody>
 </table>
 <p class="rubric">Attributes Documentation</p>
-<dl class="attribute">
+<dl class="py attribute">
 <dt id="tolteca.io.NcFileIO.is_sweep">
 <code class="sig-name descname">is_sweep</code><a class="headerlink" href="#tolteca.io.NcFileIO.is_sweep" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="attribute">
+<dl class="py attribute">
 <dt id="tolteca.io.NcFileIO.kind">
 <code class="sig-name descname">kind</code><a class="headerlink" href="#tolteca.io.NcFileIO.kind" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="attribute">
+<dl class="py attribute">
 <dt id="tolteca.io.NcFileIO.kind_cls">
 <code class="sig-name descname">kind_cls</code><a class="headerlink" href="#tolteca.io.NcFileIO.kind_cls" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="attribute">
+<dl class="py attribute">
 <dt id="tolteca.io.NcFileIO.logger">
 <code class="sig-name descname">logger</code><em class="property"> = &lt;Logger NcFileIO (DEBUG)&gt;</em><a class="headerlink" href="#tolteca.io.NcFileIO.logger" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="attribute">
+<dl class="py attribute">
 <dt id="tolteca.io.NcFileIO.meta">
 <code class="sig-name descname">meta</code><a class="headerlink" href="#tolteca.io.NcFileIO.meta" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="attribute">
+<dl class="py attribute">
 <dt id="tolteca.io.NcFileIO.sample_axis">
 <code class="sig-name descname">sample_axis</code><a class="headerlink" href="#tolteca.io.NcFileIO.sample_axis" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="attribute">
+<dl class="py attribute">
 <dt id="tolteca.io.NcFileIO.sweep_axis">
 <code class="sig-name descname">sweep_axis</code><a class="headerlink" href="#tolteca.io.NcFileIO.sweep_axis" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns the last sweep table.</p>
 </dd></dl>
 
-<dl class="attribute">
+<dl class="py attribute">
 <dt id="tolteca.io.NcFileIO.tone_axis">
 <code class="sig-name descname">tone_axis</code><a class="headerlink" href="#tolteca.io.NcFileIO.tone_axis" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns the last tone table.</p>
 </dd></dl>
 
 <p class="rubric">Methods Documentation</p>
-<dl class="method">
+<dl class="py method">
 <dt id="tolteca.io.NcFileIO.close">
-<code class="sig-name descname">close</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.close"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.close" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">close</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span></em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.io.NcFileIO.close" title="Permalink to this definition">¶</a></dt>
 <dd><p>Immediately unwind the context stack.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="tolteca.io.NcFileIO.open">
-<code class="sig-name descname">open</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.open"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.open" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">open</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.open"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.open" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="tolteca.io.NcFileIO.read">
-<code class="sig-name descname">read</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.read"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.read" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">read</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.read"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.read" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return KIDs data instance from reading the file.</p>
 <p>The selection callbacks are evaluated here.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="tolteca.io.NcFileIO.reset_selections">
-<code class="sig-name descname">reset_selections</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.reset_selections"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.reset_selections" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">reset_selections</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.reset_selections"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.reset_selections" title="Permalink to this definition">¶</a></dt>
 <dd><p>Reset the selection registry for all axis.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="tolteca.io.NcFileIO.select_sample">
-<code class="sig-name descname">select_sample</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">*args</em>, <em class="sig-param">rfunc=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.select_sample"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.select_sample" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">select_sample</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">\*args</em>, <em class="sig-param">rfunc=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.select_sample"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.select_sample" title="Permalink to this definition">¶</a></dt>
 <dd><p>Register callback for selecting samples.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="tolteca.io.NcFileIO.select_sweep">
-<code class="sig-name descname">select_sweep</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">*args</em>, <em class="sig-param">index=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.select_sweep"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.select_sweep" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">select_sweep</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">\*args</em>, <em class="sig-param">index=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.select_sweep"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.select_sweep" title="Permalink to this definition">¶</a></dt>
 <dd><p>Register callback for selecting sweeps.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="tolteca.io.NcFileIO.select_time">
-<code class="sig-name descname">select_time</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">*args</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.select_time"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.select_time" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">select_time</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">\*args</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.select_time"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.select_time" title="Permalink to this definition">¶</a></dt>
 <dd><p>Register callback for selecting using time range.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="tolteca.io.NcFileIO.select_tone">
-<code class="sig-name descname">select_tone</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">*args</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.select_tone"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.select_tone" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">select_tone</code><span class="sig-paren">(</span><em class="sig-param">self</em>, <em class="sig-param">\*args</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.select_tone"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.select_tone" title="Permalink to this definition">¶</a></dt>
 <dd><p>Register tone selection callback.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="tolteca.io.NcFileIO.sync">
-<code class="sig-name descname">sync</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.sync"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.sync" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">sync</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.sync"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.sync" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="tolteca.io.NcFileIO.time_axis">
-<code class="sig-name descname">time_axis</code><span class="sig-paren">(</span><em class="sig-param">self</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.time_axis"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.time_axis" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">time_axis</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/io/toltec.html#NcFileIO.time_axis"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#tolteca.io.NcFileIO.time_axis" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -281,8 +281,8 @@
     <a href="#">Back to Top</a></p>
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
-    Last built 02 Mar 2020. <br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 3.0.2. &nbsp;
+    Last built 23 Apr 2020. <br/>
   </p>
 </footer>
   </body>

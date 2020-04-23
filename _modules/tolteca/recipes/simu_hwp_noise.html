@@ -1,10 +1,10 @@
 
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
   <head>
     <meta charset="utf-8" />
-    <title>tolteca.recipes.simu_hwp_noise &#8212; tolteca v0.1.dev62+g21e4fb5</title>
+    <title>tolteca.recipes.simu_hwp_noise &#8212; tolteca v0.1.dev84+gfc9946a.d20200423</title>
     <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
     <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css" />
@@ -46,7 +46,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../../index.html">tolteca v0.1.dev62+g21e4fb5</a>
+	<a href="../../../index.html">tolteca v0.1.dev84+gfc9946a.d20200423</a>
 	 &#187;
       </li>
       <li><a href="../../index.html" accesskey="U">Module code</a> &#187;</li>
@@ -170,7 +170,7 @@
         <span class="n">responsivity</span> <span class="o">=</span> <span class="mf">1.1e-4</span> <span class="o">/</span> <span class="n">u</span><span class="o">.</span><span class="n">pW</span>
         <span class="n">psd_phot</span> <span class="o">=</span> <span class="p">((</span><span class="mf">53.96</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">aW</span> <span class="o">*</span> <span class="n">responsivity</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">*</span> <span class="mf">2.</span><span class="p">)</span><span class="o">.</span><span class="n">decompose</span><span class="p">()</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;unknown band </span><span class="si">{band}</span><span class="s1">. Select among T1, T2, and T3.&#39;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;unknown band </span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s1">. Select among T1, T2, and T3.&#39;</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span><span class="n">psd_phot</span><span class="p">)</span>
     <span class="n">fsmp</span> <span class="o">=</span> <span class="mf">488.</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span>
     <span class="n">tlen</span> <span class="o">=</span> <span class="mf">60.</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span>
@@ -268,7 +268,7 @@
     <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">cols</span><span class="p">)):</span>
         <span class="n">label_row</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">row</span><span class="p">):</span>
-            <span class="n">fmt</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;{{:&gt;</span><span class="si">{colwidths[j]}</span><span class="s1">s}}&#39;</span>
+            <span class="n">fmt</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="se">{{</span><span class="s1">:&gt;</span><span class="si">{</span><span class="n">colwidths</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="si">}</span><span class="s1">s</span><span class="se">}}</span><span class="s1">&#39;</span>
             <span class="n">label_row</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fmt</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)))</span>
         <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">label_row</span><span class="p">))</span>
 
@@ -445,9 +445,9 @@
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="nb">range</span><span class="p">,</span> <span class="n">hwp_trends</span><span class="o">.</span><span class="n">shape</span><span class="p">)):</span>
             <span class="n">h</span> <span class="o">=</span> <span class="n">hwp_trends</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span>
             <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">i_plot</span> <span class="ow">and</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">j_plot</span><span class="p">:</span>
-                <span class="n">leg_Qrs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;{h.Qr / 1e3:.0f}k&#39;</span><span class="p">)</span>
-                <span class="n">leg_readout_noises</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{h.readout_noise:.0f}</span><span class="s1">&#39;</span><span class="p">)</span>
-                <span class="n">color</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;C{i_plot.index(i)}&quot;</span>
+                <span class="n">leg_Qrs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">h</span><span class="o">.</span><span class="n">Qr</span> <span class="o">/</span> <span class="mf">1e3</span><span class="si">:</span><span class="s1">.0f</span><span class="si">}</span><span class="s1">k&#39;</span><span class="p">)</span>
+                <span class="n">leg_readout_noises</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">h</span><span class="o">.</span><span class="n">readout_noise</span><span class="si">:</span><span class="s1">.0f</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="n">color</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;C</span><span class="si">{</span><span class="n">i_plot</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
                 <span class="n">marker</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;^&#39;</span><span class="p">,</span> <span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;v&#39;</span><span class="p">][</span>
                         <span class="n">j_plot</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">j</span><span class="p">)</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">j_plot</span><span class="p">)]</span>
                 <span class="n">leg_handles</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
@@ -465,8 +465,8 @@
                         <span class="n">h</span><span class="o">.</span><span class="n">noise_thresh_temps</span><span class="p">,</span> <span class="n">h</span><span class="o">.</span><span class="n">noise_impact_threshs</span><span class="p">,</span>
                         <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="n">marker</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
                 <span class="n">leg_factors</span><span class="o">.</span><span class="n">append</span><span class="p">([</span>
-                    <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{f:.2f}</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">h</span><span class="o">.</span><span class="n">kappas</span><span class="p">[</span><span class="n">leg_show_temps_mask</span><span class="p">]])</span>
-                <span class="n">leg_temps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{x:.1f}</span><span class="s2">K&quot;</span><span class="p">,</span> <span class="p">(</span>
+                    <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">f</span><span class="si">:</span><span class="s1">.2f</span><span class="si">}</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">h</span><span class="o">.</span><span class="n">kappas</span><span class="p">[</span><span class="n">leg_show_temps_mask</span><span class="p">]])</span>
+                <span class="n">leg_temps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">x</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">K&quot;</span><span class="p">,</span> <span class="p">(</span>
                         <span class="n">hwp_constraints</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">noise_thresh_temps</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
                             <span class="s1">&#39;K&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span>
                         <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">noise_impact_threshs</span><span class="p">))</span>
@@ -475,10 +475,10 @@
                 <span class="p">(</span><span class="s1">&#39;$Q_r$&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
                 <span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\sigma_</span><span class="si">{readout}</span><span class="s1">$&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
                 <span class="p">]</span> <span class="o">+</span> <span class="p">[</span>
-                <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;$</span><span class="se">\\</span><span class="s2">kappa_{{</span><span class="si">{t:g}</span><span class="s2">}}$&quot;</span><span class="p">,</span> <span class="mf">0.3</span> <span class="o">*</span> <span class="n">i</span><span class="p">)</span>
+                <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;$</span><span class="se">\\</span><span class="s2">kappa_</span><span class="se">{{</span><span class="si">{</span><span class="n">t</span><span class="si">:</span><span class="s2">g</span><span class="se">}}</span><span class="si">}</span><span class="s2">$&quot;</span><span class="p">,</span> <span class="mf">0.3</span> <span class="o">*</span> <span class="n">i</span><span class="p">)</span>
                 <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">hwp_trends</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">var_temps</span><span class="p">[</span>
                     <span class="n">leg_show_temps_mask</span><span class="p">])]</span> <span class="o">+</span> <span class="p">[</span>
-                <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;${{</span><span class="se">\\</span><span class="s2">delta}}T_{{+{f - 1:.1%}}}$&quot;</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;%&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;\%&#39;</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
+                <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;$</span><span class="se">{{\\</span><span class="s2">delta</span><span class="se">}}</span><span class="s2">T_</span><span class="se">{{</span><span class="s2">+</span><span class="si">{</span><span class="n">f</span> <span class="o">-</span> <span class="mi">1</span><span class="si">:</span><span class="s2">.1%</span><span class="se">}}</span><span class="si">}</span><span class="s2">$&quot;</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;%&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;\%&#39;</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
                 <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">hwp_trends</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">noise_impact_threshs</span>
                         <span class="p">]</span>
         <span class="n">colwidths</span> <span class="o">=</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">leg_factors</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span>
@@ -501,7 +501,7 @@
             <span class="k">if</span> <span class="n">blip_factor</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
                 <span class="n">text</span> <span class="o">=</span> <span class="s2">&quot;BLIP&quot;</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">text</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;1/</span><span class="si">{blip_factor:d}</span><span class="s1"> BLIP&#39;</span>
+                <span class="n">text</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;1/</span><span class="si">{</span><span class="n">blip_factor</span><span class="si">:</span><span class="s1">d</span><span class="si">}</span><span class="s1"> BLIP&#39;</span>
             <span class="n">ax</span><span class="o">.</span><span class="n">annotate</span><span class="p">(</span>
                     <span class="n">text</span><span class="p">,</span>
                     <span class="n">xy</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">psd_phot</span> <span class="o">/</span> <span class="n">blip_factor</span><span class="p">),</span>
@@ -528,7 +528,7 @@
                 <span class="p">)):</span>
             <span class="n">bx</span><span class="o">.</span><span class="n">axhspan</span><span class="p">(</span><span class="o">*</span><span class="n">noise_impact_span</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
             <span class="n">bx</span><span class="o">.</span><span class="n">annotate</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;{noise_impact_span[-1] - 1.:.2%} noise penalty&quot;</span><span class="p">,</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">noise_impact_span</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="mf">1.</span><span class="si">:</span><span class="s2">.2%</span><span class="si">}</span><span class="s2"> noise penalty&quot;</span><span class="p">,</span>
                     <span class="n">xy</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">noise_impact_span</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]),</span>
                     <span class="n">xycoords</span><span class="o">=</span><span class="p">(</span><span class="n">bx</span><span class="o">.</span><span class="n">transAxes</span><span class="p">,</span> <span class="n">bx</span><span class="o">.</span><span class="n">transData</span><span class="p">),</span>
                     <span class="n">xytext</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
@@ -537,7 +537,7 @@
                     <span class="n">verticalalignment</span><span class="o">=</span><span class="s1">&#39;bottom&#39;</span>
                     <span class="p">)</span>
             <span class="n">hc</span> <span class="o">=</span> <span class="n">hwp_constraints</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
-            <span class="n">leg_temps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{x:.1f}</span><span class="s2">K&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span>
+            <span class="n">leg_temps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">x</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">K&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span>
                 <span class="n">hc</span><span class="o">.</span><span class="n">noise_thresh_temps</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="s1">&#39;K&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">())))</span>
 
             <span class="k">def</span> <span class="nf">_make_edges</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
@@ -557,12 +557,12 @@
                 <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">im</span><span class="p">,</span> <span class="n">cax</span><span class="o">=</span><span class="n">ex</span><span class="p">)</span>
                 <span class="n">ex</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;Threshold of ${\delta}T$ (K)&quot;</span><span class="p">)</span>
             <span class="n">cxes</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">add_artist</span><span class="p">(</span><span class="n">AnchoredText</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;{noise_impact_span[-1] - 1.:.2%} noise penalty&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">noise_impact_span</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="mf">1.</span><span class="si">:</span><span class="s2">.2%</span><span class="si">}</span><span class="s2"> noise penalty&quot;</span><span class="p">,</span>
                 <span class="n">prop</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="mi">15</span><span class="p">),</span> <span class="n">frameon</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                 <span class="n">loc</span><span class="o">=</span><span class="s1">&#39;upper left&#39;</span><span class="p">,</span>
                 <span class="p">))</span>
 
-        <span class="n">save_or_show</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;simu_hwp_noise_</span><span class="si">{band}</span><span class="s2">.png&quot;</span><span class="p">)</span></div>
+        <span class="n">save_or_show</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;simu_hwp_noise_</span><span class="si">{</span><span class="n">band</span><span class="si">}</span><span class="s2">.png&quot;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="main"><a class="viewcode-back" href="../../../api/tolteca.recipes.simu_hwp_noise.main.html#tolteca.recipes.simu_hwp_noise.main">[docs]</a><span class="k">def</span> <span class="nf">main</span><span class="p">(</span><span class="n">data_args</span><span class="p">,</span> <span class="n">save_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -610,8 +610,8 @@
     <a href="#">Back to Top</a></p>
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
-    Last built 02 Mar 2020. <br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 3.0.2. &nbsp;
+    Last built 23 Apr 2020. <br/>
   </p>
 </footer>
   </body>

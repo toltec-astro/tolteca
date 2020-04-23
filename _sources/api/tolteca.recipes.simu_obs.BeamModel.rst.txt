@@ -1,0 +1,35 @@
+BeamModel
+=========
+
+.. currentmodule:: tolteca.recipes.simu_obs
+
+.. autoclass:: BeamModel
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~BeamModel.beam_props
+      ~BeamModel.n_inputs
+      ~BeamModel.n_outputs
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~BeamModel.__call__
+      ~BeamModel.evaluate
+      ~BeamModel.prepare_inputs
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: beam_props
+   .. autoattribute:: n_inputs
+   .. autoattribute:: n_outputs
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: evaluate
+   .. automethod:: prepare_inputs

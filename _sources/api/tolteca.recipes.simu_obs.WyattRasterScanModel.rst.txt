@@ -1,0 +1,45 @@
+WyattRasterScanModel
+====================
+
+.. currentmodule:: tolteca.recipes.simu_obs
+
+.. autoclass:: WyattRasterScanModel
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~WyattRasterScanModel.frame
+      ~WyattRasterScanModel.frame_unit
+      ~WyattRasterScanModel.length
+      ~WyattRasterScanModel.n_scans
+      ~WyattRasterScanModel.param_names
+      ~WyattRasterScanModel.rot
+      ~WyattRasterScanModel.space
+      ~WyattRasterScanModel.speed
+      ~WyattRasterScanModel.t_turnover
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~WyattRasterScanModel.evaluate
+      ~WyattRasterScanModel.get_total_time
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: frame
+   .. autoattribute:: frame_unit
+   .. autoattribute:: length
+   .. autoattribute:: n_scans
+   .. autoattribute:: param_names
+   .. autoattribute:: rot
+   .. autoattribute:: space
+   .. autoattribute:: speed
+   .. autoattribute:: t_turnover
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: evaluate
+   .. automethod:: get_total_time

@@ -1,10 +1,10 @@
 
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
   <head>
     <meta charset="utf-8" />
-    <title>tolteca.gui &#8212; tolteca v0.1.dev62+g21e4fb5</title>
+    <title>tolteca.gui &#8212; tolteca v0.1.dev84+gfc9946a.d20200423</title>
     <link rel="stylesheet" href="../../_static/bootstrap-astropy.css" type="text/css" />
     <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
@@ -46,7 +46,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../index.html">tolteca v0.1.dev62+g21e4fb5</a>
+	<a href="../../index.html">tolteca v0.1.dev84+gfc9946a.d20200423</a>
 	 &#187;
       </li>
       <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li>
@@ -65,22 +65,31 @@
 <span></span><span class="ch">#! /usr/bin/env python</span>
 <span class="sd">&quot;&quot;&quot;The GUI  entry point.&quot;&quot;&quot;</span>
 
+<span class="kn">import</span> <span class="nn">yaml</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="kn">import</span> <span class="n">get_pkg_data_path</span>
 <span class="kn">import</span> <span class="nn">sys</span>
 <span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">import</span> <span class="nn">psutil</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">OrderedDict</span>
 <span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
-<span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_dict</span>
-<span class="kn">from</span> <span class="nn">tollan.utils.qt</span> <span class="kn">import</span> <span class="n">qt5app</span><span class="p">,</span> <span class="n">QThreadTarget</span>
+<span class="kn">from</span> <span class="nn">tollan.utils</span> <span class="kn">import</span> <span class="n">rupdate</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_yaml</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.qt</span> <span class="kn">import</span> <span class="n">qt5app</span><span class="p">,</span> <span class="n">IntervalTarget</span>
 <span class="kn">from</span> <span class="nn">tollan.utils.qt.colors</span> <span class="kn">import</span> <span class="n">Palette</span>
-<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span><span class="p">,</span> <span class="n">init_log</span><span class="p">,</span> <span class="n">logit</span><span class="p">,</span> <span class="n">timeit</span>
 <span class="kn">import</span> <span class="nn">argparse</span>
 <span class="kn">from</span> <span class="nn">..version</span> <span class="kn">import</span> <span class="n">version</span>
+<span class="kn">import</span> <span class="nn">concurrent</span>
 
 <span class="kn">from</span> <span class="nn">..db</span> <span class="kn">import</span> <span class="n">get_databases</span>
 <span class="kn">from</span> <span class="nn">..fs.toltec</span> <span class="kn">import</span> <span class="n">ToltecDataFileStore</span>
 
 <span class="kn">from</span> <span class="nn">PyQt5</span> <span class="kn">import</span> <span class="n">uic</span><span class="p">,</span> <span class="n">QtWidgets</span><span class="p">,</span> <span class="n">QtCore</span><span class="p">,</span> <span class="n">QtGui</span>
 <span class="kn">from</span> <span class="nn">PyQt5.QtCore</span> <span class="kn">import</span> <span class="n">Qt</span>
+<span class="kn">import</span> <span class="nn">pyqtgraph.parametertree.parameterTypes</span> <span class="k">as</span> <span class="nn">pTypes</span>
+<span class="kn">from</span> <span class="nn">pyqtgraph.parametertree</span> <span class="kn">import</span> <span class="p">(</span>
+        <span class="n">Parameter</span><span class="p">,</span> <span class="n">ParameterTree</span><span class="p">,</span> <span class="n">ParameterItem</span><span class="p">,</span> <span class="n">registerParameterType</span><span class="p">)</span>
+
 
 <span class="n">UI_FILE_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;ui&quot;</span><span class="p">)</span>
 
@@ -142,13 +151,21 @@
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">paint</span><span class="p">(</span><span class="n">painter</span><span class="p">,</span> <span class="n">option</span><span class="p">,</span> <span class="n">index</span><span class="p">)</span></div></div>
 
 
+<span class="k">def</span> <span class="nf">_get_datafile_info</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+    <span class="n">info</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">info_from_filename</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+    <span class="n">info</span><span class="p">[</span><span class="s1">&#39;uid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;obsid&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">-</span><span class="si">{</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;subobsid&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">-</span><span class="si">{</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;scanid&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span>
+    <span class="k">if</span> <span class="s1">&#39;source&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">info</span><span class="p">:</span>
+        <span class="n">info</span><span class="p">[</span><span class="s1">&#39;source&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">path</span>
+    <span class="k">return</span> <span class="n">info</span>
+
+
 <div class="viewcode-block" id="DataFileInfoModel"><a class="viewcode-back" href="../../api/tolteca.gui.DataFileInfoModel.html#tolteca.gui.DataFileInfoModel">[docs]</a><span class="k">class</span> <span class="nc">DataFileInfoModel</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QAbstractTableModel</span><span class="p">):</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
 
     <span class="n">item_update_role</span> <span class="o">=</span> <span class="n">Qt</span><span class="o">.</span><span class="n">UserRole</span>
     <span class="n">item_update_key</span> <span class="o">=</span> <span class="s1">&#39;_time_last_updated&#39;</span>
     <span class="n">item_update_time</span> <span class="o">=</span> <span class="mf">1.</span>
-
-    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">)</span>
@@ -158,7 +175,7 @@
         <span class="k">def</span> <span class="nf">update_row</span><span class="p">(</span><span class="n">tl</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">br</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">i0</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">tl</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">tl</span><span class="o">.</span><span class="n">row</span><span class="p">()</span>
             <span class="n">i1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rowCount</span><span class="p">()</span> <span class="k">if</span> <span class="n">br</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">br</span><span class="o">.</span><span class="n">row</span><span class="p">()</span> <span class="o">+</span> <span class="mi">1</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;model row </span><span class="si">{i0}</span><span class="s2"> </span><span class="si">{i1}</span><span class="s2"> changed&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;model row </span><span class="si">{</span><span class="n">i0</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">i1</span><span class="si">}</span><span class="s2"> changed&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dataChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">update_row</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">modelReset</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">update_row</span><span class="p">)</span>
 
@@ -190,12 +207,15 @@
                 <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">k</span><span class="p">,</span>
                 <span class="p">}),</span>
             <span class="mi">1</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;Obs #&quot;</span><span class="p">,</span> <span class="p">{</span>
-                <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">v</span><span class="p">[</span><span class="s1">&#39;obsid&#39;</span><span class="p">]</span>
+                <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">v</span><span class="p">[</span><span class="s1">&#39;uid&#39;</span><span class="p">],</span>
                 <span class="p">}),</span>
             <span class="mi">2</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;Kind&quot;</span><span class="p">,</span> <span class="p">{</span>
                 <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">v</span><span class="p">[</span><span class="s1">&#39;kindstr&#39;</span><span class="p">]</span>
                 <span class="p">}),</span>
-            <span class="mi">3</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;File&quot;</span><span class="p">,</span> <span class="p">{</span>
+            <span class="mi">3</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;Time&quot;</span><span class="p">,</span> <span class="p">{</span>
+                <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="s1">&#39;ut&#39;</span><span class="p">])</span>
+                <span class="p">}),</span>
+            <span class="mi">4</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;File&quot;</span><span class="p">,</span> <span class="p">{</span>
                 <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="s1">&#39;source&#39;</span><span class="p">])</span>
                 <span class="p">}),</span>
             <span class="p">}</span>
@@ -271,7 +291,7 @@
             <span class="c1">#     Qt.DisplayRole: lambda v: v</span>
             <span class="c1">#     }),</span>
             <span class="mi">0</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;Obs #&quot;</span><span class="p">,</span> <span class="p">{</span>
-                <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;obsid&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;uid&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
                 <span class="p">}),</span>
             <span class="mi">1</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;Interface&quot;</span><span class="p">,</span> <span class="p">{</span>
                 <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;interface&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
@@ -279,7 +299,10 @@
             <span class="mi">2</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;Kind&quot;</span><span class="p">,</span> <span class="p">{</span>
                 <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;kindstr&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
                 <span class="p">}),</span>
-            <span class="mi">3</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;File&quot;</span><span class="p">,</span> <span class="p">{</span>
+            <span class="mi">3</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;Time&quot;</span><span class="p">,</span> <span class="p">{</span>
+                <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;ut&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+                <span class="p">}),</span>
+            <span class="mi">4</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;File&quot;</span><span class="p">,</span> <span class="p">{</span>
                 <span class="n">Qt</span><span class="o">.</span><span class="n">DisplayRole</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="s1">&#39;source&#39;</span><span class="p">])</span>
                 <span class="p">}),</span>
             <span class="p">}</span>
@@ -310,10 +333,7 @@
         <span class="c1"># return super().data(index, role)</span>
 
     <span class="k">def</span> <span class="nf">_get_info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
-        <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_spec</span><span class="o">.</span><span class="n">info_from_filename</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
-        <span class="k">if</span> <span class="s1">&#39;source&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">info</span><span class="p">:</span>
-            <span class="n">info</span><span class="p">[</span><span class="s1">&#39;source&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">path</span>
-        <span class="k">return</span> <span class="n">info</span>
+        <span class="k">return</span> <span class="n">_get_datafile_info</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_spec</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
 
 <div class="viewcode-block" id="DataFileGroupModel.sortfilter_model_index"><a class="viewcode-back" href="../../api/tolteca.gui.DataFileGroupModel.html#tolteca.gui.DataFileGroupModel.sortfilter_model_index">[docs]</a>    <span class="k">def</span> <span class="nf">sortfilter_model_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sortfilter_model</span><span class="o">.</span><span class="n">mapFromSource</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">p</span><span class="p">))</span></div></div>
@@ -332,6 +352,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">setupUi</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_datafiles</span> <span class="o">=</span> <span class="n">datafiles</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rootpath_init</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rootpath</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">datafilegroup_model</span> <span class="o">=</span> <span class="n">DataFileGroupModel</span><span class="p">(</span>
                 <span class="n">spec</span><span class="o">=</span><span class="n">datafiles</span><span class="o">.</span><span class="n">spec</span><span class="p">)</span>
 
@@ -339,13 +361,18 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">le_rootpath</span><span class="o">.</span><span class="n">textChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_validate_rootpath</span><span class="p">)</span>
 
         <span class="k">def</span> <span class="nf">update_fileview</span><span class="p">():</span>
-            <span class="n">p</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rootpath</span><span class="p">)</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rootpath</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">datafilegroup_model</span><span class="o">.</span><span class="n">setRootPath</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">tv_files</span><span class="o">.</span><span class="n">setRootIndex</span><span class="p">(</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">datafilegroup_model</span><span class="o">.</span><span class="n">sortfilter_model_index</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">le_rootpath</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">le_rootpath</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">reset_rootpath</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rootpath</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rootpath_init</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">rootpathChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">update_fileview</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">rootpathChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">runtime_info</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">btn_reset_rootpath</span><span class="o">.</span><span class="n">clicked</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">reset_rootpath</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">runtime_info_model</span> <span class="o">=</span> <span class="n">DataFileInfoModel</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">tv_runtime_info</span><span class="o">.</span><span class="n">setSelectionBehavior</span><span class="p">(</span>
@@ -373,7 +400,7 @@
                     <span class="n">on_stop</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">runtimeInfoChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">update_repaint</span><span class="p">)</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">rootpathChanged</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rootpath</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rootpathChanged</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rootpath</span><span class="o">.</span><span class="n">as_posix</span><span class="p">())</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">rootpath</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -385,7 +412,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_datafiles</span><span class="o">.</span><span class="n">rootpath</span> <span class="o">=</span> <span class="n">path</span>
         <span class="n">new</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_datafiles</span><span class="o">.</span><span class="n">rootpath</span>
         <span class="k">if</span> <span class="n">old</span> <span class="o">!=</span> <span class="n">new</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;change root path: </span><span class="si">{old}</span><span class="s2"> -&gt; </span><span class="si">{new}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;change root path: </span><span class="si">{</span><span class="n">old</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">new</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">rootpathChanged</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">new</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">_validate_rootpath</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
@@ -396,7 +423,7 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">color</span> <span class="o">=</span> <span class="n">palette</span><span class="o">.</span><span class="n">hex</span><span class="p">(</span><span class="s1">&#39;red&#39;</span><span class="p">)</span>
         <span class="n">sender</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sender</span><span class="p">()</span>
-        <span class="n">sender</span><span class="o">.</span><span class="n">setStyleSheet</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;color: </span><span class="si">{color}</span><span class="s1">;&#39;</span><span class="p">)</span>
+        <span class="n">sender</span><span class="o">.</span><span class="n">setStyleSheet</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;color: </span><span class="si">{</span><span class="n">color</span><span class="si">}</span><span class="s1">;&#39;</span><span class="p">)</span>
 
     <span class="nd">@staticmethod</span>
     <span class="k">def</span> <span class="nf">_runtime_info_changed</span><span class="p">(</span><span class="n">i1</span><span class="p">,</span> <span class="n">i2</span><span class="p">):</span>
@@ -404,7 +431,7 @@
         <span class="n">i1keys</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">i1</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="k">if</span> <span class="n">i1</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">set</span><span class="p">()</span>
         <span class="n">i2keys</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">i2</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="k">if</span> <span class="n">i2</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">set</span><span class="p">()</span>
         <span class="k">if</span> <span class="n">i1keys</span> <span class="o">!=</span> <span class="n">i2keys</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;runtime info changed: </span><span class="si">{i1keys}</span><span class="s2"> -&gt; </span><span class="si">{i2keys}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;runtime info changed: </span><span class="si">{</span><span class="n">i1keys</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">i2keys</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="k">return</span> <span class="kc">True</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">i2keys</span><span class="p">)</span>
         <span class="n">changed</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">i1keys</span><span class="p">:</span>
@@ -413,8 +440,8 @@
             <span class="k">for</span> <span class="n">vk</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;nwid&#39;</span><span class="p">,</span> <span class="s1">&#39;obsid&#39;</span><span class="p">,</span> <span class="s1">&#39;subobsid&#39;</span><span class="p">,</span> <span class="s1">&#39;scanid&#39;</span><span class="p">,</span> <span class="s1">&#39;ut&#39;</span><span class="p">):</span>
                 <span class="k">if</span> <span class="n">v1</span><span class="p">[</span><span class="n">vk</span><span class="p">]</span> <span class="o">!=</span> <span class="n">v2</span><span class="p">[</span><span class="n">vk</span><span class="p">]:</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                            <span class="sa">f</span><span class="s2">&quot;runtime info </span><span class="si">{k}</span><span class="s2">.</span><span class="si">{vk}</span><span class="s2"> changed: &quot;</span>
-                            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{v1[vk]}</span><span class="s2"> -&gt; </span><span class="si">{v2[vk]}</span><span class="s2">&quot;</span><span class="p">)</span>
+                            <span class="sa">f</span><span class="s2">&quot;runtime info </span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">vk</span><span class="si">}</span><span class="s2"> changed: &quot;</span>
+                            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">v1</span><span class="p">[</span><span class="n">vk</span><span class="p">]</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">v2</span><span class="p">[</span><span class="n">vk</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                     <span class="n">changed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
                     <span class="k">break</span>
         <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">changed</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">changed</span>
@@ -432,53 +459,196 @@
     <span class="k">def</span> <span class="nf">_update_runtime_info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">_info</span> <span class="o">=</span> <span class="p">{}</span>
 
-        <span class="k">def</span> <span class="nf">infokey</span><span class="p">(</span><span class="n">info</span><span class="p">):</span>
-            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{info[&#39;master&#39;]}</span><span class="s2">-</span><span class="si">{info[&#39;interface&#39;]}</span><span class="s2">&quot;</span>
+        <span class="k">def</span> <span class="nf">link_key</span><span class="p">(</span><span class="n">info</span><span class="p">):</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;interface&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;master&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+
         <span class="k">for</span> <span class="n">link</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_datafiles</span><span class="o">.</span><span class="n">runtime_datafile_links</span><span class="p">():</span>
-            <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_datafiles</span><span class="o">.</span><span class="n">spec</span><span class="o">.</span><span class="n">info_from_filename</span><span class="p">(</span><span class="n">link</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">info</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">info</span><span class="p">[</span><span class="s1">&#39;link&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">link</span>
-                <span class="n">info</span><span class="p">[</span><span class="s1">&#39;rootpath&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rootpath</span>
-                <span class="n">_info</span><span class="p">[</span><span class="n">infokey</span><span class="p">(</span><span class="n">info</span><span class="p">)]</span> <span class="o">=</span> <span class="n">info</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_runtime_info</span> <span class="o">=</span> <span class="n">_info</span></div>
+            <span class="n">info</span> <span class="o">=</span> <span class="n">_get_datafile_info</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_datafiles</span><span class="o">.</span><span class="n">spec</span><span class="p">,</span> <span class="n">link</span><span class="p">)</span>
+            <span class="n">info</span><span class="p">[</span><span class="s1">&#39;link&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">link</span>
+            <span class="n">_info</span><span class="p">[</span><span class="n">link_key</span><span class="p">(</span><span class="n">info</span><span class="p">)]</span> <span class="o">=</span> <span class="n">info</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_runtime_info</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">(</span>
+                <span class="nb">sorted</span><span class="p">(</span><span class="n">_info</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s1">&#39;nwid&#39;</span><span class="p">]))</span></div>
 
 
 <div class="viewcode-block" id="GuiRuntime"><a class="viewcode-back" href="../../api/tolteca.gui.GuiRuntime.html#tolteca.gui.GuiRuntime">[docs]</a><span class="k">class</span> <span class="nc">GuiRuntime</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QObject</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This class manages the runtime resources.&quot;&quot;&quot;</span>
 
     <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;runtime config: {pformat_dict(config)}&quot;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">databases</span> <span class="o">=</span> <span class="n">get_databases</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;runtime databases: </span><span class="si">{self.databases}</span><span class="s2">&quot;</span><span class="p">)</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">datafiles</span> <span class="o">=</span> <span class="n">ToltecDataFileStore</span><span class="p">(</span><span class="n">rootpath</span><span class="o">=</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;datapath&#39;</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;runtime config: </span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
 <div class="viewcode-block" id="GuiRuntime.init_db_monitors"><a class="viewcode-back" href="../../api/tolteca.gui.GuiRuntime.html#tolteca.gui.GuiRuntime.init_db_monitors">[docs]</a>    <span class="k">def</span> <span class="nf">init_db_monitors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gui</span><span class="p">,</span> <span class="n">parent</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s1">&#39;db&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">parent</span><span class="o">.</span><span class="n">hide</span><span class="p">()</span>
+        <span class="n">db_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;db&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">databases</span> <span class="o">=</span> <span class="n">timeit</span><span class="p">(</span><span class="n">get_databases</span><span class="p">)(</span><span class="n">db_config</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;databases: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">databases</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_db_monitors</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">databases</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">w</span> <span class="o">=</span> <span class="n">DBStatusPanel</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">)</span>
             <span class="n">parent</span><span class="o">.</span><span class="n">layout</span><span class="p">()</span><span class="o">.</span><span class="n">addRow</span><span class="p">(</span>
-                    <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QLabel</span><span class="p">(</span><span class="n">k</span><span class="p">),</span> <span class="n">w</span><span class="p">)</span>
+                    <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QLabel</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;label&#39;</span><span class="p">,</span> <span class="n">k</span><span class="p">)),</span> <span class="n">w</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_db_monitors</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">w</span>
-            <span class="n">gui</span><span class="o">.</span><span class="n">run_in_thread</span><span class="p">(</span><span class="n">QThreadTarget</span><span class="p">(</span><span class="mi">2000</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">w</span><span class="o">=</span><span class="n">w</span><span class="p">:</span> <span class="n">w</span><span class="o">.</span><span class="n">connected</span><span class="p">))</span></div>
+            <span class="n">gui</span><span class="o">.</span><span class="n">run_with_interval</span><span class="p">(</span><span class="mi">2000</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">w</span><span class="o">=</span><span class="n">w</span><span class="p">:</span> <span class="n">w</span><span class="o">.</span><span class="n">connected</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_get_datafile_rootpath</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;fs&#39;</span><span class="p">][</span><span class="s1">&#39;local&#39;</span><span class="p">][</span><span class="s1">&#39;rootpath&#39;</span><span class="p">]</span>
 
 <div class="viewcode-block" id="GuiRuntime.init_df_view"><a class="viewcode-back" href="../../api/tolteca.gui.GuiRuntime.html#tolteca.gui.GuiRuntime.init_df_view">[docs]</a>    <span class="k">def</span> <span class="nf">init_df_view</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gui</span><span class="p">,</span> <span class="n">parent</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s1">&#39;fs&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">parent</span><span class="o">.</span><span class="n">hide</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">datafiles</span> <span class="o">=</span> <span class="n">ToltecDataFileStore</span><span class="p">(</span>
+                <span class="n">rootpath</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_datafile_rootpath</span><span class="p">())</span>
         <span class="n">w</span> <span class="o">=</span> <span class="n">DataFilesView</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">datafiles</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">)</span>
         <span class="n">parent</span><span class="o">.</span><span class="n">layout</span><span class="p">()</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="n">w</span><span class="p">)</span>
 
-        <span class="k">def</span> <span class="nf">reset_rootpath</span><span class="p">():</span>
-            <span class="n">w</span><span class="o">.</span><span class="n">rootpath</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;datapath&#39;</span><span class="p">]</span>
-            <span class="n">w</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">le_rootpath</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">w</span><span class="o">.</span><span class="n">rootpath</span><span class="p">))</span>
-        <span class="n">w</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">btn_reset_rootpath</span><span class="o">.</span><span class="n">clicked</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">reset_rootpath</span><span class="p">)</span>
-        <span class="n">gui</span><span class="o">.</span><span class="n">run_in_thread</span><span class="p">(</span><span class="n">QThreadTarget</span><span class="p">(</span><span class="mi">500</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">w</span><span class="o">.</span><span class="n">runtime_info</span><span class="p">))</span></div></div>
+        <span class="n">gui</span><span class="o">.</span><span class="n">run_with_interval</span><span class="p">(</span><span class="mi">500</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">w</span><span class="o">.</span><span class="n">runtime_info</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">init_sp_view</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gui</span><span class="p">,</span> <span class="n">parent</span><span class="p">):</span>
+
+        <span class="k">class</span> <span class="nc">MutualExclusiveGroup</span><span class="p">(</span><span class="n">pTypes</span><span class="o">.</span><span class="n">GroupParameter</span><span class="p">):</span>
+            <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">opts</span><span class="p">):</span>
+                <span class="n">pTypes</span><span class="o">.</span><span class="n">GroupParameter</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">opts</span><span class="p">)</span>
+
+                <span class="k">def</span> <span class="nf">set_enabled</span><span class="p">(</span><span class="n">enabled</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">value</span><span class="p">:</span>
+                        <span class="k">return</span>
+                    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="p">():</span>
+                        <span class="n">e</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">param</span><span class="p">(</span><span class="s1">&#39;enabled&#39;</span><span class="p">)</span>
+                        <span class="n">e</span><span class="o">.</span><span class="n">setValue</span><span class="p">(</span>
+                                <span class="n">enabled</span> <span class="ow">is</span> <span class="n">e</span><span class="p">,</span>
+                                <span class="n">blockSignal</span><span class="o">=</span><span class="n">set_enabled</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="p">():</span>
+                    <span class="n">c</span><span class="o">.</span><span class="n">param</span><span class="p">(</span><span class="s1">&#39;enabled&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">sigValueChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">set_enabled</span><span class="p">)</span>
+
+        <span class="n">params</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">{</span>
+                <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;Interface&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;group&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;children&#39;</span><span class="p">:</span> <span class="p">[{</span>
+                    <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;Interface&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;list&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;values&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;one&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;two&quot;</span><span class="p">:</span> <span class="s2">&quot;twosies&quot;</span><span class="p">},</span> <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="s1">&#39;one&#39;</span><span class="p">},</span>
+                    <span class="p">],</span>
+                <span class="p">},</span>
+            <span class="n">MutualExclusiveGroup</span><span class="p">(</span>
+                <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Detector selection&#39;</span><span class="p">,</span>
+                <span class="n">children</span><span class="o">=</span><span class="p">[</span>
+                    <span class="p">{</span>
+                        <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;fancy indexing&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;group&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;children&#39;</span><span class="p">:</span> <span class="p">[</span>
+                            <span class="p">{</span>
+                                <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;enabled&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;bool&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                                <span class="p">},</span>
+                            <span class="p">{</span>
+                                <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;value&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;str&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="s1">&#39;-1&#39;</span><span class="p">,</span>
+                                <span class="p">},</span>
+                            <span class="p">],</span>
+                        <span class="p">},</span>
+                    <span class="p">{</span>
+                        <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;query&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;group&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;children&#39;</span><span class="p">:</span> <span class="p">[</span>
+                            <span class="p">{</span>
+                                <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;enabled&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;bool&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                                <span class="p">},</span>
+                            <span class="p">{</span>
+                                <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;value&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;str&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="s1">&#39;Qr&gt;15000&#39;</span><span class="p">,</span>
+                                <span class="p">},</span>
+                            <span class="p">],</span>
+                        <span class="p">},</span>
+                    <span class="p">]</span>
+                <span class="p">),</span>
+            <span class="n">MutualExclusiveGroup</span><span class="p">(</span>
+                <span class="n">name</span><span class="o">=</span><span class="s1">&#39;File selection&#39;</span><span class="p">,</span>
+                <span class="n">children</span><span class="o">=</span><span class="p">[</span>
+                    <span class="p">{</span>
+                        <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;fancy indexing&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;group&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;children&#39;</span><span class="p">:</span> <span class="p">[</span>
+                            <span class="p">{</span>
+                                <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;enabled&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;bool&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                                <span class="p">},</span>
+                            <span class="p">{</span>
+                                <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;str&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="s1">&#39;-1&#39;</span><span class="p">,</span>
+                                <span class="p">},</span>
+                            <span class="p">],</span>
+                        <span class="p">},</span>
+                    <span class="p">{</span>
+                        <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;query&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;group&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;children&#39;</span><span class="p">:</span> <span class="p">[</span>
+                            <span class="p">{</span>
+                                <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;enabled&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;bool&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                                <span class="p">},</span>
+                            <span class="p">{</span>
+                                <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;str&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="s1">&#39;obsid&gt;9000&#39;</span><span class="p">,</span>
+                                <span class="p">},</span>
+                            <span class="p">],</span>
+                        <span class="p">},</span>
+                    <span class="p">]</span>
+                <span class="p">),</span>
+            <span class="p">]</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="n">Parameter</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Scope Params&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s1">&#39;group&#39;</span><span class="p">,</span> <span class="n">children</span><span class="o">=</span><span class="n">params</span><span class="p">)</span>
+
+        <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+        <span class="k">def</span> <span class="nf">on_params_change</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">changes</span><span class="p">):</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;tree changes:&quot;</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">param</span><span class="p">,</span> <span class="n">change</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">changes</span><span class="p">:</span>
+                <span class="n">path</span> <span class="o">=</span> <span class="n">params</span><span class="o">.</span><span class="n">childPath</span><span class="p">(</span><span class="n">param</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">childName</span> <span class="o">=</span> <span class="s1">&#39;.&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">childName</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">name</span><span class="p">()</span>
+                <span class="n">msg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;- parameter: </span><span class="si">{</span><span class="n">childName</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="n">msg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;     change: </span><span class="si">{</span><span class="n">change</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="n">msg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;       data: </span><span class="si">{</span><span class="n">data</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg</span><span class="p">))</span>
+        <span class="n">params</span><span class="o">.</span><span class="n">sigTreeStateChanged</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">on_params_change</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">on_value_changing</span><span class="p">(</span><span class="n">param</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;value changing </span><span class="si">{</span><span class="n">param</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">_connect_tree</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">sig</span><span class="p">,</span> <span class="n">cb</span><span class="p">):</span>
+            <span class="nb">getattr</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">sig</span><span class="p">)</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">cb</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">p</span><span class="o">.</span><span class="n">children</span><span class="p">():</span>
+                <span class="n">_connect_tree</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">sig</span><span class="p">,</span> <span class="n">cb</span><span class="p">)</span>
+
+        <span class="n">_connect_tree</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="s1">&#39;sigValueChanging&#39;</span><span class="p">,</span> <span class="n">on_value_changing</span><span class="p">)</span>
+
+        <span class="n">w</span> <span class="o">=</span> <span class="n">ParameterTree</span><span class="p">(</span><span class="n">showHeader</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">w</span><span class="o">.</span><span class="n">setParameters</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">showTop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">parent</span><span class="o">.</span><span class="n">layout</span><span class="p">()</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="n">w</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="ToltecaGui"><a class="viewcode-back" href="../../api/tolteca.gui.ToltecaGui.html#tolteca.gui.ToltecaGui">[docs]</a><span class="k">class</span> <span class="nc">ToltecaGui</span><span class="p">(</span><span class="n">Ui_MainWindowBase</span><span class="p">):</span>
+<div class="viewcode-block" id="Gui"><a class="viewcode-back" href="../../api/tolteca.gui.Gui.html#tolteca.gui.Gui">[docs]</a><span class="k">class</span> <span class="nc">Gui</span><span class="p">(</span><span class="n">Ui_MainWindowBase</span><span class="p">):</span>
 
-    <span class="n">_title</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;TolTECA v</span><span class="si">{version}</span><span class="s2">&quot;</span>
+    <span class="n">_title</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;TolTECA v</span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">_threads</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
@@ -488,18 +658,15 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">actionAbout</span><span class="o">.</span><span class="n">triggered</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">about</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_psutil_process</span> <span class="o">=</span> <span class="n">psutil</span><span class="o">.</span><span class="n">Process</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">run_in_thread</span><span class="p">(</span><span class="n">QThreadTarget</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_report_usage</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_with_interval</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_report_usage</span><span class="p">)</span>
 
-<div class="viewcode-block" id="ToltecaGui.init_runtime"><a class="viewcode-back" href="../../api/tolteca.gui.ToltecaGui.html#tolteca.gui.ToltecaGui.init_runtime">[docs]</a>    <span class="k">def</span> <span class="nf">init_runtime</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">):</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;runtime&#39;</span><span class="p">):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;runtime exists: </span><span class="si">{self.runtime}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="k">return</span>
-        <span class="c1"># rurntime</span>
+<div class="viewcode-block" id="Gui.init_runtime"><a class="viewcode-back" href="../../api/tolteca.gui.Gui.html#tolteca.gui.Gui.init_runtime">[docs]</a>    <span class="k">def</span> <span class="nf">init_runtime</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span> <span class="o">=</span> <span class="n">GuiRuntime</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span><span class="o">.</span><span class="n">init_db_monitors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">gb_dbstatus</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span><span class="o">.</span><span class="n">init_df_view</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">gb_datafiles</span><span class="p">)</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span><span class="o">.</span><span class="n">init_df_view</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">gb_datafiles</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span><span class="o">.</span><span class="n">init_sp_view</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">gb_scopeparams</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="ToltecaGui.run_in_thread"><a class="viewcode-back" href="../../api/tolteca.gui.ToltecaGui.html#tolteca.gui.ToltecaGui.run_in_thread">[docs]</a>    <span class="k">def</span> <span class="nf">run_in_thread</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<div class="viewcode-block" id="Gui.run_in_thread"><a class="viewcode-back" href="../../api/tolteca.gui.Gui.html#tolteca.gui.Gui.run_in_thread">[docs]</a>    <span class="k">def</span> <span class="nf">run_in_thread</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
         <span class="n">thread</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QThread</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
         <span class="n">target</span><span class="o">.</span><span class="n">moveToThread</span><span class="p">(</span><span class="n">thread</span><span class="p">)</span>
         <span class="n">target</span><span class="o">.</span><span class="n">finished</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">thread</span><span class="o">.</span><span class="n">quit</span><span class="p">)</span>
@@ -507,11 +674,15 @@
         <span class="k">if</span> <span class="n">start</span><span class="p">:</span>
             <span class="n">thread</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
 
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_threads&#39;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_threads</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_threads</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_threads</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">thread</span><span class="p">,</span> <span class="n">target</span><span class="p">))</span></div>
 
-<div class="viewcode-block" id="ToltecaGui.about"><a class="viewcode-back" href="../../api/tolteca.gui.ToltecaGui.html#tolteca.gui.ToltecaGui.about">[docs]</a>    <span class="k">def</span> <span class="nf">about</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="Gui.run_with_interval"><a class="viewcode-back" href="../../api/tolteca.gui.Gui.html#tolteca.gui.Gui.run_with_interval">[docs]</a>    <span class="k">def</span> <span class="nf">run_with_interval</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="n">IntervalTarget</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_in_thread</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Gui.about"><a class="viewcode-back" href="../../api/tolteca.gui.Gui.html#tolteca.gui.Gui.about">[docs]</a>    <span class="k">def</span> <span class="nf">about</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">about</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;About&quot;</span><span class="p">,</span> <span class="s2">&quot;Surprise!&quot;</span><span class="p">)</span></div>
 
     <span class="k">def</span> <span class="nf">_report_usage</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -526,7 +697,25 @@
                         <span class="n">p</span><span class="o">.</span><span class="n">memory_info</span><span class="p">()</span><span class="o">.</span><span class="n">vms</span> <span class="o">/</span> <span class="mf">2.</span> <span class="o">**</span> <span class="mi">20</span><span class="p">,</span>
                         <span class="n">p</span><span class="o">.</span><span class="n">num_threads</span><span class="p">()</span>
                         <span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">statusbar</span><span class="o">.</span><span class="n">showMessage</span><span class="p">(</span><span class="n">message</span><span class="p">)</span></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">statusbar</span><span class="o">.</span><span class="n">showMessage</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_close_thread</span><span class="p">(</span><span class="n">thread</span><span class="p">):</span>
+        <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+        <span class="k">with</span> <span class="n">logit</span><span class="p">(</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;close thread </span><span class="si">{</span><span class="n">thread</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">):</span>
+            <span class="n">thread</span><span class="o">.</span><span class="n">requestInterruption</span><span class="p">()</span>
+            <span class="n">thread</span><span class="o">.</span><span class="n">quit</span><span class="p">()</span>
+            <span class="n">thread</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+
+<div class="viewcode-block" id="Gui.closeEvent"><a class="viewcode-back" href="../../api/tolteca.gui.Gui.html#tolteca.gui.Gui.closeEvent">[docs]</a>    <span class="k">def</span> <span class="nf">closeEvent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">logit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span> <span class="s1">&#39;close window&#39;</span><span class="p">):</span>
+            <span class="c1"># close all threads</span>
+            <span class="k">with</span> <span class="n">concurrent</span><span class="o">.</span><span class="n">futures</span><span class="o">.</span><span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_threads</span><span class="p">))</span> <span class="k">as</span> \
+                    <span class="n">executor</span><span class="p">:</span>
+                <span class="n">fs</span> <span class="o">=</span> <span class="p">[</span>
+                        <span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_close_thread</span><span class="p">,</span> <span class="n">thread</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="n">thread</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_threads</span><span class="p">]</span>
+                <span class="n">concurrent</span><span class="o">.</span><span class="n">futures</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="n">fs</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span></div></div>
 
 
 <div class="viewcode-block" id="main"><a class="viewcode-back" href="../../api/tolteca.gui.main.html#tolteca.gui.main">[docs]</a><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
@@ -534,29 +723,39 @@
     <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">()</span>
 
     <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-            <span class="s2">&quot;--datapath&quot;</span><span class="p">,</span>
-            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;directory that contains the data files&quot;</span><span class="p">,</span>
-            <span class="n">default</span><span class="o">=</span><span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">())</span>
+            <span class="s2">&quot;-c&quot;</span><span class="p">,</span> <span class="s2">&quot;--config&quot;</span><span class="p">,</span>
+            <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;+&#39;</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;The path to the config file(s). &quot;</span>
+                 <span class="s2">&quot;Multiple config files are merged.&quot;</span><span class="p">,</span>
+            <span class="n">default</span><span class="o">=</span><span class="p">[</span><span class="n">get_pkg_data_path</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;tolteca.yaml&quot;</span><span class="p">)])</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s2">&quot;-q&quot;</span><span class="p">,</span> <span class="s2">&quot;--quiet&quot;</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Suppress debug logs.&quot;</span><span class="p">,</span>
+            <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">)</span>
+
     <span class="n">args</span><span class="p">,</span> <span class="n">unparsed_args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_known_args</span><span class="p">()</span>
 
-    <span class="n">config</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
-            <span class="n">datapath</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">datapath</span><span class="p">)</span>
-            <span class="p">)</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">quiet</span><span class="p">:</span>
+        <span class="n">loglevel</span> <span class="o">=</span> <span class="s1">&#39;INFO&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">loglevel</span> <span class="o">=</span> <span class="s1">&#39;DEBUG&#39;</span>
+    <span class="n">init_log</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">loglevel</span><span class="p">)</span>
 
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;load config from </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">config</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="n">conf</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="n">config</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">conf</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">conf</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">fo</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">rupdate</span><span class="p">(</span><span class="n">conf</span><span class="p">,</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">fo</span><span class="p">))</span>
     <span class="n">app</span> <span class="o">=</span> <span class="n">qt5app</span><span class="p">(</span><span class="n">unparsed_args</span><span class="p">)</span>
 
-    <span class="n">gui</span> <span class="o">=</span> <span class="n">ToltecaGui</span><span class="p">()</span>
-    <span class="n">gui</span><span class="o">.</span><span class="n">init_runtime</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+    <span class="n">gui</span> <span class="o">=</span> <span class="n">Gui</span><span class="p">()</span>
+    <span class="n">gui</span><span class="o">.</span><span class="n">init_runtime</span><span class="p">(</span><span class="n">conf</span> <span class="ow">or</span> <span class="nb">dict</span><span class="p">())</span>
     <span class="n">gui</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
-
-    <span class="kn">import</span> <span class="nn">signal</span>
-
-    <span class="k">def</span> <span class="nf">sigint_handler</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Handler for the SIGINT signal&quot;&quot;&quot;</span>
-        <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\r</span><span class="s1">Aborted with Ctrl-C</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
-        <span class="n">gui</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-    <span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGINT</span><span class="p">,</span> <span class="n">sigint_handler</span><span class="p">)</span>
-
     <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">exec_</span><span class="p">())</span></div>
 </pre></div>
 
@@ -576,8 +775,8 @@
     <a href="#">Back to Top</a></p>
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
-    Last built 02 Mar 2020. <br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 3.0.2. &nbsp;
+    Last built 23 Apr 2020. <br/>
   </p>
 </footer>
   </body>

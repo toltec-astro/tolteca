@@ -1,10 +1,10 @@
 
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
   <head>
     <meta charset="utf-8" />
-    <title>tolteca.io.registry &#8212; tolteca v0.1.dev62+g21e4fb5</title>
+    <title>tolteca.io.registry &#8212; tolteca v0.1.dev84+gfc9946a.d20200423</title>
     <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
     <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css" />
@@ -46,7 +46,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../../index.html">tolteca v0.1.dev62+g21e4fb5</a>
+	<a href="../../../index.html">tolteca v0.1.dev84+gfc9946a.d20200423</a>
 	 &#187;
       </li>
       <li><a href="../../index.html" accesskey="U">Module code</a> &#187;</li>
@@ -86,7 +86,7 @@
     <span class="k">if</span> <span class="n">format_</span> <span class="ow">in</span> <span class="n">_identifiers</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">_identifiers</span><span class="p">[</span><span class="n">format_</span><span class="p">]</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;unknown format </span><span class="si">{format_}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;unknown format </span><span class="si">{</span><span class="n">format_</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="open"><a class="viewcode-back" href="../../../api/tolteca.io.open.html#tolteca.io.open">[docs]</a><span class="k">def</span> <span class="nf">open</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -98,12 +98,12 @@
     <span class="c1"># logger.debug(f&quot;try open with identifiers: {identifiers}&quot;)</span>
     <span class="k">for</span> <span class="n">format_</span><span class="p">,</span> <span class="n">identifier</span> <span class="ow">in</span> <span class="n">identifiers</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">identifier</span><span class="p">(</span><span class="n">source</span><span class="p">):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;identified as format=</span><span class="si">{format_}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;identified as format=</span><span class="si">{</span><span class="n">format_</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="n">io</span> <span class="o">=</span> <span class="n">_io_classes</span><span class="p">[</span><span class="n">format_</span><span class="p">](</span><span class="n">source</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
             <span class="k">break</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;unable to open </span><span class="si">{source}</span><span class="s2"> with format=</span><span class="si">{format}</span><span class="s2">.&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;unable to open </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2"> with format=</span><span class="si">{</span><span class="nb">format</span><span class="si">}</span><span class="s2">.&quot;</span>
                 <span class="s2">&quot; Supported formats: {_io_classes.keys()}&quot;</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">io</span></div>
 </pre></div>
@@ -124,8 +124,8 @@
     <a href="#">Back to Top</a></p>
   <p>
     &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 2.4.3. &nbsp;
-    Last built 02 Mar 2020. <br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 3.0.2. &nbsp;
+    Last built 23 Apr 2020. <br/>
   </p>
 </footer>
   </body>

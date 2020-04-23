@@ -1,0 +1,6 @@
+plot_arrays
+===========
+
+.. currentmodule:: tolteca.recipes.simu_obs
+
+.. autofunction:: plot_arrays
