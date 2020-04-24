@@ -5,6 +5,8 @@
 from tollan.utils.env import env_registry
 from pathlib import Path
 from tolteca.fs.toltec import ToltecDataFileStore
+from ..utils import get_user_data_dir
+
 
 env_registry.register(
         "TOLTECA_TOLTEC_DB_URL", "The toltec database url")
@@ -15,9 +17,11 @@ env_registry.register(
 tolteca_app_db_filename = 'tolteca_app_db.sqlite'
 tolteca_app_db_path = Path(__file__).with_name(
         tolteca_app_db_filename).resolve().as_posix()
-tolteca_toltec_db_url = env_registry.get("TOLTECA_TOLTEC_DB_URL")
+tolteca_toltec_db_url = env_registry.get(
+        "TOLTECA_TOLTEC_DB_URL", 'mysql+mysqldb://localhost:3306')
 tolteca_redis_url = "redis://localhost:6379"
-tolteca_toltec_data_rootpath = env_registry.get("TOLTECA_TOLTEC_DATA_ROOTPATH")
+tolteca_toltec_data_rootpath = env_registry.get(
+        "TOLTECA_TOLTEC_DATA_ROOTPATH", get_user_data_dir())
 tolteca_toltec_datastore = ToltecDataFileStore(tolteca_toltec_data_rootpath)
 
 

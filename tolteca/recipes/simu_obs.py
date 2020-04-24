@@ -1383,7 +1383,7 @@ if __name__ == "__main__":
                     Column(name='dec', unit=u.deg),
                     Column(name='flux', unit=u.mJy),
                     ])
-        sources.add_row(['src0', 180., 0., 1.])
+        sources.add_row(['src0', 180., 0., 50.])
         sources.add_row(['src1', 180., 30. / 3600., 0.25])
 
         logger.debug(f"sources:\n{sources}")
