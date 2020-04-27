@@ -275,7 +275,7 @@ class beammap(ComponentTemplate):
             
         ticker_container = button_container.child(dbc.Col).child(html.Div, className='d-flex')
         ticker_container.child(
-                dbc.Label("Files Found:", className='mr-2'))
+                dbc.Label("Files Found:",className='mr-2'))
         ticker = ticker_container.child(html.Div, 'N/A')
         
         @app.callback(Output(ticker.id, 'children'),
@@ -308,7 +308,10 @@ class beammap(ComponentTemplate):
                 
             ncobs.setup(obsnum,nrows,ncols,path,sf,order='C',transpose=False,files=beammap_files)
             
-            return np.sort(file_list_short)
+            if file_list == []:
+                return 'N/A'
+            else:
+                return np.sort(file_list_short)
         
         
         
@@ -593,11 +596,11 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
         def update_t1100(clickData):
             det = clickData['points'][0]['pointNumber']
 
-            row0 = html.Tr([html.Td("S/N"), html.Td(ncobs.p1100['amps'][det])])
-            row1 = html.Tr([html.Td("x"), html.Td(ncobs.p1100['x'][det])])
-            row2 = html.Tr([html.Td("y"), html.Td(ncobs.p1100['y'][det])])
-            row3 = html.Tr([html.Td("fwhm_x"), html.Td(ncobs.p1100['fwhmx'][det])])
-            row4 = html.Tr([html.Td("fwhm_y"), html.Td(ncobs.p1100['fwhmy'][det])])
+            row0 = html.Tr([html.Td("S/N"), html.Td('%.3f' % (ncobs.p1100['amps'][det]))])
+            row1 = html.Tr([html.Td("x"), html.Td('%.3f' % (ncobs.p1100['x'][det]))])
+            row2 = html.Tr([html.Td("y"), html.Td('%.3f' % (ncobs.p1100['y'][det]))])
+            row3 = html.Tr([html.Td("fwhm_x"), html.Td('%.3f' % (ncobs.p1100['fwhmx'][det]))])
+            row4 = html.Tr([html.Td("fwhm_y"), html.Td('%.3f' % (ncobs.p1100['fwhmy'][det]))])
             row5 = html.Tr([html.Td("f"), html.Td('N/A')])
             row6 = html.Tr([html.Td("nw"), html.Td(ncobs.nws_1100[det])])
             row7 = html.Tr([html.Td("det"), html.Td(ncobs.detn_1100[det])])
@@ -1055,11 +1058,11 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
         def update_t1400(clickData):
             det = clickData['points'][0]['pointNumber']
 
-            row0 = html.Tr([html.Td("S/N"), html.Td(ncobs.p1400['amps'][det])])
-            row1 = html.Tr([html.Td("x"), html.Td(ncobs.p1400['x'][det])])
-            row2 = html.Tr([html.Td("y"), html.Td(ncobs.p1400['y'][det])])
-            row3 = html.Tr([html.Td("fwhm_x"), html.Td(ncobs.p1400['fwhmx'][det])])
-            row4 = html.Tr([html.Td("fwhm_y"), html.Td(ncobs.p1400['fwhmy'][det])])
+            row0 = html.Tr([html.Td("S/N"), html.Td('%.3f' % (ncobs.p1400['amps'][det]))])
+            row1 = html.Tr([html.Td("x"), html.Td('%.3f' % (ncobs.p1400['x'][det]))])
+            row2 = html.Tr([html.Td("y"), html.Td('%.3f' % (ncobs.p1400['y'][det]))])
+            row3 = html.Tr([html.Td("fwhm_x"), html.Td('%.3f' % (ncobs.p1400['fwhmx'][det]))])
+            row4 = html.Tr([html.Td("fwhm_y"), html.Td('%.3f' % (ncobs.p1400['fwhmy'][det]))])
             row5 = html.Tr([html.Td("f"), html.Td('N/A')])
             row6 = html.Tr([html.Td("nw"), html.Td(ncobs.nws_1400[det])])
             row7 = html.Tr([html.Td("det"), html.Td(ncobs.detn_1400[det])])
