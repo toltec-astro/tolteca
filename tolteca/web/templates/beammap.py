@@ -251,11 +251,11 @@ class beammap(ComponentTemplate):
         {'label': 'network 11', 'value': '11'},
 
     ],
-    #value=['NYC', 'MTL'],
+    value=[],
     labelStyle={'display': 'inline-block'}
 )  
                 
-        upload = button_container.child(dbc.Col).child(dcc.Upload,children=html.Div([
+        '''upload = button_container.child(dbc.Col).child(dcc.Upload,children=html.Div([
             'Drag and Drop or ',
             html.A('Select Files')
         ]),style={
@@ -270,25 +270,27 @@ class beammap(ComponentTemplate):
         },
         # Allow multiple files to be uploaded
         multiple=True)
+        '''
         
             
         ticker_container = button_container.child(dbc.Col).child(html.Div, className='d-flex')
         ticker_container.child(
-                dbc.Label("Files Loaded:", className='mr-2'))
+                dbc.Label("Files Found:", className='mr-2'))
         ticker = ticker_container.child(html.Div, 'N/A')
         
         @app.callback(Output(ticker.id, 'children'),
-              [Input(upload.id, 'contents'),
-              Input(path_input.id,'value'),
-              Input(nw_checklist.id,'value')],
-              [State(upload.id, 'filename'),
-               State(upload.id, 'last_modified')])
-        def update_output(list_of_contents, path, value, list_of_names, list_of_dates):
+              #[Input(upload.id, 'contents'),
+              [Input(path_input.id,'value'),
+              Input(nw_checklist.id,'value')])#,
+              #[State(upload.id, 'filename'),
+               #State(upload.id, 'last_modified')])
+        #def update_output(list_of_contents, path, value, list_of_names, list_of_dates):
             
-            print('blah',value,'\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n')
-            file_list = glob.glob(path + '/*')
             
-            print('file_list',file_list)
+        def update_output(path, value):
+            #if value == []:
+            file_list = glob.glob(path + '/*.nc')
+            file_list_short = []
 
             nrows = 21
             ncols = 25
@@ -298,12 +300,23 @@ class beammap(ComponentTemplate):
             beammap_files = []
             
             for i in range(len(file_list)):
+                file_list_short.append(file_list[i][len(path):] + ', ')
                 nw = re.findall(r'\d+', file_list[i])
                 print('nw',nw)
                 if nw[-1] in value:
                     beammap_files.append(file_list[i])
                 
             ncobs.setup(obsnum,nrows,ncols,path,sf,order='C',transpose=False,files=beammap_files)
+            
+            return np.sort(file_list_short)
+        
+        
+        
+        @app.callback(Output(nw_checklist.id, 'value'),
+                      [Input(path_input.id,'value')])
+        def clear_checklist(path):
+            return []
+
 
             '''
             try:
