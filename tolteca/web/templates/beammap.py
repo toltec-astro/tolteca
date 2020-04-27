@@ -231,8 +231,8 @@ class beammap(ComponentTemplate):
         path_input = button_container.child(dbc.Col).child(
                 dcc.Input,
                 placeholder="Enter File Path: ",
-                type='string',
-                value='/Users/mmccrackan/toltec/data/tests/wyatt/coadd_telecon2/')
+                type='string')#,
+                #value='/Users/mmccrackan/toltec/data/tests/wyatt/coadd_telecon2/')
         
         
         nw_checklist = button_container.child(dbc.Col).child(dcc.Checklist,
