@@ -206,15 +206,17 @@ class beammap(ComponentTemplate):
 
     def setup_layout(self, app):
         title = self.title_text
-        header = self.child(dbc.Row).child(dbc.Col).child(dbc.Jumbotron,style={'color':'g'},fluid=True,background=None)
+        #header = self.child(dbc.Row).child(dbc.Col).child(dbc.Jumbotron,style={'color':'g'},fluid=True,background=None)
         body = self.child(dbc.Row).child(dbc.Col)
 
-        header.children = [
+        '''header.children = [
                 html.H1(f'{title}'),
                 html.P(
                     'This is a subtitle'),
                 
                 ]
+        '''
+        
 
         
         button_container = body.child(dbc.Row)
@@ -231,6 +233,27 @@ class beammap(ComponentTemplate):
                 placeholder="Enter File Path: ",
                 type='string',
                 value='/Users/mmccrackan/toltec/data/tests/wyatt/coadd_telecon2/')
+        
+        
+        nw_checklist = button_container.child(dbc.Col).child(dcc.Checklist,
+    options=[
+        {'label': 'network 0', 'value': '0'},
+        {'label': 'network 1', 'value': '1'},
+        {'label': 'network 2', 'value': '2'},
+        {'label': 'network 3', 'value': '3'},
+        {'label': 'network 4', 'value': '4'},
+        {'label': 'network 5', 'value': '5'},
+        {'label': 'network 6', 'value': '6'},
+        {'label': 'network 7', 'value': '7'},
+        {'label': 'network 8', 'value': '8'},
+        {'label': 'network 9', 'value': '9'},
+        {'label': 'network 10', 'value': '10'},
+        {'label': 'network 11', 'value': '11'},
+
+    ],
+    #value=['NYC', 'MTL'],
+    labelStyle={'display': 'inline-block'}
+)  
                 
         upload = button_container.child(dbc.Col).child(dcc.Upload,children=html.Div([
             'Drag and Drop or ',
@@ -256,10 +279,33 @@ class beammap(ComponentTemplate):
         
         @app.callback(Output(ticker.id, 'children'),
               [Input(upload.id, 'contents'),
-              Input(path_input.id,'value')],
+              Input(path_input.id,'value'),
+              Input(nw_checklist.id,'value')],
               [State(upload.id, 'filename'),
                State(upload.id, 'last_modified')])
-        def update_output(list_of_contents, path, list_of_names, list_of_dates):
+        def update_output(list_of_contents, path, value, list_of_names, list_of_dates):
+            
+            print('blah',value,'\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n')
+            file_list = glob.glob(path + '/*')
+            
+            print('file_list',file_list)
+
+            nrows = 21
+            ncols = 25
+            sf = 488.281/4
+            obsnum = 'none'
+            
+            beammap_files = []
+            
+            for i in range(len(file_list)):
+                nw = re.findall(r'\d+', file_list[i])
+                print('nw',nw)
+                if nw[-1] in value:
+                    beammap_files.append(file_list[i])
+                
+            ncobs.setup(obsnum,nrows,ncols,path,sf,order='C',transpose=False,files=beammap_files)
+
+            '''
             try:
                 beammap_files = []
                 for i in range(len(list_of_names)):
@@ -267,6 +313,11 @@ class beammap(ComponentTemplate):
                     
                 print(beammap_files)
                 
+                
+                file_list = glob.glob(path + '/*')
+                #beammap_files = []
+                
+
                 nrows = 21
                 ncols = 25
                 sf = 488.281/4
@@ -277,7 +328,7 @@ class beammap(ComponentTemplate):
             except:
                 print('No files found')
             
-        
+        '''
         table_header = [html.Thead(html.Tr([html.Th("Parameter"), html.Th("Value")]))]
         
         a_width=600
