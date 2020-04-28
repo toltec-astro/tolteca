@@ -47,6 +47,7 @@ import sys
 from tolteca.recipes import get_logger
 from tolteca.fs.toltec import ToltecDataset
 from tolteca.fs.rsync_accessor import RsyncAccessor
+from pathlib import Path
 
 
 if __name__ == "__main__":
@@ -109,6 +110,14 @@ if __name__ == "__main__":
         filepaths = rsync.rsync(
                 dataset['source'], option.download_dir)
         dataset = dataset.from_files(*filepaths)
+        dispatch_fmt = {
+                '.ecsv': 'ascii.ecsv',
+                '.asc': 'ascii.commented_header',
+                '.fits': 'fits',
+                '.adsf': 'adsf',
+                }
+        fmt = dispatch_fmt.get(
+                Path(option.output).suffix, 'ascii.commented_header')
         dataset.write_index_table(
                 option.output, overwrite=option.overwrite,
-                format='ascii.commented_header')
+                format=fmt)
