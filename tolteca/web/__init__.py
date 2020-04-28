@@ -100,6 +100,12 @@ dasha_config.update(
                     "template": "tolteca.web.templates.kidsreduceview",
                     "route_name": "kidsreduce",
                 },
+                {
+                    "template": "tolteca.web.templates.beammap",
+                    "route_name": "beammap",
+                    'title_text': "Beammap",
+                    'title_icon': 'fas fa-layer-group',
+                },
             ],
         )
 
