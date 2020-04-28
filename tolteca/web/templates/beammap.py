@@ -271,14 +271,72 @@ class beammap(ComponentTemplate):
         # Allow multiple files to be uploaded
         multiple=True)
         '''
+        table_header = [html.Thead(html.Tr([html.Th("Parameter"), html.Th("Value")]))]
         
+        a_width=600
+        a_height=600
+        
+        b_width=400
+        b_height=400
+        
+        hist_width = 500 
+        hist_height = 400
+
             
-        ticker_container = button_container.child(dbc.Col).child(html.Div, className='d-flex')
-        ticker_container.child(
+        file_container = button_container.child(dbc.Col).child(html.Div, className='d-flex')
+        file_container.child(
                 dbc.Label("Files Found:",className='mr-2'))
-        ticker = ticker_container.child(html.Div, 'N/A')
+        files = file_container.child(html.Div, 'N/A')
         
-        @app.callback(Output(ticker.id, 'children'),
+        plot_tab_container = body.child(dbc.Row).child(dcc.Tabs,vertical=True)
+        p1100_container = plot_tab_container.child(dcc.Tab,label='1.1mm').child(dbc.Row)
+        
+        p1100 = p1100_container.child(dbc.Col).child(dcc.Graph,align="center",figure={
+        'layout': {
+            'width': a_width, 
+            'height': a_height,
+            #'margin': {'l': 0, 'r': 0, 'b': 15, 't': 5},
+            'dragmode': 'select',
+            'hovermode': 'closest',
+            'editable': True,
+            'animate': True,
+            'clickmode': 'event+select'
+            # Display a rectangle to highlight the previously selected region
+            }})
+        
+    
+        
+        drp_1100=p1100_container.child(dbc.Col).child(dcc.Dropdown,
+        options=[
+            {'label': 'S/N', 'value': 'amps'},
+            {'label': 'x', 'value': 'x'},
+            {'label': 'y', 'value': 'y'},
+            {'label': 'fwhmx', 'value': 'fwhmx'},
+            {'label': 'fwhmy', 'value': 'fwhmy'}
+        ],
+        value=['x','y'],
+        multi=True
+    )
+    
+        
+        p1100_bmap_tab = p1100_container.child(dcc.Tabs)
+        
+        p1100_bmap = p1100_bmap_tab.child(dcc.Tab,label='beammap').child(dbc.Col).child(dcc.Graph)
+        p1100_bmap2 = p1100_bmap_tab.child(dcc.Tab,label='y-slice').child(dbc.Col).child(dcc.Graph)
+        p1100_bmap3 = p1100_bmap_tab.child(dcc.Tab,label='x-slice').child(dbc.Col).child(dcc.Graph)
+        
+        t1100 = p1100_container.child(dbc.Table, bordered=True,
+dark=False, hover=True, responsive=True,striped=True,width=100)
+
+        
+        p1100_hists_tab = p1100_container.child(dbc.Row)
+        p1100_hist0 = p1100_hists_tab.child(dbc.Row).child(dbc.Col).child(dcc.Graph,align="center")
+        p1100_hist1 = p1100_hists_tab.child(dbc.Col).child(dcc.Graph,align="center")
+        p1100_hist2 = p1100_hists_tab.child(dbc.Col).child(dcc.Graph,align="center")
+        p1100_hist3 = p1100_hists_tab.child(dbc.Col).child(dcc.Graph,align="center")
+        p1100_hist4 = p1100_hists_tab.child(dbc.Col).child(dcc.Graph,align="center")
+        
+        @app.callback(Output(files.id, 'children'),
               #[Input(upload.id, 'contents'),
               [Input(path_input.id,'value'),
               Input(nw_checklist.id,'value')])#,
@@ -345,69 +403,10 @@ class beammap(ComponentTemplate):
                 print('No files found')
             
         '''
-        table_header = [html.Thead(html.Tr([html.Th("Parameter"), html.Th("Value")]))]
-        
-        a_width=600
-        a_height=600
-        
-        b_width=400
-        b_height=400
-        
-        hist_width = 500 
-        hist_height = 400
-
-        plot_tab_container = body.child(dbc.Row).child(dcc.Tabs,vertical=True)
-        p1100_container = plot_tab_container.child(dcc.Tab,label='1.1mm').child(dbc.Row)
-        
-        p1100 = p1100_container.child(dbc.Col).child(dcc.Graph,align="center",figure={
-        'layout': {
-            'width': a_width, 
-            'height': a_height,
-            #'margin': {'l': 0, 'r': 0, 'b': 15, 't': 5},
-            'dragmode': 'select',
-            'hovermode': 'closest',
-            'editable': True,
-            'animate': True,
-            'clickmode': 'event+select'
-            # Display a rectangle to highlight the previously selected region
-            }})
-        
-    
-        
-        drp_1100=p1100_container.child(dbc.Col).child(dcc.Dropdown,
-        options=[
-            {'label': 'S/N', 'value': 'amps'},
-            {'label': 'x', 'value': 'x'},
-            {'label': 'y', 'value': 'y'},
-            {'label': 'fwhmx', 'value': 'fwhmx'},
-            {'label': 'fwhmy', 'value': 'fwhmy'}
-        ],
-        value=['x','y'],
-        multi=True
-    )
-    
-        
-        p1100_bmap_tab = p1100_container.child(dcc.Tabs)
-        
-        p1100_bmap = p1100_bmap_tab.child(dcc.Tab,label='beammap').child(dbc.Col).child(dcc.Graph)
-        p1100_bmap2 = p1100_bmap_tab.child(dcc.Tab,label='y-slice').child(dbc.Col).child(dcc.Graph)
-        p1100_bmap3 = p1100_bmap_tab.child(dcc.Tab,label='x-slice').child(dbc.Col).child(dcc.Graph)
-        
-        t1100 = p1100_container.child(dbc.Table, bordered=True,
-dark=False, hover=True, responsive=True,striped=True,width=100)
-
-        
-        p1100_hists_tab = p1100_container.child(dbc.Row)
-        p1100_hist0 = p1100_hists_tab.child(dbc.Row).child(dbc.Col).child(dcc.Graph,align="center")
-        p1100_hist1 = p1100_hists_tab.child(dbc.Col).child(dcc.Graph,align="center")
-        p1100_hist2 = p1100_hists_tab.child(dbc.Col).child(dcc.Graph,align="center")
-        p1100_hist3 = p1100_hists_tab.child(dbc.Col).child(dcc.Graph,align="center")
-        p1100_hist4 = p1100_hists_tab.child(dbc.Col).child(dcc.Graph,align="center")
-
                       
         @app.callback(
             Output(p1100.id,component_property='figure'),
-            [Input(ticker.id, 'children'),
+            [Input(files.id, 'children'),
              Input(drp_1100.id, 'value')]
             ) 
         def update_a1100(obsnum,value):
@@ -611,7 +610,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
         
         @app.callback(
             Output(p1100_hist0.id,component_property='figure'),
-            [Input(ticker.id, 'children')]
+            [Input(files.id, 'children')]
             ) 
         def update_p1100_hist0(obsnum):
             figure={
@@ -651,7 +650,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
         
         @app.callback(
             Output(p1100_hist1.id,component_property='figure'),
-            [Input(ticker.id, 'children')]
+            [Input(files.id, 'children')]
             ) 
         def update_p1100_hist1(obsnum):
             figure={
@@ -694,7 +693,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
         
         @app.callback(
             Output(p1100_hist2.id,component_property='figure'),
-            [Input(ticker.id, 'children')]
+            [Input(files.id, 'children')]
             ) 
         def update_p1100_hist2(obsnum):
             figure={
@@ -738,7 +737,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
         
         @app.callback(
             Output(p1100_hist3.id,component_property='figure'),
-            [Input(ticker.id, 'children')]
+            [Input(files.id, 'children')]
             ) 
         def update_p1100_hist3(obsnum):
             figure={
@@ -780,7 +779,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
         
         @app.callback(
             Output(p1100_hist4.id,component_property='figure'),
-            [Input(ticker.id, 'children')]
+            [Input(files.id, 'children')]
             ) 
         def update_p1100_hist4(obsnum):
             figure={
@@ -870,7 +869,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
                       
         @app.callback(
             Output(p1400.id,component_property='figure'),
-            [Input(ticker.id, 'children'),
+            [Input(files.id, 'children'),
              Input(drp_1400.id,'value')]
             ) 
         def update_a1400(obsnum,value):
@@ -1073,7 +1072,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
         
         @app.callback(
             Output(p1400_hist0.id,component_property='figure'),
-            [Input(ticker.id, 'children')]
+            [Input(files.id, 'children')]
             ) 
         def update_p1400_hist0(obsnum):
             figure={
@@ -1115,7 +1114,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
         
         @app.callback(
             Output(p1400_hist1.id,component_property='figure'),
-            [Input(ticker.id, 'children')]
+            [Input(files.id, 'children')]
             ) 
         def update_p1400_hist1(obsnum):
             figure={
@@ -1158,7 +1157,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
         
         @app.callback(
             Output(p1400_hist2.id,component_property='figure'),
-            [Input(ticker.id, 'children')]
+            [Input(files.id, 'children')]
             ) 
         def update_p1400_hist2(obsnum):
             figure={
@@ -1202,7 +1201,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
         
         @app.callback(
             Output(p1400_hist3.id,component_property='figure'),
-            [Input(ticker.id, 'children')]
+            [Input(files.id, 'children')]
             ) 
         def update_p1400_hist3(obsnum):
             figure={
@@ -1244,7 +1243,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
         
         @app.callback(
             Output(p1400_hist4.id,component_property='figure'),
-            [Input(ticker.id, 'children')]
+            [Input(files.id, 'children')]
             ) 
         def update_p1400_hist4(obsnum):
             figure={
