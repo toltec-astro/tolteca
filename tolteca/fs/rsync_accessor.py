@@ -13,6 +13,10 @@ import functools
 from io import TextIOWrapper
 from packaging.version import parse as parse_version
 
+
+__all__ = ['RsyncAccessor', ]
+
+
 class RsyncAccessor(Accessor):
     """This class provide access to remote files via rsync."""
 
