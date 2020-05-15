@@ -88,6 +88,25 @@ class beammap(ComponentTemplate):
                 
         
         array_tab_container = body.child(dbc.Row).child(dcc.Tabs,vertical=True)
+
+        nrows = 21
+        ncols = 25
+        sf = 488.281/4
+        path = '/Users/mmccrackan/toltec/data/tests/wyatt/'
+        
+        obsnum = 'coadd_20200506'
+        #obsnum = 10891
+        ncobs = obs(obsnum,nrows,ncols,path,sf,order='C',transpose=False)
+        
+        f = np.load('/Users/mmccrackan/toltec/data/tests/wyatt/10886/10886_f_tone.npy',allow_pickle=True).item()
+        
+        for i in range(len(ncobs.nws)):
+            try:
+                ncobs.ncs[i].f = f[int(ncobs.nws[i])]
+            except:
+                print('cannot get frequencies for nws ' + str(ncobs.nws[i]))
+                
+                
         a1100_container = array_tab_container.child(dcc.Tab,label='1.1mm').child(dbc.Row)
         
         p1100 = a1100_container.child(dbc.Col).child(dcc.Graph)
@@ -118,23 +137,6 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
         p1100_h2 = a1100_h_tab.child(dbc.Col).child(dcc.Graph,align="center")
         p1100_h3 = a1100_h_tab.child(dbc.Col).child(dcc.Graph,align="center")
         p1100_h4 = a1100_h_tab.child(dbc.Col).child(dcc.Graph,align="center")
-
-        nrows = 21
-        ncols = 25
-        sf = 488.281/4
-        path = '/Users/mmccrackan/toltec/data/tests/wyatt/'
-        
-        obsnum = 'coadd_20200506'
-        #obsnum = 10891
-        ncobs = obs(obsnum,nrows,ncols,path,sf,order='C',transpose=False)
-        
-        f = np.load('/Users/mmccrackan/toltec/data/tests/wyatt/10886/10886_f_tone.npy',allow_pickle=True).item()
-        
-        for i in range(len(ncobs.nws)):
-            try:
-                ncobs.ncs[i].f = f[int(ncobs.nws[i])]
-            except:
-                print('cannot get frequencies for nws ' + str(ncobs.nws[i]))
                 
         @app.callback(Output(files.id, 'children'),
               [Input(path_input.id,'value'),
@@ -427,7 +429,6 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             except:
                  return []
              
-                
              
         @app.callback(
             Output(p1100_h0.id,component_property='figure'),
@@ -648,7 +649,1035 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             
             return figure
         
+        a1400_container = array_tab_container.child(dcc.Tab,label='1.4mm').child(dbc.Row)
         
+        p1400 = a1400_container.child(dbc.Col).child(dcc.Graph)
+        drp_1400=a1400_container.child(dbc.Col).child(dcc.Dropdown, options=[
+            {'label': 'S/N', 'value': 'amps'},
+            {'label': 'x', 'value': 'x'},
+            {'label': 'y', 'value': 'y'},
+            {'label': 'fwhmx', 'value': 'fwhmx'},
+            {'label': 'fwhmy', 'value': 'fwhmy'}
+        ],
+        value=['x','y'],
+        multi=True
+        )
+        
+        a1400_b_tab = a1400_container.child(dcc.Tabs)
+        
+        p1400_b = a1400_b_tab.child(dcc.Tab,label='beammap').child(dbc.Col).child(dcc.Graph)
+        p1400_b2 = a1400_b_tab.child(dcc.Tab,label='y-slice').child(dbc.Col).child(dcc.Graph)
+        p1400_b3 = a1400_b_tab.child(dcc.Tab,label='x-slice').child(dbc.Col).child(dcc.Graph)
+        
+        t1400 = a1400_container.child(dbc.Table, bordered=True,
+dark=False, hover=True, responsive=True,striped=True,width=100)
+
+        
+        a1400_h_tab = a1400_container.child(dbc.Row)
+        p1400_h0 = a1400_h_tab.child(dbc.Row).child(dbc.Col).child(dcc.Graph,align="center")
+        p1400_h1 = a1400_h_tab.child(dbc.Col).child(dcc.Graph,align="center")
+        p1400_h2 = a1400_h_tab.child(dbc.Col).child(dcc.Graph,align="center")
+        p1400_h3 = a1400_h_tab.child(dbc.Col).child(dcc.Graph,align="center")
+        p1400_h4 = a1400_h_tab.child(dbc.Col).child(dcc.Graph,align="center")
+                
+        @app.callback(
+            Output(p1400.id,component_property='figure'),
+            [Input(files.id, 'children'),
+             Input(drp_1400.id, 'value'),
+             Input(nw_checklist.id, 'value')]
+            ) 
+        def update_a1400(obsnum,value,checklist):            
+            x = []
+            y = []
+            z = []
+            
+            for i in range(len(checklist)):
+                if int(checklist[i]) in [9,10,11]:
+                    x.extend(ncobs.ncs[int(checklist[i])].p[value[0]])
+                    y.extend(ncobs.ncs[int(checklist[i])].p[value[1]])
+                    
+                    if len(value) == 3:
+                        z.extend(ncobs.ncs[int(checklist[i])].p[value[2]])
+                    else:
+                        z.extend(np.ones(len(ncobs.ncs[int(checklist[i])].p[value[0]]))*int(checklist[i]))
+            
+            figure={
+                'data': [{
+                    'x': x,
+                    'y': y,
+                    'textposition': 'top',
+                    'customdata': 0,
+                    'type': 'scatter',
+                    'mode': 'markers+text',
+                    'marker': {
+                        'color': z,
+                        'colorscale':'Viridis', # one of plotly colorscales
+                        'showscale': True,
+                        'size': 5 
+                    },
+                    'unselected': {
+                        'marker': { 'opacity': 0.3 },
+                        'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                    }
+                }],
+                'layout': {
+                    'title': "1.4 mm Array",
+                    'xaxis': {'title': str(value[0])},
+                    'yaxis': {'title': str(value[1])},
+                    'width': a_width, 
+                    'height': a_height,
+                    #'margin': {'l': 0, 'r': 0, 'b': 15, 't': 5},
+                    'dragmode': 'select',
+                    'hovermode': 'closest',
+                    'editable': True,
+                    'animate': True,
+                    'clickmode': 'event+select'
+                }}
+            
+            return figure
+        
+        
+        @app.callback(
+            Output(p1400_b.id, 'figure'),
+            [Input(p1400.id,'selectedData'),
+             Input(nw_checklist.id, 'value')])
+        def update_b1400(clickData,checklist):
+            #try:
+                pointNumber = clickData['points'][0]['pointNumber']
+                dets = []
+                nws = []
+                
+                for i in range(len(checklist)):
+                    ci = int(checklist[i])
+                    if ci in [9,10,11]:
+                        nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
+                        dets.extend(range(ncobs.ncs[ci].ndets))
+                        
+                nw = nws[pointNumber]
+                det = dets[pointNumber]
+                
+                print(nw,det)
+                print(np.where(np.array(ncobs.nws) == str(int(nw)))[0][0])
+                
+                z = ncobs.ncs[np.where(np.array(ncobs.nws) == str(int(nw)))[0][0]].x_onoff[:,:,det]
+    
+                figure = {
+                    'data': [{
+                        'x': list(range(ncobs.nrows)),
+                        'y': list(range(ncobs.ncols)),
+                        'z': z,
+                        'textposition': 'top',
+                        'customdata': 0,
+                        'type': 'heatmap',
+                        'mode': 'markers+text',
+                        'marker': { 'color': 'rgba(0, 116, 217, 0.7)', 'size': 5 },
+                        'colorscale':'tropic', # one of plotly colorscales
+                        'unselected': {
+                            'marker': { 'opacity': 0.3 },
+                            'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                        }
+                    }],
+                    'layout': {
+                        'width': b_width, 
+                        'height': b_height,
+                        'title': "1.4 mm Array",
+                        'xaxis': {'title': 'x (pixels)'},
+                        'yaxis': {'title': 'y (pixels)'},
+                        'dragmode': 'select',
+                        'hovermode': True,
+                    }}
+                
+                return figure
+            #except:
+              #  pass
+        
+        
+        @app.callback(
+            Output(p1400_b2.id, 'figure'),
+            [Input(p1400.id,'selectedData'),
+             Input(nw_checklist.id, 'value')])
+        def update_b1400_2(clickData,checklist):
+            try:
+                pointNumber = clickData['points'][0]['pointNumber']
+                dets = []
+                nws = []
+                
+                for i in range(len(checklist)):
+                    ci = int(checklist[i])
+                    if ci in [9,10,11]:
+                        nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
+                        dets.extend(range(ncobs.ncs[ci].ndets))
+                        
+                nw = nws[pointNumber]
+                det = dets[pointNumber]
+                
+                print(nw,det)
+                nwi = np.where(np.array(ncobs.nws) == str(int(nw)))[0][0]
+                
+                z = ncobs.ncs[np.where(np.array(ncobs.nws) == str(int(nw)))[0][0]].x_onoff[:,:,det]
+                
+                row = int(np.round(ncobs.ncs[nwi].p['x'][det]))
+                col = int(np.round(ncobs.ncs[nwi].p['y'][det]))
+                
+                figure = {
+                    'data': [{
+                         'x': list(range(ncobs.nrows)),
+                         'y': z[:,row],
+                        #'z': z,
+                        'textposition': 'top',
+                        'customdata': 0,
+                        'type': 'line',
+                        'mode': 'lines+text',
+                        #'marker': { 'color': 'rgba(0, 116, 217, 0.7)', 'size': 5 },
+                        'colorscale':'tropic', # one of plotly colorscales
+                        'unselected': {
+                            'marker': { 'opacity': 0.3 },
+                            'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                        }
+                    }],
+                    'layout': {
+                        'width': b_width, 
+                        'height': b_height,
+                        'title': "1.4 mm Array",
+                        'xaxis': {'title': 'y (pixels)'},
+                        'yaxis': {'title': 'S/N'},
+                        'dragmode': 'select',
+                        'hovermode': True,
+                    }}
+                
+                return figure
+            except:
+                pass
+            
+            
+        @app.callback(
+            Output(p1400_b3.id, 'figure'),
+            [Input(p1400.id,'selectedData'),
+             Input(nw_checklist.id, 'value')])
+        def update_b1400_3(clickData,checklist):
+            try:
+                pointNumber = clickData['points'][0]['pointNumber']
+                dets = []
+                nws = []
+                
+                for i in range(len(checklist)):
+                    ci = int(checklist[i])
+                    if ci in [9,10,11]:
+                        nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
+                        dets.extend(range(ncobs.ncs[ci].ndets))
+                        
+                nw = nws[pointNumber]
+                det = dets[pointNumber]
+                
+                print(nw,det)
+                nwi = np.where(np.array(ncobs.nws) == str(int(nw)))[0][0]
+                
+                z = ncobs.ncs[np.where(np.array(ncobs.nws) == str(int(nw)))[0][0]].x_onoff[:,:,det]
+                
+                row = int(np.round(ncobs.ncs[nwi].p['x'][det]))
+                col = int(np.round(ncobs.ncs[nwi].p['y'][det]))
+                
+                figure = {
+                    'data': [{
+                        'x': list(range(ncobs.ncols)),
+                        'y': z[col,:],
+                        #'z': z,
+                        'textposition': 'top',
+                        'customdata': 0,
+                        'type': 'line',
+                        'mode': 'lines+text',
+                        #'marker': { 'color': 'rgba(0, 116, 217, 0.7)', 'size': 5 },
+                        'colorscale':'tropic', # one of plotly colorscales
+                        'unselected': {
+                            'marker': { 'opacity': 0.3 },
+                            'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                        }
+                    }],
+                    'layout': {
+                        'width': b_width, 
+                        'height': b_height,
+                        'title': "1.4 mm Array",
+                         'xaxis': {'title': 'x (pixels)'},
+                         'yaxis': {'title': 'S/N'},
+                        'dragmode': 'select',
+                        'hovermode': True,
+                    }}
+                
+                return figure
+            except:
+                pass
+            
+        @app.callback(
+            Output(t1400.id, 'children'),
+            [Input(p1400.id,'selectedData'),
+             Input(nw_checklist.id, 'value')])
+        def update_t1400(clickData,checklist):
+            try:
+                pointNumber = clickData['points'][0]['pointNumber']
+                dets = []
+                nws = []
+                
+                for i in range(len(checklist)):
+                    ci = int(checklist[i])
+                    if ci in [9,10,11]:
+                        nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
+                        dets.extend(range(ncobs.ncs[ci].ndets))
+                        
+                nw = nws[pointNumber]
+                det = dets[pointNumber]
+                
+                print(nw,det)
+                nwi = np.where(np.array(ncobs.nws) == str(int(nw)))[0][0]
+
+                row0 = html.Tr([html.Td("S/N"), html.Td('%.3f' % (ncobs.ncs[nwi].p['amps'][det]))])
+                row1 = html.Tr([html.Td("x"), html.Td('%.3f' % (ncobs.ncs[nwi].p['x'][det]))])
+                row2 = html.Tr([html.Td("y"), html.Td('%.3f' % (ncobs.ncs[nwi].p['y'][det]))])
+                row3 = html.Tr([html.Td("fwhm_x"), html.Td('%.3f' % (ncobs.ncs[nwi].p['fwhmx'][det]))])
+                row4 = html.Tr([html.Td("fwhm_y"), html.Td('%.3f' % (ncobs.ncs[nwi].p['fwhmy'][det]))])
+                row5 = html.Tr([html.Td("f"), html.Td('N/A')])
+                row6 = html.Tr([html.Td("nw"), html.Td(int(nw))])
+                row7 = html.Tr([html.Td("det"), html.Td(int(det))])
+    
+                table_body = [html.Tbody([row0,row1, row2, row3, row4,row5,row6,row7])]
+                return table_header + table_body
+            
+            except:
+                 return []
+             
+             
+        @app.callback(
+            Output(p1400_h0.id,component_property='figure'),
+            [Input(files.id, 'children'),
+             Input(nw_checklist.id, 'value')]) 
+        def update_p1400_h0(obsnum,checklist):
+            h = []            
+            for i in range(len(checklist)):
+                if int(checklist[i]) in [9,10,11]:
+                    h.extend(ncobs.ncs[int(checklist[i])].p['amps'])
+                    
+            figure={
+                'data': [{
+                'x': h,
+                #'text': 0,
+                'textposition': 'top',
+                'customdata': 0,
+                'type': 'histogram',
+                'mode': 'markers+text',
+                'marker': { 'color': '#330C73', #set color equal to a variable
+                'showscale': False,
+                'size': 2 },
+                'unselected': {
+                    'marker': { 'opacity': 0.3 },
+                    'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                }
+                }],
+                'layout': {
+                'title': "1.4 mm Array",
+                'xaxis': {'title': 'S/N'},
+                'yaxis': {'title': 'N'},
+                'width': h_width, 
+                'height': h_height,
+                #'margin': {'l': 0, 'r': 0, 'b': 15, 't': 5},
+                'dragmode': 'select',
+                'hovermode': 'closest',
+                'editable': True,
+                'animate': True,
+                'clickmode': 'event+select'
+                # Display a rectangle to highlight the previously selected region
+                }}
+            
+            return figure
+        
+        
+        @app.callback(
+            Output(p1400_h1.id,component_property='figure'),
+            [Input(files.id, 'children'),
+             Input(nw_checklist.id, 'value')]) 
+        def update_p1400_h0(obsnum,checklist):
+            h = []            
+            for i in range(len(checklist)):
+                if int(checklist[i]) in [9,10,11]:
+                    h.extend(ncobs.ncs[int(checklist[i])].p['x'])
+                    
+            figure={
+                'data': [{
+                'x': h,
+                #'text': 0,
+                'textposition': 'top',
+                'customdata': 0,
+                'type': 'histogram',
+                'mode': 'markers+text',
+                'marker': { 'color': '#330C73', #set color equal to a variable
+                'showscale': False,
+                'size': 2 },
+                'unselected': {
+                    'marker': { 'opacity': 0.3 },
+                    'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                }
+                }],
+                'layout': {
+                'title': "1.4 mm Array",
+                'xaxis': {'title': 'x'},
+                'yaxis': {'title': 'N'},
+                'width': h_width, 
+                'height': h_height,
+                #'margin': {'l': 0, 'r': 0, 'b': 15, 't': 5},
+                'dragmode': 'select',
+                'hovermode': 'closest',
+                'editable': True,
+                'animate': True,
+                'clickmode': 'event+select'
+                # Display a rectangle to highlight the previously selected region
+                }}
+            
+            return figure
+        
+        
+        @app.callback(
+            Output(p1400_h2.id,component_property='figure'),
+            [Input(files.id, 'children'),
+             Input(nw_checklist.id, 'value')]) 
+        def update_p1400_h0(obsnum,checklist):
+            h = []            
+            for i in range(len(checklist)):
+                if int(checklist[i]) in [9,10,11]:
+                    h.extend(ncobs.ncs[int(checklist[i])].p['y'])
+                    
+            figure={
+                'data': [{
+                'x': h,
+                #'text': 0,
+                'textposition': 'top',
+                'customdata': 0,
+                'type': 'histogram',
+                'mode': 'markers+text',
+                'marker': { 'color': '#330C73', #set color equal to a variable
+                'showscale': False,
+                'size': 2 },
+                'unselected': {
+                    'marker': { 'opacity': 0.3 },
+                    'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                }
+                }],
+                'layout': {
+                'title': "1.4 mm Array",
+                'xaxis': {'title': 'y'},
+                'yaxis': {'title': 'N'},
+                'width': h_width, 
+                'height': h_height,
+                #'margin': {'l': 0, 'r': 0, 'b': 15, 't': 5},
+                'dragmode': 'select',
+                'hovermode': 'closest',
+                'editable': True,
+                'animate': True,
+                'clickmode': 'event+select'
+                # Display a rectangle to highlight the previously selected region
+                }}
+            
+            return figure
+        
+        
+        @app.callback(
+            Output(p1400_h3.id,component_property='figure'),
+            [Input(files.id, 'children'),
+             Input(nw_checklist.id, 'value')]) 
+        def update_p1400_h0(obsnum,checklist):
+            h = []            
+            for i in range(len(checklist)):
+                if int(checklist[i]) in [9,10,11]:
+                    h.extend(ncobs.ncs[int(checklist[i])].p['fwhmx'])
+                    
+            figure={
+                'data': [{
+                'x': h,
+                #'text': 0,
+                'textposition': 'top',
+                'customdata': 0,
+                'type': 'histogram',
+                'mode': 'markers+text',
+                'marker': { 'color': '#330C73', #set color equal to a variable
+                'showscale': False,
+                'size': 2 },
+                'unselected': {
+                    'marker': { 'opacity': 0.3 },
+                    'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                }
+                }],
+                'layout': {
+                'title': "1.4 mm Array",
+                'xaxis': {'title': 'fwhm_x'},
+                'yaxis': {'title': 'N'},
+                'width': h_width, 
+                'height': h_height,
+                #'margin': {'l': 0, 'r': 0, 'b': 15, 't': 5},
+                'dragmode': 'select',
+                'hovermode': 'closest',
+                'editable': True,
+                'animate': True,
+                'clickmode': 'event+select'
+                # Display a rectangle to highlight the previously selected region
+                }}
+            
+            return figure
+        
+        
+        @app.callback(
+            Output(p1400_h4.id,component_property='figure'),
+            [Input(files.id, 'children'),
+             Input(nw_checklist.id, 'value')]) 
+        def update_p1400_h0(obsnum,checklist):
+            h = []            
+            for i in range(len(checklist)):
+                if int(checklist[i]) in [9,10,11]:
+                    h.extend(ncobs.ncs[int(checklist[i])].p['fwhmy'])
+                    
+            figure={
+                'data': [{
+                'x': h,
+                #'text': 0,
+                'textposition': 'top',
+                'customdata': 0,
+                'type': 'histogram',
+                'mode': 'markers+text',
+                'marker': { 'color': '#330C73', #set color equal to a variable
+                'showscale': False,
+                'size': 2 },
+                'unselected': {
+                    'marker': { 'opacity': 0.3 },
+                    'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                }
+                }],
+                'layout': {
+                'title': "1.4 mm Array",
+                'xaxis': {'title': 'fwhm_y'},
+                'yaxis': {'title': 'N'},
+                'width': h_width, 
+                'height': h_height,
+                #'margin': {'l': 0, 'r': 0, 'b': 15, 't': 5},
+                'dragmode': 'select',
+                'hovermode': 'closest',
+                'editable': True,
+                'animate': True,
+                'clickmode': 'event+select'
+                # Display a rectangle to highlight the previously selected region
+                }}
+            
+            return figure
+        
+        a2000_container = array_tab_container.child(dcc.Tab,label='2.0mm').child(dbc.Row)
+        
+        p2000 = a2000_container.child(dbc.Col).child(dcc.Graph)
+        drp_2000=a2000_container.child(dbc.Col).child(dcc.Dropdown, options=[
+            {'label': 'S/N', 'value': 'amps'},
+            {'label': 'x', 'value': 'x'},
+            {'label': 'y', 'value': 'y'},
+            {'label': 'fwhmx', 'value': 'fwhmx'},
+            {'label': 'fwhmy', 'value': 'fwhmy'}
+        ],
+        value=['x','y'],
+        multi=True
+        )
+        
+        a2000_b_tab = a2000_container.child(dcc.Tabs)
+        
+        p2000_b = a2000_b_tab.child(dcc.Tab,label='beammap').child(dbc.Col).child(dcc.Graph)
+        p2000_b2 = a2000_b_tab.child(dcc.Tab,label='y-slice').child(dbc.Col).child(dcc.Graph)
+        p2000_b3 = a2000_b_tab.child(dcc.Tab,label='x-slice').child(dbc.Col).child(dcc.Graph)
+        
+        t2000 = a2000_container.child(dbc.Table, bordered=True,
+dark=False, hover=True, responsive=True,striped=True,width=100)
+
+        
+        a2000_h_tab = a2000_container.child(dbc.Row)
+        p2000_h0 = a2000_h_tab.child(dbc.Row).child(dbc.Col).child(dcc.Graph,align="center")
+        p2000_h1 = a2000_h_tab.child(dbc.Col).child(dcc.Graph,align="center")
+        p2000_h2 = a2000_h_tab.child(dbc.Col).child(dcc.Graph,align="center")
+        p2000_h3 = a2000_h_tab.child(dbc.Col).child(dcc.Graph,align="center")
+        p2000_h4 = a2000_h_tab.child(dbc.Col).child(dcc.Graph,align="center")
+                
+        @app.callback(
+            Output(p2000.id,component_property='figure'),
+            [Input(files.id, 'children'),
+             Input(drp_2000.id, 'value'),
+             Input(nw_checklist.id, 'value')]
+            ) 
+        def update_a2000(obsnum,value,checklist):            
+            x = []
+            y = []
+            z = []
+            
+            for i in range(len(checklist)):
+                if int(checklist[i]) in [2,3]:
+                    x.extend(ncobs.ncs[int(checklist[i])].p[value[0]])
+                    y.extend(ncobs.ncs[int(checklist[i])].p[value[1]])
+                    
+                    if len(value) == 3:
+                        z.extend(ncobs.ncs[int(checklist[i])].p[value[2]])
+                    else:
+                        z.extend(np.ones(len(ncobs.ncs[int(checklist[i])].p[value[0]]))*int(checklist[i]))
+            
+            figure={
+                'data': [{
+                    'x': x,
+                    'y': y,
+                    'textposition': 'top',
+                    'customdata': 0,
+                    'type': 'scatter',
+                    'mode': 'markers+text',
+                    'marker': {
+                        'color': z,
+                        'colorscale':'Viridis', # one of plotly colorscales
+                        'showscale': True,
+                        'size': 5 
+                    },
+                    'unselected': {
+                        'marker': { 'opacity': 0.3 },
+                        'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                    }
+                }],
+                'layout': {
+                    'title': "2.0 mm Array",
+                    'xaxis': {'title': str(value[0])},
+                    'yaxis': {'title': str(value[1])},
+                    'width': a_width, 
+                    'height': a_height,
+                    #'margin': {'l': 0, 'r': 0, 'b': 15, 't': 5},
+                    'dragmode': 'select',
+                    'hovermode': 'closest',
+                    'editable': True,
+                    'animate': True,
+                    'clickmode': 'event+select'
+                }}
+            
+            return figure
+        
+        
+        @app.callback(
+            Output(p2000_b.id, 'figure'),
+            [Input(p2000.id,'selectedData'),
+             Input(nw_checklist.id, 'value')])
+        def update_b2000(clickData,checklist):
+            #try:
+                pointNumber = clickData['points'][0]['pointNumber']
+                dets = []
+                nws = []
+                
+                for i in range(len(checklist)):
+                    ci = int(checklist[i])
+                    if ci in [2,3]:
+                        nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
+                        dets.extend(range(ncobs.ncs[ci].ndets))
+                        
+                nw = nws[pointNumber]
+                det = dets[pointNumber]
+                
+                print(nw,det)
+                print(np.where(np.array(ncobs.nws) == str(int(nw)))[0][0])
+                
+                z = ncobs.ncs[np.where(np.array(ncobs.nws) == str(int(nw)))[0][0]].x_onoff[:,:,det]
+    
+                figure = {
+                    'data': [{
+                        'x': list(range(ncobs.nrows)),
+                        'y': list(range(ncobs.ncols)),
+                        'z': z,
+                        'textposition': 'top',
+                        'customdata': 0,
+                        'type': 'heatmap',
+                        'mode': 'markers+text',
+                        'marker': { 'color': 'rgba(0, 116, 217, 0.7)', 'size': 5 },
+                        'colorscale':'tropic', # one of plotly colorscales
+                        'unselected': {
+                            'marker': { 'opacity': 0.3 },
+                            'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                        }
+                    }],
+                    'layout': {
+                        'width': b_width, 
+                        'height': b_height,
+                        'title': "2.0 mm Array",
+                        'xaxis': {'title': 'x (pixels)'},
+                        'yaxis': {'title': 'y (pixels)'},
+                        'dragmode': 'select',
+                        'hovermode': True,
+                    }}
+                
+                return figure
+            #except:
+              #  pass
+        
+        
+        @app.callback(
+            Output(p2000_b2.id, 'figure'),
+            [Input(p2000.id,'selectedData'),
+             Input(nw_checklist.id, 'value')])
+        def update_b2000_2(clickData,checklist):
+            try:
+                pointNumber = clickData['points'][0]['pointNumber']
+                dets = []
+                nws = []
+                
+                for i in range(len(checklist)):
+                    ci = int(checklist[i])
+                    if ci in [2,3]:
+                        nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
+                        dets.extend(range(ncobs.ncs[ci].ndets))
+                        
+                nw = nws[pointNumber]
+                det = dets[pointNumber]
+                
+                print(nw,det)
+                nwi = np.where(np.array(ncobs.nws) == str(int(nw)))[0][0]
+                
+                z = ncobs.ncs[np.where(np.array(ncobs.nws) == str(int(nw)))[0][0]].x_onoff[:,:,det]
+                
+                row = int(np.round(ncobs.ncs[nwi].p['x'][det]))
+                col = int(np.round(ncobs.ncs[nwi].p['y'][det]))
+                
+                figure = {
+                    'data': [{
+                         'x': list(range(ncobs.nrows)),
+                         'y': z[:,row],
+                        #'z': z,
+                        'textposition': 'top',
+                        'customdata': 0,
+                        'type': 'line',
+                        'mode': 'lines+text',
+                        #'marker': { 'color': 'rgba(0, 116, 217, 0.7)', 'size': 5 },
+                        'colorscale':'tropic', # one of plotly colorscales
+                        'unselected': {
+                            'marker': { 'opacity': 0.3 },
+                            'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                        }
+                    }],
+                    'layout': {
+                        'width': b_width, 
+                        'height': b_height,
+                        'title': "2.0 mm Array",
+                        'xaxis': {'title': 'y (pixels)'},
+                        'yaxis': {'title': 'S/N'},
+                        'dragmode': 'select',
+                        'hovermode': True,
+                    }}
+                
+                return figure
+            except:
+                pass
+            
+            
+        @app.callback(
+            Output(p2000_b3.id, 'figure'),
+            [Input(p2000.id,'selectedData'),
+             Input(nw_checklist.id, 'value')])
+        def update_b2000_3(clickData,checklist):
+            try:
+                pointNumber = clickData['points'][0]['pointNumber']
+                dets = []
+                nws = []
+                
+                for i in range(len(checklist)):
+                    ci = int(checklist[i])
+                    if ci in [2,3]:
+                        nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
+                        dets.extend(range(ncobs.ncs[ci].ndets))
+                        
+                nw = nws[pointNumber]
+                det = dets[pointNumber]
+                
+                print(nw,det)
+                nwi = np.where(np.array(ncobs.nws) == str(int(nw)))[0][0]
+                
+                z = ncobs.ncs[np.where(np.array(ncobs.nws) == str(int(nw)))[0][0]].x_onoff[:,:,det]
+                
+                row = int(np.round(ncobs.ncs[nwi].p['x'][det]))
+                col = int(np.round(ncobs.ncs[nwi].p['y'][det]))
+                
+                figure = {
+                    'data': [{
+                        'x': list(range(ncobs.ncols)),
+                        'y': z[col,:],
+                        #'z': z,
+                        'textposition': 'top',
+                        'customdata': 0,
+                        'type': 'line',
+                        'mode': 'lines+text',
+                        #'marker': { 'color': 'rgba(0, 116, 217, 0.7)', 'size': 5 },
+                        'colorscale':'tropic', # one of plotly colorscales
+                        'unselected': {
+                            'marker': { 'opacity': 0.3 },
+                            'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                        }
+                    }],
+                    'layout': {
+                        'width': b_width, 
+                        'height': b_height,
+                        'title': "2.0 mm Array",
+                         'xaxis': {'title': 'x (pixels)'},
+                         'yaxis': {'title': 'S/N'},
+                        'dragmode': 'select',
+                        'hovermode': True,
+                    }}
+                
+                return figure
+            except:
+                pass
+            
+        @app.callback(
+            Output(t2000.id, 'children'),
+            [Input(p2000.id,'selectedData'),
+             Input(nw_checklist.id, 'value')])
+        def update_t2000(clickData,checklist):
+            try:
+                pointNumber = clickData['points'][0]['pointNumber']
+                dets = []
+                nws = []
+                
+                for i in range(len(checklist)):
+                    ci = int(checklist[i])
+                    if ci in [2,3]:
+                        nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
+                        dets.extend(range(ncobs.ncs[ci].ndets))
+                        
+                nw = nws[pointNumber]
+                det = dets[pointNumber]
+                
+                print(nw,det)
+                nwi = np.where(np.array(ncobs.nws) == str(int(nw)))[0][0]
+
+                row0 = html.Tr([html.Td("S/N"), html.Td('%.3f' % (ncobs.ncs[nwi].p['amps'][det]))])
+                row1 = html.Tr([html.Td("x"), html.Td('%.3f' % (ncobs.ncs[nwi].p['x'][det]))])
+                row2 = html.Tr([html.Td("y"), html.Td('%.3f' % (ncobs.ncs[nwi].p['y'][det]))])
+                row3 = html.Tr([html.Td("fwhm_x"), html.Td('%.3f' % (ncobs.ncs[nwi].p['fwhmx'][det]))])
+                row4 = html.Tr([html.Td("fwhm_y"), html.Td('%.3f' % (ncobs.ncs[nwi].p['fwhmy'][det]))])
+                row5 = html.Tr([html.Td("f"), html.Td('N/A')])
+                row6 = html.Tr([html.Td("nw"), html.Td(int(nw))])
+                row7 = html.Tr([html.Td("det"), html.Td(int(det))])
+    
+                table_body = [html.Tbody([row0,row1, row2, row3, row4,row5,row6,row7])]
+                return table_header + table_body
+            
+            except:
+                 return []
+             
+             
+        @app.callback(
+            Output(p2000_h0.id,component_property='figure'),
+            [Input(files.id, 'children'),
+             Input(nw_checklist.id, 'value')]) 
+        def update_p2000_h0(obsnum,checklist):
+            h = []            
+            for i in range(len(checklist)):
+                if int(checklist[i]) in [2,3]:
+                    h.extend(ncobs.ncs[int(checklist[i])].p['amps'])
+                    
+            figure={
+                'data': [{
+                'x': h,
+                #'text': 0,
+                'textposition': 'top',
+                'customdata': 0,
+                'type': 'histogram',
+                'mode': 'markers+text',
+                'marker': { 'color': '#330C73', #set color equal to a variable
+                'showscale': False,
+                'size': 2 },
+                'unselected': {
+                    'marker': { 'opacity': 0.3 },
+                    'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                }
+                }],
+                'layout': {
+                'title': "2.0 mm Array",
+                'xaxis': {'title': 'S/N'},
+                'yaxis': {'title': 'N'},
+                'width': h_width, 
+                'height': h_height,
+                #'margin': {'l': 0, 'r': 0, 'b': 15, 't': 5},
+                'dragmode': 'select',
+                'hovermode': 'closest',
+                'editable': True,
+                'animate': True,
+                'clickmode': 'event+select'
+                # Display a rectangle to highlight the previously selected region
+                }}
+            
+            return figure
+        
+        
+        @app.callback(
+            Output(p2000_h1.id,component_property='figure'),
+            [Input(files.id, 'children'),
+             Input(nw_checklist.id, 'value')]) 
+        def update_p2000_h0(obsnum,checklist):
+            h = []            
+            for i in range(len(checklist)):
+                if int(checklist[i]) in [2,3]:
+                    h.extend(ncobs.ncs[int(checklist[i])].p['x'])
+                    
+            figure={
+                'data': [{
+                'x': h,
+                #'text': 0,
+                'textposition': 'top',
+                'customdata': 0,
+                'type': 'histogram',
+                'mode': 'markers+text',
+                'marker': { 'color': '#330C73', #set color equal to a variable
+                'showscale': False,
+                'size': 2 },
+                'unselected': {
+                    'marker': { 'opacity': 0.3 },
+                    'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                }
+                }],
+                'layout': {
+                'title': "2.0 mm Array",
+                'xaxis': {'title': 'x'},
+                'yaxis': {'title': 'N'},
+                'width': h_width, 
+                'height': h_height,
+                #'margin': {'l': 0, 'r': 0, 'b': 15, 't': 5},
+                'dragmode': 'select',
+                'hovermode': 'closest',
+                'editable': True,
+                'animate': True,
+                'clickmode': 'event+select'
+                # Display a rectangle to highlight the previously selected region
+                }}
+            
+            return figure
+        
+        
+        @app.callback(
+            Output(p2000_h2.id,component_property='figure'),
+            [Input(files.id, 'children'),
+             Input(nw_checklist.id, 'value')]) 
+        def update_p2000_h0(obsnum,checklist):
+            h = []            
+            for i in range(len(checklist)):
+                if int(checklist[i]) in [2,3]:
+                    h.extend(ncobs.ncs[int(checklist[i])].p['y'])
+                    
+            figure={
+                'data': [{
+                'x': h,
+                #'text': 0,
+                'textposition': 'top',
+                'customdata': 0,
+                'type': 'histogram',
+                'mode': 'markers+text',
+                'marker': { 'color': '#330C73', #set color equal to a variable
+                'showscale': False,
+                'size': 2 },
+                'unselected': {
+                    'marker': { 'opacity': 0.3 },
+                    'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                }
+                }],
+                'layout': {
+                'title': "2.0 mm Array",
+                'xaxis': {'title': 'y'},
+                'yaxis': {'title': 'N'},
+                'width': h_width, 
+                'height': h_height,
+                #'margin': {'l': 0, 'r': 0, 'b': 15, 't': 5},
+                'dragmode': 'select',
+                'hovermode': 'closest',
+                'editable': True,
+                'animate': True,
+                'clickmode': 'event+select'
+                # Display a rectangle to highlight the previously selected region
+                }}
+            
+            return figure
+        
+        
+        @app.callback(
+            Output(p2000_h3.id,component_property='figure'),
+            [Input(files.id, 'children'),
+             Input(nw_checklist.id, 'value')]) 
+        def update_p2000_h0(obsnum,checklist):
+            h = []            
+            for i in range(len(checklist)):
+                if int(checklist[i]) in [2,3]:
+                    h.extend(ncobs.ncs[int(checklist[i])].p['fwhmx'])
+                    
+            figure={
+                'data': [{
+                'x': h,
+                #'text': 0,
+                'textposition': 'top',
+                'customdata': 0,
+                'type': 'histogram',
+                'mode': 'markers+text',
+                'marker': { 'color': '#330C73', #set color equal to a variable
+                'showscale': False,
+                'size': 2 },
+                'unselected': {
+                    'marker': { 'opacity': 0.3 },
+                    'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                }
+                }],
+                'layout': {
+                'title': "2.0 mm Array",
+                'xaxis': {'title': 'fwhm_x'},
+                'yaxis': {'title': 'N'},
+                'width': h_width, 
+                'height': h_height,
+                #'margin': {'l': 0, 'r': 0, 'b': 15, 't': 5},
+                'dragmode': 'select',
+                'hovermode': 'closest',
+                'editable': True,
+                'animate': True,
+                'clickmode': 'event+select'
+                # Display a rectangle to highlight the previously selected region
+                }}
+            
+            return figure
+        
+        
+        @app.callback(
+            Output(p2000_h4.id,component_property='figure'),
+            [Input(files.id, 'children'),
+             Input(nw_checklist.id, 'value')]) 
+        def update_p2000_h0(obsnum,checklist):
+            h = []            
+            for i in range(len(checklist)):
+                if int(checklist[i]) in [2,3]:
+                    h.extend(ncobs.ncs[int(checklist[i])].p['fwhmy'])
+                    
+            figure={
+                'data': [{
+                'x': h,
+                #'text': 0,
+                'textposition': 'top',
+                'customdata': 0,
+                'type': 'histogram',
+                'mode': 'markers+text',
+                'marker': { 'color': '#330C73', #set color equal to a variable
+                'showscale': False,
+                'size': 2 },
+                'unselected': {
+                    'marker': { 'opacity': 0.3 },
+                    'textfont': { 'color': 'rgba(0, 0, 0, 0)' }
+                }
+                }],
+                'layout': {
+                'title': "2.0 mm Array",
+                'xaxis': {'title': 'fwhm_y'},
+                'yaxis': {'title': 'N'},
+                'width': h_width, 
+                'height': h_height,
+                #'margin': {'l': 0, 'r': 0, 'b': 15, 't': 5},
+                'dragmode': 'select',
+                'hovermode': 'closest',
+                'editable': True,
+                'animate': True,
+                'clickmode': 'event+select'
+                # Display a rectangle to highlight the previously selected region
+                }}
+            
+            return figure
         
         
               
