@@ -33,7 +33,7 @@ import re
 import sys
 
 #Uses the wyatt_classes.py file for the class to hold the data.
-sys.path.insert(0, "/Users/mmccrackan/toltec/python/wyatt/")
+sys.path.insert(0, "/home/mmccrackan/wyatt/")
 from wyatt_classes import obs, ncdata
 
 class beammap(ComponentTemplate):
@@ -66,7 +66,7 @@ class beammap(ComponentTemplate):
         
         path_input = button_container.child(dbc.Col).child(dcc.Input, placeholder="Enter File Path: ",
             type='string',
-            value='/Users/mmccrackan/toltec/data/tests/wyatt/coadd_20200506/')
+            value='/home/mmccrackan/wyatt/coadd/')
         
         
         #Creates the checklist for the different networks.  Values correspond
@@ -101,10 +101,10 @@ class beammap(ComponentTemplate):
         ncols = 25
         sf = 488.281/4
         #hardcoded path to files
-        path = '/Users/mmccrackan/toltec/data/tests/wyatt/'
+        path = '/home/mmccrackan/wyatt/'
         
         #hardcoded obsnum (directory name containing nc files)
-        obsnum = 'coadd_20200506'
+        obsnum = 'coadd'
         
         #Load all of the nc files into the ncobs object.  May break if
         #there are multiple nc files for each network.
@@ -112,7 +112,7 @@ class beammap(ComponentTemplate):
         
         #Frequencies are acquired separately due to a potential bug in the
         #kids reduce code
-        f = np.load('/Users/mmccrackan/toltec/data/tests/wyatt/10886/10886_f_tone.npy',allow_pickle=True).item()
+        f = np.load('/home/mmccrackan/wyatt/10886_f_tone.npy',allow_pickle=True).item()
         
         for i in range(len(ncobs.nws)):
             try:
