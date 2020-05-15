@@ -32,6 +32,7 @@ import json
 import re
 import sys
 
+#Uses the wyatt_classes.py file for the class to hold the data.
 sys.path.insert(0, "/Users/mmccrackan/toltec/python/wyatt/")
 from wyatt_classes import obs, ncdata
 
@@ -41,11 +42,12 @@ class beammap(ComponentTemplate):
 
     def setup_layout(self, app):
         body = self.child(dbc.Row).child(dbc.Col)
+        #Header for the 3 tables for selected detectors.
         table_header = [html.Thead(html.Tr([html.Th("Parameter"), html.Th("Value")]))]
 
         #dimensions of array plots
-        a_width=600
-        a_height=600
+        a_width=500
+        a_height=500
         
         #dimensions of beammap plots
         b_width=400
@@ -55,6 +57,7 @@ class beammap(ComponentTemplate):
         h_width = 500 
         h_height = 400
 
+        #Container for the various options at the top of the page
         button_container = body.child(dbc.Row)
         file_container = button_container.child(dbc.Col).child(html.Div, className='d-flex')
         
@@ -66,6 +69,8 @@ class beammap(ComponentTemplate):
             value='/Users/mmccrackan/toltec/data/tests/wyatt/coadd_20200506/')
         
         
+        #Creates the checklist for the different networks.  Values correspond
+        #to the ordering in the ncobs.nws list.
         nw_checklist = button_container.child(dbc.Col).child(dcc.Checklist,
         options=[
             {'label': 'network 0', 'value': '0'},
@@ -78,26 +83,35 @@ class beammap(ComponentTemplate):
             {'label': 'network 7', 'value': '9'},
             {'label': 'network 8', 'value': '10'},
             {'label': 'network 9', 'value': '11'},
-            {'label': 'network 10', 'value': '2'},
-            {'label': 'network 11', 'value': '3'},
-
+            {'label': 'network 10', 'value': '-1'},
+            {'label': 'network 11', 'value': '2'},
+            {'label': 'network 12', 'value': '3'},
         ],
             value=[],
             labelStyle={'display': 'inline-block'}
         )  
                 
         
+        #This container is for the array plot.  Note it uses dcc.Tabs to create
+        #a overall tab.
         array_tab_container = body.child(dbc.Row).child(dcc.Tabs,vertical=True)
 
+        #hardcoded rows,cols, sampling frequency for now
         nrows = 21
         ncols = 25
         sf = 488.281/4
+        #hardcoded path to files
         path = '/Users/mmccrackan/toltec/data/tests/wyatt/'
         
+        #hardcoded obsnum (directory name containing nc files)
         obsnum = 'coadd_20200506'
-        #obsnum = 10891
+        
+        #Load all of the nc files into the ncobs object.  May break if
+        #there are multiple nc files for each network.
         ncobs = obs(obsnum,nrows,ncols,path,sf,order='C',transpose=False)
         
+        #Frequencies are acquired separately due to a potential bug in the
+        #kids reduce code
         f = np.load('/Users/mmccrackan/toltec/data/tests/wyatt/10886/10886_f_tone.npy',allow_pickle=True).item()
         
         for i in range(len(ncobs.nws)):
@@ -106,10 +120,16 @@ class beammap(ComponentTemplate):
             except:
                 print('cannot get frequencies for nws ' + str(ncobs.nws[i]))
                 
-                
+               
+        #Make a tab for the 1.1 mm plots
         a1100_container = array_tab_container.child(dcc.Tab,label='1.1mm').child(dbc.Row)
         
+        #This creates a graph for the 1.1 mm array plot
         p1100 = a1100_container.child(dbc.Col).child(dcc.Graph)
+        
+        #Inside of the 1.1 mm container, make a dropdown to control the
+        #plotted axes for the array plot.  Separate for each array.   Defaults
+        #to x, y
         drp_1100=a1100_container.child(dbc.Col).child(dcc.Dropdown, options=[
             {'label': 'S/N', 'value': 'amps'},
             {'label': 'x', 'value': 'x'},
@@ -121,23 +141,32 @@ class beammap(ComponentTemplate):
         multi=True
         )
         
+        
+        #Make a tab for the 1.1 mm beammap and slice plots
         a1100_b_tab = a1100_container.child(dcc.Tabs)
         
+        #Tabs and graphs for the 1.1 mm beammap and slice plots
         p1100_b = a1100_b_tab.child(dcc.Tab,label='beammap').child(dbc.Col).child(dcc.Graph)
         p1100_b2 = a1100_b_tab.child(dcc.Tab,label='y-slice').child(dbc.Col).child(dcc.Graph)
         p1100_b3 = a1100_b_tab.child(dcc.Tab,label='x-slice').child(dbc.Col).child(dcc.Graph)
         
+        #A container for the 1.1 mm table
         t1100 = a1100_container.child(dbc.Table, bordered=True,
 dark=False, hover=True, responsive=True,striped=True,width=100)
 
-        
+        #Create a tab for the 1.1 mm histograms        
         a1100_h_tab = a1100_container.child(dbc.Row)
+        
+        #Set up each histogram for the 1.1 mm array.  Each is a new column.
         p1100_h0 = a1100_h_tab.child(dbc.Row).child(dbc.Col).child(dcc.Graph,align="center")
         p1100_h1 = a1100_h_tab.child(dbc.Col).child(dcc.Graph,align="center")
         p1100_h2 = a1100_h_tab.child(dbc.Col).child(dcc.Graph,align="center")
         p1100_h3 = a1100_h_tab.child(dbc.Col).child(dcc.Graph,align="center")
         p1100_h4 = a1100_h_tab.child(dbc.Col).child(dcc.Graph,align="center")
                 
+        
+        #Call back for displaying the list of files.  Searches the path for
+        #nc files and returns them without the path.
         @app.callback(Output(files.id, 'children'),
               [Input(path_input.id,'value'),
               Input(nw_checklist.id,'value')])
@@ -155,37 +184,50 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
                             
             if file_list == []:
                 return 'N/A'
-            else:
+            elif len(file_list) <= 12:
                 return np.sort(file_list_short)
-            
+            else:
+                return np.sort(file_list_short[:12],'...') 
         
+        #Callback to clear the network checklist when the path is changed.
+        #Prevents it from immediately plotting selected networks when the a
+        #new set of files is selected.
         @app.callback(Output(nw_checklist.id, 'value'),
                       [Input(path_input.id,'value')])
         def clear_checklist(path):
             return []
         
-        
+        #This creates the array plot for the 1.1 mm array.  It takes the
+        #dropdown and checklist as input.  From the checklist, it creates
+        #lists of all selected parameters from the dropdown using only the
+        #networks selected.  This then updates 'data' in the figure.
         @app.callback(
             Output(p1100.id,component_property='figure'),
             [Input(files.id, 'children'),
              Input(drp_1100.id, 'value'),
              Input(nw_checklist.id, 'value')]
             ) 
-        def update_a1100(obsnum,value,checklist):            
+        def update_a1100(obsnum,value,checklist):      
+            
+            #Lists for the x,y, and color
             x = []
             y = []
             z = []
             
+            #Fill up x,y, and z for all detectors in the given networks.
             for i in range(len(checklist)):
                 if int(checklist[i]) in [0,1,4,5,6,7,8]:
                     x.extend(ncobs.ncs[int(checklist[i])].p[value[0]])
                     y.extend(ncobs.ncs[int(checklist[i])].p[value[1]])
                     
+                    #If a third option is entered in the dropbox, use that
+                    #for a color.  Else color by network
                     if len(value) == 3:
                         z.extend(ncobs.ncs[int(checklist[i])].p[value[2]])
                     else:
                         z.extend(np.ones(len(ncobs.ncs[int(checklist[i])].p[value[0]]))*int(checklist[i]))
             
+            #return dict with all plotting options
             figure={
                 'data': [{
                     'x': x,
@@ -222,13 +264,24 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             return figure
         
         
+        #Creates the beammap plot for the 1.1 mm array.  It takes the
+        #clickData from the 1.1 mm array plot as input along with the checklist
+        #It then finds the corresponding detector by assembling network and
+        #detector lists and plots that beammap.  The beammap matrix is assembled
+        #at the start when ncobs is created.
         @app.callback(
             Output(p1100_b.id, 'figure'),
             [Input(p1100.id,'selectedData'),
              Input(nw_checklist.id, 'value')])
         def update_b1100(clickData,checklist):
             #try:
+                #pointNumber is the number in a list of all plotted points of
+                #the nearest data point to where was clicked
                 pointNumber = clickData['points'][0]['pointNumber']
+                
+                #Make lists of the networks and detector numbers so we can
+                #find out what network pointNumber is in and what detector
+                #number in that network it corresponds to.
                 dets = []
                 nws = []
                 
@@ -241,11 +294,10 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
                 nw = nws[pointNumber]
                 det = dets[pointNumber]
                 
-                print(nw,det)
-                print(np.where(np.array(ncobs.nws) == str(int(nw)))[0][0])
-                
+                #Get the map for the corresponding detector that was clicked                
                 z = ncobs.ncs[np.where(np.array(ncobs.nws) == str(int(nw)))[0][0]].x_onoff[:,:,det]
     
+                #return the figure dict
                 figure = {
                     'data': [{
                         'x': list(range(ncobs.nrows)),
@@ -277,6 +329,11 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
               #  pass
         
         
+        #Creates the y slice plot for the 1.1 mm array.  It takes the
+        #clickData from the 1.1 mm array plot as input along with the checklist
+        #It then finds the corresponding detector by assembling network and
+        #detector lists and plots that y slice.  The beammap matrix is assembled
+        #at the start when ncobs is created.
         @app.callback(
             Output(p1100_b2.id, 'figure'),
             [Input(p1100.id,'selectedData'),
@@ -301,6 +358,9 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
                 
                 z = ncobs.ncs[np.where(np.array(ncobs.nws) == str(int(nw)))[0][0]].x_onoff[:,:,det]
                 
+                
+                #To find which row and column to slice on, we find the x,y
+                #centroid and round to the nearest element in the matrix.
                 row = int(np.round(ncobs.ncs[nwi].p['x'][det]))
                 col = int(np.round(ncobs.ncs[nwi].p['y'][det]))
                 
@@ -334,7 +394,12 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             except:
                 pass
             
-            
+         
+        #Creates the x slice plot for the 1.1 mm array.  It takes the
+        #clickData from the 1.1 mm array plot as input along with the checklist
+        #It then finds the corresponding detector by assembling network and
+        #detector lists and plots that x slice.  The beammap matrix is assembled
+        #at the start when ncobs is created.
         @app.callback(
             Output(p1100_b3.id, 'figure'),
             [Input(p1100.id,'selectedData'),
@@ -354,11 +419,12 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
                 nw = nws[pointNumber]
                 det = dets[pointNumber]
                 
-                print(nw,det)
                 nwi = np.where(np.array(ncobs.nws) == str(int(nw)))[0][0]
                 
                 z = ncobs.ncs[np.where(np.array(ncobs.nws) == str(int(nw)))[0][0]].x_onoff[:,:,det]
                 
+                #To find which row and column to slice on, we find the x,y
+                #centroid and round to the nearest element in the matrix.
                 row = int(np.round(ncobs.ncs[nwi].p['x'][det]))
                 col = int(np.round(ncobs.ncs[nwi].p['y'][det]))
                 
@@ -392,6 +458,10 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             except:
                 pass
             
+        #This callback updates the table for a selected detector and is
+        #triggered on the selection of new data in the 1.1 mm array plot.  It
+        #pulls the parameters from the nocbs object.  The detector and
+        #network are calculated in the same way as the beammap plot.
         @app.callback(
             Output(t1100.id, 'children'),
             [Input(p1100.id,'selectedData'),
@@ -411,7 +481,6 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
                 nw = nws[pointNumber]
                 det = dets[pointNumber]
                 
-                print(nw,det)
                 nwi = np.where(np.array(ncobs.nws) == str(int(nw)))[0][0]
 
                 row0 = html.Tr([html.Td("S/N"), html.Td('%.3f' % (ncobs.ncs[nwi].p['amps'][det]))])
@@ -419,7 +488,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
                 row2 = html.Tr([html.Td("y"), html.Td('%.3f' % (ncobs.ncs[nwi].p['y'][det]))])
                 row3 = html.Tr([html.Td("fwhm_x"), html.Td('%.3f' % (ncobs.ncs[nwi].p['fwhmx'][det]))])
                 row4 = html.Tr([html.Td("fwhm_y"), html.Td('%.3f' % (ncobs.ncs[nwi].p['fwhmy'][det]))])
-                row5 = html.Tr([html.Td("f"), html.Td('N/A')])
+                row5 = html.Tr([html.Td("f"), html.Td('%.3f' % (ncobs.ncs[nwi].f[det]))])
                 row6 = html.Tr([html.Td("nw"), html.Td(int(nw))])
                 row7 = html.Tr([html.Td("det"), html.Td(int(det))])
     
@@ -429,12 +498,17 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             except:
                  return []
              
-             
+           
+        #Makes the 1.1 mm S/N histogram for the currently plotted networks.
+        #works in the same way as the array plot in that it assembles lists
+        #for the networks picked by the checklist.
         @app.callback(
             Output(p1100_h0.id,component_property='figure'),
             [Input(files.id, 'children'),
              Input(nw_checklist.id, 'value')]) 
         def update_p1100_h0(obsnum,checklist):
+            
+            #Same as the array plot, but we only need one parameter.
             h = []            
             for i in range(len(checklist)):
                 if int(checklist[i]) in [0,1,4,5,6,7,8]:
@@ -474,11 +548,16 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             return figure
         
         
+        #Makes the 1.1 mm x centroid histogram for the currently plotted networks.
+        #works in the same way as the array plot in that it assembles lists
+        #for the networks picked by the checklist.
         @app.callback(
             Output(p1100_h1.id,component_property='figure'),
             [Input(files.id, 'children'),
              Input(nw_checklist.id, 'value')]) 
-        def update_p1100_h0(obsnum,checklist):
+        def update_p1100_h1(obsnum,checklist):
+            
+            #Same as the array plot, but we only need one parameter.
             h = []            
             for i in range(len(checklist)):
                 if int(checklist[i]) in [0,1,4,5,6,7,8]:
@@ -517,12 +596,16 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             
             return figure
         
-        
+        #Makes the 1.1 mm y centroid histogram for the currently plotted networks.
+        #works in the same way as the array plot in that it assembles lists
+        #for the networks picked by the checklist.
         @app.callback(
             Output(p1100_h2.id,component_property='figure'),
             [Input(files.id, 'children'),
              Input(nw_checklist.id, 'value')]) 
-        def update_p1100_h0(obsnum,checklist):
+        def update_p1100_h2(obsnum,checklist):
+            
+            #Same as the array plot, but we only need one parameter.
             h = []            
             for i in range(len(checklist)):
                 if int(checklist[i]) in [0,1,4,5,6,7,8]:
@@ -562,11 +645,16 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             return figure
         
         
+        #Makes the 1.1 mm fwhm_x histogram for the currently plotted networks.
+        #works in the same way as the array plot in that it assembles lists
+        #for the networks picked by the checklist.
         @app.callback(
             Output(p1100_h3.id,component_property='figure'),
             [Input(files.id, 'children'),
              Input(nw_checklist.id, 'value')]) 
-        def update_p1100_h0(obsnum,checklist):
+        def update_p1100_h3(obsnum,checklist):
+            
+            #Same as the array plot, but we only need one parameter.
             h = []            
             for i in range(len(checklist)):
                 if int(checklist[i]) in [0,1,4,5,6,7,8]:
@@ -606,11 +694,17 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             return figure
         
         
+        
+        #Makes the 1.1 mm fwhm_y histogram for the currently plotted networks.
+        #works in the same way as the array plot in that it assembles lists
+        #for the networks picked by the checklist.
         @app.callback(
             Output(p1100_h4.id,component_property='figure'),
             [Input(files.id, 'children'),
              Input(nw_checklist.id, 'value')]) 
-        def update_p1100_h0(obsnum,checklist):
+        def update_p1100_h4(obsnum,checklist):
+            
+            #Same as the array plot, but we only need one parameter.
             h = []            
             for i in range(len(checklist)):
                 if int(checklist[i]) in [0,1,4,5,6,7,8]:
@@ -649,6 +743,9 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             
             return figure
         
+        
+        #Below is the code for the 1.4 mm array.  This is identical to the 
+        #1.1 mm array, so see the corresponding function above for comments.
         a1400_container = array_tab_container.child(dcc.Tab,label='1.4mm').child(dbc.Row)
         
         p1400 = a1400_container.child(dbc.Col).child(dcc.Graph)
@@ -669,8 +766,9 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
         p1400_b2 = a1400_b_tab.child(dcc.Tab,label='y-slice').child(dbc.Col).child(dcc.Graph)
         p1400_b3 = a1400_b_tab.child(dcc.Tab,label='x-slice').child(dbc.Col).child(dcc.Graph)
         
-        t1400 = a1400_container.child(dbc.Table, bordered=True,
-dark=False, hover=True, responsive=True,striped=True,width=100)
+        t1400 = a1400_container.child(dbc.Table, bordered=True, dark=False, 
+                                      hover=True, responsive=True,striped=True,
+                                      width=100)
 
         
         a1400_h_tab = a1400_container.child(dbc.Row)
@@ -934,7 +1032,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
                 row2 = html.Tr([html.Td("y"), html.Td('%.3f' % (ncobs.ncs[nwi].p['y'][det]))])
                 row3 = html.Tr([html.Td("fwhm_x"), html.Td('%.3f' % (ncobs.ncs[nwi].p['fwhmx'][det]))])
                 row4 = html.Tr([html.Td("fwhm_y"), html.Td('%.3f' % (ncobs.ncs[nwi].p['fwhmy'][det]))])
-                row5 = html.Tr([html.Td("f"), html.Td('N/A')])
+                row5 = html.Tr([html.Td("f"), html.Td('%.3f' % (ncobs.ncs[nwi].f[det]))])
                 row6 = html.Tr([html.Td("nw"), html.Td(int(nw))])
                 row7 = html.Tr([html.Td("det"), html.Td(int(det))])
     
@@ -993,7 +1091,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             Output(p1400_h1.id,component_property='figure'),
             [Input(files.id, 'children'),
              Input(nw_checklist.id, 'value')]) 
-        def update_p1400_h0(obsnum,checklist):
+        def update_p1400_h1(obsnum,checklist):
             h = []            
             for i in range(len(checklist)):
                 if int(checklist[i]) in [9,10,11]:
@@ -1037,7 +1135,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             Output(p1400_h2.id,component_property='figure'),
             [Input(files.id, 'children'),
              Input(nw_checklist.id, 'value')]) 
-        def update_p1400_h0(obsnum,checklist):
+        def update_p1400_h2(obsnum,checklist):
             h = []            
             for i in range(len(checklist)):
                 if int(checklist[i]) in [9,10,11]:
@@ -1081,7 +1179,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             Output(p1400_h3.id,component_property='figure'),
             [Input(files.id, 'children'),
              Input(nw_checklist.id, 'value')]) 
-        def update_p1400_h0(obsnum,checklist):
+        def update_p1400_h3(obsnum,checklist):
             h = []            
             for i in range(len(checklist)):
                 if int(checklist[i]) in [9,10,11]:
@@ -1125,7 +1223,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             Output(p1400_h4.id,component_property='figure'),
             [Input(files.id, 'children'),
              Input(nw_checklist.id, 'value')]) 
-        def update_p1400_h0(obsnum,checklist):
+        def update_p1400_h4(obsnum,checklist):
             h = []            
             for i in range(len(checklist)):
                 if int(checklist[i]) in [9,10,11]:
@@ -1164,6 +1262,9 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             
             return figure
         
+        
+        #Below is the code for the 2.0 mm array.  This is identical to the 
+        #1.1 mm array, so see the corresponding function above for comments.
         a2000_container = array_tab_container.child(dcc.Tab,label='2.0mm').child(dbc.Row)
         
         p2000 = a2000_container.child(dbc.Col).child(dcc.Graph)
@@ -1449,7 +1550,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
                 row2 = html.Tr([html.Td("y"), html.Td('%.3f' % (ncobs.ncs[nwi].p['y'][det]))])
                 row3 = html.Tr([html.Td("fwhm_x"), html.Td('%.3f' % (ncobs.ncs[nwi].p['fwhmx'][det]))])
                 row4 = html.Tr([html.Td("fwhm_y"), html.Td('%.3f' % (ncobs.ncs[nwi].p['fwhmy'][det]))])
-                row5 = html.Tr([html.Td("f"), html.Td('N/A')])
+                row5 = html.Tr([html.Td("f"), html.Td('%.3f' % (ncobs.ncs[nwi].f[det]))])
                 row6 = html.Tr([html.Td("nw"), html.Td(int(nw))])
                 row7 = html.Tr([html.Td("det"), html.Td(int(det))])
     
@@ -1508,7 +1609,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             Output(p2000_h1.id,component_property='figure'),
             [Input(files.id, 'children'),
              Input(nw_checklist.id, 'value')]) 
-        def update_p2000_h0(obsnum,checklist):
+        def update_p2000_h1(obsnum,checklist):
             h = []            
             for i in range(len(checklist)):
                 if int(checklist[i]) in [2,3]:
@@ -1552,7 +1653,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             Output(p2000_h2.id,component_property='figure'),
             [Input(files.id, 'children'),
              Input(nw_checklist.id, 'value')]) 
-        def update_p2000_h0(obsnum,checklist):
+        def update_p2000_h2(obsnum,checklist):
             h = []            
             for i in range(len(checklist)):
                 if int(checklist[i]) in [2,3]:
@@ -1596,7 +1697,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             Output(p2000_h3.id,component_property='figure'),
             [Input(files.id, 'children'),
              Input(nw_checklist.id, 'value')]) 
-        def update_p2000_h0(obsnum,checklist):
+        def update_p2000_h3(obsnum,checklist):
             h = []            
             for i in range(len(checklist)):
                 if int(checklist[i]) in [2,3]:
@@ -1640,7 +1741,7 @@ dark=False, hover=True, responsive=True,striped=True,width=100)
             Output(p2000_h4.id,component_property='figure'),
             [Input(files.id, 'children'),
              Input(nw_checklist.id, 'value')]) 
-        def update_p2000_h0(obsnum,checklist):
+        def update_p2000_h4(obsnum,checklist):
             h = []            
             for i in range(len(checklist)):
                 if int(checklist[i]) in [2,3]:
