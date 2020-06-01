@@ -1,0 +1,2165 @@
+- attrs:
+  - desc: Toltec Sample Time
+    dims:
+    - 16
+    name: SampleTime
+    parent_type: ToltecThermetryData
+    type: int
+  - desc: Toltec Temperature in Kelvin
+    dims:
+    - 16
+    name: Temperature
+    parent_type: ToltecThermetryData
+    type: double
+  - desc: Toltec Resistance in Ohms
+    dims:
+    - 16
+    name: Resistance
+    parent_type: ToltecThermetryData
+    type: double
+  - desc: Enabled Setting
+    dims:
+    - 16
+    name: Enabled
+    parent_type: ToltecThermetryData
+    type: int
+  - desc: Active Status
+    dims:
+    - 16
+    name: Active
+    parent_type: ToltecThermetryData
+    type: int
+  - desc: Channel Status
+    dims:
+    - 16
+    name: ChanStatus
+    parent_type: ToltecThermetryData
+    type: int
+  - desc: Channel Excitation
+    dims:
+    - 16
+    name: Excitation
+    parent_type: ToltecThermetryData
+    type: int
+  - desc: Channel Range
+    dims:
+    - 16
+    name: Range
+    parent_type: ToltecThermetryData
+    type: int
+  - desc: LogOn Flag
+    name: LogOn
+    parent_type: ToltecThermetryData
+    type: int
+  - desc: ChannelLabel
+    dims:
+    - 16
+    name: ChanLabel
+    parent_type: ToltecThermetryData
+    type: string
+  - desc: LocX
+    dims:
+    - 16
+    name: LocX
+    parent_type: ToltecThermetryData
+    type: double
+  - desc: LocY
+    dims:
+    - 16
+    name: LocY
+    parent_type: ToltecThermetryData
+    type: double
+  - desc: Heartbeat
+    name: Heartbeat
+    parent_type: ToltecThermetryData
+    type: int
+  - desc: object name
+    name: ObjectName
+    parent_type: BasisData
+    type: string
+  - desc: class name
+    name: ClassName
+    parent_type: BasisData
+    type: string
+  - desc: map name
+    name: MapName
+    parent_type: BasisData
+    type: string
+  - desc: status
+    name: Status
+    parent_type: BasisData
+    type: int
+  - desc: abort flag
+    name: Abort
+    parent_type: BasisData
+    type: boolean
+  - desc: error number
+    name: Errno
+    parent_type: BasisData
+    type: int
+  - desc: debug level
+    name: Debug
+    parent_type: BasisData
+    type: int
+  - desc: error method
+    name: Errmethod
+    parent_type: BasisData
+    type: string
+  - desc: error msg
+    name: ErrorMsg
+    parent_type: BasisData
+    type: string
+  desc: Toltec Thermetry
+  name: ToltecThermetry
+  type: ToltecThermetryData
+  type_html_doc_file: ToltecThermetryData.html
+- attrs:
+  - desc: Enabled Status
+    name: Enabled
+    parent_type: ToltecCryocmpData
+    type: int
+  - desc: Toltec Sample Time
+    name: SampleTime
+    parent_type: ToltecCryocmpData
+    type: int
+  - desc: Operating State
+    name: OperState
+    parent_type: ToltecCryocmpData
+    type: int
+  - desc: Energized Status
+    name: Energized
+    parent_type: ToltecCryocmpData
+    type: int
+  - desc: Warning State
+    name: Warnings
+    parent_type: ToltecCryocmpData
+    type: double
+  - desc: Alarm State
+    name: Alarms
+    parent_type: ToltecCryocmpData
+    type: double
+  - desc: Coolant Input Temperature
+    name: CoolInTemp
+    parent_type: ToltecCryocmpData
+    type: double
+  - desc: Coolant Output Temperature
+    name: CoolOutTemp
+    parent_type: ToltecCryocmpData
+    type: double
+  - desc: Oil Temperature
+    name: OilTemp
+    parent_type: ToltecCryocmpData
+    type: double
+  - desc: Helium Temperature
+    name: HeliumTemp
+    parent_type: ToltecCryocmpData
+    type: double
+  - desc: Low Pressure
+    name: LoPressure
+    parent_type: ToltecCryocmpData
+    type: double
+  - desc: Low Pressure Average
+    name: LoPressureAvg
+    parent_type: ToltecCryocmpData
+    type: double
+  - desc: High Pressure
+    name: HiPressure
+    parent_type: ToltecCryocmpData
+    type: double
+  - desc: High Pressure Average
+    name: HiPressureAvg
+    parent_type: ToltecCryocmpData
+    type: double
+  - desc: Delta Pressure Average
+    name: DeltaPressureAvg
+    parent_type: ToltecCryocmpData
+    type: double
+  - desc: Motor Current
+    name: MotorCurrent
+    parent_type: ToltecCryocmpData
+    type: double
+  - desc: Hours of Operation
+    name: OpHours
+    parent_type: ToltecCryocmpData
+    type: double
+  - desc: Pressure Scale
+    name: PressureScale
+    parent_type: ToltecCryocmpData
+    type: int
+  - desc: Temperature Scale
+    name: TempScale
+    parent_type: ToltecCryocmpData
+    type: int
+  - desc: Panel Serial Number
+    name: PanelSerialNo
+    parent_type: ToltecCryocmpData
+    type: int
+  - desc: Model Number
+    name: ModelNo
+    parent_type: ToltecCryocmpData
+    type: int
+  - desc: LogOn Flag
+    name: LogOn
+    parent_type: ToltecCryocmpData
+    type: int
+  - desc: Heartbeat
+    name: Heartbeat
+    parent_type: ToltecCryocmpData
+    type: int
+  - desc: object name
+    name: ObjectName
+    parent_type: BasisData
+    type: string
+  - desc: class name
+    name: ClassName
+    parent_type: BasisData
+    type: string
+  - desc: map name
+    name: MapName
+    parent_type: BasisData
+    type: string
+  - desc: status
+    name: Status
+    parent_type: BasisData
+    type: int
+  - desc: abort flag
+    name: Abort
+    parent_type: BasisData
+    type: boolean
+  - desc: error number
+    name: Errno
+    parent_type: BasisData
+    type: int
+  - desc: debug level
+    name: Debug
+    parent_type: BasisData
+    type: int
+  - desc: error method
+    name: Errmethod
+    parent_type: BasisData
+    type: string
+  - desc: error msg
+    name: ErrorMsg
+    parent_type: BasisData
+    type: string
+  desc: Toltec Cryo Compressor
+  name: ToltecCryocmp
+  type: ToltecCryocmpData
+  type_html_doc_file: ToltecCryocmpData.html
+- attrs:
+  - desc: LogOn Flag
+    name: LogOn
+    parent_type: ToltecDilutionFridgeData
+    type: boolean
+  - desc: Heartbeat
+    name: Heartbeat
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: SampleTime
+    name: SampleTime
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: Status
+    name: StsSysDrStatus
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: Action
+    name: StsSysDrActn
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: P1
+    name: StsDevP1PresSigPres
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: P2
+    name: StsDevP2PresSigPres
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: P3
+    name: StsDevP3PresSigPres
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: P4
+    name: StsDevP4PresSigPres
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: P5
+    name: StsDevP5PresSigPres
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: P6
+    name: StsDevP6PresSigPres
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: V1
+    name: StsDevV1ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevV1ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevV1ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: V2
+    name: StsDevV2ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevV2ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevV2ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: V3
+    name: StsDevV3ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevV3ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevV3ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: V4
+    name: StsDevV4ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevV4ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevV4ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: V5
+    name: StsDevV5ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevV5ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevV5ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: V6
+    name: StsDevV6ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevV6ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevV6ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: V7
+    name: StsDevV7ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevV7ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevV7ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: V8
+    name: StsDevV8ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevV8ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevV8ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: V9
+    name: StsDevV9ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevV9ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevV9ValvSigState
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: State
+    name: StsDevTurb1PumpSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevTurb1PumpSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevTurb1PumpSigState
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: Power
+    name: StsDevTurb1PumpSigPowr
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: Speed
+    name: StsDevTurb1PumpSigSpd
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: Hours
+    name: StsDevTurb1PumpSigHrs
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: Status
+    name: StsDevTurb1PumpStatus
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: State
+    name: StsDevC1PtcSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevC1PtcSigState
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevC1PtcSigState
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: H2O In Temp
+    name: StsDevC1PtcSigWit
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: H2O Out Temp
+    name: StsDevC1PtcSigWot
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: Oil Temp
+    name: StsDevC1PtcSigOilt
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: Helium Temp
+    name: StsDevC1PtcSigHt
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: Low Pressure
+    name: StsDevC1PtcSigHlp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: High Pressure
+    name: StsDevC1PtcSigHhp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: Hours
+    name: StsDevC1PtcSigHrs
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: Status
+    name: StsDevC1PtcStatus
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: Chamber
+    name: StsDevH1HtrSigPowr
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: '-'
+    name: CmdDevH1HtrSigPowr
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: '-'
+    name: ApplyDevH1HtrSigPowr
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: Still
+    name: StsDevH2HtrSigPowr
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: '-'
+    name: CmdDevH2HtrSigPowr
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: '-'
+    name: ApplyDevH2HtrSigPowr
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: H3
+    name: StsDevH3HtrSigPowr
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: '-'
+    name: CmdDevH3HtrSigPowr
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: '-'
+    name: ApplyDevH3HtrSigPowr
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: T1 PT2 Head
+    name: StsDevT1TempSigTemp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: T2 PT2 Plate
+    name: StsDevT2TempSigTemp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: T3 Still Plate
+    name: StsDevT3TempSigTemp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: T4 Cold Plate
+    name: StsDevT4TempSigTemp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: T5 MC Cernox
+    name: StsDevT5TempSigTemp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: T6 PT1 Head
+    name: StsDevT6TempSigTemp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: T7 PT1 Plate
+    name: StsDevT7TempSigTemp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: T8 MC Plate
+    name: StsDevT8TempSigTemp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: T9 PT1 Side Arm
+    name: StsDevT9TempSigTemp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: T10 PT2 Side Arm
+    name: StsDevT10TempSigTemp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: T11 Still Side Arm
+    name: StsDevT11TempSigTemp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: T12 MC Bar
+    name: StsDevT12TempSigTemp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: T13
+    name: StsDevT13TempSigTemp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: T14
+    name: StsDevT14TempSigTemp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: T15
+    name: StsDevT15TempSigTemp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: T16
+    name: StsDevT16TempSigTemp
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: R1 PT2 Head
+    name: StsDevT1TempSigRes
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: R2 PT2 Plate
+    name: StsDevT2TempSigRes
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: R3 Still Plate
+    name: StsDevT3TempSigRes
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: R4 Cold Plate
+    name: StsDevT4TempSigRes
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: R5 MC Cernox
+    name: StsDevT5TempSigRes
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: R6 PT1 Head
+    name: StsDevT6TempSigRes
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: R7 PT1 Plate
+    name: StsDevT7TempSigRes
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: R8 MC Plate
+    name: StsDevT8TempSigRes
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: R9 PT1 Side Arm
+    name: StsDevT9TempSigRes
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: R10 PT2 Side Arm
+    name: StsDevT10TempSigRes
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: R11 Still Side Arm
+    name: StsDevT11TempSigRes
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: R12 MC Bar
+    name: StsDevT12TempSigRes
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: R13
+    name: StsDevT13TempSigRes
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: R14
+    name: StsDevT14TempSigRes
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: R15
+    name: StsDevT15TempSigRes
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: R16
+    name: StsDevT16TempSigRes
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: E1 PT2 Head
+    name: StsDevT1TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevT1TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevT1TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: E2 PT2 Plate
+    name: StsDevT2TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevT2TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevT2TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: E3 Still Plate
+    name: StsDevT3TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevT3TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevT3TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: E4 Cold Plate
+    name: StsDevT4TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevT4TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevT4TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: E5 MC Cernox
+    name: StsDevT5TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevT5TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevT5TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: E6 PT1 Head
+    name: StsDevT6TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevT6TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevT6TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: E7 PT1 Plate
+    name: StsDevT7TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevT7TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevT7TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: E8 MC Plate
+    name: StsDevT8TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevT8TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevT8TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: E9 PT1 Side Arm
+    name: StsDevT9TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevT9TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevT9TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: E10 PT2 Side Arm
+    name: StsDevT10TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevT10TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevT10TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: E11 Still Side Arm
+    name: StsDevT11TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevT11TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevT11TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: E12 MC Bar
+    name: StsDevT12TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevT12TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevT12TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: E13
+    name: StsDevT13TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevT13TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevT13TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: E14
+    name: StsDevT14TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevT14TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevT14TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: E15
+    name: StsDevT15TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevT15TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevT15TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: E16
+    name: StsDevT16TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdDevT16TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplyDevT16TempMeasEnab
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: '-'
+    name: StsSysDrActnCldn
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdSysDrActnCldn
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplySysDrActnCldn
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: '-'
+    name: StsSysDrActnPcl
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdSysDrActnPcl
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplySysDrActnPcl
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: '-'
+    name: StsSysDrActnCond
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdSysDrActnCond
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplySysDrActnCond
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: '-'
+    name: StsSysDrActnPcond
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdSysDrActnPcond
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplySysDrActnPcond
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: '-'
+    name: StsSysDrActnRcond
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdSysDrActnRcond
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplySysDrActnRcond
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: '-'
+    name: StsSysDrActnWarm
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdSysDrActnWarm
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplySysDrActnWarm
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: '-'
+    name: StsSysDrActnColl
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdSysDrActnColl
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplySysDrActnColl
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: '-'
+    name: StsSysDrActnEpcl
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdSysDrActnEpcl
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplySysDrActnEpcl
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: '-'
+    name: StsSysDrActnStop
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: CmdSysDrActnStop
+    parent_type: ToltecDilutionFridgeData
+    type: string
+  - desc: '-'
+    name: ApplySysDrActnStop
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: '-'
+    name: StsDevH1HtrSigVolt
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: '-'
+    name: CmdDevH1HtrSigVolt
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: '-'
+    name: ApplyDevH1HtrSigVolt
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: '-'
+    name: StsDevH2HtrSigVolt
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: '-'
+    name: CmdDevH2HtrSigVolt
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: '-'
+    name: ApplyDevH2HtrSigVolt
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: '-'
+    name: StsDevH3HtrSigVolt
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: '-'
+    name: CmdDevH3HtrSigVolt
+    parent_type: ToltecDilutionFridgeData
+    type: double
+  - desc: '-'
+    name: ApplyDevH3HtrSigVolt
+    parent_type: ToltecDilutionFridgeData
+    type: int
+  - desc: object name
+    name: ObjectName
+    parent_type: BasisData
+    type: string
+  - desc: class name
+    name: ClassName
+    parent_type: BasisData
+    type: string
+  - desc: map name
+    name: MapName
+    parent_type: BasisData
+    type: string
+  - desc: status
+    name: Status
+    parent_type: BasisData
+    type: int
+  - desc: abort flag
+    name: Abort
+    parent_type: BasisData
+    type: boolean
+  - desc: error number
+    name: Errno
+    parent_type: BasisData
+    type: int
+  - desc: debug level
+    name: Debug
+    parent_type: BasisData
+    type: int
+  - desc: error method
+    name: Errmethod
+    parent_type: BasisData
+    type: string
+  - desc: error msg
+    name: ErrorMsg
+    parent_type: BasisData
+    type: string
+  desc: Toltec Dilution Fridge
+  name: ToltecDilutionFridge
+  type: ToltecDilutionFridgeData
+  type_html_doc_file: ToltecDilutionFridgeData.html
+- attrs:
+  - desc: Fts
+    name: Fts
+    parent_type: ToltecFtsData
+    type: int
+  - desc: Asg
+    name: Asg
+    parent_type: ToltecFtsData
+    type: int
+  - desc: Heartbeat
+    name: Heartbeat
+    parent_type: ToltecFtsData
+    type: int
+  - desc: object name
+    name: ObjectName
+    parent_type: BasisData
+    type: string
+  - desc: class name
+    name: ClassName
+    parent_type: BasisData
+    type: string
+  - desc: map name
+    name: MapName
+    parent_type: BasisData
+    type: string
+  - desc: status
+    name: Status
+    parent_type: BasisData
+    type: int
+  - desc: abort flag
+    name: Abort
+    parent_type: BasisData
+    type: boolean
+  - desc: error number
+    name: Errno
+    parent_type: BasisData
+    type: int
+  - desc: debug level
+    name: Debug
+    parent_type: BasisData
+    type: int
+  - desc: error method
+    name: Errmethod
+    parent_type: BasisData
+    type: string
+  - desc: error msg
+    name: ErrorMsg
+    parent_type: BasisData
+    type: string
+  desc: Toltec Fts
+  name: ToltecFts
+  type: ToltecFtsData
+  type_html_doc_file: ToltecFtsData.html
+- attrs:
+  - desc: ThetaAct
+    dims:
+    - 2
+    name: ThetaAct
+    parent_type: WyattData
+    type: double
+  - desc: ThetaCmd
+    dims:
+    - 2
+    name: ThetaCmd
+    parent_type: WyattData
+    type: double
+  - desc: XyAct
+    dims:
+    - 2
+    name: XyAct
+    parent_type: WyattData
+    type: double
+  - desc: XyCmd
+    dims:
+    - 2
+    name: XyCmd
+    parent_type: WyattData
+    type: double
+  - desc: XyStart
+    dims:
+    - 2
+    name: XyStart
+    parent_type: WyattData
+    type: double
+  - desc: XyStop
+    dims:
+    - 2
+    name: XyStop
+    parent_type: WyattData
+    type: double
+  - desc: XyStep
+    dims:
+    - 2
+    name: XyStep
+    parent_type: WyattData
+    type: double
+  - desc: XyTime
+    name: XyTime
+    parent_type: WyattData
+    type: double
+  - desc: XyMapOn
+    name: XyMapOn
+    parent_type: WyattData
+    type: int
+  - desc: XyMapScanAxis
+    name: XyMapScanAxis
+    parent_type: WyattData
+    type: int
+  - desc: CmdMode
+    name: CmdMode
+    parent_type: WyattData
+    type: int
+  - desc: OmegaMax
+    name: OmegaMax
+    parent_type: WyattData
+    type: double
+  - desc: AlphaMax
+    name: AlphaMax
+    parent_type: WyattData
+    type: double
+  - desc: Time
+    name: Time
+    parent_type: WyattData
+    type: double
+  - desc: Enable
+    name: Enable
+    parent_type: WyattData
+    type: int
+  - desc: Park
+    name: Park
+    parent_type: WyattData
+    type: int
+  - desc: Reset
+    name: Reset
+    parent_type: WyattData
+    type: int
+  - desc: RecordWhileMoving
+    name: RecordWhileMoving
+    parent_type: WyattData
+    type: int
+  - desc: WithToltec
+    name: WithToltec
+    parent_type: WyattData
+    type: int
+  - desc: PointErrorTolerence
+    name: PointErrorTolerence
+    parent_type: WyattData
+    type: double
+  - desc: PointErrorSamples
+    name: PointErrorSamples
+    parent_type: WyattData
+    type: int
+  - desc: PointErrorResid
+    name: PointErrorResid
+    parent_type: WyattData
+    type: double
+  - desc: PointError
+    name: PointError
+    parent_type: WyattData
+    type: int
+  - desc: Heartbeat
+    name: Heartbeat
+    parent_type: WyattData
+    type: int
+  - desc: Dummy
+    name: Dummy
+    parent_type: ContBackendData
+    type: int
+  - desc: Data file directory and filename prefix
+    name: Prefix
+    parent_type: BackendData
+    type: string
+  - desc: Number of pixels
+    name: NumPixels
+    parent_type: BackendData
+    type: int
+  - desc: Spectral line capability
+    name: SpectralCapable
+    parent_type: BackendData
+    type: boolean
+  - desc: Continuum capability
+    name: ContinuumCapable
+    parent_type: BackendData
+    type: boolean
+  - desc: Synchronous switching capability
+    name: SyncSwitchCapable
+    parent_type: BackendData
+    type: boolean
+  - desc: Mapping capability
+    name: MapCapable
+    parent_type: BackendData
+    type: boolean
+  - desc: PpsFreezeCapable
+    name: PpsFreezeCapable
+    parent_type: BackendData
+    type: boolean
+  - desc: Backend in use flag
+    name: InUse
+    parent_type: BackendData
+    type: boolean
+  - desc: Backend mapping on flag
+    name: MappingOn
+    parent_type: BackendData
+    type: boolean
+  - desc: Backend current op code
+    name: OpCode
+    parent_type: BackendData
+    type: int
+  - desc: Backend op code timeout
+    name: OpCodeTimeout
+    parent_type: BackendData
+    type: int
+  - desc: Backend new op code
+    name: NewOpCode
+    parent_type: BackendData
+    type: int
+  - desc: Remote flag
+    name: Remote
+    parent_type: BackendData
+    type: int
+  - desc: Server host port
+    name: HostPort
+    parent_type: BackendData
+    type: string
+  - desc: TcpHostPort
+    name: TcpHostPort
+    parent_type: BackendData
+    type: string
+  - desc: TcpRequest
+    name: TcpRequest
+    parent_type: BackendData
+    type: string
+  - desc: TcpCommand
+    name: TcpCommand
+    parent_type: BackendData
+    type: string
+  - desc: TcpReply
+    name: TcpReply
+    parent_type: BackendData
+    type: string
+  - desc: Dump Trigger flag
+    name: DumpTrigger
+    parent_type: BackendData
+    type: int
+  - desc: Node Id
+    name: NodeId
+    parent_type: BackendData
+    type: int
+  - desc: To File Mask
+    name: ToFileMask
+    parent_type: BackendData
+    type: int
+  - desc: Observation File Name
+    name: ObsFileName
+    parent_type: BackendData
+    type: string
+  - desc: cal obs num
+    name: CalObsNum
+    parent_type: BackendData
+    type: int
+  - desc: Master tcs or ics
+    name: Master
+    parent_type: BackendData
+    type: int
+  - desc: SubObsMode
+    name: SubObsMode
+    parent_type: BackendData
+    type: int
+  - desc: Current observation number
+    name: ObsNum
+    parent_type: BackendData
+    type: int
+  - desc: Current sub observation number
+    name: SubObsNum
+    parent_type: BackendData
+    type: int
+  - desc: Current scan number
+    name: ScanNum
+    parent_type: BackendData
+    type: int
+  - desc: Observation Program
+    name: ObsPgm
+    parent_type: BackendData
+    type: string
+  - desc: Converter
+    name: Converter
+    parent_type: BackendData
+    type: string
+  - desc: Heartbeat
+    name: Heartbeat
+    parent_type: BackendData
+    type: int
+  - desc: CurrentCalStep
+    name: CurrentCalStep
+    parent_type: BackendData
+    type: int
+  - desc: NeedsTune
+    name: NeedsTune
+    parent_type: BackendData
+    type: int
+  - desc: CalType
+    name: CalType
+    parent_type: BackendData
+    type: int
+  - desc: object name
+    name: ObjectName
+    parent_type: BasisData
+    type: string
+  - desc: class name
+    name: ClassName
+    parent_type: BasisData
+    type: string
+  - desc: map name
+    name: MapName
+    parent_type: BasisData
+    type: string
+  - desc: status
+    name: Status
+    parent_type: BasisData
+    type: int
+  - desc: abort flag
+    name: Abort
+    parent_type: BasisData
+    type: boolean
+  - desc: error number
+    name: Errno
+    parent_type: BasisData
+    type: int
+  - desc: debug level
+    name: Debug
+    parent_type: BasisData
+    type: int
+  - desc: error method
+    name: Errmethod
+    parent_type: BasisData
+    type: string
+  - desc: error msg
+    name: ErrorMsg
+    parent_type: BasisData
+    type: string
+  desc: Toltec Wyatt
+  name: Wyatt
+  type: WyattData
+  type_html_doc_file: WyattData.html
+- attrs:
+  - desc: Toltec
+    name: Toltec
+    parent_type: ToltecData
+    type: int
+  - desc: Dummy
+    name: Dummy
+    parent_type: ContReceiverData
+    type: int
+  - desc: Spectral line capability
+    name: SpectralCapable
+    parent_type: ReceiverData
+    type: boolean
+  - desc: Continuum capability
+    name: ContinuumCapable
+    parent_type: ReceiverData
+    type: boolean
+  - desc: Frequency switch capability
+    name: FreqSwitchCapable
+    parent_type: ReceiverData
+    type: boolean
+  - desc: Beam switch capability
+    name: BeamSwitchCapable
+    parent_type: ReceiverData
+    type: boolean
+  - desc: Blanking capability
+    name: BlankCapable
+    parent_type: ReceiverData
+    type: boolean
+  - desc: Calibration capability
+    name: CalCapable
+    parent_type: ReceiverData
+    type: boolean
+  - desc: Receiver beam selected to point at
+    name: BeamSelected
+    parent_type: ReceiverData
+    type: int
+  - desc: Number of frequency bands available
+    name: NumBands
+    parent_type: ReceiverData
+    type: int
+  - desc: Number of Beams
+    name: NumBeams
+    parent_type: ReceiverData
+    type: int
+  - desc: Number of pixels
+    name: NumPixels
+    parent_type: ReceiverData
+    type: int
+  - desc: Az Pointing Offset
+    name: AzPointOff
+    parent_type: ReceiverData
+    type: double
+  - desc: El Pointing Offset
+    name: ElPointOff
+    parent_type: ReceiverData
+    type: double
+  - desc: PointCorDr
+    name: PointCorDr
+    parent_type: ReceiverData
+    type: double
+  - desc: PointCorDu
+    name: PointCorDu
+    parent_type: ReceiverData
+    type: double
+  - desc: PointCorSign
+    name: PointCorSign
+    parent_type: ReceiverData
+    type: double
+  - desc: Az Pointing Corrections
+    name: AzPointCor
+    parent_type: ReceiverData
+    type: double
+  - desc: El Pointing Corrections
+    name: ElPointCor
+    parent_type: ReceiverData
+    type: double
+  - desc: M3 beam direction angle
+    name: M3Dir
+    parent_type: ReceiverData
+    type: double
+  - desc: Remote flag
+    name: Remote
+    parent_type: ReceiverData
+    type: int
+  - desc: Server host port
+    name: HostPort
+    parent_type: ReceiverData
+    type: string
+  - desc: TcpHostPort
+    name: TcpHostPort
+    parent_type: ReceiverData
+    type: string
+  - desc: TcpRequest
+    name: TcpRequest
+    parent_type: ReceiverData
+    type: string
+  - desc: TcpCommand
+    name: TcpCommand
+    parent_type: ReceiverData
+    type: string
+  - desc: TcpReply
+    name: TcpReply
+    parent_type: ReceiverData
+    type: string
+  - desc: Heartbeat
+    name: Heartbeat
+    parent_type: ReceiverData
+    type: int
+  - desc: object name
+    name: ObjectName
+    parent_type: BasisData
+    type: string
+  - desc: class name
+    name: ClassName
+    parent_type: BasisData
+    type: string
+  - desc: map name
+    name: MapName
+    parent_type: BasisData
+    type: string
+  - desc: status
+    name: Status
+    parent_type: BasisData
+    type: int
+  - desc: abort flag
+    name: Abort
+    parent_type: BasisData
+    type: boolean
+  - desc: error number
+    name: Errno
+    parent_type: BasisData
+    type: int
+  - desc: debug level
+    name: Debug
+    parent_type: BasisData
+    type: int
+  - desc: error method
+    name: Errmethod
+    parent_type: BasisData
+    type: string
+  - desc: error msg
+    name: ErrorMsg
+    parent_type: BasisData
+    type: string
+  desc: The Toltec Receiver
+  name: Toltec
+  type: ToltecData
+  type_html_doc_file: ToltecData.html
+- attrs:
+  - desc: Streaming
+    name: Streaming
+    parent_type: ToltecBackendData
+    type: boolean
+  - desc: ClockTime
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: ClockTime
+    parent_type: ToltecBackendData
+    type: int
+  - desc: PpsCount
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: PpsCount
+    parent_type: ToltecBackendData
+    type: int
+  - desc: ClockCount
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: ClockCount
+    parent_type: ToltecBackendData
+    type: int
+  - desc: PacketCount
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: PacketCount
+    parent_type: ToltecBackendData
+    type: int
+  - desc: StatusReg
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: StatusReg
+    parent_type: ToltecBackendData
+    type: int
+  - desc: NumKids
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: NumKids
+    parent_type: ToltecBackendData
+    type: int
+  - desc: AttenInput
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: AttenInput
+    parent_type: ToltecBackendData
+    type: double
+  - desc: AttenInputCmd
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: AttenInputCmd
+    parent_type: ToltecBackendData
+    type: double
+  - desc: SampleFreq
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: SampleFreq
+    parent_type: ToltecBackendData
+    type: double
+  - desc: LoFreq
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: LoFreq
+    parent_type: ToltecBackendData
+    type: double
+  - desc: AttenOutput
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: AttenOutput
+    parent_type: ToltecBackendData
+    type: double
+  - desc: AttenOutputCmd
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: AttenOutputCmd
+    parent_type: ToltecBackendData
+    type: double
+  - desc: BitwiseState
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: BitwiseState
+    parent_type: ToltecBackendData
+    type: int
+  - desc: ActionQuantity
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: ActionQuantity
+    parent_type: ToltecBackendData
+    type: int
+  - desc: ActionProgress
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: ActionProgress
+    parent_type: ToltecBackendData
+    type: int
+  - desc: ActionPercent
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: ActionPercent
+    parent_type: ToltecBackendData
+    type: int
+  - desc: CommandName
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: CommandName
+    parent_type: ToltecBackendData
+    type: string
+  - desc: EnabledRoach
+    dims:
+    - TOLTEC_NUM_ROACHES
+    name: EnabledRoach
+    parent_type: ToltecBackendData
+    type: int
+  - desc: RoachCmd
+    name: RoachCmd
+    parent_type: ToltecBackendData
+    type: string
+  - desc: RoachArg
+    dims:
+    - 16
+    name: RoachArg
+    parent_type: ToltecBackendData
+    type: string
+  - desc: Dummy
+    name: Dummy
+    parent_type: ContBackendData
+    type: int
+  - desc: Data file directory and filename prefix
+    name: Prefix
+    parent_type: BackendData
+    type: string
+  - desc: Number of pixels
+    name: NumPixels
+    parent_type: BackendData
+    type: int
+  - desc: Spectral line capability
+    name: SpectralCapable
+    parent_type: BackendData
+    type: boolean
+  - desc: Continuum capability
+    name: ContinuumCapable
+    parent_type: BackendData
+    type: boolean
+  - desc: Synchronous switching capability
+    name: SyncSwitchCapable
+    parent_type: BackendData
+    type: boolean
+  - desc: Mapping capability
+    name: MapCapable
+    parent_type: BackendData
+    type: boolean
+  - desc: PpsFreezeCapable
+    name: PpsFreezeCapable
+    parent_type: BackendData
+    type: boolean
+  - desc: Backend in use flag
+    name: InUse
+    parent_type: BackendData
+    type: boolean
+  - desc: Backend mapping on flag
+    name: MappingOn
+    parent_type: BackendData
+    type: boolean
+  - desc: Backend current op code
+    name: OpCode
+    parent_type: BackendData
+    type: int
+  - desc: Backend op code timeout
+    name: OpCodeTimeout
+    parent_type: BackendData
+    type: int
+  - desc: Backend new op code
+    name: NewOpCode
+    parent_type: BackendData
+    type: int
+  - desc: Remote flag
+    name: Remote
+    parent_type: BackendData
+    type: int
+  - desc: Server host port
+    name: HostPort
+    parent_type: BackendData
+    type: string
+  - desc: TcpHostPort
+    name: TcpHostPort
+    parent_type: BackendData
+    type: string
+  - desc: TcpRequest
+    name: TcpRequest
+    parent_type: BackendData
+    type: string
+  - desc: TcpCommand
+    name: TcpCommand
+    parent_type: BackendData
+    type: string
+  - desc: TcpReply
+    name: TcpReply
+    parent_type: BackendData
+    type: string
+  - desc: Dump Trigger flag
+    name: DumpTrigger
+    parent_type: BackendData
+    type: int
+  - desc: Node Id
+    name: NodeId
+    parent_type: BackendData
+    type: int
+  - desc: To File Mask
+    name: ToFileMask
+    parent_type: BackendData
+    type: int
+  - desc: Observation File Name
+    name: ObsFileName
+    parent_type: BackendData
+    type: string
+  - desc: cal obs num
+    name: CalObsNum
+    parent_type: BackendData
+    type: int
+  - desc: Master tcs or ics
+    name: Master
+    parent_type: BackendData
+    type: int
+  - desc: SubObsMode
+    name: SubObsMode
+    parent_type: BackendData
+    type: int
+  - desc: Current observation number
+    name: ObsNum
+    parent_type: BackendData
+    type: int
+  - desc: Current sub observation number
+    name: SubObsNum
+    parent_type: BackendData
+    type: int
+  - desc: Current scan number
+    name: ScanNum
+    parent_type: BackendData
+    type: int
+  - desc: Observation Program
+    name: ObsPgm
+    parent_type: BackendData
+    type: string
+  - desc: Converter
+    name: Converter
+    parent_type: BackendData
+    type: string
+  - desc: Heartbeat
+    name: Heartbeat
+    parent_type: BackendData
+    type: int
+  - desc: CurrentCalStep
+    name: CurrentCalStep
+    parent_type: BackendData
+    type: int
+  - desc: NeedsTune
+    name: NeedsTune
+    parent_type: BackendData
+    type: int
+  - desc: CalType
+    name: CalType
+    parent_type: BackendData
+    type: int
+  - desc: object name
+    name: ObjectName
+    parent_type: BasisData
+    type: string
+  - desc: class name
+    name: ClassName
+    parent_type: BasisData
+    type: string
+  - desc: map name
+    name: MapName
+    parent_type: BasisData
+    type: string
+  - desc: status
+    name: Status
+    parent_type: BasisData
+    type: int
+  - desc: abort flag
+    name: Abort
+    parent_type: BasisData
+    type: boolean
+  - desc: error number
+    name: Errno
+    parent_type: BasisData
+    type: int
+  - desc: debug level
+    name: Debug
+    parent_type: BasisData
+    type: int
+  - desc: error method
+    name: Errmethod
+    parent_type: BasisData
+    type: string
+  - desc: error msg
+    name: ErrorMsg
+    parent_type: BasisData
+    type: string
+  desc: The TOLTEC Backend
+  name: ToltecBackend
+  type: ToltecBackendData
+  type_html_doc_file: ToltecBackendData.html
+- attrs:
+  - desc: Values
+    dims:
+    - TOLTEC_NUM_ROACHES
+    - TOLTEC_MAX_CHANNELS_PER_ROACH
+    name: Values
+    parent_type: ToltecDetectorsData
+    type: double
+  - desc: object name
+    name: ObjectName
+    parent_type: BasisData
+    type: string
+  - desc: class name
+    name: ClassName
+    parent_type: BasisData
+    type: string
+  - desc: map name
+    name: MapName
+    parent_type: BasisData
+    type: string
+  - desc: status
+    name: Status
+    parent_type: BasisData
+    type: int
+  - desc: abort flag
+    name: Abort
+    parent_type: BasisData
+    type: boolean
+  - desc: error number
+    name: Errno
+    parent_type: BasisData
+    type: int
+  - desc: debug level
+    name: Debug
+    parent_type: BasisData
+    type: int
+  - desc: error method
+    name: Errmethod
+    parent_type: BasisData
+    type: string
+  - desc: error msg
+    name: ErrorMsg
+    parent_type: BasisData
+    type: string
+  desc: The TOLTEC Detectors
+  name: ToltecDetectors
+  type: ToltecDetectorsData
+  type_html_doc_file: ToltecDetectorsData.html
+- attrs:
+  - desc: Integration Timers
+    dims:
+    - 5
+    name: Timer
+    parent_type: DcsData
+    type: double
+  - desc: Total Integration Time
+    name: IntegrationTime
+    parent_type: DcsData
+    type: double
+  - desc: Requested Time
+    name: RequestedTime
+    parent_type: DcsData
+    type: double
+  - desc: Remaining Time
+    name: RemainingTime
+    parent_type: DcsData
+    type: double
+  - desc: Integration Buffer In Use
+    name: BufPos
+    parent_type: DcsData
+    type: int
+  - desc: ScanPos
+    name: ScanPos
+    parent_type: DcsData
+    type: int
+  - desc: Current observation number
+    name: ObsNum
+    parent_type: DcsData
+    type: int
+  - desc: Current sub observation number
+    name: SubObsNum
+    parent_type: DcsData
+    type: int
+  - desc: Current sub observation mode
+    name: SubObsMode
+    parent_type: DcsData
+    type: int
+  - desc: Current scan number
+    name: ScanNum
+    parent_type: DcsData
+    type: int
+  - desc: Observation type
+    name: ObsType
+    parent_type: DcsData
+    type: int
+  - desc: Observation Mode
+    name: ObsMode
+    parent_type: DcsData
+    type: int
+  - desc: Calibration Mode
+    name: CalMode
+    parent_type: DcsData
+    type: int
+  - desc: Number of Repeats
+    name: NumRepeats
+    parent_type: DcsData
+    type: int
+  - desc: Number of Scans
+    name: NumScans
+    parent_type: DcsData
+    type: int
+  - desc: Number of Map Rows
+    name: NumRows
+    parent_type: DcsData
+    type: int
+  - desc: Current Repeat
+    name: Repeat
+    parent_type: DcsData
+    type: int
+  - desc: Current Scan
+    name: Scan
+    parent_type: DcsData
+    type: int
+  - desc: Current Map Row
+    name: Row
+    parent_type: DcsData
+    type: int
+  - desc: Receiver
+    name: Receiver
+    parent_type: DcsData
+    type: string
+  - desc: Backend
+    name: Backend
+    parent_type: DcsData
+    type: string
+  - desc: Observation Program
+    name: ObsPgm
+    parent_type: DcsData
+    type: string
+  - desc: Observation Goal
+    name: ObsGoal
+    parent_type: DcsData
+    type: string
+  - desc: Project Id
+    name: ProjectId
+    parent_type: DcsData
+    type: string
+  - desc: Double Auxiliary variable
+    dims:
+    - 16
+    name: AuxD
+    parent_type: DcsData
+    type: double
+  - desc: Integer Auxiliary variable
+    dims:
+    - 16
+    name: AuxI
+    parent_type: DcsData
+    type: int
+  - desc: object name
+    name: ObjectName
+    parent_type: BasisData
+    type: string
+  - desc: class name
+    name: ClassName
+    parent_type: BasisData
+    type: string
+  - desc: map name
+    name: MapName
+    parent_type: BasisData
+    type: string
+  - desc: status
+    name: Status
+    parent_type: BasisData
+    type: int
+  - desc: abort flag
+    name: Abort
+    parent_type: BasisData
+    type: boolean
+  - desc: error number
+    name: Errno
+    parent_type: BasisData
+    type: int
+  - desc: debug level
+    name: Debug
+    parent_type: BasisData
+    type: int
+  - desc: error method
+    name: Errmethod
+    parent_type: BasisData
+    type: string
+  - desc: error msg
+    name: ErrorMsg
+    parent_type: BasisData
+    type: string
+  desc: Data Collection System Runtime Information
+  name: Dcs
+  type: DcsData
+  type_html_doc_file: ../dcs/DcsData.html
+- attrs:
+  - desc: Name
+    name: Name
+    parent_type: AnyReceiverData
+    type: string
+  - desc: Argument name
+    dims:
+    - 16
+    name: ArgName
+    parent_type: AnyReceiverData
+    type: string
+  - desc: Argument value
+    dims:
+    - 16
+    name: ArgValue
+    parent_type: AnyReceiverData
+    type: string
+  - desc: Spectral line capability
+    name: SpectralCapable
+    parent_type: ReceiverData
+    type: boolean
+  - desc: Continuum capability
+    name: ContinuumCapable
+    parent_type: ReceiverData
+    type: boolean
+  - desc: Frequency switch capability
+    name: FreqSwitchCapable
+    parent_type: ReceiverData
+    type: boolean
+  - desc: Beam switch capability
+    name: BeamSwitchCapable
+    parent_type: ReceiverData
+    type: boolean
+  - desc: Blanking capability
+    name: BlankCapable
+    parent_type: ReceiverData
+    type: boolean
+  - desc: Calibration capability
+    name: CalCapable
+    parent_type: ReceiverData
+    type: boolean
+  - desc: Receiver beam selected to point at
+    name: BeamSelected
+    parent_type: ReceiverData
+    type: int
+  - desc: Number of frequency bands available
+    name: NumBands
+    parent_type: ReceiverData
+    type: int
+  - desc: Number of Beams
+    name: NumBeams
+    parent_type: ReceiverData
+    type: int
+  - desc: Number of pixels
+    name: NumPixels
+    parent_type: ReceiverData
+    type: int
+  - desc: Az Pointing Offset
+    name: AzPointOff
+    parent_type: ReceiverData
+    type: double
+  - desc: El Pointing Offset
+    name: ElPointOff
+    parent_type: ReceiverData
+    type: double
+  - desc: PointCorDr
+    name: PointCorDr
+    parent_type: ReceiverData
+    type: double
+  - desc: PointCorDu
+    name: PointCorDu
+    parent_type: ReceiverData
+    type: double
+  - desc: PointCorSign
+    name: PointCorSign
+    parent_type: ReceiverData
+    type: double
+  - desc: Az Pointing Corrections
+    name: AzPointCor
+    parent_type: ReceiverData
+    type: double
+  - desc: El Pointing Corrections
+    name: ElPointCor
+    parent_type: ReceiverData
+    type: double
+  - desc: M3 beam direction angle
+    name: M3Dir
+    parent_type: ReceiverData
+    type: double
+  - desc: Remote flag
+    name: Remote
+    parent_type: ReceiverData
+    type: int
+  - desc: Server host port
+    name: HostPort
+    parent_type: ReceiverData
+    type: string
+  - desc: TcpHostPort
+    name: TcpHostPort
+    parent_type: ReceiverData
+    type: string
+  - desc: TcpRequest
+    name: TcpRequest
+    parent_type: ReceiverData
+    type: string
+  - desc: TcpCommand
+    name: TcpCommand
+    parent_type: ReceiverData
+    type: string
+  - desc: TcpReply
+    name: TcpReply
+    parent_type: ReceiverData
+    type: string
+  - desc: Heartbeat
+    name: Heartbeat
+    parent_type: ReceiverData
+    type: int
+  - desc: object name
+    name: ObjectName
+    parent_type: BasisData
+    type: string
+  - desc: class name
+    name: ClassName
+    parent_type: BasisData
+    type: string
+  - desc: map name
+    name: MapName
+    parent_type: BasisData
+    type: string
+  - desc: status
+    name: Status
+    parent_type: BasisData
+    type: int
+  - desc: abort flag
+    name: Abort
+    parent_type: BasisData
+    type: boolean
+  - desc: error number
+    name: Errno
+    parent_type: BasisData
+    type: int
+  - desc: debug level
+    name: Debug
+    parent_type: BasisData
+    type: int
+  - desc: error method
+    name: Errmethod
+    parent_type: BasisData
+    type: string
+  - desc: error msg
+    name: ErrorMsg
+    parent_type: BasisData
+    type: string
+  desc: BlackBody
+  name: BlackBody
+  type: AnyReceiverData
+  type_html_doc_file: ../ics/AnyReceiverData.html

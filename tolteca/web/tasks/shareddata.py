@@ -40,7 +40,7 @@ class SharedDataStoreRedis(SharedDataStore):
 class SharedToltecDataset(object):
 
     _datastore_cls = SharedDataStoreRedis
-    from .. import tolteca_toltec_datastore as datafiles
+    from .. import toltec_datastore as datafiles
 
     def __init__(self, label):
         self._datastore = self._datastore_cls(label)

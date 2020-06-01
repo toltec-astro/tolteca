@@ -4,7 +4,7 @@ from tollan.utils.fmt import pformat_yaml
 from pathlib import Path
 from .ssh_accessor import SSHAccessor
 import stat
-from tollan.utils import touch_file
+from tollan.utils.sys import touch_file
 
 
 class Accessor(object):

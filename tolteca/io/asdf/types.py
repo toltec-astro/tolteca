@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Defines a ``ToltecaType`` used for ASDF file io.
+Defines a ``ToltecaType`` used for ASDF file IO.
 
 All types are added automatically to ``_tolteca_types`` and the
 ToltecaExtension.
@@ -25,7 +25,7 @@ class ToltecaTypeMeta(ExtensionTypeMeta):
     def __new__(mcls, name, bases, attrs):
         cls = super().__new__(mcls, name, bases, attrs)
         # Classes using this metaclass are automatically added to the list of
-        # jwst types and JWSTExtensions.types.
+        # TolTECA types.
         if issubclass(cls, ToltecaType):
             _tolteca_types.add(cls)
         return cls

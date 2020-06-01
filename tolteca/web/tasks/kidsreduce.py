@@ -1,38 +1,21 @@
 #! /usr/bin/env python
 
+from dasha.web.extensions.db import dataframe_from_db
 from dasha.web.extensions.ipc import ipc
-from dasha.web.extensions.celery import get_celery_app, schedule_task
+from dasha.web.extensions.celery import celery_app, schedule_task
 from tollan.utils.log import get_logger
 from tollan.utils.fmt import pformat_yaml
-from .toltecdb import get_toltec_file_info
 from .shareddata import SharedToltecDataset
-from .. import tolteca_toltec_datastore 
+from .. import toltec_datastore
 from pathlib import Path
+import cachetools.func
 import subprocess
 import shlex
+from tollan.utils import odict_from_list
 
 
 def shlex_join(split_command):
     return ' '.join(shlex.quote(arg) for arg in split_command)
-
-
-celery = get_celery_app()
-
-
-class ReducedKidsData(object):
-
-    @staticmethod
-    def _make_datastore_key(info):
-        return str(info)
-
-    def __init__(self, info):
-        self._info = info
-        self._data = ipc.get_or_create(
-                'redis', label=self._make_datastore_key(info))
-
-    @classmethod
-    def from_info(cls, info):
-        return cls(info)
 
 
 _reduce_state_store = ipc.get_or_create(
@@ -40,7 +23,7 @@ _reduce_state_store = ipc.get_or_create(
 
 
 def _make_reduce_state_key(filepath):
-    info = tolteca_toltec_datastore.spec.info_from_filename(Path(filepath))
+    info = toltec_datastore.spec.info_from_filename(Path(filepath))
     return 'toltec{nwid}_{obsid}_{subobsid}_{scanid}'.format(**info)
 
 
@@ -55,34 +38,100 @@ def _reduce_kidsdata(filepath):
             'cmd': shlex_join(cmd),
             'filepath': filepath,
             }
-        
+
     def _decode(s):
         if isinstance(s, (bytes, bytearray)):
             return s.decode()
         return s
 
     try:
-        r = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        r = subprocess.run(
+                cmd, check=True,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     except Exception as e:
         logger.error(f"failed execute {cmd} {e} {e.output}", exc_info=True)
         state['state'] = 'failed'
-        state['returncode'] = e.returncode 
+        state['returncode'] = e.returncode
         state['stdout'] = _decode(e.stdout)
         state['stderr'] = _decode(e.stderr)
     else:
         logger.info(f"{r}")
         state['state'] = 'ok'
-        state['returncode'] = r.returncode 
+        state['returncode'] = r.returncode
         state['stdout'] = _decode(r.stdout)
         state['stderr'] = _decode(r.stderr)
     _reduce_state_store.set(state, path=_make_reduce_state_key(filepath))
 
 
-if celery is not None:
-    from celery_once import QueueOnce
-    _dataset_label = 'kidsreduce'
+@cachetools.func.ttl_cache(maxsize=1, ttl=1)
+def get_toltec_file_info(n_entries=20):
+    query_template = {
+            'query_base': 'select {use_cols} from {table} a'
+            ' {join} {where} {group}'
+            ' order by {order} limit {n_records}',
+            'query_params': {'parse_dates': ["DateTime"]},
+            'bind': 'toltecdb',
+            'join': "",
+            'where': '',
+            'group': "",
+            'order': 'a.id desc',
+            'n_records': 100,
+            'primary_key': 'id',
+            }
 
-    @celery.task(base=QueueOnce)
+    queries = odict_from_list([
+            dict(query_template, **d)
+            for d in [
+                {
+                    'title_text': "User Log",
+                    'label': 'toltec_userlog',
+                    'table': 'toltec.userlog',
+                    'use_cols': ', '.join([
+                        'a.id',
+                        'TIMESTAMP(a.Date, a.Time) as DateTime',
+                        'a.Obsnum',
+                        'a.Entry', 'a.Keyword', ]),
+                    },
+                {
+                    'title_text': "Files",
+                    'label': 'toltec_files',
+                    'table': 'toltec.toltec',
+                    'use_cols': ', '.join([
+                        'max(a.id) as id',
+                        'a.Obsnum', 'a.SubObsNum', 'a.ScanNum',
+                        'TIMESTAMP(a.Date, a.Time) as DateTime',
+                        'GROUP_CONCAT('
+                        'a.RoachIndex order by a.RoachIndex SEPARATOR ",")'
+                        ' AS RoachIndex',
+                        'CONCAT("clip", GROUP_CONCAT('
+                        'distinct right(a.HostName, 1)'
+                        ' order by a.RoachIndex SEPARATOR "/"))'
+                        ' AS HostName',
+                        'b.label as ObsType',
+                        'c.label as Master',
+                        'min(a.valid) as Valid',
+                        ]),
+                    'join': f"inner join toltec.obstype b on a.ObsType = b.id"
+                            f" inner join toltec.master c on a.Master = c.id",
+                    'group': 'group by a.ObsNum',
+                    },
+                ]
+            ], key='label')
+    q = queries['toltec_files']
+    info = dataframe_from_db(
+            q['query_base'].format(**q), bind='toltec',
+            **q['query_params'])
+    return info
+
+
+_dataset_label = 'kidsreduce'
+
+
+if celery_app is not None:
+
+    QueueOnce = celery_app.QueueOnce
+
+    @celery_app.task(base=QueueOnce)
     def update_shared_toltec_dataset():
         logger = get_logger()
         dataset = SharedToltecDataset(_dataset_label)
@@ -112,11 +161,11 @@ if celery is not None:
         logger.debug(f'info: {info}')
         dataset.set_index_table(info)
 
-    @celery.task(base=QueueOnce)
+    @celery_app.task(base=QueueOnce)
     def reduce_kidsdata(*args, **kwargs):
         return _reduce_kidsdata(*args, **kwargs)
 
-    @celery.task(base=QueueOnce)
+    @celery_app.task(base=QueueOnce)
     def reduce_kidsdata_on_db():
         dataset = SharedToltecDataset(_dataset_label)
         logger = get_logger()
@@ -128,12 +177,14 @@ if celery is not None:
         files = []
         for i, entry in info.iterrows():
             if entry['ObsType'] == 'Nominal':
-                logger.warn(f"skip files of obstype {entry['ObsType']} {entry}")
+                logger.warn(
+                        f"skip files of obstype {entry['ObsType']} {entry}")
                 continue
             if i == 0 and entry['Valid'] == 0:
                 continue
             for filepath in entry['raw_files']:
-                state = _reduce_state_store.get(_make_reduce_state_key(filepath))
+                state = _reduce_state_store.get(
+                        _make_reduce_state_key(filepath))
                 logger.debug(f"check file status {filepath} {state}")
                 if state is None:
                     files.append(filepath)

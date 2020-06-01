@@ -3,10 +3,9 @@
 
 from dasha.web.templates import ComponentTemplate
 import dash_html_components as html
-from dasha.web.templates.utils import fa
 import dash_core_components as dcc
 from dash.dependencies import Output, Input
-from dasha.web.extensions.celery import get_celery_app
+from dasha.web.extensions.celery import celery_app
 from redbeat.schedulers import get_redis, RedBeatSchedulerEntry
 from tollan.utils.fmt import pformat_dict
 
@@ -17,13 +16,9 @@ class TaskView(ComponentTemplate):
 
     _component_cls = html.Div
 
-    @property
-    def title_text(self):
-        return (fa("far fa-chart-bar"), "Tasks")
-
     def setup_layout(self, app):
 
-        db = get_redis(get_celery_app())
+        db = get_redis(celery_app)
 
         self.interval = self.child(dcc.Interval, update_interval=1)
         content = self.child(html.Pre)

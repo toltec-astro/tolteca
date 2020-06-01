@@ -30,7 +30,7 @@ from regions import PixCoord, PolygonPixelRegion, PolygonSkyRegion
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
-from tollan.utils.log import Timer
+from tollan.utils.log import timeit
 from astropy import coordinates as coord
 from astropy.modeling import Model, Parameter
 from astropy.modeling.functional_models import GAUSSIAN_SIGMA_TO_FWHM
@@ -552,13 +552,13 @@ class SkyProjModel(ProjModel):
         ref_offset_frame, ref_frame = self._get_projected_frame(
                 crval0, crval1, mjd_obs, also_return_native_frame=True)
         det_coords_offset = coord.SkyCoord(x, y, frame=ref_offset_frame)
-        with Timer(f"transform det coords to altaz"):
+        with timeit(f"transform det coords to altaz"):
             det_coords = det_coords_offset.transform_to(ref_frame)
 
         frame = self.evaluate_frame
         if frame is None or frame == 'native':
             return det_coords.az, det_coords.alt
-        with Timer(f"transform det coords to {frame}"):
+        with timeit(f"transform det coords to {frame}"):
             det_coords = det_coords.transform_to(frame)
             attrs = list(
                     det_coords.get_representation_component_names().keys())
@@ -794,7 +794,7 @@ class ToltecObsSimulator(object):
 
             # transform the sources on to the projected frame this has to be
             # done in two steps due to limitation in astropy
-            with Timer("transform src coords to projected frame"):
+            with timeit("transform src coords to projected frame"):
                 src_coords = coord.SkyCoord(
                     ra=sources['ra'][:, np.newaxis],
                     dec=sources['dec'][:, np.newaxis],
@@ -802,7 +802,7 @@ class ToltecObsSimulator(object):
                             native_frame).transform_to(
                                 projected_frame)
             # evaluate with beam_model and reduce on sources axes
-            with Timer("compute detector pwr loading"):
+            with timeit("compute detector pwr loading"):
                 dx = x_t[np.newaxis, :, np.newaxis] - \
                     src_coords.lon[:, np.newaxis, :]
                 dy = y_t[np.newaxis, :, np.newaxis] - \
