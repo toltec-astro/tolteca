@@ -31,10 +31,12 @@ import glob
 import json
 import re
 import sys
+from tolteca.web.templates.beammap_sources.wyatt_classes import obs, ncdata
+from pathlib import Path
 
-#Uses the wyatt_classes.py file for the class to hold the data.
-sys.path.insert(0, "/home/toltec/zma/tolteca/tolteca/web/templates/beammap_sources/")
-from wyatt_classes import obs, ncdata
+f_tone_filepath = Path(__file__).parent.joinpath(
+        'beammap_sources/10886_f_tone.npy')
+
 
 class beammap(ComponentTemplate):
     _component_cls = dbc.Container
@@ -88,7 +90,7 @@ class beammap(ComponentTemplate):
         
         #Frequencies are acquired separately due to a potential bug in the
         #kids reduce code
-        f = np.load('/home/toltec/zma/tolteca/tolteca/web/templates/beammap_sources/10886_f_tone.npy',allow_pickle=True).item()
+        f = np.load(f_tone_filepath, allow_pickle=True).item()
         
         for i in range(len(ncobs.nws)):
             try:
