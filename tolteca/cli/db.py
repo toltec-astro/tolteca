@@ -21,10 +21,10 @@ def cmd_migrate(parser):
     def action(option):
         logger = get_logger()
 
-        dpdb_uri = option.config['db']['tolteca']['uri']
-        logger.debug(f"migrate database: {dpdb_uri}")
+        dpdb_url = option.config['db']['tolteca']['url']
+        logger.debug(f"migrate database: {dpdb_url}")
 
-        db = SqlaDB.from_uri(dpdb_uri, engine_options={'echo': True})
+        db = SqlaDB.from_uri(dpdb_url, engine_options={'echo': True})
 
         from ..db.toltec import dataprod
 

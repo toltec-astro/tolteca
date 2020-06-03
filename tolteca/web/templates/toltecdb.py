@@ -53,10 +53,20 @@ class ToltecDB(ComponentTemplate):
                 self.logger.warning(
                         f"unable to connect to db bind={bind}: {e}",
                         exc_info=True)
-        # reflect toltec tables
-        _db['toltec'].reflect_tables()
+        # tolteca conn is required
+        if 'tolteca' not in _db:
+            raise RuntimeError("unable to connect to required db tolteca.")
         # load tolteca tables
         init_db(_db['tolteca'])
+
+        # reflect toltec tables if it exists
+        try:
+            _db['toltec'].reflect_tables()
+        except Exception as e:
+            self.logger.warning(
+                    f"unable to connect to toltec db: {e}",
+                    exc_info=True)
+
         self._db = _db
         return self._db
 
@@ -173,7 +183,10 @@ class ToltecDB(ComponentTemplate):
             session = _db.session
             result = []
             for n in table_names:
-                result.append(
+                if n not in _t:
+                    result.append(None)
+                else:
+                    result.append(
                         session.execute(_t[n].count()).scalar())
             return result
 
@@ -328,6 +341,9 @@ document.getElementById('{dest}').appendChild(
             if table_name is None:
                 return None, None, 1
             session = _db.session
+            if table_name not in _t:
+                raise dash.exceptions.PreventUpdate(
+                        f'table {table_name} not defined in db')
             db_table = _t[table_name]
             stmt = select([db_table]).limit(page_size).offset(
                     page_current * page_size)

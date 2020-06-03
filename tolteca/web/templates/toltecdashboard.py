@@ -9,12 +9,13 @@ from ..tasks.ocs3 import get_ocs3_api
 from dash_table import DataTable
 import dash_core_components as dcc
 from dash.dependencies import Input, Output
-from tollan.utils.log import timeit, get_logger
+from tollan.utils.log import timeit, get_logger, disable_logger
 from plotly.subplots import make_subplots
 from tollan.utils import odict_from_list
 import pandas as pd
 from dasha.web.templates.collapsecontent import CollapseContent
 from dasha.web.templates.valueview import ValueView
+from dasha.web.templates.ipcinfo import ReJsonIPCInfo
 from tollan.utils import mapsum
 from tollan.utils.fmt import pformat_yaml
 import dash
@@ -38,6 +39,8 @@ class ToltecDashboard(ComponentTemplate):
         header = container.child(dbc.Row)
         title_container = header.child(dbc.Col)
         title_container.child(html.H1, 'TolTEC Dashboard')
+        title_container.child(
+                ReJsonIPCInfo(get_ocs3_info_store, timeout_thresh=3))
         title_container.child(html.Hr)
         body = self.child(dbc.Row)
         for section_name, kwargs in [
@@ -61,6 +64,7 @@ class ToltecDashboard(ComponentTemplate):
                             'min-width': '375px'
                             },
                         **kwargs))
+
         super().setup_layout(app)
 
     def _get_ocs3_attrs(self, obj_name, filter_):
@@ -101,15 +105,17 @@ class ToltecDashboard(ComponentTemplate):
         def query_attrs():
             # logger = get_logger()
             store = get_ocs3_info_store()
-
+            if store.is_null():
+                return None
             result = dict()
-            with store.pipeline as p:
-                for attr in attrs:
-                    store.get(
-                        f'{obj_name}.attrs.{attr["name"]}')
-                response = p.try_execute()
-                if response is None:
-                    return None
+            with disable_logger('rejson query'):
+                with store.pipeline as p:
+                    for attr in attrs:
+                        store.get(
+                            f'{obj_name}.attrs.{attr["name"]}')
+                    response = p.try_execute()
+                    if response is None:
+                        return None
             for attr, data in zip(attrs, response):
                 # logger.debug(f"attr: {attr}\ndata: {data}")
                 result[attr['name']] = data
@@ -188,11 +194,14 @@ class ToltecDashboard(ComponentTemplate):
         def query_detector_values():
             logger = get_logger()
             store = get_ocs3_info_store()
-            with store.pipeline as p:
-                store.get(detector_values_path)
-                response = p.try_execute()
-                if response is None:
-                    return None
+            if store.is_null():
+                return None
+            with disable_logger('rejson query'):
+                with store.pipeline as p:
+                    store.get(detector_values_path)
+                    response = p.try_execute(result_index=-1)
+                    if response is None:
+                        return None
             data = response
             logger.debug(f"data: {len(data)}")
             return data
@@ -214,8 +223,8 @@ class ToltecDashboard(ComponentTemplate):
                         dash.no_update,
                         dash.no_update,
                         self._data_not_available(),)
-            import numpy as np
-            data = np.random.randn(len(data), len(data[0]))
+            # import numpy as np
+            # data = np.random.randn(len(data), len(data[0]))
 
             fig = make_subplots(
                     rows=n_arrays, cols=1, start_cell="top-left",
@@ -289,6 +298,8 @@ class ToltecDashboard(ComponentTemplate):
         def query_attrs():
             # logger = get_logger()
             store = get_ocs3_info_store()
+            if store.is_null():
+                return None
             result = {}
             attrs_all = mapsum(
                     lambda i: [
@@ -297,14 +308,14 @@ class ToltecDashboard(ComponentTemplate):
                         ],
                     attrs_map.items()
                     )
-
-            with store.pipeline as p:
-                for attr in attrs_all:
-                    store.get(
-                        f'{attr["_objname"]}.attrs.{attr["name"]}')
-                response = p.try_execute()
-                if response is None:
-                    return None
+            with disable_logger('rejson query', 'query_obj'):
+                with store.pipeline as p:
+                    for attr in attrs_all:
+                        store.get(
+                            f'{attr["_objname"]}.attrs.{attr["name"]}')
+                    response = p.try_execute()
+                    if response is None:
+                        return None
             for attr, data in zip(attrs_all, response):
                 # logger.debug(f"attr: {attr}\ndata: {data}")
                 key = attr['_objname']

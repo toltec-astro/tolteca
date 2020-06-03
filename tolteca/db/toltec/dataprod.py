@@ -4,7 +4,7 @@ from tollan.utils.log import get_logger
 import sqlalchemy as sa
 from tollan.utils import odict_from_list
 from tollan.utils.db import conventions as c
-from tollan.utils.db import init_db as _init_db
+from tollan.utils.db import TableDefList
 
 
 __all__ = ['init_db', ]
@@ -472,7 +472,7 @@ def init_db(db, create_tables=False):
     table_defs = _make_table_defs()
     logger.debug(f"collected {len(table_defs)} tables")
     # populate db.metadata
-    _init_db(db, list(table_defs.values()))
+    TableDefList(table_defs.values()).init_db(db)
 
     if not create_tables:
         return

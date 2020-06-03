@@ -12,6 +12,7 @@ from ..tasks.kidsreduce import _reduce_state_store, _make_reduce_state_key
 from .. import toltec_datastore
 from dasha.web.extensions.cache import cache
 from pathlib import Path
+import dash
 
 
 class KidsReduceView(ComponentTemplate):
@@ -82,7 +83,7 @@ class KidsReduceView(ComponentTemplate):
                 )
         def update_debug_datastore(n_intervals):
             ds = self.dataset._index_table_store
-            debug = ds.connection.jsonget(ds.redis_key, ds._revkey, ds._keykey)
+            debug = ds.get_meta()
             debug = pformat_yaml(debug)
             return debug
 
@@ -97,7 +98,7 @@ class KidsReduceView(ComponentTemplate):
             # debug = {k: d[k] for k in [ds._revkey, ds._keykey]}
             # debug[ds._objkey] = {k: d[ds._objkey][k]['state']
             # for k in d[ds._objkey].keys()}
-            debug = ds.connection.jsonget(ds.redis_key, ds._revkey, ds._keykey)
+            debug = ds.get_meta()
             debug = pformat_yaml(debug)
             return debug
 
@@ -107,7 +108,10 @@ class KidsReduceView(ComponentTemplate):
                 []
                 )
         def update_info(n_intervals):
-            tbl = get_table().to_dict('records')
+            tbl = get_table()
+            if tbl is None:
+                raise dash.exceptions.PreventUpdate
+            tbl = tbl.to_dict('records')
             result = []
             for i in range(n_rows):
                 if i >= len(tbl):

@@ -51,12 +51,7 @@ class SharedToltecDataset(object):
         return self._datastore['index_table']
 
     def _update_index_table(self, recreate=False):
-        if self._index_table is None or recreate:
-            self._index_table = self._index_table_store.get()
         self._index_table = self._index_table_store.get()
-        # else:
-        #     self._index_table = self._index_table_store.get_if_updated(
-        #             self.index_table)
 
     def set_index_table(self, df):
         self._index_table_store.set(df.to_json())
@@ -64,6 +59,8 @@ class SharedToltecDataset(object):
     @property
     def index_table(self):
         self._update_index_table(recreate=False)
+        if self._index_table is None:
+            return None
         return pd.read_json(self._index_table)
 
     @classmethod

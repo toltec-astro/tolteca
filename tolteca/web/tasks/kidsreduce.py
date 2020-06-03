@@ -75,7 +75,7 @@ def get_toltec_file_info(n_entries=20):
             'where': '',
             'group': "",
             'order': 'a.id desc',
-            'n_records': 100,
+            'n_records': n_entries,
             'primary_key': 'id',
             }
 
@@ -135,7 +135,7 @@ if celery_app is not None:
     def update_shared_toltec_dataset():
         logger = get_logger()
         dataset = SharedToltecDataset(_dataset_label)
-        info = get_toltec_file_info(n_entries=20)
+        info = get_toltec_file_info(n_entries=2)
         # look in to datastore for files
         if info is None:
             return

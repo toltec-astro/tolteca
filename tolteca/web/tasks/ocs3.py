@@ -20,7 +20,9 @@ import shlex
 
 
 def get_ocs3_info_store():
-    return ipc.get_or_create('rejson', label='ocs_info')
+    store = ipc.get_or_create('rejson', label='ocs_info')
+    store.ensure_obj()
+    return store
 
 
 def get_ocs3_server():
