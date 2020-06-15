@@ -83,6 +83,8 @@ def parse_value(obj_name, attr_name, value_str):
             # this is probably due to enum type int.
             return value_str
     elif type_ == 'double':
+        if value_str in ('-nan', 'nan'):
+            return None
         return float(value_str)
     elif type_ == 'boolean':
         return value_str == '1'
