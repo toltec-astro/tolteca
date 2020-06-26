@@ -33,9 +33,16 @@ import re
 import sys
 from tolteca.web.templates.beammap_sources.wyatt_classes import obs, ncdata
 from pathlib import Path
+from dasha.web.extensions.cache import cache
+import functools
 
 f_tone_filepath = Path(__file__).parent.joinpath(
         'beammap_sources/10886_f_tone.npy')
+
+
+@cache.memoize(timeout=60 * 60 * 60)
+def get_ncobs(*args, **kwargs):
+    return obs(*args, **kwargs)
 
 
 class beammap(ComponentTemplate):
@@ -86,7 +93,7 @@ class beammap(ComponentTemplate):
         
         #Load all of the nc files into the ncobs object.  May break if
         #there are multiple nc files for each network.
-        ncobs = obs(obsnum,nrows,ncols,path,sf,order='C',transpose=False)
+        ncobs = get_ncobs(obsnum,nrows,ncols,path,sf,order='C',transpose=False)
         
         #Frequencies are acquired separately due to a potential bug in the
         #kids reduce code
@@ -101,16 +108,32 @@ class beammap(ComponentTemplate):
         title = 'Wyatt Beammap 2020.05.06'
         title_container = body.child(dbc.Row)
         title_container.children = [html.H1(f'{title}')]
-        
-        checklist_container = body.child(dbc.Row)
-        checklist_label = checklist_container.child(dbc.Col,style={'margin': 25}).child(dbc.Label,"Select Networks to Plot:")
+
+        array_names = ['a1100', 'a1400', 'a2000']
+        plot_networks_checklist_section = body.child(dbc.Row).child(dbc.Col)
+        plot_networks_checklist_section.child(dbc.Label, 'Select network(s) to show in the plots:')
+        plot_networks_checklist_container = plot_networks_checklist_section.child(dbc.Row, className='mx-0')
+        checklist_presets_container = plot_networks_checklist_container.child(dbc.Col, width=4)
+        checklist_presets = checklist_presets_container.child(dbc.Checklist, persistence=True, labelClassName='pr-1', inline=True)
+        checklist_presets.options = [
+                {'label': 'All', 'value': 'all'},
+                {'label': '1.1mm', 'value': 'a1100'},
+                {'label': '1.4mm', 'value': 'a1400'},
+                {'label': '2.0mm', 'value': 'a2000'},
+                ]
+
+        checklist_presets.value = []
+        checklist_networks_container = plot_networks_checklist_container.child(dbc.Col)
+        # make three button groups
+        nw_checklist = checklist_networks = checklist_networks_container.child(dbc.Checklist, persistence=True, labelClassName='pr-1', inline=True)
+        #checklist_label = checklist_container.child(dbc.Col,style={'margin': 25}).child(dbc.Label,"Select Networks to Plot:")
         
         #body.child(dbc.Row).child(dbc.Label("Select Networks: ", className='mr-2'),style={'width':'100%', 'margin':25, 'textAlign': 'center'})        
         
         #Creates the checklist for the different networks.  Values correspond
         #to the ordering in the ncobs.nws list.
-        nw_checklist = checklist_container.child(dbc.Col,style={'margin': 25}).child(dcc.Checklist,
-        options=[
+        # nw_checklist = checklist_container.child(dbc.Col,style={'margin': 25}).child(dcc.Checklist,
+        checklist_networks_options=[
             {'label': 'N0', 'value': '0'},
             {'label': 'N1', 'value': '1'},
             {'label': 'N2', 'value': '4'},
@@ -124,16 +147,41 @@ class beammap(ComponentTemplate):
             {'label': 'N10', 'value': '-1'},
             {'label': 'N11', 'value': '2'},
             {'label': 'N12', 'value': '3'},
-        ],
-            value=[],
-            labelStyle={'display': 'inline-block'},
-            #style={'width':'100%', 'margin':0, 'textAlign': 'center'},
+        ] # ,
+        #    value=[],
+        #    labelStyle={'display': 'inline-block'},
+        #    #style={'width':'100%', 'margin':0, 'textAlign': 'center'},
+        #)
+        preset_networks_map = dict()
+        preset_networks_map['a1100'] = set(o['value'] for o in checklist_networks_options[0:7])
+        preset_networks_map['a1400'] = set(o['value'] for o in checklist_networks_options[7:11])
+        preset_networks_map['a2000'] = set(o['value'] for o in checklist_networks_options[11:13])
+        preset_networks_map['all'] =  functools.reduce(set.union, (preset_networks_map[k] for k in array_names))
+
+        # print(f"nw presets: {preset_networks_map}")
+
+        @app.callback(
+            [
+                Output(checklist_networks.id, "options"),
+                Output(checklist_networks.id, "value"),
+                ],
+            [
+                Input(checklist_presets.id, "value"),
+            ]
         )
-        
+        def on_preset_change(preset_values):
+            nw_values = set()
+            for pv in preset_values:
+                nw_values = nw_values.union(preset_networks_map[pv])
+            # print(f'select preset {preset_values} network values {nw_values}')
+            options = [o for o in checklist_networks_options if o['value'] in nw_values]
+            return options, list(nw_values)
+
         #This container is for the array plot.  Note it uses dcc.Tabs to create
         #a overall tab.
-        array_tab_container = body.child(dbc.Row).child(dcc.Tabs,vertical=False)
+        array_tab_container = body.child(dbc.Row).child(dbc.Col).child(dbc.Tabs, className='mt-3')
         
+        # these should be removed because they are not used anymore
         #Container for the various options at the top of the page
         button_container = body.child(dbc.Row)
         file_container = button_container.child(dbc.Col).child(html.Div, className='d-flex')
@@ -144,23 +192,25 @@ class beammap(ComponentTemplate):
         path_input = button_container.child(dbc.Col).child(dcc.Input, placeholder="Enter File Path: ",
             type='string',
             value='/home/mmccrackan/wyatt/coadd/')
-               
+
+              
         #Make a tab for the 1.1 mm plots
-        a1100_container = array_tab_container.child(dcc.Tab,label='1.1mm').child(dbc.Row)
+        a1100_container = array_tab_container.child(dbc.Tab,label='1.1mm Array').child(dbc.Row)
         
         #A container for the 1.1 mm table
-        t1100_container = a1100_container.child(dbc.Col,style={'margin':0})#.child(dbc.Jumbotron, [html.H1(children="Selected Detector")],style={"width": "25%"})
+        t1100_container = a1100_container.child(dbc.Col, width=3)  #,style={'margin':0}.child(dbc.Jumbotron, [html.H1(children="Selected Detector")],style={"width": "25%"})
         
         #Make a tab for the 1.1 mm beammap and slice plots
         #a1100_b_tab = a1100_container.child(dbc.Col,style={'width':'40%', 'margin':0, 'textAlign': 'center'}).child(dcc.Tabs,vertical=True)
         
-        a1100_b_tab = t1100_container.child(dbc.Tabs,style={'margin':0, 'textAlign': 'center'})
+        a1100_b_tab = t1100_container.child(dbc.Row).child(dbc.Col).child(dbc.Tabs, className='mt-3')  # ,style={'margin':0, 'textAlign': 'center'}
         
         #Tabs and graphs for the 1.1 mm beammap and slice plots
         #p1100_b = a1100_b_tab.child(dcc.Tab,label='beammap').child(dbc.Col).child(dcc.Graph)
         #p1100_b2 = a1100_b_tab.child(dcc.Tab,label='y-slice').child(dbc.Col).child(dcc.Graph)
         #p1100_b3 = a1100_b_tab.child(dcc.Tab,label='x-slice').child(dbc.Col).child(dcc.Graph)
-        
+
+       
         p1100_b = a1100_b_tab.child(dbc.Tab,label='beammap').child(dcc.Graph,figure = {
                 'data': [{
                     #'x': list(range(ncobs.nrows)),
@@ -205,33 +255,51 @@ class beammap(ComponentTemplate):
                     'hovermode': True,
                 }})
         
+
         
-        t1100 = t1100_container.child(dbc.Table,bordered=True, striped=True, hover=True,responsive=True,style={'width': '100%'})
+        t1100 = t1100_container.child(dbc.Row).child(dbc.Col, className='mx-2').child(
+                dbc.Table,
+                borderless=True, striped=True, hover=False, responsive=True, style={'font-size': '0.8rem'})  # ,style={'width': '100%'}
 
         t1100.children = table_header + table_body
 
         #This creates a graph for the 1.1 mm array plot
         #p1100 = a1100_container.child(dbc.Col,style={'width':'50%', 'margin':0, 'textAlign': 'center'}).child(dcc.Graph)
-        p1100_container = a1100_container.child(dbc.Col,style={'width': '100%', 'margin':0, 'textAlign': 'center'}).child(dbc.Card).child(dbc.CardBody,style={"marginRight": 75,"marginTop": 0, "marginBottom": 0,'width': '100%'}).child(dbc.CardHeader,html.H5("1.1mm Array"))
-        
+        # style={'width': '100%', 'margin':0, 'textAlign': 'center'}
+        # p1100_container = a1100_container.child(
+        #        dbc.Col, className='mt-3 border-left').child(dbc.Card, style={'width': '100%', 'margin':0, 'textAlign': 'center'}).child(dbc.CardBody,style={"marginRight": 75,"marginTop": 0, "marginBottom": 0,'width': '100%'}).child(dbc.CardHeader,html.H5("1.1mm Array"))
+        p1100_container_section = a1100_container.child(
+                dbc.Col, className='mt-3 border-left')
+        # p1100_container_header = p1100_container_section.child(dbc.Row).child(dbc.Col)
+        # p1100_container_header.child(html.H4, "1.1mm Array", className='mt-1')
+
+        drp_container = p1100_container_section.child(dbc.Row, className='mt-1 mb-2').child(dbc.Col, className='d-flex')
+        p1100_container = p1100_container_section.child(dbc.Row).child(dbc.Col)
 
         #Inside of the 1.1 mm container, make a dropdown to control the
         #plotted axes for the array plot.  Separate for each array.   Defaults
         #to x, y
-        drp_container = p1100_container.child(dbc.Row)
-        drp_1100=drp_container.child(dbc.Col,style={'width':'10%', 'margin':0, 'textAlign': 'center'}).child(dcc.Dropdown, options=[
+        # drp_container = p1100_container_header  # .child(dbc.Row)
+        # ,style={'width':'10%', 'margin':0, 'textAlign': 'center'}
+        drp_container_group = drp_container.child(dbc.InputGroup, size='sm', className='mr-2 w-auto')
+        drp_container_group.child(dbc.InputGroupAddon("X-Axis", addon_type="prepend"))
+        drp_1100 = drp_container_group.child(dbc.Select, options=[
+
             {'label': 'S/N', 'value': 'amps'},
             {'label': 'x', 'value': 'x'},
             {'label': 'y', 'value': 'y'},
             {'label': 'fwhmx', 'value': 'fwhmx'},
             {'label': 'fwhmy', 'value': 'fwhmy'},
             {'label': 'Freq', 'value': 'f'}
-
         ],
         value='x',
-        multi=False)
+        # multi=False
+        )
         
-        drp_1100_2=drp_container.child(dbc.Col,style={'width':'10%', 'margin':0, 'textAlign': 'center'}).child(dcc.Dropdown, options=[
+        drp_container_group = drp_container.child(dbc.InputGroup, size='sm', className='mr-2 w-auto')
+        drp_container_group.child(dbc.InputGroupAddon("Y-Axis", addon_type="prepend"))
+        drp_1100_2 = drp_container_group.child(dbc.Select, options=[
+        # drp_1100_2=drp_container.child(dbc.Col,style={'width':'10%', 'margin':0, 'textAlign': 'center'}).child(dcc.Dropdown, options=[
             {'label': 'S/N', 'value': 'amps'},
             {'label': 'x', 'value': 'x'},
             {'label': 'y', 'value': 'y'},
@@ -241,9 +309,13 @@ class beammap(ComponentTemplate):
 
         ],
         value='y',
-        multi=False)
+        # multi=False
+        )
         
-        drp_1100_3=drp_container.child(dbc.Col,style={'width':'10%', 'margin':0, 'textAlign': 'center'}).child(dcc.Dropdown, options=[
+        drp_container_group = drp_container.child(dbc.InputGroup, size='sm', className='mr-2 w-auto')
+        drp_container_group.child(dbc.InputGroupAddon("Color", addon_type="prepend"))
+        drp_1100_3 = drp_container_group.child(dbc.Select, options=[
+        # drp_1100_3=drp_container.child(dbc.Col,style={'width':'10%', 'margin':0, 'textAlign': 'center'}).child(dcc.Dropdown, options=[
             {'label': 'NW', 'value': 'NW'},
             {'label': 'S/N', 'value': 'amps'},
             {'label': 'x', 'value': 'x'},
@@ -253,7 +325,8 @@ class beammap(ComponentTemplate):
             {'label': 'Freq', 'value': 'f'}
         ],
         value='NW',
-        multi=False)
+        # multi=False
+        )
         
         p1100 = p1100_container.child(dcc.Graph, figure={
                 'layout': {
@@ -274,17 +347,16 @@ class beammap(ComponentTemplate):
                 }})
         
         #Create a tab for the 1.1 mm histograms        
-        a1100_h_tab = a1100_container.child(dbc.Row)
+        a1100_h_tab = a1100_container.child(dbc.Col, width=4).child(dbc.Row)
         
         #Set up each histogram for the 1.1 mm array.  Each is a new column.
-        p1100_h0 = a1100_container.child(dbc.Row).child(dcc.Graph,align="center")
-        p1100_h1 = a1100_container.child(dbc.Row).child(dcc.Graph,align="center")
-        p1100_h2 = a1100_container.child(dbc.Row).child(dcc.Graph,align="center")
-        p1100_h3 = a1100_container.child(dbc.Row).child(dcc.Graph,align="center")
-        p1100_h4 = a1100_container.child(dbc.Row).child(dcc.Graph,align="center")
-        p1100_h5 = a1100_container.child(dbc.Row).child(dcc.Graph,align="center")
+        p1100_h0 = a1100_h_tab.child(dbc.Col, width=6, className='px-0').child(dcc.Graph,align="center")
+        p1100_h1 = a1100_h_tab.child(dbc.Col, width=6, className='px-0').child(dcc.Graph,align="center")
+        p1100_h2 = a1100_h_tab.child(dbc.Col, width=6, className='px-0').child(dcc.Graph,align="center")
+        p1100_h3 = a1100_h_tab.child(dbc.Col, width=6, className='px-0').child(dcc.Graph,align="center")
+        p1100_h4 = a1100_h_tab.child(dbc.Col, width=6, className='px-0').child(dcc.Graph,align="center")
+        p1100_h5 = a1100_h_tab.child(dbc.Col, width=6, className='px-0').child(dcc.Graph,align="center")
 
-        
         #Call back for displaying the list of files.  Searches the path for
         #nc files and returns them without the path.
         @app.callback(Output(files.id, 'children'),
@@ -307,14 +379,15 @@ class beammap(ComponentTemplate):
                 return np.sort(file_list_short)
             else:
                 return np.sort(file_list_short[:12],'...') 
-        
+
+       
         #Callback to clear the network checklist when the path is changed.
         #Prevents it from immediately plotting selected networks when the a
         #new set of files is selected.
-        @app.callback(Output(nw_checklist.id, 'value'),
-                      [Input(path_input.id,'value')])
-        def clear_checklist(path):
-            return []
+        # @app.callback(Output(nw_checklist.id, 'value'),
+        #               [Input(path_input.id,'value')])
+        # def clear_checklist(path):
+        #     return []
         
         #This creates the array plot for the 1.1 mm array.  It takes the
         #dropdown and checklist as input.  From the checklist, it creates
@@ -601,7 +674,7 @@ class beammap(ComponentTemplate):
                 pointNumber = clickData['points'][0]['pointNumber']
                 print(pointNumber)
             except:
-                pass
+                pointNumber = 0
                 
             p = {}
             f = []
@@ -615,18 +688,18 @@ class beammap(ComponentTemplate):
                         p[ncobs.pnames[j]].extend(ncobs.ncs[int(checklist[i])].p[ncobs.pnames[j]])
                     f.extend(ncobs.ncs[int(checklist[i])].f)
                 
-                #Make lists of the networks and detector numbers so we can
-                #find out what network pointNumber is in and what detector
-                #number in that network it corresponds to.
-                dets = []
-                nws = []
-                
-                for i in range(len(checklist)):
-                    ci = int(checklist[i])
-                    if ci in [0,1,4,5,6,7,8]:
-                        nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
-                        dets.extend(range(ncobs.ncs[ci].ndets))
-             
+            #Make lists of the networks and detector numbers so we can
+            #find out what network pointNumber is in and what detector
+            #number in that network it corresponds to.
+            dets = []
+            nws = []
+            
+            for i in range(len(checklist)):
+                ci = int(checklist[i])
+                if ci in [0,1,4,5,6,7,8]:
+                    nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
+                    dets.extend(range(ncobs.ncs[ci].ndets))
+         
                         
             print('nws',len(nws))
 
@@ -803,6 +876,7 @@ class beammap(ComponentTemplate):
                 pointNumber = clickData['points'][0]['pointNumber']
                 print(pointNumber)
             except:
+                pointNumber = 0
                 pass
                 
             p = {}
@@ -1010,6 +1084,7 @@ class beammap(ComponentTemplate):
                 pointNumber = clickData['points'][0]['pointNumber']
                 print(pointNumber)
             except:
+                pointNumber = 0
                 pass
                 
             p = {}
@@ -1216,6 +1291,7 @@ class beammap(ComponentTemplate):
                 pointNumber = clickData['points'][0]['pointNumber']
                 print(pointNumber)
             except:
+                pointNumber = 0
                 pass
                 
             p = {}
@@ -1230,18 +1306,18 @@ class beammap(ComponentTemplate):
                         p[ncobs.pnames[j]].extend(ncobs.ncs[int(checklist[i])].p[ncobs.pnames[j]])
                     f.extend(ncobs.ncs[int(checklist[i])].f)
                 
-                #Make lists of the networks and detector numbers so we can
-                #find out what network pointNumber is in and what detector
-                #number in that network it corresponds to.
-                dets = []
-                nws = []
-                
-                for i in range(len(checklist)):
-                    ci = int(checklist[i])
-                    if ci in [0,1,4,5,6,7,8]:
-                        nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
-                        dets.extend(range(ncobs.ncs[ci].ndets))
-             
+            #Make lists of the networks and detector numbers so we can
+            #find out what network pointNumber is in and what detector
+            #number in that network it corresponds to.
+            dets = []
+            nws = []
+            
+            for i in range(len(checklist)):
+                ci = int(checklist[i])
+                if ci in [0,1,4,5,6,7,8]:
+                    nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
+                    dets.extend(range(ncobs.ncs[ci].ndets))
+         
                         
             print('nws',len(nws))
 
@@ -2095,6 +2171,7 @@ class beammap(ComponentTemplate):
                 pointNumber = clickData['points'][0]['pointNumber']
                 print(pointNumber)
             except:
+                pointNumber = 0
                 pass
                 
             p = {}
@@ -2504,6 +2581,7 @@ class beammap(ComponentTemplate):
                 pointNumber = clickData['points'][0]['pointNumber']
                 print(pointNumber)
             except:
+                pointNumber = 0
                 pass
                 
             p = {}
@@ -2710,6 +2788,7 @@ class beammap(ComponentTemplate):
                 pointNumber = clickData['points'][0]['pointNumber']
                 print(pointNumber)
             except:
+                pointNumber = 0
                 pass
                 
             p = {}
@@ -2724,17 +2803,17 @@ class beammap(ComponentTemplate):
                         p[ncobs.pnames[j]].extend(ncobs.ncs[int(checklist[i])].p[ncobs.pnames[j]])
                     f.extend(ncobs.ncs[int(checklist[i])].f)
                 
-                #Make lists of the networks and detector numbers so we can
-                #find out what network pointNumber is in and what detector
-                #number in that network it corresponds to.
-                dets = []
-                nws = []
-                
-                for i in range(len(checklist)):
-                    ci = int(checklist[i])
-                    if ci in [9,10,11,12]:
-                        nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
-                        dets.extend(range(ncobs.ncs[ci].ndets))
+            #Make lists of the networks and detector numbers so we can
+            #find out what network pointNumber is in and what detector
+            #number in that network it corresponds to.
+            dets = []
+            nws = []
+            
+            for i in range(len(checklist)):
+                ci = int(checklist[i])
+                if ci in [9,10,11,12]:
+                    nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
+                    dets.extend(range(ncobs.ncs[ci].ndets))
              
                         
             print('nws',len(nws))
@@ -3588,6 +3667,7 @@ class beammap(ComponentTemplate):
                 pointNumber = clickData['points'][0]['pointNumber']
                 print(pointNumber)
             except:
+                pointNumber = 0
                 pass
                 
             p = {}
@@ -3790,6 +3870,7 @@ class beammap(ComponentTemplate):
                 pointNumber = clickData['points'][0]['pointNumber']
                 print(pointNumber)
             except:
+                pointNumber = 0
                 pass
                 
             p = {}
@@ -3997,6 +4078,7 @@ class beammap(ComponentTemplate):
                 pointNumber = clickData['points'][0]['pointNumber']
                 print(pointNumber)
             except:
+                pointNumber = 0
                 pass
                 
             p = {}
@@ -4217,18 +4299,18 @@ class beammap(ComponentTemplate):
                         p[ncobs.pnames[j]].extend(ncobs.ncs[int(checklist[i])].p[ncobs.pnames[j]])
                     f.extend(ncobs.ncs[int(checklist[i])].f)
                 
-                #Make lists of the networks and detector numbers so we can
-                #find out what network pointNumber is in and what detector
-                #number in that network it corresponds to.
-                dets = []
-                nws = []
-                
-                for i in range(len(checklist)):
-                    ci = int(checklist[i])
-                    if ci in [2,3]:
-                        nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
-                        dets.extend(range(ncobs.ncs[ci].ndets))
-             
+            #Make lists of the networks and detector numbers so we can
+            #find out what network pointNumber is in and what detector
+            #number in that network it corresponds to.
+            dets = []
+            nws = []
+            
+            for i in range(len(checklist)):
+                ci = int(checklist[i])
+                if ci in [2,3]:
+                    nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
+                    dets.extend(range(ncobs.ncs[ci].ndets))
+         
                         
             print('nws',len(nws))
 

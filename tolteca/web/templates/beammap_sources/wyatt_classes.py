@@ -198,6 +198,17 @@ class ncdata:
         
         self.get_nc_data(order,transpose)
         
+    def __getstate__(self):
+        # this is to allow pickling of this object
+        # so that this can be held in the redis cache.
+        state = self.__dict__.copy()
+        del state['ncfile']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.ncfile = netCDF4.Dataset(self.ncfile_name)
+
     def get_nc_data(self,order,transpose):
         self.ncfile = netCDF4.Dataset(self.ncfile_name)
         

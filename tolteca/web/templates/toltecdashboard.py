@@ -240,7 +240,7 @@ class ToltecDashboard(ComponentTemplate):
                     )
             fig.update_layout(
                     uirevision=True,
-                    coloraxis=dict(colorscale='RdBu'), showlegend=False,
+                    coloraxis=dict(colorscale='Viridis'), showlegend=False,
                     margin=dict(t=60),
                     )
             for i, array_prop in enumerate(array_props.values()):
@@ -251,7 +251,7 @@ class ToltecDashboard(ComponentTemplate):
                         'type': 'heatmap',
                         'z': data[array_prop['roaches']],
                         'y': roach_indices,
-                        'coloraxis': 'coloraxis1'
+                        'coloraxis': 'coloraxis1',
                         }
                 fig.add_trace(trace, i + 1, 1)
                 # fig.update_xaxes(
