@@ -459,7 +459,7 @@ class beammap(ComponentTemplate):
         # Frequencies are acquired separately due to a potential bug in the
         # kids reduce code
         #f = np.load('/Users/mmccrackan/toltec/data/tests/wyatt/10886/10886_f_tone.npy',allow_pickle=True).item()
-        f = np.load(file_tone_path,allow_pickle=True).item()
+        f = np.load(f_tone_filepath, allow_pickle=True).item()
         for i in range(len(ncobs.nws)):
             try:
                 ncobs.ncs[i].f = f[int(ncobs.nws[i])]
