@@ -99,6 +99,10 @@ class ToltecDashboard(ComponentTemplate):
         attrs = self._get_ocs3_attrs(
                 obj_name,
                 lambda a: a.get('dims', None) == ['TOLTEC_NUM_ROACHES', ])
+        # this store the toltec backend global attrs
+        attrs_meta = self._get_ocs3_attrs(
+                obj_name,
+                lambda a: a.get('dims', None) is None)
 
         @timeit
         @cachetools.func.ttl_cache(maxsize=1, ttl=1)
@@ -108,19 +112,28 @@ class ToltecDashboard(ComponentTemplate):
             if store.is_null():
                 return None
             result = dict()
+            result_meta = dict()
             with disable_logger('rejson query'):
                 with store.pipeline as p:
                     for attr in attrs:
                         store.get(
                             f'{obj_name}.attrs.{attr["name"]}')
+                    for attr in attrs_meta:
+                        store.get(
+                            f'{obj_name}.attrs.{attr["name"]}')
                     response = p.try_execute()
                     if response is None:
                         return None
-            for attr, data in zip(attrs, response):
+            n_attrs = len(attrs)
+            for i, (attr, data) in enumerate(
+                    zip(attrs + attrs_meta, response)):
                 # logger.debug(f"attr: {attr}\ndata: {data}")
-                result[attr['name']] = data
+                if i < n_attrs:
+                    result[attr['name']] = data
+                else:
+                    result_meta[attr['name']] = data
             # turn the data to data frame
-            return pd.DataFrame(result)
+            return pd.DataFrame(result), result_meta
 
         # setup info view
         tbl_info = info_container.child(
@@ -132,6 +145,7 @@ class ToltecDashboard(ComponentTemplate):
                 [
                     Output(tbl_info.id, 'columns'),
                     Output(tbl_info.id, 'data'),
+                    Output(tbl_info.id, 'style_cell'),
                     Output(loading.id, 'children'),
                     Output(error.id, 'children'),
                     ],
@@ -140,17 +154,37 @@ class ToltecDashboard(ComponentTemplate):
                     ]
                 )
         def update_tbl_info(n_intervals):
-            info = query_attrs()
+            info, info_meta = query_attrs()
             if info is None:
                 return (
                         dash.no_update, dash.no_update, dash.no_update,
                         self._data_not_available())
+            # format the sample freq
+            info['SampleFreq'] = info['SampleFreq'].apply(lambda x: f'{float(x):.2f}')
+            info = info.drop(['ClockTime', 'StatusReg'], axis=1)
             info = info.T
             info.insert(0, 'Roach', info.index)
+
+            def make_name_indicator(i):
+                try:
+                    i = int(i)
+                except ValueError:
+                    return i
+                if i == 13:
+                    n = 'HWP'
+                else:
+                    n = f'{i}'
+                m = int(info_meta['SelectedMask'], 16)
+                if ((1 << i) & m) > 0:
+                    return f'🟢 {n}'
+                return n
             columns = [
-                    {"name": i, "id": i} for i in info.columns]
+                    {"name": make_name_indicator(i), "id": i} for i in info.columns]
             data = info.to_dict('records')
-            return columns, data, "", ""
+            style_cell = {
+                'width': '3rem',
+                }
+            return columns, data, style_cell, "", ""
 
         @app.callback(
                 Output(details_container.id, 'children'),
@@ -159,8 +193,8 @@ class ToltecDashboard(ComponentTemplate):
                     ],
                 )
         def update_details(n_intervals):
-            info = query_attrs()
-            return html.Pre(pformat_yaml(info))
+            info, info_meta = query_attrs()
+            return html.Pre(f'{pformat_yaml(info_meta)}\n{info}')
 
     def _setup_section_kids(self, app, container):
         timer, loading, error = self._setup_live_update_header(
