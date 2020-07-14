@@ -250,7 +250,7 @@
   - desc: LogOn Flag
     name: LogOn
     parent_type: ToltecDilutionFridgeData
-    type: boolean
+    type: int
   - desc: Heartbeat
     name: Heartbeat
     parent_type: ToltecDilutionFridgeData
@@ -1611,10 +1611,8 @@
     name: CommandName
     parent_type: ToltecBackendData
     type: string
-  - desc: EnabledRoach
-    dims:
-    - TOLTEC_NUM_ROACHES
-    name: EnabledRoach
+  - desc: SelectedMask
+    name: SelectedMask
     parent_type: ToltecBackendData
     type: int
   - desc: RoachCmd

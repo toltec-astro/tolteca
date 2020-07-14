@@ -25,7 +25,9 @@ import sys
 
 # Uses the wyatt_classes.py file for the class to hold the data.
 #sys.path.append('/Users/mmccrackan/dasha/dasha/examples/beammap_sources/')
-#from wyatt_classes import obs, ncdata
+from wyatt_classes import obs, ncdata
+
+
 
 f_tone_filepath = Path(__file__).parent.joinpath(
         'beammap_sources/10886_f_tone.npy')
@@ -38,19 +40,9 @@ df = pd.DataFrame(
         "Value": ["N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"]
     }
 )
-#dimensions of array plots
-a_width=500
-a_height=500
 
-#dimensions of beammap plots
-b_width=350
-b_height=350
 
-#dimensions of histogram plots
-h_width = 400
-h_height = 400
-
-#@cache.memoize(timeout=60 * 60 * 60)
+@cache.memoize(timeout=60 * 60 * 60)
 def get_ncobs(*args, **kwargs):
     return obs(*args, **kwargs)
 
@@ -82,7 +74,7 @@ def from_ncobs(nw_chk_value, array_indices, ncobs):
 def get_array_values(p, f, z, drp_val):
     data = []
     if drp_val != 'NW':
-        if drp_val != 'freq':
+        if drp_val != 'f':
             data = np.array(p[drp_val])
         else:
             data = np.array(f)
@@ -172,7 +164,7 @@ class beammap(ComponentTemplate):
         pl = p_container_col.child(dcc.Graph, figure={})
 
         # Row for histograms in new column next to array plot
-        hist_tab_row = container.child(dbc.Col).child(dbc.Row, width=3,className='mt-5 w-auto')
+        hist_tab_row = container.child(dbc.Col).child(dbc.Row, width=3)
 
         # Histogram figures (will combine into one)
         hist_graph_0 = hist_tab_row.child(dbc.Col, width=6, className='px-0').child(dcc.Graph,align="center")
@@ -223,52 +215,27 @@ class beammap(ComponentTemplate):
             xmin, xmax = get_maxmin(x, drp_x_value, ncobs)
             ymin, ymax = get_maxmin(y, drp_y_value, ncobs)
 
-            if drp_x_value != 'NW':
-                x_clr = labels[drp_x_value]
-            else:
-                x_clr = 'NW'
-
-            if drp_y_value != 'NW':
-                y_clr = labels[drp_y_value]
-            else:
-                y_clr = 'NW'
-
-            if drp_clr_value != 'NW':
-                z_clr = labels[drp_clr_value]
-            else:
-                z_clr = 'NW'
-
             # Define figure dict
             array_figure = {
                 'data': [{
                     'x': x,
                     'y': y,
                     'type': 'scatter',
-                    'mode': 'markers',
+                    'mode': 'markers+text',
                     'marker': {
                         'color': z,
-                        'line': {'color': 'k',
-                                 'width': 1},
-                        'showscale': True,
-                        'colorbar': {'title': z_clr}
-                    },
-                    'selected': {
-                        'marker': {'color': '#6ffc03',
-                                   'symbol': 'X'},
+                        'showscale': True
                     }
                 }],
                 'layout': {
-                    'width': a_width,
-                    'height': a_height,
                     'clickmode': 'event+select',
                     'autosize': True,
                     'automargin': False,
-                    'editable': True,
-                    'animate': True,
-                    'xaxis': {'title': x_clr, 'range': [xmin, xmax]},
-                    'yaxis': {'title': y_clr, 'range': [ymin, ymax]}
+                    'xaxis': {'range': [xmin, xmax]},
+                    'yaxis': {'range': [ymin, ymax]}
                     }
                 }
+
             # Return figure object
             return array_figure
 
@@ -334,12 +301,10 @@ class beammap(ComponentTemplate):
 
             # To find which row and column to slice on, we find the x,y
             # centroid and round to the nearest element in the matrix.
-            #row = int(np.round(ncobs.ncs[nwi].p['x'][det]))
-            #col = int(np.round(ncobs.ncs[nwi].p['y'][det]))
+            row = int(np.round(ncobs.ncs[nwi].p['x'][det]))
+            col = int(np.round(ncobs.ncs[nwi].p['y'][det]))
 
-            row, col = np.where(z == np.max(z))
-            row = row[0]
-            col = col[0]
+            print(np.shape(z))
 
             # Define figure dict
             bslice_figure = {
@@ -359,8 +324,6 @@ class beammap(ComponentTemplate):
                 'layout': {
                     'autosize': True,
                     'automargin': False,
-                    'xaxis': {'title': 'x (pixels)'},
-                    'yaxis': {'title': 'y (pixels)'}
                     #'xaxis': {'range': [xmin, xmax]},
                     #'yaxis': {'range': [ymin, ymax]}
                     }
@@ -373,18 +336,14 @@ class beammap(ComponentTemplate):
                 bslice_figure['data'][0]['type'] = 'heatmap'
             elif fig_type == 'yslice':
                 bslice_figure['data'][0]['x'] = list(range(ncobs.nrows))
-                bslice_figure['data'][0]['y'] = z[row,:]
+                bslice_figure['data'][0]['y'] = z[:, row]
                 bslice_figure['data'][0]['type'] = 'line'
                 bslice_figure['data'][0]['mode'] = 'lines+text'
-                bslice_figure['layout']['xaxis'] = {'title': 'x (pixels)'}
-                bslice_figure['layout']['yaxis'] = {'title': 'S/N'}
             elif fig_type == 'xslice':
                 bslice_figure['data'][0]['x'] = list(range(ncobs.ncols))
-                bslice_figure['data'][0]['y'] = z[:,col]
+                bslice_figure['data'][0]['y'] = z[col, :]
                 bslice_figure['data'][0]['type'] = 'line'
                 bslice_figure['data'][0]['mode'] = 'lines+text'
-                bslice_figure['layout']['xaxis'] = {'title': 'y (pixels)'}
-                bslice_figure['layout']['yaxis'] = {'title': 'S/N'}
 
             return bslice_figure
 
@@ -533,7 +492,7 @@ class beammap(ComponentTemplate):
             {'label': 'y', 'value': 'y'},
             {'label': 'fwhmx', 'value': 'fwhmx'},
             {'label': 'fwhmy', 'value': 'fwhmy'},
-            {'label': 'Freq', 'value': 'freq'},
+            {'label': 'Freq', 'value': 'f'},
             {'label': 'NW', 'value': 'NW'}
         ]
 
@@ -547,7 +506,7 @@ class beammap(ComponentTemplate):
         plot_networks_checklist_section.child(dbc.Label, 'Select network(s) to show in the plots:')
         plot_networks_checklist_container = plot_networks_checklist_section.child(dbc.Row, className='mx-0')
         checklist_presets_container = plot_networks_checklist_container.child(dbc.Col, width=4)
-        checklist_presets = checklist_presets_container.child(dbc.Checklist, persistence=False, labelClassName='pr-1', inline=True)
+        checklist_presets = checklist_presets_container.child(dbc.Checklist, persistence=True, labelClassName='pr-1', inline=True)
         checklist_presets.options = [
                 {'label': 'All', 'value': 'all'},
                 {'label': '1.1mm', 'value': '1.1 mm Array'},
@@ -558,7 +517,7 @@ class beammap(ComponentTemplate):
         checklist_presets.value = []
         checklist_networks_container = plot_networks_checklist_container.child(dbc.Col)
         # make three button groups
-        nw_checklist = checklist_networks_container.child(dbc.Checklist, persistence=False, labelClassName='pr-1', inline=True)
+        nw_checklist = checklist_networks_container.child(dbc.Checklist, persistence=True, labelClassName='pr-1', inline=True)
 
         checklist_networks_options = [
                 {'label': 'N0', 'value': '0'},
@@ -620,7 +579,7 @@ class beammap(ComponentTemplate):
         # Frequencies are acquired separately due to a potential bug in the
         # kids reduce code
         #f = np.load('/Users/mmccrackan/toltec/data/tests/wyatt/10886/#10886_f_tone.npy',allow_pickle=True).item()
-        f = np.load(f_tone_filepath, allow_pickle=True).item()
+
         for i in range(len(ncobs.nws)):
             try:
                 ncobs.ncs[i].f = f[int(ncobs.nws[i])]

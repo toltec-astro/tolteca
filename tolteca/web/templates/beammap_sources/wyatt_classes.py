@@ -39,19 +39,25 @@ class obs:
         
         print('Getting data from %i files for obsnum %s' %(len(self.beammap_files),self.obsnum))
 
-        self.ncs = []
-        self.nws = []
+        self.ncs = list(np.ones(13)*-1)
+        self.nws = list(np.ones(13)*-1)
 
         self.tdets = 0
         for f in self.beammap_files:
             nw = re.findall(r'\d+', f)   
-            self.nws.append(nw[-1])
-            print('on nw ' + self.nws[-1])
-            dx,dy,df = self.get_design(int(self.nws[-1]))
-            nc = ncdata(f,self.obsnum,self.nrows,self.ncols,self.nws[-1],self.path,self.sampfreq,order,transpose,dx,dy,df)
-            self.ncs.append(nc)
-            self.tdets = self.tdets + self.ncs[-1].ndets
-            
+            self.nws[int(nw[-1])] = nw[-1]
+            print('on nw ' + self.nws[int(nw[-1])])
+            dx,dy,df = self.get_design(int(self.nws[int(nw[-1])]))
+            nc = ncdata(f,self.obsnum,self.nrows,self.ncols,self.nws[int(nw[-1])],self.path,self.sampfreq,order,transpose,dx,dy,df)
+            self.ncs[int(nw[-1])] = nc
+            self.tdets = self.tdets + self.ncs[int(nw[-1])].ndets
+
+        while -1 in self.ncs:
+            self.ncs.remove(-1)
+
+        while -1 in self.nws:
+            self.nws.remove(-1)
+
         self.p = {}
         self.nw_arr = np.ones(self.tdets)*-99
         for i in range(len(self.pnames)):
@@ -198,6 +204,17 @@ class ncdata:
         
         self.get_nc_data(order,transpose)
         
+    def __getstate__(self):
+        # this is to allow pickling of this object
+        # so that this can be held in the redis cache.
+        state = self.__dict__.copy()
+        del state['ncfile']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.ncfile = netCDF4.Dataset(self.ncfile_name)
+
     def get_nc_data(self,order,transpose):
         self.ncfile = netCDF4.Dataset(self.ncfile_name)
         
