@@ -1,4 +1,5 @@
 #!/bin/bash
+source /home/toltec/toltec_astro/dotbashrc
 
 file=${@: 1:1}
 args_all=${@: 2:$#-1}
@@ -51,7 +52,7 @@ else
 fi
 
 scriptdir=$(dirname "$(readlink -f "$0")")
-scratchdir=/data_toltec/reduced
+scratchdir=/data/data_toltec/reduced
 if [[ -e ${SCRATCHDIR} ]]; then
     scratchdir=${SCRATCHDIR}
 fi
@@ -59,9 +60,9 @@ echo "use scratch ${scratchdir}"
 echo "process ${type}: ${link}"
 echo "additional output to: ${scratchdir}"
 
-kidscppdir="${HOME}/zma/kidscpp"
+kidscppdir="${HOME}/toltec_astro/kidscpp"
 kidspydir="${HOME}/zma/kids_master/scripts"
-pyexec="${HOME}/zma/venvs/kids_master/bin/python3"
+pyexec="${HOME}/toltec_astro/venvs/toltec/bin/python3"
 if [[ ${type} == "vna" ]]; then
     echo "do ${type} ${runmode}"
     reportfile=$(basename ${link})
