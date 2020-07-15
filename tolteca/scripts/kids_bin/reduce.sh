@@ -1,4 +1,5 @@
 #!/bin/bash
+source /home/toltec/toltec_astro/dotbashrc
 
 file=${@: 1:1}
 args_all=${@: 2:$#-1}
@@ -51,7 +52,7 @@ else
 fi
 
 scriptdir=$(dirname "$(readlink -f "$0")")
-scratchdir=/data_toltec/reduced
+scratchdir=/data/data_toltec/reduced
 if [[ -e ${SCRATCHDIR} ]]; then
     scratchdir=${SCRATCHDIR}
 fi
