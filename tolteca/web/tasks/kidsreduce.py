@@ -20,7 +20,7 @@ def shlex_join(split_command):
 
 _reduce_state_store = ipc.get_or_create(
                 'rejson', label='reduce_state')
-_reduce_state_store.set(dict())
+_reduce_state_store.ensure_obj(obj=dict())
 
 
 def _make_reduce_state_key(filepath):
