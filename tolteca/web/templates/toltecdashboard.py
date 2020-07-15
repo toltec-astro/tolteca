@@ -12,6 +12,7 @@ from dash.dependencies import Input, Output
 from tollan.utils.log import timeit, get_logger, disable_logger
 from plotly.subplots import make_subplots
 from tollan.utils import odict_from_list
+import numpy as np
 import pandas as pd
 from dasha.web.templates.collapsecontent import CollapseContent
 from dasha.web.templates.valueview import ValueView
@@ -93,6 +94,8 @@ class ToltecDashboard(ComponentTemplate):
         body = container.child(dbc.Row).child(dbc.Col)
         info_container = body.child(
                 dbc.Container, fluid=True, className='mx-0')
+        info_meta_container = body.child(
+                dbc.Container, fluid=True, className='mx-0')
         details_container = body.child(
                 CollapseContent(button_text='Details ...')).content
 
@@ -111,7 +114,7 @@ class ToltecDashboard(ComponentTemplate):
             # logger = get_logger()
             store = get_ocs3_info_store()
             if store.is_null():
-                return None
+                return None, None
             result = dict()
             result_meta = dict()
             with disable_logger('rejson query'):
@@ -199,14 +202,23 @@ class ToltecDashboard(ComponentTemplate):
             return columns, data, style_cell, "", ""
 
         @app.callback(
-                Output(details_container.id, 'children'),
+                [
+                    Output(details_container.id, 'children'),
+                    Output(info_meta_container.id, 'children'),
+                    ],
                 [
                     Input(timer.id, 'n_intervals')
                     ],
                 )
         def update_details(n_intervals):
             info, info_meta = query_attrs()
-            return html.Pre(f'{pformat_yaml(info_meta)}\n{info}')
+            return (
+                    html.Pre(f'{pformat_yaml(info_meta)}\n{info}'),
+                    html.Pre(
+                        f'Heartbeat: {info_meta["Heartbeat"]} '
+                        f'ObsNum: {info_meta["ObsNum"]}'
+                        )
+                    )
 
     def _setup_section_kids(self, app, container):
         timer, loading, error = self._setup_live_update_header(
@@ -286,7 +298,7 @@ class ToltecDashboard(ComponentTemplate):
                     )
             fig.update_layout(
                     uirevision=True,
-                    coloraxis=dict(colorscale='Viridis'), showlegend=False,
+                    coloraxis=dict(colorscale='Viridis', cmin=4, cmax=8), showlegend=False,
                     margin=dict(t=60),
                     )
             for i, array_prop in enumerate(array_props.values()):
@@ -295,7 +307,7 @@ class ToltecDashboard(ComponentTemplate):
                 trace = {
                         'name': array_prop['name_long'],
                         'type': 'heatmap',
-                        'z': data[array_prop['roaches']],
+                        'z': np.log10(data[array_prop['roaches']]),
                         'y': roach_indices,
                         'coloraxis': 'coloraxis1',
                         }
@@ -381,7 +393,8 @@ class ToltecDashboard(ComponentTemplate):
             return result
 
         def get_view_kwargs(key_attr, **kwargs):
-
+            if kwargs.get('label', None) is None:
+                kwargs.pop('label', None)
             bar_lims = [0, 0.4, 0.7, 1]
             bar_ranges = {
                     "#92e0d3": bar_lims[0:2],

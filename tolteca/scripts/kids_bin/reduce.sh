@@ -59,9 +59,9 @@ echo "use scratch ${scratchdir}"
 echo "process ${type}: ${link}"
 echo "additional output to: ${scratchdir}"
 
-kidscppdir="${HOME}/zma/kidscpp"
-kidspydir="${HOME}/zma/kids_master/scripts"
-pyexec="${HOME}/zma/venvs/kids_master/bin/python3"
+kidscppdir="${HOME}/toltec_astro/kidscpp"
+kidspydir="${HOME}/zma_deprecated/kids_master/scripts"
+pyexec="${HOME}/zma_deprecated/venvs/kids_master/bin/python3"
 if [[ ${type} == "vna" ]]; then
     echo "do ${type} ${runmode}"
     reportfile=$(basename ${link})
