@@ -479,6 +479,11 @@ if __name__ == "__main__":
             action='store_true',
             help='Make plots.'
             )
+    act_collect.add_argument(
+            '--save_plot',
+            action='store_true',
+            help='Save plot.'
+            )
 
     @act_collect.parser_action
     def collect_action(option):
@@ -501,11 +506,15 @@ if __name__ == "__main__":
         result = Table(rows=result, names=colnames)
         result.write(option.output, format='ascii.commented_header')
         if option.plot:
-            fig, axes = plt.subplots(len(filepaths), 1, sharex=True)
+            fig, axes = plt.subplots(len(option.files), 1, sharex=True)
             for i, a in enumerate(data):
                 ax = axes[i]
                 ax.hist(a)
-            save_or_show(fig, Path(option.output).with_suffix('.png').as_posix())
+                for j, p in enumerate(ps):
+                    ax.axvline(result[i][j + 1], color=f"C{j}")
+                ax.set_ylabel(f'NW {i}')
+            axes[-1].set_xlabel(f'Best driving atten. (dB)')
+            save_or_show(fig, Path(option.output).with_suffix('.png').as_posix(), save=option.save_plot)
 
     option = maap.parse_args(args)
     maap.bootstrap_actions(option)
