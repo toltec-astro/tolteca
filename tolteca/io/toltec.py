@@ -190,19 +190,25 @@ class NcFileIO(ExitStack):
             # vector to figure out the layout
             flos = self.nm.getvar('flos')[:]
             assert(np.sum(flos <= 0) == 0)
-            sweep2_start = np.where(np.diff(flos) < 0)[0][-1] + 1
+            ibreak = np.where(np.diff(flos) < 0)[0]
+            if len(ibreak) > 0:
+                # this is sweep with multiple blocks
+                sweep2_start = ibreak[-1] + 1
+                if (meta['n_times'] - sweep2_start) / result[
+                        'n_timespersweep'] < 0.9:
+                    # too many missing data in second sweep
+                    raise RuntimeError(
+                            f"incomplete sweep found ["
+                            f"{sweep2_start}:{meta['n_times']}]")
+            else:
+                sweep2_start = meta['n_times']
+                if meta['n_times'] / result['n_timespersweep'] < 0.9:
+                    # too many missing data in second sweep
+                    raise RuntimeError(
+                            f"incomplete sweep found ["
+                            f"0:{meta['n_times']}]")
             if sweep2_start != result['n_timespersweep']:
                 logger.warning("missing data in first sweep block.")
-            if (meta['n_times'] - sweep2_start) / result[
-                    'n_timespersweep'] < 0.9:
-                # too many missing data in second sweep
-                raise RuntimeError(
-                        f"incomplete sweep found ["
-                        f"{sweep2_start}:{meta['n_times']}]")
-            # get second sweep
-            # uflos, uiflos, urflos = np.unique(
-            #         flos,
-            #         return_index=True, return_counts=True)
             # proceed with slightly missing data
             result['n_sweeps'] = meta["n_times"] // result[
                     'n_timespersweep'] + 1
