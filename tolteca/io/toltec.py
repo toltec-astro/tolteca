@@ -106,8 +106,8 @@ class NcFileIO(ExitStack):
             return r
 
     def _open_nc(self, source):
-        nc, _close = ncopen(source)
-        self.push(_close)
+        cm = ncopen(source)
+        nc = self.enter_context(cm)
         self.logger.debug("ncinfo: {}".format(ncinfo(nc)))
         self.nc = nc
         self.filepath = Path(nc.filepath())
