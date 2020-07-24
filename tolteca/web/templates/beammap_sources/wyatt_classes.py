@@ -19,19 +19,44 @@ from matplotlib.patches import Ellipse
 import re
 
 class obs:
-    def __init__(self,obsnum,nrows,ncols,path,sampfreq,order,transpose):
+    def __init__(self,obsnum=None,nrows=None,ncols=None,path=None,
+                 index=None,sampfreq=None,order=None,transpose=None):
+
         self.obsnum = str(obsnum)
         self.nrows = nrows
         self.ncols = ncols
         self.path = path
+        self.index = index
         self.sampfreq = sampfreq
         self.obsnum = obsnum
         
         self.pnames = ['x','y','fwhmx','fwhmy','amps','snr']
         self.nc_pnames = ["amplitude", "FWHM_x", "FWHM_y", "offset_x", "offset_y"] #, "bolo_name"]
-     
-        
-        self.get_obs_data(order,transpose)
+
+        if self.path != None:
+            self.get_obs_data(order, transpose)
+        elif self.index != None:
+            self.from_index(order, transpose)
+
+    def from_index(self, order, transpose):
+        self.ncs = []
+        self.nws = []
+
+        for i in range(len(self.index['nw_names'])):
+            nw = self.index['nw_names'][i]
+            self.nws.append(str(nw))
+            dx,dy,df = self.get_design(nw)
+
+            f = self.index['nw_path'][nw]['path']
+            print('reading in  %s' % (f))
+            try:
+                nc = ncdata(f,self.obsnum,self.nrows,self.ncols, nw,
+                            self.sampfreq, order, transpose,dx, dy, df)
+                self.ncs.append(nc)
+            except:
+                print('file not found %s ' % (f))
+                self.ncs.append(-1)
+
         
     def get_obs_data(self,order,transpose):
         self.beammap_files = np.sort(glob.glob(self.path+str(self.obsnum)+'/*.nc'))
@@ -42,7 +67,7 @@ class obs:
         self.ncs = list(np.ones(13)*-1)
         self.nws = list(np.ones(13)*-1)
 
-        self.tdets = 0
+        #self.tdets = 0
         for f in self.beammap_files:
             nw = re.findall(r'\d+', f)   
             self.nws[int(nw[-1])] = nw[-1]
@@ -50,14 +75,16 @@ class obs:
             dx,dy,df = self.get_design(int(self.nws[int(nw[-1])]))
             nc = ncdata(f,self.obsnum,self.nrows,self.ncols,self.nws[int(nw[-1])],self.path,self.sampfreq,order,transpose,dx,dy,df)
             self.ncs[int(nw[-1])] = nc
-            self.tdets = self.tdets + self.ncs[int(nw[-1])].ndets
+            #self.tdets = self.tdets + self.ncs[int(nw[-1])].ndets
 
-        while -1 in self.ncs:
+        '''while -1 in self.ncs:
             self.ncs.remove(-1)
 
         while -1 in self.nws:
             self.nws.remove(-1)
+        '''
 
+        '''
         self.p = {}
         self.nw_arr = np.ones(self.tdets)*-99
         for i in range(len(self.pnames)):
@@ -70,6 +97,7 @@ class obs:
                 for k in self.pnames:
                     self.p[k][m] = self.ncs[i].p[k][j]
                 m = m + 1
+        '''
                 
     
     def get_design(self,nw,path='default'):
@@ -182,20 +210,20 @@ class obs:
 
              
 class ncdata:
-    def __init__(self, ncfile_name,obsnum,nrows,ncols,nw,path,sampfreq,order,transpose,dx,dy,df):
+    def __init__(self, ncfile_name,obsnum,nrows,ncols,nw,sampfreq,order,transpose,dx,dy,df):
         self.ncfile_name = ncfile_name
         self.obsnum = str(obsnum)
         self.nrows = nrows
         self.ncols = ncols
         self.nw = nw
-        self.path = path
+        #self.path = path
         self.sampfreq = sampfreq
         self.dx = dx
         self.dy = dy
         self.df = df
         
-        self.beammap_files = np.sort(glob.glob(self.path+str(obsnum)+'/*toltec'+nw+'.nc'))
-        self.raw_files = np.sort(glob.glob(self.path[:-6]+'/data/'+str(obsnum)+'/toltec'+nw+'*.nc'))
+        #self.beammap_files = np.sort(glob.glob(self.path+str(obsnum)+'/*toltec'+nw+'.nc'))
+        #self.raw_files = np.sort(glob.glob(self.path[:-6]+'/data/'+str(obsnum)+'/toltec'+nw+'*.nc'))
 
         self.pnames = ['x','y','fwhmx','fwhmy','amps','snr']
         self.nc_pnames = ["amplitude", "FWHM_x", "FWHM_y", "offset_x", "offset_y"] #, "bolo_name"]
@@ -348,12 +376,13 @@ class ncdata:
             self.p['amps'][i] = self.ncfile[map_fit].getncattr('amplitude')
                         
     def get_f(self):
-        try:
+        '''try:
             nc_f = netCDF4.Dataset(self.raw_files[0])
             self.f = np.array(nc_f['Header.Toltec.ToneFreq'][:]) + np.array(nc_f['Header.Toltec.LoFreq'])
             self.f = self.f[0]/10**6
         except:
             self.f = np.zeros(self.ndets)
+        '''
         
         try:            
             self.f = (self.ncfile['tone_freq'][:] +  self.ncfile['LoFreq'])/10**6.

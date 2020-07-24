@@ -141,7 +141,7 @@ def parse_obj(obj_str):
     return obj
 
 
-@celery.shared_task(base=QueueOnce, once={'timeout': 10})
+@celery.shared_task(base=QueueOnce, once={'timeout': 10}, time_limit=5)
 def update_ocs_info():
     logger = get_logger()
     api = get_ocs3_api()
@@ -185,4 +185,10 @@ def update_ocs_info():
 
 
 # 1 sec interval
-schedule_task(update_ocs_info, schedule=1, args=tuple(), options={'queue': Q.high_priority})
+schedule_task(
+        update_ocs_info,
+        schedule=1, args=tuple(),
+        options={
+            'queue': Q.high_priority,
+            'expires': 1
+            })

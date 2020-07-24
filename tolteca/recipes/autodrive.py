@@ -506,7 +506,8 @@ if __name__ == "__main__":
         result = Table(rows=result, names=colnames)
         result.write(option.output, format='ascii.commented_header')
         if option.plot:
-            fig, axes = plt.subplots(len(option.files), 1, sharex=True)
+            fig, axes = plt.subplots(len(option.files), 1, sharex=True, squeeze=False)
+            axes = np.ravel(axes)
             for i, a in enumerate(data):
                 ax = axes[i]
                 ax.hist(a)
@@ -514,6 +515,7 @@ if __name__ == "__main__":
                     ax.axvline(result[i][j + 1], color=f"C{j}")
                 ax.set_ylabel(f'NW {i}')
             axes[-1].set_xlabel(f'Best driving atten. (dB)')
+            axes[0].set_title(f"{result[0]['filename']}")
             save_or_show(fig, Path(option.output).with_suffix('.png').as_posix(), save=option.save_plot)
 
     option = maap.parse_args(args)

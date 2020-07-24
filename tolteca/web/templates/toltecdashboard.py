@@ -18,12 +18,13 @@ from dasha.web.templates.collapsecontent import CollapseContent
 from dasha.web.templates.valueview import ValueView
 from dasha.web.templates.ipcinfo import ReJsonIPCInfo
 from tollan.utils import mapsum
-from tollan.utils.fmt import pformat_yaml
+from tollan.utils.fmt import pformat_yaml, pformat_bar
 import dash
 import cachetools.func
 import functools
 import re
 from scipy.interpolate import interp1d
+# import dash_defer_js_import as dji
 
 
 class ToltecDashboard(ComponentTemplate):
@@ -67,6 +68,9 @@ class ToltecDashboard(ComponentTemplate):
                             },
                         **kwargs))
 
+        # https://github.com/yueyericardo/dash_latex/blob/master/Example1/free_particle.py
+        # container.child(dji.Import, src='https://codepen.io/yueyericardo/pen/pojyvgZ.js')
+        # container.child(dji.Import, src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_SVG')
         super().setup_layout(app)
 
     def _get_ocs3_attrs(self, obj_name, filter_):
@@ -137,12 +141,46 @@ class ToltecDashboard(ComponentTemplate):
                 else:
                     result_meta[attr['name']] = data
             # turn the data to data frame
-            return pd.DataFrame(result), result_meta
+            result = pd.DataFrame(result)
+            # do some post processing
+            result = result.drop(['ClockCount', 'ClockTime', 'StatusReg'], axis=1)
+            result['SampleFreq'] = result['SampleFreq'].apply(lambda x: f'{float(x):.2f}')
+            result['ActionPercent'] = result['ActionPercent'].apply(lambda v: pformat_bar(v / 100, width=7, border=False, fill='·', reverse=True) + f'{v:.0f}%')
+            # parse bitwise state
+            is_streaming = ((1 << 7) & result['BitwiseState']) > 0
+            result['Streaming'] = ['🟢' if s else '🔴' for s in is_streaming]
+            is_selected = [((1 << i) & int(result_meta['SelectedMask'], 16)) for i in result.index]
+            result['Selected'] = ['🟢' if s else '🔴' for s in is_selected]
+            result = result.reindex(columns=[
+                'Selected',
+                'Streaming',
+                'PpsCount', 'PacketCount', 'NumKids',
+                'AttenInput', 'AttenOutput',
+                'SampleFreq', 'LoFreq',
+                'BitwiseState',
+                'CommandName',
+                'ActionQuantity', 'ActionProgress', 'ActionPercent',
+                ])
+            return result, result_meta
 
         # setup info view
         tbl_info = info_container.child(
                 DataTable,
                 style_table={'overflowX': 'scroll'},
+                style_data_conditional=[
+                    {
+                        # 'if': {
+                        #     'filter_query': 'Roach = "ActionPercent"'
+                        #     },
+                        # 'if': {
+                        #    'row_index': 13  # TODO avoid hardcoding this by making the above work
+                        #    },
+                        # 'backgroundColor': '#FF4136',
+                        # 'color': 'white',
+                        # 'textAlign': 'left',
+                        # 'whiteSpace': 'pre-line',
+                        },
+                    ]
                 )
 
         @app.callback(
@@ -163,24 +201,6 @@ class ToltecDashboard(ComponentTemplate):
                 return (
                         dash.no_update, dash.no_update, dash.no_update,
                         self._data_not_available())
-            # format the sample freq
-            info['SampleFreq'] = info['SampleFreq'].apply(lambda x: f'{float(x):.2f}')
-            info = info.drop(['ClockCount', 'ClockTime', 'StatusReg'], axis=1)
-            # parse bitwise state
-            is_streaming = ((1 << 7) & info['BitwiseState']) > 0
-            info['Streaming'] = ['🟢' if s else '🔴' for s in is_streaming]
-            is_selected = [((1 << i) & int(info_meta['SelectedMask'], 16)) for i in info.index]
-            info['Selected'] = ['🟢' if s else '🔴' for s in is_selected]
-            info = info.reindex(columns=[
-                'Selected',
-                'Streaming',
-                'PpsCount', 'PacketCount', 'NumKids',
-                'AttenInput', 'AttenOutput',
-                'SampleFreq', 'LoFreq',
-                'BitwiseState',
-                'ActionQuantity', 'ActionProgress', 'ActionPercent',
-                'CommandName',
-                ])
             # transpose for better looking
             info = info.T
             info.insert(0, 'Roach', info.index)
@@ -298,16 +318,29 @@ class ToltecDashboard(ComponentTemplate):
                     )
             fig.update_layout(
                     uirevision=True,
-                    coloraxis=dict(colorscale='Viridis', cmin=4, cmax=8), showlegend=False,
+                    coloraxis=dict(
+                        colorscale='Viridis',
+                        cmin=4, cmax=8,
+                        colorbar=dict(
+                            title={
+                                'text': 'Log10 (I^2 + Q^2)',
+                                'side': 'right',
+                                },
+                            )
+                        ),
+                    showlegend=False,
                     margin=dict(t=60),
                     )
             for i, array_prop in enumerate(array_props.values()):
                 roach_indices = list(range(
                         *array_prop['roaches'].indices(len(data))))
+                # mask out the invalid values
+                z = np.asarray(data[array_prop['roaches']])
+                z[z<=0] = np.nan
                 trace = {
                         'name': array_prop['name_long'],
                         'type': 'heatmap',
-                        'z': np.log10(data[array_prop['roaches']]),
+                        'z': np.log10(z),
                         'y': roach_indices,
                         'coloraxis': 'coloraxis1',
                         }
@@ -390,11 +423,14 @@ class ToltecDashboard(ComponentTemplate):
             dltfrg = result['ToltecDilutionFridge']
             dltfrg['StsDevC1PtcSigWit'] = C2F(dltfrg['StsDevC1PtcSigWit'])
             dltfrg['StsDevC1PtcSigWot'] = C2F(dltfrg['StsDevC1PtcSigWot'])
+            dltfrg['StsDevC1PtcSigOilt'] = C2F(dltfrg['StsDevC1PtcSigOilt'])
             return result
 
         def get_view_kwargs(key_attr, **kwargs):
-            if kwargs.get('label', None) is None:
-                kwargs.pop('label', None)
+            # this processes the info spec to prepare kwargs to pass to value view.
+            format_view_text = kwargs.pop('format_view_text', None)
+            label = kwargs.pop('label', None)
+
             bar_lims = [0, 0.4, 0.7, 1]
             bar_ranges = {
                     "#92e0d3": bar_lims[0:2],
@@ -426,7 +462,9 @@ class ToltecDashboard(ComponentTemplate):
                     return html.Span(
                                 f"Error[{d['ChanStatus'][i]}]",
                                 className='text-muted')
-                return '{:.2f} K'.format(d['Temperature'][i])
+                if format_view_text is not None:
+                    return format_view_text(d['Temperature'][i])
+                return  '{:.2f} K'.format(d['Temperature'][i])
 
             def get_therm_temp_bar(info, i):
                 d = info['ToltecThermetry']
@@ -435,6 +473,8 @@ class ToltecDashboard(ComponentTemplate):
                 return bar_interp(d['Temperature'][i])
 
             def get_formatted_value_text(info, key, attr, fmt):
+                if format_view_text is not None:
+                    return format_view_text(info[key][attr])
                 return fmt.format(info[key][attr])
 
             def get_formatted_value_bar(info, key, attr):
@@ -445,6 +485,7 @@ class ToltecDashboard(ComponentTemplate):
                     return "{:.2f} K"
                 if re.match(r'(Cool.+Temp|.+PtcSigW[io]t)', attr):
                     return "{:.2f} ℉"
+                return "{:.2f} ℉"
 
             label_container_kwargs = {
                 'className': 'd-flex flex-fill',
@@ -470,7 +511,7 @@ class ToltecDashboard(ComponentTemplate):
                 result.update({
                     'key': key_attr,
                     'label_container': label_container_kwargs,
-                    'label': labels[i],
+                    'label': labels[i] if label is None else label,
                     'text': {
                         'func': functools.partial(get_therm_temp_text, i=i)
                         },
@@ -483,7 +524,7 @@ class ToltecDashboard(ComponentTemplate):
                 result.update({
                     'key': key_attr,
                     'label_container': label_container_kwargs,
-                    'label': attr,
+                    'label': attr if label is None else label,
                     'text': {
                         'func': functools.partial(
                             get_formatted_value_text,
@@ -509,47 +550,52 @@ class ToltecDashboard(ComponentTemplate):
                 'CryoCmpIn and DltFrg In': [40, 50, 60, 70],
                 'CryoCmpOut and DltFrg Out': [85, 90, 100, 110],
                 }
+        info_view_text_formatters = {
+                '0.1K': (lambda v: f'{v * 1e3:.0f} mK'),
+                }
         info_groups = [
             {
                 'name': '0.1 K',
                 'attrs': [
-                    # key, label (None to use default), and bar lims (None to disable)
-                    ('ToltecThermetry.15', '1.1mm_0.1K', info_bar_lims['0.1K']),  # 0.1K_high
-                    ('ToltecThermetry.2', '1.4mm_0.1K', info_bar_lims['0.1K']),  # 1.4mm_0.1K_high
-                    ('ToltecThermetry.14', '2.0mm_0.1K', info_bar_lims['0.1K']),  # 2mm_0.1K_high
-                    ('ToltecDilutionFridge.StsDevT12TempSigTemp', 'MC', info_bar_lims['0.1K'])
+                    # key, label (None to use default), bar lims (None to disable), view_kwargs
+                    ('ToltecThermetry.15', dict(label='1.1mm_0.1K', lims=info_bar_lims['0.1K'], format_view_text=info_view_text_formatters['0.1K'])),  # 0.1K_high
+                    ('ToltecThermetry.2', dict(label='1.4mm_0.1K', lims=info_bar_lims['0.1K'], format_view_text=info_view_text_formatters['0.1K'])),  # 1.4mm_0.1K_high
+                    ('ToltecThermetry.14', dict(label='2.0mm_0.1K', lims=info_bar_lims['0.1K'], format_view_text=info_view_text_formatters['0.1K'])),  # 2mm_0.1K_high
+                    ('ToltecDilutionFridge.StsDevT12TempSigTemp', dict(label='MC', lims=info_bar_lims['0.1K'], format_view_text=info_view_text_formatters['0.1K'])),
                     ]
                 },
             {
                 'name': '1 K',
                 'attrs': [
-                    ('ToltecThermetry.13', None, info_bar_lims['1.0K']),  # '1K_high'
-                    ('ToltecThermetry.3', None, info_bar_lims['1.0K']),  # '1.4mm_1k_low'
-                    ('ToltecThermetry.12', None, info_bar_lims['1.0K']),  # '2mm_1k_low'
-                    ('ToltecDilutionFridge.StsDevT11TempSigTemp', 'Still', None),
+                    ('ToltecThermetry.13', dict(lims=info_bar_lims['1.0K'])),  # '1K_high'
+                    ('ToltecThermetry.3', dict(lims=info_bar_lims['1.0K'])),  # '1.4mm_1k_low'
+                    ('ToltecThermetry.12', dict(lims=info_bar_lims['1.0K'])),  # '2mm_1k_low'
+                    ('ToltecDilutionFridge.StsDevT11TempSigTemp', dict(label='Still')),
                     ]
                 },
             {
                 'name': '',
                 'attrs': [
-                    ('ToltecThermetry.5', None, info_bar_lims['4.0K']),  # OB_CERNOX
-                    ('ToltecThermetry.9', '4K AuxPTC', info_bar_lims['4.0K']),  # 4K_AuxPTC_Busbar
-                    ('ToltecThermetry.10', '4K DltFrg', info_bar_lims['4.0K']),  # 4K_DF_bar
-                    ('ToltecDilutionFridge.StsDevT1TempSigTemp', 'PT2 Head', info_bar_lims['4.0K']),
-                    ('ToltecDilutionFridge.StsDevT6TempSigTemp', 'PT1 Head', info_bar_lims['PT1 Head and AuxPTC1']),
-                    ('ToltecDilutionFridge.StsDevT16TempSigTemp', 'AuxPTC4', info_bar_lims['4.0K']),
-                    ('ToltecDilutionFridge.StsDevT15TempSigTemp', 'AuxPTC3', info_bar_lims['4.0K']),
-                    ('ToltecDilutionFridge.StsDevT14TempSigTemp', 'AuxPTC2', info_bar_lims['4.0K']),
-                    ('ToltecDilutionFridge.StsDevT13TempSigTemp', 'AuxPTC1', info_bar_lims['PT1 Head and AuxPTC1']),
+                    ('ToltecThermetry.5', dict(lims=info_bar_lims['4.0K'])),  # OB_CERNOX
+                    ('ToltecThermetry.9', dict(label='4K AuxPTC', lims=info_bar_lims['4.0K'])),  # 4K_AuxPTC_Busbar
+                    ('ToltecThermetry.10', dict(label='4K DltFrg', lims=info_bar_lims['4.0K'])),  # 4K_DF_bar
+                    ('ToltecDilutionFridge.StsDevT1TempSigTemp', dict(label='PT2 Head', lims=info_bar_lims['4.0K'])),
+                    ('ToltecDilutionFridge.StsDevT6TempSigTemp', dict(label='PT1 Head', lims=info_bar_lims['PT1 Head and AuxPTC1'])),
+                    ('ToltecDilutionFridge.StsDevT16TempSigTemp', dict(label='AuxPTC4', lims=info_bar_lims['4.0K'])),
+                    ('ToltecDilutionFridge.StsDevT15TempSigTemp', dict(label='AuxPTC3', lims=info_bar_lims['4.0K'])),
+                    ('ToltecDilutionFridge.StsDevT14TempSigTemp', dict(label='AuxPTC2', lims=info_bar_lims['4.0K'])),
+                    ('ToltecDilutionFridge.StsDevT13TempSigTemp', dict(label='AuxPTC1', lims=info_bar_lims['PT1 Head and AuxPTC1'])),
                     ]
                 },
             {
                 'name': 'Water',
                 'attrs': [
-                    ('ToltecCryocmp.CoolInTemp', 'CryoCmp In', info_bar_lims['CryoCmpIn and DltFrg In']),
-                    ('ToltecCryocmp.CoolOutTemp', 'CryoCmp Out', info_bar_lims['CryoCmpOut and DltFrg Out']),
-                    ('ToltecDilutionFridge.StsDevC1PtcSigWit', 'DltFrg In', info_bar_lims['CryoCmpIn and DltFrg In']),
-                    ('ToltecDilutionFridge.StsDevC1PtcSigWot', 'DltFrg Out', info_bar_lims['CryoCmpOut and DltFrg Out']),
+                    ('ToltecCryocmp.OilTemp', dict(label='CryoCmp Oil')),
+                    ('ToltecCryocmp.CoolInTemp', dict(label='CryoCmp In', lims=info_bar_lims['CryoCmpIn and DltFrg In'])),
+                    ('ToltecCryocmp.CoolOutTemp', dict(label='CryoCmp Out', lims=info_bar_lims['CryoCmpOut and DltFrg Out'])),
+                    ('ToltecDilutionFridge.StsDevC1PtcSigOilt', dict(label='DltFrg Oil')),
+                    ('ToltecDilutionFridge.StsDevC1PtcSigWit', dict(label='DltFrg In', lims=info_bar_lims['CryoCmpIn and DltFrg In'])),
+                    ('ToltecDilutionFridge.StsDevC1PtcSigWot', dict(label='DltFrg Out', lims=info_bar_lims['CryoCmpOut and DltFrg Out'])),
                     ]
                 }
             ]
@@ -579,8 +625,8 @@ class ToltecDashboard(ComponentTemplate):
                 if i > 0:
                     info_container_row.child(
                             dbc.Col, width=12).child(html.Hr, className='my-2')
-                for k, label, lims in g['attrs']:
-                    s = get_view_kwargs(k, label=label, lims=lims)
+                for k, kw in g['attrs']:
+                    s = get_view_kwargs(k, **kw)
                     self.logger.debug(
                             f"view kwargs:\n{pformat_yaml(s)}")
                     info_views.append(

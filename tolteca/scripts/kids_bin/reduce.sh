@@ -72,6 +72,7 @@ if [[ ${type} == "vna" ]]; then
     if [[ ${runmode} == "reduce" ]]; then
         ${kidscppdir}/build/bin/kids --finder_threshold 10 \
 		    --output_d21 ${scratchdir}/'{stem}_d21.nc' \
+		    --output_processed ${scratchdir}/'{stem}_processed.nc' \
 		    --output "${reportfile}" \
 	       	    "${file}" ${args}
 	if [[ $outfile ]]; then
@@ -95,7 +96,9 @@ elif [[ ${type} == "targ" ]]; then
     # debug="_debug"
     echo "exec: ${kidscppdir}/build/bin/kids --output "${reportfile}"  "${file}" ${args}"
     if [[ ${runmode} == "reduce" ]]; then
-        ${kidscppdir}/build${debug}/bin/kids --output "${reportfile}"  "${file}" ${args}
+        ${kidscppdir}/build${debug}/bin/kids \
+		    --output_processed ${scratchdir}/'{stem}_processed.nc' \
+            --output "${reportfile}"  "${file}" ${args}
        	# >> ${file}.reduce.log 2>&1
 	if [[ $outfile ]]; then
 		${pyexec} ${scriptdir}/fix_lo.py ${file} "${reportfile}" "${outfile}"

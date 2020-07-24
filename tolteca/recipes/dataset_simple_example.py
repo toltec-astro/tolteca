@@ -79,7 +79,7 @@ if __name__ == "__main__":
         logger.debug(f'loaded dataset: {dataset}')
     elif option.files:
         # or build the dataset from a list of file paths.
-        dataset = ToltecDataset.from_files(option.files)
+        dataset = ToltecDataset.from_files(*option.files)
     else:
         parser.error("specify the dataset via --dataset or --files.")
     if option.select:

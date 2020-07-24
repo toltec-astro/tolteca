@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-
-
+import glob
 from dasha.web.templates import ComponentTemplate
 import dash_html_components as html
 import dash_bootstrap_components as dbc
@@ -19,12 +18,15 @@ from dasha.web.extensions.cache import cache
 import functools
 
 import pandas as pd
+from astropy.modeling.models import custom_model
+from astropy.modeling.fitting import LevMarLSQFitter
+from astropy.io.misc.yaml import load as yaml_load
 
 #Temp
 import sys
 
 # Uses the wyatt_classes.py file for the class to hold the data.
-#sys.path.append('/Users/mmccrackan/dasha/dasha/examples/beammap_sources/')
+#sys.path.append('/Users/mmccrackan/dasha/dasha/examples/beammap_sources_2/')
 #from wyatt_classes import obs, ncdata
 
 f_tone_filepath = Path(__file__).parent.joinpath(
@@ -39,21 +41,21 @@ df = pd.DataFrame(
     }
 )
 #dimensions of array plots
-a_width=500
-a_height=500
+a_width=700
+a_height=700
 
 #dimensions of beammap plots
-b_width=350
-b_height=350
+b_width=325
+b_height=325
 
-#dimensions of histogram plots
-h_width = 400
-h_height = 400
+# Define model
+@custom_model
+def gaussian(x, amp=100., mu=10., sigma=3.):
+    return (amp * np.exp(-0.5 * ((x - mu) / sigma)**2))
 
 #@cache.memoize(timeout=60 * 60 * 60)
 def get_ncobs(*args, **kwargs):
     return obs(*args, **kwargs)
-
 
 # Get parameter values, freq, and NW array from ncobs
 def from_ncobs(nw_chk_value, array_indices, ncobs):
@@ -71,11 +73,12 @@ def from_ncobs(nw_chk_value, array_indices, ncobs):
     # Fill up p, f, and z for all detectors in the given networks.
     for i in range(len(nw_chk_value)):
         if int(nw_chk_value[i]) in array_indices:
-            for j in range(len(ncobs.pnames)):
-                p[ncobs.pnames[j]].extend(ncobs.ncs[int(nw_chk_value[i])].p[ncobs.pnames[j]])
-            f.extend(ncobs.ncs[int(nw_chk_value[i])].f)
-
-            z.extend(np.ones(len(ncobs.ncs[int(nw_chk_value[i])].f))*int(nw_chk_value[i]))
+            if ncobs.ncs[int(nw_chk_value[i])] != -1:
+                for j in range(len(ncobs.pnames)):
+                    p[ncobs.pnames[j]].extend(ncobs.ncs[int(nw_chk_value[i])].p[ncobs.pnames[j]])
+                f.extend(ncobs.ncs[int(nw_chk_value[i])].f)
+    
+                z.extend(np.ones(len(ncobs.ncs[int(nw_chk_value[i])].f))*int(nw_chk_value[i]))
     return p, z, f
 
 # Check set parameters, freq, and color arrays to requested axis
@@ -112,6 +115,19 @@ def limit_data(p, z, f, var, hn_CD, ncobs):
 
     return p, z, f, ai
 
+def get_limit_data_from_snr(p):
+    # Fit model to data
+    m_init = gaussian()
+    fit = LevMarLSQFitter()
+
+    h, be = np.histogram(p['amps'],100)
+    x = be[1:]
+    y = h
+    m = fit(m_init, x, y)
+
+    limit = m.mu.value + 2*m.sigma.value
+    return limit
+
 # Get maxes and mins for an array or set to nrows, ncols
 def get_maxmin(axis, drp_value, ncobs):
     if (str(drp_value) == 'x') or (str(drp_value) == 'y'):
@@ -126,7 +142,7 @@ class beammap(ComponentTemplate):
     _component_cls = dbc.Container
     fluid = True
 
-    def _setup_tab(self, app, ncobs, container, drp_container_options, nw_checklist, array_indx=None):
+    def _setup_tab(self, app, ncobs_map, container, drp_container_options, nw_checklist, drp_obsnum, array_indx=None):
 
         ''' Set up all the content'''
         # Container is the tab container for each array
@@ -187,7 +203,7 @@ class beammap(ComponentTemplate):
         h_containers = [hist_graph_0, hist_graph_1, hist_graph_2, hist_graph_3,
                         hist_graph_4, hist_graph_5]
 
-        params = list(ncobs.pnames)
+        params = ['x','y','fwhmx','fwhmy','amps','snr']
         params.append('freq')
         params.remove('snr')
         label_names = ['X [px]', 'Y [px]', 'X FWHM [px]', 'Y FWHM [px]', 'S/N', 'Freq [Mhz]']
@@ -196,9 +212,15 @@ class beammap(ComponentTemplate):
         for param in range(len(params)):
             labels[params[param]] = label_names[param]
 
-        def update_array(drp_x_value, drp_y_value, drp_clr_value, nw_chk_value,
-                         h0_CD, h1_CD, h2_CD, h3_CD, h4_CD, h5_CD, array_i=None):
 
+        def update_array(drp_x_value, drp_y_value, drp_clr_value, nw_chk_value,
+                         h0_CD, h1_CD, h2_CD, h3_CD, h4_CD, h5_CD, obsnum, array_i=None):
+
+
+            if obsnum != None:
+                ncobs = ncobs_map[obsnum]
+            else:
+                return no_update
 
             # Fill up p, z, and f based on the selected arrays/NWs
             p, z, f = from_ncobs(nw_chk_value, array_i, ncobs)
@@ -222,6 +244,13 @@ class beammap(ComponentTemplate):
             # Get max/mins of the x and y axes to keep axes from changing alot
             xmin, xmax = get_maxmin(x, drp_x_value, ncobs)
             ymin, ymax = get_maxmin(y, drp_y_value, ncobs)
+            
+            if drp_clr_value == 'amps':
+                if z.all() !=None:
+                    limit = get_limit_data_from_snr(p)
+                    z[z > limit] = limit
+                else:
+                    z = z
 
             if drp_x_value != 'NW':
                 x_clr = labels[drp_x_value]
@@ -258,15 +287,16 @@ class beammap(ComponentTemplate):
                     }
                 }],
                 'layout': {
-                    'width': a_width,
-                    'height': a_height,
+                    #'width': a_width,
+                    #'height': a_height,
                     'clickmode': 'event+select',
                     'autosize': True,
                     'automargin': False,
                     'editable': True,
                     'animate': True,
+                    'uirevision': True,
                     'xaxis': {'title': x_clr, 'range': [xmin, xmax]},
-                    'yaxis': {'title': y_clr, 'range': [ymin, ymax]}
+                    'yaxis': {'title': y_clr, 'range': [ymin, ymax], 'scaleanchor': "x", 'scaleratio': xmax/ymax}
                     }
                 }
             # Return figure object
@@ -287,20 +317,25 @@ class beammap(ComponentTemplate):
              Input(hist_graph_2.id, 'selectedData'),
              Input(hist_graph_3.id, 'selectedData'),
              Input(hist_graph_4.id, 'selectedData'),
-             Input(hist_graph_5.id, 'selectedData')])(
+             Input(hist_graph_5.id, 'selectedData'),
+             Input(drp_obsnum.id, 'value')])(
                  functools.partial(update_array, array_i=array_indx))
 
         def update_bslice_plot(pl_SD, nw_chk_value, h0_CD, h1_CD, h2_CD,
-                               h3_CD, h4_CD, h5_CD, fig_type=None,
+                               h3_CD, h4_CD, h5_CD, obsnum, fig_type=None,
                                array_i=None):
 
             try:
                 pointNumber = pl_SD['points'][0]['pointNumber']
-                print(pointNumber)
             except:
                 return {}
 
             hn_CDs = [h0_CD, h1_CD, h2_CD, h3_CD, h4_CD, h5_CD]
+
+            if obsnum != None:
+                ncobs = ncobs_map[obsnum]
+            else:
+                return no_update
 
             # Fill up p, z, and f based on the selected arrays/NWs
             p, z, f = from_ncobs(nw_chk_value, array_i, ncobs)
@@ -311,8 +346,9 @@ class beammap(ComponentTemplate):
             for i in range(len(nw_chk_value)):
                 ci = int(nw_chk_value[i])
                 if ci in array_i:
-                    nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
-                    dets.extend(range(ncobs.ncs[ci].ndets))
+                    if ncobs.ncs[ci] != -1:
+                        nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
+                        dets.extend(range(ncobs.ncs[ci].ndets))
 
             # Limit the shown data based on histograms
             #for hn_CD in [h0_CD, h1_CD, h2_CD, h3_CD, h4_CD, h5_CD]:
@@ -357,6 +393,8 @@ class beammap(ComponentTemplate):
                     }
                 }],
                 'layout': {
+                    'width': b_width,
+                    'height': b_height,
                     'autosize': True,
                     'automargin': False,
                     'xaxis': {'title': 'x (pixels)'},
@@ -399,16 +437,21 @@ class beammap(ComponentTemplate):
                  Input(h_containers[2].id, 'selectedData'),
                  Input(h_containers[3].id, 'selectedData'),
                  Input(h_containers[4].id, 'selectedData'),
-                 Input(h_containers[5].id, 'selectedData')])(
+                 Input(h_containers[5].id, 'selectedData'),
+                 Input(drp_obsnum.id, 'value')])(
                      functools.partial(update_bslice_plot, fig_type=fig_types[fig_type_i], array_i=array_indx))
 
 
         def update_table(pl_SD, nw_chk_value, h0_CD, h1_CD, h2_CD,
-                         h3_CD, h4_CD, h5_CD, array_i=None):
+                         h3_CD, h4_CD, h5_CD, obsnum, array_i=None):
             try:
                 pointNumber = pl_SD['points'][0]['pointNumber']
-                print(pointNumber)
             except:
+                return no_update
+
+            if obsnum != None:
+                ncobs = ncobs_map[obsnum]
+            else:
                 return no_update
 
             # Fill up p, z, and f based on the selected arrays/NWs
@@ -421,8 +464,9 @@ class beammap(ComponentTemplate):
             for i in range(len(nw_chk_value)):
                 ci = int(nw_chk_value[i])
                 if ci in array_i:
-                    nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
-                    dets.extend(range(ncobs.ncs[ci].ndets))
+                    if ncobs.ncs[ci] != -1:
+                        nws.extend(np.ones(ncobs.ncs[ci].ndets)*int(ncobs.nws[ci]))
+                        dets.extend(range(ncobs.ncs[ci].ndets))
 
             # Limit the shown data based on histograms
             for indx in range(len(h_containers)):
@@ -466,17 +510,26 @@ class beammap(ComponentTemplate):
              Input(hist_graph_2.id, 'selectedData'),
              Input(hist_graph_3.id, 'selectedData'),
              Input(hist_graph_4.id, 'selectedData'),
-             Input(hist_graph_5.id, 'selectedData')])(
+             Input(hist_graph_5.id, 'selectedData'),
+             Input(drp_obsnum.id, 'value')])(
                  functools.partial(update_table, array_i=array_indx))
 
-        def update_hist(nw_chk_value, param=None, array_i=None, label=None):
+        def update_hist(nw_chk_value, obsnum, param=None, array_i=None, label=None):
+
+            if obsnum != None:
+                ncobs = ncobs_map[obsnum]
+            else:
+                return no_update
+
             h = []
             for j in range(len(nw_chk_value)):
                 if int(nw_chk_value[j]) in array_i:
                     if param in ncobs.pnames:
-                        h.extend(ncobs.ncs[int(nw_chk_value[j])].p[param])
+                        if ncobs.ncs[int(nw_chk_value[j])] !=-1:
+                            h.extend(ncobs.ncs[int(nw_chk_value[j])].p[param])
                     elif param == 'freq':
-                        h.extend(ncobs.ncs[int(nw_chk_value[j])].f)
+                        if ncobs.ncs[int(nw_chk_value[j])] !=-1:
+                            h.extend(ncobs.ncs[int(nw_chk_value[j])].f)
 
             hist_fig = {
                 'data': [{
@@ -514,17 +567,46 @@ class beammap(ComponentTemplate):
         for indx in range(len(h_containers)):
             app.callback(
             Output(h_containers[indx].id, 'figure'),
-            [Input(nw_checklist.id, 'value')])(
+            [Input(nw_checklist.id, 'value'),
+             Input(drp_obsnum.id, 'value')])(
                  functools.partial(update_hist, param=params[indx],
                                    array_i=array_indx, label=labels[params[indx]]))
 
     def setup_layout(self, app):
+        # Hardcoded rows,cols, sampling frequency for now
+        nrows = 21
+        ncols = 25
+        sf = 488.281/4
+
+        indexfiles = glob.glob('/home/mmccrackan/wyatt/indexfiles/*y*ml')
+        #indexfiles.append('/Users/mmccrackan/toltec/config/wyatt/index.yaml')
+
+        ncobs_map = {}
+        for indx in range(len(indexfiles)):
+            with open(indexfiles[indx], 'r') as fo:
+                index = yaml_load(fo)
+            obsnum = index['ObsNum']
+            ncobs_map[indexfiles[indx]] = get_ncobs(obsnum=obsnum, nrows=nrows,
+                                                    ncols=ncols, index=index,
+                                                    sampfreq=sf, order='C',
+                                                    transpose=False)
+
+            # Frequencies are acquired separately due to a potential bug in the
+            # kids reduce code
+            #f = np.load('/Users/mmccrackan/toltec/data/tests/wyatt/10886/10886_f_tone.npy',allow_pickle=True).item()
+            '''f = np.load(f_tone_filepath, allow_pickle=True).item()
+            for i in range(len(ncobs_map[indexfiles[indx]].nws)):
+                try:
+                    ncobs_map[indexfiles[indx]].ncs[i].f = f[int(ncobs_map[indexfiles[indx]].nws[i])]
+                except:
+                    print('cannot get frequencies for nw ' + str(ncobs_map[indexfiles[indx]].nws[i]))
+            '''
 
         array_names = ['1.1 mm Array', '1.4 mm Array', '2.0 mm Array']
         array_indices = {}
         array_indices[array_names[0]] = [0, 1, 2, 3, 4, 5, 6]
-        array_indices[array_names[1]] = [7, 8, 9]
-        array_indices[array_names[2]] = [10, 11]
+        array_indices[array_names[1]] = [7, 8, 9, 10]
+        array_indices[array_names[2]] = [11, 12]
 
         drp_container_options = [
 
@@ -539,9 +621,23 @@ class beammap(ComponentTemplate):
 
         body = self.child(dbc.Row).child(dbc.Col)
 
-        title = 'Wyatt Beammap 2020.05.06'
+        title = 'Wyatt Beammap Explorer'
         title_row = body.child(dbc.Row)
         title_row.children = [html.H1(f'{title}')]
+
+        # Set up an Input Grup to select obsnum to plot
+        drp_obsnum_container_group = body.child(dbc.Row, width=4).child(dbc.InputGroup, size='sm', className='mb-3 w-auto mt-3 ml-3')
+        drp_obsnum_container_group.child(dbc.InputGroupAddon("ObsNums", addon_type="prepend"))
+
+        drp_obsnum_options = []
+
+        for indx in range(len(indexfiles)):
+            with open(indexfiles[indx], 'r') as fo:
+                index = yaml_load(fo)
+            drp_obsnum_options.append({'label': index['ObsNum'], 'value': indexfiles[indx]})
+
+        # Add options to the Input group
+        drp_obsnum = drp_obsnum_container_group.child(dbc.Select, options=drp_obsnum_options)
 
         plot_networks_checklist_section = body.child(dbc.Row).child(dbc.Col)
         plot_networks_checklist_section.child(dbc.Label, 'Select network(s) to show in the plots:')
@@ -571,9 +667,9 @@ class beammap(ComponentTemplate):
                 {'label': 'N7', 'value': '7'},
                 {'label': 'N8', 'value': '8'},
                 {'label': 'N9', 'value': '9'},
-                {'label': 'N10', 'value': '-1'},
-                {'label': 'N11', 'value': '10'},
-                {'label': 'N12', 'value': '11'},
+                {'label': 'N10', 'value': '10'},
+                {'label': 'N11', 'value': '11'},
+                {'label': 'N12', 'value': '12'},
             ]
 
         preset_networks_map = dict()
@@ -581,7 +677,6 @@ class beammap(ComponentTemplate):
         preset_networks_map['1.4 mm Array'] = set(o['value'] for o in checklist_networks_options[7:10])
         preset_networks_map['2.0 mm Array'] = set(o['value'] for o in checklist_networks_options[10:13])
         preset_networks_map['all'] = functools.reduce(set.union, (preset_networks_map[k] for k in array_names))
-
 
         def on_preset_change(preset_values):
            nw_values = set()
@@ -601,41 +696,17 @@ class beammap(ComponentTemplate):
                 ]
             )(functools.partial(on_preset_change))
 
-        # Hardcoded rows,cols, sampling frequency for now
-        nrows = 21
-        ncols = 25
-        sf = 488.281/4
-        # Hardcoded path to files
-        #path = '/Users/mmccrackan/toltec/data/tests/wyatt/'
-        path = '/home/mmccrackan/wyatt/'
-
-        # Hardcoded obsnum (directory name containing nc files)
-        #obsnum = 'coadd_20200506'
-        obsnum = 'coadd'
-
-        # Load all of the nc files into the ncobs object.  May break if
-        # there are multiple nc files for each network.
-        ncobs = get_ncobs(obsnum, nrows, ncols, path, sf, order='C', transpose = False)
-
-        # Frequencies are acquired separately due to a potential bug in the
-        # kids reduce code
-        #f = np.load('/Users/mmccrackan/toltec/data/tests/wyatt/10886/#10886_f_tone.npy',allow_pickle=True).item()
-        f = np.load(f_tone_filepath, allow_pickle=True).item()
-        for i in range(len(ncobs.nws)):
-            try:
-                ncobs.ncs[i].f = f[int(ncobs.nws[i])]
-            except:
-                print('cannot get frequencies for nws ' + str(ncobs.nws[i]))
-
         # Container that has a dcc.Tabs for all the arrays
         array_tab_col = body.child(dbc.Row).child(dbc.Col).child(dcc.Tabs,className='custom-tabs-container')#className='mt-3')
 
         # Loop through the different arrays and make the plots and callbacks
         for array_name in list(array_indices.keys()):
             tab_row = array_tab_col.child(dbc.Tab,className='custom-tab',label=f'{array_name}').child(dbc.Row)
-            self._setup_tab(app, ncobs, tab_row, drp_container_options, nw_checklist, array_indx=array_indices[array_name])
+            self._setup_tab(app, ncobs_map, tab_row, drp_container_options, nw_checklist, drp_obsnum, array_indx=array_indices[array_name])
 
-
+        link_row = body.child(dbc.Col)
+        link_row.children = html.Div([html.A("Beammap Dasha Page Tutorial",
+                                             href='https://umass.box.com/s/32f7i07ki9yq36o2yip253t692w49tln', target="_blank")], style={'textAlign': 'center'})
 
 extensions = [
     {
