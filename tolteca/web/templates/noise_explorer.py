@@ -19,6 +19,7 @@ from tollan.utils.log import timeit, get_logger
 from dasha.web.extensions.cache import cache
 from dash.exceptions import PreventUpdate
 from dasha.web.extensions.db import dataframe_from_db
+import scipy.interpolate as interpolate
 import functools
 import json
 import cachetools.func
@@ -301,12 +302,16 @@ def _fetchPsdData(net, obsnum, subobsnum, scannum, filepath):
     if np.isnan(medrPsd).any():
         print("\nNaNs detected in medrPsd.")
 
+    # estimate the background loading on the network
+    Tload = estimateTload(net, np.median(medxPsd), np.median(medrPsd))
+
     return {
          'network': net,
          'obsnum': obsnum,
          'subobsnum': subobsnum,
          'scannum': scannum,
          'fpsd': fpsd,
+         'Tload': Tload,
          'medxPsd': medxPsd,
          'medrPsd': medrPsd,
          'madxPsd': madxPsd,
@@ -319,6 +324,11 @@ def _fetchPsdData(net, obsnum, subobsnum, scannum, filepath):
          'medxDet': np.log10(medxDet),
          'medrDet': np.log10(medrDet),
          }
+
+
+# This line makes the cache invalid when the server reloads
+# cache.delete_memoized(_fetchPsdData)
+
 
 def fetchPsdData(nets, obsnum, subobsnum, scannum):
     data = []
@@ -418,6 +428,15 @@ def getDetMedHist(data):
                 marker_color=colorsLight[i],
             ),
         )
+
+    fig.add_trace(go.Scatter(
+        showlegend=False,
+        x=[-15.75],
+        y=[50],
+        text="{}".format(data[0]['Tload']),
+        mode="text",
+    ))
+
     fig.update_xaxes(range=[-18, -15.5])
     fig.update_layout(barmode='overlay',)
     fig.update_traces(opacity=0.75)
@@ -470,6 +489,28 @@ def getPsdPlot(data, logx=0):
                        line=dict(color=colorsLight[i]),
                        )
             )
+
+    # add horizontal line for blip at LMT
+    blipLMT, text = getBlipLMT(data[i]['network'])
+    fig.add_shape(
+        type="line",
+        x0=0,
+        y0=blipLMT,
+        x1=243,
+        y1=blipLMT,
+        line=dict(
+            color="LightSeaGreen",
+            width=4,
+            dash="dashdot",
+        ),
+    )
+    fig.add_trace(go.Scatter(
+        showlegend=False,
+        x=[30],
+        y=[blipLMT*1.1],
+        text=text,
+        mode="text",
+    ))
 
     fig.update_yaxes(automargin=True)
     return fig
@@ -582,3 +623,35 @@ def getXYAxisLayouts():
         ),
     )
     return xaxis, yaxis
+
+
+# returns blip at LMT
+# 50, 72, 95 aW/rt(Hz) for 2.0, 1.4, 1.1mm respectively
+def getBlipLMT(network):
+    blipLMT = 95.e-18
+    responsivity = 6.9e7
+    text = "Estimated BLIP at LMT"
+    if ((network >= 7) & (network <= 10)):
+        blipLMT = 72.e-18
+        responsivity *= 1.5
+    if (network >= 11):
+        blipLMT = 50.e-18
+        responsivity *= 2.0
+    blipLMT = blipLMT*responsivity
+    blipLMT = blipLMT**2
+    return blipLMT, text
+
+
+# estimates photon noise
+def estimateTload(network, medxPSD, medrPSD):
+    Trange = [2., 5., 9., 15., 20.]
+    if network <= 6:
+        pn = [4.69e-18, 9.59e-18, 1.74e-17, 3.18e-17, 4.62e-17]
+    elif (network >= 7) & (network <= 10):
+        pn = [7.53e-18, 1.58e-17, 2.96e-17, 5.6e-17, 8.32e-17]
+    else:
+        pn = [6.98e-18, 1.54e-17, 3.03e-17, 6.02e-17, 9.21e-17]
+    fn = interpolate.interp1d(pn, Trange, kind='quadratic')
+    medianPhotonNoise = medxPSD-medrPSD
+    Tload = fn(medianPhotonNoise)
+    return Tload
