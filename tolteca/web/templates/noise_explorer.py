@@ -408,12 +408,21 @@ def getDetMedHist(data):
         ),
         plot_bgcolor='white'
     )
+    fig.add_trace(go.Scatter(
+        showlegend=False,
+        x=[-15.75],
+        y=[55],
+        text="Estimated Background",
+        mode="text",
+        ))
     if(len(data) == 0):
         return fig
 
     colorsDark, colorsLight = get_color_pairs()
 
     for i in np.arange(len(data)):
+        loadtxt = "Net {0:}: {1:3.1f}K".format(
+            data[i]["network"], data[i]["Tload"])
         fig.add_trace(
             go.Histogram(
                 x=data[i]['medxDet'],
@@ -428,14 +437,14 @@ def getDetMedHist(data):
                 marker_color=colorsLight[i],
             ),
         )
+        fig.add_trace(go.Scatter(
+            showlegend=False,
+            x=[-15.75],
+            y=[50-3*i],
+            text=loadtxt,
+            mode="text",
+        ))
 
-    fig.add_trace(go.Scatter(
-        showlegend=False,
-        x=[-15.75],
-        y=[50],
-        text="{}".format(data[0]['Tload']),
-        mode="text",
-    ))
 
     fig.update_xaxes(range=[-18, -15.5])
     fig.update_layout(barmode='overlay',)
@@ -651,7 +660,7 @@ def estimateTload(network, medxPSD, medrPSD):
         pn = [7.53e-18, 1.58e-17, 2.96e-17, 5.6e-17, 8.32e-17]
     else:
         pn = [6.98e-18, 1.54e-17, 3.03e-17, 6.02e-17, 9.21e-17]
-    fn = interpolate.interp1d(pn, Trange, kind='quadratic')
+    fn = interpolate.interp1d(pn, Trange, kind='quadratic', bounds_error=False, fill_value=np.nan)
     medianPhotonNoise = medxPSD-medrPSD
     Tload = fn(medianPhotonNoise)
     return Tload
