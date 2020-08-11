@@ -193,13 +193,17 @@ class NoiseExplorer(ComponentTemplate):
         # not a big hr fan but let's see how it looks
         body.child(dbc.Row).child(dbc.Col).child(html.Hr())
 
-        # a simple plot to demonstrate file reading
+        # this is the big psd plot at the top
         pPlot = body.child(dbc.Row).child(dbc.Col).child(dcc.Graph, style={'min-width': '1200px'})
 
         # and we need a switch to toggle log_x_axis
         opt = [{"label": "log x-axis", "value": 0}]
         logx = body.child(dbc.Row).child(dbc.Col).child(dbc.Checklist,
                                                         options=opt)
+
+        # add a table to show the detector loadings
+        loadingTable = body.child(dbc.Row).child(dcc.Graph, style={'min-width': '1200px'})
+
         # these next plots will go on the same row
         plotRow = body.child(dbc.Row)
         # a histogram of the median psds of each detector
@@ -212,7 +216,8 @@ class NoiseExplorer(ComponentTemplate):
 
         # register the callbacks
         self._registerCallbacks(app, obsInput, netSelect,
-                                pPlot, hPlot, fPlot, logx)
+                                pPlot, hPlot, fPlot, logx,
+                                loadingTable)
 
     # refreshes the file list
     def _updateFileList(self):
@@ -236,7 +241,7 @@ class NoiseExplorer(ComponentTemplate):
 
     # register the callbacks
     def _registerCallbacks(self, app, obsInput, netSelect,
-                           pPlot, hPlot, fPlot, logx):
+                           pPlot, hPlot, fPlot, logx, loadingTable):
 
         # Generate Median PSD plot vs frequency
         @app.callback(
@@ -244,6 +249,7 @@ class NoiseExplorer(ComponentTemplate):
                 Output(pPlot.id, "figure"),
                 Output(hPlot.id, "figure"),
                 Output(fPlot.id, "figure"),
+                Output(loadingTable.id, "figure")
             ],
             [
                Input(netSelect.id, "value"),
@@ -264,7 +270,8 @@ class NoiseExplorer(ComponentTemplate):
             pfig = getPsdPlot(data, logx=lx)
             hfig = getDetMedHist(data)
             ffig = getPvsFPlot(data)
-            return [pfig, hfig, ffig]
+            ltfig = getLoadingTable(data)
+            return [pfig, hfig, ffig, ltfig]
 
 
 # Read data from netcdf files
@@ -404,25 +411,16 @@ def getDetMedHist(data):
             autoexpand=False,
             l=100,
             r=100,
-            t=110,
+            t=0,
         ),
         plot_bgcolor='white'
     )
-    fig.add_trace(go.Scatter(
-        showlegend=False,
-        x=[-15.75],
-        y=[55],
-        text="Estimated Background",
-        mode="text",
-        ))
     if(len(data) == 0):
         return fig
 
     colorsDark, colorsLight = get_color_pairs()
 
     for i in np.arange(len(data)):
-        loadtxt = "Net {0:}: {1:3.1f}K".format(
-            data[i]["network"], data[i]["Tload"])
         fig.add_trace(
             go.Histogram(
                 x=data[i]['medxDet'],
@@ -437,14 +435,6 @@ def getDetMedHist(data):
                 marker_color=colorsLight[i],
             ),
         )
-        fig.add_trace(go.Scatter(
-            showlegend=False,
-            x=[-15.75],
-            y=[50-3*i],
-            text=loadtxt,
-            mode="text",
-        ))
-
 
     fig.update_xaxes(range=[-18, -15.5])
     fig.update_layout(barmode='overlay',)
@@ -542,7 +532,7 @@ def getPvsFPlot(data):
             autoexpand=False,
             l=100,
             r=175,
-            t=110,
+            t=0,
         ),
         plot_bgcolor='white'
     )
@@ -571,6 +561,26 @@ def getPvsFPlot(data):
 
     fig.update_yaxes(automargin=True)
     return fig
+
+
+# plotly table for displaying the loadings
+def getLoadingTable(data):
+    nets = []
+    loadings = []
+    for i in np.arange(len(data)):
+        nets.append('Network {}'.format(data[i]['network']))
+        loadings.append('{0:3.1f} K'.format(data[i]['Tload']))
+    fig = go.Figure(
+        data=[
+            go.Table(header=dict(values=nets),
+                     cells=dict(values=loadings))
+        ]
+    )
+    fig.update_layout(title={
+        'text': "Estimated Loadings", },
+        height=250, autosize=False,)
+    return fig
+
 
 
 # parser to get obsnums and networks from file names

@@ -105,6 +105,12 @@ dasha_config.update(
                     'title_icon': 'fas fa-layer-group',
                 },
                 {
+                    "template": "tolteca.web.templates.noise_explorer",
+                    "route_name": "noise_explorer",
+                    "title_text": 'Noise Explorer',
+                    'title_icon': 'fas fa-wave-square',
+                },
+                {
                     "template": "tolteca.web.templates.toltecdb",
                     "route_name": "toltecdb",
                     'title_text': "(dbg) Databases",

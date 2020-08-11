@@ -136,9 +136,15 @@ class DBQueryView(ComponentTemplate):
                         # build the dataset
                         dataset = ToltecDataset.from_files(*filepaths)
                         self.logger.debug(f'dataset:\n{dataset}')
-                        dataset_df = dataset.index_table.to_pandas()
-                        dataset_columns = dataset_df.columns
+                        use_cols = ['nwid', 'obsid', 'subobsid', 'scanid', 'ut', 'kindstr']
+                        t = dataset.index_table[use_cols]
+                        t['source'] = list(map(str, dataset.index_table['source']))
+                        dataset_df = t.to_pandas()
+                        print(dataset_df)
+                        print(dataset_df.columns)
+                        dataset_columns = [{'name': c, 'id': c} for c in dataset_df.columns]
                         dataset_data = dataset_df.to_dict('records')
+                        dataset_index_store_data = dataset_data
                 error_notify = ""
             except Exception as e:
                 self.logger.debug(
@@ -224,7 +230,7 @@ class DBQueryView(ComponentTemplate):
 /* Enter sql to query "{value}".
 {textwrap.indent(info, ' ' * 3)}
 */
-select * from {default_table} order by id desc limit 10
+select * from {default_table} order by id desc limit 100
 """.strip()
         # we return the key components defined here to the setup_layout
         # func body so that we can make callbacks using them
@@ -236,8 +242,18 @@ select * from {default_table} order by id desc limit 10
 
         details_container = container.child(
                 CollapseContent(button_text='Details ...')).content
+
         dataset_table_view = container.child(
                 DataTable,
-                style_table={'overflowX': 'scroll'},
+                # style_table={'overflowX': 'scroll'},
+                page_current=0,
+                page_size=10,
+                page_action='custom',
+                style_table={
+                    'overflowX': 'auto',
+                    'width': '100%',
+                    'overflowY': 'auto',
+                    'height': '25vh',
+                },
                 )
         return details_container, dataset_table_view
