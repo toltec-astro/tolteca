@@ -111,7 +111,8 @@ class NcFileIO(ExitStack):
         self.logger.debug("ncinfo: {}".format(ncinfo(nc)))
         self.nc = nc
         self.filepath = Path(nc.filepath())
-        self.nm = NcNodeMapper(self.nc, self._nc_mapper_keys)
+        self.nm = NcNodeMapper(
+                source=self.nc, nc_node_map=self._nc_mapper_keys)
 
     def open(self):
         self._open_nc(self._source)
@@ -178,7 +179,7 @@ class NcFileIO(ExitStack):
                 "n_sweepreps", "n_sweepsteps",
                 "n_sweeps_max", "n_kidsmodelparams"):
             try:
-                result[k] = nm.get(k)
+                result[k] = nm.getany(k)
             except Exception:
                 self.logger.error(
                         f"missing item in data {k}", exc_info=False)
@@ -250,7 +251,7 @@ class NcFileIO(ExitStack):
                 "cal_roachid", "cal_obsid", "cal_subobsid", "cal_scanid",
                 "n_times", "n_tones", "__n_tones", ):
             try:
-                result[k] = nm.get(k)
+                result[k] = nm.getany(k)
             except Exception:
                 self.logger.error(f"missing item in data {k}", exc_info=True)
                 continue
