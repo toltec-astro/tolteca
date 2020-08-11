@@ -20,7 +20,7 @@ import re
 
 class obs:
     def __init__(self,obsnum=None,nrows=None,ncols=None,path=None,
-                 index=None,sampfreq=None,order=None,transpose=None):
+                 index=None,sampfreq=None,order=None,transpose=None,scale=False):
 
         self.obsnum = str(obsnum)
         self.nrows = nrows
@@ -29,6 +29,7 @@ class obs:
         self.index = index
         self.sampfreq = sampfreq
         self.obsnum = obsnum
+        self.scale = scale
         
         self.pnames = ['x','y','fwhmx','fwhmy','amps','snr']
         self.nc_pnames = ["amplitude", "FWHM_x", "FWHM_y", "offset_x", "offset_y"] #, "bolo_name"]
@@ -53,10 +54,36 @@ class obs:
                 nc = ncdata(f,self.obsnum,self.nrows,self.ncols, nw,
                             self.sampfreq, order, transpose,dx, dy, df)
                 self.ncs.append(nc)
+                if self.scale==True:
+                    try:
+                        scalex = self.index['nw_path'][nw]['scalex']
+                        scaley = self.index['nw_path'][nw]['scaley']
+                        self.ncs[-1].scale_data(scalex,scaley)
+                    except:
+                        print('cannot scale')
+                '''nall = len(nc.ncfile.dimensions['nall'])
+                if nall == 525:
+                    self.nrows = 21
+                    self.ncols = 25
+                elif nall == 625:
+                    self.nrows = 25
+                    self.ncols = 25
+                '''
+                self.nrows = len(self.ncs[-1].ncfile.dimensions['nrows'])
+                self.ncols = len(self.ncs[-1].ncfile.dimensions['ncols'])
             except:
                 print('file not found %s ' % (f))
                 self.ncs.append(-1)
 
+            '''try:
+                indx = 0
+                while self.ncs[indx] == -1:
+                    indx = indx + 1
+                self.nrows = self.ncs[indx].ncfile['nrows']
+                self.ncols = self.ncs[indx].ncfiles['ncols']
+            except:
+                print('Using nrows = %i, ncols = %i', % (nrows, ncols))
+            '''
         
     def get_obs_data(self,order,transpose):
         self.beammap_files = np.sort(glob.glob(self.path+str(self.obsnum)+'/*.nc'))
@@ -245,7 +272,20 @@ class ncdata:
 
     def get_nc_data(self,order,transpose):
         self.ncfile = netCDF4.Dataset(self.ncfile_name)
-        
+
+        '''
+        if nall == 525:
+            self.nrows = 21
+            self.ncols = 25
+
+        if nall == 625:
+            self.nrows = 25
+            self.ncols = 25
+        '''
+        self.nrows = len(self.ncfile.dimensions['nrows'])
+        self.ncols = len(self.ncfile.dimensions['ncols'])
+
+
         self.ndets = len(self.ncfile.dimensions['ndet'])
         
         self.indices = list(range(self.ndets))
@@ -257,6 +297,14 @@ class ncdata:
         #self.scale_designed()
         self.x_snr, self.x_snr_amp, self.x_std = self.get_snr(map_type='x')
         self.r_snr, self.r_snr_amp, self.r_std = self.get_snr(map_type='r')
+
+        self.scale_data(2.5, 2.5)
+
+    def scale_data(self, sx, sy):
+        self.p['x'] = self.p['x']*sx
+        self.p['y'] = self.p['y']*sy
+        self.p['fwhmx'] = self.p['fwhmx']*sx
+        self.p['fwhmy'] = self.p['fwhmy']*sy
 
     def scale_designed(self,gi=False):
         

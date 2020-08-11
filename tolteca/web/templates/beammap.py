@@ -34,8 +34,8 @@ f_tone_filepath = Path(__file__).parent.joinpath(
 
 df = pd.DataFrame(
     {
-        "Parameter": ["S/N", "X Centroid [px]", "Y Centroid [px]",
-                      "X FWHM [px]", "Y FWHM [px]", "Frequency [MHz]",
+        "Parameter": ["S/N", "X Centroid [cm]", "Y Centroid [cm]",
+                      "X FWHM [cm]", "Y FWHM [cm]", "Frequency [MHz]",
                       "Network", "Detector Number on Network"],
         "Value": ["N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"]
     }
@@ -131,7 +131,8 @@ def get_limit_data_from_snr(p):
 # Get maxes and mins for an array or set to nrows, ncols
 def get_maxmin(axis, drp_value, ncobs):
     if (str(drp_value) == 'x') or (str(drp_value) == 'y'):
-        axismax = max(ncobs.nrows, ncobs.ncols)
+        axismax = 1.25*max(ncobs.nrows*2.5, ncobs.ncols*2.5)
+        axismax = 1.25*25*2.5 #temp
         axismin = 0
     else:
         axismax = np.max(axis)
@@ -206,7 +207,7 @@ class beammap(ComponentTemplate):
         params = ['x','y','fwhmx','fwhmy','amps','snr']
         params.append('freq')
         params.remove('snr')
-        label_names = ['X [px]', 'Y [px]', 'X FWHM [px]', 'Y FWHM [px]', 'S/N', 'Freq [Mhz]']
+        label_names = ['X [cm]', 'Y [cm]', 'X FWHM [cm]', 'Y FWHM [cm]', 'S/N', 'Freq [Mhz]']
 
         labels = {}
         for param in range(len(params)):
@@ -248,7 +249,8 @@ class beammap(ComponentTemplate):
             if drp_clr_value == 'amps':
                 if z.all() !=None:
                     limit = get_limit_data_from_snr(p)
-                    z[z > limit] = limit
+                    if limit > 0:
+                        z[z > limit] = limit
                 else:
                     z = z
 
@@ -266,6 +268,17 @@ class beammap(ComponentTemplate):
                 z_clr = labels[drp_clr_value]
             else:
                 z_clr = 'NW'
+
+            if ncobs.obsnum == 'coaddBest':
+                if array_i == [0,1,2,3,4,5,6]:
+                    title = 'coaddJuly20 (unscaled)'
+                elif array_i == [7,8,9,10]:
+                    title = 'coaddAug0620 (unscaled)'
+                else:
+                    title = 'coaddAug0720 (scaled by 1.25)'
+            else:
+                title = ''
+
 
             # Define figure dict
             array_figure = {
@@ -295,6 +308,7 @@ class beammap(ComponentTemplate):
                     'editable': True,
                     'animate': True,
                     'uirevision': True,
+                    'title': title,
                     'xaxis': {'title': x_clr, 'range': [xmin, xmax]},
                     'yaxis': {'title': y_clr, 'range': [ymin, ymax], 'scaleanchor': "x", 'scaleratio': xmax/ymax}
                     }
@@ -483,8 +497,8 @@ class beammap(ComponentTemplate):
 
             df2 = pd.DataFrame(
            {
-               "Parameter": ["S/N", "X Centroid [px]", "Y Centroid [px]",
-                      "X FWHM [px]", "Y FWHM [px]", "Frequency [MHz]",
+               "Parameter": ["S/N", "X Centroid [cm]", "Y Centroid [cm]",
+                      "X FWHM [cm]", "Y FWHM [cm]", "Frequency [MHz]",
                       "Network", "Detector Number on Network"],
                "Value": ["N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"]
             })
@@ -574,7 +588,7 @@ class beammap(ComponentTemplate):
 
     def setup_layout(self, app):
         # Hardcoded rows,cols, sampling frequency for now
-        nrows = 21
+        nrows = 25
         ncols = 25
         sf = 488.281/4
 
@@ -589,7 +603,7 @@ class beammap(ComponentTemplate):
             ncobs_map[indexfiles[indx]] = get_ncobs(obsnum=obsnum, nrows=nrows,
                                                     ncols=ncols, index=index,
                                                     sampfreq=sf, order='C',
-                                                    transpose=False)
+                                                    transpose=False,scale=True)
 
             # Frequencies are acquired separately due to a potential bug in the
             # kids reduce code
