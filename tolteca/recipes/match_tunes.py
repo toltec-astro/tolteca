@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt
 from tollan.utils.mpl import save_or_show
 from pathlib import Path
 from astropy.table import vstack
+import astropy.units as u
 
 
 def _calc_d21_worker(args, **kwargs):
@@ -150,17 +151,19 @@ def find_global_shift(
     # resolve roi dict
     if roi is not None:
         if not isinstance(roi, dict):
-            roi = dict('obsid>0', roi)
+            roi = {'obsid>0': roi}
         for q, r in roi.items():
             e = dataset.select(q)
             if len(e) > 0:
                 for ee in e:
-                    if ee in _roi:
+                    key = ee['data_obj']
+                    if key in _roi:
                         raise ValueError(
                                 "each entry can only have one roi")
-                    _roi[e.data_objs[e.index(ee)]] = roi
+                    _roi[key] = r
     else:
-        roi = dict()
+        pass
+    roi = _roi
 
     # Do the actuall matching
     if pairing == 'diff':
@@ -188,7 +191,7 @@ def find_global_shift(
         if i == 0:
             continue
         other_swp, shift = shifts[swps[i]]
-        e['tone_match_global_shift'] = shift
+        e['tone_match_global_shift'] = shift.to_value('Hz')
         e['tone_match_idx_other'] = dataset[
                 np.where(dataset.data_objs == other_swp)[0]][
                         'tone_match_idx_self']
@@ -411,7 +414,10 @@ if __name__ == "__main__":
 
         def _match(d):
             logger.debug(f"match tones for {d.meta['select_query']}")
-            d = find_global_shift(d, plot=False)
+
+            def roi(fs):
+                return (fs > (469.5 << u.MHz)) & (fs < (472.5e6 << u.MHz))
+            d = find_global_shift(d, roi=roi, plot=False)
             # match tones
             d['tone_match_matched_obj'] = [None, ] * len(d)
             d['tone_match_n_matched'] = [-1, ] * len(d)
@@ -432,7 +438,7 @@ if __name__ == "__main__":
                 print(f'apply global shift {shift} Hz')
                 matched = match_tones(
                         cal_left, cal_right, shift_from_right=shift,
-                        join_type=option.join_type, eps=10000.)
+                        join_type=option.join_type, eps=30000.)
                 d['tone_match_matched_obj'][i] = matched
                 d['tone_match_n_matched'][i] = len(matched)
                 d['tone_match_sep_median'][i] = np.nanmedian(
@@ -505,7 +511,7 @@ if __name__ == "__main__":
                     ax.hist(
                         t['Separation'], label=f'nw={entry["nwid"]}',
                         histtype='step',
-                        bins=np.arange(0, 10000., 500),
+                        bins=np.arange(0, 50000., 500),
                         )
                 ax.set_title(f"obsid={entry['obsid']}")
                 ax.legend(loc='upper right')

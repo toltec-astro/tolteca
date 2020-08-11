@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [[ ! $1 ]]; then
-	echo -e "Compute autodrive ampcor file for all networks, using the last <num> of autodrive data.\n Usage: $0 <num>"
+	echo -e "Compute autodrive ampcor file for all networks.\n Usage: $0 obsid_start [obsid_stop]"
 	exit 1
 fi
 
@@ -17,14 +17,18 @@ echo "additional output to: ${scratchdir}"
 pyexec="${HOME}/toltec_astro/venvs/toltec/bin/python3"
 bin=$HOME/toltec_astro/tolteca/tolteca/recipes/autodrive.py
 
-obsid1=$(${pyexec} ${scriptdir}/get_latest_obsnum.py)
-# runid=obsid1
-obsid0="$(($obsid1 - $1))"
+runid=$1
+obsid0=$1
+obsid1=$2
+
+if [[ ! $obsid1 ]]; then
+	obsid1=10000000
+fi
 
 echo "autodrive all obsid=${obsid0}:${obsid1}"
-echo "seq 0 12 | parallel ${scriptdir}/autodrive.sh {} $obsid0 $obsid1"
-# seq 0 12 | parallel ${scriptdir}/autodrive.sh {} $obsid0 $obsid1
-exit 1
+
+
+seq 0 12 | parallel ${scriptdir}/autodrive.sh {} $@ 
 
 # collect
 obsid=$(printf "%06d" ${obsid0})
@@ -50,16 +54,4 @@ corfiles=(${scratchdir}/toltec[0-9]_autodrive.txt ${scratchdir}/toltec[0-9][0-9]
 files=(${scratchdir}/toltec[0-9]_autodrive.a_drv ${scratchdir}/toltec[0-9][0-9]_autodrive.a_drv)
 outfile=${scratchdir}/toltec_autodrive.txt
 echo "super collect result from ${files[@]}"
-${pyexec} ${bin} collect ${files[@]} -fo ${outfile} 
-rsync -avhP ${outfile} ${corfiles[@]} ${files[@]} clipa:/data/data_toltec/reduced/
-rsync -avhP ${outfile} ${corfiles[@]} ${files[@]} clipo:/data/data_toltec/reduced/
-
-for i in 0 1 2 3 4 5 6; do
-	echo "+++++++++++++ clipa +++ toltec$i ++++++++++++++"
-	scp ${scratchdir}/toltec${i}_autodrive.txt clipa:/home/toltec/roach/etc/toltec$i/default_targ_amps.dat
-done
-
-for i in 7 8 9 10 11 12; do
-	echo "+++++++++++++ clipo +++ toltec$i ++++++++++++++"
-	scp ${scratchdir}/toltec${i}_autodrive.txt clipo:/home/toltec/roach/etc/toltec$i/default_targ_amps.dat
-done
+${pyexec} ${bin} collect ${files[@]} -fo ${outfile}

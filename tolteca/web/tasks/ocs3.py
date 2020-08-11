@@ -2,7 +2,7 @@
 
 import celery
 from celery_once import QueueOnce
-from dasha.web.extensions.celery import schedule_task
+from dasha.web.extensions.celery import schedule_task, Q
 from dasha.web.extensions.ipc import ipc
 from dasha.web import exit_stack
 from .. import lmt_ocs3_url
@@ -83,6 +83,8 @@ def parse_value(obj_name, attr_name, value_str):
             # this is probably due to enum type int.
             return value_str
     elif type_ == 'double':
+        if value_str in ('-nan', 'nan'):
+            return None
         return float(value_str)
     elif type_ == 'boolean':
         return value_str == '1'
@@ -94,7 +96,12 @@ def parse_attrs(obj_name, kvs):
     re_name = re.compile(
             r'^-(?P<name>[^\[]+)(?:\[(?P<idx>\d+)\](?:\[(?P<idx2>\d+)\])?)?$')
     for k, v in kvs:
-        g = re.match(re_name, k).groupdict()
+        # print(f'parse attrs {k}')
+        g = re.match(re_name, k)
+        if g is None:
+            # print(f"unable to parse value {k}: {v}")
+            continue
+        g = g.groupdict()
         attr_name = g['name']
         attr_idx = g.get('idx', None)
         attr_idx2 = g.get('idx2', None)
@@ -124,6 +131,7 @@ def parse_attrs(obj_name, kvs):
 
 def parse_obj(obj_str):
     # parts = re.split(r'\s+', obj_str)
+    # print(f"parse obj: {obj_str}")
     parts = shlex.split(obj_str)
     obj_name = parts[0]
     obj = dict(
@@ -133,7 +141,7 @@ def parse_obj(obj_str):
     return obj
 
 
-@celery.shared_task(base=QueueOnce, once={'timeout': 10})
+@celery.shared_task(base=QueueOnce, once={'timeout': 10}, time_limit=5)
 def update_ocs_info():
     logger = get_logger()
     api = get_ocs3_api()
@@ -167,6 +175,7 @@ def update_ocs_info():
         buf = buf.getvalue()
         logger.debug(f"size of response: {len(buf)}")
         response = buf.decode().strip(';\r\n')
+        # print(f"response: {response}")
     with timeit('parse objects'):
         objs = [parse_obj(obj) for obj in response.split(';')]
         logger.debug(f"parsed {len(objs)} objects")
@@ -176,4 +185,10 @@ def update_ocs_info():
 
 
 # 1 sec interval
-schedule_task(update_ocs_info, schedule=1, args=tuple())
+schedule_task(
+        update_ocs_info,
+        schedule=1, args=tuple(),
+        options={
+            'queue': Q.high_priority,
+            'expires': 1
+            })

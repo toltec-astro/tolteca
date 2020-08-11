@@ -72,7 +72,7 @@ class SharedToltecDataset(object):
         pattern = \
             f'{master}/toltec*_' \
             f'{entry["Obsnum"]:06d}' \
-            f'_{entry["SubObsNum"]:02d}_{entry["ScanNum"]:04d}*'
+            f'_{entry["SubObsNum"]:03d}_{entry["ScanNum"]:04d}*'
         rpath = SharedToltecDataset.datafiles.rootpath
         logger.info(f"query {rpath} with pattern {pattern}")
         return list(map(str, rpath.glob(pattern)))

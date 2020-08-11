@@ -6,7 +6,7 @@ if [[ ! $1 ]]; then
 fi
 
 scriptdir=$(dirname "$(readlink -f "$0")")
-datadir=/data_toltec/repeat
+datadir=/data/data_toltec/ics
 scratchdir=/data/data_toltec/reduced
 if [[ -e ${SCRATCHDIR} ]]; then
     scratchdir=${SCRATCHDIR}
@@ -14,8 +14,8 @@ fi
 echo "use scratch ${scratchdir}"
 echo "additional output to: ${scratchdir}"
 
-pyexec="${HOME}/zma/venvs/toltec/bin/python3"
-bin=$HOME/zma/tolteca/tolteca/recipes/autodrive.py
+pyexec="${HOME}/toltec_astro/venvs/toltec/bin/python3"
+bin=$HOME/toltec_astro/tolteca/tolteca/recipes/autodrive.py
 
 runid=$1
 obsid0=$1
@@ -28,8 +28,13 @@ fi
 echo "autodrive all obsid=${obsid0}:${obsid1}"
 
 
-seq 0 12 | parallel ${scriptdir}/autodrive.sh {} $@ 
+# seq 0 12 | parallel ${scriptdir}/autodrive.sh {} $@ 
 
+seq 0 12 | parallel ${scriptdir}/autodrive.sh {} $@
+
+# for nw in 2 5 6; do
+#    ${scriptdir}/autodrive.sh ${nw} $@
+# done
 # collect
 obsid=$(printf "%06d" ${obsid0})
 corfiles=(${scratchdir}/toltec*_${obsid}_autodrive.txt)

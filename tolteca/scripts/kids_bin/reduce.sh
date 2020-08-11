@@ -1,4 +1,5 @@
 #!/bin/bash
+source /home/toltec/toltec_astro/dotbashrc
 
 file=${@: 1:1}
 args_all=${@: 2:$#-1}
@@ -51,7 +52,7 @@ else
 fi
 
 scriptdir=$(dirname "$(readlink -f "$0")")
-scratchdir=/data_toltec/reduced
+scratchdir=/data/data_toltec/reduced
 if [[ -e ${SCRATCHDIR} ]]; then
     scratchdir=${SCRATCHDIR}
 fi
@@ -59,9 +60,9 @@ echo "use scratch ${scratchdir}"
 echo "process ${type}: ${link}"
 echo "additional output to: ${scratchdir}"
 
-kidscppdir="${HOME}/zma/kidscpp"
-kidspydir="${HOME}/zma/kids_master/scripts"
-pyexec="${HOME}/zma/venvs/kids_master/bin/python3"
+kidscppdir="${HOME}/toltec_astro/kidscpp"
+kidspydir="${HOME}/zma_deprecated/kids_master/scripts"
+pyexec="${HOME}/zma_deprecated/venvs/kids_master/bin/python3"
 if [[ ${type} == "vna" ]]; then
     echo "do ${type} ${runmode}"
     reportfile=$(basename ${link})
@@ -71,6 +72,7 @@ if [[ ${type} == "vna" ]]; then
     if [[ ${runmode} == "reduce" ]]; then
         ${kidscppdir}/build/bin/kids --finder_threshold 10 \
 		    --output_d21 ${scratchdir}/'{stem}_d21.nc' \
+		    --output_processed ${scratchdir}/'{stem}_processed.nc' \
 		    --output "${reportfile}" \
 	       	    "${file}" ${args}
 	if [[ $outfile ]]; then
@@ -94,7 +96,9 @@ elif [[ ${type} == "targ" ]]; then
     # debug="_debug"
     echo "exec: ${kidscppdir}/build/bin/kids --output "${reportfile}"  "${file}" ${args}"
     if [[ ${runmode} == "reduce" ]]; then
-        ${kidscppdir}/build${debug}/bin/kids --output "${reportfile}"  "${file}" ${args}
+        ${kidscppdir}/build${debug}/bin/kids \
+		    --output_processed ${scratchdir}/'{stem}_processed.nc' \
+            --output "${reportfile}"  "${file}" ${args}
        	# >> ${file}.reduce.log 2>&1
 	if [[ $outfile ]]; then
 		${pyexec} ${scriptdir}/fix_lo.py ${file} "${reportfile}" "${outfile}"

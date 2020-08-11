@@ -9,6 +9,7 @@ from dash.dependencies import Input, Output, State
 import dash_html_components as html
 # from dasha.web.templates.collapsecontent import CollapseContent
 from dasha.web.extensions.db import db, dataframe_from_db
+from dasha.web.extensions.dasha import resolve_url
 import cachetools.func
 from sqlalchemy import select
 # from flask_sqlalchemy import BaseQuery
@@ -240,7 +241,7 @@ class ToltecDB(ComponentTemplate):
             return query_table_sizes(*choices)
 
         # this is to move the input item badges
-        js_hack_url = f'/js/hack_input_items_{radio_items.id}.js'
+        js_hack_url = resolve_url(f'/js/hack_input_items_{radio_items.id}.js')
         container.child(dji.Import, src=js_hack_url)
 
         @app.server.route(js_hack_url, endpoint=f'{radio_items.id}')

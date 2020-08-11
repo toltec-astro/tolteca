@@ -2,7 +2,7 @@
 
 from dasha.web.extensions.db import dataframe_from_db
 from dasha.web.extensions.ipc import ipc
-from dasha.web.extensions.celery import celery_app, schedule_task
+from dasha.web.extensions.celery import celery_app, schedule_task, Q
 from tollan.utils.log import get_logger
 from tollan.utils.fmt import pformat_yaml
 from .shareddata import SharedToltecDataset
@@ -20,6 +20,7 @@ def shlex_join(split_command):
 
 _reduce_state_store = ipc.get_or_create(
                 'rejson', label='reduce_state')
+_reduce_state_store.ensure_obj(obj=dict())
 
 
 def _make_reduce_state_key(filepath):
@@ -135,7 +136,7 @@ if celery_app is not None:
     def update_shared_toltec_dataset():
         logger = get_logger()
         dataset = SharedToltecDataset(_dataset_label)
-        info = get_toltec_file_info(n_entries=2)
+        info = get_toltec_file_info(n_entries=20)
         # look in to datastore for files
         if info is None:
             return
@@ -144,7 +145,7 @@ if celery_app is not None:
         raw = []
         for i, entry in info.iterrows():
             logger.debug(f"get entry [{i}] info {entry}")
-            f = dataset.files_from_info(entry, master='repeat/**')
+            f = dataset.files_from_info(entry, master='ics/**')
             fr = dataset.files_from_info(entry, master='reduced')
             f.extend(fr)
             logger.debug(f"found files {f}")
@@ -192,5 +193,8 @@ if celery_app is not None:
         return reduce_kidsdata.map(files).delay()
 
     # run at 1s interval
-    schedule_task(update_shared_toltec_dataset, schedule=1, args=tuple())
-    schedule_task(reduce_kidsdata_on_db, schedule=1, args=tuple())
+    q = Q.normal_priority
+    # lower number indicates higher priority, per
+    # https://github.com/celery/celery/issues/4028#issuecomment-537587618
+    schedule_task(update_shared_toltec_dataset, schedule=1, args=tuple(), options={'queue': q, 'priority': 0})
+    schedule_task(reduce_kidsdata_on_db, schedule=1, args=tuple(), options={'queue': q, 'priority': 3})
