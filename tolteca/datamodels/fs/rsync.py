@@ -1,24 +1,21 @@
 #! /usr/bin/env python
 
-"""Access files via rsync."""
-
-from . import Accessor
+from .base import FileStoreAccessor
 from tollan.utils.log import get_logger
 from pathlib import Path
 import subprocess
 import tempfile
 import re
-import sys
-import functools
-from io import TextIOWrapper
 from packaging.version import parse as parse_version
+from tollan.utils import FileLoc, fileloc, call_subprocess_with_live_output
+from collections import defaultdict
 
 
 __all__ = ['RsyncAccessor', ]
 
 
-class RsyncAccessor(Accessor):
-    """This class provide access to remote files via rsync."""
+class RsyncAccessor(FileStoreAccessor):
+    """This class provides access to remote files via rsync."""
 
     logger = get_logger()
 
@@ -57,7 +54,9 @@ class RsyncAccessor(Accessor):
 
     @staticmethod
     def _encode_remote_path(host, path):
-        return f'{host}:{path}'
+        if host != '':
+            return f'{host}:{path}'
+        return f'{path}'
 
     @classmethod
     def rsync(cls, filepaths, dest):
@@ -65,29 +64,29 @@ class RsyncAccessor(Accessor):
 
         Parameters
         ----------
-        filepath: list of str
+        filepath : list of str
             The paths to remote files, in scp specifier format.
-        dest: str
-            The destination of the operation.
+        dest : str
+            The destination.
         """
         logger = get_logger()
         # group the paths by host, and create filelist
-        paths_per_src = {}
+        paths_per_host = defaultdict(list)
         for p in filepaths:
-            if isinstance(p, Path):
+            if isinstance(p, str):
+                p = fileloc(p)
+            if isinstance(p, FileLoc):
+                h = p.netloc
+                p = p.path.as_posix()
+            elif isinstance(p, Path):
+                h = ''
                 p = p.as_posix()
-            # here we need to split path so that the hostnames
-            # contains the leading slash as host:/
-            d = re.match(r'(?P<src>[^:]+:\/)(?P<path>.*)', p).groupdict()
-            src = d['src']
-            p = d['path']
-            if src in paths_per_src:
-                paths_per_src[src].append(p)
             else:
-                paths_per_src[src] = [p, ]
+                raise ValueError(f"invalid file path {p}")
+            paths_per_host[h].append(p)
         result = set()
         dest = Path(dest)
-        for src, paths in paths_per_src.items():
+        for host, paths in paths_per_host.items():
             with tempfile.NamedTemporaryFile('w') as fo:
                 for p in paths:
                     fo.write(f"{p}\n")
@@ -100,25 +99,12 @@ class RsyncAccessor(Accessor):
                 cmd = [
                         cls._get_rsync_cmd(), '-avhP',
                         '--files-from',
-                        fo.name, src, dest.as_posix()
+                        fo.name, f'{host}:/', dest.as_posix()
                         ]
                 # get dry run stats
                 # subprocess.check_output(cmd_stats)
                 logger.debug("rsync with cmd: {}".format(' '.join(cmd)))
-                with subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        # stderr=subprocess.STDOUT,
-                        bufsize=1,
-                        ) as proc:
-                    reader = TextIOWrapper(proc.stdout, newline='')
-                    for char in iter(
-                            functools.partial(reader.read, 1), b''):
-                        # logger.debug(ln.decode().strip())
-                        sys.stderr.write(char)
-                        if proc.poll() is not None:
-                            sys.stderr.write('\n')
-                            break
+                call_subprocess_with_live_output(cmd)
             for p in paths:
                 p = dest.joinpath(p)
                 if p.exists():
@@ -131,16 +117,21 @@ class RsyncAccessor(Accessor):
 
         Parameters
         ----------
-        *args: list of str
-            The remote paths to query. Each path shall be an valid scp remote
-            path specifier.
+        args : list of str or `~tollan.utils.FileLoc`
+            The remote paths to query.
         """
+        logger = get_logger()
         result = set()
         with tempfile.TemporaryDirectory() as tmp:
             for path in args:
-                hostname, _ = cls._decode_remote_path(path)
+                path = fileloc(path)
+                hostname = path.netloc
+                path = cls._encode_remote_path(
+                        hostname, path.path.as_posix())
 
-                def _map_rsync_output(line):
+                def map_rsync_output(line):
+                    if hostname == '':
+                        return f'{line}'
                     return cls._encode_remote_path(hostname, f'/{line}')
 
                 # get file list
@@ -148,11 +139,20 @@ class RsyncAccessor(Accessor):
                         cls._get_rsync_cmd(),
                         '-rn', '--info=name', '--relative',
                         path, tmp]
+                logger.debug("rsync with cmd: {}".format(' '.join(rsync_cmd)))
+                # this is used to get rid of parent dirs
+                # _path = map_rsync_output(_path.path.as_posix())
+                # if not _path.endswith('/'):
+                #     _path += '/'
                 for p in map(
-                    _map_rsync_output,
-                    filter(
-                        cls._filter_rsync_output,
-                        subprocess.check_output(
-                            rsync_cmd).decode().strip().split('\n'))):
+                        map_rsync_output,
+                        filter(
+                            cls._filter_rsync_output,
+                            subprocess.check_output(
+                                rsync_cmd).decode().strip().split('\n'))):
+                    # if _path.startswith(p):
+                    # get rid of directories
+                    if p.endswith('/'):
+                        continue
                     result.add(p)
         return result

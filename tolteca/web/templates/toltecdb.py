@@ -20,8 +20,8 @@ import dash
 from tollan.utils.db import SqlaDB
 import base64
 from astropy.table import Table
-from tolteca.fs.toltec import ToltecDataset
-from tolteca.db.toltec.dataprod import init_db as init_db
+from tolteca.datamodels.fs.toltec import ToltecDataset
+from tolteca.datamodels.db.toltec.dataprod import init_db as init_db
 
 
 cyto.load_extra_layouts()

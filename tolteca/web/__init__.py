@@ -3,7 +3,7 @@
 """DashA site for TolTECA."""
 
 from tollan.utils.env import env_registry
-from tolteca.fs.toltec import ToltecDataFileStore
+from tolteca.datamodels.fs.toltec import ToltecDataFileStore
 from ..utils import get_user_data_dir
 import dash_bootstrap_components as dbc
 
