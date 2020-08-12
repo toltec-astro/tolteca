@@ -52,7 +52,7 @@ class DatabaseRuntime(UserDict):
 
     @staticmethod
     def _setup_tolteca(d):
-        dataprod.init_db(d)
+        dataprod.init_db(d, create_tables=False)
 
     @classmethod
     def _setup_sqladb(cls, sqladb, func, raise_on_error=True):

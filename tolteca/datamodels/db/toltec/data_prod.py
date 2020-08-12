@@ -1,13 +1,34 @@
 #! /usr/bin/env python
 
-from tollan.utils.log import get_logger
+from tollan.utils.log import get_logger, logit
 import sqlalchemy as sa
 from tollan.utils import odict_from_list
 from tollan.utils.db import conventions as c
 from tollan.utils.db import TableDefList
+from ...toltec.enums import RawObsType, RawObsMaster
 
 
 __all__ = ['init_db', ]
+
+
+_static_data = {
+        'dp_raw_obs_master': [
+            {
+                'pk': v.value,
+                'label': v.name,
+                'desc': v.desc
+                }
+            for v in RawObsMaster
+            ],
+        'dp_raw_obs_type': [
+            {
+                'pk': v.value,
+                'label': v.name,
+                'desc': v.desc
+                }
+            for v in RawObsType
+            ]
+        }
 
 
 def _make_proc_descriptor():
@@ -142,15 +163,15 @@ def _make_table_defs():
                 c.fk('dp_raw_obs_type'),
                 c.fk('dp_raw_obs_master'),
                 sa.Column(
-                    'obsid', sa.Integer, nullable=False,
+                    'obsnum', sa.Integer, nullable=False,
                     comment='The id of the obs assigned by master.'
                     ),
                 sa.Column(
-                    'subobsid', sa.Integer, nullable=False,
+                    'subobsnum', sa.Integer, nullable=False,
                     comment='The sub-id of the obs assigned by master.'
                     ),
                 sa.Column(
-                    'scanid', sa.Integer, nullable=False,
+                    'scannum', sa.Integer, nullable=False,
                     comment='The sub-sub-id of the obs assigned by master.'
                     ),
                 sa.Column(
@@ -167,59 +188,17 @@ def _make_table_defs():
                 c.label(),
                 c.desc(),
                 ],
-            'data': [
-                {
-                    'pk': 0,
-                    'label': 'TCS',
-                    'desc': 'The Telescope Control System.'
-                    },
-                {
-                    'pk': 1,
-                    'label': 'ICS',
-                    'desc': 'The Instrument Control System.'
-                    },
-                {
-                    'pk': 2,
-                    'label': 'CLIP',
-                    'desc': 'The Clip/ROACH Manager.'
-                    },
-                {
-                    'pk': 3,
-                    'label': 'REPEAT',
-                    'desc': 'The repeater as manager.'
-                    },
-                ]
+            'data': _static_data['dp_raw_obs_master']
             },
         {
             'name': 'dp_raw_obs_type',
             'desc': 'Raw KIDs detector data types.',
             'columns': [
-                c.pk(),
+                c.pk(autoincrement=False),
                 c.label(),
                 c.desc(),
                 ],
-            'data': [
-                {
-                    'label': 'vnasweep',
-                    'desc': 'Blinded sweep in the full frequency range.'
-                    },
-                {
-                    'label': 'targsweep',
-                    'desc': 'Targeted sweep around a set of given frequencies.'
-                    },
-                {
-                    'label': 'tune',
-                    'desc': 'Two consecutive targsweeps.'
-                    },
-                {
-                    'label': 'timestream',
-                    'desc': 'Time stream probed at a set of tones.'
-                    },
-                {
-                    'label': 'ancillary',
-                    'desc': 'Ancillary data item.'
-                    },
-                ]
+            'data': _static_data['dp_raw_obs_type']
             },
         {
             'name': 'dpa_raw_obs_sweep_obs',
@@ -227,15 +206,15 @@ def _make_table_defs():
             'parent': 'data_prod_assoc',
             'columns': [
                 c.fk(
-                    'dp_raw_obs', name='dp_raw_sweep_pk',
-                    comment='The raw sweep used in deriving the raw obs.',
-                    unique=True),
+                    'dp_raw_obs', name='dp_sweep_obs_pk',
+                    comment='The sweep obs used in deriving the raw obs.',
+                    ),
                 c.fk(
                     'dp_raw_obs',
                     comment='The raw obs.',
-                    unique=True),
+                    ),
                 # mysql does not allow this
-                # sa.CheckConstraint('dp_raw_obs_pk != dp_raw_sweep_pk')
+                # sa.CheckConstraint('dp_raw_obs_pk != dp_sweep_obs_pk')
                 ]
             },
         {
@@ -450,7 +429,7 @@ def _validate_db(db):
     return db
 
 
-def init_db(db, create_tables=False):
+def init_db(db, create_tables=False, recreate=False):
     """
     Populate tables for `db`.
 
@@ -479,6 +458,9 @@ def init_db(db, create_tables=False):
 
     # populate the database
     engine = db.engine
+    if recreate:
+        with logit(logger.info, "delete all tables"):
+            db.metadata.drop_all(engine)
     db.metadata.create_all(engine)
 
     # populate tables with static data
@@ -489,8 +471,11 @@ def init_db(db, create_tables=False):
                 # because the data is static, we just clear off the
                 # existing data before populating it.
                 if engine.dialect.name == 'mysql':
+
+                    conn.execute(tbl.delete())
+
                     from sqlalchemy.dialects.mysql import insert
-                    stmt_insert = insert(db.metadata.tables[n])
+                    stmt_insert = insert(tbl)
                     stmt = stmt_insert.on_duplicate_key_update(
                             **{
                                 x.name: x for x in stmt_insert.inserted

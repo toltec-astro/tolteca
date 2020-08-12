@@ -150,10 +150,18 @@ class BasicObsDataset(object):
         if index_table is None:
             index_table = self._make_index_table(bod_list)
         elif bod_list is None:
-            bod_list = self._make_bod_list(index_table)
+            # when sliced, the tbl will contain the sliced bod list
+            if '_bod' in index_table.colnames:
+                bod_list = index_table['_bod']
+                self._index_table = index_table
+                self._bod_list = bod_list
+                return
+            else:
+                bod_list = self._make_bod_list(index_table)
         assert len(index_table) == len(bod_list)
         self._index_table = index_table
         self._bod_list = bod_list
+        self['_bod'] = self._bod_list
         if include_meta_cols is not None:
             self.add_meta_cols(include_meta_cols)
 
@@ -291,10 +299,18 @@ class BasicObsDataset(object):
         self.index_table[arg] = value
 
     @property
+    def bod_list(self):
+        return self._bod_list
+
+    @property
+    def meta(self):
+        return self.index_table.meta
+
+    @property
     def history(self):
-        if 'history' not in self._index_table.meta:
-            self._index_table.meta['history'] = []
-        return self._index_table.meta['history']
+        if 'history' not in self.meta:
+            self.meta['history'] = []
+        return self.meta['history']
 
     @property
     def index_table(self):
@@ -387,5 +403,6 @@ class BasicObsDataset(object):
         """
         if copy:
             index_table = index_table.copy()
-        index_table.meta.update(**meta)
+        if meta is not None:
+            index_table.meta.update(**meta)
         return cls(index_table=index_table)

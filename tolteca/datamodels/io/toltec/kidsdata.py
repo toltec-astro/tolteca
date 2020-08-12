@@ -501,6 +501,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         # TODO someday we may need to change the mapping between this
         meta['master'] = meta['mastervar']
         meta['repeat'] = meta['repeatvar']
+        meta['nwid'] = meta['roachid']
 
     @register_to(_meta_updaters, KidsDataKind.RawSweep)
     def _update_raw_sweep_block_info(self):

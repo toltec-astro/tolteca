@@ -5,21 +5,37 @@ This recipe shows how to populate the data prod db with TolTEC dataset.
 """
 
 import yaml
+from astropy.table import Table
+from tolteca.fs.toltec import ToltecDataset
 from tollan.utils import rupdate
 from tolteca.recipes import get_logger
 from sqlalchemy.sql import select
 from tollan.utils import odict_from_list
 from tollan.utils.fmt import pformat_dict
 from tollan.utils.sys import get_hostname
+from pathlib import Path
 from collections import OrderedDict
 from tollan.utils.db import SqlaDB
-from tolteca.datamodels.db.toltec import data_prod
-from tolteca.datamodels.toltec.enums import KidsDataKind
-from tolteca.datamodels.toltec import BasicObsDataset
+from tolteca.db.toltec import dataprod
 
 
-def collect_data_prods(db, dataset):
-    # this add datasets to the db, creating known associations
+def load_dataset(path):
+    logger = get_logger()
+    try:
+        # try load the dataset if it is a pickle
+        dataset = ToltecDataset.load(path)
+    except Exception:
+        # now try load the dataset as an index table
+        dataset = ToltecDataset(
+                Table.read(path, format='ascii'))
+    except Exception:
+        raise RuntimeError(f"cannot load dataset from {path}")
+    logger.debug(f'loaded dataset: {dataset}')
+    dataset.source = path
+    return dataset
+
+
+def collect_data_prods(db, datasets):
 
     logger = get_logger()
 
@@ -104,14 +120,6 @@ def collect_data_prods(db, dataset):
                     'dpa_basic_reduced_obs_raw_obs']['pk']
             }
 
-    class RawObsSweepObsAssoc(DataProdAssoc):
-        __tablename__ = 'dpa_raw_obs_sweep_obs'
-        __mapper_args__ = {
-            'polymorphic_identity':
-                dispatch_labels['data_prod_assoc_type'][
-                    'dpa_raw_obs_sweep_obs']['pk']
-            }
-
     ClientInfo = client_info_model(Base)
 
     # this is need to resolve the many-to-many relation among the child
@@ -134,161 +142,112 @@ def collect_data_prods(db, dataset):
         session.commit()
 
     # group all data files by the obs -subobs -scan
-    tbl = dataset.index_table
+    grouped = ToltecDataset.vstack(datasets).split(
+            'obsid', 'subobsid', 'scanid')
 
-    grouped = tbl.group_by(
-            ['obsnum', 'subobsnum', 'scannum', 'master', 'repeat'])
-    for key, group in zip(grouped.groups.keys, grouped.groups):
-        print('****** {0} *******'.format(key['obsnum']))
-        print(group)
-        print('')
-
-    raw_obs_items = dict()
-    basic_reduced_obs_items = dict()
+    raw_obs_items = []
+    basic_reduced_obs_items = []
     assocs = []
 
-    def make_item_key(item):
-        return (
-                item.source['obsnum'],
-                item.source['subobsnum'],
-                item.source['scannum'])
-
-    for tbl in grouped.groups:
-        # for each group, we collate all per-interface entry to
-        # a single raw obs or basic reduced obs data product.
-        ds = BasicObsDataset(index_table=tbl)
-        # common meta data for this data product
-        meta = ds.bod_list[0].meta
+    for dataset in grouped:
+        # build sources
+        data = dataset[0]
         common = {
-                'obs_type': int(meta['obs_type']),
-                'master': int(meta['master']),
-                'obsnum': int(meta['obsnum']),
-                'subobsnum': int(meta['subobsnum']),
-                'scannum': int(meta['scannum']),
-                'cal_obsnum': int(meta['cal_obsnum']),
-                'cal_subobsnum': int(meta['cal_subobsnum']),
-                'cal_scannum': int(meta['cal_scannum']),
-                'repeat': int(meta['repeat']),
+                'obsid': int(data['obsid']),
+                'subobsid': int(data['subobsid']),
+                'scanid': int(data['scanid']),
+                'repeat': 1 if data['master'] == 'repeated' else 0,
                 'source_key': 'interface',
                 'source_urlbase': None,
                 }
 
-        # these hold the bods of the relevant the data kind
         raw_obs_data_items = []
         basic_reduced_obs_data_items = []
 
-        for bod in ds.bod_list:
-            if bod.meta['data_kind'] & KidsDataKind.RawKidsData:
-                raw_obs_data_items.append(bod)
+        for data in dataset:
+            if data['kindstr'] == 'ancillary':
+                raw_obs_data_items.append(data)
             else:
-                basic_reduced_obs_data_items.append(bod)
-
-        raw_obs = None
-        basic_reduced_obs = None
-
-        if len(raw_obs_data_items) > 0:
-            raw_obs_source = OrderedDict(
+                basic_reduced_obs_data_items.append(data)
+        raw_obs_source = OrderedDict(
                 **common,
                 **{
+                    'master': data['master'],
                     'sources': [
                         {
-                            'key': d.meta['interface'],
-                            'url': d.meta['file_loc'].uri
+                            'key': data['interface'],
+                            'url': Path(data['source']).resolve().as_uri()
                             }
-                        for d in raw_obs_data_items
+                        for data in raw_obs_data_items
                         ],
-                    'data_kind': meta['data_kind'].name,
+                    'type': data['kindstr'],
                     'meta': {
                         'data_prod_type': 'raw_obs'
                         },
                     },
                 )
-            # raw_obs_type = dispatch_labels['dp_raw_obs_type'][
-            #         raw_obs_source['type']]
-            # master = dispatch_labels['dp_raw_obs_master'][
-            #         raw_obs_source['master'].upper()]
-            raw_obs = RawObs(
-                    # dp_raw_obs_type_pk=raw_obs_type['pk'],
-                    # dp_raw_obs_master_pk=master['pk'],
-                    dp_raw_obs_type_pk=raw_obs_source['obs_type'],
-                    dp_raw_obs_master_pk=raw_obs_source['master'],
-                    obsnum=raw_obs_source['obsnum'],
-                    subobsnum=raw_obs_source['subobsnum'],
-                    scannum=raw_obs_source['scannum'],
-                    repeat=raw_obs_source['repeat'],
-                    source=raw_obs_source,
-                    clientinfo=client_info,
-                    )
-            raw_obs_items[make_item_key(raw_obs)] = raw_obs
-
-        if len(basic_reduced_obs_data_items) > 0:
-            basic_reduced_obs_source = OrderedDict(
+        basic_reduced_obs_source = OrderedDict(
                 **common,
                 **{
+                    'master': data['master'],
                     'sources': [
                         {
-                            'key': d.meta['interface'],
-                            'url': d.meta['file_loc'].uri
+                            'key': data['interface'],
+                            'url': Path(data['source']).resolve().as_uri()
                             }
-                        for d in basic_reduced_obs_data_items
+                        for data in basic_reduced_obs_data_items
                         ],
+                    'type': data['kindstr'],
                     'meta': {
                         'data_prod_type': 'basic_reduced_obs'
                         },
                     },
                 )
-            basic_reduced_obs = BasicReducedObs(
-                    source=basic_reduced_obs_source,
-                    clientinfo=client_info,
-                    )
-            basic_reduced_obs_items[
-                    make_item_key(basic_reduced_obs)] = basic_reduced_obs
-
-        if basic_reduced_obs is not None and raw_obs is not None:
-            assoc_info = DataProdAssocInfo(
-                    context='null',
-                    clientinfo=client_info,
-                    )
-            basic_reduced_obs_raw_obs_assoc = BasicReducedObsRawObsAssoc(
-                    dataprodassocinfo=assoc_info,
-                    rawobs=raw_obs,
-                    basicreducedobs=basic_reduced_obs,
-                    module='tolteca.web.tasks.kidsreduce'
-                    )
-            assocs.append(
-                    basic_reduced_obs_raw_obs_assoc)
-
-    # this is to let the pk available on the items
-    session.flush()
-
-    # search in the raw obs items to build raw_obs_sweep_obs assoc
-    for item in raw_obs_items.values():
-        cal_key = (
-                item.source['cal_obsnum'],
-                item.source['cal_subobsnum'],
-                item.source['cal_scannum'])
-        if cal_key in raw_obs_items:
-            assoc_info = DataProdAssocInfo(
-                context='null',
+        # create objs
+        raw_obs_type = dispatch_labels['dp_raw_obs_type'][
+                raw_obs_source['type']]
+        master = dispatch_labels['dp_raw_obs_master'][
+                raw_obs_source['master'].upper()]
+        raw_obs = RawObs(
+                dp_raw_obs_type_pk=raw_obs_type['pk'],
+                dp_raw_obs_master_pk=master['pk'],
+                obsid=raw_obs_source['obsid'],
+                subobsid=raw_obs_source['subobsid'],
+                scanid=raw_obs_source['scanid'],
+                repeat=raw_obs_source['repeat'],
+                source=raw_obs_source,
                 clientinfo=client_info,
                 )
-            raw_obs_sweep_obs_assoc = RawObsSweepObsAssoc(
-                    dp_sweep_obs_pk=raw_obs_items[cal_key].pk,
-                    dp_raw_obs_pk=item.pk,
-                    dataprodassocinfo=assoc_info,
-                    )
-            assocs.append(raw_obs_sweep_obs_assoc)
+        raw_obs_items.append(raw_obs)
 
-    # add this as a named group
-    if 'file_loc' in dataset.meta:
-        source_url = dataset.meta['file_loc'].uri
+        basic_reduced_obs = BasicReducedObs(
+                source=basic_reduced_obs_source,
+                clientinfo=client_info,
+                )
+        basic_reduced_obs_items.append(basic_reduced_obs)
+
+    assoc_info = DataProdAssocInfo(
+            context='null',
+            clientinfo=client_info,
+            )
+
+    for ro, bro in zip(raw_obs_items, basic_reduced_obs_items):
+        basic_reduced_obs_raw_obs_assoc = BasicReducedObsRawObsAssoc(
+                dataprodassocinfo=assoc_info,
+                rawobs=ro,
+                basicreducedobs=bro,
+                module='tolteca.web.tasks.kidsreduce'
+                )
+        assocs.append(basic_reduced_obs_raw_obs_assoc)
+
+    for dataset in datasets:
+        path = dataset.source
+        source_url = Path(path).resolve().as_uri()
         assoc_info = DataProdAssocInfo(
                 context={
                     'loaders': [
                         {
-                            'func': (
-                                'tolteca.datamodels.toltec'
-                                ':BasicObsDataset.from_index_table'),
+                            'func': 'tolteca.fs.toltec:ToltecDataset',
                             'args': [f'{source_url}', ]
                             },
                         ]
@@ -298,15 +257,12 @@ def collect_data_prods(db, dataset):
 
         named_group = NamedGroup(
                 source_url=source_url,
-                name=dataset.meta['file_loc'].path.stem,
+                name=Path(path).stem,
                 clientinfo=client_info,
                 )
-        # assocs
-        data_keys = [
-                (d['obsnum'], d['subobsnum'], d['scannum'])
-                for d in dataset]
+        data_keys = [(d['obsid'], d['subobsid'], d['scanid']) for d in dataset]
         for ro, bro in zip(raw_obs_items, basic_reduced_obs_items):
-            if (ro.obsnum, ro.subobsnum, ro.scannum) in data_keys:
+            if (ro.obsid, ro.subobsid, ro.scanid) in data_keys:
                 assocs.extend([
                     NamedGroupDataProdAssoc(
                         namedgroup=named_group,
@@ -341,15 +297,16 @@ if __name__ == "__main__":
     parser.add_argument(
             "paths",
             nargs='+',
-            help='Path(s) of data files.'
+            help='Path(s) of dataset index files.'
             )
     parser.add_argument(
             "-s", "--select",
             metavar="COND",
             help='A selection predicate, e.g.,:'
-            '"(obsnum>8900) & (nwid==3) & (fileext=="nc")"',
+            '"(obsid>8900) & (nwid==3) & (fileext=="nc")"',
             )
     option = parser.parse_args()
+
     # load config
     _config = None
     for c in option.config:
@@ -367,6 +324,7 @@ if __name__ == "__main__":
     logger.debug(f"populate database: {dpdb_uri}")
 
     db = SqlaDB.from_uri(dpdb_uri, engine_options={'echo': False})
-    data_prod.init_db(db, create_tables=False)
-    dataset = BasicObsDataset.from_files(option.paths)
-    collect_data_prods(db, dataset)
+    dataprod.init_db(db, create_tables=False)
+    datasets = list(map(load_dataset, option.paths))
+
+    collect_data_prods(db, datasets)

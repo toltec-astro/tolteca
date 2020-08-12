@@ -21,8 +21,8 @@ import dash
 from tollan.utils.db import SqlaDB
 import base64
 from astropy.table import Table
-from tolteca.datamodels.fs.toltec import ToltecDataset
-from tolteca.datamodels.db.toltec.dataprod import init_db as init_db
+from tolteca.datamodels.toltec import BasicObsDataset
+from tolteca.datamodels.db.toltec import data_prod
 
 
 cyto.load_extra_layouts()
@@ -58,7 +58,7 @@ class ToltecDB(ComponentTemplate):
         if 'tolteca' not in _db:
             raise RuntimeError("unable to connect to required db tolteca.")
         # load tolteca tables
-        init_db(_db['tolteca'])
+        data_prod.init_db(_db['tolteca'])
 
         # reflect toltec tables if it exists
         try:
@@ -581,8 +581,8 @@ document.getElementById('{dest}').appendChild(
                     collect_data_prods)
 
             def dataset_from_string(content, name):
-                dataset = ToltecDataset(
-                        Table.read(content, format='ascii'))
+                dataset = BasicObsDataset(
+                        index_table=Table.read(content, format='ascii'))
                 dataset.source = name
                 return dataset
             datasets = [
