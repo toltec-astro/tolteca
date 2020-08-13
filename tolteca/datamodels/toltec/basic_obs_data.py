@@ -63,6 +63,7 @@ class BasicObsData(DataFileIO):
     logger = get_logger()
 
     def __init__(self, source):
+        super().__init__()
         file_loc = self._file_loc = self._normalize_file_loc(source)
         if file_loc.is_local:
             file_obj = open_file(file_loc.path)
@@ -71,6 +72,9 @@ class BasicObsData(DataFileIO):
         self._file_loc = file_loc
         self._file_obj = file_obj
         self._update_meta()
+        if self.file_obj is not None:
+            # ensure that we automatically close the file after the meta is updated.
+            self.file_obj.close()
 
     @classmethod
     def update_meta_from_file_obj(cls, meta, file_obj):
@@ -383,7 +387,12 @@ class BasicObsDataset(object):
     def from_files(cls, files, **kwargs):
         if not files:
             raise ValueError("no file specified")
-        bod_list = [BasicObsData(f) for f in files]
+        bod_list = []
+        for f in files:
+            try:
+                bod_list.append(BasicObsData(f))
+            except Exception as e:
+                cls.logger.debug(f'ignored unknown file {f}: {e}', exc_info=True)
         return cls(bod_list=bod_list, **kwargs)
 
     @classmethod

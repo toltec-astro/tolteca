@@ -223,11 +223,14 @@ class _NcFileIOKidsDataAxisSlicerMixin(
 
 def identify_toltec_nc_file(filepath):
     """Check if `filepath` points to a TolTEC netCDF data file."""
-    attrs_to_check = ['Header.Toltec.ObsType']
-    with ncopen(filepath) as ds:
-        for a in attrs_to_check:
-            if a not in ds.variables:
-                return False
+    logger = get_logger()
+    attrs_to_check = ['Header.Toltec.ToneFreq', 'Header.Toltec.ObsNum']
+    try:
+        with ncopen(filepath) as ds:
+            return any(a in ds.variables for a in attrs_to_check)
+    except Exception as e:
+        logger.debug(f"unable to open file {filepath} as netCDF dataset: {e}")
+        return False
     return True
 
 
@@ -265,8 +268,11 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             'identify': {
                 KidsDataKind.ReducedKidsData: {
                     'kind_str': 'Header.Kids.kind',
+                    'kind_str_deprecated': 'kind',
+                    'obs_type': 'Header.Toltec.ObsType',
                     },
                 KidsDataKind.RawKidsData: {
+                    'kind_str': 'Header.Kids.kind',
                     'obs_type': 'Header.Toltec.ObsType',
                     },
                 },
@@ -299,11 +305,44 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                     "n_sweepsteps": "Header.Toltec.NumSweepSteps",
                     "n_sweeps_max": "numSweeps",
                     },
+                KidsDataKind.ReducedSweep: {
+                    "fsmp": "Header.Toltec.SampleFreq",
+                    "atten_in": "Header.Toltec.InputAtten",
+                    "atten_out": "Header.Toltec.OutputAtten",
+                    "roachid": "Header.Toltec.RoachIndex",
+                    "obsnum": "Header.Toltec.ObsNum",
+                    "subobsnum": "Header.Toltec.SubObsNum",
+                    "scannum": "Header.Toltec.ScanNum",
+                    # assoc
+                    "cal_roachid": "Header.Toltec.RoachIndex",
+                    "cal_obsnum": "Header.Toltec.TargSweepObsNum",
+                    "cal_subobsnum": "Header.Toltec.TargSweepSubObsNum",
+                    "cal_scannum": "Header.Toltec.TargSweepScanNum",
+                    # data shape
+                    "n_tones": "ntones",
+                    },
+                KidsDataKind.SolvedTimeStream: {
+                    # TODO fix this to give it header
+                    "fsmp": "Header.Toltec.SampleFreq",
+                    "atten_in": "Header.Toltec.InputAtten",
+                    "atten_out": "Header.Toltec.OutputAtten",
+                    "roachid": "Header.Toltec.RoachIndex",
+                    # assoc
+                    "cal_roachid": "Header.Toltec.RoachIndex",
+                    "cal_obsnum": "Header.Toltec.TargSweepObsNum",
+                    "cal_subobsnum": "Header.Toltec.TargSweepSubObsNum",
+                    "cal_scannum": "Header.Toltec.TargSweepScanNum",
+                    # data shape
+                    "n_tones": "ntones",
+                    },
                 },
             'axis_data': {
                 KidsDataKind.RawKidsData: {
                     "tones": "Header.Toltec.ToneFreq",
                     'flos': "Data.Toltec.LoFreq",
+                    },
+                KidsDataKind.ReducedKidsData: {
+                    "tones": "Header.Toltec.ToneFreq",
                     },
                 },
             'data': {
@@ -410,7 +449,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     def _identify_raw_kids_data(cls, node_mapper):
         # this returns a tuple of (valid, meta)
         nm = node_mapper
-        if not nm.hasvar('obs_type'):
+        if not nm.hasvar('obs_type') or nm.hasvar('kind_str'):
             return False, dict()
 
         obs_type = nm.getscalar('obs_type')
@@ -434,15 +473,20 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     @register_to(_data_kind_identifiers, KidsDataKind.ReducedKidsData)
     def _identify_reduced_kids_data(cls, node_mapper):
         nm = node_mapper
-        if not nm.hasvar('kind'):
+        if not nm.hasvar('kind_str') and not nm.hasvar('kind_str_deprecated'):
             return False, dict()
 
-        kind_str = nm.getstr('kind_str')
+        # TODO fix kidsreduce to produce proper header
+        if nm.hasvar('kind_str'):
+            kind_str = nm.getstr('kind_str')
+        if nm.hasvar('kind_str_deprecated'):
+            kind_str = nm.getstr('kind_str_deprecated')
         cls.logger.debug(f"found kind_str={kind_str} from {nm['kind_str']}")
 
         data_kind = {
-                    'D21': KidsDataKind.D21,
-                    'ReducedSweep': KidsDataKind.ReducedSweep,
+                    'd21': KidsDataKind.D21,
+                    'processed_sweep': KidsDataKind.ReducedSweep,
+                    'processed_timestream': KidsDataKind.SolvedTimeStream,
                     'SolvedTimeStream': KidsDataKind.SolvedTimeStream,
                     }.get(kind_str, KidsDataKind.ReducedUnknown)
         return True, {
@@ -466,6 +510,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         self._reset_instance_state()
         for k, m in self.node_mappers['identify'].items():
             valid, meta = self._data_kind_identifiers[k](self.__class__, m)
+            self.logger.debug(f"check data kind as {k}: {valid} {meta}")
             if valid:
                 self._meta_cached.update(meta)
                 return meta['data_kind']
@@ -499,8 +544,8 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         meta['instru'] = 'toltec'
         meta['interface'] = f'toltec{meta["roachid"]}'
         # TODO someday we may need to change the mapping between this
-        meta['master'] = meta['mastervar']
-        meta['repeat'] = meta['repeatvar']
+        meta['master'] = meta.get('mastervar', 1)
+        meta['repeat'] = meta.get('repeatvar', 1)
         meta['nwid'] = meta['roachid']
 
     @register_to(_meta_updaters, KidsDataKind.RawSweep)

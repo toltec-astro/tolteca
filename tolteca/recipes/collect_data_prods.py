@@ -135,6 +135,11 @@ def collect_data_prods(db, dataset):
 
     # group all data files by the obs -subobs -scan
     tbl = dataset.index_table
+    # the kidsmodel files does not have master and repeat
+    # we manually add them for now
+    tbl['master'] = 1
+    tbl['repeat'] = 1
+    print('\n'.join(tbl[['obsnum', 'subobsnum', 'scannum', 'master', 'repeat', 'data_kind']].pformat(max_lines=-1)))
 
     grouped = tbl.group_by(
             ['obsnum', 'subobsnum', 'scannum', 'master', 'repeat'])
@@ -160,15 +165,11 @@ def collect_data_prods(db, dataset):
         # common meta data for this data product
         meta = ds.bod_list[0].meta
         common = {
-                'obs_type': int(meta['obs_type']),
-                'master': int(meta['master']),
+                'master': int(meta.get('master', 1)),
                 'obsnum': int(meta['obsnum']),
                 'subobsnum': int(meta['subobsnum']),
                 'scannum': int(meta['scannum']),
-                'cal_obsnum': int(meta['cal_obsnum']),
-                'cal_subobsnum': int(meta['cal_subobsnum']),
-                'cal_scannum': int(meta['cal_scannum']),
-                'repeat': int(meta['repeat']),
+                'repeat': int(meta.get('repeat', 1)),
                 'source_key': 'interface',
                 'source_urlbase': None,
                 }
@@ -178,11 +179,16 @@ def collect_data_prods(db, dataset):
         basic_reduced_obs_data_items = []
 
         for bod in ds.bod_list:
-            if bod.meta['data_kind'] & KidsDataKind.RawKidsData:
-                raw_obs_data_items.append(bod)
+            kind = bod.meta['data_kind']
+            if isinstance(kind, KidsDataKind):
+                if bod.meta['data_kind'] & KidsDataKind.RawKidsData:
+                    raw_obs_data_items.append(bod)
+                else:
+                    basic_reduced_obs_data_items.append(bod)
             else:
                 basic_reduced_obs_data_items.append(bod)
 
+        print(f"collected {len(raw_obs_data_items)} raw obs data items and {len(basic_reduced_obs_data_items)} basic reduced obs data items")
         raw_obs = None
         basic_reduced_obs = None
 
@@ -198,6 +204,10 @@ def collect_data_prods(db, dataset):
                         for d in raw_obs_data_items
                         ],
                     'data_kind': meta['data_kind'].name,
+                    'obs_type': int(meta['obs_type']),
+                    'cal_obsnum': int(meta['cal_obsnum']),
+                    'cal_subobsnum': int(meta['cal_subobsnum']),
+                    'cal_scannum': int(meta['cal_scannum']),
                     'meta': {
                         'data_prod_type': 'raw_obs'
                         },
@@ -259,6 +269,11 @@ def collect_data_prods(db, dataset):
                     basic_reduced_obs_raw_obs_assoc)
 
     # this is to let the pk available on the items
+    print(f"collected {len(raw_obs_items)} raw obs items and {len(basic_reduced_obs_items)} basic reduced obs items")
+    for item in raw_obs_items.values():
+        session.add(item)
+    for item in basic_reduced_obs_items.values():
+        session.add(item)
     session.flush()
 
     # search in the raw obs items to build raw_obs_sweep_obs assoc

@@ -221,10 +221,15 @@ class TableIO(DataFileIO):
 
 def identify_txt_kidsmodel(filepath):
     """Check if `filepath` points to a TolTEC model parameter file."""
+    logger =get_logger()
     header = EcsvHeader()
-    with open(filepath, 'r') as fo:
-        meta = table_meta.get_header_from_yaml(
-                header.process_lines(fo))
+    try:
+        with open(filepath, 'r') as fo:
+            meta = table_meta.get_header_from_yaml(
+                    header.process_lines(fo))['meta']
+    except Exception as e:
+        logger.debug(f"unable to get yaml header from {filepath}: {e}")
+        return False
     attrs_to_check = ['Header.Toltec.ObsNum', ]
     for attr in attrs_to_check:
         if attr not in meta:

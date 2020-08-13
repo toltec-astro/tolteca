@@ -377,7 +377,7 @@ document.getElementById('{dest}').appendChild(
     def _setup_graph_view(self, app, container):
         container.child(html.Hr())
         timer, loading, error = self._setup_live_update_header(
-                app, container, 'Dependency Graph', 5000)
+                app, container, 'Dependency Graph', 10000)
 
         graph_container = container.child(dbc.Row).child(dbc.Col)
 
@@ -416,7 +416,7 @@ document.getElementById('{dest}').appendChild(
         graph = graph_container.child(
                 cyto.Cytoscape,
                 layout_=_get_layout(graph_layout_select.value),
-                style={'width': '100%', 'height': '600px'},
+                style={'width': '100%', 'height': '1200px'},
                 elements=[],
                 stylesheet=[
                     {
