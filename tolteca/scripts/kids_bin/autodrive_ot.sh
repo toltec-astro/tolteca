@@ -46,12 +46,11 @@ files=($reduced_files $raw_obs_files)
 echo "# of input files ${#files[@]}"
 
 # build index
-obsid=$(printf "%06d" ${obsid0})
-indexfile=${scratchdir}/toltec${nwid}_${obsid}_autodrive.index
+indexfile=${scratchdir}/toltec${roachid}_${obsnum_str}_autodrive.index
 mv ${indexfile} ${indexfile}.bak
 echo "build index ${indexfile}"
 ${pyexec} ${bin} index ${files[@]} -s "roachid==${roachid} & obsnum == ${obsnum}" -fo ${indexfile}
 # run autodrive
-ampcorfile=${scratchdir}/toltec${nwid}_${obsid}_autodrive.txt
+ampcorfile=${scratchdir}/toltec${roachid}_${obsnum_str}_autodrive.txt
 echo "run autodrive ${ampcorfile}"
 ${pyexec} ${bin} run -i ${indexfile} -t : -o ${ampcorfile}

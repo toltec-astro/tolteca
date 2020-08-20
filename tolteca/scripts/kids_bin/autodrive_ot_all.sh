@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [[ ! $1 ]]; then
-	echo -e "Compute autodrive ampcor file for all networks.\n Usage: $0 obsid_start [obsid_stop]"
+	echo -e "Compute autodrive ampcor file for all networks.\n Usage: $0 obsnum"
 	exit 1
 fi
 
@@ -22,21 +22,29 @@ obsnum=$1
 echo "autodrive all obsnum=${obsnum}"
 
 
-# seq 0 12 | parallel ${scriptdir}/autodrive.sh {} $@
+if [[ $(hostname) == "clipa" ]]; then
+    nws=$(seq 0 6)
+elif [[ $(hostname) == "clipo" ]]; then
+    nws=$(seq 7 12)
+else
+    echo "invalid host"
+    exit 1
+fi
 
-seq 0 12 | parallel ${scriptdir}/autodrive_ot.sh {} $@
-# for nw in 2 5 6; do
-#    ${scriptdir}/autodrive.sh ${nw} $@
+# echo $nws | parallel ${scriptdir}/autodrive_ot.sh {} $@
+parallel ${scriptdir}/autodrive_ot.sh {} $@ ::: $nws
+# for nw in $nws; do
+#    ${scriptdir}/autodrive_ot.sh ${nw} $@
 # done
 # collect
-obsnum_str=$(printf "%06d" ${obsid0})
+obsnum_str=$(printf "%06d" ${obsnum})
 # mk links
-for i in $(seq 0 6); do
-	ampcorfile=${scratchdir}/toltec${i}_${obsid}_autodrive.txt
+for i in $nws; do
+	ampcorfile=${scratchdir}/toltec${i}_${obsnum_str}_autodrive.txt
 	if [ -f ${ampcorfile} ]; then
 		ln -rsf ${ampcorfile} ${scratchdir}/toltec${i}_autodrive.txt
 	fi
-	adrvfile=${scratchdir}/toltec${i}_${obsid}_autodrive.a_drv
+	adrvfile=${scratchdir}/toltec${i}_${obsnum_str}_autodrive.a_drv
 	if [ -f ${adrvfile} ]; then
 		ln -rsf ${adrvfile} ${scratchdir}/toltec${i}_autodrive.a_drv
 	fi
@@ -47,17 +55,8 @@ outfile=${scratchdir}/toltec_autodrive.txt
 echo "super collect result from ${files[@]}"
 ${pyexec} ${bin} collect ${files[@]} -fo ${outfile}
 
-if [[ $(hostname) ~= "clipa" ]]; then
-  for i in 0 1 2 3 4 5 6; do
-  	echo "+++++++++++++ clipa +++ toltec$i ++++++++++++++"
-  	echo cp ${scratchdir}/toltec${i}_autodrive.txt /home/toltec/roach/etc/toltec$i/default_targ_amps.dat
-  	cp ${scratchdir}/toltec${i}_autodrive.txt /home/toltec/roach/etc/toltec$i/default_targ_amps.dat
-  done
-elif [[ $(hostname) ~= "clipa" ]]; then
-  for i in 7 8 9 10 11 12; do
-  	echo "+++++++++++++ clipo +++ toltec$i ++++++++++++++"
-  	scp ${scratchdir}/toltec${i}_autodrive.txt clipo:/home/toltec/roach/etc/toltec$i/default_targ_amps.dat
-  done
-else
-    echo "invalid host"
-fi
+for i in $nws; do
+    echo "+++++++++++++ $(hostname) +++ toltec$i ++++++++++++++"
+    echo cp ${scratchdir}/toltec${i}_autodrive.txt /home/toltec/roach/etc/toltec$i/default_targ_amps.dat
+    cp ${scratchdir}/toltec${i}_autodrive.txt /home/toltec/roach/etc/toltec$i/default_targ_amps.dat
+done
