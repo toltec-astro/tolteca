@@ -2,7 +2,7 @@
 
 from dasha.web.extensions.db import db  # , dataframe_from_db
 from tollan.utils.db import SqlaDB
-from tolteca.db.toltec import dataprod
+from tolteca.datamodels.db.toltec import data_prod
 from tollan.utils.log import get_logger
 from collections import UserDict
 from wrapt import ObjectProxy
@@ -52,7 +52,7 @@ class DatabaseRuntime(UserDict):
 
     @staticmethod
     def _setup_tolteca(d):
-        dataprod.init_db(d, create_tables=False)
+        data_prod.init_db(d, create_tables=False)
 
     @classmethod
     def _setup_sqladb(cls, sqladb, func, raise_on_error=True):
