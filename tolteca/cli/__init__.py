@@ -57,9 +57,10 @@ def main(args=None):
 
     # import subcommand modules:
     from .db import cmd_migrate  # noqa: F401
+    from .run import cmd_run  # noqa: F401
 
     # parse and handle global args:
-    option = parser.parse_args(args or sys.argv[1:])
+    option, unknown_args = parser.parse_known_args(args or sys.argv[1:])
 
     if option.quiet:
         loglevel = 'INFO'
@@ -82,4 +83,4 @@ def main(args=None):
     option.config = _config
 
     # handle subcommands
-    parser.bootstrap_actions(option)
+    parser.bootstrap_actions(option, unknown_args=unknown_args)

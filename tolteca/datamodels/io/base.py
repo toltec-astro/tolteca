@@ -82,5 +82,5 @@ class DataFileIO(ExitStack):
     def open(self):
         """Return the context for access the `file_obj`."""
         if self.file_obj is None:
-            raise DataFileIOError("file object not available for {self}")
+            raise DataFileIOError(f"file object not available for {self}")
         return self.file_obj.open()

@@ -9,7 +9,7 @@ drive attenuations for the KIDs.
 """
 
 from tolteca.recipes import get_logger
-from tolteca.fs.toltec import ToltecDataset
+from tolteca.datamodels.toltec import BasicObsDataset
 from tollan.utils.cli.multi_action_argparser import \
         MultiActionArgumentParser
 import numpy as np
@@ -19,7 +19,8 @@ from tollan.utils.slice import parse_slice
 from pathlib import Path
 import itertools
 # from kneed import KneeLocator
-from astropy.table import Table
+from astropy.table import Table, join
+import astropy.units as u
 
 
 def load_autodrive_data(dataset):
@@ -27,7 +28,7 @@ def load_autodrive_data(dataset):
 
     Parameters
     ----------
-    dataset: ToltecDataset
+    dataset: BasicObsDataset
         The input dataset.
 
     """
@@ -36,17 +37,23 @@ def load_autodrive_data(dataset):
     logger.debug(f"load autodrive data from: {dataset}")
 
     # split the dataset for tunes and reduced files
-    targs = dataset.select('kindstr=="targsweep"')
-    calibs = dataset.select('fileext=="txt"')
+    targs = dataset.select('fileext=="nc" & filesuffix=="targsweep"')
+    calibs = dataset.select('fileext=="txt" & filesuffix=="targsweep"')
     # Read the sweep object from the file IO object. A TolTEC tune file
     # contains multipe sweep blocks, and here we read the last one using the
     # `sweeploc` method.
-    targs.load_data(
-            lambda fo: fo.sweeploc(index=-1)[:].read())
-    join_keys = ['nwid', 'obsid', 'subobsid', 'scanid']
-    targs = targs.right_join(
-            calibs.load_data(lambda fo: fo),
-            join_keys, [('data_obj', 'mdl_obj'), ], )
+    targs['data_obj'] = targs.read_all()
+    calibs['mdl_obj'] = calibs.read_all()
+    join_keys = ['roachid', 'obsnum', 'subobsnum', 'scannum']
+
+    tbl = join(
+            targs.index_table, calibs.index_table,
+            keys=join_keys,
+            join_type='right')
+    targs = BasicObsDataset(index_table=tbl, bod_list=tbl['data_obj'])
+    # targs = targs.right_join(
+    #         calibs.load_data(lambda fo: fo),
+    #         join_keys, [('data_obj', 'mdl_obj'), ], )
     # join the mdls to swps
     logger.debug(f"targs: {targs}")
     return targs
@@ -121,6 +128,9 @@ def find_best_a_naive3(a, y, n_flat, thresh, n_accept):
     order and looks for the first group of points that have y higher by
     some factor.
     """
+    print(a)
+    print(y)
+    print(n_flat)
     logger = get_logger()
     # sort in descending order so that the flat
     # section is at start. the a
@@ -131,6 +141,8 @@ def find_best_a_naive3(a, y, n_flat, thresh, n_accept):
     i = np.argsort(a)[::-1]
     aa = a[i]
     yy = y[i]
+    print(yy)
+    print(yy[:n_flat])
     y0 = np.mean(yy[:n_flat])
 
     cands = np.where(yy > y0 * thresh)[0]
@@ -146,19 +158,24 @@ def find_best_a_naive3(a, y, n_flat, thresh, n_accept):
 def autodrive(
         targs, toneloc=None, plot=True, output_ref_atten=None, output=None):
     logger = get_logger()
-    swps = targs.data_objs
+    swps = targs['data_obj']
     mdls = targs['mdl_obj']
+    print(targs)
+    print(swps)
+    print(mdls)
     for _, (swp, mdl) in enumerate(zip(swps, mdls)):
         swp.mdl = mdl
-        swp.iqs_mdl = mdl.model(swp.fs)
-        swp.iqs_derot = swp.mdl.model.derotate(swp.iqs, swp.fs)
-        swp.adiqs_derot = np.abs(swp.diqs_df(swp.iqs_derot, swp.fs, smooth=0))
+        swp.S21_mdl = mdl.model(swp.frequency)
+        swp.S21_derot = swp.mdl.model.derotate(
+                swp.S21.to_value(u.adu), swp.frequency)
+        swp.adiqs_derot = np.abs(swp.diqs_df(
+            swp.S21_derot, swp.frequency.to_value(u.Hz), smooth=0))
 
     if toneloc is None or output is not None:
         toneloc = slice(None)
 
     if isinstance(toneloc, slice):
-        toneloc = slice(*toneloc.indices(swps[0].iqs.shape[0]))
+        toneloc = slice(*toneloc.indices(swps[0].S21.shape[0]))
         tis = list(range(toneloc.start, toneloc.stop, toneloc.step))
     else:
         tis = list(toneloc)
@@ -181,10 +198,10 @@ def autodrive(
         a_drvs[i, j] = a_drv = swp.meta['atten_out']
         a_tots[i, j] = a_tot = swp.meta['atten_in'] + swp.meta['atten_out']
         # compute abs of derotated d21 and find the maximum
-        fs = swp.fs[ti, :].to('Hz').value
-        iqs = swp.iqs[ti, :]
-        iqs_mdl = swp.iqs_mdl[ti, :]
-        iqs_derot = swp.iqs_derot[ti, :]
+        fs = swp.frequency[ti, :].to('Hz').value
+        iqs = swp.S21[ti, :]
+        iqs_mdl = swp.S21_mdl[ti, :]
+        iqs_derot = swp.S21_derot[ti, :]
         # adiqs_derot = swp.adiqs_derot[ti, :]
         adiqs_derot = np.abs(np.gradient(iqs_derot, fs))
         # we only find the max within one fwhm of the resonance
@@ -215,7 +232,7 @@ def autodrive(
     #         )
     finder = find_best_a_naive3
     finder_kwargs = dict(
-            n_flat=min(10, len(a_drvs) / 5),
+            n_flat=min(10, len(a_drvs) // 5),
             thresh=1.2,
             n_accept=3,
             )
@@ -285,7 +302,7 @@ def autodrive(
     panel_size = (20, 6)
     n_rows = len(i_plot)
     if n_rows > 10:
-        n_rows = 10 
+        n_rows = 10
     fig, axes = plt.subplots(
             n_rows, 6,
             figsize=(panel_size[0], panel_size[1] * n_rows),
@@ -350,10 +367,7 @@ def autodrive(
         )
 
 
-if __name__ == "__main__":
-    import sys
-    args = sys.argv[1:]
-
+def main(args):
     maap = MultiActionArgumentParser(
             description="Run autodrive."
             )
@@ -387,19 +401,17 @@ if __name__ == "__main__":
             )
 
     @act_index.parser_action
-    def index_action(option):
+    def index_action(option, **kwargs):
         output = Path(option.output)
         if output.exists() and not option.overwrite:
             raise RuntimeError(
                     f"output file {output} exists, use -f to overwrite")
         # This function is called when `index` is specified in the cmd
         # Collect the dataset from the command line arguments
-        dataset = ToltecDataset.from_files(*option.files)
+        dataset = BasicObsDataset.from_files(option.files)
         # Apply any selection filtering
         if option.select:
-            dataset = dataset.select(option.select).open_files()
-        else:
-            dataset = dataset.open_files()
+            dataset = dataset.select(option.select)
         # Run the tone matching algo.
         dataset = load_autodrive_data(dataset)
         # Dump the results.
@@ -443,9 +455,9 @@ if __name__ == "__main__":
             )
 
     @act_run.parser_action
-    def run_action(option):
+    def run_action(option, **kwargs):
         input_ = Path(option.input)
-        dataset = ToltecDataset.load(input_)
+        dataset = BasicObsDataset.load(input_)
         if option.select is not None:
             dataset = dataset.select(option.select)
         autodrive(
@@ -506,7 +518,8 @@ if __name__ == "__main__":
         result = Table(rows=result, names=colnames)
         result.write(option.output, format='ascii.commented_header')
         if option.plot:
-            fig, axes = plt.subplots(len(option.files), 1, sharex=True, squeeze=False)
+            fig, axes = plt.subplots(
+                    len(option.files), 1, sharex=True, squeeze=False)
             axes = np.ravel(axes)
             for i, a in enumerate(data):
                 ax = axes[i]
@@ -516,7 +529,14 @@ if __name__ == "__main__":
                 ax.set_ylabel(f'NW {i}')
             axes[-1].set_xlabel(f'Best driving atten. (dB)')
             axes[0].set_title(f"{result[0]['filename']}")
-            save_or_show(fig, Path(option.output).with_suffix('.png').as_posix(), save=option.save_plot)
+            save_or_show(
+                    fig, Path(option.output).with_suffix('.png').as_posix(),
+                    save=option.save_plot)
 
     option = maap.parse_args(args)
     maap.bootstrap_actions(option)
+
+
+if __name__ == "__main__":
+    import sys
+    main(sys.argv[1:])

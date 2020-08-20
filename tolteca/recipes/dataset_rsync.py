@@ -8,7 +8,7 @@
 #       - Created.
 
 """
-This recipe shows how to use the `tolteca.fs.rsync_accessor.RsyncAccessor`
+This recipe shows how to use the `tolteca.datamodels.fs.rsync.RsyncAccessor`
 to select and retrieve TolTEC data files from remote.
 
 The ``-s`` switch makes use of the ``panads.DataFrame.query``, and the
@@ -45,13 +45,12 @@ Example usage:
 
 import sys
 from tolteca.recipes import get_logger
-from tolteca.fs.toltec import ToltecDataset
-from tolteca.fs.rsync_accessor import RsyncAccessor
+from tolteca.datamodels.toltec import BasicObsDataset
+from tolteca.datamodels.fs.rsync import RsyncAccessor
 from pathlib import Path
+import argparse
 
-
-if __name__ == "__main__":
-    import argparse
+def main(args):
 
     parser = argparse.ArgumentParser(
             description='Build local dataset index using rsync as backend.')
@@ -83,7 +82,7 @@ if __name__ == "__main__":
             action='store_true',
             help="If set, overwrite the existing index file",
             )
-    option = parser.parse_args()
+    option = parser.parse_args(args)
     # check that -fo is not set if -d is not
     if option.download_dir is None and option.output is not None:
         parser.error("-f/-o can only be used with -d.")
@@ -92,9 +91,8 @@ if __name__ == "__main__":
     # This by default uses the RsyncAccessor. Since will be using the
     # same access to actually download the files, we just make that
     # explicit
-    rsync = RsyncAccessor()
-    dataset = ToltecDataset.from_remote_files(
-            *option.paths, accessor=rsync)
+    accessor = RsyncAccessor()
+    dataset = BasicObsDataset.from_files(accessor.glob(*option.paths))
     if option.select:
         dataset = dataset.select(option.select)
 
@@ -107,9 +105,10 @@ if __name__ == "__main__":
         logger.debug(f"download {len(dataset)} remote files")
         # download the files using the rsync accessor
         # and build the dataset using downloaded files
-        filepaths = rsync.rsync(
+        filepaths = accessor.rsync(
                 dataset['source'], option.download_dir)
-        dataset = dataset.from_files(*filepaths)
+        logger.debug(f"local filepaths: {filepaths}")
+        dataset = dataset.from_files(filepaths)
         dispatch_fmt = {
                 '.ecsv': 'ascii.ecsv',
                 '.asc': 'ascii.commented_header',

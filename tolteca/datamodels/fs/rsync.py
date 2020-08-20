@@ -106,7 +106,8 @@ class RsyncAccessor(FileStoreAccessor):
                 logger.debug("rsync with cmd: {}".format(' '.join(cmd)))
                 call_subprocess_with_live_output(cmd)
             for p in paths:
-                p = dest.joinpath(p)
+                p = dest.joinpath(p.lstrip('/'))
+                print(p)
                 if p.exists():
                     result.add(p)
         return result

@@ -12,6 +12,7 @@ from ..fs.toltec import meta_from_source
 from collections import defaultdict
 import warnings
 from tollan.utils.fmt import pformat_fancy_index
+import dill
 
 
 __all__ = ['BasicObsData', 'BasicObsDataset']
@@ -73,7 +74,8 @@ class BasicObsData(DataFileIO):
         self._file_obj = file_obj
         self._update_meta()
         if self.file_obj is not None:
-            # ensure that we automatically close the file after the meta is updated.
+            # ensure that we automatically close the file
+            # after the meta is updated.
             self.file_obj.close()
 
     @classmethod
@@ -207,13 +209,13 @@ class BasicObsDataset(object):
     def _make_index_table(cls, bod_list):
         tbl = defaultdict(list)
         for bod in bod_list:
-            with bod.open():
-                for col in cls._cols_bod_info:
-                    if col == 'source':
-                        value = bod.file_loc.path.as_posix()
-                    else:
-                        value = bod.meta.get(col, None)
-                    tbl[col].append(value)
+            # with bod.open():
+            for col in cls._cols_bod_info:
+                if col == 'source':
+                    value = bod.file_loc.rsync_path
+                else:
+                    value = bod.meta.get(col, None)
+                tbl[col].append(value)
         tbl = Table(data=tbl)
         return tbl
 
@@ -321,6 +323,25 @@ class BasicObsDataset(object):
         """The index table."""
         return self._index_table
 
+    def write_index_table(self, *args, **kwargs):
+        tbl = self.index_table
+        use_cols = [
+            c for c in tbl.colnames
+            if not (
+                tbl.dtype[c].hasobject
+                or tbl.dtype[c].ndim > 0
+                )]
+        return tbl[use_cols].write(*args, **kwargs)
+
+    def dump(self, filepath):
+        with open(filepath, 'wb') as fo:
+            dill.dump(self, fo)
+
+    @classmethod
+    def load(self, filepath):
+        with open(filepath, 'rb') as fo:
+            return dill.load(fo)
+
     def select(self, cond, desc=None):
         """Return a subset of the dataset specified by `cond`
 
@@ -349,7 +370,12 @@ class BasicObsDataset(object):
                 # this is to supress the ufunc size warning
                 # and the numexpr
                 warnings.simplefilter("ignore")
-                df = tbl.to_pandas()
+                use_cols = [
+                    c for c in tbl.colnames
+                    if not (
+                        tbl.dtype[c].ndim > 0
+                        )]
+                df = tbl[use_cols].to_pandas()
                 m = df.eval(cond).to_numpy(dtype=bool)
             cond_str = cond
         else:
@@ -373,7 +399,7 @@ class BasicObsDataset(object):
     def _sliced_new(self, item):
         return self.__class__(
                 index_table=self._index_table[item],
-                bod_list=self._bod_list[item])
+                bod_list=np.asanyarray(self._bod_list)[item])
 
     def __repr__(self):
         pformat_tbl = self.index_table.pformat(max_width=-1)
@@ -392,7 +418,8 @@ class BasicObsDataset(object):
             try:
                 bod_list.append(BasicObsData(f))
             except Exception as e:
-                cls.logger.debug(f'ignored unknown file {f}: {e}', exc_info=True)
+                cls.logger.debug(
+                        f'ignored unknown file {f}: {e}', exc_info=False)
         return cls(bod_list=bod_list, **kwargs)
 
     @classmethod
