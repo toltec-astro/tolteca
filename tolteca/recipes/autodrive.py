@@ -498,7 +498,7 @@ def main(args):
             )
 
     @act_collect.parser_action
-    def collect_action(option):
+    def collect_action(option, **kwargs):
         output = Path(option.output)
         if output.exists() and not option.overwrite:
             raise RuntimeError(

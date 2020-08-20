@@ -96,6 +96,9 @@ elif [[ ${type} == "targ" ]]; then
     # debug="_debug"
     echo "exec: ${kidscppdir}/build/bin/kids --output "${reportfile}"  "${file}" ${args}"
     if [[ ${runmode} == "reduce" ]]; then
+        echo ${kidscppdir}/build${debug}/bin/kids \
+		    --output_processed ${scratchdir}/'{stem}_processed.nc' \
+            --output "${reportfile}"  "${file}" ${args}
         ${kidscppdir}/build${debug}/bin/kids \
 		    --output_processed ${scratchdir}/'{stem}_processed.nc' \
             --output "${reportfile}"  "${file}" ${args}
