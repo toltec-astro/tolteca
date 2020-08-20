@@ -128,9 +128,6 @@ def find_best_a_naive3(a, y, n_flat, thresh, n_accept):
     order and looks for the first group of points that have y higher by
     some factor.
     """
-    print(a)
-    print(y)
-    print(n_flat)
     logger = get_logger()
     # sort in descending order so that the flat
     # section is at start. the a
@@ -141,8 +138,6 @@ def find_best_a_naive3(a, y, n_flat, thresh, n_accept):
     i = np.argsort(a)[::-1]
     aa = a[i]
     yy = y[i]
-    print(yy)
-    print(yy[:n_flat])
     y0 = np.mean(yy[:n_flat])
 
     cands = np.where(yy > y0 * thresh)[0]
@@ -160,9 +155,6 @@ def autodrive(
     logger = get_logger()
     swps = targs['data_obj']
     mdls = targs['mdl_obj']
-    print(targs)
-    print(swps)
-    print(mdls)
     for _, (swp, mdl) in enumerate(zip(swps, mdls)):
         swp.mdl = mdl
         swp.S21_mdl = mdl.model(swp.frequency)
