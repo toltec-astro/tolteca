@@ -24,7 +24,7 @@ echo "autodrive all obsnum=${obsnum}"
 
 # seq 0 12 | parallel ${scriptdir}/autodrive.sh {} $@
 
-# seq 0 6 | parallel ${scriptdir}/autodrive_ot.sh {} $@
+seq 0 12 | parallel ${scriptdir}/autodrive_ot.sh {} $@
 # for nw in 2 5 6; do
 #    ${scriptdir}/autodrive.sh ${nw} $@
 # done
@@ -47,13 +47,17 @@ outfile=${scratchdir}/toltec_autodrive.txt
 echo "super collect result from ${files[@]}"
 ${pyexec} ${bin} collect ${files[@]} -fo ${outfile}
 
-for i in 0 1 2 3 4 5 6; do
-	echo "+++++++++++++ clipa +++ toltec$i ++++++++++++++"
-	echo cp ${scratchdir}/toltec${i}_autodrive.txt /home/toltec/roach/etc/toltec$i/default_targ_amps.dat
-	cp ${scratchdir}/toltec${i}_autodrive.txt /home/toltec/roach/etc/toltec$i/default_targ_amps.dat
-done
-
-# for i in 7 8 9 10 11 12; do
-# 	echo "+++++++++++++ clipo +++ toltec$i ++++++++++++++"
-# 	scp ${scratchdir}/toltec${i}_autodrive.txt clipo:/home/toltec/roach/etc/toltec$i/default_targ_amps.dat
-# done
+if [[ $(hostname) ~= "clipa" ]]; then
+  for i in 0 1 2 3 4 5 6; do
+  	echo "+++++++++++++ clipa +++ toltec$i ++++++++++++++"
+  	echo cp ${scratchdir}/toltec${i}_autodrive.txt /home/toltec/roach/etc/toltec$i/default_targ_amps.dat
+  	cp ${scratchdir}/toltec${i}_autodrive.txt /home/toltec/roach/etc/toltec$i/default_targ_amps.dat
+  done
+elif [[ $(hostname) ~= "clipa" ]]; then
+  for i in 7 8 9 10 11 12; do
+  	echo "+++++++++++++ clipo +++ toltec$i ++++++++++++++"
+  	scp ${scratchdir}/toltec${i}_autodrive.txt clipo:/home/toltec/roach/etc/toltec$i/default_targ_amps.dat
+  done
+else
+    echo "invalid host"
+fi
