@@ -16,6 +16,11 @@ if [[ $(hostname) == "clipa" ]]; then
     nws=$(seq 0 6)
 elif [[ $(hostname) == "clipo" ]]; then
     nws=$(seq 7 12)
+elif [[ $(hostname) == "clipy" ]]; then
+    hosts="clipa clipo"
+    parallel -v ssh -t {} ${0} $@ ::: $hosts
+    echo 'hosts all done'
+    exit 0
 else
     echo "invalid host"
     exit 1
