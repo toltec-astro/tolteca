@@ -498,27 +498,33 @@ def main(args):
 
         ps = [0, 0.05, 0.1, 0.5, 0.9, 0.95, 1]
         result = []
-        colnames = ['filename', ] + [f'p{p * 100:.0f}' for p in ps]
+        colnames = ['nw', 'filename', ] + [f'p{p * 100:.0f}' for p in ps]
+        # sort the files
+        files = []
+        for filepath in option.files:
+            nw = int(Path(filepath).stem.split('_')[0].replace('toltec', ''))
+            files.append((nw, filepath))
+        files = sorted(files, key=lambda a: a[0])
         data = []
-        for i, filepath in enumerate(option.files):
+        for nw, filepath in files:
             tbl = Table.read(filepath, format='ascii.no_header')
             a = tbl['col1']
             a = a[~np.isnan(a)]
             result.append(
-                    [Path(filepath).stem, ] + [np.quantile(a, p) for p in ps])
+                    [nw, Path(filepath).stem, ] + [np.quantile(a, p) for p in ps])
             data.append(a)
         result = Table(rows=result, names=colnames)
         result.write(option.output, format='ascii.commented_header')
         if option.plot:
             fig, axes = plt.subplots(
-                    len(option.files), 1, sharex=True, squeeze=False)
+                    len(data), 1, sharex=True, squeeze=False)
             axes = np.ravel(axes)
             for i, a in enumerate(data):
                 ax = axes[i]
                 ax.hist(a)
                 for j, p in enumerate(ps):
-                    ax.axvline(result[i][j + 1], color=f"C{j}")
-                ax.set_ylabel(f'NW {i}')
+                    ax.axvline(result[i][-len(ps) + j], color=f"C{j}")
+                ax.set_ylabel(f'NW {result["nw"][i]}')
             axes[-1].set_xlabel(f'Best driving atten. (dB)')
             axes[0].set_title(f"{result[0]['filename']}")
             save_or_show(
