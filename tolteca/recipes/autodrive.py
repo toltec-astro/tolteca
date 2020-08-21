@@ -310,7 +310,7 @@ def autodrive(
         ex = axes[ii, 4]  # Qr vs a_drv
         fx = axes[ii, 5]  # fr vs a_drv
         for j in range(n_swps):
-            id_ = swps[j].meta['obsid']
+            id_ = swps[j].meta['obsnum']
             a_drv = a_drvs[i, j]
             a_tot = a_tots[i, j]
             fs, iqs, iqs_mdl, iqs_derot, adiqs_derot, \
@@ -378,7 +378,7 @@ def main(args):
             "-s", "--select",
             metavar="COND",
             help='A selection predicate, e.g.,:'
-            '"(obsid>8900) & (nwid==3) & (fileext=="nc")"',
+            '"(obsnum>8900) & (roachid==3) & (fileext=="nc")"',
             )
     act_index.add_argument(
             "-o", "--output",
@@ -420,7 +420,7 @@ def main(args):
             "-s", "--select",
             metavar="COND",
             help='A selection predicate, e.g.,:'
-            '"(obsid>8900) & (nwid==3) & (fileext=="nc")"',
+            '"(obsnum>8900) & (roachid==3) & (fileext=="nc")"',
             )
     act_run.add_argument(
             '-i', '--input',
@@ -515,6 +515,13 @@ def main(args):
             data.append(a)
         result = Table(rows=result, names=colnames)
         result.write(option.output, format='ascii.commented_header')
+        cmd_file = Path(option.output).with_suffix('.cmd').as_posix()
+        with open(cmd_file, 'w') as fo:
+            args = []
+            for r in result:
+                args.append(f"-AttenOutputCmd[{r['nw']}]")
+                args.append(f"{r['p95']}")
+            fo.write('set ToltecBackend {}'.format(' '.join(args))
         if option.plot:
             fig, axes = plt.subplots(
                     len(data), 1, sharex=True, squeeze=False)
