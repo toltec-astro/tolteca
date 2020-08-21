@@ -17,7 +17,7 @@ elif [[ $(hostname) == "clipo" ]]; then
     nws=$(seq 7 12)
 elif [[ $(hostname) == "clipy" ]]; then
     hosts="clipa clipo"
-    this=$(basname $0)
+    this=$(basename $0)
     parallel -v ssh -t {} ${scriptdir}/${this} $@ ::: $hosts
     echo 'hosts all done'
     exit 0
