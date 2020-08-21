@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 
-if __name__ == "__main__":
-    from tolteca.fs.toltec import ToltecDataFileStore, ToltecDataset
+from pathlib import Path
 
-    datastore = ToltecDataFileStore("/data/data_toltec")
-    links = datastore.runtime_datafile_links()
-    
-    ds = ToltecDataset.from_files(*links)
-    obsid = max(ds['obsid'])
-    print(obsid)
+
+if __name__ == "__main__":
+    from tolteca.datamodels.toltec import BasicObsDataset
+
+    links = (
+            list(Path("/data/data_toltec").glob('toltec[0-9].nc'))
+            + list(Path("/data/data_toltec").glob('toltec[0-9][0-9].nc')))
+    dataset = BasicObsDataset.from_files([link.resolve() for link in links])
+    obsnum = max(dataset['obsnum'])
+    print(obsnum)
