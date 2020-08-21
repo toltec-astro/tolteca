@@ -521,7 +521,7 @@ def main(args):
             for r in result:
                 args.append(f"-AttenOutputCmd[{r['nw']}]")
                 args.append(f"{r['p95']}")
-            fo.write('set ToltecBackend {}'.format(' '.join(args))
+            fo.write('set ToltecBackend {}'.format(' '.join(args)))
         if option.plot:
             fig, axes = plt.subplots(
                     len(data), 1, sharex=True, squeeze=False)
