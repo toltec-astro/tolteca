@@ -199,7 +199,8 @@ class ToltecDashboard(ComponentTemplate):
             info, info_meta = query_attrs()
             if info is None:
                 return (
-                        dash.no_update, dash.no_update, dash.no_update,
+                        dash.no_update, dash.no_update,
+                        dash.no_update, dash.no_update,
                         self._data_not_available())
             # transpose for better looking
             info = info.T
@@ -232,6 +233,8 @@ class ToltecDashboard(ComponentTemplate):
                 )
         def update_details(n_intervals):
             info, info_meta = query_attrs()
+            if info is None:
+                return ("Error getting info.", "")
             return (
                     html.Pre(f'{pformat_yaml(info_meta)}\n{info}'),
                     html.Pre(

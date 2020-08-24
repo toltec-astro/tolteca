@@ -13,6 +13,7 @@ from .. import toltec_datastore
 from dasha.web.extensions.cache import cache
 from pathlib import Path
 import dash
+from ...datamodels.fs.toltec import meta_from_source
 
 
 class KidsReduceView(ComponentTemplate):
@@ -119,10 +120,9 @@ class KidsReduceView(ComponentTemplate):
                 entry = tbl[i]
                 reduce_state = dict()
                 for filepath in entry['raw_files']:
-                    _info = self.datafiles.spec.info_from_filename(
-                            Path(filepath))
+                    _info = meta_from_source(filepath)
                     try:
-                        reduce_state[_info['nwid']] = _reduce_state_store.get(
+                        reduce_state[_info['roachid']] = _reduce_state_store.get(
                                 _make_reduce_state_key(filepath))['state']
                     except Exception:
                         pass
