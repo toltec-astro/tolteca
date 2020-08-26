@@ -28,4 +28,4 @@ fi
 echo "set adrv of obsnum=${obsnum}"
 obsnum_str=$(printf "%06d" ${obsnum})
 echo cmd: $(cat ${scratchdir}/toltec_${obsnum_str}_autodrive.cmd)
-# nc -q 0 clipy 61559 < ${scratchdir}/toltec_${obsnum_str}_autodrive.cmd
+nc -q 0 clipy 61559 < ${scratchdir}/toltec_${obsnum_str}_autodrive.cmd
