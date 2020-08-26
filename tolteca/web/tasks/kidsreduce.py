@@ -12,6 +12,7 @@ import cachetools.func
 import subprocess
 import shlex
 from tollan.utils import odict_from_list
+from ...datamodels.fs.toltec import meta_from_source
 
 
 def shlex_join(split_command):
@@ -24,8 +25,8 @@ _reduce_state_store.ensure_obj(obj=dict())
 
 
 def _make_reduce_state_key(filepath):
-    info = toltec_datastore.spec.info_from_filename(Path(filepath))
-    return 'toltec{nwid}_{obsid}_{subobsid}_{scanid}'.format(**info)
+    info = meta_from_source(filepath)
+    return 'toltec{roachid}_{obsnum}_{subobsnum}_{scannum}'.format(**info)
 
 
 def _reduce_kidsdata(filepath):

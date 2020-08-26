@@ -14,10 +14,10 @@ from ...utils import get_pkg_data_path
 import functools
 import yaml
 import re
-from tollan.utils import odict_from_list
+from tollan.utils import odict_from_list, to_typed
 from wrapt import ObjectProxy
 import shlex
-
+import json
 
 def get_ocs3_info_store():
     store = ipc.get_or_create('rejson', label='ocs_info')
@@ -176,12 +176,27 @@ def update_ocs_info():
         logger.debug(f"size of response: {len(buf)}")
         response = buf.decode().strip(';\r\n')
         # print(f"response: {response}")
+    # with timeit('parse objects'):
+    #     objs = [parse_obj(obj) for obj in response.split(';')]
+    #     logger.debug(f"parsed {len(objs)} objects")
+    # # for obj in objs:
+    #     # obj['attrs'] = odict_from_list(obj['attrs'], key='name')
+    # ocs3_info_store.set(odict_from_list(objs, key='name'))
     with timeit('parse objects'):
-        objs = [parse_obj(obj) for obj in response.split(';')]
-        logger.debug(f"parsed {len(objs)} objects")
-    # for obj in objs:
-        # obj['attrs'] = odict_from_list(obj['attrs'], key='name')
-    ocs3_info_store.set(odict_from_list(objs, key='name'))
+        d = json.loads(response)
+        # walk done the tree to convert values to the correct type
+        d = to_typed_json(d)
+        ocs3_info_store.set(d)
+
+
+def to_typed_json(node):
+    if isinstance(node, str):
+        return to_typed(node)
+    if isinstance(node, list):
+        return list(map(to_typed_json, node))
+    if isinstance(node, dict):
+        return {k: to_typed_json(v) for k, v in node.items()}
+    return node
 
 
 # 1 sec interval
