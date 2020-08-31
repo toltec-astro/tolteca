@@ -9,6 +9,7 @@ import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 from dash.dependencies import Output, Input
 from dasha.web.extensions.db import dataframe_from_db
+from dasha.web.templates.utils import partial_update_at
 from tollan.utils.log import get_logger
 from dash_table import DataTable
 import dash
@@ -16,9 +17,11 @@ from sqlalchemy import select
 import networkx as nx
 import json
 import dash_cytoscape as cyto
-import cachetools
+import cachetools.func
 import functools
 from tolteca.datamodels.toltec import BasicObsData, BasicObsDataset
+from types import SimpleNamespace
+from tollan.utils import odict_from_list
 
 
 cyto.load_extra_layouts()
@@ -35,6 +38,8 @@ def query_raw_obs():
     logger = get_logger()
     t = dbrt['tolteca'].tables
     session = dbrt['tolteca'].session
+    # need this alias to join self
+    reduced_data_prod = t['data_prod'].alias('reduced_data_prod')
     df_raw_obs = dataframe_from_db(
             select(
                 [
@@ -55,6 +60,12 @@ def query_raw_obs():
                 + [
                     c for c in t['dpa_basic_reduced_obs_raw_obs'].columns
                     if c.name not in ['pk', 'dp_raw_obs_pk']]
+                + [
+                    reduced_data_prod.c.source_url.label(
+                        'basic_reduced_obs_source_url'),
+                    reduced_data_prod.c.source.label(
+                        'basic_reduced_obs_source')
+                    ]
                 ).select_from(
                     t['dp_raw_obs']
                     .join(
@@ -73,6 +84,15 @@ def query_raw_obs():
                     .join(t['data_prod_type'])
                     .join(t['dp_raw_obs_type'])
                     .join(t['dp_raw_obs_master'])
+                    .join(
+                        reduced_data_prod,
+                        isouter=True,
+                        onclause=(
+                            t['dpa_basic_reduced_obs_raw_obs'].c
+                            .dp_basic_reduced_obs_pk
+                            == reduced_data_prod.c.pk
+                            )
+                        )
                 ),
             session=session)
     # the pk columns needs to be in int, because when there is null
@@ -80,14 +100,37 @@ def query_raw_obs():
     for col in df_raw_obs.columns:
         if col.endswith('_pk') or col == 'pk':
             df_raw_obs[col] = df_raw_obs[col].fillna(-1.).astype(int)
-    df_raw_obs['_roaches'] = df_raw_obs['source'].apply(
-            lambda s: [int(i['key'][len('toltec'):]) for i in s['sources']])
+
+    def get_roaches(sources):
+        def parse_source(s):
+            if s is None:
+                return []
+            return [int(i['key'][len('toltec'):]) for i in s['sources']]
+        return sources.apply(lambda s: parse_source(s))
+
+    df_raw_obs['_roaches'] = get_roaches(df_raw_obs['source'])
     df_raw_obs['roaches'] = df_raw_obs['_roaches'].apply(
             lambda v: ','.join(map(str, v)))
+    df_raw_obs['_reduced_roaches'] = get_roaches(
+            df_raw_obs['basic_reduced_obs_source'])
+    df_raw_obs['reduced_roaches'] = df_raw_obs['_reduced_roaches'].apply(
+            lambda v: ','.join(map(str, v)))
+    print(df_raw_obs)
     df_raw_obs.set_index('pk', drop=False, inplace=True)
     logger.debug(f"get {len(df_raw_obs)} entries from dp_raw_obs")
     logger.debug(f"dtypes: {df_raw_obs.dtypes}")
     return df_raw_obs
+
+
+def get_display_columns(df):
+    return [
+            c for c in df.columns
+            if c not in [
+                'source', 'source_url',
+                'basic_reduced_obs_source',
+                'basic_reduced_obs_source_url'
+                ] and not c.startswith('_')
+            ]
 
 
 def get_calgroups(df_raw_obs):
@@ -171,14 +214,54 @@ class BasicObsSelectView(ComponentTemplate):
         logger.debug(
                 f"update bod with {dataitem_value} {network_value}")
 
-        df_raw_obs = query_raw_obs()
+        _df_raw_obs = query_raw_obs()
         raw_obs_pks = dataitem_value
-        df_raw_obs = df_raw_obs.loc[raw_obs_pks]
+        df_raw_obs = _df_raw_obs.loc[raw_obs_pks]
 
         nw = network_value
-        bods = [get_bod(r.source['sources'][nw]['url']) for
-                r in df_raw_obs.itertuples()]
+        bods = [get_bod(r.source['sources'][nw]['url'])
+                for r in df_raw_obs.itertuples()]
         bods = BasicObsDataset(bod_list=bods)
+
+        # get assoc objs
+        def get_bod_from_source(source):
+            if source is None:
+                return None
+            s = odict_from_list(source['sources'], key='key')
+            key = f'toltec{nw}'
+            if key in s:
+                return get_bod(s[key]['url'])
+            return None
+
+        def get_sweep_bod(r):
+            if r is None or r.dp_sweep_obs_pk <= 0:
+                return None
+            return get_bod_from_source(
+                    _df_raw_obs.loc[r.dp_sweep_obs_pk]['source'])
+
+        def get_reduced_bod(r):
+            if r is None or r.basic_reduced_obs_source is None:
+                return None
+            return get_bod_from_source(
+                    r.basic_reduced_obs_source)
+
+        # add reduced bod to the bods table
+        bods['reduced_bod'] = [
+                get_reduced_bod(r)
+                for r in df_raw_obs.itertuples()
+                ]
+        bods['sweep_bod'] = [
+                get_sweep_bod(r)
+                for r in df_raw_obs.itertuples()
+                ]
+        bods['reduced_sweep_bod'] = [
+                get_reduced_bod(
+                    None if r.dp_sweep_obs_pk <= 0 else
+                    SimpleNamespace(
+                        **_df_raw_obs.loc[r.dp_sweep_obs_pk].to_dict())
+                    )
+                for r in df_raw_obs.itertuples()
+                ]
         return bods
 
     def _setup_calgroup_selection(self, app, container, ctx):
@@ -241,11 +324,8 @@ class BasicObsSelectView(ComponentTemplate):
                 self.logger.debug(f"error query db: {e}", exc_info=True)
                 error_notify = dbc.Alert(
                         f'Query failed: {e.__class__.__name__}')
-                return (dash.no_update, ) * 3 + (error_notify, )
-            use_cols = [
-                    c for c in df_raw_obs.columns
-                    if c not in ['source', 'source_url']
-                    ]
+                return partial_update_at(-1, error_notify)
+            use_cols = get_display_columns(df_raw_obs)
             df = df_raw_obs.reindex(columns=use_cols)
             cols = [{'label': c, 'id': c} for c in df.columns]
             data = df.to_dict('record')
@@ -353,7 +433,7 @@ class BasicObsSelectView(ComponentTemplate):
                 )
         def update_from_assoc_graph_view(data):
             if not data:
-                return dash.no_update
+                raise dash.exceptions.PreventUpdate
             return [int(d['id']) for d in data]
 
         assoc_view_graph.stylesheet = [
@@ -417,7 +497,8 @@ class BasicObsSelectView(ComponentTemplate):
                     ]
             return dt_style
 
-        _outputs = [
+        @app.callback(
+                [
                     Output(dataitem_select_drp.id, 'options'),
                     Output(network_select_drp.id, 'options'),
                     Output(df_raw_obs_dt.id, 'columns'),
@@ -425,10 +506,7 @@ class BasicObsSelectView(ComponentTemplate):
                     Output(assoc_view_graph.id, 'elements'),
                     Output(assoc_view_graph_legend.id, 'elements'),
                     Output(error_container.id, 'children'),
-                    ]
-
-        @app.callback(
-                _outputs,
+                    ],
                 [
                     Input(ctx['calgroup_select_drp'].id, 'value'),
                     ],
@@ -446,12 +524,8 @@ class BasicObsSelectView(ComponentTemplate):
                 self.logger.debug(f"error query db: {e}", exc_info=True)
                 error_notify = dbc.Alert(
                         f'Query failed: {e.__class__.__name__}')
-                return (dash.no_update, ) * (
-                        len(_outputs) - 1) + (error_notify, )
-            use_cols = [
-                    c for c in df_raw_obs.columns
-                    if c not in ['source', 'source_url']
-                    ]
+                return partial_update_at(-1, error_notify)
+            use_cols = get_display_columns(df_raw_obs)
             df = df_raw_obs.reindex(columns=use_cols)
             cols = [{'label': c, 'id': c} for c in df.columns]
             data = df.to_dict('record')
@@ -461,7 +535,7 @@ class BasicObsSelectView(ComponentTemplate):
                 {
                     'data': {
                         'id': str(r.pk),
-                        'label': f"{r.obsnum}",
+                        'label': f"{r.obsnum}-{r.subobsnum}-{r.scannum}",
                         'type': r.raw_obs_type,
                         'reduced': r.dp_basic_reduced_obs_pk > 0
                         },
@@ -498,14 +572,15 @@ class BasicObsSelectView(ComponentTemplate):
             # make cal group options
 
             def make_dataitem_option(r):
-                label = f'{r.obsnum}-{r.raw_obs_type}'
+                label = (
+                    f'{r.obsnum}-{r.subobsnum}-{r.scannum}-{r.raw_obs_type}')
                 value = r.pk
                 return {'label': label, 'value': value}
 
             options = list(map(make_dataitem_option, df_raw_obs.itertuples()))
             # get a set of all nws
             nws = set()
-            for nw in df['_roaches']:  # this is a list
+            for nw in df_raw_obs['_roaches']:  # this is a list
                 for v in nw:
                     nws.add(v)
 
@@ -564,6 +639,7 @@ class BasicObsSelectView(ComponentTemplate):
             data = df.to_dict('record')
             return cols, data
         ctx.update({
+                'control_container': control_container,
                 'dataitem_select_drp': dataitem_select_drp,
                 'network_select_drp': network_select_drp,
                 })

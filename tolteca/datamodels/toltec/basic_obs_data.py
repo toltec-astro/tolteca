@@ -442,3 +442,7 @@ class BasicObsDataset(object):
         if meta is not None:
             index_table.meta.update(**meta)
         return cls(index_table=index_table)
+
+    def sort(self, *args):
+        self.index_table.sort(*args)
+        self._bod_list = self['_bod']
