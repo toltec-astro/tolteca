@@ -199,7 +199,16 @@ def collect_data_prods(db, dataset):
                     'sources': [
                         {
                             'key': d.meta['interface'],
-                            'url': d.meta['file_loc'].uri
+                            'url': d.meta['file_loc'].uri,
+                            'meta': {
+                                k: d.meta[k]
+                                for k in [
+                                    'interface',
+                                    'roachid',
+                                    'n_tones',
+                                    'n_tones_design',
+                                    ]
+                                }
                             }
                         for d in raw_obs_data_items
                         ],

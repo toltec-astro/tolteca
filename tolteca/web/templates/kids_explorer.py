@@ -20,6 +20,8 @@ from dasha.web.templates.utils import to_dependency
 from kidsproc.kidsdata import TimeStream, MultiSweep
 import numpy as np
 import json
+from tollan.utils import odict_from_list
+import itertools
 
 
 def make_subplots(nrows, ncols, fig_layout=None, **kwargs):
@@ -39,7 +41,10 @@ def make_subplots(nrows, ncols, fig_layout=None, **kwargs):
 @functools.lru_cache(maxsize=None)
 @timeit
 def get_kidsdata(file_loc):
-    return BasicObsData(file_loc).read()
+    bod = BasicObsData(file_loc)
+    kd = bod.read()
+    kd.meta['time_obs'] = bod.meta['ut']
+    return kd
 
 
 def make_obs_label(meta):
@@ -135,7 +140,10 @@ class KidsExplorer(ComponentTemplate):
             self.logger.debug(f"get {len(data_objs)} data objs.")
             tone_ids = range(*d['tone_slice'].indices(d['n_tones']))
             self.logger.debug(f"get {len(tone_ids)} tone_ids")
-            d.update(data_objs=data_objs, tone_ids=tone_ids)
+            d.update({
+                'data_objs': data_objs,
+                'tone_ids': tone_ids
+                })
             return d
 
         select_inputs = bods_select.select_inputs + pager.page_data_inputs
@@ -155,16 +163,6 @@ class KidsExplorer(ComponentTemplate):
         # details_container = graph_container.child(dbc.Row).child(dbc.Col)
         details_container = graph_controls_container.child(
                 CollapseContent(button_text='Details ...')).content
-
-        # @app.callback(
-        #         Output(get_paging_btn_id(MATCH), 'style'),
-        #         [
-        #             Input(get_paging_btn_id(MATCH), 'n_clicks')
-        #             ]
-        #         )
-        # def update_clicked(n_clicks):
-        #     # TODO convert this to clientside
-        #     return {'text-decoration': 'underline'}
 
         @app.callback(
                 Output(details_container.id, 'children'),
@@ -189,27 +187,165 @@ class KidsExplorer(ComponentTemplate):
         control_container, graph_container = container.grid(2, 1)
         g0, g1 = map(lambda c: c.child(dcc.Graph), graph_container.grid(2, 1))
         control_form = control_container.child(dbc.Form, inline=True)
-        select_mode_igrp = control_form.child(dbc.InputGroup, size='sm')
-        select_mode_igrp.child(
-                dbc.InputGroupAddon(
-                    "Select mode", addon_type="prepend"))
-        select_mode_drp = select_mode_igrp.child(
-                dbc.Select, options=[
-                    {'label': 'per tone', 'value': 'per_tone'},
-                    {'label': 'per item', 'value': 'per_item'},
-                    ], value='per_tone')
+
+        def make_labeled_drp(form, label, **kwargs):
+            igrp = form.child(dbc.InputGroup, size='sm', className='pr-2')
+            igrp.child(dbc.InputGroupAddon(label, addon_type='prepend'))
+            return igrp.child(dbc.Select, **kwargs)
+
+        f_unit = u.MHz
+
+        select_mode_drp = make_labeled_drp(
+                control_form, 'Click mode',
+                options=[
+                    {'label': 'collate tone', 'value': 'per_tone'},
+                    {'label': 'individual', 'value': 'per_item'},
+                    ],
+                value='per_tone'
+                )
+
+        data_axis_items = odict_from_list([
+                {
+                    'key': 'kds',
+                    'trace_name':
+                    lambda d, idx: make_obs_label(d['kds'][idx].meta),
+                    'trace_customdata': lambda *a: dict(),
+                    # lambda d, idx: {'meta': d['kds'][idx].meta}
+                    },
+                {
+                    'key': 'tone_ids',
+                    'trace_name':
+                    lambda d, idx: f'tone {d["tone_ids"][idx]}',
+                    'trace_customdata':
+                    lambda d, idx: {'tone_id': d["tone_ids"][idx]},
+                    },
+                ], key='key')
+
+        axis_select_options = odict_from_list([
+            {
+                'key': 'obsnum',
+                'label': 'obsnum',
+                'value': None,  # this will use an implicit range
+                'tick_value':
+                lambda kd: make_obs_label(kd.meta),
+                'map_data_axis_items': ['kds', ],
+                'pass_data_items': ['kds', ],
+                },
+            {
+                'key': 'ut',
+                'label': 'obs. time (UT)',
+                'value':
+                lambda kd: np.datetime64(kd.meta['time_obs'].isot),
+                'kwargs': {
+                    'tickformat': '%Y-%m-%d %H:%M:%S'
+                    },
+                'map_data_axis_items': ['kds', ],
+                'pass_data_items': ['kds', ],
+                },
+            {
+                'key': 'f_center',
+                'label': f'f_center ({f_unit})',
+                'value':
+                    lambda kd, ti:
+                    kd.meta['tone_axis_data']['f_center'][ti].to_value(f_unit),
+                'map_data_axis_items': ['kds', 'tone_ids'],
+                'pass_data_items': ['kds', 'tone_ids'],
+                },
+            {
+                'key': 'Qr',
+                'label': f'Qr',
+                'value':
+                    lambda rkd, ti:
+                    None if rkd is None else rkd.table['Qr'][ti],
+                'map_data_axis_items': ['kds', 'tone_ids'],
+                'pass_data_items': ['rkds', 'tone_ids'],
+                },
+            {
+                'key': 'fr',
+                'label': f'fr ({f_unit})',
+                'value':
+                    lambda rkd, ti:
+                    None if rkd is None else
+                    rkd.model.fr.quantity[ti].to_value(f_unit),
+                'map_data_axis_items': ['kds', 'tone_ids'],
+                'pass_data_items': ['rkds', 'tone_ids'],
+                },
+
+            ], key='key')
+
+        axis_select_items = odict_from_list([
+                {
+                    'key': 'x',
+                    'label': 'X-Axis',
+                    'value': 'f_center',
+                    },
+                {
+                    'key': 'y',
+                    'label': 'Y-Axis',
+                    'value': 'obsnum',
+                    },
+                {
+                    'key': 'z',
+                    'label': 'Z-Axis',
+                    'value': None,
+                    },
+                ], key='key')
+
+        axis_select_drps = dict()
+        # create all the axis selection drpdowns
+        for axis in axis_select_items.values():
+            axis_select_drps[axis['key']] = make_labeled_drp(
+                control_form,
+                axis['label'],
+                options=[
+                    {
+                        'label': d['label'],
+                        'value': d['key'],
+                        }
+                    for d in axis_select_options.values()],
+                value=axis['value'],
+                )
 
         container.setup_layout(app)
 
+        @timeit
+        def get_data_objs(args, mask=None):
+            d = ctx['prepare_selected_data_objs'](*args)
+            if mask is None:
+                mask = slice(None, None)
+            elif isinstance(mask, int):
+                mask = slice(mask, mask + 1)
+            tone_ids = d['tone_ids']
+            bods = d['bods'][mask]
+            kds = d['data_objs'][mask]
+            rbods = d['bods']['reduced_bod'][mask]
+            rkds = [
+                    None if rbod is None else get_kidsdata(rbod.file_loc)
+                    for rbod in rbods
+                    ]
+            sbods = d['bods']['sweep_bod'][mask]
+            skds = [
+                    None if sbod is None else get_kidsdata(sbod.file_loc)
+                    for sbod in sbods]
+            rsbods = d['bods']['reduced_sweep_bod'][mask]
+            rskds = [
+                    None if rsbod is None else get_kidsdata(rsbod.file_loc)
+                    for rsbod in rsbods]
+            return locals()
+
         @app.callback(
                 Output(g0.id, 'figure'),
-                ctx['select_inputs'],
+                [
+                    Input(drp.id, 'value')
+                    for drp in axis_select_drps.values()
+                    ]
+                + ctx['select_inputs'],
                 )
+        @timeit
         def update_g0(*args):
-            d = ctx['prepare_selected_data_objs'](*args)
-            bods = d['bods']
-            data_objs = d['data_objs']
-            tone_ids = d['tone_ids']
+
+            axis_select_values = args[:len(axis_select_drps)]
+            d = get_data_objs(args[-len(axis_select_drps):])
 
             fig = make_subplots(
                     1, 1,
@@ -218,33 +354,106 @@ class KidsExplorer(ComponentTemplate):
                         }
                     )
 
-            y = list(range(len(bods)))
-            x_unit = u.MHz
-            fig.update_xaxes(row=1, col=1, title=f'f_center ({x_unit})')
-            fig.update_yaxes(
-                    row=1, col=1, title='Obsnum',
-                    tickmode='array',
-                    tickvals=y,
-                    ticktext=[make_obs_label(bod.meta) for bod in bods]
-                    )
-            for ti in tone_ids:
-                x = [
-                    kd.meta['tone_axis_data']['f_center'][ti].to_value(x_unit)
-                    for kd in data_objs]
-                fig.append_trace(
-                    {
-                        'x': x,
-                        'y': y,
+            # this maps the data items to get the value
+            def map_func(func, items):
+                shape = tuple(len(d[item]) for item in items)
+                return np.asanyarray(list(itertools.starmap(
+                    func, itertools.product(*(d[item] for item in items)))
+                    )).reshape(shape)
+
+            # this maps the data_axis_items to get trace kwargs
+            def make_trace_kwargs(item, idx, values):
+                n_pts = len(values['x'])
+
+                kwargs = {
                         'type': 'scattergl',
                         'mode': 'lines+markers',
-                        'name': f'tone {ti}',
-                        'customdata': [
-                            {'tone_id': ti, 'index': i}
-                            for i in range(len(x))
-                            ],
-                        'marker_size': 10,
-                        },
-                    row=1, col=1)
+                        }
+                kwargs.update({
+                    'name': data_axis_items[item]['trace_name'](d, idx),
+                    'x': values['x'],
+                    'y': values['y'],
+                    })
+                customdata = \
+                    data_axis_items[item]['trace_customdata'](d, idx)
+                kwargs['customdata'] = [
+                        dict(index=i, **customdata)
+                        for i in range(n_pts)
+                        ]
+                return kwargs
+
+            def prepare_axis_data(axis_select_value):
+                if axis_select_value is None:
+                    return None
+                option = axis_select_options[axis_select_value]
+
+                axis_kwargs = {
+                        'title': option['label'],
+                        }
+                if 'kwargs' in option:
+                    axis_kwargs.update(**option['kwargs'])
+
+                value = option.get('value', None)
+                data_items = option['pass_data_items']
+
+                if value is not None:
+                    value = map_func(value, data_items)
+                else:
+                    if len(data_items) > 1:
+                        raise ValueError("implicit value can only be 1-d")
+                    # implicit data item will use the index as the vlaue
+                    # the ticks will be the data item
+                    data_item = data_items[0]
+                    value = np.arange(len(d[data_item]), dtype='i')
+                if 'tick_value' in option:
+                    if len(data_items) > 1:
+                        raise ValueError("tick value can only be 1-d")
+                    axis_kwargs.update({
+                        'tickmode': 'array',
+                        'tickvals': value,
+                        'ticktext': map_func(option['tick_value'], data_items)
+                        })
+                return {
+                        'value': value,
+                        'axis_layout': axis_kwargs,
+                        'option': option
+                        }
+
+            axis_data = dict()
+            for i, k in enumerate(axis_select_items.keys()):
+                axis_data[k] = prepare_axis_data(axis_select_values[i])
+
+            # update axis layouts
+            fig.update_xaxes(row=1, col=1, **axis_data['x']['axis_layout'])
+            fig.update_yaxes(row=1, col=1, **axis_data['y']['axis_layout'])
+
+            # we collate trace on tone_ids
+            trace_data_select_items = ['tone_ids', ]
+            for indices in itertools.product(
+                    *(
+                        range(len(d[item]))
+                        for item in trace_data_select_items)):
+                # match the items with the var name
+                for trace_item, idx in zip(trace_data_select_items, indices):
+                    self.logger.debug(
+                            f'trace_item: {trace_item} idx: {idx}')
+                    values = dict()
+                    for k in axis_select_items.keys():
+                        if axis_data[k] is None:
+                            continue
+                        map_items = axis_data[k]['option'][
+                                'map_data_axis_items']
+                        slice_ = [slice(None), ] * len(map_items)
+                        if trace_item in map_items:
+                            # this is to be sliced
+                            slice_[map_items.index(trace_item)] = idx
+                        # self.logger.debug(
+                        #         f'map_items: {map_items} slice: {slice_}')
+                        values[k] = np.ravel(
+                                axis_data[k]['value'][tuple(slice_)])
+                    t = make_trace_kwargs(trace_item, idx, values)
+                    fig.append_trace(t, row=1, col=1)
+
             return fig
 
         @app.callback(
@@ -258,6 +467,7 @@ class KidsExplorer(ComponentTemplate):
                     for i in ctx['select_inputs']
                     ]
                 )
+        @timeit
         def update_g1(selected_data, select_mode_value, *args):
             if selected_data is None:
                 raise dash.exceptions.PreventUpdate
@@ -361,7 +571,7 @@ class KidsExplorer(ComponentTemplate):
             S21 = kd.S21.to_value(u.adu)[ti]
             D21 = np.abs(np.gradient(
                 S21, kd.frequency.to_value(d21_f_unit)[ti]))
-            I = S21.real
+            I = S21.real  # noqa: E741
             Q = S21.imag
             fig.append_trace(
                 dict(
@@ -457,7 +667,7 @@ class KidsExplorer(ComponentTemplate):
 
             label = make_obs_label(kd.meta)
 
-            I = kd.I.to_value(u.adu)[ti]
+            I = kd.I.to_value(u.adu)[ti]   # noqa: E741
             Q = kd.Q.to_value(u.adu)[ti]
             # I-Q, S21-f, D21-f
 

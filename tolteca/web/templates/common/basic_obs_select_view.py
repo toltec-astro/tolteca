@@ -10,7 +10,7 @@ import dash_core_components as dcc
 from dash.dependencies import Output, Input
 from dasha.web.extensions.db import dataframe_from_db
 from dasha.web.templates.utils import partial_update_at
-from tollan.utils.log import get_logger
+from tollan.utils.log import get_logger, timeit
 from dash_table import DataTable
 import dash
 from sqlalchemy import select
@@ -21,7 +21,7 @@ import cachetools.func
 import functools
 from tolteca.datamodels.toltec import BasicObsData, BasicObsDataset
 from types import SimpleNamespace
-from tollan.utils import odict_from_list
+from tollan.utils import odict_from_list, fileloc
 
 
 cyto.load_extra_layouts()
@@ -29,7 +29,7 @@ cyto.load_extra_layouts()
 
 @functools.lru_cache(maxsize=None)
 def get_bod(filepath):
-    return BasicObsData(filepath)
+    return BasicObsData(filepath, )
 
 
 @cachetools.func.ttl_cache(maxsize=1, ttl=1)
@@ -101,21 +101,20 @@ def query_raw_obs():
         if col.endswith('_pk') or col == 'pk':
             df_raw_obs[col] = df_raw_obs[col].fillna(-1.).astype(int)
 
-    def get_roaches(sources):
-        def parse_source(s):
-            if s is None:
-                return []
-            return [int(i['key'][len('toltec'):]) for i in s['sources']]
-        return sources.apply(lambda s: parse_source(s))
+    def get_source_keys(s):
+        if s is None:
+            return None
+        return [ss['key'] for ss in s['sources']]
 
-    df_raw_obs['_roaches'] = get_roaches(df_raw_obs['source'])
-    df_raw_obs['roaches'] = df_raw_obs['_roaches'].apply(
-            lambda v: ','.join(map(str, v)))
-    df_raw_obs['_reduced_roaches'] = get_roaches(
-            df_raw_obs['basic_reduced_obs_source'])
-    df_raw_obs['reduced_roaches'] = df_raw_obs['_reduced_roaches'].apply(
-            lambda v: ','.join(map(str, v)))
-    print(df_raw_obs)
+    df_raw_obs['_source_keys'] = df_raw_obs['source'].apply(
+            lambda s: get_source_keys(s))
+    df_raw_obs['source_keys'] = df_raw_obs['_source_keys'].apply(
+            lambda v: None if v is None else ','.join(v))
+    df_raw_obs['_source_keys_reduced'] = df_raw_obs['basic_reduced_obs_source'] \
+        .apply(lambda s: get_source_keys(s))
+    df_raw_obs['source_keys_reduced'] = df_raw_obs[
+            '_source_keys_reduced'].apply(
+                lambda v: None if v is None else ','.join(v))
     df_raw_obs.set_index('pk', drop=False, inplace=True)
     logger.debug(f"get {len(df_raw_obs)} entries from dp_raw_obs")
     logger.debug(f"dtypes: {df_raw_obs.dtypes}")
@@ -269,13 +268,6 @@ class BasicObsSelectView(ComponentTemplate):
         select_container, error_container = container.grid(2, 1)
 
         select_container_form = select_container.child(dbc.Form, inline=True)
-        # calgroup_select_igrp = select_container_form.child(
-        #             dbc.InputGroup, size='sm', className='w-auto mr-2')
-        # calgroup_select_igrp.child(
-        #         dbc.InputGroupAddon(
-        #             "Select Cal Group", addon_type="prepend"))
-        # calgroup_select_drp = calgroup_select_igrp.child(
-        #         dbc.Select)
         calgroup_select_drp = select_container_form.child(
                 dcc.Dropdown,
                 placeholder="Select cal group",
@@ -316,6 +308,7 @@ class BasicObsSelectView(ComponentTemplate):
                     Input(calgroup_refresh_btn.id, 'n_clicks'),
                     ],
                 )
+        @timeit
         def update_calgroup(n_clicks):
             self.logger.debug("update calgroup")
             try:
@@ -334,14 +327,29 @@ class BasicObsSelectView(ComponentTemplate):
             def make_option(g):
                 g = list(g)
                 n = len(g)
-                c = df[df.index.isin(g)]
+                c = df_raw_obs[df_raw_obs.index.isin(g)]
                 c = c.sort_values(
                         by=['obsnum', 'subobsnum', 'scannum'])
                 r = c.iloc[0]
                 r1 = c.iloc[-1]
                 label = f'{r["obsnum"]} - {r1["obsnum"]} ({n})'
                 value = json.dumps(g)
-                return {'label': label, 'value': value}
+
+                # check source exists
+                def has_data(t):
+                    for s in t['source']:
+                        if s is None:
+                            continue
+                        for ss in s['sources']:
+                            if fileloc(ss['url']).exists():
+                                return True
+                    return False
+
+                return {
+                        'label': label,
+                        'value': value,
+                        'disabled': not has_data(c)
+                        }
 
             calgroups = get_calgroups(df_raw_obs)
             options = list(map(make_option, calgroups))
@@ -578,33 +586,39 @@ class BasicObsSelectView(ComponentTemplate):
                 return {'label': label, 'value': value}
 
             options = list(map(make_dataitem_option, df_raw_obs.itertuples()))
-            # get a set of all nws
-            nws = set()
-            for nw in df_raw_obs['_roaches']:  # this is a list
-                for v in nw:
-                    nws.add(v)
+            # get all keys
+            source_keys = set()
+            for k in df_raw_obs['_source_keys']:
+                if k is None:
+                    continue
+                source_keys = source_keys.union(set(k))
 
-            # load the first source file and get the number of kids
-            bods = {
-                    i: get_bod(
-                        df_raw_obs['source'].iloc[0]['sources'][i]['url'])
-                    for i in nws
-                    }
-
-            def make_network_option_label(i):
-                if i in nws:
-                    bod = bods[i]
-                    nkids = bod.meta["n_tones"]
-                    nkids_tot = bod.meta["n_tones_design"]
-                    return f'toltec{i} ({nkids}/{nkids_tot})'
-                return f'toltec{i}'
+            def make_network_options(source_key):
+                value = int(source_key.replace('toltec', ''))
+                for r in df_raw_obs.itertuples():
+                    if r.source is None:
+                        return {
+                                'label': source_key,
+                                'value': value
+                                }
+                    s = odict_from_list(r.source['sources'], key='key')
+                    if source_key in s:
+                        if 'meta' not in s[source_key]:
+                            return {
+                                'label': source_key,
+                                'value': value
+                                }
+                        m = s[source_key]['meta']
+                        return {
+                                'label': (
+                                    f'{source_key} '
+                                    f'({m["n_tones"]}/{m["n_tones_design"]})'),
+                                'value': value,
+                                }
 
             network_options = [
-                    {
-                        'label': make_network_option_label(i),
-                        'value': i,
-                        }
-                    for i in nws
+                    make_network_options(source_key)
+                    for source_key in source_keys
                     ]
             return (
                     options, network_options, cols, data,
