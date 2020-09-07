@@ -352,6 +352,7 @@ class BasicObsSelectView(ComponentTemplate):
                         }
 
             calgroups = get_calgroups(df_raw_obs)
+            calgroups = sorted(calgroups, key=lambda g: max(g), reverse=True)
             options = list(map(make_option, calgroups))
             return options, cols, data, ""
 

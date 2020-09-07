@@ -53,7 +53,7 @@ b_height=325
 def gaussian(x, amp=100., mu=10., sigma=3.):
     return (amp * np.exp(-0.5 * ((x - mu) / sigma)**2))
 
-#@cache.memoize(timeout=60 * 60 * 60)
+@cache.memoize(timeout=60 * 60 * 60)
 def get_ncobs(*args, **kwargs):
     return obs(*args, **kwargs)
 

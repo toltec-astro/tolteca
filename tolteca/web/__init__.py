@@ -105,6 +105,12 @@ dasha_config.update(
                     'title_icon': 'fas fa-layer-group',
                 },
                 {
+                    "template": "tolteca.web.templates.kids_explorer",
+                    "route_name": "kids_explorer",
+                    "title_text": 'KIDs Explorer',
+                    'title_icon': 'fas fa-icicles',
+                },
+                {
                     "template": "tolteca.web.templates.noise_explorer",
                     "route_name": "noise_explorer",
                     "title_text": 'Noise Explorer',
