@@ -306,6 +306,9 @@ class KidsExplorer(ComponentTemplate):
                 value=axis['value'],
                 )
 
+        details_container = control_form.child(
+                CollapseContent(button_text='Details ...')).content
+
         container.setup_layout(app)
 
         @timeit
@@ -334,7 +337,10 @@ class KidsExplorer(ComponentTemplate):
             return locals()
 
         @app.callback(
-                Output(g0.id, 'figure'),
+                [
+                    Output(g0.id, 'figure'),
+                    Output(details_container.id, 'children'),
+                    ],
                 [
                     Input(drp.id, 'value')
                     for drp in axis_select_drps.values()
@@ -454,7 +460,9 @@ class KidsExplorer(ComponentTemplate):
                     t = make_trace_kwargs(trace_item, idx, values)
                     fig.append_trace(t, row=1, col=1)
 
-            return fig
+            return fig, html.Pre(pformat_yaml({
+                'axis_data': axis_data,
+                'data_objs': d}))
 
         @app.callback(
                 Output(g1.id, 'figure'),

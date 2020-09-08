@@ -13,7 +13,8 @@ from dasha.web.templates.utils import partial_update_at
 from tollan.utils.log import get_logger, timeit
 from dash_table import DataTable
 import dash
-from sqlalchemy import select
+from sqlalchemy import select, and_
+from sqlalchemy.sql import func as sqla_func
 import networkx as nx
 import json
 import dash_cytoscape as cyto
@@ -110,7 +111,8 @@ def query_raw_obs():
             lambda s: get_source_keys(s))
     df_raw_obs['source_keys'] = df_raw_obs['_source_keys'].apply(
             lambda v: None if v is None else ','.join(v))
-    df_raw_obs['_source_keys_reduced'] = df_raw_obs['basic_reduced_obs_source'] \
+    df_raw_obs['_source_keys_reduced'] = \
+        df_raw_obs['basic_reduced_obs_source'] \
         .apply(lambda s: get_source_keys(s))
     df_raw_obs['source_keys_reduced'] = df_raw_obs[
             '_source_keys_reduced'].apply(
@@ -119,6 +121,30 @@ def query_raw_obs():
     logger.debug(f"get {len(df_raw_obs)} entries from dp_raw_obs")
     logger.debug(f"dtypes: {df_raw_obs.dtypes}")
     return df_raw_obs
+
+
+@cachetools.func.ttl_cache(maxsize=1, ttl=1)
+def query_toltec_userlog(obsnum_start, obsnum_stop):
+
+    t = dbrt['toltec'].tables
+    session = dbrt['toltec'].session
+    df_userlog = dataframe_from_db(
+            select(
+                [
+                    t['userlog'].c.ObsNum,
+                    sqla_func.timestamp(
+                        t['userlog'].c.Date,
+                        t['userlog'].c.Time).label('DateTime'),
+                    t['userlog'].c.User,
+                    t['userlog'].c.Entry,
+                    t['userlog'].c.Keyword,
+                    ]
+                ).where(
+                    and_(
+                        t['userlog'].c.ObsNum >= obsnum_start,
+                        t['userlog'].c.ObsNum < obsnum_stop,
+                    )), session=session)
+    return df_userlog
 
 
 def get_display_columns(df):
@@ -378,7 +404,10 @@ class BasicObsSelectView(ComponentTemplate):
             )
         dataitem_details_container = dataitem_select_container_form.child(
                         CollapseContent(button_text='Details ...')).content
+        dataitem_userlog_container = dataitem_select_container_form.child(
+                        CollapseContent(button_text='User logs ...')).content
         dataitem_details_container.parent = container
+        dataitem_userlog_container.parent = container
         dataitem_details_container.className = 'mb-4'  # fix the bottom margin
         df_raw_obs_dt = dataitem_details_container.child(
                 DataTable,
@@ -512,6 +541,7 @@ class BasicObsSelectView(ComponentTemplate):
                     Output(network_select_drp.id, 'options'),
                     Output(df_raw_obs_dt.id, 'columns'),
                     Output(df_raw_obs_dt.id, 'data'),
+                    Output(dataitem_userlog_container.id, 'children'),
                     Output(assoc_view_graph.id, 'elements'),
                     Output(assoc_view_graph_legend.id, 'elements'),
                     Output(error_container.id, 'children'),
@@ -621,8 +651,40 @@ class BasicObsSelectView(ComponentTemplate):
                     make_network_options(source_key)
                     for source_key in source_keys
                     ]
+
+            df_toltec_userlog = query_toltec_userlog(
+                    min(df_raw_obs['obsnum']),
+                    max(df_raw_obs['obsnum']),
+                    )
+
+            df_toltec_userlog_dt = DataTable(
+                style_cell={'padding': '0.5em'},
+                style_table={
+                    # 'overflowX': 'auto',
+                    'width': '100%',
+                    },
+                style_data={
+                    'whiteSpace': 'normal',
+                    'height': 'auto',
+                },
+                style_cell_conditional=[
+                    {
+                        'if': {'column_id': 'Entry'},
+                        'textAlign': 'left',
+                        },
+                    ],
+                data=df_toltec_userlog.to_dict('record'),
+                columns=[
+                    {
+                        'label': c,
+                        'id': c
+                        }
+                    for c in df_toltec_userlog.columns
+                    ]
+                )
             return (
                     options, network_options, cols, data,
+                    df_toltec_userlog_dt,
                     elems, elems_legend,
                     "")
 
