@@ -628,6 +628,8 @@ class BasicObsSelectView(ComponentTemplate):
             def make_network_options(source_key):
                 value = int(source_key.replace('toltec', ''))
                 for r in df_raw_obs.itertuples():
+                    if r.raw_obs_type == 'VNA':
+                        continue
                     if r.source is None:
                         return {
                                 'label': source_key,
@@ -798,7 +800,7 @@ class BasicObsSelectView(ComponentTemplate):
                 style={
                     'min-height': height,
                     },
-                minZoom=0.6,
+                # minZoom=0.6,
                 # zoomingEnabled=True,
                 # userZoomingEnabled=True,
                 # userPanningEnabled=False,
