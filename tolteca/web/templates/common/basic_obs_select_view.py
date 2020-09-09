@@ -9,7 +9,7 @@ import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 from dash.dependencies import Output, Input
 from dasha.web.extensions.db import dataframe_from_db
-from dasha.web.templates.utils import partial_update_at
+from dasha.web.templates.utils import partial_update_at, fa
 from tollan.utils.log import get_logger, timeit
 from dash_table import DataTable
 import dash
@@ -303,7 +303,8 @@ class BasicObsSelectView(ComponentTemplate):
                 className='mr-2'
                 )
         calgroup_refresh_btn = select_container_form.child(
-                    dbc.Button, 'Refresh', color='primary', className='my-2',
+                    dbc.Button, fa('fas fa-sync'),
+                    color='link', className='my-2',
                     size='sm'
                     )
         details_container = select_container_form.child(
@@ -724,9 +725,34 @@ class BasicObsSelectView(ComponentTemplate):
 
     def _setup_assoc_view(self, app, container):
 
-        graph_container = container.child(dbc.Row).child(dbc.Col)
-        # graph_controls_container = container.child(
-        #         dbc.Form, inline=True)
+        graph_container, graph_controls_container = container.grid(2, 1)
+        graph_controls_container.className = 'px-0'
+        graph_controls_form = graph_controls_container.child(
+                dbc.Form, inline=True)
+        graph_reset_btn = graph_controls_form.child(
+                dbc.Button,
+                [
+                    fa('fas fa-undo pr-2'),
+                    'Reset pan/zoom'
+                    ],
+                size='sm', color='link',
+                className='pl-0 pr-4'
+                )
+        graph_controls_form.child(
+                dbc.Button(
+                    [
+                        fa('fas fa-info pr-2'),
+                        'Shift + Drag to select multiple nodes'
+                        ],
+                    size='sm',
+                    color='link',
+                    style={
+                        'color': '#aaaaaa'
+                        },
+                    className='pl-0 pr-4'
+                    )
+                )
+
         # graph_layout_select_group = graph_controls_container.child(
         #         dbc.FormGroup)
         # graph_layout_select_group.child(
@@ -760,7 +786,11 @@ class BasicObsSelectView(ComponentTemplate):
 
         height = '250px'
         graph_container_row = graph_container.child(dbc.Row)
-        graph = graph_container_row.child(dbc.Col, width=8).child(
+        graph = graph_container_row.child(
+                dbc.Col, width=10,
+                className='border',
+                style={'border-color': '#aaaaaa'}
+                ).child(
                 cyto.Cytoscape,
                 # layout_=_get_layout(graph_layout_select.value),
                 layout_=_get_layout('dagre'),
@@ -768,9 +798,10 @@ class BasicObsSelectView(ComponentTemplate):
                 style={
                     'min-height': height,
                     },
-                # minZoom=0.8,
-                userZoomingEnabled=True,
-                userPanningEnabled=False,
+                minZoom=0.6,
+                # zoomingEnabled=True,
+                # userZoomingEnabled=True,
+                # userPanningEnabled=False,
                 boxSelectionEnabled=True,
                 autoungrabify=True,
                 )
@@ -788,16 +819,19 @@ class BasicObsSelectView(ComponentTemplate):
                 autoungrabify=True,
                 )
 
-        # @app.callback(
-        #         Output(graph.id, 'layout'),
-        #         [
-        #             Input(graph_layout_select.id, 'value')
-        #             ]
-        #         )
-        # def update_graph_layout(value):
-        #     if value is None:
-        #         return dash.no_update
-        #     return _get_layout(value)
+        @app.callback(
+                Output(graph.id, 'layout'),
+                [
+                    # Input(graph_layout_select.id, 'value')
+                    Input(graph_reset_btn.id, 'n_clicks')
+                    ]
+                )
+        def update_graph_layout(value):
+            if value is None:
+                return dash.no_update
+            layout = _get_layout('dagre')
+            layout['n_clicks'] = value
+            return layout
 
         return {
                 'assoc_view_graph': graph,
