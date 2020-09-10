@@ -213,21 +213,23 @@ class HkDataViewer(ComponentTemplate):
 
             # get all therm labels
             labels = get_therm_channel_labels(data['nc'])
-            for c, name in [
-                    (1, 'DF1'),
-                    (9, 'DF2'),
-                    (2, 'Bolo'),
+            for c, name, color in [
+                    (1, 'DF1', '#00aaff'),
+                    (9, 'DF2', '#00aa88'),
+                    (2, 'Bolo', '#ff4400'),
                     ]:
                 trace = make_trace_kwargs(
                         d=data,
                         x=f"Data.ToltecThermetry.Time{c}",
                         y=f"Data.ToltecThermetry.Temperature{c}",
-                        name=f"{name} ({labels[c - 1]})"
+                        name=f"{name} ({labels[c - 1]})",
                         )
+                trace['marker_color'] = color
+                trace['marker_line_color'] = color
                 fig.append_trace(trace, row=1, col=1)
-            for (c0, c1), name in [
-                    ((1, 2), 'DF1-Bolo'),
-                    ((9, 2), 'DF2-Bolo'),
+            for (c0, c1), name, color in [
+                    ((1, 2), 'DF1-Bolo', '#00aaff'),
+                    ((9, 2), 'DF2-Bolo', '#00aa88'),
                     ]:
                 d0 = make_trace_data(
                         d=data,
@@ -249,6 +251,8 @@ class HkDataViewer(ComponentTemplate):
                     'name': name,
                     'type': 'scattergl',
                     'mode': 'lines+markers',
+                    'marker_color': color,
+                    'marker_line_color': color,
                     }, row=2, col=1)
 
             return fig, "", ""
