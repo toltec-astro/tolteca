@@ -1,26 +1,28 @@
 #! /usr/bin/env python
 
-
-from dasha.web.templates import ComponentTemplate
-from dasha.web.templates.collapsecontent import CollapseContent
+import dash
+from dash.dependencies import Output, Input
 import dash_html_components as html
-from ...tasks.dbrt import dbrt
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc
-from dash.dependencies import Output, Input
+from dash_table import DataTable
+import dash_cytoscape as cyto
+
 from dasha.web.extensions.db import dataframe_from_db
 from dasha.web.templates.utils import partial_update_at, fa
+from dasha.web.templates import ComponentTemplate
+from dasha.web.templates.common import CollapseContent
+
+from ....datamodels.toltec import BasicObsData, BasicObsDataset
+from ...tasks.dbrt import dbrt
+
 from tollan.utils.log import get_logger, timeit
-from dash_table import DataTable
-import dash
 from sqlalchemy import select, and_
 from sqlalchemy.sql import func as sqla_func
 import networkx as nx
 import json
-import dash_cytoscape as cyto
 import cachetools.func
 import functools
-from tolteca.datamodels.toltec import BasicObsData, BasicObsDataset
 from types import SimpleNamespace
 from tollan.utils import odict_from_list, fileloc
 

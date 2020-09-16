@@ -4,8 +4,8 @@
 from tollan.utils.log import get_logger, timeit
 from tollan.utils.fmt import pformat_yaml
 from dasha.web.templates import ComponentTemplate
-from dasha.web.templates.collapsecontent import CollapseContent
-from dasha.web.templates.pager import ButtonListPager
+from dasha.web.templates.common import (
+        CollapseContent, LabeledDropdown, ButtonListPager)
 import dash_core_components as dcc
 import dash_bootstrap_components as dbc
 import dash_html_components as html
@@ -15,27 +15,12 @@ import dash
 from tolteca.datamodels.toltec import BasicObsData
 import functools
 import astropy.units as u
-from plotly.subplots import make_subplots as _make_subplots
-from dasha.web.templates.utils import to_dependency
+from dasha.web.templates.utils import to_dependency, make_subplots
 from kidsproc.kidsdata import TimeStream, MultiSweep
 import numpy as np
 import json
 from tollan.utils import odict_from_list
 import itertools
-
-
-def make_subplots(nrows, ncols, fig_layout=None, **kwargs):
-    _fig_layout = {
-            'uirevision': True,
-            'xaxis_autorange': True,
-            'yaxis_autorange': True,
-            'showlegend': True,
-            }
-    if fig_layout is not None:
-        _fig_layout.update(fig_layout)
-    fig = _make_subplots(nrows, ncols, **kwargs)
-    fig.update_layout(**_fig_layout)
-    return fig
 
 
 @functools.lru_cache(maxsize=None)
@@ -195,14 +180,16 @@ class KidsExplorer(ComponentTemplate):
 
         f_unit = u.MHz
 
-        select_mode_drp = make_labeled_drp(
-                control_form, 'Click mode',
-                options=[
-                    {'label': 'collate tone', 'value': 'per_tone'},
-                    {'label': 'individual', 'value': 'per_item'},
-                    ],
-                value='per_tone'
-                )
+        select_mode_drp = control_form.child(
+                LabeledDropdown(
+                    label_text='Click mode',
+                    dropdown_props=dict(
+                        options=[
+                            {'label': 'collate tone', 'value': 'per_tone'},
+                            {'label': 'individual', 'value': 'per_item'},
+                            ],
+                        value='per_tone'
+                        ))).dropdown
 
         data_axis_items = odict_from_list([
                 {
