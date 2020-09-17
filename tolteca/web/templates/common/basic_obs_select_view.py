@@ -255,7 +255,6 @@ class BasicObsSelectView(ComponentTemplate):
         _df_raw_obs = query_raw_obs()
         raw_obs_pks = dataitem_value
         df_raw_obs = _df_raw_obs.loc[raw_obs_pks]
-
         nw = network_value
 
         # build the ordered dict with roachid key
@@ -269,9 +268,19 @@ class BasicObsSelectView(ComponentTemplate):
             make_source_data_items_map(r.source)
             for r in df_raw_obs.itertuples()
             ]
+        # filter the raw_obs for nw
+        has_nw = [
+                (nw in m)
+                for m in raw_obs_data_items_maps
+                ]
+        df_raw_obs = df_raw_obs[has_nw]
+        raw_obs_data_items_maps = [m for m, n in zip(raw_obs_data_items_maps, has_nw) if n]
+
+        # now we are ready to build the bods
         bods = BasicObsDataset(
                 bod_list=[
                     get_bod(m[nw]['url'])
+                    if nw in m else None
                     for m in raw_obs_data_items_maps
                     ])
 
