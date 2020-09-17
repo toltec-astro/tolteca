@@ -482,7 +482,7 @@ document.getElementById('{dest}').appendChild(
                         ]).select_from(
                             _t['data_prod'].join(
                                 _t['data_prod_type'])
-                        ),
+                        ).limit(100),
                     session=session)
             assocs = dict()
             for dpa_type in dpa_types:

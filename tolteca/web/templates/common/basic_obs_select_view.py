@@ -104,21 +104,32 @@ def query_raw_obs():
         if col.endswith('_pk') or col == 'pk':
             df_raw_obs[col] = df_raw_obs[col].fillna(-1.).astype(int)
 
-    def get_source_keys(s):
+    def get_raw_obs_data_keys(s):
         if s is None:
             return None
-        return [ss['key'] for ss in s['sources']]
+        return [ss['meta']['interface'] for ss in s['data_items']]
+
+    def get_basic_reduced_obs_data_keys(s):
+        if s is None:
+            return None
+        result = dict()
+        for ss in s['data_items']:
+            k = ss['meta']['data_kind']
+            if k not in result:
+                result[k] = list()
+            result[k].append(ss['meta']['interface'])
+        return result
 
     df_raw_obs['_source_keys'] = df_raw_obs['source'].apply(
-            lambda s: get_source_keys(s))
+            lambda s: get_raw_obs_data_keys(s))
     df_raw_obs['source_keys'] = df_raw_obs['_source_keys'].apply(
             lambda v: None if v is None else ','.join(v))
     df_raw_obs['_source_keys_reduced'] = \
         df_raw_obs['basic_reduced_obs_source'] \
-        .apply(lambda s: get_source_keys(s))
+        .apply(lambda s: get_basic_reduced_obs_data_keys(s))
     df_raw_obs['source_keys_reduced'] = df_raw_obs[
             '_source_keys_reduced'].apply(
-                lambda v: None if v is None else ','.join(v))
+                lambda v: None if v is None else ','.join(next(iter(v.values()))))
     df_raw_obs.set_index('pk', drop=False, inplace=True)
     logger.debug(f"get {len(df_raw_obs)} entries from dp_raw_obs")
     logger.debug(f"dtypes: {df_raw_obs.dtypes}")
@@ -246,18 +257,31 @@ class BasicObsSelectView(ComponentTemplate):
         df_raw_obs = _df_raw_obs.loc[raw_obs_pks]
 
         nw = network_value
-        bods = [get_bod(r.source['sources'][nw]['url'])
-                for r in df_raw_obs.itertuples()]
-        bods = BasicObsDataset(bod_list=bods)
+
+        # build the ordered dict with roachid key
+        def make_source_data_items_map(source, filter_=None):
+            if filter_ is not None:
+                d = filter(filter_, source['data_items'])
+            else:
+                d = source['data_items']
+            return odict_from_list(d, key=lambda v: v['meta']['roachid'])
+        raw_obs_data_items_maps = [
+            make_source_data_items_map(r.source)
+            for r in df_raw_obs.itertuples()
+            ]
+        bods = BasicObsDataset(
+                bod_list=[
+                    get_bod(m[nw]['url'])
+                    for m in raw_obs_data_items_maps
+                    ])
 
         # get assoc objs
-        def get_bod_from_source(source):
+        def get_bod_from_source(source, filter_=None):
             if source is None:
                 return None
-            s = odict_from_list(source['sources'], key='key')
-            key = f'toltec{nw}'
-            if key in s:
-                return get_bod(s[key]['url'])
+            m = make_source_data_items_map(source, filter_=filter_)
+            if nw in m:
+                return get_bod(m[nw]['url'])
             return None
 
         def get_sweep_bod(r):
@@ -269,8 +293,10 @@ class BasicObsSelectView(ComponentTemplate):
         def get_reduced_bod(r):
             if r is None or r.basic_reduced_obs_source is None:
                 return None
+            # here we need to only get the source with kind==kidsmodel
+            source = r.basic_reduced_obs_source
             return get_bod_from_source(
-                    r.basic_reduced_obs_source)
+                    r.basic_reduced_obs_source, filter_=lambda v: v['meta']['data_kind'] == 'KidsModelParams')
 
         # add reduced bod to the bods table
         bods['reduced_bod'] = [
@@ -369,7 +395,7 @@ class BasicObsSelectView(ComponentTemplate):
                     for s in t['source']:
                         if s is None:
                             continue
-                        for ss in s['sources']:
+                        for ss in s['data_items']:
                             if fileloc(ss['url']).exists():
                                 return True
                     return False
@@ -637,14 +663,11 @@ class BasicObsSelectView(ComponentTemplate):
                                 'label': source_key,
                                 'value': value
                                 }
-                    s = odict_from_list(r.source['sources'], key='key')
+                    s = odict_from_list(r.source['data_items'], key=lambda v: v['meta']['interface'])
                     if source_key in s:
-                        if 'meta' not in s[source_key]:
-                            return {
-                                'label': source_key,
-                                'value': value
-                                }
                         m = s[source_key]['meta']
+                        assert value == m['roachid']
+                        assert source_key == m['interface']
                         return {
                                 'label': (
                                     f'{source_key} '
@@ -652,10 +675,10 @@ class BasicObsSelectView(ComponentTemplate):
                                 'value': value,
                                 }
 
-            network_options = [
+            network_options = sorted([
                     make_network_options(source_key)
                     for source_key in source_keys
-                    ]
+                    ], key=lambda v: v['value'])
 
             df_toltec_userlog = query_toltec_userlog(
                     min(df_raw_obs['obsnum']),

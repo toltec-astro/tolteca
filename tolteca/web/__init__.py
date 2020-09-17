@@ -86,7 +86,7 @@ dasha_config = {
 
 def load_task_modules():
     # from .tasks import kidsview  # noqa: F401
-    # from .tasks import kidsreduce  # noqa: F401
+    from .tasks import kidsreduce  # noqa: F401
     from .tasks import ocs3  # noqa: F401
 
 

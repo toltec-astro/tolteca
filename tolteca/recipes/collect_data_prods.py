@@ -9,12 +9,12 @@ from tollan.utils import rupdate
 from tolteca.recipes import get_logger
 from sqlalchemy.sql import select
 from tollan.utils import odict_from_list
-from tollan.utils.fmt import pformat_dict
+from tollan.utils.fmt import pformat_dict, pformat_yaml
 from tollan.utils.sys import get_hostname
 from collections import OrderedDict
 from tollan.utils.db import SqlaDB
 from tolteca.datamodels.db.toltec import data_prod
-from tolteca.datamodels.toltec.enums import KidsDataKind
+from tolteca.datamodels.toltec.enums import KidsDataKind, TableKind
 from tolteca.datamodels.toltec import BasicObsDataset
 
 
@@ -139,7 +139,7 @@ def collect_data_prods(db, dataset):
     # we manually add them for now
     tbl['master'] = 1
     tbl['repeat'] = 1
-    print('\n'.join(tbl[['obsnum', 'subobsnum', 'scannum', 'master', 'repeat', 'data_kind']].pformat(max_lines=-1)))
+    print('\n'.join(tbl[['obsnum', 'subobsnum', 'scannum', 'roachid', 'master', 'repeat', 'data_kind']].pformat(max_lines=-1)))
 
     grouped = tbl.group_by(
             ['obsnum', 'subobsnum', 'scannum', 'master', 'repeat'])
@@ -161,6 +161,7 @@ def collect_data_prods(db, dataset):
     for tbl in grouped.groups:
         # for each group, we collate all per-interface entry to
         # a single raw obs or basic reduced obs data product.
+        tbl.sort(['roachid'])
         ds = BasicObsDataset(index_table=tbl)
         # common meta data for this data product
         meta = ds.bod_list[0].meta
@@ -170,7 +171,6 @@ def collect_data_prods(db, dataset):
                 'subobsnum': int(meta['subobsnum']),
                 'scannum': int(meta['scannum']),
                 'repeat': int(meta.get('repeat', 1)),
-                'source_key': 'interface',
                 'source_urlbase': None,
                 }
 
@@ -196,9 +196,8 @@ def collect_data_prods(db, dataset):
             raw_obs_source = OrderedDict(
                 **common,
                 **{
-                    'sources': [
+                    'data_items': [
                         {
-                            'key': d.meta['interface'],
                             'url': d.meta['file_loc'].uri,
                             'meta': {
                                 k: d.meta[k]
@@ -241,13 +240,19 @@ def collect_data_prods(db, dataset):
             raw_obs_items[make_item_key(raw_obs)] = raw_obs
 
         if len(basic_reduced_obs_data_items) > 0:
+            def make_data_item_meta(d):
+                return {
+                        'interface': d.meta['interface'],
+                        'roachid': d.meta['roachid'],
+                        'data_kind': d.meta['data_kind'].name,
+                        }
             basic_reduced_obs_source = OrderedDict(
                 **common,
                 **{
-                    'sources': [
+                    'data_items': [
                         {
-                            'key': d.meta['interface'],
-                            'url': d.meta['file_loc'].uri
+                            'url': d.meta['file_loc'].uri,
+                            'meta': make_data_item_meta(d)
                             }
                         for d in basic_reduced_obs_data_items
                         ],
@@ -262,7 +267,6 @@ def collect_data_prods(db, dataset):
                     )
             basic_reduced_obs_items[
                     make_item_key(basic_reduced_obs)] = basic_reduced_obs
-
         if basic_reduced_obs is not None and raw_obs is not None:
             assoc_info = DataProdAssocInfo(
                     context='null',
@@ -393,4 +397,6 @@ if __name__ == "__main__":
     db = SqlaDB.from_uri(dpdb_uri, engine_options={'echo': False})
     data_prod.init_db(db, create_tables=False)
     dataset = BasicObsDataset.from_files(option.paths)
+    if option.select:
+        dataset = dataset.select(option.select)
     collect_data_prods(db, dataset)
