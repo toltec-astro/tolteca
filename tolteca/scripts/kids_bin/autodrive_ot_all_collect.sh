@@ -37,7 +37,7 @@ fi
 echo "autodrive all obsnum=${obsnum}"
 
 
-parallel ${scriptdir}/autodrive_ot.sh {} ${obsnum} ::: $nws
+# parallel ${scriptdir}/autodrive_ot.sh {} ${obsnum} ::: $nws
 
 # collect
 obsnum_str=$(printf "%06d" ${obsnum})
