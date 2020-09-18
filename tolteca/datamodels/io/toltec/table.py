@@ -70,6 +70,18 @@ class KidsModelParams(object):
     def model(self):
         return self._get_model(self.model_cls, self.table)
 
+    def get_model(self, i):
+        m = self.model
+        kwargs = {}
+        print(m)
+        for name in m.param_names:
+            param = getattr(m, name)
+            v = param[i]
+            if param.unit is not None:
+                v = v << param.unit
+            kwargs[name] = v
+        return self.model_cls(**kwargs)
+
     @staticmethod
     def _get_model_cls(tbl):
         dispatch = {

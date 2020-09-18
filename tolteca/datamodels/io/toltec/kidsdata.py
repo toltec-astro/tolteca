@@ -282,6 +282,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                     "n_tones_design": "loclen",
                     "n_tones_max": "Header.Toltec.MaxNumTones",
                     "fsmp": "Header.Toltec.SampleFreq",
+                    "flo_center": "Header.Toltec.LoCenterFreq",
                     "atten_in": "Header.Toltec.InputAtten",
                     "atten_out": "Header.Toltec.OutputAtten",
                     "filename_orig": "Header.Toltec.Filename",
@@ -663,6 +664,9 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             tone_axis_data['id'].description = 'The tone index.'
             tone_axis_data['f_tone'] = data[i]
             tone_axis_data['f_tone'].description = 'The tone frequency.'
+            tone_axis_data['f_center'] = data[i] + (meta['flo_center'] << u.Hz)
+            tone_axis_data['f_center'].description = (
+                    'The center frequency of each channel.')
             tone_axis_data.meta.update(meta)
             tone_axis_data.meta['block_index'] = i
             result.append(tone_axis_data)

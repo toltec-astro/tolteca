@@ -69,8 +69,8 @@ class ToltecDashboard(ComponentTemplate):
                         **kwargs))
 
         # https://github.com/yueyericardo/dash_latex/blob/master/Example1/free_particle.py
-        # container.child(dji.Import, src='https://codepen.io/yueyericardo/pen/pojyvgZ.js')
-        # container.child(dji.Import, src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_SVG')
+        # container.child(dji.Import, src='https://codepen.io/yueyericardo/pen/pojyvgZ.js')  # noqa: E501
+        # container.child(dji.Import, src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_SVG')   # noqa: E501
         super().setup_layout(app)
 
     def _get_ocs3_attrs(self, obj_name, filter_):
@@ -131,7 +131,7 @@ class ToltecDashboard(ComponentTemplate):
                             f'{obj_name}.attrs.{attr["name"]}')
                     response = p.try_execute()
                     if response is None:
-                        return None
+                        return None, None
             n_attrs = len(attrs)
             for i, (attr, data) in enumerate(
                     zip(attrs + attrs_meta, response)):
@@ -143,13 +143,20 @@ class ToltecDashboard(ComponentTemplate):
             # turn the data to data frame
             result = pd.DataFrame(result)
             # do some post processing
-            result = result.drop(['ClockCount', 'ClockTime', 'StatusReg'], axis=1)
-            result['SampleFreq'] = result['SampleFreq'].apply(lambda x: f'{float(x):.2f}')
-            result['ActionPercent'] = result['ActionPercent'].apply(lambda v: pformat_bar(v / 100, width=7, border=False, fill='·', reverse=True) + f'{v:.0f}%')
+            result = result.drop(
+                    ['ClockCount', 'ClockTime', 'StatusReg'], axis=1)
+            result['SampleFreq'] = result['SampleFreq'].apply(
+                    lambda x: f'{float(x):.2f}')
+            result['ActionPercent'] = result['ActionPercent'].apply(
+                    lambda v: pformat_bar(
+                        v / 100, width=7, border=False,
+                        fill='·', reverse=True) + f'{v:.0f}%')
             # parse bitwise state
             is_streaming = ((1 << 7) & result['BitwiseState']) > 0
             result['Streaming'] = ['🟢' if s else '🔴' for s in is_streaming]
-            is_selected = [((1 << i) & int(result_meta['SelectedMask'], 16)) for i in result.index]
+            is_selected = [
+                    ((1 << i) & int(result_meta['SelectedMask'], 16))
+                    for i in result.index]
             result['Selected'] = ['🟢' if s else '🔴' for s in is_selected]
             result = result.reindex(columns=[
                 'Selected',
@@ -173,7 +180,7 @@ class ToltecDashboard(ComponentTemplate):
                         #     'filter_query': 'Roach = "ActionPercent"'
                         #     },
                         # 'if': {
-                        #    'row_index': 13  # TODO avoid hardcoding this by making the above work
+                        #    'row_index': 13  # TODO avoid hardcoding this by making the above work  # noqa: E501
                         #    },
                         # 'backgroundColor': '#FF4136',
                         # 'color': 'white',
@@ -206,7 +213,7 @@ class ToltecDashboard(ComponentTemplate):
             info = info.T
             info.insert(0, 'Roach', info.index)
 
-            m_selected = int(info_meta['SelectedMask'], 16)
+            # m_selected = int(info_meta['SelectedMask'], 16)
 
             def make_name_indicator(i):
                 if i == 13:
@@ -215,7 +222,8 @@ class ToltecDashboard(ComponentTemplate):
                     n = f'{i}'
                 return n
             columns = [
-                    {"name": make_name_indicator(i), "id": i} for i in info.columns]
+                    {"name": make_name_indicator(i), "id": i}
+                    for i in info.columns]
             data = info.to_dict('records')
             style_cell = {
                 'width': '3rem',
@@ -339,7 +347,7 @@ class ToltecDashboard(ComponentTemplate):
                         *array_prop['roaches'].indices(len(data))))
                 # mask out the invalid values
                 z = np.asarray(data[array_prop['roaches']])
-                z[z<=0] = np.nan
+                z[z <= 0] = np.nan
                 trace = {
                         'name': array_prop['name_long'],
                         'type': 'heatmap',
@@ -420,6 +428,7 @@ class ToltecDashboard(ComponentTemplate):
             result['ToltecThermetry'] = pd.DataFrame(
                     result['ToltecThermetry'])
             # logger.debug(f"result:\n{pformat_yaml(result)}")
+
             # fix the dilfrg temp unit
             def C2F(c):
                 return c * 1.8 + 32
@@ -430,7 +439,8 @@ class ToltecDashboard(ComponentTemplate):
             return result
 
         def get_view_kwargs(key_attr, **kwargs):
-            # this processes the info spec to prepare kwargs to pass to value view.
+            # this processes the info spec to prepare kwargs to pass to value
+            # view.
             format_view_text = kwargs.pop('format_view_text', None)
             label = kwargs.pop('label', None)
 
@@ -467,7 +477,7 @@ class ToltecDashboard(ComponentTemplate):
                                 className='text-muted')
                 if format_view_text is not None:
                     return format_view_text(d['Temperature'][i])
-                return  '{:.2f} K'.format(d['Temperature'][i])
+                return '{:.2f} K'.format(d['Temperature'][i])
 
             def get_therm_temp_bar(info, i):
                 d = info['ToltecThermetry']
@@ -560,45 +570,45 @@ class ToltecDashboard(ComponentTemplate):
             {
                 'name': '0.1 K',
                 'attrs': [
-                    # key, label (None to use default), bar lims (None to disable), view_kwargs
-                    ('ToltecThermetry.15', dict(label='1.1mm_0.1K', lims=info_bar_lims['0.1K'], format_view_text=info_view_text_formatters['0.1K'])),  # 0.1K_high
-                    ('ToltecThermetry.2', dict(label='1.4mm_0.1K', lims=info_bar_lims['0.1K'], format_view_text=info_view_text_formatters['0.1K'])),  # 1.4mm_0.1K_high
-                    ('ToltecThermetry.14', dict(label='2.0mm_0.1K', lims=info_bar_lims['0.1K'], format_view_text=info_view_text_formatters['0.1K'])),  # 2mm_0.1K_high
-                    ('ToltecDilutionFridge.StsDevT12TempSigTemp', dict(label='MC', lims=info_bar_lims['0.1K'], format_view_text=info_view_text_formatters['0.1K'])),
+                    # key, label (None to use default), bar lims (None to disable), view_kwargs  # noqa: E501
+                    ('ToltecThermetry.15', dict(label='1.1mm_0.1K', lims=info_bar_lims['0.1K'], format_view_text=info_view_text_formatters['0.1K'])),  # 0.1K_high         # noqa: E501
+                    ('ToltecThermetry.2', dict(label='1.4mm_0.1K', lims=info_bar_lims['0.1K'], format_view_text=info_view_text_formatters['0.1K'])),  # 1.4mm_0.1K_high    # noqa: E501
+                    ('ToltecThermetry.14', dict(label='2.0mm_0.1K', lims=info_bar_lims['0.1K'], format_view_text=info_view_text_formatters['0.1K'])),  # 2mm_0.1K_high     # noqa: E501
+                    ('ToltecDilutionFridge.StsDevT12TempSigTemp', dict(label='MC', lims=info_bar_lims['0.1K'], format_view_text=info_view_text_formatters['0.1K'])),       # noqa: E501
                     ]
                 },
             {
                 'name': '1 K',
                 'attrs': [
-                    ('ToltecThermetry.13', dict(lims=info_bar_lims['1.0K'])),  # '1K_high'
-                    ('ToltecThermetry.3', dict(lims=info_bar_lims['1.0K'])),  # '1.4mm_1k_low'
-                    ('ToltecThermetry.12', dict(lims=info_bar_lims['1.0K'])),  # '2mm_1k_low'
-                    ('ToltecDilutionFridge.StsDevT11TempSigTemp', dict(label='Still')),
+                    ('ToltecThermetry.13', dict(lims=info_bar_lims['1.0K'])),  # '1K_high'       # noqa: E501
+                    ('ToltecThermetry.3', dict(lims=info_bar_lims['1.0K'])),  # '1.4mm_1k_low'   # noqa: E501
+                    ('ToltecThermetry.12', dict(lims=info_bar_lims['1.0K'])),  # '2mm_1k_low'    # noqa: E501
+                    ('ToltecDilutionFridge.StsDevT11TempSigTemp', dict(label='Still')),          # noqa: E501
                     ]
                 },
             {
                 'name': '',
                 'attrs': [
-                    ('ToltecThermetry.5', dict(lims=info_bar_lims['4.0K'])),  # OB_CERNOX
-                    ('ToltecThermetry.9', dict(label='4K AuxPTC', lims=info_bar_lims['4.0K'])),  # 4K_AuxPTC_Busbar
-                    ('ToltecThermetry.10', dict(label='4K DltFrg', lims=info_bar_lims['4.0K'])),  # 4K_DF_bar
-                    ('ToltecDilutionFridge.StsDevT1TempSigTemp', dict(label='PT2 Head', lims=info_bar_lims['4.0K'])),
-                    ('ToltecDilutionFridge.StsDevT6TempSigTemp', dict(label='PT1 Head', lims=info_bar_lims['PT1 Head and AuxPTC1'])),
-                    ('ToltecDilutionFridge.StsDevT16TempSigTemp', dict(label='AuxPTC4', lims=info_bar_lims['4.0K'])),
-                    ('ToltecDilutionFridge.StsDevT15TempSigTemp', dict(label='AuxPTC3', lims=info_bar_lims['4.0K'])),
-                    ('ToltecDilutionFridge.StsDevT14TempSigTemp', dict(label='AuxPTC2', lims=info_bar_lims['4.0K'])),
-                    ('ToltecDilutionFridge.StsDevT13TempSigTemp', dict(label='AuxPTC1', lims=info_bar_lims['PT1 Head and AuxPTC1'])),
+                    ('ToltecThermetry.5', dict(lims=info_bar_lims['4.0K'])),  # OB_CERNOX                                                 # noqa: E501
+                    ('ToltecThermetry.9', dict(label='4K AuxPTC', lims=info_bar_lims['4.0K'])),  # 4K_AuxPTC_Busbar                       # noqa: E501
+                    ('ToltecThermetry.10', dict(label='4K DltFrg', lims=info_bar_lims['4.0K'])),  # 4K_DF_bar                             # noqa: E501
+                    ('ToltecDilutionFridge.StsDevT1TempSigTemp', dict(label='PT2 Head', lims=info_bar_lims['4.0K'])),                     # noqa: E501
+                    ('ToltecDilutionFridge.StsDevT6TempSigTemp', dict(label='PT1 Head', lims=info_bar_lims['PT1 Head and AuxPTC1'])),     # noqa: E501
+                    ('ToltecDilutionFridge.StsDevT16TempSigTemp', dict(label='AuxPTC4', lims=info_bar_lims['4.0K'])),                     # noqa: E501
+                    ('ToltecDilutionFridge.StsDevT15TempSigTemp', dict(label='AuxPTC3', lims=info_bar_lims['4.0K'])),                     # noqa: E501
+                    ('ToltecDilutionFridge.StsDevT14TempSigTemp', dict(label='AuxPTC2', lims=info_bar_lims['4.0K'])),                     # noqa: E501
+                    ('ToltecDilutionFridge.StsDevT13TempSigTemp', dict(label='AuxPTC1', lims=info_bar_lims['PT1 Head and AuxPTC1'])),     # noqa: E501
                     ]
                 },
             {
                 'name': 'Water',
                 'attrs': [
-                    ('ToltecCryocmp.OilTemp', dict(label='CryoCmp Oil')),
-                    ('ToltecCryocmp.CoolInTemp', dict(label='CryoCmp In', lims=info_bar_lims['CryoCmpIn and DltFrg In'])),
-                    ('ToltecCryocmp.CoolOutTemp', dict(label='CryoCmp Out', lims=info_bar_lims['CryoCmpOut and DltFrg Out'])),
-                    ('ToltecDilutionFridge.StsDevC1PtcSigOilt', dict(label='DltFrg Oil')),
-                    ('ToltecDilutionFridge.StsDevC1PtcSigWit', dict(label='DltFrg In', lims=info_bar_lims['CryoCmpIn and DltFrg In'])),
-                    ('ToltecDilutionFridge.StsDevC1PtcSigWot', dict(label='DltFrg Out', lims=info_bar_lims['CryoCmpOut and DltFrg Out'])),
+                    ('ToltecCryocmp.OilTemp', dict(label='CryoCmp Oil')),                                                                         # noqa: E501
+                    ('ToltecCryocmp.CoolInTemp', dict(label='CryoCmp In', lims=info_bar_lims['CryoCmpIn and DltFrg In'])),      # noqa: E501
+                    ('ToltecCryocmp.CoolOutTemp', dict(label='CryoCmp Out', lims=info_bar_lims['CryoCmpOut and DltFrg Out'])),      # noqa: E501
+                    ('ToltecDilutionFridge.StsDevC1PtcSigOilt', dict(label='DltFrg Oil')),      # noqa: E501
+                    ('ToltecDilutionFridge.StsDevC1PtcSigWit', dict(label='DltFrg In', lims=info_bar_lims['CryoCmpIn and DltFrg In'])),      # noqa: E501
+                    ('ToltecDilutionFridge.StsDevC1PtcSigWot', dict(label='DltFrg Out', lims=info_bar_lims['CryoCmpOut and DltFrg Out'])),      # noqa: E501
                     ]
                 }
             ]

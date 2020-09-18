@@ -22,7 +22,7 @@ def cmd_migrate(parser):
             )
 
     @parser.parser_action
-    def action(option):
+    def action(option, **kwargs):
         logger = get_logger()
 
         dpdb_uri = option.config['db']['tolteca']['uri']

@@ -26,12 +26,17 @@ env_registry.register(
         f"{env_prefix}_LMT_OCS3_URL",
         "The OCS3_URL",
         'socket://localhost:61559')
+env_registry.register(
+        f"{env_prefix}_FS_TOLTEC_HK_ROOTPATH",
+        "The root path to TolTEC housekeeping data files",
+        get_user_data_dir())
 
 # resource providers
 db_toltec_url = env_registry.get(f"{env_prefix}_DB_TOLTEC_URL")
 db_tolteca_url = env_registry.get(f"{env_prefix}_DB_TOLTECA_URL")
 redis_url = "redis://localhost:6379"
 fs_toltec_rootpath = env_registry.get(f"{env_prefix}_FS_TOLTEC_ROOTPATH")
+fs_toltec_hk_rootpath = env_registry.get(f"{env_prefix}_FS_TOLTEC_HK_ROOTPATH")
 lmt_ocs3_url = env_registry.get(f"{env_prefix}_LMT_OCS3_URL")
 toltec_datastore = ToltecDataFileStore(fs_toltec_rootpath)
 
@@ -81,7 +86,7 @@ dasha_config = {
 
 def load_task_modules():
     # from .tasks import kidsview  # noqa: F401
-    # from .tasks import kidsreduce  # noqa: F401
+    from .tasks import kidsreduce  # noqa: F401
     from .tasks import ocs3  # noqa: F401
 
 
@@ -99,10 +104,34 @@ dasha_config.update(
                     'title_icon': 'fas fa-tachometer-alt',
                 },
                 {
+                    "template": "tolteca.web.templates.logview",
+                    "route_name": "logview",
+                    "title_text": 'Log View',
+                    'title_icon': 'far fa-sticky-note',
+                },
+                {
                     "template": "tolteca.web.templates.beammap",
                     "route_name": "beammap",
                     'title_text': "Beammap",
                     'title_icon': 'fas fa-layer-group',
+                },
+                {
+                    "template": "tolteca.web.templates.dichroic",
+                    "route_name": "dichroic",
+                    "title_text": 'Dichro Temp',
+                    'title_icon': 'fas fa-thermometer-half',
+                },
+                {
+                    "template": "tolteca.web.templates.hkview",
+                    "route_name": "hkview",
+                    "title_text": 'HK View',
+                    'title_icon': 'fas fa-thermometer-half',
+                },
+                {
+                    "template": "tolteca.web.templates.kids_explorer",
+                    "route_name": "kids_explorer",
+                    "title_text": 'KIDs Explorer',
+                    'title_icon': 'fas fa-icicles',
                 },
                 {
                     "template": "tolteca.web.templates.noise_explorer",

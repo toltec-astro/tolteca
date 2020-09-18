@@ -1,24 +1,30 @@
 #! /usr/bin/env python
 
-
-from dasha.web.templates import ComponentTemplate
-from dasha.web.templates.collapsecontent import CollapseContent
+import dash
+from dash.dependencies import Output, Input
 import dash_html_components as html
-from ...tasks.dbrt import dbrt
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc
-from dash.dependencies import Output, Input
-from dasha.web.extensions.db import dataframe_from_db
-from tollan.utils.log import get_logger
 from dash_table import DataTable
-import dash
-from sqlalchemy import select
+import dash_cytoscape as cyto
+
+from dasha.web.extensions.db import dataframe_from_db
+from dasha.web.templates.utils import partial_update_at, fa
+from dasha.web.templates import ComponentTemplate
+from dasha.web.templates.common import CollapseContent
+
+from ....datamodels.toltec import BasicObsData, BasicObsDataset
+from ...tasks.dbrt import dbrt
+
+from tollan.utils.log import get_logger, timeit
+from sqlalchemy import select, and_
+from sqlalchemy.sql import func as sqla_func
 import networkx as nx
 import json
-import dash_cytoscape as cyto
-import cachetools
+import cachetools.func
 import functools
-from tolteca.datamodels.toltec import BasicObsData, BasicObsDataset
+from types import SimpleNamespace
+from tollan.utils import odict_from_list, fileloc
 
 
 cyto.load_extra_layouts()
@@ -26,7 +32,7 @@ cyto.load_extra_layouts()
 
 @functools.lru_cache(maxsize=None)
 def get_bod(filepath):
-    return BasicObsData(filepath)
+    return BasicObsData(filepath, )
 
 
 @cachetools.func.ttl_cache(maxsize=1, ttl=1)
@@ -35,6 +41,8 @@ def query_raw_obs():
     logger = get_logger()
     t = dbrt['tolteca'].tables
     session = dbrt['tolteca'].session
+    # need this alias to join self
+    reduced_data_prod = t['data_prod'].alias('reduced_data_prod')
     df_raw_obs = dataframe_from_db(
             select(
                 [
@@ -55,6 +63,12 @@ def query_raw_obs():
                 + [
                     c for c in t['dpa_basic_reduced_obs_raw_obs'].columns
                     if c.name not in ['pk', 'dp_raw_obs_pk']]
+                + [
+                    reduced_data_prod.c.source_url.label(
+                        'basic_reduced_obs_source_url'),
+                    reduced_data_prod.c.source.label(
+                        'basic_reduced_obs_source')
+                    ]
                 ).select_from(
                     t['dp_raw_obs']
                     .join(
@@ -73,6 +87,15 @@ def query_raw_obs():
                     .join(t['data_prod_type'])
                     .join(t['dp_raw_obs_type'])
                     .join(t['dp_raw_obs_master'])
+                    .join(
+                        reduced_data_prod,
+                        isouter=True,
+                        onclause=(
+                            t['dpa_basic_reduced_obs_raw_obs'].c
+                            .dp_basic_reduced_obs_pk
+                            == reduced_data_prod.c.pk
+                            )
+                        )
                 ),
             session=session)
     # the pk columns needs to be in int, because when there is null
@@ -80,14 +103,72 @@ def query_raw_obs():
     for col in df_raw_obs.columns:
         if col.endswith('_pk') or col == 'pk':
             df_raw_obs[col] = df_raw_obs[col].fillna(-1.).astype(int)
-    df_raw_obs['_roaches'] = df_raw_obs['source'].apply(
-            lambda s: [int(i['key'][len('toltec'):]) for i in s['sources']])
-    df_raw_obs['roaches'] = df_raw_obs['_roaches'].apply(
-            lambda v: ','.join(map(str, v)))
+
+    def get_raw_obs_data_keys(s):
+        if s is None:
+            return None
+        return [ss['meta']['interface'] for ss in s['data_items']]
+
+    def get_basic_reduced_obs_data_keys(s):
+        if s is None:
+            return None
+        result = dict()
+        for ss in s['data_items']:
+            k = ss['meta']['data_kind']
+            if k not in result:
+                result[k] = list()
+            result[k].append(ss['meta']['interface'])
+        return result
+
+    df_raw_obs['_source_keys'] = df_raw_obs['source'].apply(
+            lambda s: get_raw_obs_data_keys(s))
+    df_raw_obs['source_keys'] = df_raw_obs['_source_keys'].apply(
+            lambda v: None if v is None else ','.join(v))
+    df_raw_obs['_source_keys_reduced'] = \
+        df_raw_obs['basic_reduced_obs_source'] \
+        .apply(lambda s: get_basic_reduced_obs_data_keys(s))
+    df_raw_obs['source_keys_reduced'] = df_raw_obs[
+            '_source_keys_reduced'].apply(
+                lambda v: None if v is None else ','.join(next(iter(v.values()))))
     df_raw_obs.set_index('pk', drop=False, inplace=True)
     logger.debug(f"get {len(df_raw_obs)} entries from dp_raw_obs")
     logger.debug(f"dtypes: {df_raw_obs.dtypes}")
     return df_raw_obs
+
+
+@cachetools.func.ttl_cache(maxsize=1, ttl=1)
+def query_toltec_userlog(obsnum_start, obsnum_stop):
+
+    t = dbrt['toltec'].tables
+    session = dbrt['toltec'].session
+    df_userlog = dataframe_from_db(
+            select(
+                [
+                    t['userlog'].c.ObsNum,
+                    sqla_func.timestamp(
+                        t['userlog'].c.Date,
+                        t['userlog'].c.Time).label('DateTime'),
+                    t['userlog'].c.User,
+                    t['userlog'].c.Entry,
+                    t['userlog'].c.Keyword,
+                    ]
+                ).where(
+                    and_(
+                        t['userlog'].c.ObsNum >= obsnum_start,
+                        t['userlog'].c.ObsNum < obsnum_stop,
+                    )), session=session)
+    return df_userlog
+
+
+def get_display_columns(df):
+    return [
+            c for c in df.columns
+            if c not in [
+                'source', 'source_url',
+                'basic_reduced_obs_source',
+                'basic_reduced_obs_source_url'
+                ] and not c.startswith('_')
+            ]
 
 
 def get_calgroups(df_raw_obs):
@@ -171,14 +252,78 @@ class BasicObsSelectView(ComponentTemplate):
         logger.debug(
                 f"update bod with {dataitem_value} {network_value}")
 
-        df_raw_obs = query_raw_obs()
+        _df_raw_obs = query_raw_obs()
         raw_obs_pks = dataitem_value
-        df_raw_obs = df_raw_obs.loc[raw_obs_pks]
-
+        df_raw_obs = _df_raw_obs.loc[raw_obs_pks]
         nw = network_value
-        bods = [get_bod(r.source['sources'][nw]['url']) for
-                r in df_raw_obs.itertuples()]
-        bods = BasicObsDataset(bod_list=bods)
+
+        # build the ordered dict with roachid key
+        def make_source_data_items_map(source, filter_=None):
+            if filter_ is not None:
+                d = filter(filter_, source['data_items'])
+            else:
+                d = source['data_items']
+            return odict_from_list(d, key=lambda v: v['meta']['roachid'])
+        raw_obs_data_items_maps = [
+            make_source_data_items_map(r.source)
+            for r in df_raw_obs.itertuples()
+            ]
+        # filter the raw_obs for nw
+        has_nw = [
+                (nw in m)
+                for m in raw_obs_data_items_maps
+                ]
+        df_raw_obs = df_raw_obs[has_nw]
+        raw_obs_data_items_maps = [m for m, n in zip(raw_obs_data_items_maps, has_nw) if n]
+
+        # now we are ready to build the bods
+        bods = BasicObsDataset(
+                bod_list=[
+                    get_bod(m[nw]['url'])
+                    if nw in m else None
+                    for m in raw_obs_data_items_maps
+                    ])
+
+        # get assoc objs
+        def get_bod_from_source(source, filter_=None):
+            if source is None:
+                return None
+            m = make_source_data_items_map(source, filter_=filter_)
+            if nw in m:
+                return get_bod(m[nw]['url'])
+            return None
+
+        def get_sweep_bod(r):
+            if r is None or r.dp_sweep_obs_pk <= 0:
+                return None
+            return get_bod_from_source(
+                    _df_raw_obs.loc[r.dp_sweep_obs_pk]['source'])
+
+        def get_reduced_bod(r):
+            if r is None or r.basic_reduced_obs_source is None:
+                return None
+            # here we need to only get the source with kind==kidsmodel
+            source = r.basic_reduced_obs_source
+            return get_bod_from_source(
+                    r.basic_reduced_obs_source, filter_=lambda v: v['meta']['data_kind'] == 'KidsModelParams')
+
+        # add reduced bod to the bods table
+        bods['reduced_bod'] = [
+                get_reduced_bod(r)
+                for r in df_raw_obs.itertuples()
+                ]
+        bods['sweep_bod'] = [
+                get_sweep_bod(r)
+                for r in df_raw_obs.itertuples()
+                ]
+        bods['reduced_sweep_bod'] = [
+                get_reduced_bod(
+                    None if r.dp_sweep_obs_pk <= 0 else
+                    SimpleNamespace(
+                        **_df_raw_obs.loc[r.dp_sweep_obs_pk].to_dict())
+                    )
+                for r in df_raw_obs.itertuples()
+                ]
         return bods
 
     def _setup_calgroup_selection(self, app, container, ctx):
@@ -186,13 +331,6 @@ class BasicObsSelectView(ComponentTemplate):
         select_container, error_container = container.grid(2, 1)
 
         select_container_form = select_container.child(dbc.Form, inline=True)
-        # calgroup_select_igrp = select_container_form.child(
-        #             dbc.InputGroup, size='sm', className='w-auto mr-2')
-        # calgroup_select_igrp.child(
-        #         dbc.InputGroupAddon(
-        #             "Select Cal Group", addon_type="prepend"))
-        # calgroup_select_drp = calgroup_select_igrp.child(
-        #         dbc.Select)
         calgroup_select_drp = select_container_form.child(
                 dcc.Dropdown,
                 placeholder="Select cal group",
@@ -202,7 +340,8 @@ class BasicObsSelectView(ComponentTemplate):
                 className='mr-2'
                 )
         calgroup_refresh_btn = select_container_form.child(
-                    dbc.Button, 'Refresh', color='primary', className='my-2',
+                    dbc.Button, fa('fas fa-sync'),
+                    color='link', className='my-2',
                     size='sm'
                     )
         details_container = select_container_form.child(
@@ -233,6 +372,7 @@ class BasicObsSelectView(ComponentTemplate):
                     Input(calgroup_refresh_btn.id, 'n_clicks'),
                     ],
                 )
+        @timeit
         def update_calgroup(n_clicks):
             self.logger.debug("update calgroup")
             try:
@@ -241,11 +381,8 @@ class BasicObsSelectView(ComponentTemplate):
                 self.logger.debug(f"error query db: {e}", exc_info=True)
                 error_notify = dbc.Alert(
                         f'Query failed: {e.__class__.__name__}')
-                return (dash.no_update, ) * 3 + (error_notify, )
-            use_cols = [
-                    c for c in df_raw_obs.columns
-                    if c not in ['source', 'source_url']
-                    ]
+                return partial_update_at(-1, error_notify)
+            use_cols = get_display_columns(df_raw_obs)
             df = df_raw_obs.reindex(columns=use_cols)
             cols = [{'label': c, 'id': c} for c in df.columns]
             data = df.to_dict('record')
@@ -254,16 +391,32 @@ class BasicObsSelectView(ComponentTemplate):
             def make_option(g):
                 g = list(g)
                 n = len(g)
-                c = df[df.index.isin(g)]
+                c = df_raw_obs[df_raw_obs.index.isin(g)]
                 c = c.sort_values(
                         by=['obsnum', 'subobsnum', 'scannum'])
                 r = c.iloc[0]
                 r1 = c.iloc[-1]
                 label = f'{r["obsnum"]} - {r1["obsnum"]} ({n})'
                 value = json.dumps(g)
-                return {'label': label, 'value': value}
+
+                # check source exists
+                def has_data(t):
+                    for s in t['source']:
+                        if s is None:
+                            continue
+                        for ss in s['data_items']:
+                            if fileloc(ss['url']).exists():
+                                return True
+                    return False
+
+                return {
+                        'label': label,
+                        'value': value,
+                        'disabled': not has_data(c)
+                        }
 
             calgroups = get_calgroups(df_raw_obs)
+            calgroups = sorted(calgroups, key=lambda g: max(g), reverse=True)
             options = list(map(make_option, calgroups))
             return options, cols, data, ""
 
@@ -289,7 +442,10 @@ class BasicObsSelectView(ComponentTemplate):
             )
         dataitem_details_container = dataitem_select_container_form.child(
                         CollapseContent(button_text='Details ...')).content
+        dataitem_userlog_container = dataitem_select_container_form.child(
+                        CollapseContent(button_text='User logs ...')).content
         dataitem_details_container.parent = container
+        dataitem_userlog_container.parent = container
         dataitem_details_container.className = 'mb-4'  # fix the bottom margin
         df_raw_obs_dt = dataitem_details_container.child(
                 DataTable,
@@ -353,7 +509,7 @@ class BasicObsSelectView(ComponentTemplate):
                 )
         def update_from_assoc_graph_view(data):
             if not data:
-                return dash.no_update
+                raise dash.exceptions.PreventUpdate
             return [int(d['id']) for d in data]
 
         assoc_view_graph.stylesheet = [
@@ -417,18 +573,17 @@ class BasicObsSelectView(ComponentTemplate):
                     ]
             return dt_style
 
-        _outputs = [
+        @app.callback(
+                [
                     Output(dataitem_select_drp.id, 'options'),
                     Output(network_select_drp.id, 'options'),
                     Output(df_raw_obs_dt.id, 'columns'),
                     Output(df_raw_obs_dt.id, 'data'),
+                    Output(dataitem_userlog_container.id, 'children'),
                     Output(assoc_view_graph.id, 'elements'),
                     Output(assoc_view_graph_legend.id, 'elements'),
                     Output(error_container.id, 'children'),
-                    ]
-
-        @app.callback(
-                _outputs,
+                    ],
                 [
                     Input(ctx['calgroup_select_drp'].id, 'value'),
                     ],
@@ -446,12 +601,8 @@ class BasicObsSelectView(ComponentTemplate):
                 self.logger.debug(f"error query db: {e}", exc_info=True)
                 error_notify = dbc.Alert(
                         f'Query failed: {e.__class__.__name__}')
-                return (dash.no_update, ) * (
-                        len(_outputs) - 1) + (error_notify, )
-            use_cols = [
-                    c for c in df_raw_obs.columns
-                    if c not in ['source', 'source_url']
-                    ]
+                return partial_update_at(-1, error_notify)
+            use_cols = get_display_columns(df_raw_obs)
             df = df_raw_obs.reindex(columns=use_cols)
             cols = [{'label': c, 'id': c} for c in df.columns]
             data = df.to_dict('record')
@@ -461,7 +612,7 @@ class BasicObsSelectView(ComponentTemplate):
                 {
                     'data': {
                         'id': str(r.pk),
-                        'label': f"{r.obsnum}",
+                        'label': f"{r.obsnum}-{r.subobsnum}-{r.scannum}",
                         'type': r.raw_obs_type,
                         'reduced': r.dp_basic_reduced_obs_pk > 0
                         },
@@ -498,41 +649,79 @@ class BasicObsSelectView(ComponentTemplate):
             # make cal group options
 
             def make_dataitem_option(r):
-                label = f'{r.obsnum}-{r.raw_obs_type}'
+                label = (
+                    f'{r.obsnum}-{r.subobsnum}-{r.scannum}-{r.raw_obs_type}')
                 value = r.pk
                 return {'label': label, 'value': value}
 
             options = list(map(make_dataitem_option, df_raw_obs.itertuples()))
-            # get a set of all nws
-            nws = set()
-            for nw in df['_roaches']:  # this is a list
-                for v in nw:
-                    nws.add(v)
+            # get all keys
+            source_keys = set()
+            for k in df_raw_obs['_source_keys']:
+                if k is None:
+                    continue
+                source_keys = source_keys.union(set(k))
 
-            # load the first source file and get the number of kids
-            bods = {
-                    i: get_bod(
-                        df_raw_obs['source'].iloc[0]['sources'][i]['url'])
-                    for i in nws
-                    }
+            def make_network_options(source_key):
+                value = int(source_key.replace('toltec', ''))
+                for r in df_raw_obs.itertuples():
+                    if r.raw_obs_type == 'VNA':
+                        continue
+                    if r.source is None:
+                        return {
+                                'label': source_key,
+                                'value': value
+                                }
+                    s = odict_from_list(r.source['data_items'], key=lambda v: v['meta']['interface'])
+                    if source_key in s:
+                        m = s[source_key]['meta']
+                        assert value == m['roachid']
+                        assert source_key == m['interface']
+                        return {
+                                'label': (
+                                    f'{source_key} '
+                                    f'({m["n_tones"]}/{m["n_tones_design"]})'),
+                                'value': value,
+                                }
 
-            def make_network_option_label(i):
-                if i in nws:
-                    bod = bods[i]
-                    nkids = bod.meta["n_tones"]
-                    nkids_tot = bod.meta["n_tones_design"]
-                    return f'toltec{i} ({nkids}/{nkids_tot})'
-                return f'toltec{i}'
+            network_options = sorted([
+                    make_network_options(source_key)
+                    for source_key in source_keys
+                    ], key=lambda v: v['value'])
 
-            network_options = [
+            df_toltec_userlog = query_toltec_userlog(
+                    min(df_raw_obs['obsnum']),
+                    max(df_raw_obs['obsnum']),
+                    )
+
+            df_toltec_userlog_dt = DataTable(
+                style_cell={'padding': '0.5em'},
+                style_table={
+                    # 'overflowX': 'auto',
+                    'width': '100%',
+                    },
+                style_data={
+                    'whiteSpace': 'normal',
+                    'height': 'auto',
+                },
+                style_cell_conditional=[
                     {
-                        'label': make_network_option_label(i),
-                        'value': i,
+                        'if': {'column_id': 'Entry'},
+                        'textAlign': 'left',
+                        },
+                    ],
+                data=df_toltec_userlog.to_dict('record'),
+                columns=[
+                    {
+                        'label': c,
+                        'id': c
                         }
-                    for i in nws
+                    for c in df_toltec_userlog.columns
                     ]
+                )
             return (
                     options, network_options, cols, data,
+                    df_toltec_userlog_dt,
                     elems, elems_legend,
                     "")
 
@@ -564,6 +753,7 @@ class BasicObsSelectView(ComponentTemplate):
             data = df.to_dict('record')
             return cols, data
         ctx.update({
+                'control_container': control_container,
                 'dataitem_select_drp': dataitem_select_drp,
                 'network_select_drp': network_select_drp,
                 })
@@ -571,9 +761,34 @@ class BasicObsSelectView(ComponentTemplate):
 
     def _setup_assoc_view(self, app, container):
 
-        graph_container = container.child(dbc.Row).child(dbc.Col)
-        # graph_controls_container = container.child(
-        #         dbc.Form, inline=True)
+        graph_container, graph_controls_container = container.grid(2, 1)
+        graph_controls_container.className = 'px-0'
+        graph_controls_form = graph_controls_container.child(
+                dbc.Form, inline=True)
+        graph_reset_btn = graph_controls_form.child(
+                dbc.Button,
+                [
+                    fa('fas fa-undo pr-2'),
+                    'Reset pan/zoom'
+                    ],
+                size='sm', color='link',
+                className='pl-0 pr-4'
+                )
+        graph_controls_form.child(
+                dbc.Button(
+                    [
+                        fa('fas fa-info pr-2'),
+                        'Shift + Drag to select multiple nodes'
+                        ],
+                    size='sm',
+                    color='link',
+                    style={
+                        'color': '#aaaaaa'
+                        },
+                    className='pl-0 pr-4'
+                    )
+                )
+
         # graph_layout_select_group = graph_controls_container.child(
         #         dbc.FormGroup)
         # graph_layout_select_group.child(
@@ -607,7 +822,11 @@ class BasicObsSelectView(ComponentTemplate):
 
         height = '250px'
         graph_container_row = graph_container.child(dbc.Row)
-        graph = graph_container_row.child(dbc.Col, width=8).child(
+        graph = graph_container_row.child(
+                dbc.Col, width=10,
+                className='border',
+                style={'border-color': '#aaaaaa'}
+                ).child(
                 cyto.Cytoscape,
                 # layout_=_get_layout(graph_layout_select.value),
                 layout_=_get_layout('dagre'),
@@ -615,9 +834,10 @@ class BasicObsSelectView(ComponentTemplate):
                 style={
                     'min-height': height,
                     },
-                # minZoom=0.8,
-                userZoomingEnabled=True,
-                userPanningEnabled=False,
+                # minZoom=0.6,
+                # zoomingEnabled=True,
+                # userZoomingEnabled=True,
+                # userPanningEnabled=False,
                 boxSelectionEnabled=True,
                 autoungrabify=True,
                 )
@@ -635,16 +855,19 @@ class BasicObsSelectView(ComponentTemplate):
                 autoungrabify=True,
                 )
 
-        # @app.callback(
-        #         Output(graph.id, 'layout'),
-        #         [
-        #             Input(graph_layout_select.id, 'value')
-        #             ]
-        #         )
-        # def update_graph_layout(value):
-        #     if value is None:
-        #         return dash.no_update
-        #     return _get_layout(value)
+        @app.callback(
+                Output(graph.id, 'layout'),
+                [
+                    # Input(graph_layout_select.id, 'value')
+                    Input(graph_reset_btn.id, 'n_clicks')
+                    ]
+                )
+        def update_graph_layout(value):
+            if value is None:
+                return dash.no_update
+            layout = _get_layout('dagre')
+            layout['n_clicks'] = value
+            return layout
 
         return {
                 'assoc_view_graph': graph,

@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 from tollan.utils.log import get_logger
-from astropy.table import Table, MaskedColumn
+from astropy.table import Table, MaskedColumn, vstack, unique
 import numpy as np
 # from astropy.io import registry
 from tollan.utils.log import logged_dict_update
@@ -442,3 +442,17 @@ class BasicObsDataset(object):
         if meta is not None:
             index_table.meta.update(**meta)
         return cls(index_table=index_table)
+
+    def sort(self, *args):
+        self.index_table.sort(*args)
+        self._bod_list = self['_bod']
+
+    @classmethod
+    def vstack(cls, instances):
+        tbls = [inst.index_table for inst in instances]
+        tbl = vstack(tbls)
+        return cls(index_table=tbl)
+
+    def unique(self, *args, **kwargs):
+        return self.__class__(
+                index_table=unique(self.index_table, *args, **kwargs))
