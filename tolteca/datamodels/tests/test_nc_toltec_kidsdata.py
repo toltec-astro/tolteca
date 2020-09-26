@@ -205,7 +205,7 @@ def test_nc_file_io_tone_axis_data():
         tone_axis_data = df._tone_axis_data
 
     assert len(tone_axis_data) == 2
-    assert tone_axis_data[-1].colnames == ['id', 'f_tone']
+    assert tone_axis_data[-1].colnames == ['id', 'f_tone', 'f_center']
     assert len(tone_axis_data[-1]) == 648
 
 
@@ -394,7 +394,7 @@ def test_nc_file_io_kids_data_slicer_timesteam():
         assert loc._axis_type == t
         assert loc._args == {}
 
-    # this is a tune so no time axis
+    # this is a timestream so no sweep axis
     with pytest.raises(ValueError, match="sweep axis is not available"):
         df.sweep_loc
 
@@ -472,3 +472,197 @@ def test_nc_file_io_kids_data_slicer_timesteam():
         # check read
         ts = df.tone_loc['id < 10'].time_loc[:1].read()
         assert ts.I.shape == (10, 488)
+
+
+def test_nc_file_io_kids_data_slicer_timesteam_processed():
+
+    # local file
+    filepath = get_pkg_data_path().joinpath(
+        'tests/basic_obs_data/'
+        'toltec3_012759_000_0000_2020_09_24_17_05_02_timestream_processed.nc')
+
+    with NcFileIO(source=filepath) as df:
+
+        pass
+
+    assert isinstance(df.block_loc, _KidsDataAxisSlicer)
+    assert df.axis_types == {'block', 'tone', 'time', 'sample'}
+
+    for t in ['block', 'tone', 'time', 'sample']:
+        loc = getattr(df, f'{t}_loc')
+        assert isinstance(loc, _KidsDataAxisSlicer)
+        assert loc._file_obj is df
+        assert loc._axis_type == t
+        assert loc._args == {}
+
+    # this is a timestream so no sweep axis
+    with pytest.raises(ValueError, match="sweep axis is not available"):
+        df.sweep_loc
+
+    # check chaining
+    assert isinstance(df.block_loc.tone_loc, _KidsDataAxisSlicer)
+    bl = df.block_loc
+    assert bl.tone_loc is bl  # chained builder pattern
+
+    for t in ['block', 'tone', 'time', 'sample']:
+        loc = getattr(df.tone_loc, f'{t}_loc')
+        assert isinstance(loc, _KidsDataAxisSlicer)
+        assert loc._file_obj is df
+        assert loc._axis_type == t
+        assert loc._args == {}
+
+    # check slice args
+    assert df.tone_loc[0].time_loc[:].block_loc[-1]._args == {
+            'tone': [(0, ), {}],
+            'time': [(slice(None, None, None), ), {}],
+            'block': [(-1, ), {}],
+            }
+
+    # some invalid slice args
+    with pytest.raises(ValueError, match='block loc does not accept keyword'):
+        df.tone_loc[0].sample_loc[:].block_loc(a=1)[None].read()
+
+    with pytest.raises(ValueError, match='block loc can only be integer'):
+        df.tone_loc[0].sample_loc[:].block_loc[:].read()
+
+    with pytest.raises(ValueError, match='sweep axis is not available for'):
+        df.sweep_loc[0].block_loc[None].read()
+
+    with pytest.raises(
+            ValueError, match='can only slice on one of sample or time'):
+        df.sample_loc[0].time_loc[:].read()
+
+    with pytest.raises(
+            ValueError, match='time loc can only be slice'):
+        df.time_loc[0].read()
+
+    # check resolve slice
+
+    with df.open():
+        slicer = df.tone_loc[:10].time_loc[-10:].block_loc[-1]
+        assert df._resolve_slice(
+                slicer)['sample_slice'] == slice(-4882, None, None)
+        assert df._resolve_slice(
+                slicer)['tone_slice'] == slice(None, 10, None)
+
+        # time of quantity
+        slicer = df.tone_loc['id < 10'].time_loc[-10::1]
+        assert df._resolve_slice(
+                slicer)['sample_slice'] == slice(-4882, None, 488)
+
+        slicer = df.tone_loc['id < 10'].time_loc[-10 << u.s::1]
+        assert df._resolve_slice(
+                slicer)['sample_slice'] == slice(-4882, None, 488)
+
+        slicer = df.tone_loc['id < 10'].time_loc[0:1 * u.min:1 * u.s]
+        assert df._resolve_slice(
+                slicer)['sample_slice'] == slice(0, 29296, 488)
+
+        with pytest.raises(
+                ValueError, match='invalid time slice step'):
+            df.time_loc[::-1].read()
+
+        with pytest.raises(
+                ValueError, match='invalid time slice step'):
+            df.time_loc[::1 * u.us].read()
+
+        # check read every 1 second
+        pts = df.tone_loc['id < 10'].time_loc[-10::1].read()
+        assert pts.x.shape == (10, 11)
+
+        # check read
+        pts = df.tone_loc['id < 10'].time_loc[:1].read()
+        assert pts.r.shape == (10, 488)
+        # check psds shape
+        pts.meta['f_psd'].shape == (1025, )
+        pts.meta['I_psd'].shape == (10, 1025)
+
+
+def test_nc_file_io_kids_data_slicer_tune_processed():
+
+    # local file
+    filepath = get_pkg_data_path().joinpath(
+        'tests/basic_obs_data/'
+        'toltec3_012758_000_0000_2020_09_24_17_04_06_tune_processed.nc')
+
+    with NcFileIO(source=filepath) as df:
+
+        pass
+
+    assert isinstance(df.block_loc, _KidsDataAxisSlicer)
+    assert df.axis_types == {'block', 'tone', 'sweep', 'sample'}
+
+    for t in ['block', 'tone', 'sweep', 'sample']:
+        loc = getattr(df, f'{t}_loc')
+        assert isinstance(loc, _KidsDataAxisSlicer)
+        assert loc._file_obj is df
+        assert loc._axis_type == t
+        assert loc._args == {}
+
+    # this is a tune so no time axis
+    with pytest.raises(ValueError, match="time axis is not available"):
+        df.time_loc
+
+    # check chaining
+    assert isinstance(df.block_loc.tone_loc, _KidsDataAxisSlicer)
+    bl = df.block_loc
+    assert bl.tone_loc is bl  # chained builder pattern
+
+    for t in ['block', 'tone', 'sweep', 'sample']:
+        loc = getattr(df.tone_loc, f'{t}_loc')
+        assert isinstance(loc, _KidsDataAxisSlicer)
+        assert loc._file_obj is df
+        assert loc._axis_type == t
+        assert loc._args == {}
+
+    # check slice args
+    assert df.tone_loc[0].sweep_loc[:].block_loc[-1]._args == {
+            'tone': [(0, ), {}],
+            'sweep': [(slice(None, None, None), ), {}],
+            'block': [(-1, ), {}],
+            }
+
+    # some invalid slice args
+    with pytest.raises(ValueError, match='block loc does not accept keyword'):
+        df.tone_loc[0].sweep_loc[:].block_loc(a=1)[None].read()
+
+    with pytest.raises(ValueError, match='block loc can only be integer'):
+        df.tone_loc[0].sweep_loc[:].block_loc[:].read()
+
+    with pytest.raises(ValueError, match='time axis is not available for'):
+        df.time_loc[0].block_loc[None, ].read()
+
+    with pytest.raises(
+            ValueError, match='can only slice on one of sample or sweep'):
+        df.sample_loc[0].sweep_loc[None, ].read()
+
+    # check resolve slice
+
+    with df.open():
+        slicer = df.tone_loc[:10].sweep_loc[-10:].block_loc[-1]
+        assert df._resolve_slice(
+                slicer)['sample_slice'] == slice(166, 176, None)
+        assert df._resolve_slice(
+                slicer)['tone_slice'] == slice(None, 10, None)
+
+        slicer = df.tone_loc[:10].sweep_loc[[0, -1]]
+        assert df._resolve_slice(
+                slicer)['sample_slice'] == slice(0, 176, None)
+        assert df._resolve_slice(
+                slicer)['tone_slice'] == slice(None, 10, None)
+
+        # str slicer
+        slicer = df.tone_loc['id < 10'].sweep_loc['id < 10']
+        assert df._resolve_slice(
+                slicer)['sample_slice'] == slice(0, 10, None)
+        # this is a mask with the first 10 true
+        assert np.all(df._resolve_slice(slicer)['tone_slice'][:10])
+
+        # check read
+        swp = df.tone_loc['id < 10'].sweep_loc['id < 20'].read()
+        assert isinstance(swp, kd.MultiSweep)
+        assert swp.S21.shape == (10, 20)
+        assert swp.S21.unit.is_equivalent(u.adu)
+        assert swp.frequency.shape == (10, 20)
+        assert swp.frequency.unit.is_equivalent(u.Hz)
+        assert swp.meta['data_kind'] is KidsDataKind.ReducedSweep

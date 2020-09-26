@@ -1,10 +1,14 @@
 #! /usr/bin/env python
 
-from tollan.utils.log import get_logger, logit
+from tollan.utils.log import get_logger, logit, timeit
 import sqlalchemy as sa
+import sqlalchemy.sql.expression as se
+from sqlalchemy.ext.automap import automap_base
 from tollan.utils import odict_from_list
+from tollan.utils.fmt import pformat_dict
 from tollan.utils.db import conventions as c
 from tollan.utils.db import TableDefList
+
 from ...toltec.enums import RawObsType, RawObsMaster
 
 
@@ -490,3 +494,112 @@ def init_db(db, create_tables=False, recreate=False):
                         db.metadata.tables[n].insert(),
                         t['data']
                         )
+
+
+@timeit
+def init_orm(db):
+
+    logger = get_logger()
+
+    _t = db.metadata.tables
+
+    session = db.Session()
+
+    Base = automap_base(metadata=db.metadata)
+
+    # query the label tables to get dispatch maps
+    dispatch_labels = dict()
+
+    for table_name in [
+            'data_prod_type', 'data_prod_assoc_type',
+            'dp_raw_obs_type', 'dp_raw_obs_master',
+            ]:
+        dispatch_labels[table_name] = odict_from_list(
+                session.execute(
+                    se.select([_t[table_name]])), key='label')
+    logger.debug(
+            f"dispatch_labels: "
+            f"{pformat_dict(dispatch_labels)}")
+
+    class DataProd(Base):
+        __tablename__ = 'data_prod'
+        __mapper_args__ = {
+            'polymorphic_identity':
+                dispatch_labels['data_prod_type']['data_prod']['pk'],
+            'polymorphic_on': 'data_prod_type_pk'
+            }
+
+    class RawObs(DataProd):
+        __tablename__ = 'dp_raw_obs'
+        __mapper_args__ = {
+            'polymorphic_identity':
+                dispatch_labels['data_prod_type']['dp_raw_obs']['pk']
+        }
+
+    class BasicReducedObs(DataProd):
+        __tablename__ = 'dp_basic_reduced_obs'
+        __mapper_args__ = {
+            'polymorphic_identity':
+                dispatch_labels['data_prod_type']['dp_basic_reduced_obs']['pk']
+        }
+
+    class NamedGroup(DataProd):
+        __tablename__ = 'dp_named_group'
+        __mapper_args__ = {
+            'polymorphic_identity':
+                dispatch_labels['data_prod_type']['dp_named_group']['pk']
+        }
+
+    class DataProdAssoc(Base):
+        __tablename__ = 'data_prod_assoc'
+        __mapper_args__ = {
+            'polymorphic_identity':
+                dispatch_labels['data_prod_assoc_type'][
+                    'data_prod_assoc']['pk'],
+            'polymorphic_on': 'data_prod_assoc_type_pk'
+            }
+
+    class DataProdAssocInfo(Base):
+        __tablename__ = 'data_prod_assoc_info'
+
+    class NamedGroupDataProdAssoc(DataProdAssoc):
+        __tablename__ = 'dpa_named_group_data_prod'
+        __mapper_args__ = {
+            'polymorphic_identity':
+                dispatch_labels['data_prod_assoc_type'][
+                    'dpa_named_group_data_prod']['pk']
+            }
+
+    class BasicReducedObsRawObsAssoc(DataProdAssoc):
+        __tablename__ = 'dpa_basic_reduced_obs_raw_obs'
+        __mapper_args__ = {
+            'polymorphic_identity':
+                dispatch_labels['data_prod_assoc_type'][
+                    'dpa_basic_reduced_obs_raw_obs']['pk']
+            }
+
+    class RawObsSweepObsAssoc(DataProdAssoc):
+        __tablename__ = 'dpa_raw_obs_sweep_obs'
+        __mapper_args__ = {
+            'polymorphic_identity':
+                dispatch_labels['data_prod_assoc_type'][
+                    'dpa_raw_obs_sweep_obs']['pk']
+            }
+
+    ClientInfo = c.client_info_model(Base)  # noqa: F841
+
+    # this is need to resolve the many-to-many relation among the child
+    # tables
+    def name_for_collection_relationship(
+            base, local_cls, referred_cls, constraint):
+        disc = '_'.join(col.name for col in constraint.columns)
+        return referred_cls.__name__.lower() + '_' + disc + "_collection"
+
+    Base.prepare(
+        # name_for_scalar_relationship=name_for_scalar_relationship,
+        name_for_collection_relationship=name_for_collection_relationship)
+
+    db.models = [
+            {k: v}
+            for k, v in locals().items()
+            if isinstance(v, type) and issubclass(v, Base)]

@@ -53,6 +53,7 @@ class DatabaseRuntime(UserDict):
     @staticmethod
     def _setup_tolteca(d):
         data_prod.init_db(d, create_tables=False)
+        data_prod.init_orm(d)
 
     @classmethod
     def _setup_sqladb(cls, sqladb, func, raise_on_error=True):
@@ -77,6 +78,8 @@ class DatabaseRuntime(UserDict):
                     exc_info=True)
             if raise_on_error:
                 raise
+            else:
+                result = None
         return result
 
 

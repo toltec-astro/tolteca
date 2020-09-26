@@ -4,11 +4,14 @@ import sys
 
 from ..utils import get_pkg_data_path
 from .. import version
-from tollan.utils.log import init_log
+from tollan.utils.log import init_log, get_logger
 from tollan.utils.cli.multi_action_argparser import \
         MultiActionArgumentParser
+from tollan.utils.sys import parse_systemd_envfile
 from tollan.utils import rupdate
+from tollan.utils.fmt import pformat_yaml
 import yaml
+import os
 from wrapt import ObjectProxy
 
 
@@ -47,6 +50,10 @@ def main(args=None):
             metavar='FILE',
             default=[config_default, ])
     parser.add_argument(
+            '--env_files', '-e',
+            metavar='ENV_FILE', nargs='*',
+            help='Path to systemd env file.')
+    parser.add_argument(
             "-q", "--quiet",
             help="Suppress debug logs.",
             action='store_true')
@@ -68,6 +75,8 @@ def main(args=None):
         loglevel = 'DEBUG'
     init_log(level=loglevel)
 
+    logger = get_logger()
+
     if option.version:
         print(version.version)
         sys.exit(0)
@@ -81,6 +90,15 @@ def main(args=None):
             else:
                 rupdate(_config, yaml.safe_load(fo))
     option.config = _config
+
+    # load env
+    envs = dict()
+    for path in option.env_files or tuple():
+        envs.update(parse_systemd_envfile(path))
+    if len(envs) > 0:
+        logger.debug(f"loaded envs:\n{pformat_yaml(envs)}")
+    for k, v in envs.items():
+        os.environ[k] = v or ''
 
     # handle subcommands
     parser.bootstrap_actions(option, unknown_args=unknown_args)

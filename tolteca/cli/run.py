@@ -42,4 +42,6 @@ def cmd_run(parser):
         with logit(logger.debug, "run {} {}".format(
             option.script, ' '.join(unknown_args)
                 ).strip()):
+            if len(unknown_args) == 0:
+                return func()
             return func(unknown_args)
