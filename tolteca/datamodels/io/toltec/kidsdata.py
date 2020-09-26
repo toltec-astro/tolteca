@@ -1050,6 +1050,9 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                         'D21_cov': data['d21_cov'],
                         'D21_mean': data['d21_mean'] << d21_unit,
                         'D21_std': data['d21_std'] << d21_unit,
+                        },
+                    meta={
+                        'candidates': data['candidates'] << u.Hz
                         }
                     )
                 )

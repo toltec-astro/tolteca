@@ -760,6 +760,7 @@ def test_nc_file_io_kids_data_slicer_vna_processed():
         assert swp.unified.D21.unit == u.adu / u.Hz
         assert swp.unified.D21_cov.shape == (492733, )
         assert swp.unified.D21_mean.unit == u.adu / u.Hz
+        assert swp.unified.meta['candidates'].shape == (643, )
         # slice the d21
         d = swp.unified[:10]
         assert d.frequency.shape == (10, )
