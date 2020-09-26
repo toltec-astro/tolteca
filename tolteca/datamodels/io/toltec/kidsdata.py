@@ -346,11 +346,11 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             # these are ancillary data items
             'data_extra': {
                 'd21': {
-                    "D21_f": 'Header.Kids.d21_fs',
-                    "D21": 'Data.Kids.d21_adiqs',
-                    'D21_cov': 'Data.Kids.d21_adiqscov',
-                    'D21_mean': 'Data.Kids.d21_adiqsmean',
-                    'D21_std': 'Data.Kids.d21_adiqsstd',
+                    "d21_f": 'Data.Kids.d21_fs',
+                    "d21": 'Data.Kids.d21_adiqs',
+                    'd21_cov': 'Data.Kids.d21_adiqscov',
+                    'd21_mean': 'Data.Kids.d21_adiqsmean',
+                    'd21_std': 'Data.Kids.d21_adiqsstd',
                     },
                 'candidates': {
                     'candidates': 'Header.Kids.candidates',
@@ -1030,13 +1030,30 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                     to_complex(data['unc_I'], data['unc_Q']))
         else:
             unc_S21 = None
-        return kd.MultiSweep(
-                meta=meta,
-                tones=tones,
-                sweeps=sweeps,
-                S21=S21,
-                uncertainty=unc_S21,
+        result = kd.MultiSweep(
+            meta=meta,
+            tones=tones,
+            sweeps=sweeps,
+            S21=S21,
+            uncertainty=unc_S21,
+            )
+        if 'd21' in data:
+            d21_unit = u.adu / u.Hz
+            # make a unified D21 sweep and set that as the unified
+            # data of this multisweep
+            result.set_unified(
+                kd.Sweep(
+                    S21=None,
+                    D21=data['d21'] << d21_unit,
+                    frequency=data['d21_f'] << u.Hz,
+                    extra_attrs={
+                        'D21_cov': data['d21_cov'],
+                        'D21_mean': data['d21_mean'] << d21_unit,
+                        'D21_std': data['d21_std'] << d21_unit,
+                        }
+                    )
                 )
+        return result
 
     @classmethod
     @register_to(_kidsdata_obj_makers, KidsDataKind.RawTimeStream)
