@@ -2,7 +2,7 @@
 
 # ToDo:
 # 1) make zoom plot prettier
-# 2) move all the header material to a utility in .templates.common
+# 2) [done] move all the header material to a utility in .templates.common
 # 3) speed up plot rendering
 
 from dasha.web.templates import ComponentTemplate
@@ -27,6 +27,10 @@ import cachetools.func
 from pathlib import Path
 from itertools import cycle
 
+from dasha.web.templates.common import LiveUpdateSection, CollapseContent
+from .common import HeaderWithToltecLogo
+from .common.simple_basic_obs_select import KidsDataSelect
+
 
 class VnaExplorer(ComponentTemplate):
 
@@ -37,166 +41,29 @@ class VnaExplorer(ComponentTemplate):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def _setup_live_update_header(self, app, container, title, interval):
-        header = container.child(dbc.Row, className='mb-2').child(
-                dbc.Col, className='d-flex align-items-center')
-        header.child(html.H3, title, className='mr-4 my-0')
-        timer = header.child(dcc.Interval, interval=interval)
-        loading = header.child(dcc.Loading)
-        error = container.child(dbc.Row).child(dbc.Col)
-        return timer, loading, error
-
     # This section of code only runs once when the server is started.
     def setup_layout(self, app):
         container = self
+        header_section, hr_container, body = container.grid(3, 1)
+        hr_container.child(html.Hr())
+        header_container = header_section.child(HeaderWithToltecLogo(
+            logo_colwidth=4
+            )).header_container
 
-        # throw in a logo and title bar to make the site look nice
-        logo = "http://toltec.astro.umass.edu/images/toltec_logo.png"
-
-        # setup main body component (row and col)
-        body = container.child(dbc.Row).child(dbc.Col)
-
-        # the header holds the controls and the logo
-        header = body.child(dbc.Row)
-        controls = header.child(dbc.Col, width=12, md=8)
-        logoBox = header.child(dbc.Col, width=4, className='d-none d-md-block')
-        logoBox.child(dbc.Row,
-                      html.Img(src=logo, height="150px"),
-                      no_gutters=True,
-                      justify="end")
-
-        # the live update header to control timing
-        timer, loading, error = self._setup_live_update_header(
-                app, controls, 'VNA Sweep Explorer', 2500)
-
-        # Set up an InputGroup to format the obsnum input
-        # InputGroups have two children, dbc.Input and dbc.InputGroupAddon
-        obsIG = controls.child(dbc.Row).child(dbc.Col, className='d-flex').child(dbc.InputGroup, size='sm', className='mb-3 w-auto mt-3')
-        obsIG.child(dbc.InputGroupAddon("Select ObsNum", addon_type="prepend"))
-        obsInput = obsIG.child(dbc.Select, options=[])
-
-        # set up a network selection section
-        plot_networks_checklist_section = controls.child(dbc.Row).child(dbc.Col)
-        plot_networks_checklist_section.child(dbc.Label, 'Select network(s) to show in the plots:')
-        plot_networks_checklist_container = plot_networks_checklist_section.child(dbc.Row, className='mx-0')
-        checklist_presets_container = plot_networks_checklist_container.child(dbc.Col)
-        checklist_presets = checklist_presets_container.child(dbc.Checklist, persistence=False, labelClassName='pr-1', inline=True)
-        checklist_presets.options = [
-                {'label': 'All', 'value': 'all'},
-                {'label': '1.1mm', 'value': '1.1 mm Array'},
-                {'label': '1.4mm', 'value': '1.4 mm Array'},
-                {'label': '2.0mm', 'value': '2.0 mm Array'},
-                ]
-
-        checklist_presets.value = []
-        checklist_networks_container = plot_networks_checklist_container.child(dbc.Col)
-        # make three button groups
-        netSelect = checklist_networks_container.child(dbc.RadioItems,
-                                                       persistence=False,
-                                                       labelClassName='pr-1',
-                                                       inline=True)
-
-        checklist_networks_options = [
-                {'label': f'N{i}', 'value': i}
-                for i in range(13)]
-        array_names = ['1.1 mm Array', '1.4 mm Array', '2.0 mm Array']
-        preset_networks_map = dict()
-        preset_networks_map['1.1 mm Array'] = set(o['value'] for o in checklist_networks_options[0:7])
-        preset_networks_map['1.4 mm Array'] = set(o['value'] for o in checklist_networks_options[7:10])
-        preset_networks_map['2.0 mm Array'] = set(o['value'] for o in checklist_networks_options[10:13])
-        preset_networks_map['all'] = functools.reduce(set.union, (preset_networks_map[k] for k in array_names))
-
-        # a callback to update obsnum select options
-        @app.callback(
-                [
-                    Output(obsInput.id, 'options'),
-                    Output(loading.id, 'children'),
-                    Output(error.id, 'children'),
-                    ],
-                [
-                    Input(timer.id, 'n_intervals')
-                    ]
+        title_container, controls_container = header_container.grid(2, 1)
+        header = title_container.child(
+                LiveUpdateSection(
+                    title_component=html.H3("VNA Sweep Explorer"),
+                    interval_options=[2000, 5000],
+                    interval_option_value=2000
+                    ))
+        obsInput = controls_container.child(
+                KidsDataSelect(multi=None)
                 )
-        def update_files_info(n_intervals):
-            error_content = dbc.Alert('Unable to get data file list', color='danger')
-            query_str = "select id,ObsNum,SubObsNum,ScanNum,GROUP_CONCAT(RoachIndex order by RoachIndex) as Roaches,TIMESTAMP(Date, Time) as DateTime from toltec_r1 where ObsType=2 group by ObsNum,SubObsNum,ScanNum order by id desc limit 100"
-            try:
-                df = dataframe_from_db(query_str, 'toltec', parse_dates=['Date', 'Time'])
-                # self.logger.debug(f'{df}')
-            except Exception as e:
-                self.logger.debug(f"error querry db: {e}", exc_info=True)
-                return dash.no_update, "", error_content
-            if len(df) == 0:
-                return dash.no_update, "", error_content
+        obsInput.setup_live_update_section(app, header)
 
-            def make_key(info):
-                # return '{} {}-{}-{} {}'.format(
-                #         info.DateTime,
-                #         info.ObsNum,
-                #         info.SubObsNum,
-                #         info.ScanNum,
-                #         info.Roaches,
-                #         )
-                return info.ObsNum
-
-            def make_value(info):
-                return json.dumps({
-                            'obsnum': info.ObsNum,
-                            'subobsnum': info.SubObsNum,
-                            'scannum': info.ScanNum,
-                        })
-
-            options = []
-            for info in df.itertuples():
-                options.append({
-                    'label': make_key(info),
-                    'value': make_value(info)
-                    })
-            return options, "", ""
-
-        # a callback to update the check state
-        @app.callback(
-                [
-                    Output(netSelect.id, "options"),
-                    Output(netSelect.id, "value"),
-                    ],
-                [
-                    Input(checklist_presets.id, "value"),
-                    Input(obsInput.id, "value"),
-                ]
-            )
-        def on_preset_change(preset_values, info):
-            self.logger.debug(f'info: {info}')
-            # this is all the nws
-            nw_values = set()
-            for pv in preset_values:
-                nw_values = nw_values.union(preset_networks_map[pv])
-            options = [o for o in checklist_networks_options if o['value'] in nw_values]
-            values = list(nw_values)
-            # if we have info from the obsinput,
-            # we can update the options with disabled state
-            if info is None:
-                return options, values
-            files = query_filepaths(**json.loads(info))
-            for option in options:
-                v = option['value']
-                option['disabled'] = (files is None) or (v not in files)
-                if option['disabled']:
-                    values.remove(v)
-
-            # clear all checkboxes to avoid loading more than one
-            # network at a time
-            values = []
-
-            return options, values
-
-        # not a big hr fan but let's see how it looks
-        body.child(dbc.Row).child(dbc.Col).child(html.Hr())
-
-        # everything above this comment is generic and should be moved
-        # to the .templates.common directory so that other apps can
-        # use it
-        #
+        # the above finishes settings of the kids data select header section
+        # now is the graphs
 
         topPlots = body.child(dbc.Row)
         # add a table to show the number of resonances found
@@ -213,12 +80,12 @@ class VnaExplorer(ComponentTemplate):
         super().setup_layout(app)
 
         # register the callbacks
-        self._registerCallbacks(app, obsInput, netSelect,
+        self._registerCallbacks(app, obsInput,
                                 vnaPlot, zoomPlot,
                                 resonanceTable)
 
     # register the callbacks
-    def _registerCallbacks(self, app, obsInput, netSelect,
+    def _registerCallbacks(self, app, obsInput,
                            vnaPlot, zoomPlot, resonanceTable):
 
         # Generate VNA plot
@@ -227,22 +94,22 @@ class VnaExplorer(ComponentTemplate):
                 Output(vnaPlot.id, "figure"),
                 Output(resonanceTable.id, "figure")
             ],
-            [
-               Input(netSelect.id, "value"),
-               Input(obsInput.id, "value"),
-            ]
+            obsInput.inputs,
         )
-        def makeVnaPlot(selectedNets, selectedObsnum):
-            if (selectedNets is None) or (selectedObsnum is None):
+        def makeVnaPlot(obs_input):
+            # obs_input is the basic_obs_select_value dict
+            # seen in the "details..."
+            # when the nwid multi is set in the select,
+            # this is a list of dict
+            # otherwise is a dict, which is our case here.
+            if obs_input is None:
                 raise PreventUpdate
-            if isinstance(selectedNets, list):
-                if len(selectedNets) == 0:
-                    raise PreventUpdate
-            data = fetchVnaData(selectedNets, **json.loads(selectedObsnum))
+            data = fetchVnaData(**obs_input)
+            if data is None:
+                raise PreventUpdate
             vnafig = getVnaPlot(data)
             rtfig = getResonanceTable(data)
             return [vnafig, rtfig]
-
 
         # Generate Zoomed-in plot
         @app.callback(
@@ -251,25 +118,23 @@ class VnaExplorer(ComponentTemplate):
             ],
             [
                 Input(vnaPlot.id, "clickData"),
-                Input(netSelect.id, "value"),
-                Input(obsInput.id, "value"),
-            ]
+            ] + obsInput.inputs
         )
-        def makeZoomPlot(clickData, selectedNets, selectedObsnum):
-            if (selectedNets is None) or (selectedObsnum is None):
+        def makeZoomPlot(clickData, obs_input):
+            if obs_input is None:
                 raise PreventUpdate
-            if isinstance(selectedNets, list):
-                if len(selectedNets) == 0:
-                    raise PreventUpdate
-            data = fetchVnaData(selectedNets, **json.loads(selectedObsnum))
-            zoomfig = getZoomPlot(data, clickData, selectedNets)
+            data = fetchVnaData(**obs_input)
+            if data is None:
+                raise PreventUpdate
+            data = fetchVnaData(**obs_input)
+            zoomfig = getZoomPlot(data, clickData)
             return [zoomfig]
 
 
 # Read data from netcdf files
 @timeit
 @cache.memoize(timeout=60 * 60 * 60)
-def _fetchVnaData(net, obsnum, subobsnum, scannum, filepath):
+def _fetchVnaData(filepath):
 
     def makeS21(Is, Qs):
         nsweeps, ntones = Is.shape
@@ -302,36 +167,13 @@ def _fetchVnaData(net, obsnum, subobsnum, scannum, filepath):
 cache.delete_memoized(_fetchVnaData)
 
 
-def fetchVnaData(net, obsnum, subobsnum, scannum):
-    filepaths = query_filepaths(obsnum, subobsnum, scannum)
-    data = _fetchVnaData(net, obsnum, subobsnum,
-                         scannum, filepaths[net])
-    return data
-
-
-@timeit
-@cachetools.func.ttl_cache(ttl=1)
-def query_filepaths(obsnum, subobsnum, scannum):
-    # here we check the data file exist if some obs is selected
-    query_str = (
-            f"select "
-            f"id,RoachIndex,FileName "
-            f"from toltec_r1 where ObsNum={obsnum} and SubObsNum={subobsnum} and ScanNum={scannum} "
-            f"order by RoachIndex")
-    try:
-        df = dataframe_from_db(query_str, 'toltec')
-    except Exception as e:
+def fetchVnaData(**kwargs):
+    raw_obs_processed_url = kwargs['raw_obs_processed']
+    if raw_obs_processed_url is None:
+        # no processed data
         return None
-    files = dict()
-    # populate the list of files
-    rpath = Path('/data/data_toltec/reduced/')
-    for nw, filepath in zip(df['RoachIndex'], df['FileName']):
-        filepath = rpath.joinpath(
-                Path(filepath).name).as_posix().replace(
-                        'vnasweep.nc', 'vnasweep_processed.nc')
-        if Path(filepath).exists():
-            files[nw] = filepath
-    return files
+    data = _fetchVnaData(raw_obs_processed_url)
+    return data
 
 
 def get_color_pairs():
@@ -359,12 +201,8 @@ def get_color_pairs():
     return colorsDark, colorsLight
 
 
-def getZoomPlot(data, clickData, selectedNet):
+def getZoomPlot(data, clickData):
     fig = go.Figure()
-
-    # if no network is selected, return an empty figure
-    if(not selectedNet):
-        return fig
 
     # dict_keys(['curveNumber', 'pointNumber', 'pointIndex', 'x', 'y'])
     # there are three possibilities: the S21 plot was clicked, the D21
@@ -412,6 +250,7 @@ def getZoomPlot(data, clickData, selectedNet):
 
 
 # plotly code to generate vna plot
+@timeit
 def getVnaPlot(data):
     fig = make_subplots(rows=2, cols=1,
                         row_heights=[0.3,0.7],
@@ -431,21 +270,22 @@ def getVnaPlot(data):
     with timeit("generate the S21 trace figure"):
         for j in np.arange(ntones):
             c = next(colorsCycle)
-            fig.add_trace(
-                go.Scattergl(x=data['fs'][j, :]*1.e-6,
-                             y=data['S21'][j, :],
-                             mode='markers',
-                             marker=dict(color=c,
-                                         size=3),
+            fig.append_trace(
+                    go.Scattergl(
+                        x=data['fs'][j, ::2]*1.e-6,
+                        y=data['S21'][j, ::2],
+                        mode='markers',
+                        marker=dict(color=c,
+                                    size=3),
                 ),
                 row=2, col=1,
             )
 
     # the D21 trace
     with timeit("generate the D21 trace figure"):
-        fig.add_trace(
-            go.Scattergl(x=data['d21_fs']*1.e-6,
-                         y=data['d21'],
+        fig.append_trace(
+                go.Scattergl(x=data['d21_fs'][::2]*1.e-6,
+                    y=data['d21'][::2],
                          mode='markers',
                          marker=dict(color='blue',
                                      size=3),

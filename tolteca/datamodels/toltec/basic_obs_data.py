@@ -59,14 +59,16 @@ class BasicObsData(DataFileIO):
         The data file location. Remote locations can be specified in
         either URL or SFTP format ``<host>:<path>`.
 
+    open_: bool
+        If True, attemp to open the file to load meta data.
     """
 
     logger = get_logger()
 
-    def __init__(self, source):
+    def __init__(self, source, open_=True):
         super().__init__()
         file_loc = self._file_loc = self._normalize_file_loc(source)
-        if file_loc.is_local:
+        if open_ and file_loc.is_local:
             file_obj = open_file(file_loc.path)
         else:
             file_obj = None
@@ -141,16 +143,22 @@ class BasicObsDataset(object):
     bod_list : list
         A list of `BasicObsData` instances.
 
-    cols_from_meta: str, list
+    include_meta_cols : str, list
         The columns to include in the index table, extracted from the
         loaded meta data.
+
+    **kwargs :
+        Passed to `BasicObsData` constructor.
     """
+
+    logger = get_logger()
 
     def __init__(
             self,
             index_table=None,
             bod_list=None,
-            include_meta_cols='intersection'):
+            include_meta_cols='intersection',
+            **kwargs):
         if index_table is None and bod_list is None:
             raise ValueError('need one of index_table or bod_list.')
         if index_table is None:
@@ -163,7 +171,7 @@ class BasicObsDataset(object):
                 self._bod_list = bod_list
                 return
             else:
-                bod_list = self._make_bod_list(index_table)
+                bod_list = self._make_bod_list(index_table, **kwargs)
         assert len(index_table) == len(bod_list)
         self._index_table = index_table
         self._bod_list = bod_list
@@ -187,7 +195,7 @@ class BasicObsDataset(object):
         return tbl
 
     @classmethod
-    def _make_bod_list(cls, tbl):
+    def _make_bod_list(cls, tbl, **kwargs):
         # this will update tbl in place.
         bods = []
         s = tbl['source']
@@ -198,8 +206,9 @@ class BasicObsDataset(object):
                 bods.append(None)
                 continue
             try:
-                bod = BasicObsData(source)
-            except Exception:
+                bod = BasicObsData(source, **kwargs)
+            except Exception as e:
+                cls.logger.debug(f"unable to create bod: {e}")
                 bod = None
             bods.append(bod)
 
