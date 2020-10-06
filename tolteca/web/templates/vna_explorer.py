@@ -60,7 +60,8 @@ class VnaExplorer(ComponentTemplate):
         obsInput = controls_container.child(
                 KidsDataSelect(multi=None)
                 )
-        obsInput.setup_live_update_section(app, header)
+        obsInput.setup_live_update_section(
+                app, header, query_kwargs={'obs_type': 'VNA'})
 
         # the above finishes settings of the kids data select header section
         # now is the graphs

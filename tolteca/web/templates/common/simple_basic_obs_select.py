@@ -54,7 +54,7 @@ def _get_toltecdb_obsnum_latest():
     return obsnum_latest
 
 
-def _get_bods_index_from_toltecdb(obs_type, n_obs=500):
+def _get_bods_index_from_toltecdb(obs_type='VNA', n_obs=500):
     logger = get_logger()
 
     t = dbrt['toltec'].tables
@@ -299,26 +299,31 @@ class KidsDataSelect(ComponentTemplate):
 
             return filepaths, details
 
-    def setup_live_update_section(self, app, section):
+    def setup_live_update_section(self, app, section, **kwargs):
         """Setup live update with section template.
 
         Parameters
         ----------
         section : `~dasha.web.templates.common.LiveUpdateSection`
             The live update section template instance to setup.
+
+        **kwargs :
+            Keyword arguments passed to :meth:`setup_live_update`.
         """
         self.setup_live_update(
                 app,
                 section.timer.inputs[0],
                 loading_output=Output(section.loading.id, 'children'),
                 error_output=Output(section.banner.id, 'children'),
+                **kwargs
                 )
 
     def setup_live_update(
             self, app,
             timer_input,
             loading_output=None,
-            error_output=None):
+            error_output=None,
+            query_kwargs=None):
         """Setup live update.
 
         Parameters
@@ -331,6 +336,9 @@ class KidsDataSelect(ComponentTemplate):
 
         error_outputs : `~dash.dependencies.Input`, optional
             The outputs for the error message.
+
+        query_kwargs :
+            Keyword arguments passed to the query function.
         """
         outputs = [
                 Output(self.obsnum_select.id, 'options')
@@ -352,7 +360,7 @@ class KidsDataSelect(ComponentTemplate):
             error_content = dbc.Alert(
                     'Unable to get data file list', color='danger')
             try:
-                tbl_raw_obs = query_basic_obs_data(obs_type='VNA')
+                tbl_raw_obs = query_basic_obs_data(**query_kwargs)
             except Exception as e:
                 self.logger.debug(
                         f"error getting obs list: {e}", exc_info=True)
