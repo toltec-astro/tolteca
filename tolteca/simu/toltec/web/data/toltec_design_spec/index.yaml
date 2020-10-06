@@ -1,0 +1,21 @@
+---
+description: |
+
+    This file describes an calibration object.
+
+    This copy of this file is extracted from the toltec_calib repo
+    on 2020-09-22, to be used in the `tolteca.simu.toltec.web` module
+    for interactive viewing.
+
+version: v1.0.0
+array_names:
+    - a1100
+    - a1400
+    - a2000
+array_prop_table:
+    a1100:
+        path: 'a1100_prop.ecsv'
+    a1400:
+        path: 'a1400_prop.ecsv'
+    a2000:
+        path: 'a2000_prop.ecsv'
