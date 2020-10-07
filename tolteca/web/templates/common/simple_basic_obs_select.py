@@ -245,7 +245,12 @@ class KidsDataSelect(ComponentTemplate):
             elif not self._nwid_multi:
                 network_value = [network_value]
             network_value = set(network_value)
-            enabled = set(v['meta']['roachid'] for v in obsnum_value)
+            # check processed state
+
+            def has_processed(v):
+                return get_processed_file(v['url']) is not None
+
+            enabled = set(v['meta']['roachid'] for v in obsnum_value if has_processed(v))
             network_value = network_value.intersection(enabled)
             if self._nwid_multi:
                 network_value = list(network_value)
