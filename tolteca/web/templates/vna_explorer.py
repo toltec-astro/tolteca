@@ -1,10 +1,5 @@
 #! /usr/bin/env python
 
-# ToDo:
-# 1) make zoom plot prettier
-# 2) [done] move all the header material to a utility in .templates.common
-# 3) speed up plot rendering
-
 from dasha.web.templates import ComponentTemplate
 from dash.dependencies import Input, Output
 import dash_html_components as html
@@ -15,19 +10,12 @@ import plotly.graph_objs as go
 import plotly.express as px
 import numpy as np
 import colorsys
-import dash
 from tollan.utils.log import timeit, get_logger
 from dasha.web.extensions.cache import cache
 from dash.exceptions import PreventUpdate
-from dasha.web.extensions.db import dataframe_from_db
 from tolteca.datamodels.toltec import BasicObsData
-import functools
-import json
-import cachetools.func
-from pathlib import Path
 from itertools import cycle
-
-from dasha.web.templates.common import LiveUpdateSection, CollapseContent
+from dasha.web.templates.common import LiveUpdateSection
 from .common import HeaderWithToltecLogo
 from .common.simple_basic_obs_select import KidsDataSelect
 
