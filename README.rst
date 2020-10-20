@@ -11,25 +11,52 @@ TolTECA is a package for analyzing TolTEC data.
 Install
 -------
 
-The package is now under active development. The best way to install is
-to clone the git repo and install as development version:
+The package depends on `tollan` and `kidsproc`, which has to be installed
+separately before installing `tolteca` (the package `dasha` is also needed
+to run `tolteca.web`).
+
+The follows will install the three packages as development version. This will
+allow you make local modification of the package and contribute bug fixes
+easily.
 
 .. code-block:: bash
 
+    $ git clone https://github.com/toltec-astro/tollan
+    $ git clone https://github.com/toltec-astro/kidsproc
     $ git clone https://github.com/toltec-astro/tolteca
-    $ cd tolteca
+    $ cd tollan
+    $ pip install -e .
+    $ cd ../kidsproc
+    $ pip install -e .
+    $ cd ../tolteca
     $ pip install -e .
 
-The above steps can also be condensed to one step, with the price that you
-will not be able to modify the code in place:
+The packages `tollan`, `kidsproc`, and `tolteca` are under active development.
+It is recommended that you frequently do `git pull` in the repositories to
+update all of them.
+
+Alternatively, one can install them without cloning the git repositories:
 
 .. code-block:: bash
 
+    pip install git+https://github.com/toltec-astro/tollan
+    pip install git+https://github.com/toltec-astro/kidsproc
     pip install git+https://github.com/toltec-astro/tolteca
+
 
 It is recommended to use a virtualenv manager (venv, pyenv, etc.) to install
 `tolteca` into its own virtualenv, which makes things super easy for
 uninstall or upgrade.
+
+
+Usage
+-----
+
+The `tolteca` package comes with a command-line interface, that can be used
+to run sub-package specific tasks including those defined as part of
+the `tolteca.simu` and `tolteca.reduce`.
+
+To run the simulator, see [the simulator tutorial](docs/tolteca/toltec_simu_tutorial.md).
 
 
 License
