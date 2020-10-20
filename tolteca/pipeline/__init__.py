@@ -11,15 +11,17 @@ import os
 
 
 class PipelineRuntime(object):
+    """A class that holds runtime context for pipeline."""
 
     _file_contents = {
             'logdir': 'log',
             'bindir': 'bin',
             'caldir': 'cal',
-            'configfile': 'config_base.yaml'
+            'cfgdir': 'cfg',
+            'setup_file': 'cfg/50_setup.yaml'
             }
-    _backup_items = ['configfile', ]
-    _backup_time_fmt = "%Y_%m_%d_%H_%M_%S"
+    _backup_items = ['setup_file', ]
+    _backup_time_fmt = "%Y%m%dT%H%M%S"
 
     logger = get_logger()
 
@@ -44,7 +46,7 @@ class PipelineRuntime(object):
             path.lstat().st_mtime).strftime(
                 cls._backup_time_fmt)
         backup_path = path.with_name(
-                f"{path.stem}_{timestamp}{path.suffix}"
+                f"{path.name}.{timestamp}"
                 )
         with logit(cls.logger.info, f"backup {path} -> {backup_path}"):
             if not dry_run:
@@ -53,65 +55,64 @@ class PipelineRuntime(object):
 
     @classmethod
     def from_dir(
-            cls, path, empty_only=True, backup=True, create=True,
-            dry_run=False
+            cls, dirpath,
+            create=True, force=False, overwrite=False, dry_run=False
             ):
         """
-        Create `PipelineRuntime` from directory.
+        Create `PipelineRuntime` instance from `dirpath`.
 
         Parameters
         ----------
-        path: `pathlib.Path`
+        path : `pathlib.Path`
             The path to the work directory.
 
-        empty_only: bool
-            When set to True, raise `RuntimeError` if `path` is not empty
-
-        backup: bool
-            When not `empty_only`, this controls whether or not to create
-            backups for existing files.
-
-        create: bool
+        create : bool
             When set to False, raise `RuntimeError` if `path` does not already
             have all content items. Otherwise, create missing items.
 
-        dry_run: bool
-            If set, no actual file/dir is changed.
+        force : bool
+            When False, raise `RuntimeError` if `dirpath` is not empty
+
+        overwrite : bool
+            When False, backups for existing files is created.
+
+        dry_run : bool
+            If True, no actual file system changed is made.
 
         kwargs: dict
-            Entries that are passed directly into the created
-            default configuration file.
+            Keyword arguments passed directly into the created
+            config file.
         """
 
         path_is_ok = False
-        if path.exists():
-            if path.is_dir():
+        if dirpath.exists():
+            if dirpath.is_dir():
                 try:
-                    next(path.iterdir())
+                    next(dirpath.iterdir())
                 except StopIteration:
                     # empty dir
                     path_is_ok = True
                 else:
                     # nonempty dir
-                    if empty_only:
+                    if not force:
                         raise RuntimeError(
-                                f"path {path} is not empty. Set"
-                                f" empty_only=False to proceed anyways")
+                                f"path {dirpath} is not empty. Set"
+                                f" force=True to proceed anyways")
                     path_is_ok = True
             else:
                 # not a dir
                 raise RuntimeError(
-                        f"path {path} exists but is not a valid directory."
+                        f"path {dirpath} exists but is not a valid directory."
                         )
         else:
             # non exists
             path_is_ok = True
-        assert path_is_ok
+        assert path_is_ok  # should not fail
 
         for item in cls._backup_items:
-            content_path = cls._get_content_path(path, item)
+            content_path = cls._get_content_path(dirpath, item)
             if content_path.exists():
-                if backup:
+                if not overwrite:
                     cls._create_backup(content_path)
 
         def get_or_create_item_path(item, path, dry_run=False):
@@ -130,7 +131,7 @@ class PipelineRuntime(object):
                             raise ValueError(f"unknown {item}")
 
         for item in cls._file_contents.keys():
-            content_path = cls._get_content_path(path, item)
+            content_path = cls._get_content_path(dirpath, item)
             if not create and not content_path.exists():
                 raise RuntimeError(
                         f"unable to initialize pipeline runtime from {dir}:"
@@ -139,7 +140,7 @@ class PipelineRuntime(object):
             if create:
                 get_or_create_item_path(item, content_path)
 
-        return cls(path)
+        return cls(dirpath)
 
 
 @timeit

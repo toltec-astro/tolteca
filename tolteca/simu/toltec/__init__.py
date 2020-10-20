@@ -10,7 +10,7 @@ from astropy.modeling import models, Parameter, Model
 from astropy.modeling.functional_models import GAUSSIAN_SIGMA_TO_FWHM
 from astropy import coordinates as coord
 from astropy.time import Time
-from astropy.table import Column
+from astropy.table import Column, QTable, Table
 from astropy.wcs.utils import celestial_frame_to_wcs
 
 from gwcs import coordinate_frames as cf
@@ -407,7 +407,7 @@ class ToltecObsSimulator(object):
         yield evaluate
 
     @contextmanager
-    def obs_context(self, obs_model, sources):
+    def obs_context(self, obs_model, sources, ref_coord=None):
         """
         Return a function that can be used to get
         input flux at each detector for given time."""
@@ -416,13 +416,19 @@ class ToltecObsSimulator(object):
         x_t = tbl['x_t'].quantity
         y_t = tbl['y_t'].quantity
 
-        # define a field center
-        # here we use the first object in the sources catalog
-        # and realize the obs pattern around this center
-        ref_coord = coord.SkyCoord(
-                ra=sources['ra'].quantity[0],
-                dec=sources['dec'].quantity[0],
-                frame='icrs')
+        sources = sources[0]
+        # TODO: implement handling of other source model
+        if not isinstance(sources, (QTable, Table)):
+            raise NotImplementedError
+
+        if ref_coord is None:
+            # define a field center
+            # here we use the first object in the sources catalog
+            # and realize the obs pattern around this center
+            ref_coord = coord.SkyCoord(
+                    ra=sources['ra'].quantity[0],
+                    dec=sources['dec'].quantity[0],
+                    frame='icrs')
 
         def evaluate(t0, t):
             obs_coords = m_obs.evaluate_at(ref_coord, t)
@@ -463,7 +469,8 @@ class ToltecObsSimulator(object):
                 # weighted sum with flux at each detector
                 # assume no polarization
                 s = np.squeeze(
-                        np.moveaxis(s, 0, -1) @ sources['flux'][:, np.newaxis],
+                        np.moveaxis(s, 0, -1) @ sources['flux_a1100'][
+                            :, np.newaxis],
                         axis=-1)
 
             return s, locals()
