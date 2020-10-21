@@ -3,7 +3,9 @@
 
 from dasha.web.templates import ComponentTemplate
 from dasha.web.templates.common import (
-        LabeledDropdown, LabeledChecklist, CollapseContent)
+        LabeledDropdown, LabeledChecklist,
+        LabeledInput,
+        CollapseContent)
 from dasha.web.extensions.db import dataframe_from_db
 from dasha.web.templates.utils import partial_update_at
 
@@ -47,6 +49,7 @@ _processed_kidsdata_search_paths = list(map(
 
 
 def _get_toltecdb_obsnum_latest():
+    dbrt.ensure_connection('toltec')
     t = dbrt['toltec'].tables['toltec']
     session = dbrt['toltec'].session
     stmt = se.select([t.c.ObsNum]).order_by(se.desc(t.c.ObsNum)).limit(1)
@@ -54,13 +57,16 @@ def _get_toltecdb_obsnum_latest():
     return obsnum_latest
 
 
-def _get_bods_index_from_toltecdb(obs_type='VNA', n_obs=500):
+def _get_bods_index_from_toltecdb(
+        obs_type='VNA', n_obs=500, obsnum_latest=None):
     logger = get_logger()
 
+    dbrt.ensure_connection('toltec')
     t = dbrt['toltec'].tables
     session = dbrt['toltec'].session
 
-    obsnum_latest = _get_toltecdb_obsnum_latest()
+    if obsnum_latest is None:
+        obsnum_latest = _get_toltecdb_obsnum_latest()
     obsnum_since = obsnum_latest - n_obs
 
     logger.debug(
@@ -98,6 +104,7 @@ def _get_bods_index_from_toltecdb(obs_type='VNA', n_obs=500):
                     )
                 ).where(
                     se.and_(
+                        t['toltec'].c.ObsNum <= obsnum_latest,
                         t['toltec'].c.ObsNum >= obsnum_since,
                         t['obstype'].c.label == obs_type,
                         t['master'].c.label == 'ICS'
@@ -199,13 +206,26 @@ class KidsDataSelect(ComponentTemplate):
         nwid_multi = self._nwid_multi = 'nwid' in self.multi
 
         container = self
-        self._obsnum_select = container.child(
-            html.Div, className='d-flex').child(
+        obsnum_input_container = container.child(
+            dbc.Form, inline=True)
+        self._obsnum_select = obsnum_input_container.child(
                 LabeledDropdown(
                     label_text='Select ObsNum',
-                    className='mt-3 w-auto',
+                    className='mt-3 w-auto mr-3',
                     size='sm',
                     )).dropdown
+        self._obsnum_input = obsnum_input_container.child(
+                LabeledInput(
+                    label_text='Set Query Range',
+                    className='mt-3 w-auto',
+                    size='sm',
+                    input_props={
+                        # 'bs_size': 'sm'
+                        'type': 'number',
+                        'placeholder': 'e.g., 10886',
+                        'min': 0
+                        },
+                    )).input
         self._nwid_select = container.child(
                 LabeledChecklist(
                     label_text='Select Network',
@@ -250,7 +270,9 @@ class KidsDataSelect(ComponentTemplate):
             def has_processed(v):
                 return get_processed_file(v['url']) is not None
 
-            enabled = set(v['meta']['roachid'] for v in obsnum_value if has_processed(v))
+            enabled = set(
+                    v['meta']['roachid']
+                    for v in obsnum_value if has_processed(v))
             network_value = network_value.intersection(enabled)
             if self._nwid_multi:
                 network_value = list(network_value)
@@ -359,13 +381,17 @@ class KidsDataSelect(ComponentTemplate):
                     timer_input,
                     ],
                 # prevent_initial_call=True
+                [
+                    State(self._obsnum_input.id, 'value')
+                    ]
                 )
         @timeit
-        def update_obsnum_select(n_calls):
+        def update_obsnum_select(n_calls, obsnum_latest):
             error_content = dbc.Alert(
                     'Unable to get data file list', color='danger')
             try:
-                tbl_raw_obs = query_basic_obs_data(**query_kwargs)
+                tbl_raw_obs = query_basic_obs_data(
+                        obsnum_latest=obsnum_latest, **query_kwargs)
             except Exception as e:
                 self.logger.debug(
                         f"error getting obs list: {e}", exc_info=True)
@@ -389,7 +415,7 @@ class KidsDataSelect(ComponentTemplate):
                 #     if get_processed_file(d['url']) is None:
                 #         option['disabled'] = True
                 options.append(option)
-            return options, "", dash.no_update
+            return options, "", ""
 
     @property
     def obsnum_select(self):
