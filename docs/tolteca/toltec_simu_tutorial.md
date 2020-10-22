@@ -5,7 +5,10 @@
 The `tolteca.simu` is available after the installation of the `tolteca`
 package.
 
-No extra dependencies are needed to run the simulator.
+No extra dependency is needed to run the simulator core functionalities.
+However, to invoke the built-in animation (by setting `plot: true` in
+the config), one needs to install the (fork of) python package `animatplot`
+using `pip install git+https://github.com/Jerry-Ma/animatplot.git`.
 
 ## Usage
 
@@ -86,6 +89,26 @@ simu:
   # mapping: *example_mapping_tel_nc
 ```
 
+The example above contains entries that refer to local files which
+shall be made available prior to running the simulator.
+
+* `calobj: cal/calobj_default/index.yaml`. This is the calibration object that
+  is used to initialize the simulator. This file (and the related data files)
+  can be downloaded from
+  [here](https://github.com/toltec-astro/toltec_calib/tree/master/prod)
+  (remember to rename it to `calobj_default` as stated in the config).
+
+* Point source catalog `inputs/example_input.asc`. This is used as an example
+  of simulation input. The content of this file could be like:
+
+  ```
+  # name ra dec flux_a1100 flux_a1400 flux_a2000
+    src0 180. 0. 50.  40. 30.
+    src1 180. 0.008333333333333333 5. 5. 5.
+  ```
+  where names like `a1100`, `a1400`, and `a2000` are the standardized code
+  name for the TolTEC arrays.
+
 ### Run
 
 To run the simulator, in the `test_simu` working directory, do
@@ -99,3 +122,5 @@ directory.
 
 The output files will be in a sub-dir named as the `jobkey` defined in the
 `60_simu.yaml` file.
+
+To turn off the plotting, set `plot: false` in the config.
