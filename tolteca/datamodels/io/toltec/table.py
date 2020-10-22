@@ -142,6 +142,17 @@ class KidsModelParams(object):
         return MultiSweep(
                 frequency=frequency, S21=self.model(frequency) * u.adu)
 
+    def derotate(self, sweep):
+        """Return a `MultiSweep` object that has de-rotated S21."""
+        S21_derot = self.model.derotate(
+                sweep.S21.to_value(u.adu),
+                sweep.frequency
+                ).value << u.adu
+        return MultiSweep(
+                frequency=sweep.frequency,
+                S21=S21_derot
+                )
+
 
 class TableIO(DataFileIO):
     """A class to read tables.
