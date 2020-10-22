@@ -8,7 +8,7 @@ package.  The required toltec-produced packages are:
  - tolteca (this package)
  - toltec_calib - https://github.com/toltec-astro/toltec_calib
  - tollan - https://github.com/toltec-astro/tollan
- 
+ - kidsproc - https://github.com/toltec-astro/kidsproc
 
 ## Usage
 
