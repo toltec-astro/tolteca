@@ -27,6 +27,7 @@ def cmd_simu(parser):
     def action(option, unknown_args=None):
 
         from ..simu import SimulatorRuntime
+        from ..utils import RuntimeContextError
 
         workdir = option.dir or Path.cwd()
 
@@ -38,7 +39,7 @@ def cmd_simu(parser):
                 overwrite=False,
                 dry_run=False
                 )
-        except RuntimeError as e:
+        except RuntimeContextError as e:
             raise argparse.ArgumentTypeError(f"invalid workdir {workdir}: {e}")
         logger.debug(f"simu ctx: {ctx}")
         ctx.run()

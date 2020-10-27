@@ -236,7 +236,8 @@ class RuntimeContext(object):
             content_path = cls._get_content_path(dirpath, item)
             if not create and not content_path.exists():
                 raise RuntimeContextError(
-                        f"unable to initialize pipeline runtime from {dir}:"
+                        f"unable to initialize pipeline runtime"
+                        f" from {dirpath}:"
                         f" missing {item} {content_path}. Set"
                         f" create=True to create missing items")
             if create:

@@ -144,7 +144,18 @@ def _mmf_lmt_tcs(cfg, cfg_rt):
     # TODO: finish define the fits file format for simulator input
     with ncopen(cfg['filepath']) as fo:
         logger.debug(ncinfo(fo))
-    return NotImplemented
+    from .toltec.tel import LmtTelFileIO
+    tel = LmtTelFileIO(source=cfg['filepath'])
+    t = tel.getvar('time')[:]
+    az = tel.getvar('az')[:]
+    el = tel.getvar('el')[:]
+    ra = tel.getvar('ra')[:]
+    dec = tel.getvar('dec')[:]
+    fig, (ax, bx) = plt.subplots(1, 2)
+    ax.scatter(az, el, c=t)
+    bx.scatter(ra, dec, c=t)
+    plt.show()
+    return tel
 
 
 def _register_mapping_model_factory(clspath):
