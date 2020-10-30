@@ -144,18 +144,11 @@ def _mmf_lmt_tcs(cfg, cfg_rt):
     # TODO: finish define the fits file format for simulator input
     with ncopen(cfg['filepath']) as fo:
         logger.debug(ncinfo(fo))
+
     from .toltec.tel import LmtTelFileIO
-    tel = LmtTelFileIO(source=cfg['filepath'])
-    t = tel.getvar('time')[:]
-    az = tel.getvar('az')[:]
-    el = tel.getvar('el')[:]
-    ra = tel.getvar('ra')[:]
-    dec = tel.getvar('dec')[:]
-    fig, (ax, bx) = plt.subplots(1, 2)
-    ax.scatter(az, el, c=t)
-    bx.scatter(ra, dec, c=t)
-    plt.show()
-    return tel
+    m = LmtTelFileIO(source=cfg['filepath']).read()
+    logger.debug(f"resolved mapping model: {m}")
+    return m
 
 
 def _register_mapping_model_factory(clspath):
@@ -181,19 +174,13 @@ def _register_mapping_model_factory(clspath):
         cls = cfg.pop('type')
         target = cfg.pop('target')
         t0 = cfg.pop('t0')
-
         kwargs = {
                 k: u.Quantity(v)
                 for k, v in cfg.items()
                 }
-
-        cfg = {
-                'model': cls(**kwargs),
-                't0': t0,
-                'target': target
-                }
-        logger.debug(f"resolved mapping config: {cfg}")
-        return cfg
+        m = cls(t0=t0, target=target, **kwargs)
+        logger.debug(f"resolved mapping model: {m}")
+        return m
 
 
 _register_mapping_model_factory('tolteca.simu:SkyRasterScanModel')
@@ -266,14 +253,14 @@ class SimulatorRuntime(RuntimeContext):
         self.logger.debug(f"mapping: {mapping}")
 
         with simobj.obs_context(
-                obs_model=mapping['model'], sources=sources,
-                ref_coord=mapping['target'],
+                obs_model=mapping, sources=sources,
+                ref_coord=mapping.target,
                 ) as obs:
             # make t grid
             t = np.arange(
                     0, obs_params['t_exp'].to_value(u.s),
                     (1 / obs_params['f_smp']).to_value(u.s)) * u.s
-            s, obs_info = obs(mapping['t0'], t)
+            s, obs_info = obs(mapping.t0, t)
 
         with simobj.probe_context(fp=None) as probe:
             rs, xs, iqs = probe(s)

@@ -1,10 +1,18 @@
 #! /usr/bin/env python
 
 
+from ..base import SkyICRSTrajModel  # , SkyAltAzTrajModel
+
 from ...datamodels.io.nc import SimpleNcFileIO
 from cached_property import cached_property
 from tollan.utils.nc import ncopen
 from tollan.utils.log import get_logger
+
+from astropy.time import Time
+# from astropy.modeling import models
+
+
+__all__ = ['LmtTelFileIO']
 
 
 def identify_lmt_tel_nc_file(filepath):
@@ -33,7 +41,7 @@ class LmtTelFileIO(SimpleNcFileIO):
     _nc_node_map = {
             'time': 'Data.TelescopeBackend.TelTime',
             'az': 'Data.TelescopeBackend.TelAzAct',
-            'el': 'Data.TelescopeBackend.TelElAct',
+            'alt': 'Data.TelescopeBackend.TelElAct',
             'ra': 'Data.TelescopeBackend.SourceRaAct',
             'dec': 'Data.TelescopeBackend.SourceDecAct',
             }
@@ -49,3 +57,33 @@ class LmtTelFileIO(SimpleNcFileIO):
             'label': 'nc.lmt.tel',
             'identifier': identify_lmt_tel_nc_file
             }
+
+    def read(self):
+        t = self.getvar('time')[:]
+        t0 = Time([0], format='unix')
+        t = t - t[0]
+        # az = self.getvar('az')[:]
+        # el = self.getvar('el')[:]
+        ra = self.getvar('ra')[:]
+        dec = self.getvar('dec')[:]
+
+        az = self.getvar('az')[:]
+        alt = self.getvar('alt')[:]
+
+        m1 = SkyICRSTrajModel(
+                time=t,
+                ra=ra,
+                dec=dec,
+                az=az,
+                alt=alt,
+                t0=t0,
+                )
+        # m2 = SkyAltAzTrajModel(
+        #         time=t,
+        #         az=az,
+        #         alt=alt,
+        #         t0=t0,
+        #         )
+        # make a composite to eval for all coords
+        # return models.Mapping((0, 0)) | (m1 & m2)
+        return m1

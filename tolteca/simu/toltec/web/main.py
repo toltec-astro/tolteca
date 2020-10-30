@@ -87,7 +87,8 @@ class ComponentTemplate(ComponentTemplate):
                 ]
 
         controls_container, view_container = body.grid(2, 1)
-        controls_form = controls_container.child(dbc.Form, inline=True)
+        controls_form = controls_container.child(
+                html.Div, className='d-flex align-items-center')
 
         calobjs = odict_from_list(get_calobj_list(), key='key')
         calobj_drp_options = [
@@ -126,7 +127,7 @@ class ComponentTemplate(ComponentTemplate):
             )).input
 
         outline_only_toggle_grp = controls_form.child(
-                dbc.FormGroup, className='mx-2')
+                dbc.InputGroup, className='mx-2')
         outline_only_toggle_grp.child(dbc.Label('Outline only'))
         outline_only_toggle = outline_only_toggle_grp.child(
                 daq.BooleanSwitch, on=False)
@@ -260,7 +261,7 @@ class ComponentTemplate(ComponentTemplate):
             array_names = tbl.meta['array_names']
             fig = make_array_plot_figure(
                     len(traces),
-                    f'array_frame',
+                    'array_frame',
                     array_names,
                     'x (cm)',
                     'y (cm)'
@@ -285,7 +286,7 @@ class ComponentTemplate(ComponentTemplate):
             array_names = tbl.meta['array_names']
             fig = make_array_plot_figure(
                     len(traces),
-                    f'toltec_frame',
+                    'toltec_frame',
                     array_names,
                     'Az (arcmin)',
                     'Alt (arcmin)'
@@ -341,7 +342,7 @@ class ComponentTemplate(ComponentTemplate):
             traces = make_projected_traces(tbl, m_proj, u.deg)
             fig = make_array_plot_figure(
                     n_arrays,
-                    f'sky_frame',
+                    'sky_frame',
                     tbl.meta['array_names'],
                     'RA (deg)',
                     'Dec (deg)'
@@ -377,7 +378,7 @@ class ComponentTemplate(ComponentTemplate):
                 ]
 
         controls_container, view_container = body.grid(2, 1)
-        controls_form = controls_container.child(dbc.Form, inline=True)
+        # controls_form = controls_container.child(dbc.Form, inline=True)
 
 
 @functools.lru_cache(maxsize=None)

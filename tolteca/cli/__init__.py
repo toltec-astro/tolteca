@@ -67,6 +67,7 @@ def main(args=None):
     from .run import cmd_run  # noqa: F401
     from .setup import cmd_setup  # noqa: F401
     from .simu import cmd_simu  # noqa: F401
+    from .reduce import cmd_reduce  # noqa: F401
 
     # parse and handle global args:
     option, unknown_args = parser.parse_known_args(args or sys.argv[1:])
