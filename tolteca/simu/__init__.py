@@ -87,6 +87,49 @@ def _ssf_image(cfg, cfg_rt):
 
     return NotImplemented
 
+@register_to(_simu_source_factory, 'atmosphere_psd')
+def _ssf_point_source_catalog(cfg, cfg_rt):
+
+    logger = get_logger()
+
+    cfg = Schema({
+        'type': 'atmosphere_psd',
+        'k': str,
+        'm': int,
+        object: object
+        }).validate(cfg)
+
+    logger.debug(f"source config: {cfg}")
+
+    k = cfg['k']
+    m = cfg['m']
+
+    from .atm_model import kgenerator
+    psd = kgenerator(k, m)
+
+    def get_timestream(ra, dec, time):
+        # time is a vector
+        
+        return suface_brightness  # vector of the same size as time
+
+    return get_timestream
+
+    # normalize tbl
+    if 'name' not in tbl.colnames:
+        tbl['name'] = [f'src_{i}' for i in range(len(tbl))]
+    for c in tbl.colnames:
+        if c == 'ra' and tbl[c].unit is None:
+            tbl[c].unit = u.deg
+            logger.debug(f"assume unit {u.deg} for column {c}")
+        elif c == 'dec' and tbl[c].unit is None:
+            tbl[c].unit = u.deg
+            logger.debug(f"assume unit {u.deg} for column {c}")
+        elif re.match(r'flux(_.+)?', c) and tbl[c].unit is None:
+            tbl[c].unit = u.mJy
+            logger.debug(f"assume unit {u.mJy} for column {c}")
+    logger.debug(f"source catalog:\n{tbl}")
+    return tbl
+
 
 @register_to(_simu_source_factory, 'point_source_catalog')
 def _ssf_point_source_catalog(cfg, cfg_rt):
