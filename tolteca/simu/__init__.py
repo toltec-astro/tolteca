@@ -7,6 +7,7 @@ from tollan.utils.fmt import pformat_yaml
 from tollan.utils.schema import create_relpath_validator
 from tollan.utils.log import get_logger
 from tollan.utils.nc import ncopen, ncinfo
+from tollan.utils.namespace import Namespace
 
 import netCDF4
 
@@ -87,8 +88,9 @@ def _ssf_image(cfg, cfg_rt):
 
     return NotImplemented
 
+
 @register_to(_simu_source_factory, 'atmosphere_psd')
-def _ssf_point_source_catalog(cfg, cfg_rt):
+def _ssf_atm_psd(cfg, cfg_rt):
 
     logger = get_logger()
 
@@ -101,34 +103,18 @@ def _ssf_point_source_catalog(cfg, cfg_rt):
 
     logger.debug(f"source config: {cfg}")
 
-    k = cfg['k']
-    m = cfg['m']
+    # k = cfg['k']
+    # m = cfg['m']
 
-    from .atm_model import kgenerator
-    psd = kgenerator(k, m)
+    # from .atm_model import kgenerator
+    # psd = kgenerator(k, m)
 
     def get_timestream(ra, dec, time):
         # time is a vector
-        
-        return suface_brightness  # vector of the same size as time
+        surface_brightness = NotImplemented
+        return surface_brightness  # vector of the same size as time
 
     return get_timestream
-
-    # normalize tbl
-    if 'name' not in tbl.colnames:
-        tbl['name'] = [f'src_{i}' for i in range(len(tbl))]
-    for c in tbl.colnames:
-        if c == 'ra' and tbl[c].unit is None:
-            tbl[c].unit = u.deg
-            logger.debug(f"assume unit {u.deg} for column {c}")
-        elif c == 'dec' and tbl[c].unit is None:
-            tbl[c].unit = u.deg
-            logger.debug(f"assume unit {u.deg} for column {c}")
-        elif re.match(r'flux(_.+)?', c) and tbl[c].unit is None:
-            tbl[c].unit = u.mJy
-            logger.debug(f"assume unit {u.mJy} for column {c}")
-    logger.debug(f"source catalog:\n{tbl}")
-    return tbl
 
 
 @register_to(_simu_source_factory, 'point_source_catalog')
@@ -232,6 +218,7 @@ _register_mapping_model_factory('tolteca.simu:SkyLissajousModel')
 
 class SimulatorRuntimeError(RuntimeContextError):
     """Raise when errors occur in `SimulatorRuntime`."""
+    pass
 
 
 class SimulatorRuntime(RuntimeContext):
@@ -280,7 +267,9 @@ class SimulatorRuntime(RuntimeContext):
                         src, cfg_rt
                         )
             except Exception:
-                self.logger.warning(f"sky invalid source: {pformat_yaml(src)}")
+                self.logger.warning(
+                        f"sky invalid source: {pformat_yaml(src)}",
+                        exc_info=True)
                 continue
             sources.append(s)
 
@@ -495,3 +484,43 @@ class SimulatorRuntime(RuntimeContext):
             pos_blocks[0].scat, ax=ax, shrink=0.8)
         cax.set_label("Surface Brightness (MJy/sr)")
         plt.show()
+
+
+class SimulatorResult(Namespace):
+    """A class to hold simulator results."""
+
+    def write_to_nc(self, filepath):
+        # dump the data to files
+        outdir = self.rootpath.joinpath(cfg['jobkey'])
+        outdir.mkdir(parents=True, exist_ok=True)
+
+        output_tel = outdir.joinpath('tel.nc')
+
+        nc_tel = netCDF4.Dataset(output_tel, 'w', format='NETCDF4')
+
+        nc_tel.createDimension('time', None)
+        v_ra = nc_tel.createVariable('ra', 'f8', ('time',))
+        v_ra.units = 'deg'
+        v_dec = nc_tel.createVariable('lon', 'f8', ('time',))
+        v_dec.units = 'deg'
+        v_ra[:] = simobj.table['x_t'].quantity.to_value(u.deg)
+        v_dec[:] = simobj.table['y_t'].quantity.to_value(u.deg)
+
+        nc_tel.close()
+
+        # output data_files
+        nws = np.unique(simobj.table['nw'])
+        for nw in nws:
+            tbl = simobj.table
+            m = tbl['nw'] == nw
+            tbl = tbl[m]
+            output_toltec = outdir.joinpath(f'toltec{nw}.nc')
+
+            nc_toltec = netCDF4.Dataset(output_toltec, 'w', format='NETCDF4')
+            nc_toltec.createDimension('nkids', len(tbl))
+            nc_toltec.createDimension('time', None)
+            v_I = nc_toltec.createVariable('I', 'f8', ('nkids', 'time'))
+            v_Q = nc_toltec.createVariable('Q', 'f8', ('nkids', 'time'))
+            v_I[:, :] = iqs.real[m, :]
+            v_Q[:, :] = iqs.imag[m, :]
+            nc_toltec.close()
