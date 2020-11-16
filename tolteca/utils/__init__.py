@@ -45,6 +45,8 @@ class RuntimeContext(object):
     logger = get_logger()
 
     def __init__(self, rootpath):
+        if isinstance(rootpath, str):
+            rootpath = Path(rootpath)
         self.rootpath = rootpath.resolve()
 
     def __repr__(self):
@@ -63,7 +65,7 @@ class RuntimeContext(object):
     def config_files(self):
         """The list of config files present in the rootpath.
 
-        Files with names match ``\d+_.+\.ya?ml`` in the :attr:`rootpath`
+        Files with names match ``\\d+_.+\\.ya?ml`` in the :attr:`rootpath`
         are returned.
         """
         return sorted(filter(

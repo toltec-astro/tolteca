@@ -42,4 +42,4 @@ def cmd_simu(parser):
         except RuntimeContextError as e:
             raise argparse.ArgumentTypeError(f"invalid workdir {workdir}: {e}")
         logger.debug(f"simu ctx: {ctx}")
-        ctx.run()
+        ctx.cli_run(args=unknown_args)

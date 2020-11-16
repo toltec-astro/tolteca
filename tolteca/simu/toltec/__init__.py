@@ -201,7 +201,7 @@ class SkyProjModel(ProjModel):
         ref_offset_frame, ref_frame = self._get_projected_frame(
                 crval0, crval1, mjd_obs, also_return_native_frame=True)
         det_coords_offset = coord.SkyCoord(x, y, frame=ref_offset_frame)
-        with timeit(f"transform det coords to altaz"):
+        with timeit("transform det coords to altaz"):
             det_coords = det_coords_offset.transform_to(ref_frame)
 
         frame = self.evaluate_frame
@@ -438,9 +438,10 @@ class ToltecObsSimulator(object):
             # to alt az for faster computation.
 
             # combine the array projection with sky projection
+            time_obs = t0 + t
             m_proj = SkyProjModel(
                     ref_coord=obs_coords,
-                    time_obs=t0 + t
+                    time_obs=time_obs
                     )
             # logger.debug(f"proj model:\n{m_proj}")
 
