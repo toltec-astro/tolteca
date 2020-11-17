@@ -267,6 +267,7 @@ class SimulatorRuntime(RuntimeContext):
         return outdir
 
     def get_mapping_model(self):
+        """Return the mapping model specified in the runtime config."""
         cfg = self.config['simu']
         cfg_rt = self.config['runtime']
         mapping = _mapping_model_factory[cfg['mapping']['type']](
@@ -274,6 +275,7 @@ class SimulatorRuntime(RuntimeContext):
         return mapping
 
     def get_source_model(self):
+        """Return the source model specified in the runtime config."""
         cfg = self.config['simu']
         cfg_rt = self.config['runtime']
 
@@ -293,6 +295,16 @@ class SimulatorRuntime(RuntimeContext):
 
         return sources
 
+    def get_instrument_simulator(self):
+        """Return the instrument simulator specified in the runtime config."""
+
+        cfg = self.config['simu']
+        cfg_rt = self.config['runtime']
+
+        simobj = _instru_simu_factory[cfg['instrument']['name']](
+                cfg['instrument'], cfg_rt)
+        return simobj
+
     def run(self):
         """Run the simulator.
 
@@ -302,10 +314,8 @@ class SimulatorRuntime(RuntimeContext):
         """
 
         cfg = self.config['simu']
-        cfg_rt = self.config['runtime']
 
-        simobj = _instru_simu_factory[cfg['instrument']['name']](
-                cfg['instrument'], cfg_rt)
+        simobj = self.get_instrument_simulator()
 
         # resolve mapping
         mapping = self.get_mapping_model()
