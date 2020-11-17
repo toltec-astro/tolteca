@@ -305,6 +305,13 @@ class SimulatorRuntime(RuntimeContext):
                 cfg['instrument'], cfg_rt)
         return simobj
 
+    def get_obs_params(self):
+        """Return the observation parameters specified in the runtime config.
+        """
+        cfg = self.config['simu']
+        obs_params = cfg['obs_params']
+        return obs_params
+
     def run(self):
         """Run the simulator.
 
@@ -313,8 +320,6 @@ class SimulatorRuntime(RuntimeContext):
         `SimulatorResult` : The result context containing the simulated data.
         """
 
-        cfg = self.config['simu']
-
         simobj = self.get_instrument_simulator()
 
         # resolve mapping
@@ -322,7 +327,7 @@ class SimulatorRuntime(RuntimeContext):
 
         self.logger.debug(f"mapping: {mapping}")
 
-        obs_params = cfg['obs_params']
+        obs_params = self.get_obs_params()
 
         sources = self.get_source_model()
 
