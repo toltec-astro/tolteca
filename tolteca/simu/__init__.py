@@ -18,6 +18,7 @@ from astropy.time import Time
 from astropy.io import fits
 import astropy.units as u
 from astropy.coordinates import SkyCoord
+import yaml
 
 import matplotlib.pyplot as plt
 
@@ -463,9 +464,14 @@ class SimulatorResult(Namespace):
             v_Q[:, :] = iqs.imag[m, :]
             nc_toltec.close()
 
+    def _save_config(self, outdir):
+        with open(outdir.joinpath('tolteca.yaml'), 'w') as fo:
+            yaml.dump(self.config, fo, Dumper=self.simctx.yaml_dumper)
+
     @timeit
     def save(self, outdir):
 
+        self._save_config(outdir)
         self._save_lmt_tcs_tel(outdir)
         self._save_toltec_nc(outdir)
 

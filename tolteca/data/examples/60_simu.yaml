@@ -1,7 +1,7 @@
 # vim: et ts=2 sts=2 sw=2
 ---
 
-_:
+_60_simu:
   # this demonstrates the use of yaml anchors to make the config
   # modularized
   example_mapping_tel_nc: &example_mapping_tel_nc
@@ -24,7 +24,7 @@ _:
     x_length: 4. arcmin
     y_length: 4. arcmin
     x_omega: 0.25 cy/s  # or 0.157 rad/s
-    x_omega: 0.3 cy/s
+    y_omega: 0.3 cy/s
     delta: 30 deg  # the phase difference
     target: 180d 0d
     t0: 2020-04-12T00:00:00

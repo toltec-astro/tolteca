@@ -1,0 +1,46 @@
+# vim: et ts=2 sts=2 sw=2
+---
+
+_80_reduce:
+  # it is recommended that this above key to be unique
+  # among all the valid config files to avoid unexpected name clashing.
+  example_citlali_config: &example_citlali_config
+    runtime:
+      policy: "seq"
+      ncores: 1
+    map:
+      type: "RaDec"
+      mgrid0: 0.0
+      mgrid1: 0.0
+      pixelsize: 0.75
+    tod:
+      despike:
+        enabled: true
+        sigma: 8.0
+        timeconstant: 0.015
+      filter:
+        enabled: true
+        flow: 0.0
+        fhigh: 4.0
+        agibbs: 50.
+        nterms: 32
+      downsample:
+        enabled: true
+        downsamplefactor: 1
+      pcaclean:
+        enabled: true
+        neigToCut: 9
+        cutStd: 0.0
+        approximateWeights: 0
+      kernel:
+        enabled: true
+
+reduce:
+  sources:
+    - path: example_simu
+      select: '*'
+  instrument:
+    name: toltec
+    calobj: cal/calobj_default/index.yaml
+    select: 'array_name == "a1100"'
+  config: *example_citlali_config

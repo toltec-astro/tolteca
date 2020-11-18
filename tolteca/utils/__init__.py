@@ -5,8 +5,10 @@ from tollan.utils.fmt import pformat_yaml
 from tollan.utils import rupdate
 from tollan.utils.log import get_logger, logit
 
+import astropy.units as u
+from yaml.dumper import SafeDumper
 import appdirs
-from pathlib import Path
+from pathlib import Path, PosixPath
 from datetime import datetime
 from cached_property import cached_property
 from schema import Schema, Use
@@ -73,7 +75,7 @@ class RuntimeContext(object):
             self.rootpath.iterdir()))
 
     def to_dict(self):
-        """Return a dict representation of this context."""
+        """Return a dict representation of the runtime context."""
         return {
                 attr: getattr(self, attr)
                 for attr in [
@@ -142,6 +144,19 @@ class RuntimeContext(object):
             'setup': Use(validate_setup),
             object: object
             }
+
+    @cached_property
+    def yaml_dumper(self):
+
+        class yaml_dumper(SafeDumper):
+            """Yaml dumper that handles some additional types."""
+            pass
+
+        yaml_dumper.add_representer(
+                PosixPath, lambda s, p: s.represent_str(p.as_posix()))
+        yaml_dumper.add_representer(
+                u.Quantity, lambda s, q: s.represent_str(q.to_string()))
+        return yaml_dumper
 
     @classmethod
     def _create_backup(cls, path, dry_run=False):
