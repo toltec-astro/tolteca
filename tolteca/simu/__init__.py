@@ -287,11 +287,10 @@ class SimulatorRuntime(RuntimeContext):
                 s = _simu_source_factory[src['type']](
                         src, cfg_rt
                         )
-            except Exception:
-                self.logger.warning(
-                        f"invalid simulation source: {pformat_yaml(src)}",
-                        exc_info=True)
-                continue
+            except Exception as e:
+                raise SimulatorRuntimeError(
+                        f"invalid simulation source:\n{pformat_yaml(src)}\n"
+                        f"{e}")
             sources.append(s)
 
         if not sources:
