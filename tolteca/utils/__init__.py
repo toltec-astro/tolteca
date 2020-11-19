@@ -67,11 +67,11 @@ class RuntimeContext(object):
     def config_files(self):
         """The list of config files present in the rootpath.
 
-        Files with names match ``\\d+_.+\\.ya?ml`` in the :attr:`rootpath`
+        Files with names match ``\\d+_.+\\.ya?ml$`` in the :attr:`rootpath`
         are returned.
         """
         return sorted(filter(
-            lambda p: re.match(r'\d+_.+\.ya?ml', p.name),
+            lambda p: re.match(r'\d+_.+\.ya?ml$', p.name),
             self.rootpath.iterdir()))
 
     def to_dict(self):
@@ -89,6 +89,8 @@ class RuntimeContext(object):
 
         """
         config_files = self.config_files
+        self.logger.debug(
+                f"load config from files: {pformat_yaml(config_files)}")
         if len(config_files) == 0:
             raise RuntimeContextError('no config file found.')
         cfg = dict()
