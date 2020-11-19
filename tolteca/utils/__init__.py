@@ -67,11 +67,11 @@ class RuntimeContext(object):
     def config_files(self):
         """The list of config files present in the rootpath.
 
-        Files with names match ``\\d+_.+\\.ya?ml$`` in the :attr:`rootpath`
+        Files with names match ``^\\d+_.+\\.ya?ml$`` in the :attr:`rootpath`
         are returned.
         """
         return sorted(filter(
-            lambda p: re.match(r'\d+_.+\.ya?ml$', p.name),
+            lambda p: re.match(r'^\d+_.+\.ya?ml$', p.name),
             self.rootpath.iterdir()))
 
     def to_dict(self):
