@@ -17,7 +17,7 @@ from astropy.table import Table
 from astropy.time import Time
 from astropy.io import fits
 import astropy.units as u
-from astropy.coordinates import SkyCoord
+from astroquery.utils import parse_coordinates
 import yaml
 
 import matplotlib.pyplot as plt
@@ -203,7 +203,7 @@ def _register_mapping_model_factory(clspath):
         # conversion of values
         cfg = Schema({
             'type': Use(getobj),
-            'target': Use(SkyCoord),
+            'target': Use(parse_coordinates),
             't0': Use(Time),
             object: object,
             }).validate(cfg)
@@ -289,11 +289,13 @@ class SimulatorRuntime(RuntimeContext):
                         )
             except Exception:
                 self.logger.warning(
-                        f"sky invalid source: {pformat_yaml(src)}",
+                        f"invalid simulation source: {pformat_yaml(src)}",
                         exc_info=True)
                 continue
             sources.append(s)
 
+        if not sources:
+            raise SimulatorRuntimeError("no valid simulation sources found.")
         return sources
 
     def get_instrument_simulator(self):

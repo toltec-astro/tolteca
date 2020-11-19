@@ -22,7 +22,8 @@ class PipelineRuntime(RuntimeContext):
             'reduce': {
                 'instrument': {
                     'name': str,
-                    object: object
+                    'calobj': str,
+                    Optional(object): object
                     },
                 'sources': [{
                     'path': str,
@@ -35,7 +36,7 @@ class PipelineRuntime(RuntimeContext):
 
     def run(self):
 
-        cfg = self.config['simu']
+        cfg = self.config['reduce']
         cfg_rt = self.config['runtime']
 
         self.logger.debug(f"cfg: {cfg}")
