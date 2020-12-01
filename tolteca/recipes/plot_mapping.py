@@ -122,14 +122,59 @@ if __name__ == "__main__":
         color='red',
         )
 
+    # to plot a point in the toltec frame, one need to use the sky projection
+    # model, which accepts a ref_coord and a time_obs.
+    # the model could be a model set, i.e., a vector of coord and time_obs
+    # are given.
+    # below show an example of geting the trajectory of a point in the toltec
+    # frame with offsets (10, 10) arcsec to the boresight.
+
+    # note that the ref_coord is the vector of positions in the mapping
+    # pattern. time_obs is the vector of absolute times in the mapping pattern
+    # the created m_proj is a "modelset" of size npts, which expects
+    # inputs to be vectors of size npts in its first axis (axis 0).
+    m_proj = simulator.get_sky_projection_model(
+            ref_coord=obs_coords, time_obs=Time('2020-11-17T00:00:00') + t)
+
+    # the trajectory of a point in the toltec frame, with coordinate
+    # (10, 10) arcsec, i.e., an fixed point attched on the TolTEC and offseted
+    # from the boresight by 10", 10"
+    # the shape has to be (npts, ) because we are eveluating this point
+    # along the npts times of the mapping pattern.
+    x_t = np.full((n_pts, ), 10.) << u.arcsec
+    y_t = np.full((n_pts, ), 10.) << u.arcsec
+    a_ra, a_dec = m_proj(x_t, y_t, frame='icrs')
+
+    # this plot the trajectory of this point.
+    ax.plot(
+        a_ra, a_dec,
+        transform=ax.get_transform('icrs'),
+        color='blue',
+        )
+
     # to overlay the array footprint, we need do some coord transform
     # using the sky project model, which require a ref coord and an obs time
     # we can transform the toltec frame offset to the equitorial via
     # frame='icrs'
     # frame='native' can be used to transform to the altaz.
+
+    # this transformation uses the same logic as above, except that we now
+    # have n_detectors points in the toltec frame, instead of just pone.
+    # the input the m_proj model should be shape (n_pts, n_detectors)
+
+    # this is computationally expensive. So below we only plot the
+    # full array at the first position of the mapping pattern. This
+    # can be done by creating m_proj with a scalar ref_coord and time_obs,
+    # i.e., n_pts == 1 in the following code
     m_proj = simulator.get_sky_projection_model(
             ref_coord=obs_coords[0], time_obs=Time('2020-11-17T00:00:00'))
+
+    # because we used scalar ref_coord and time_obs, the m_proj is no longer
+    # a modelset. It is a simple model, which we can feed the list of
+    # detector offsets in toltec frame to get the array locations in equitorial
+    # coords.
     a_ra, a_dec = m_proj(apt_a1100['x_t'], apt_a1100['y_t'], frame='icrs')
+
     # a_az, a_alt = m_proj(apt_a1100['x_t'], apt_a1100['y_t'], frame='native')
 
     for pg, marker in [(0, '+'), (1, 'x')]:
@@ -139,5 +184,26 @@ if __name__ == "__main__":
             marker=marker, linestyle='none',
             transform=ax.get_transform('icrs'),
             )
+
+    # just for the sake of demonstration, we show how to do the full
+    # evalution of all detectors over the entire mapping pattern:
+    # because its takes too long for all n_pts, we just demonstrate
+    # it for the last 2 points
+
+    # m_proj is now a modelset of size n_pts
+    m_proj = simulator.get_sky_projection_model(
+            ref_coord=obs_coords[-2:],
+            time_obs=Time('2020-11-17T00:00:00') + t[-2:])
+
+    # repeat the array positions so that the shape is (n_pts, n_detectors)
+    x_t = np.tile(apt_a1100['x_t'], (2, 1))
+    y_t = np.tile(apt_a1100['y_t'], (2, 1))
+
+    # evaluate
+    # this times very long time.
+    a_ra, a_dec = m_proj(x_t, y_t, frame='icrs')
+    # a_ra and a_dec have shape (n_pts, n_detectors)
+
+    print(a_ra.shape)
 
     plt.show()
