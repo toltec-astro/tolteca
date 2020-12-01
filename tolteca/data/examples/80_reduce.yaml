@@ -36,11 +36,11 @@ _80_reduce:
         enabled: true
 
 reduce:
-  sources:
+  inputs:
     - path: example_simu
       select: '*'
-  instrument:
-    name: toltec
-    calobj: cal/calobj_default/index.yaml
-    select: 'array_name == "a1100"'
-  config: *example_citlali_config
+  calobj: cal/calobj_default/index.yaml
+  select: 'array_name == "a1100"'
+  pipeline:
+    name: citlali
+    config: *example_citlali_config

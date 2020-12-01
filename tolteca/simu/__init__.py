@@ -107,7 +107,6 @@ def _ssf_atm_psd(cfg, cfg_rt):
         'type': 'atmosphere_psd',
         'k': str,
         'm': int,
-        object: object
         }).validate(cfg)
 
     logger.debug(f"source config: {cfg}")
