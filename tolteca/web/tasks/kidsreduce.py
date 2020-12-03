@@ -197,5 +197,5 @@ if celery_app is not None:
     q = Q.normal_priority
     # lower number indicates higher priority, per
     # https://github.com/celery/celery/issues/4028#issuecomment-537587618
-    schedule_task(update_shared_toltec_dataset, schedule=1, args=tuple(), options={'queue': q, 'priority': 0})
-    schedule_task(reduce_kidsdata_on_db, schedule=1, args=tuple(), options={'queue': q, 'priority': 3})
+    schedule_task(update_shared_toltec_dataset, schedule=1, args=tuple(), options={'queue': q, 'priority': 0, 'expires': 1})
+    schedule_task(reduce_kidsdata_on_db, schedule=1, args=tuple(), options={'queue': q, 'priority': 3, 'expires': 1})

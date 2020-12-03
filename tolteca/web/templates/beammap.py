@@ -50,7 +50,7 @@ b_height=325
 
 # Define model
 @custom_model
-def gaussian(x, amp=100., mu=10., sigma=3.):
+def gaussian(x, amp=100., mu=25., sigma=5.):
     return (amp * np.exp(-0.5 * ((x - mu) / sigma)**2))
 
 @cache.memoize(timeout=60 * 60 * 60)

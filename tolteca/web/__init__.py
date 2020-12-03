@@ -134,6 +134,18 @@ dasha_config.update(
                     'title_icon': 'fas fa-icicles',
                 },
                 {
+                    "template": "tolteca.web.templates.vna_explorer",
+                    "route_name": "vna_explorer",
+                    "title_text": 'VNA Explorer',
+                    'title_icon': 'fas fa-icicles',
+                },
+                {
+                    "template": "tolteca.web.templates.tune_explorer",
+                    "route_name": "tune_explorer",
+                    "title_text": 'TUNE Explorer',
+                    'title_icon': 'fas fa-icicles',
+                },
+                {
                     "template": "tolteca.web.templates.noise_explorer",
                     "route_name": "noise_explorer",
                     "title_text": 'Noise Explorer',

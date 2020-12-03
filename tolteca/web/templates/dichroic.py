@@ -75,7 +75,7 @@ class HkDataViewer(ComponentTemplate):
                         'label': f'{n}',
                         'value': n,
                         }
-                    for n in ['15 min', '30 min', '1 hr', '12 hr', '1 d']],
+                    for n in ['15 min', '30 min', '1 hr', '12 hr', '1 d', '5 d']],
                 value='15 min',
                 )
 
@@ -86,7 +86,7 @@ class HkDataViewer(ComponentTemplate):
                         'label': tz,
                         'value': tz,
                         }
-                    for tz in ['UTC', 'US/Eastern', ]
+                    for tz in ['UTC', 'US/Eastern', 'America/Mexico_City']
                     ],
                 value='US/Eastern'
                 )

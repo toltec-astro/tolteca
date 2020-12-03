@@ -21,13 +21,19 @@ Reference/API
 
 .. automodapi:: tolteca.gui
 
-.. automodapi:: tolteca.db
+.. automodapi:: tolteca.datamodels.toltec
 
-.. automodapi:: tolteca.fs
+.. automodapi:: tolteca.datamodels.fs
 
-.. automodapi:: tolteca.io
+.. automodapi:: tolteca.datamodels.db
+
+.. automodapi:: tolteca.datamodels.io
 
 .. automodapi:: tolteca.pipeline
+
+.. automodapi:: tolteca.simu.toltec
+
+.. automodapi:: tolteca.simu.toltec.wyatt
 
 .. automodapi:: tolteca.utils
 

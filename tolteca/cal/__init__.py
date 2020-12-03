@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 from urllib.parse import urlparse
-from tollan.utils import file_uri_to_path
+from tollan.utils import fileloc
 from pathlib import Path
 from astropy.io.misc.yaml import load as yaml_load
 from astropy.table import Table, vstack
@@ -54,7 +54,7 @@ class ToltecCalib(object):
         if m is None:
             raise ValueError("scheme {u.scheme} is not supported.")
         dispatch_uri = {
-                'file': file_uri_to_path
+                'file': lambda v: fileloc(v).path
                 }.get(u.scheme, lambda v: v)
         return m(dispatch_uri(uri), **kwargs)
 

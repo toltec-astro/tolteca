@@ -334,7 +334,7 @@ def _fetchPsdData(net, obsnum, subobsnum, scannum, filepath):
 
 
 # This line makes the cache invalid when the server reloads
-# cache.delete_memoized(_fetchPsdData)
+cache.delete_memoized(_fetchPsdData)
 
 
 def fetchPsdData(nets, obsnum, subobsnum, scannum):

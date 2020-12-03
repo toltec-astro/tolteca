@@ -278,16 +278,11 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                 },
             # this is mapper to use when meta is called
             'meta': {
-                KidsDataKind.RawKidsData: {
-                    "n_tones_design": "loclen",
-                    "n_tones_max": "Header.Toltec.MaxNumTones",
+                KidsDataKind.KidsData: {
                     "fsmp": "Header.Toltec.SampleFreq",
                     "flo_center": "Header.Toltec.LoCenterFreq",
                     "atten_in": "Header.Toltec.InputAtten",
                     "atten_out": "Header.Toltec.OutputAtten",
-                    "filename_orig": "Header.Toltec.Filename",
-                    "mastervar": "Header.Toltec.Master",
-                    "repeatvar": "Header.Toltec.RepeatLevel",
                     "roachid": "Header.Toltec.RoachIndex",
                     "obsnum": "Header.Toltec.ObsNum",
                     "subobsnum": "Header.Toltec.SubObsNum",
@@ -297,6 +292,13 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                     "cal_obsnum": "Header.Toltec.TargSweepObsNum",
                     "cal_subobsnum": "Header.Toltec.TargSweepSubObsNum",
                     "cal_scannum": "Header.Toltec.TargSweepScanNum",
+                    },
+                KidsDataKind.RawKidsData: {
+                    "n_tones_design": "loclen",
+                    "n_tones_max": "Header.Toltec.MaxNumTones",
+                    "filename_orig": "Header.Toltec.Filename",
+                    "mastervar": "Header.Toltec.Master",
+                    "repeatvar": "Header.Toltec.RepeatLevel",
                     # data shape
                     "n_times": "time",
                     "n_tones": "iqlen",
@@ -306,45 +308,21 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                     "n_sweepsteps": "Header.Toltec.NumSweepSteps",
                     "n_sweeps_max": "numSweeps",
                     },
-                KidsDataKind.ReducedSweep: {
-                    "fsmp": "Header.Toltec.SampleFreq",
-                    "atten_in": "Header.Toltec.InputAtten",
-                    "atten_out": "Header.Toltec.OutputAtten",
-                    "roachid": "Header.Toltec.RoachIndex",
-                    "obsnum": "Header.Toltec.ObsNum",
-                    "subobsnum": "Header.Toltec.SubObsNum",
-                    "scannum": "Header.Toltec.ScanNum",
-                    # assoc
-                    "cal_roachid": "Header.Toltec.RoachIndex",
-                    "cal_obsnum": "Header.Toltec.TargSweepObsNum",
-                    "cal_subobsnum": "Header.Toltec.TargSweepSubObsNum",
-                    "cal_scannum": "Header.Toltec.TargSweepScanNum",
-                    # data shape
+                KidsDataKind.ReducedKidsData: {
                     "n_tones": "ntones",
                     },
+                KidsDataKind.ReducedSweep: {
+                    "n_sweepsteps": "nsweeps",
+                    },
                 KidsDataKind.SolvedTimeStream: {
-                    # TODO fix this to give it header
-                    "fsmp": "Header.Toltec.SampleFreq",
-                    "atten_in": "Header.Toltec.InputAtten",
-                    "atten_out": "Header.Toltec.OutputAtten",
-                    "roachid": "Header.Toltec.RoachIndex",
-                    # assoc
-                    "cal_roachid": "Header.Toltec.RoachIndex",
-                    "cal_obsnum": "Header.Toltec.TargSweepObsNum",
-                    "cal_subobsnum": "Header.Toltec.TargSweepSubObsNum",
-                    "cal_scannum": "Header.Toltec.TargSweepScanNum",
-                    # data shape
-                    "n_tones": "ntones",
+                    "n_times": "ntimes",
                     },
                 },
             'axis_data': {
-                KidsDataKind.RawKidsData: {
-                    "tones": "Header.Toltec.ToneFreq",
-                    'flos': "Data.Toltec.LoFreq",
-                    },
-                KidsDataKind.ReducedKidsData: {
-                    "tones": "Header.Toltec.ToneFreq",
-                    },
+                "tones": "Header.Toltec.ToneFreq",
+                'flos': "Data.Toltec.LoFreq",
+                "tone_centers": "Header.Kids.tones",
+                "sweeps": "Header.Kids.sweeps",
                 },
             'data': {
                 KidsDataKind.RawKidsData: {
@@ -352,16 +330,40 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                     "Q": 'Data.Toltec.Qs',
                     },
                 KidsDataKind.ReducedSweep: {
-                    "I": 'Data.Kids.I',
-                    "Q": 'Data.Kids.Q',
-                    "unc_I": 'Data.Kids.unc_I',
-                    "unc_Q": 'Data.Kids.unc_Q',
+                    "I": 'Data.Kids.Is',
+                    "Q": 'Data.Kids.Qs',
+                    # "unc_I": 'Data.Kids.unc_I',
+                    # "unc_Q": 'Data.Kids.unc_Q',
                     },
                 KidsDataKind.SolvedTimeStream: {
                     "r": 'Data.Kids.rs',
-                    "x": 'Data.Toltec.xs',
+                    "x": 'Data.Kids.xs',
+                    'It': 'Data.Kids.its',
+                    'Qt': 'Data.Kids.qts',
+                    'phi': 'Data.Kids.phs',
                     },
-                }
+                },
+            # these are ancillary data items
+            'data_extra': {
+                'd21': {
+                    "d21_f": 'Data.Kids.d21_fs',
+                    "d21": 'Data.Kids.d21_adiqs',
+                    'd21_cov': 'Data.Kids.d21_adiqscov',
+                    'd21_mean': 'Data.Kids.d21_adiqsmean',
+                    'd21_std': 'Data.Kids.d21_adiqsstd',
+                    },
+                'candidates': {
+                    'candidates': 'Header.Kids.candidates',
+                    },
+                'psd': {
+                    "f_psd": 'Header.Kids.PsdFreq',
+                    "I_psd": 'Data.Kids.ispsd',
+                    'Q_psd': 'Data.Kids.qspsd',
+                    'phi_psd': 'Data.Kids.phspsd',
+                    'r_psd': 'Data.Kids.rspsd',
+                    'x_psd': 'Data.Kids.xspsd',
+                    },
+                },
             }
 
     def __init__(
@@ -549,6 +551,18 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         meta['repeat'] = meta.get('repeatvar', 1)
         meta['nwid'] = meta['roachid']
 
+    @register_to(_meta_updaters, KidsDataKind.ReducedSweep)
+    def _update_reduced_sweep_block_info(self):
+        meta = self._meta_cached
+        result = dict()
+        result['n_sweeps'] = 1
+        result['sweep_slices'] = [slice(0, meta['n_sweepsteps'])]
+        result['n_blocks_max'] = 1
+        result['n_timesperblock'] = meta['n_sweepsteps']
+        result['n_blocks'] = result['n_sweeps']
+        result['block_slices'] = result['sweep_slices']
+        meta.update(result)
+
     @register_to(_meta_updaters, KidsDataKind.RawSweep)
     def _update_raw_sweep_block_info(self):
         # This function is to populate raw sweep block info to meta
@@ -567,7 +581,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         result['n_timespersweep'] = meta["n_sweepsteps"] * meta["n_sweepreps"]
         # we need to load flos to properly handle the sweeps with potentially
         # missing samples
-        nm = self.node_mappers['axis_data'][KidsDataKind.RawKidsData]
+        nm = self.node_mappers['axis_data']
         flos_Hz = nm.getvar('flos')[:]
         result['flos'] = flos_Hz << u.Hz
 
@@ -615,7 +629,9 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         result['block_slices'] = result['sweep_slices']
         meta.update(result)
 
-    @register_to(_meta_updaters, KidsDataKind.RawTimeStream)
+    @register_to(
+            _meta_updaters,
+            KidsDataKind.ReducedKidsData | KidsDataKind.TimeStream)
     def _update_raw_timestream_block_info(self):
         result = dict()
         result['n_blocks_max'] = 1
@@ -650,11 +666,18 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
 
         This is a list of tables.
         """
-        nm = self.node_mappers['axis_data'][KidsDataKind.RawKidsData]
+        nm = self.node_mappers['axis_data']
         meta = self.meta
         n_blocks = meta['n_blocks']
         n_tones = meta['n_tones']
-        data = nm.getvar("tones")[:n_blocks, :] << u.Hz
+        v = nm.getvar("tones")
+        # for multi block data, v should be of 2-dimensional
+        # and for single block data, v could be of 2-dimensional or one
+        if n_blocks == 1 and len(v.shape) == 1:
+            data = v[:].reshape((n_blocks, n_tones))
+        else:
+            data = v[:n_blocks, :]
+        data = data << u.Hz
         assert data.shape == (n_blocks, n_tones)
 
         result = []
@@ -714,6 +737,34 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             result.append(sweep_axis_data)
         return result
 
+    def _get_reduced_sweep_sweep_axis_data(self):
+        """Return the sweep steps for reduced sweeps.
+
+        This contains one table since the reduced sweep data
+        only have one block.
+        """
+        nm = self.node_mappers['axis_data']
+        meta = self.meta
+
+        sweeps = nm.getvar("sweeps")[:] + meta['flo_center']
+
+        sweep_axis_data = QTable()
+        sweep_axis_data['id'] = range(len(sweeps))
+        sweep_axis_data['id'].description = 'The sweep index.'
+        sweep_axis_data['f_sweep'] = sweeps << u.Hz
+        sweep_axis_data['f_sweep'].description = 'The sweep frequency.'
+        sweep_axis_data['n_samples'] = 1
+        sweep_axis_data['n_samples'].description = 'The number of repeats.'
+        sweep_axis_data['sample_start'] = sweep_axis_data['id']
+        sweep_axis_data['sample_start'].description = \
+            'The sample index at the start of this sweep step.'
+        sweep_axis_data['sample_end'] = sweep_axis_data['id'] + 1
+        sweep_axis_data['sample_end'].description = \
+            'The sample index after the end of this sweep step.'
+        sweep_axis_data.meta.update(meta)
+        sweep_axis_data.meta['block_index'] = 1
+        return [sweep_axis_data]
+
     @cached_property
     def _sweep_axis_data(self):
         """Return the sweep axis data.
@@ -724,7 +775,9 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         """
         if 'sweep' not in self.axis_types:
             return None
-        return self._get_raw_sweep_sweep_axis_data()
+        if self.data_kind & KidsDataKind.RawSweep:
+            return self._get_raw_sweep_sweep_axis_data()
+        return self._get_reduced_sweep_sweep_axis_data()
 
     def get_sweep_axis_data(self, block_index=None):
         """Return the tones at `block_index`.
@@ -821,8 +874,8 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             # TODO this is less optimal for sweep_op being a mask.
             # but for now the sweep is small and we can afford doing so
             sample_slice = slice(
-                    np.min(sweep_axis_data['sample_start']),
-                    np.max(sweep_axis_data['sample_end']))
+                np.min(sweep_axis_data['sample_start']),
+                np.max(sweep_axis_data['sample_end']))
             result['sweep_axis_data'] = sweep_axis_data
         elif 'time' in self.axis_types:
             # in this case,
@@ -889,6 +942,50 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                             s['sample_slice'],
                             s['tone_slice'],
                             ].T
+
+        # for reduced sweep if may have d21 data
+        if data_kind & KidsDataKind.ReducedSweep:
+            m = self.node_mappers['data_extra']['d21']
+            self.logger.debug(
+                f"read extra data {m.nc_node_map.keys()}")
+            for key in m.nc_node_map.keys():
+                # we arrange the data so that the data
+                # tone axis is first, as required by the
+                # kidsproc.kidsdata containers
+                if m.hasvar(key):
+                    data[key] = m.getvar(key)[:]
+        # for vna sweep we can load the candidates list
+        if data_kind & KidsDataKind.ReducedVnaSweep:
+            m = self.node_mappers['data_extra']['candidates']
+            self.logger.debug(
+                f"read extra data {m.nc_node_map.keys()}")
+            for key in m.nc_node_map.keys():
+                # we arrange the data so that the data
+                # tone axis is first, as required by the
+                # kidsproc.kidsdata containers
+                if m.hasvar(key):
+                    data[key] = m.getvar(key)[:]
+
+        # for the solved timestreams we also load the psd info if they
+        # are available
+        if data_kind & KidsDataKind.SolvedTimeStream:
+            m = self.node_mappers['data_extra']['psd']
+            self.logger.debug(
+                f"read extra data {m.nc_node_map.keys()}"
+                f" tone_slice="
+                f"{pformat_fancy_index(s['tone_slice'])}")
+            for key in m.nc_node_map.keys():
+                # we arrange the data so that the data
+                # tone axis is first, as required by the
+                # kidsproc.kidsdata containers
+                if m.hasvar(key):
+                    v = m.getvar(key)
+                    if len(v.shape) == 1:
+                        # the psd_fs is vector so skip the slice
+                        v = v[:]
+                    else:
+                        v = v[:, s['tone_slice']].T
+                    data[key] = v
         # for the raw sweeps we do the reduction for each step
         if data_kind & KidsDataKind.RawSweep:
             sweep_axis_data = s['sweep_axis_data']
@@ -928,21 +1025,43 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         sweeps = meta['sweep_axis_data']['f_sweep']
         # we need to pack the I and Q
         S21 = to_complex(data['I'], data['Q'])
-        unc_S21 = to_complex(data['unc_I'], data['unc_Q'])
-        return kd.MultiSweep(
-                meta=meta,
-                tones=tones,
-                sweeps=sweeps,
-                S21=S21,
-                uncertainty=StdDevUncertainty(unc_S21),
+        if 'unc_I' in data:
+            unc_S21 = StdDevUncertainty(
+                    to_complex(data['unc_I'], data['unc_Q']))
+        else:
+            unc_S21 = None
+        result = kd.MultiSweep(
+            meta=meta,
+            tones=tones,
+            sweeps=sweeps,
+            S21=S21,
+            uncertainty=unc_S21,
+            )
+        if 'd21' in data:
+            d21_unit = u.adu / u.Hz
+            # make a unified D21 sweep and set that as the unified
+            # data of this multisweep
+            result.set_unified(
+                kd.Sweep(
+                    S21=None,
+                    D21=data['d21'] << d21_unit,
+                    frequency=data['d21_f'] << u.Hz,
+                    extra_attrs={
+                        'D21_cov': data['d21_cov'],
+                        'D21_mean': data['d21_mean'] << d21_unit,
+                        'D21_std': data['d21_std'] << d21_unit,
+                        },
+                    meta={
+                        'candidates': data['candidates'] << u.Hz
+                        }
+                    )
                 )
+        return result
 
     @classmethod
     @register_to(_kidsdata_obj_makers, KidsDataKind.RawTimeStream)
     def _make_kidsdata_rts(cls, data_kind, meta, data):
         tones = meta['tone_axis_data']['f_tone']
-        # times = meta['time_axis_data']['f_sweep']
-        # we need to pack the I and Q
         return kd.TimeStream(
                 meta=meta,
                 tones=tones,
@@ -954,8 +1073,11 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     @register_to(_kidsdata_obj_makers, KidsDataKind.SolvedTimeStream)
     def _make_kidsdata_sts(cls, data_kind, meta, data):
         tones = meta['tone_axis_data']['f_tone']
-        # times = meta['time_axis_data']['f_sweep']
-        # we need to pack the I and Q
+        # add the psd data to the meta
+        meta = deepcopy(meta)
+        for k, v in data.items():
+            if k.endswith("_psd"):
+                meta[k] = v
         return kd.TimeStream(
                 meta=meta,
                 tones=tones,

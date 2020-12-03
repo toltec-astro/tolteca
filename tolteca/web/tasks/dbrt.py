@@ -6,6 +6,7 @@ from tolteca.datamodels.db.toltec import data_prod
 from tollan.utils.log import get_logger
 from collections import UserDict
 from wrapt import ObjectProxy
+import cachetools.func
 
 
 dbrt = ObjectProxy(None)
@@ -53,6 +54,7 @@ class DatabaseRuntime(UserDict):
     @staticmethod
     def _setup_tolteca(d):
         data_prod.init_db(d, create_tables=False)
+        data_prod.init_orm(d)
 
     @classmethod
     def _setup_sqladb(cls, sqladb, func, raise_on_error=True):
@@ -77,7 +79,31 @@ class DatabaseRuntime(UserDict):
                     exc_info=True)
             if raise_on_error:
                 raise
+            else:
+                result = None
         return result
+
+    @cachetools.func.ttl_cache(ttl=1)
+    def ensure_connection(self, b):
+        try:
+            self[b].session.execute('SELECT 1')
+        except Exception as e:
+            self[b].session.rollback()
+            self.logger.debug(f"reconnect db {b}: {e}")
+            self._setup_sqladb(
+                    self[b], func=getattr(self, f'_setup_{b}')
+                    )
+
+    def __key(self):
+        return tuple(self.keys())
+
+    def __hash__(self):
+        return hash(self.__key())
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__key() == other.__key()
+        return NotImplemented
 
 
 if db is not None:

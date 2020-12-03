@@ -3,6 +3,7 @@
 from contextlib import ExitStack
 from astropy.utils.metadata import MetaData
 from tollan.utils import fileloc, FileLoc
+from tollan.utils.nc import ncopen, NcNodeMapperMixin
 from .registry import io_registry as io_registry
 
 
@@ -43,6 +44,28 @@ class DataFileIO(ExitStack):
         if file_loc is None or isinstance(file_loc, FileLoc):
             return file_loc
         return fileloc(file_loc)
+
+    def _normalize_source(self, source):
+        """Return a `pathlib.Path` object."""
+        # ensure that we don't have source set twice.
+        if source is not None and self._source is not None:
+            raise ValueError(
+                    'source needs to be None for '
+                    'object with source set at construction time.')
+        # use the constructor source
+        if source is None:
+            source = self._source
+        if source is None:
+            raise ValueError('source is not specified')
+        if isinstance(source, FileLoc):
+            if not source.is_local:
+                raise ValueError('source should point to a local file.')
+            source = source.path
+        elif isinstance(source, (Path, str)):
+            pass
+        else:
+            pass
+        return source
 
     meta = MetaData(copy=False)
 
