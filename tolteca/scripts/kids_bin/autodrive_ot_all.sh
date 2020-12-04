@@ -42,15 +42,15 @@ parallel ${scriptdir}/autodrive_ot.sh {} ${obsnum} ::: $nws
 # collect
 obsnum_str=$(printf "%06d" ${obsnum})
 # mk links
-ampcorfiles=()
+# ampcorfiles=()
 adrvfiles=()
 for i in $nws; do
-    ampcorfile="${scratchdir}/toltec${i}_${obsnum_str}_autodrive.txt"
-    if [ -f ${ampcorfile} ]; then
-        ampcorfiles+=(${ampcorfile})
-        echo ln -rsf ${ampcorfile} ${scratchdir}/toltec${i}_autodrive.txt
-        ln -rsf ${ampcorfile} ${scratchdir}/toltec${i}_autodrive.txt
-    fi
+    # ampcorfile="${scratchdir}/toltec${i}_${obsnum_str}_autodrive.txt"
+    # if [ -f ${ampcorfile} ]; then
+    #     ampcorfiles+=(${ampcorfile})
+    #     echo ln -rsf ${ampcorfile} ${scratchdir}/toltec${i}_autodrive.txt
+    #     ln -rsf ${ampcorfile} ${scratchdir}/toltec${i}_autodrive.txt
+    # fi
     adrvfile="${scratchdir}/toltec${i}_${obsnum_str}_autodrive.a_drv"
     if [ -f ${adrvfile} ]; then
         adrvfiles+=(${adrvfile})

@@ -1,0 +1,7 @@
+To run and reduce an autodrive:
+1) run autodrive_highres in the OT
+2) reduce with autodrive_ot_all.sh [obsnum]
+3) commit with autodrive_ot_all_commit.sh [obsnum]
+4) run the confirm script in the OT
+5) reduce with autodrive_ot_all.sh [obsnum]
+6) plot with plot_confirm.py
