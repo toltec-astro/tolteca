@@ -42,6 +42,6 @@ obsnum_str=$(printf "%06d" ${obsnum})
 for i in $nws; do
     echo "+++++++++++++ $(hostname) +++ toltec$i ++++++++++++++"
     echo cp ${scratchdir}/toltec${i}_${obsnum_str}_autodrive.txt /home/toltec/roach/etc/toltec${i}/default_targ_amps.dat
-    ${pyexec} ${bin} -p ${perc} -- ${scratchdir}/toltec${i}_${obsnum_str}_autodrive.a_drv
+    ${pyexec} ${bin} -p ${perc} -- ${scratchdir}/toltec${i}_${obsnum_str}_autodrive.a_drv > ${scratchdir}/toltec${i}_${obsnum_str}_autodrive.log
     cp ${scratchdir}/toltec${i}_${obsnum_str}_autodrive.p${perc}.txt /home/toltec/roach/etc/toltec${i}/default_targ_amps.dat
 done
