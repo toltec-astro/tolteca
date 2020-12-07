@@ -133,7 +133,7 @@ if celery_app is not None:
 
     QueueOnce = celery_app.QueueOnce
 
-    @celery_app.task(base=QueueOnce)
+    @celery_app.task(base=QueueOnce, once={'timeout': 10}, time_limit=5)
     def update_shared_toltec_dataset():
         logger = get_logger()
         dataset = SharedToltecDataset(_dataset_label)
@@ -167,7 +167,7 @@ if celery_app is not None:
     def reduce_kidsdata(*args, **kwargs):
         return _reduce_kidsdata(*args, **kwargs)
 
-    @celery_app.task(base=QueueOnce)
+    @celery_app.task(base=QueueOnce, once={'timeout': 10}, time_limit=5)
     def reduce_kidsdata_on_db():
         dataset = SharedToltecDataset(_dataset_label)
         logger = get_logger()

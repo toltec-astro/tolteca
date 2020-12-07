@@ -49,11 +49,16 @@ _processed_kidsdata_search_paths = list(map(
 
 
 def _get_toltecdb_obsnum_latest():
+    logger = get_logger()
+
     dbrt.ensure_connection('toltec')
     t = dbrt['toltec'].tables['toltec']
     session = dbrt['toltec'].session
+    session.commit()
     stmt = se.select([t.c.ObsNum]).order_by(se.desc(t.c.ObsNum)).limit(1)
     obsnum_latest = session.execute(stmt).scalar()
+
+    logger.debug(f"latest obsnum: {obsnum_latest}")
     return obsnum_latest
 
 
@@ -67,7 +72,7 @@ def _get_bods_index_from_toltecdb(
 
     if obsnum_latest is None:
         obsnum_latest = _get_toltecdb_obsnum_latest()
-    obsnum_since = obsnum_latest - n_obs
+    obsnum_since = obsnum_latest - n_obs + 1
 
     logger.debug(
             f"query toltecdb for obsnum [{obsnum_since}:{obsnum_latest}]")
@@ -148,6 +153,8 @@ def get_processed_file(raw_file_url):
 def query_basic_obs_data(**kwargs):
 
     logger = get_logger()
+
+    logger.debug(f'query basic obs data kwargs={kwargs}')
 
     tbl_bods = _get_bods_index_from_toltecdb(**kwargs)
 
@@ -387,6 +394,7 @@ class KidsDataSelect(ComponentTemplate):
                 )
         @timeit
         def update_obsnum_select(n_calls, obsnum_latest):
+            self.logger.debug(f"update obsnum select with obsnum_latest={obsnum_latest}")
             error_content = dbc.Alert(
                     'Unable to get data file list', color='danger')
             try:
