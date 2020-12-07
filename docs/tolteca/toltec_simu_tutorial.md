@@ -3,9 +3,12 @@
 ## Install
 
 The `tolteca.simu` is available after the installation of the `tolteca`
-package.
+package.  The required toltec-produced packages are:
 
-No extra dependencies are needed to run the simulator.
+ - tolteca (this package)
+ - toltec_calib - https://github.com/toltec-astro/toltec_calib
+ - tollan - https://github.com/toltec-astro/tollan
+ - kidsproc - https://github.com/toltec-astro/kidsproc
 
 ## Usage
 
@@ -84,6 +87,28 @@ simu:
     #   value: 1 pW
   mapping: *example_mapping_model_raster
   # mapping: *example_mapping_tel_nc
+```
+In addition, one must define an inputs directory and also populate the cal directory with the basic calibration objects.
+
+For the sources:
+```
+$ mkdir inputs && cd inputs
+```
+
+inside the inputs directory create a source catalog 'example_input.asc':
+
+```
+# name ra dec flux_a1100 flux_a1400
+  src0 180. 0. 50.  40.
+  src1 180. 0.008333333333333333 5. 5.
+```
+
+Finally, for the calibration files, copy the appropriate directory to the cal directory.
+
+```
+$ cd ../cal
+$ mkdir calobj_default
+$ cp -r <path to toltec_calib>/prod/* calobj_default/.
 ```
 
 ### Run

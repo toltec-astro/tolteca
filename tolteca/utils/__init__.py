@@ -5,8 +5,10 @@ from tollan.utils.fmt import pformat_yaml
 from tollan.utils import rupdate
 from tollan.utils.log import get_logger, logit
 
+import astropy.units as u
+from yaml.dumper import SafeDumper
 import appdirs
-from pathlib import Path
+from pathlib import Path, PosixPath
 from datetime import datetime
 from cached_property import cached_property
 from schema import Schema, Use
@@ -45,6 +47,8 @@ class RuntimeContext(object):
     logger = get_logger()
 
     def __init__(self, rootpath):
+        if isinstance(rootpath, str):
+            rootpath = Path(rootpath)
         self.rootpath = rootpath.resolve()
 
     def __repr__(self):
@@ -63,15 +67,15 @@ class RuntimeContext(object):
     def config_files(self):
         """The list of config files present in the rootpath.
 
-        Files with names match ``\d+_.+\.ya?ml`` in the :attr:`rootpath`
+        Files with names match ``^\\d+_.+\\.ya?ml$`` in the :attr:`rootpath`
         are returned.
         """
         return sorted(filter(
-            lambda p: re.match(r'\d+_.+\.ya?ml', p.name),
+            lambda p: re.match(r'^\d+_.+\.ya?ml$', p.name),
             self.rootpath.iterdir()))
 
     def to_dict(self):
-        """Return a dict representation of this context."""
+        """Return a dict representation of the runtime context."""
         return {
                 attr: getattr(self, attr)
                 for attr in [
@@ -85,6 +89,8 @@ class RuntimeContext(object):
 
         """
         config_files = self.config_files
+        self.logger.debug(
+                f"load config from files: {pformat_yaml(config_files)}")
         if len(config_files) == 0:
             raise RuntimeContextError('no config file found.')
         cfg = dict()
@@ -140,6 +146,19 @@ class RuntimeContext(object):
             'setup': Use(validate_setup),
             object: object
             }
+
+    @cached_property
+    def yaml_dumper(self):
+
+        class yaml_dumper(SafeDumper):
+            """Yaml dumper that handles some additional types."""
+            pass
+
+        yaml_dumper.add_representer(
+                PosixPath, lambda s, p: s.represent_str(p.as_posix()))
+        yaml_dumper.add_representer(
+                u.Quantity, lambda s, q: s.represent_str(q.to_string()))
+        return yaml_dumper
 
     @classmethod
     def _create_backup(cls, path, dry_run=False):
@@ -236,7 +255,8 @@ class RuntimeContext(object):
             content_path = cls._get_content_path(dirpath, item)
             if not create and not content_path.exists():
                 raise RuntimeContextError(
-                        f"unable to initialize pipeline runtime from {dir}:"
+                        f"unable to initialize pipeline runtime"
+                        f" from {dirpath}:"
                         f" missing {item} {content_path}. Set"
                         f" create=True to create missing items")
             if create:

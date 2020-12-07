@@ -8,6 +8,7 @@ from astropy.table import meta as table_meta
 from astropy.io.ascii.ecsv import EcsvHeader
 from enum import Flag, auto
 from kidsproc import kidsmodel
+from kidsproc.kidsdata import MultiSweep
 import astropy.units as u
 import numpy as np
 
@@ -135,6 +136,22 @@ class KidsModelParams(object):
 
     def __repr__(self):
         return f"{self.model_cls.__name__}({self.n_models})"
+
+    def make_sweep(self, frequency):
+        """Return a `MultiSweep` object given the frequency."""
+        return MultiSweep(
+                frequency=frequency, S21=self.model(frequency) * u.adu)
+
+    def derotate(self, sweep):
+        """Return a `MultiSweep` object that has de-rotated S21."""
+        S21_derot = self.model.derotate(
+                sweep.S21.to_value(u.adu),
+                sweep.frequency
+                ).value << u.adu
+        return MultiSweep(
+                frequency=sweep.frequency,
+                S21=S21_derot
+                )
 
 
 class TableIO(DataFileIO):

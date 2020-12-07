@@ -10,6 +10,7 @@ from astropy.modeling import models
 from astropy import coordinates as coord
 
 from gwcs import coordinate_frames as cf
+from scipy import interpolate
 
 from tollan.utils.log import get_logger
 from tollan.utils import getobj
@@ -68,13 +69,15 @@ class ProjModel(_Model):
     """Base class for models that transform the detector locations.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, t0=None, target=None, *args, **kwargs):
         inputs = kwargs.pop('inputs', self.input_frame.axes_names)
         outputs = kwargs.pop('outputs', self.output_frame.axes_names)
         kwargs.setdefault('name', self._name)
         super().__init__(*args, **kwargs)
         self.inputs = inputs
         self.outputs = outputs
+        self._t0 = t0
+        self._target = target
 
     def mpl_axes_params(self):
         return dict(aspect='equal')
@@ -89,8 +92,28 @@ class SkyMapModel(_Model):
     n_inputs = 1
     n_outputs = 2
 
+    def __init__(self, t0=None, target=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._t0 = t0
+        self._target = target
+
     def evaluate(self, x, y):
         return NotImplemented
+
+    def evaluate_at(self, ref_coord, *args):
+        """Returns the mapping pattern as evaluated at given coordinates.
+        """
+        frame = _get_skyoffset_frame(ref_coord)
+        return coord.SkyCoord(*self(*args), frame=frame).transform_to(
+                ref_coord.frame)
+
+    @property
+    def t0(self):
+        return self._t0
+
+    @property
+    def target(self):
+        return self._target
 
 
 class RasterScanModelMeta(SkyMapModel.__class__):
@@ -249,17 +272,74 @@ class LissajousModelMeta(SkyMapModel.__class__):
         return inst
 
 
+class TrajectoryModelMeta(SkyMapModel.__class__):
+    """A meta class that defines a trajectory.
+
+    This is implemented as a meta class so that we can reuse it
+    in any map model of any coordinate frame.
+    """
+
+    def __new__(meta, name, bases, attrs):
+        frame = attrs['frame']
+        frame_unit = frame.unit[0]
+
+        attrs.update(dict(
+            frame_unit=frame_unit,
+                ))
+
+        def get_total_time(self):
+            return self._time[-1]
+
+        attrs['get_total_time'] = get_total_time
+
+        lon_attr, lat_attr = {
+                'icrs': ('_ra', '_dec'),
+                'altaz': ('_az', '_alt'),
+                }[frame.name]
+
+        @property
+        def _lon(self):
+            return getattr(self, lon_attr)
+
+        attrs['_lon_attr'] = lon_attr
+        attrs['_lon'] = _lon
+
+        @property
+        def _lat(self):
+            return getattr(self, lat_attr)
+
+        attrs['_lat_attr'] = lat_attr
+        attrs['_lat'] = _lat
+
+        @timeit(name)
+        def evaluate(
+                self, t):
+            """This computes the position based on interpolation.
+
+            """
+            return self._lon_interp(t), self._dec_interp(t)
+
+        attrs['evaluate'] = evaluate
+        return super().__new__(meta, name, bases, attrs)
+
+    def __call__(
+            cls, *args, **kwargs):
+        data = dict()
+        for attr in ('time', 'ra', 'dec', 'az', 'alt'):
+            data[f'_{attr}'] = kwargs.pop(attr, None)
+        inst = super().__call__(*args, **kwargs)
+        inst.__dict__.update(data)
+        inst.inputs = ('t', )
+        inst.outputs = cls.frame.axes_names
+        inst._lon_interp = interpolate.interp1d(inst._time, inst._lon)
+        inst._lat_interp = interpolate.interp1d(inst._time, inst._lat)
+        return inst
+
+
 class SkyRasterScanModel(SkyMapModel, metaclass=RasterScanModelMeta):
     frame = cf.Frame2D(
             name='skyoffset', axes_names=('lon', 'lat'),
             unit=(u.deg, u.deg))
-
-    def evaluate_at(self, ref_coord, *args):
-        """Returns the mapping pattern as evaluated at given coordinates.
-        """
-        frame = _get_skyoffset_frame(ref_coord)
-        return coord.SkyCoord(*self(*args), frame=frame).transform_to(
-                ref_coord.frame)
 
 
 class SkyLissajousModel(SkyMapModel, metaclass=LissajousModelMeta):
@@ -267,9 +347,18 @@ class SkyLissajousModel(SkyMapModel, metaclass=LissajousModelMeta):
             name='skyoffset', axes_names=('lon', 'lat'),
             unit=(u.deg, u.deg))
 
-    def evaluate_at(self, ref_coord, *args):
-        """Returns the mapping pattern as evaluated at given coordinates.
-        """
-        frame = _get_skyoffset_frame(ref_coord)
-        return coord.SkyCoord(*self(*args), frame=frame).transform_to(
-                ref_coord.frame)
+
+class SkyICRSTrajModel(SkyMapModel, metaclass=TrajectoryModelMeta):
+    frame = cf.CelestialFrame(
+            name='icrs',
+            reference_frame=coord.ICRS(),
+            unit=(u.deg, u.deg)
+            )
+
+
+class SkyAltAzTrajModel(SkyMapModel, metaclass=TrajectoryModelMeta):
+    frame = cf.CelestialFrame(
+            name='altaz',
+            reference_frame=coord.AltAz(),
+            unit=(u.deg, u.deg)
+            )

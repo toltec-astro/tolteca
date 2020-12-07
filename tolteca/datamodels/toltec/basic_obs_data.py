@@ -308,7 +308,15 @@ class BasicObsDataset(object):
 
     # the bracket operators are passed on to the index table
     def __getitem__(self, arg):
-        return self.index_table[arg]
+        # here we can be smart in the return
+        # when arg is colname is will return the column
+        # otherwise it return an indextable
+        if arg in self.index_table.colnames:
+            return self.index_table[arg]
+        if isinstance(arg, list) and any(
+                a in self.index_table.colnames for a in arg):
+            return self.index_table[arg]
+        return self.__class__(self.index_table[arg])
 
     def __setitem__(self, arg, value):
         self.index_table[arg] = value

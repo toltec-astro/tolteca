@@ -9,10 +9,10 @@ from . import main_parser
 
 
 @main_parser.register_action_parser(
-        'simu',
-        help="Run tolteca.simu CLI."
+        'reduce',
+        help="Run tolteca.reduce CLI."
         )
-def cmd_simu(parser):
+def cmd_reduce(parser):
 
     parser.add_argument(
             '--dir', '-d',
@@ -26,13 +26,13 @@ def cmd_simu(parser):
     @parser.parser_action
     def action(option, unknown_args=None):
 
-        from ..simu import SimulatorRuntime
+        from ..reduce import PipelineRuntime
         from ..utils import RuntimeContextError
 
         workdir = option.dir or Path.cwd()
 
         try:
-            ctx = SimulatorRuntime.from_dir(
+            ctx = PipelineRuntime.from_dir(
                 workdir,
                 create=False,
                 force=True,
@@ -41,5 +41,5 @@ def cmd_simu(parser):
                 )
         except RuntimeContextError as e:
             raise argparse.ArgumentTypeError(f"invalid workdir {workdir}: {e}")
-        logger.debug(f"simu ctx: {ctx}")
-        ctx.cli_run(args=unknown_args)
+        logger.debug(f"pipeline ctx: {ctx}")
+        ctx.run()

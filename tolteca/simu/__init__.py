@@ -5,8 +5,9 @@ from tollan.utils import getobj
 from tollan.utils.registry import Registry, register_to
 from tollan.utils.fmt import pformat_yaml
 from tollan.utils.schema import create_relpath_validator
-from tollan.utils.log import get_logger
+from tollan.utils.log import get_logger, logit, timeit
 from tollan.utils.nc import ncopen, ncinfo
+from tollan.utils.namespace import Namespace
 
 import netCDF4
 
@@ -16,7 +17,8 @@ from astropy.table import Table
 from astropy.time import Time
 from astropy.io import fits
 import astropy.units as u
-from astropy.coordinates import SkyCoord
+from astroquery.utils import parse_coordinates
+import yaml
 
 import matplotlib.pyplot as plt
 
@@ -37,6 +39,7 @@ _instru_simu_factory = Registry.create()
 
 @register_to(_instru_simu_factory, 'toltec')
 def _isf_toltec(cfg, cfg_rt):
+    """Create and return `ToltecObsSimulator` from the config."""
 
     logger = get_logger()
 
@@ -83,9 +86,43 @@ def _ssf_image(cfg, cfg_rt):
     logger.debug(f"source config: {cfg}")
 
     # TODO: finish define the fits file format for simulator input
+    # finish implement this function so a source_model is returned
     fits.open(cfg['filepath'])
 
     return NotImplemented
+
+
+@register_to(_simu_source_factory, 'atmosphere_psd')
+def _ssf_atm_psd(cfg, cfg_rt):
+    """Handle creation of atmosphere signal timestreams via PSD."""
+
+    # TODO: finish the implementation.
+    # a base model is needed so that the returned model
+    # is a subclass of that. This will allow the driver to
+    # evaluate the model at appropriate stage.
+
+    logger = get_logger()
+
+    cfg = Schema({
+        'type': 'atmosphere_psd',
+        'k': str,
+        'm': int,
+        }).validate(cfg)
+
+    logger.debug(f"source config: {cfg}")
+
+    # k = cfg['k']
+    # m = cfg['m']
+
+    # from .atm_model import kgenerator
+    # psd = kgenerator(k, m)
+
+    def get_timestream(ra, dec, time):
+        # time is a vector
+        surface_brightness = NotImplemented
+        return surface_brightness  # vector of the same size as time
+
+    return get_timestream
 
 
 @register_to(_simu_source_factory, 'point_source_catalog')
@@ -144,10 +181,15 @@ def _mmf_lmt_tcs(cfg, cfg_rt):
     # TODO: finish define the fits file format for simulator input
     with ncopen(cfg['filepath']) as fo:
         logger.debug(ncinfo(fo))
-    return NotImplemented
+
+    from .toltec.tel import LmtTelFileIO
+    m = LmtTelFileIO(source=cfg['filepath']).read()
+    logger.debug(f"resolved mapping model: {m}")
+    return m
 
 
 def _register_mapping_model_factory(clspath):
+    """This can be used to export `clspath` as mapping model factory."""
 
     @register_to(_mapping_model_factory, clspath)
     def _mmf_map_model(cfg, cfg_rt):
@@ -160,7 +202,7 @@ def _register_mapping_model_factory(clspath):
         # conversion of values
         cfg = Schema({
             'type': Use(getobj),
-            'target': Use(SkyCoord),
+            'target': Use(parse_coordinates),
             't0': Use(Time),
             object: object,
             }).validate(cfg)
@@ -170,19 +212,13 @@ def _register_mapping_model_factory(clspath):
         cls = cfg.pop('type')
         target = cfg.pop('target')
         t0 = cfg.pop('t0')
-
         kwargs = {
                 k: u.Quantity(v)
                 for k, v in cfg.items()
                 }
-
-        cfg = {
-                'model': cls(**kwargs),
-                't0': t0,
-                'target': target
-                }
-        logger.debug(f"resolved mapping config: {cfg}")
-        return cfg
+        m = cls(t0=t0, target=target, **kwargs)
+        logger.debug(f"resolved mapping model: {m}")
+        return m
 
 
 _register_mapping_model_factory('tolteca.simu:SkyRasterScanModel')
@@ -191,6 +227,7 @@ _register_mapping_model_factory('tolteca.simu:SkyLissajousModel')
 
 class SimulatorRuntimeError(RuntimeContextError):
     """Raise when errors occur in `SimulatorRuntime`."""
+    pass
 
 
 class SimulatorRuntime(RuntimeContext):
@@ -221,15 +258,26 @@ class SimulatorRuntime(RuntimeContext):
                 },
             }
 
-    def run(self):
+    def get_or_create_output_dir(self):
+        cfg = self.config['simu']
+        outdir = self.rootpath.joinpath(cfg['jobkey'])
+        if not outdir.exists():
+            with logit('create output dir'):
+                outdir.mkdir(parents=True, exist_ok=True)
+        return outdir
 
+    def get_mapping_model(self):
+        """Return the mapping model specified in the runtime config."""
         cfg = self.config['simu']
         cfg_rt = self.config['runtime']
+        mapping = _mapping_model_factory[cfg['mapping']['type']](
+                cfg['mapping'], cfg_rt)
+        return mapping
 
-        simobj = _instru_simu_factory[cfg['instrument']['name']](
-                cfg['instrument'], cfg_rt)
-
-        obs_params = cfg['obs_params']
+    def get_source_model(self):
+        """Return the source model specified in the runtime config."""
+        cfg = self.config['simu']
+        cfg_rt = self.config['runtime']
 
         # resolve sources
         sources = []
@@ -238,55 +286,169 @@ class SimulatorRuntime(RuntimeContext):
                 s = _simu_source_factory[src['type']](
                         src, cfg_rt
                         )
-            except Exception:
-                self.logger.warning(f"sky invalid source: {pformat_yaml(src)}")
-                continue
+            except Exception as e:
+                raise SimulatorRuntimeError(
+                        f"invalid simulation source:\n{pformat_yaml(src)}\n"
+                        f"{e}")
             sources.append(s)
+
+        if not sources:
+            raise SimulatorRuntimeError("no valid simulation sources found.")
+        return sources
+
+    def get_instrument_simulator(self):
+        """Return the instrument simulator specified in the runtime config."""
+
+        cfg = self.config['simu']
+        cfg_rt = self.config['runtime']
+
+        simobj = _instru_simu_factory[cfg['instrument']['name']](
+                cfg['instrument'], cfg_rt)
+        return simobj
+
+    def get_obs_params(self):
+        """Return the observation parameters specified in the runtime config.
+        """
+        cfg = self.config['simu']
+        obs_params = cfg['obs_params']
+        return obs_params
+
+    def run(self):
+        """Run the simulator.
+
+        Returns
+        -------
+        `SimulatorResult` : The result context containing the simulated data.
+        """
+
+        simobj = self.get_instrument_simulator()
+
+        # resolve mapping
+        mapping = self.get_mapping_model()
+
+        self.logger.debug(f"mapping: {mapping}")
+
+        obs_params = self.get_obs_params()
+
+        sources = self.get_source_model()
 
         self.logger.debug(
                 f"simobj: {simobj}\nobs_params: {obs_params}\n"
                 f"sources: {sources}")
 
-        # resolve mapping
-
-        mapping = _mapping_model_factory[cfg['mapping']['type']](
-                cfg['mapping'], cfg_rt)
-
-        self.logger.debug(f"mapping: {mapping}")
-
         with simobj.obs_context(
-                obs_model=mapping['model'], sources=sources,
-                ref_coord=mapping['target'],
+                obs_model=mapping, sources=sources,
+                ref_coord=mapping.target,
                 ) as obs:
             # make t grid
             t = np.arange(
                     0, obs_params['t_exp'].to_value(u.s),
                     (1 / obs_params['f_smp']).to_value(u.s)) * u.s
-            s, obs_info = obs(mapping['t0'], t)
+            s, obs_info = obs(mapping.t0, t)
 
         with simobj.probe_context(fp=None) as probe:
             rs, xs, iqs = probe(s)
 
-        # dump the data to files
-        outdir = self.rootpath.joinpath(cfg['jobkey'])
-        outdir.mkdir(parents=True, exist_ok=True)
+        return SimulatorResult(
+                simctx=self,
+                config=self.config,
+                simobj=simobj,
+                obs_params=obs_params,
+                obs_info=obs_info,
+                sources=sources,
+                mapping=mapping,
+                data={
+                    # TODO make these names in-line with some standard notion.
+                    'time': t,
+                    'flux': s,
+                    'rs': rs,
+                    'xs': xs,
+                    'iqs': iqs
+                    }
+                )
+
+    @timeit
+    def cli_run(self, args=None):
+        """Run the simulator and save the result.
+        """
+        cfg = self.config['simu']
+
+        result = self.run()
+        result.save(self.get_or_create_output_dir())
+
+        if not cfg.get('plot', False):
+            return
+
+        result.plot_animation()
+
+
+class SimulatorResult(Namespace):
+    """A class to hold simulator results."""
+
+    def _save_lmt_tcs_tel(self, outdir):
+
+        simctx = self.simctx
+        cfg = self.config['simu']
 
         output_tel = outdir.joinpath('tel.nc')
 
         nc_tel = netCDF4.Dataset(output_tel, 'w', format='NETCDF4')
 
-        nc_tel.createDimension('time', None)
-        v_ra = nc_tel.createVariable('ra', 'f8', ('time',))
-        v_ra.units = 'deg'
-        v_dec = nc_tel.createVariable('lon', 'f8', ('time',))
-        v_dec.units = 'deg'
-        v_ra[:] = simobj.table['x_t'].quantity.to_value(u.deg)
-        v_dec[:] = simobj.table['y_t'].quantity.to_value(u.deg)
+        def add_str(ds, name, s, dim=128):
+            if not isinstance(dim, str) or dim is None:
+                if dim is None:
+                    dim = len(s)
+                dim_name = f'{name}_slen'
+                ds.createDimension(dim_name, dim)
+            else:
+                dim_name = dim
+            v = ds.createVariable(name, 'S1', (dim_name, ))
+            v[:] = netCDF4.stringtochar(np.array([s], dtype=f'S{dim}'))
+
+        add_str(
+                nc_tel,
+                'Header.File.Name',
+                output_tel.relative_to(simctx.rootpath).as_posix())
+        add_str(
+                nc_tel,
+                'Header.Source.SourceName',
+                cfg['jobkey'])
+
+        d_time = 'time'
+
+        nc_tel.createDimension(d_time, None)
+
+        v_time = nc_tel.createVariable(
+                'Data.TelescopeBackend.TelTime', 'f8', (d_time, ))
+        time_obs = self.obs_info['time_obs']
+        v_time[:] = time_obs.unix
+
+        def add_coords_data(ds, name, arr, dims):
+            v = ds.createVariable(name, 'f8', dims)
+            v.units = 'deg'
+            v[:] = arr.to_value(u.deg)
+
+        obs_coords = self.obs_info['obs_coords']
+        add_coords_data(
+            nc_tel,
+            'Data.TelescopeBackend.TelSourceRaAct',
+            obs_coords.ra,
+            (d_time, ))
+        add_coords_data(
+            nc_tel,
+            'Data.TelescopeBackend.TelSourceDecAct',
+            obs_coords.dec,
+            (d_time, ))
 
         nc_tel.close()
 
+    def _save_toltec_nc(self, outdir):
+        simobj = self.simobj
         # output data_files
         nws = np.unique(simobj.table['nw'])
+
+        iqs = self.data['iqs']
+
         for nw in nws:
             tbl = simobj.table
             m = tbl['nw'] == nw
@@ -302,8 +464,34 @@ class SimulatorRuntime(RuntimeContext):
             v_Q[:, :] = iqs.imag[m, :]
             nc_toltec.close()
 
-        if not cfg.get('plot', False):
-            return
+    def _save_config(self, outdir):
+        with open(outdir.joinpath('tolteca.yaml'), 'w') as fo:
+            yaml.dump(self.config, fo, Dumper=self.simctx.yaml_dumper)
+
+    @timeit
+    def save(self, outdir):
+
+        self._save_config(outdir)
+        self._save_lmt_tcs_tel(outdir)
+        self._save_toltec_nc(outdir)
+
+    @timeit
+    def plot_animation(self):
+
+        try:
+            import animatplot as amp
+        except Exception:
+            raise RuntimeContextError(
+                    "Package `animatplot` is required to plot animation. "
+                    "To install, run "
+                    "`pip install "
+                    "git+https://github.com/Jerry-Ma/animatplot.git`")
+
+        simobj = self.simobj
+        obs_params = self.obs_params
+        obs_info = self.obs_info
+        sources = self.sources
+
         # make some diagnostic plots
         tbl = simobj.table
 
@@ -316,8 +504,6 @@ class SimulatorRuntime(RuntimeContext):
         projected_frame = obs_info['projected_frame']
         src_coords = obs_info['src_coords']
 
-        import animatplot as amp
-
         fps = 2 * u.Hz
         # fps = 12 * u.Hz
         t_slice = slice(
@@ -326,6 +512,12 @@ class SimulatorRuntime(RuntimeContext):
                     (obs_params['f_smp'] / fps).to_value(
                         u.dimensionless_unscaled))))
         fps = (obs_params['f_smp'] / t_slice.step).to_value(u.Hz)
+
+        t = self.data['time']
+        s = self.data['flux']
+        rs = self.data['rs']
+        xs = self.data['xs']
+
         timeline = amp.Timeline(
                 t[t_slice].to_value(u.s),
                 fps=1 if fps < 1 else fps,

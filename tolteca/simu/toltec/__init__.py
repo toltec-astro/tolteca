@@ -168,7 +168,7 @@ class SkyProjModel(ProjModel):
             if 'mjd_obs' in kwargs:
                 raise ValueError(
                         "time_obs cannot be specified along with mjd_obs")
-            kwargs['mjd_obs'] = time_obs.mjd * u.day
+            kwargs['mjd_obs'] = time_obs.mjd << u.day
         self.evaluate_frame = evaluate_frame
         super().__init__(**kwargs)
 
@@ -201,7 +201,7 @@ class SkyProjModel(ProjModel):
         ref_offset_frame, ref_frame = self._get_projected_frame(
                 crval0, crval1, mjd_obs, also_return_native_frame=True)
         det_coords_offset = coord.SkyCoord(x, y, frame=ref_offset_frame)
-        with timeit(f"transform det coords to altaz"):
+        with timeit("transform det coords to altaz"):
             det_coords = det_coords_offset.transform_to(ref_frame)
 
         frame = self.evaluate_frame
@@ -364,13 +364,13 @@ class ToltecObsSimulator(object):
 
         # create the simulator
         self._kidssim = KidsSimulator(
-                fr=tbl['f'].quantity,
+                fr=tbl['f'],
                 Qr=np.full((len(tbl),), 1e4),
-                background=tbl['background'].quantity,
-                responsivity=tbl['responsivity'].quantity)
+                background=tbl['background'],
+                responsivity=tbl['responsivity'])
         # get detector position on the sky in the toltec frame
-        x_a = tbl['x'].quantity.to(u.cm)
-        y_a = tbl['y'].quantity.to(u.cm)
+        x_a = tbl['x'].to(u.cm)
+        y_a = tbl['y'].to(u.cm)
         x_t, y_t = ArrayProjModel()(tbl['array_name'], x_a, y_a)
         tbl.add_column(Column(x_t, name='x_t', unit=x_t.unit))
         tbl.add_column(Column(y_t, name='y_t', unit=y_t.unit))
@@ -378,6 +378,12 @@ class ToltecObsSimulator(object):
     @property
     def table(self):
         return self._table
+
+    @staticmethod
+    def get_sky_projection_model(**kwargs):
+        """Return the model that project TolTEC detectors on the sky."""
+        m_proj = SkyProjModel(**kwargs)
+        return m_proj
 
     @contextmanager
     def probe_context(self, fp=None):
@@ -394,7 +400,7 @@ class ToltecObsSimulator(object):
             tbs = s.to(
                     u.K,
                     equivalencies=u.brightness_temperature(
-                        self.table['wl_center'].quantity[:, np.newaxis]))
+                        self.table['wl_center'][:, np.newaxis]))
             pwrs = (
                     tbs.to(
                         u.J,
@@ -402,7 +408,7 @@ class ToltecObsSimulator(object):
                     * self.table['passband'][:, np.newaxis]
                     ).to(u.pW)
             return kidssim.probe_p(
-                    pwrs + tbl['background'].quantity[:, np.newaxis], fp=fp)
+                    pwrs + tbl['background'][:, np.newaxis], fp=fp)
 
         yield evaluate
 
@@ -413,8 +419,8 @@ class ToltecObsSimulator(object):
         input flux at each detector for given time."""
         m_obs = obs_model
         tbl = self.table
-        x_t = tbl['x_t'].quantity
-        y_t = tbl['y_t'].quantity
+        x_t = tbl['x_t']
+        y_t = tbl['y_t']
 
         sources = sources[0]
         # TODO: implement handling of other source model
@@ -438,9 +444,10 @@ class ToltecObsSimulator(object):
             # to alt az for faster computation.
 
             # combine the array projection with sky projection
-            m_proj = SkyProjModel(
+            time_obs = t0 + t
+            m_proj = self.get_sky_projection_model(
                     ref_coord=obs_coords,
-                    time_obs=t0 + t
+                    time_obs=time_obs
                     )
             # logger.debug(f"proj model:\n{m_proj}")
 
@@ -493,4 +500,4 @@ class ToltecObsSimulator(object):
                                 np.empty((len(tbl), ), dtype=float),
                                 name=c, unit=props[c].unit))
                 tbl[c][m] = props[c]
-        return tbl
+        return QTable(tbl)
