@@ -18,7 +18,7 @@ def make_ampcor(adrv_file, perc, plot=False):
     print(f'use a_drv_ref={a_drv_ref}')
     ampcors = []
     for a in a_drv_bests:
-        ampcor = 10 ** ((a_drv_ref - a) / 10.)
+        ampcor = 10 ** ((a_drv_ref - a) / 20.)
         ampcors.append(ampcor)
     ampcors = np.array(ampcors)
     m = ampcors > 1.0
