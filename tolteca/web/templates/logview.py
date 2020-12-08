@@ -19,44 +19,48 @@ from sqlalchemy.sql import func as sqla_func
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from tollan.utils.log import get_logger
+
 
 @cachetools.func.ttl_cache(maxsize=1, ttl=1)
-def query_toltec_filelog(time_start, time_end):
+def query_toltec_filelog(time_start, time_end, repeat=0):
+
+    tname = 'toltec' if repeat == 0 else f'toltec_r{repeat}'
 
     t = dbrt['toltec'].tables
     session = dbrt['toltec'].session
     df_file = dataframe_from_db(
             select(
                 [
-                    t['toltec'].c.id,
-                    t['toltec'].c.ObsNum,
-                    t['toltec'].c.SubObsNum,
-                    t['toltec'].c.ScanNum,
+                    t[tname].c.id,
+                    t[tname].c.ObsNum,
+                    t[tname].c.SubObsNum,
+                    t[tname].c.ScanNum,
                     sqla_func.timestamp(
-                        t['toltec'].c.Date,
-                        t['toltec'].c.Time).label('DateTime'),
-                    t['toltec'].c.RoachIndex,
+                        t[tname].c.Date,
+                        t[tname].c.Time).label('DateTime'),
+                    t[tname].c.RoachIndex,
                     t['obstype'].c.label.label('ObsType'),
-                    t['toltec'].c.FileName,
-                    t['toltec'].c.Valid,
+                    t[tname].c.FileName,
+                    t[tname].c.Valid,
                     ]
                 ).select_from(
-                    t['toltec']
+                    t[tname]
                     .join(
                         t['obstype'],
                         onclause=(
-                            t['toltec'].c.ObsType
+                            t[tname].c.ObsType
                             == t['obstype'].c.id
                             )
                         )
                     ).where(
                     and_(
                         sqla_func.timestamp(
-                            t['toltec'].c.Date,
-                            t['toltec'].c.Time) >= time_start,
+                            t[tname].c.Date,
+                            t[tname].c.Time) >= time_start,
                         sqla_func.timestamp(
-                            t['toltec'].c.Date,
-                            t['toltec'].c.Time) <= time_end,
+                            t[tname].c.Date,
+                            t[tname].c.Time) <= time_end,
                     )), session=session)
     return df_file
 
@@ -121,6 +125,8 @@ def query_toltec_syslog(time_start, time_end):
 class LogView(ComponentTemplate):
     _component_cls = html.Div
 
+    logger = get_logger()
+
     def setup_layout(self, app):
         container = self
         header_container, body = container.grid(2, 1)
@@ -142,9 +148,9 @@ class LogView(ComponentTemplate):
                     'label': c,
                     'value': c,
                     }
-                for c in ['user', 'sys', 'file']
+                for c in ['user', 'sys', 'file', 'file_replica']
                 ],
-            value=['user', 'sys', 'file'],
+            value=['user', 'sys', 'file', 'file_replica'],
             inline=True, switch=True,
             )
 
@@ -189,6 +195,12 @@ class LogView(ComponentTemplate):
                     },
                     {
                         'if': {
+                            'filter_query': '{source} = "replica"'
+                        },
+                        'backgroundColor': '#aaffaa',
+                    },
+                    {
+                        'if': {
                             'filter_query': '{Type} = "ERROR"'
                         },
                         'backgroundColor': '#ffaaaa',
@@ -221,6 +233,24 @@ class LogView(ComponentTemplate):
             time_end = datetime.now()
             time_start = datetime.now() - timedelta(hours=24)
             dfs = dict()
+
+            def make_filelog_entry(r):
+                if int(r.Valid) > 0:
+                    suffix = ''
+                else:
+                    suffix = ' (in progress)'
+                return f'{Path(r.FileName).name}{suffix}'
+
+            def prepare_filelog_df(df):
+                df['Entry'] = [
+                        make_filelog_entry(r) for r in df.itertuples()
+                        ]
+                df['Type'] = df['ObsType']
+                df = df.reindex(columns=[
+                    'source', 'id', 'ObsNum', 'DateTime', 'Entry', 'Type'
+                    ])
+                return df
+
             try:
                 if 'user' in source_select_value:
                     df_userlog = query_toltec_userlog(time_start, time_end)
@@ -234,23 +264,13 @@ class LogView(ComponentTemplate):
                 if 'file' in source_select_value:
                     df_filelog = query_toltec_filelog(time_start, time_end)
                     df_filelog['source'] = 'file'
-
-                    def make_entry(r):
-                        if int(r.Valid) > 0:
-                            suffix = ''
-                        else:
-                            suffix = ' (in progress)'
-                        return f'{Path(r.FileName).name}{suffix}'
-                    df_filelog['Entry'] = [
-                            make_entry(r) for r in df_filelog.itertuples()
-                            ]
-                    df_filelog['Type'] = df_filelog['ObsType']
-                    df_filelog = df_filelog.reindex(columns=[
-                        'source', 'id', 'ObsNum', 'DateTime', 'Entry', 'Type'
-                        ])
-                    dfs['file'] = df_filelog
-
+                    dfs['file'] = prepare_filelog_df(df_filelog)
+                if 'file_replica' in source_select_value:
+                    df_replog = query_toltec_filelog(time_start, time_end, repeat=1)
+                    df_replog['source'] = 'replica'
+                    dfs['file_replica'] = prepare_filelog_df(df_replog)
             except Exception as e:
+                self.logger.debug(f'Error query db: {e}', exc_info=True)
                 return partial_update_at(
                         -1, dbc.Alert(
                             f'Error query db: {e}', color='danger'))
