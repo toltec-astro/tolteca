@@ -114,6 +114,57 @@ class ArrayProjModel(ProjModel):
         return inputs_new, broadcasts
 
 
+class ArrayPolarizedProjModel(ArrayProjModel):
+    """A model that transforms the TolTEC detector locations per array to
+    a common instrument coordinate system.
+
+    This model is different from ArrayProjModel that it also projects
+    the polarization angles of each detector, taking into account
+    the parity caused by the mirror reflection.
+
+    """
+    input_frame = cf.Frame2D(
+                name='array',
+                axes_names=("x", "y", "pa"),
+                unit=(u.um, u.um))
+    output_frame = cf.Frame2D(
+                name='toltec',
+                axes_names=("az_offset", "alt_offset", 'pa'),
+                unit=(u.deg, u.deg))
+    _name = f'{output_frame.name}_polarized_proj'
+
+    n_inputs = 4
+    n_outputs = 3
+
+    @timeit(_name)
+    def evaluate(self, array_name, x, y, pa):
+        x_out, y_out = super().evaluate(array_name, x, y)
+
+        spec = self.toltec_instru_spec
+        out_unit = u.deg
+
+        pa_out = np.empty(x_out.shape) * out_unit
+        for n in self.array_names:
+            m = array_name == n
+            pa_out[m] = (
+                    pa[m]
+                    + spec['toltec']['rot_from_a1100']
+                    - spec[n]['rot_from_a1100'])
+        return x_out, y_out, pa_out
+
+    @property
+    def array_names(self):
+        return self.toltec_instru_spec['toltec']['array_names']
+
+    def prepare_inputs(self, array_name, *inputs, **kwargs):
+        # this is necessary to handle the array_name inputs
+        array_name_idx = np.arange(array_name.size).reshape(array_name.shape)
+        inputs_new, broadcasts = super().prepare_inputs(
+                array_name_idx, *inputs, **kwargs)
+        inputs_new[0] = np.ravel(array_name)[inputs_new[0].astype(int)]
+        return inputs_new, broadcasts
+
+
 class SkyProjModel(ProjModel):
     """A sky projection model for TolTEC.
 
