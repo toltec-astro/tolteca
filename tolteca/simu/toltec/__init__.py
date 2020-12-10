@@ -12,6 +12,7 @@ from astropy import coordinates as coord
 from astropy.time import Time
 from astropy.table import Column, QTable, Table
 from astropy.wcs.utils import celestial_frame_to_wcs
+from astropy.coordinates import AltAz, SkyCoord
 
 from gwcs import coordinate_frames as cf
 
@@ -123,15 +124,29 @@ class ArrayPolarizedProjModel(ArrayProjModel):
     the parity caused by the mirror reflection.
 
     """
-    input_frame = cf.Frame2D(
-                name='array',
-                axes_names=("x", "y", "pa"),
-                unit=(u.um, u.um))
-    output_frame = cf.Frame2D(
-                name='toltec',
-                axes_names=("az_offset", "alt_offset", 'pa'),
-                unit=(u.deg, u.deg))
-    _name = f'{output_frame.name}_polarized_proj'
+    _pa_frame = cf.CoordinateFrame(
+                    naxes=1,
+                    axes_type='SPATIAL',
+                    axes_order=(2, ),
+                    unit=(u.deg, ),
+                    axes_names=("pa", ),
+                    name='polarimetry'
+                    )
+    input_frame = cf.CompositeFrame(
+            frames=[
+                ArrayProjModel.input_frame,
+                _pa_frame
+                ],
+            name=ArrayProjModel.input_frame.name + '_polarimetry'
+            )
+    output_frame = cf.CompositeFrame(
+            frames=[
+                ArrayProjModel.output_frame,
+                _pa_frame
+                ],
+            name=ArrayProjModel.input_frame.name + '_polarimetry'
+            )
+    _name = f'{output_frame.name}_proj'
 
     n_inputs = 4
     n_outputs = 3
@@ -165,6 +180,21 @@ class ArrayPolarizedProjModel(ArrayProjModel):
         return inputs_new, broadcasts
 
 
+site = {
+    'name': 'LMT',
+    'name_long': 'Large Millimeter Telescope',
+    'location': coord.EarthLocation.from_geodetic(
+            "-97d18m53s", '+18d59m06s', 4600 * u.m),
+    'timezone': timezone('America/Mexico_City'),
+    }
+
+observer = Observer(
+        name=site['name_long'],
+        location=site['location'],
+        timezone=site['timezone'],
+        )
+
+
 class SkyProjModel(ProjModel):
     """A sky projection model for TolTEC.
 
@@ -173,20 +203,6 @@ class SkyProjModel(ProjModel):
     ref_coord: 2-tuple of `astropy.units.Quantity`
         The coordinate of the TolTEC frame origin on the sky.
     """
-
-    site = {
-        'name': 'LMT',
-        'name_long': 'Large Millimeter Telescope',
-        'location': coord.EarthLocation.from_geodetic(
-                "-97d18m53s", '+18d59m06s', 4600 * u.m),
-        'timezone': timezone('America/Mexico_City'),
-        }
-
-    observer = Observer(
-            name=site['name_long'],
-            location=site['location'],
-            timezone=site['timezone'],
-            )
 
     input_frame = ArrayProjModel.output_frame
     output_frame = cf.Frame2D(
@@ -210,11 +226,13 @@ class SkyProjModel(ProjModel):
                 raise ValueError(
                         "ref_coord cannot be specified along with crvals")
             if isinstance(ref_coord, coord.SkyCoord):
-                ref_coord = (
-                        ref_coord.ra.degree, ref_coord.dec.degree) * u.deg
-            kwargs['crval0'] = ref_coord[0]
-            kwargs['crval1'] = ref_coord[1]
-            kwargs['n_models'] = np.asarray(ref_coord[0]).size
+                _ref_coord = (
+                        ref_coord.data.lon.degree,
+                        ref_coord.data.lat.degree) * u.deg
+            kwargs['crval0'] = _ref_coord[0]
+            kwargs['crval1'] = _ref_coord[1]
+            kwargs['n_models'] = np.asarray(_ref_coord[0]).size
+            self.crval_frame = ref_coord.frame
         if time_obs is not None:
             if 'mjd_obs' in kwargs:
                 raise ValueError(
@@ -225,18 +243,19 @@ class SkyProjModel(ProjModel):
 
     @classmethod
     def _get_native_frame(cls, mjd_obs):
-        return cls.observer.altaz(time=Time(mjd_obs, format='mjd'))
+        return observer.altaz(time=Time(mjd_obs, format='mjd'))
 
     def get_native_frame(self):
         return self._get_native_frame(self.mjd_obs)
 
     @classmethod
     def _get_projected_frame(
-            cls, crval0, crval1, mjd_obs, also_return_native_frame=False):
+            cls, crval0, crval1, crval_frame,
+            mjd_obs, also_return_native_frame=False):
         ref_frame = cls._get_native_frame(mjd_obs)
         ref_coord = coord.SkyCoord(
                 crval0.value * u.deg, crval1.value * u.deg,
-                frame='icrs').transform_to(ref_frame)
+                frame=crval_frame).transform_to(ref_frame)
         ref_offset_frame = _get_skyoffset_frame(ref_coord)
         if also_return_native_frame:
             return ref_offset_frame, ref_frame
@@ -244,13 +263,15 @@ class SkyProjModel(ProjModel):
 
     def get_projected_frame(self, **kwargs):
         return self._get_projected_frame(
-                self.crval0, self.crval1, self.mjd_obs, **kwargs)
+                self.crval0, self.crval1, self.crval_frame,
+                self.mjd_obs, **kwargs)
 
     @timeit(_name)
     def evaluate(self, x, y, crval0, crval1, mjd_obs):
 
         ref_offset_frame, ref_frame = self._get_projected_frame(
-                crval0, crval1, mjd_obs, also_return_native_frame=True)
+                crval0, crval1, self.crval_frame,
+                mjd_obs, also_return_native_frame=True)
         det_coords_offset = coord.SkyCoord(x, y, frame=ref_offset_frame)
         with timeit("transform det coords to altaz"):
             det_coords = det_coords_offset.transform_to(ref_frame)
@@ -276,9 +297,12 @@ class SkyProjModel(ProjModel):
 
     def mpl_axes_params(self):
         w = celestial_frame_to_wcs(coord.ICRS())
+        ref_coord = SkyCoord(
+                self.crval0, self.crval1, frame=self.crval_frame
+                ).transform_to('icrs')
         w.wcs.crval = [
-                self.crval0.value,
-                self.crval1.value,
+                ref_coord.ra.degree,
+                ref_coord.dec.degree,
                 ]
         return dict(super().mpl_axes_params(), projection=w)
 
@@ -464,7 +488,7 @@ class ToltecObsSimulator(object):
         yield evaluate
 
     @contextmanager
-    def obs_context(self, obs_model, sources, ref_coord=None):
+    def obs_context(self, obs_model, sources, ref_coord=None, ref_frame=None):
         """
         Return a function that can be used to get
         input flux at each detector for given time."""
@@ -482,20 +506,31 @@ class ToltecObsSimulator(object):
             # define a field center
             # here we use the first object in the sources catalog
             # and realize the obs pattern around this center
+            # we need to take into acount the ref_frame and
+            # prepare ref_coord such that it is in the ref_frame
             ref_coord = coord.SkyCoord(
                     ra=sources['ra'].quantity[0],
                     dec=sources['dec'].quantity[0],
                     frame='icrs')
 
         def evaluate(t0, t):
-            obs_coords = m_obs.evaluate_at(ref_coord, t)
+
+            time_obs = t0 + t
+
+            # transform ref_coord to ref_frame
+            # need to re-set altaz frame with frame attrs
+            if ref_frame is AltAz:
+                _ref_frame = observer.altaz(time=time_obs)
+            else:
+                _ref_frame = ref_frame
+            _ref_coord = ref_coord.transform_to(_ref_frame)
+            obs_coords = m_obs.evaluate_at(_ref_coord, t)
             # get detector positions, which requires absolute time
             # to get the altaz to equatorial transformation
             # here we only project in alt az, and we transform the source coord
             # to alt az for faster computation.
 
             # combine the array projection with sky projection
-            time_obs = t0 + t
             m_proj = self.get_sky_projection_model(
                     ref_coord=obs_coords,
                     time_obs=time_obs
@@ -531,6 +566,8 @@ class ToltecObsSimulator(object):
                             :, np.newaxis],
                         axis=-1)
 
+            # transform all obs_coords to equitorial
+            obs_coords_icrs = obs_coords.transform_to('icrs')
             return s, locals()
         yield evaluate
 

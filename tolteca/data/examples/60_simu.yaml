@@ -17,6 +17,7 @@ _60_simu:
     t_turnover: 5 s
     target: 180d 0d
     t0: 2020-04-12T00:00:00
+    ref_frame: altaz
     # lst0: ...
   example_mapping_model_lissajous: &example_mapping_model_lissajous
     type: tolteca.simu:SkyLissajousModel
@@ -28,6 +29,7 @@ _60_simu:
     delta: 30 deg  # the phase difference
     target: 180d 0d
     t0: 2020-04-12T00:00:00
+    ref_frame: altaz
 
 simu:
   # this is the actual simulator

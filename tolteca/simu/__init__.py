@@ -191,6 +191,9 @@ def _mmf_lmt_tcs(cfg, cfg_rt):
 def _register_mapping_model_factory(clspath):
     """This can be used to export `clspath` as mapping model factory."""
 
+    # this is not public API so be careful for future changes.
+    from astropy.coordinates.sky_coordinate_parsers import _get_frame_class
+
     @register_to(_mapping_model_factory, clspath)
     def _mmf_map_model(cfg, cfg_rt):
         """Handle mapping model specified as model defined in `~tolteca.simu`.
@@ -203,6 +206,7 @@ def _register_mapping_model_factory(clspath):
         cfg = Schema({
             'type': Use(getobj),
             'target': Use(parse_coordinates),
+            'ref_frame': Use(_get_frame_class),
             't0': Use(Time),
             object: object,
             }).validate(cfg)
@@ -212,11 +216,12 @@ def _register_mapping_model_factory(clspath):
         cls = cfg.pop('type')
         target = cfg.pop('target')
         t0 = cfg.pop('t0')
+        ref_frame = cfg.pop('ref_frame')
         kwargs = {
                 k: u.Quantity(v)
                 for k, v in cfg.items()
                 }
-        m = cls(t0=t0, target=target, **kwargs)
+        m = cls(t0=t0, target=target, ref_frame=ref_frame, **kwargs)
         logger.debug(f"resolved mapping model: {m}")
         return m
 
@@ -339,6 +344,7 @@ class SimulatorRuntime(RuntimeContext):
         with simobj.obs_context(
                 obs_model=mapping, sources=sources,
                 ref_coord=mapping.target,
+                ref_frame=mapping.ref_frame,
                 ) as obs:
             # make t grid
             t = np.arange(
@@ -428,16 +434,16 @@ class SimulatorResult(Namespace):
             v.units = 'deg'
             v[:] = arr.to_value(u.deg)
 
-        obs_coords = self.obs_info['obs_coords']
+        obs_coords_icrs = self.obs_info['obs_coords_icrs']
         add_coords_data(
             nc_tel,
             'Data.TelescopeBackend.TelSourceRaAct',
-            obs_coords.ra,
+            obs_coords_icrs.ra,
             (d_time, ))
         add_coords_data(
             nc_tel,
             'Data.TelescopeBackend.TelSourceDecAct',
-            obs_coords.dec,
+            obs_coords_icrs.dec,
             (d_time, ))
 
         nc_tel.close()

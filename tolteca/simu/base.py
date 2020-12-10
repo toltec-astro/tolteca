@@ -92,10 +92,11 @@ class SkyMapModel(_Model):
     n_inputs = 1
     n_outputs = 2
 
-    def __init__(self, t0=None, target=None, *args, **kwargs):
+    def __init__(self, t0=None, target=None, ref_frame=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._t0 = t0
         self._target = target
+        self._ref_frame = ref_frame
 
     def evaluate(self, x, y):
         return NotImplemented
@@ -107,6 +108,8 @@ class SkyMapModel(_Model):
         return coord.SkyCoord(*self(*args), frame=frame).transform_to(
                 ref_coord.frame)
 
+    # TODO these three method seems to be better live in a wrapper
+    # model rather than this model
     @property
     def t0(self):
         return self._t0
@@ -114,6 +117,10 @@ class SkyMapModel(_Model):
     @property
     def target(self):
         return self._target
+
+    @property
+    def ref_frame(self):
+        return self._ref_frame
 
 
 class RasterScanModelMeta(SkyMapModel.__class__):
