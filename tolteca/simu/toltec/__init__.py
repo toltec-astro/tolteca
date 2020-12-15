@@ -487,6 +487,16 @@ class ToltecObsSimulator(object):
 
         yield evaluate
 
+    @classmethod
+    def resolve_sky_map_ref_frame(cls, ref_frame, time_obs):
+        """
+        Return a frame with respect to which sky map offset model can be
+        rendered.
+        """
+        if ref_frame is AltAz:
+            return observer.altaz(time=time_obs)
+        return ref_frame
+
     @contextmanager
     def obs_context(self, obs_model, sources, ref_coord=None, ref_frame=None):
         """
@@ -519,10 +529,7 @@ class ToltecObsSimulator(object):
 
             # transform ref_coord to ref_frame
             # need to re-set altaz frame with frame attrs
-            if ref_frame is AltAz:
-                _ref_frame = observer.altaz(time=time_obs)
-            else:
-                _ref_frame = ref_frame
+            _ref_frame = self.resolve_sky_map_ref_frame(ref_frame, time_obs)
             _ref_coord = ref_coord.transform_to(_ref_frame)
             obs_coords = m_obs.evaluate_at(_ref_coord, t)
             # get detector positions, which requires absolute time

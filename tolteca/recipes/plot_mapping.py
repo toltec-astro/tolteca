@@ -25,6 +25,24 @@ if __name__ == "__main__":
     # one can get the # mapping model via:
     m_obs = simrt.get_mapping_model()
 
+    # we can also construct the instrument simulator
+    # object which has the information of the instrument
+    # if instru is toltec, the returned object is an instance of
+    # tolteca.simu.toltec.ToltecObsSimulator
+
+    simulator = simrt.get_instrument_simulator()
+
+    # we can access the array property table via
+    apt = simulator.table
+
+    # we can get the a1100 subset
+    # the other two arrays are named a1400 and a2000
+    apt_a1100 = apt[apt['array_name'] == 'a1100']
+
+    # the array propery table contains the projected array locations in
+    # the toltec frame, which are delta Az (column name x_t)
+    # and delta El (column name y_t)
+
     # m_obs is an subclass of `astropy.modeling.Model` that evaluates
     # the telescope pointing spec at any time.
     # in this example, we have setup a raster scan in the config so
@@ -57,28 +75,28 @@ if __name__ == "__main__":
     # obs_coords is a of SkyCoord array that has the same shape as t
     # which is the mapping pattern with absolute coordinates
     # the frame of these coords is the same as the frame of the target
-    # coord, in this case the pattern is defined in the equitorial
-    obs_coords = m_obs.evaluate_at(target, t)
+    # coord.
 
-    # we can also construct the instrument simulator
-    # object which has the information of the instrument
-    # if instru is toltec, the returned object is an instance of
-    # tolteca.simu.toltec.ToltecObsSimulator
+    # so here we need to check the ref_frame setting so that we transform
+    # the target coord to the ref_frame.
+    # this transformation will need the absolute time if the ref_frame
+    # is AltAz
+    t0 = m_obs.t0  # specified in the 60_simu.yaml t0
 
-    simulator = simrt.get_instrument_simulator()
+    ref_frame = simulator.resolve_sky_map_ref_frame(
+            ref_frame=m_obs.ref_frame,
+            time_obs=t0 + t)
+    # we now can generate the obs_coords in ref_frame
+    # by first get the target coords in ref_frame and
+    # evaluate the sky offset map model
+    target_in_ref_frame = target.transform_to(ref_frame)
+    obs_coords = m_obs.evaluate_at(target_in_ref_frame, t)
 
-    # we can access the array property table via
-    apt = simulator.table
+    # and we can convert the obs_coords to other frames if needed
+    obs_coords_icrs = obs_coords.transform_to('icrs')
 
-    print(apt)
-
-    # we can get the a1100 subset
-    # the other two arrays are named a1400 and a2000
-    apt_a1100 = apt[apt['array_name'] == 'a1100']
-
-    # the array propery table contains the projected array locations in
-    # the toltec frame, which are delta Az (column name x_t)
-    # and delta El (column name y_t)
+    # and we can convert the obs_coords to other frames if needed
+    obs_coords_altaz = obs_coords.transform_to('altaz')
 
     # now we can plot all these information
 
@@ -87,7 +105,7 @@ if __name__ == "__main__":
     fig = plt.figure(constrained_layout=True)
 
     # the pointing offsets
-    ax = fig.add_subplot(2, 1, 1)
+    ax = fig.add_subplot(3, 1, 1)
     ax.set_aspect('equal')
     ax.plot(
             offsets[0].to_value(u.arcmin),
@@ -105,19 +123,31 @@ if __name__ == "__main__":
             (offsets[0][1] + apt_a1100[m]['y_t']).to_value(u.arcmin),
             marker=marker, linestyle='none'
             )
+
     # the sky coords, which we need an fiducial wcs object
 
     from astropy.wcs.utils import celestial_frame_to_wcs
 
+    # we can plot in the ref_frame
+
+    ax = fig.add_subplot(3, 1, 2)
+    ax.set_aspect('equal')
+
+    ax.plot(
+        obs_coords.data.lon.degree, obs_coords.data.lat.degree,
+        color='red',
+        )
+
+    # we can plot in the icrs
     w = celestial_frame_to_wcs(target.frame)
     # set the crval to target
     w.wcs.crval = np.array([target.ra.degree, target.dec.degree])
 
-    ax = fig.add_subplot(2, 1, 2, projection=w)
+    ax = fig.add_subplot(3, 1, 3, projection=w)
     ax.set_aspect('equal')
 
     ax.plot(
-        obs_coords.ra, obs_coords.dec,
+        obs_coords_icrs.ra, obs_coords_icrs.dec,
         transform=ax.get_transform('icrs'),
         color='red',
         )
