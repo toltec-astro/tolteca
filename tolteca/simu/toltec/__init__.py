@@ -493,6 +493,11 @@ class ToltecObsSimulator(object):
         Return a frame with respect to which sky map offset model can be
         rendered.
         """
+        if isinstance(ref_frame, str):
+            # this is not public API so be careful for future changes.
+            from astropy.coordinates.sky_coordinate_parsers import (
+                    _get_frame_class)
+            ref_frame = _get_frame_class(ref_frame)
         if ref_frame is AltAz:
             return observer.altaz(time=time_obs)
         return ref_frame
