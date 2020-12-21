@@ -12,6 +12,7 @@ from pathlib import Path, PosixPath
 from datetime import datetime
 from cached_property import cached_property
 from schema import Schema, Use
+from copy import deepcopy
 import inspect
 import yaml
 import re
@@ -33,7 +34,9 @@ class RuntimeContextError(Exception):
 
 
 class RuntimeContext(object):
-    """A class that holds runtime context for pipeline."""
+    """A class that holds runtime context for pipeline.
+
+    """
 
     _file_contents = {
             'logdir': 'log',
@@ -46,12 +49,39 @@ class RuntimeContext(object):
 
     logger = get_logger()
 
-    def __init__(self, rootpath):
+    def __init__(self, rootpath=None, config=None):
+        if sum([rootpath is None, config is None]) != 1:
+            raise RuntimeContextError(
+                    "one and only one of rootpath and config has to be set")
+
+        self._rootpath = self._normalize_rootpath(rootpath)
+        self._config = config
+        print(self._config)
+
+    @property
+    def rootpath(self):
+        if self.is_dirty:
+            return self._config['runtime']['rootpath']
+        return self._rootpath
+
+    @property
+    def is_dirty(self):
+        """True if this context is not in sync with the file system."""
+        if self._rootpath is None:
+            return True
+        return False
+
+    @staticmethod
+    def _normalize_rootpath(rootpath):
+        if rootpath is None:
+            return None
         if isinstance(rootpath, str):
             rootpath = Path(rootpath)
-        self.rootpath = rootpath.resolve()
+        return rootpath.resolve()
 
     def __repr__(self):
+        if self.is_dirty:
+            return f"{self.__class__.__name__}(dirty, {self.rootpath})"
         return f"{self.__class__.__name__}({self.rootpath})"
 
     def __getattr__(self, name, *args):
@@ -61,15 +91,19 @@ class RuntimeContext(object):
 
     @classmethod
     def _get_content_path(cls, rootpath, item):
+        if rootpath is None:
+            return None
         return rootpath.joinpath(cls._file_contents[item])
 
     @property
     def config_files(self):
-        """The list of config files present in the rootpath.
+        """The list of config files present in the :attr:`config_files` if set.
 
         Files with names match ``^\\d+_.+\\.ya?ml$`` in the :attr:`rootpath`
         are returned.
         """
+        if self.rootpath is None:
+            return None
         return sorted(filter(
             lambda p: re.match(r'^\d+_.+\.ya?ml$', p.name),
             self.rootpath.iterdir()))
@@ -85,18 +119,22 @@ class RuntimeContext(object):
 
     @cached_property
     def config(self):
-        """The config dict, created by merging all :attr:`config_files`.
+        """The config dict, created by merging all :attr:`config_files` if
+        set, or the dict passed to the constructor.
 
         """
-        config_files = self.config_files
-        self.logger.debug(
-                f"load config from files: {pformat_yaml(config_files)}")
-        if len(config_files) == 0:
-            raise RuntimeContextError('no config file found.')
-        cfg = dict()
-        for f in self.config_files:
-            with open(f, 'r') as fo:
-                rupdate(cfg, yaml.safe_load(fo))
+        if self.is_dirty:
+            cfg = self._config
+        else:
+            config_files = self.config_files
+            self.logger.debug(
+                    f"load config from files: {pformat_yaml(config_files)}")
+            if len(config_files) == 0:
+                raise RuntimeContextError('no config file found.')
+            cfg = dict()
+            for f in self.config_files:
+                with open(f, 'r') as fo:
+                    rupdate(cfg, yaml.safe_load(fo))
         cfg = self.validate_config(cfg)
         # update runtime info
         cfg['runtime'] = self.to_dict()
@@ -133,9 +171,16 @@ class RuntimeContext(object):
 
         def validate_setup(cfg_setup):
             # TODO implement more logic to verify the settings
+            if cfg_setup is None:
+                cfg_setup = {}
+
+            # check version
             from ..version import version
             # for now we just issue a warning but this will be replaced
             # by actual version comparison.
+            if 'version' not in cfg_setup:
+                cls.logger.warning("no version info found.")
+                cfg_setup['version'] = version
             if cfg_setup['version'] != version:
                 cls.logger.warning(
                         f"mismatch of tolteca version "
@@ -262,4 +307,11 @@ class RuntimeContext(object):
             if create:
                 get_or_create_item_path(item, content_path)
 
-        return cls(dirpath)
+        return cls(rootpath=dirpath)
+
+    @classmethod
+    def from_config(cls, *configs):
+        cfg = deepcopy(configs[0])
+        for c in configs[1:]:
+            rupdate(cfg, c)
+        return cls(config=cfg)

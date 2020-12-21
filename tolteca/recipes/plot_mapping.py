@@ -21,6 +21,12 @@ if __name__ == "__main__":
 
     print(simrt)
 
+    # an example to create an in-memory simrt with updated config
+    simrt = SimulatorRuntime.from_config(simrt.config, {'new_stuff': 'abc'})
+
+    print(simrt)
+    print(simrt.config['new_stuff'])
+
     # if in the simrt.config the simulator is configured (key 'simu' exists),
     # one can get the # mapping model via:
     m_obs = simrt.get_mapping_model()
