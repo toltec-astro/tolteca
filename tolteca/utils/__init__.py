@@ -56,7 +56,6 @@ class RuntimeContext(object):
 
         self._rootpath = self._normalize_rootpath(rootpath)
         self._config = config
-        print(self._config)
 
     @property
     def rootpath(self):
