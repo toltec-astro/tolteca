@@ -12,7 +12,7 @@ _60_simu:
     rot: 30. deg
     length: 4. arcmin
     space: 5. arcsec
-    n_scans: 24
+    n_scans: 1
     speed: 30. arcsec/s
     t_turnover: 5 s
     target: 180d 0d
@@ -53,6 +53,6 @@ simu:
     #   filepath: example_input.fits
     # - type: bkg
     #   value: 1 pW
-  # mapping: *example_mapping_model_raster
-  mapping: *example_mapping_model_lissajous
+  mapping: *example_mapping_model_raster
+  # mapping: *example_mapping_model_lissajous
   # mapping: *example_mapping_tel_nc

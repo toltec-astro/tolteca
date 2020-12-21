@@ -160,49 +160,57 @@ class RasterScanModelMeta(SkyMapModel.__class__):
             speed of the turn over is implicitly controlled by `t_turnover`.
             """
             t = np.asarray(t) * t.unit
-            n_spaces = n_scans - 1
-
-            # bbox_width = length
-            # bbox_height = space * n_spaces
-            # # (x0, y0, w, h)
-            # bbox = (
-            #         -bbox_width / 2., -bbox_height / 2.,
-            #         bbox_width, bbox_height)
             t_per_scan = length / speed
-            ratio_scan_to_si = (
-                    t_per_scan / (t_turnover + t_per_scan))
-            ratio_scan_to_turnover = (t_per_scan / t_turnover)
 
-            # scan index
-            _si = (t / (t_turnover + t_per_scan))
-            si = _si.astype(int)
-            si_frac = _si - si
+            if n_scans == 1:
+                # have to make a special case here
+                x = (t / t_per_scan - 0.5) * length
+                y = np.zeros(t.shape) << length.unit
+            else:
+                n_spaces = n_scans - 1
 
-            # get scan and turnover part
-            scan_frac = np.empty_like(si_frac)
-            turnover_frac = np.empty_like(si_frac)
+                # bbox_width = length
+                # bbox_height = space * n_spaces
+                # # (x0, y0, w, h)
+                # bbox = (
+                #         -bbox_width / 2., -bbox_height / 2.,
+                #         bbox_width, bbox_height)
+                t_per_scan = length / speed
+                ratio_scan_to_si = (
+                        t_per_scan / (t_turnover + t_per_scan))
+                ratio_scan_to_turnover = (t_per_scan / t_turnover)
 
-            turnover = si_frac > ratio_scan_to_si
-            scan_frac[turnover] = 1.
-            scan_frac[~turnover] = si_frac[~turnover] / ratio_scan_to_si
-            turnover_frac[turnover] = si_frac[turnover] - (
-                    1. - si_frac[turnover]) * ratio_scan_to_turnover
-            turnover_frac[~turnover] = 0.
+                # scan index
+                _si = (t / (t_turnover + t_per_scan))
+                si = _si.astype(int)
+                si_frac = _si - si
 
-            x = (scan_frac - 0.5) * length
-            y = (si / n_spaces - 0.5) * n_spaces * space
+                # get scan and turnover part
+                scan_frac = np.empty_like(si_frac)
+                turnover_frac = np.empty_like(si_frac)
 
-            # turnover part
-            radius_t = space / 2
-            theta_t = turnover_frac[turnover] * np.pi * u.rad
-            dy = radius_t * (1 - np.cos(theta_t))
-            dx = radius_t * np.sin(theta_t)
-            x[turnover] = x[turnover] + dx
-            y[turnover] = y[turnover] + dy
+                turnover = si_frac > ratio_scan_to_si
+                scan_frac[turnover] = 1.
+                scan_frac[~turnover] = si_frac[~turnover] / ratio_scan_to_si
+                turnover_frac[turnover] = si_frac[turnover] - (
+                        1. - si_frac[turnover]) * ratio_scan_to_turnover
+                turnover_frac[~turnover] = 0.
 
-            # make continuous
-            x = x * (-1) ** si
+                x = (scan_frac - 0.5) * length
+                y = (si / n_spaces - 0.5) * n_spaces * space
 
+                # turnover part
+                radius_t = space / 2
+                theta_t = turnover_frac[turnover] * np.pi * u.rad
+                dy = radius_t * (1 - np.cos(theta_t))
+                dx = radius_t * np.sin(theta_t)
+                x[turnover] = x[turnover] + dx
+                y[turnover] = y[turnover] + dy
+
+                # make continuous
+                x = x * (-1) ** si
+
+            # apply rotation
             m_rot = models.AffineTransformation2D(
                 models.Rotation2D._compute_matrix(
                     angle=rot.to_value('rad')) * self.frame_unit,
