@@ -45,8 +45,8 @@ class obsPlanner(ComponentTemplate):
     def setup_layout(self, app):
         container = self
         header_section, hr_container, body = container.grid(3, 1)
-        hr_container.child(html.H3, "TolTEC Observation Planner",
-                           style={'color': 'blue'})
+        hr_container.child(html.H2, "TolTEC Observation Planner", className='my-2')
+                           # style={'color': 'blue'})
         hr_container.child(html.Hr())
 
         # a container for the rest of the page
@@ -61,7 +61,7 @@ class obsPlanner(ComponentTemplate):
         settingsRow = controlBox.child(dbc.Row)
         settingsCard = settingsRow.child(dbc.Col).child(dbc.Card)
         t_header = settingsCard.child(dbc.CardHeader)
-        t_header.child(html.H5, "Global Settings", className='mt-3')
+        t_header.child(html.H5, "Global Settings", className='mb-2')
         t_body = settingsCard.child(dbc.CardBody)
 
         bandRow = t_body.child(dbc.Row, justify='begin')

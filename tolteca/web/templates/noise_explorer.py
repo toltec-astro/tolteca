@@ -288,10 +288,10 @@ def _fetchPsdData(net, obsnum, subobsnum, scannum, filepath):
 
     with timeit(f"read in data from {filepath}"):
         nc = netCDF4.Dataset(filepath)
-        fs = nc.variables['Header.Toltec.ToneFreq'][:]
-        fpsd = nc.variables['Header.Kids.PsdFreq'][:]
-        xpsd = nc.variables['Data.Kids.xspsd'][:].transpose()
-        rpsd = nc.variables['Data.Kids.rspsd'][:].transpose()
+        fs = nc.variables['Header.Kids.tones'][:].data
+        fpsd = nc.variables['Header.Kids.PsdFreq'][:].data
+        xpsd = nc.variables['Data.Kids.xspsd'][:].data.transpose()
+        rpsd = nc.variables['Data.Kids.rspsd'][:].data.transpose()
         nc.close()
 
     # construct the medians of the psds of the network
@@ -471,23 +471,26 @@ def getPsdPlot(data, logx=0):
         return fig
 
     colorsDark, colorsLight = get_color_pairs()
+    maxf = 0.1
     for i in np.arange(len(data)):
+        maxf = max(maxf, data[i]['fpsd'].max())
         fig.add_trace(
             go.Scattergl(x=data[i]['fpsd'],
-                       y=data[i]['medxPsd'],
-                       mode='lines',
-                       name="Network {} - x".format(data[i]['network']),
-                       line=dict(color=colorsDark[i], width=4),
-                       )
-            )
+                         y=data[i]['medxPsd'],
+                         mode='lines',
+                         name="Network {} - x".format(data[i]['network']),
+                         line=dict(color=colorsDark[i], width=4),
+            ),
+        )
         fig.add_trace(
             go.Scattergl(x=data[i]['fpsd'],
-                       y=data[i]['medrPsd'],
-                       mode='lines',
-                       name="Network {} - r".format(data[i]['network']),
-                       line=dict(color=colorsLight[i]),
-                       )
-            )
+                         y=data[i]['medrPsd'],
+                         mode='lines',
+                         name="Network {} - r".format(data[i]['network']),
+                         line=dict(color=colorsLight[i]),
+            ),
+        )
+    fig.update_xaxes(range=[0.1, maxf])
 
     # add horizontal line for blip at LMT
     blipLMT, text = getBlipLMT(data[i]['network'])
@@ -544,20 +547,20 @@ def getPvsFPlot(data):
     for i in np.arange(len(data)):
         fig.add_trace(
             go.Scattergl(x=data[i]['detFreqMHz'],
-                       y=data[i]['medxPsd'],
-                       mode='markers',
-                       name="Network {} - x".format(data[i]['network']),
-                       line=dict(color=colorsDark[i], width=4),
-                       )
-            )
+                         y=data[i]['medxPsd'],
+                         mode='markers',
+                         name="Network {} - x".format(data[i]['network']),
+                         line=dict(color=colorsDark[i], width=4),
+            ),
+        )
         fig.add_trace(
             go.Scattergl(x=data[i]['detFreqMHz'],
-                       y=data[i]['medrPsd'],
-                       mode='markers',
-                       name="Network {} - r".format(data[i]['network']),
-                       line=dict(color=colorsLight[i]),
-                       )
-            )
+                         y=data[i]['medrPsd'],
+                         mode='markers',
+                         name="Network {} - r".format(data[i]['network']),
+                         line=dict(color=colorsLight[i]),
+            ),
+        )
 
     fig.update_yaxes(automargin=True)
     return fig
