@@ -37,7 +37,6 @@ inputs:
       - filepath: example_simu/tel.nc
         meta:
           interface: 'lmt'
-      - filepath: example_simu/
     cal_items:
       - filepath: cal/example_simu/apt.ecsv
 runtime:
@@ -48,6 +47,7 @@ map:
   mgrid0: 0.0
   mgrid1: 0.0
   pixelsize: 0.75
+  grouping: 'array_name' # any column name in the apt.ecsv
 tod:
   despike:
     enabled: true
@@ -67,5 +67,13 @@ tod:
     neigToCut: 9
     cutStd: 0.0
     approximateWeights: 0
+    grouping: 'array_name'
   kernel:
     enabled: true
+kids:
+  fitter:
+    weight_window:
+      type: lorentz
+      fwhm_Hz: 1.5e4
+    modelspec: gainlintrend
+  solver:
