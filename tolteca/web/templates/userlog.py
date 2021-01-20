@@ -101,8 +101,9 @@ def insert_to_toltec_userlog(user, obsnum, entry):
     logger.debug(f"insert to userlog obsnum={obsnum} entry={entry}")
 
     dbrt.ensure_connection('toltec_userlog_tool')
-    t = dbrt['toltec_userlog_tool'].tables
-    session = dbrt['toltec'].session
+    bind = 'toltec_userlog_tool'
+    t = dbrt[bind].tables
+    session = dbrt[bind].session
     session.commit()
     stmt = (
         se.insert(t['userlog']).

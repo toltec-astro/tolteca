@@ -24,6 +24,9 @@ import functools
 import json
 import cachetools.func
 from pathlib import Path
+from .common import HeaderWithToltecLogo
+from .common.simple_basic_obs_select import KidsDataSelect
+from dasha.web.templates.common import LiveUpdateSection
 
 
 class NoiseExplorer(ComponentTemplate):
@@ -49,42 +52,39 @@ class NoiseExplorer(ComponentTemplate):
     # This section of code only runs once when the server is started.
     def setup_layout(self, app):
         container = self
+        header_section, hr_container, body = container.grid(3, 1)
+        hr_container.child(html.Hr())
+        header_container = header_section.child(HeaderWithToltecLogo(
+            logo_colwidth=4
+            )).header_container
 
-        # throw in a logo and title bar to make the site look nice
-        logo = "http://toltec.astro.umass.edu/images/toltec_logo.png"
-#        header = container.child(dbc.Row, align="center", no_gutters=True)
-#        header.child(dbc.Col(html.Img(src=logo, height="50px")))
-#        header.child(
-#            dbc.Col(
-#                dbc.NavbarBrand("TolTEC NoiseExplorer",
-#                                className="ml-2")))
+        title_container, controls_container = header_container.grid(2, 1)
+        header = title_container.child(
+                LiveUpdateSection(
+                    title_component=html.H3("Noise Explorer"),
+                    interval_options=[2000, 5000],
+                    interval_option_value=2000
+                    ))
+        obsInput = controls_container.child(dbc.Row).child(dbc.Col).child(
+                KidsDataSelect(multi='nwid')
+                )
+        obsInput.setup_live_update_section(
+            app, header, query_kwargs={'obs_type': 'Timestream',
+                                       'n_obs': 100})
 
-        # setup main body component (row and col)
-        body = container.child(dbc.Row).child(dbc.Col)
 
-        # the header holds the controls and the logo
-        header = body.child(dbc.Row)
-        controls = header.child(dbc.Col, width=12, md=8)
-        logoBox = header.child(dbc.Col, width=4, className='d-none d-md-block')
-        logoBox.child(dbc.Row,
-                      html.Img(src=logo, height="150px"),
-                      no_gutters=True,
-                      justify="end")
-
-        # a button to update the available data
-        timer, loading, error = self._setup_live_update_header(
-                app, controls, 'Noise Explorer', 1000)
-
-        # Set up an InputGroup to format the obsnum input
-        # InputGroups have two children, dbc.Input and dbc.InputGroupAddon
-        obsIG = controls.child(dbc.Row).child(dbc.Col, className='d-flex').child(dbc.InputGroup,
-                                          size='sm',
-                                          className='mb-3 w-auto mt-3')
-        obsIG.child(dbc.InputGroupAddon("Select ObsNum", addon_type="prepend"))
-        obsInput = obsIG.child(dbc.Select, options=[])
+        # # Set up an InputGroup to format the obsnum input
+        # controls = controls_container
+        # # InputGroups have two children, dbc.Input and dbc.InputGroupAddon
+        # obsIG = controls.child(dbc.Row).child(dbc.Col, className='d-flex').child(dbc.InputGroup,
+        #                                   size='sm',
+        #                                   className='mb-3 w-auto mt-3')
+        # obsIG.child(dbc.InputGroupAddon("Select ObsNum", addon_type="prepend"))
+        # obsInput = obsIG.child(dbc.Select, options=[])
 
         # set up a network selection section
-        plot_networks_checklist_section = controls.child(dbc.Row).child(dbc.Col)
+        plot_networks_checklist_section = controls_container.child(
+                dbc.Row).child(dbc.Col)
         plot_networks_checklist_section.child(dbc.Label, 'Select network(s) to show in the plots:')
         plot_networks_checklist_container = plot_networks_checklist_section.child(dbc.Row, className='mx-0')
         checklist_presets_container = plot_networks_checklist_container.child(dbc.Col)
@@ -110,54 +110,6 @@ class NoiseExplorer(ComponentTemplate):
         preset_networks_map['1.4 mm Array'] = set(o['value'] for o in checklist_networks_options[7:10])
         preset_networks_map['2.0 mm Array'] = set(o['value'] for o in checklist_networks_options[10:13])
         preset_networks_map['all'] = functools.reduce(set.union, (preset_networks_map[k] for k in array_names))
-
-        # a callback to update obsnum select options
-        @app.callback(
-                [
-                    Output(obsInput.id, 'options'),
-                    Output(loading.id, 'children'),
-                    Output(error.id, 'children'),
-                    ],
-                [
-                    Input(timer.id, 'n_intervals')
-                    ]
-                )
-        def update_files_info(n_intervals):
-            error_content = dbc.Alert('Unable to get data file list', color='danger')
-            query_str = "select id,ObsNum,SubObsNum,ScanNum,GROUP_CONCAT(RoachIndex order by RoachIndex) as Roaches,TIMESTAMP(Date, Time) as DateTime from toltec_r1 where ObsType=1 group by ObsNum,SubObsNum,ScanNum order by id desc limit 100"
-            try:
-                df = dataframe_from_db(query_str, 'toltec', parse_dates=['Date', 'Time'])
-                # self.logger.debug(f'{df}')
-            except Exception as e:
-                self.logger.debug(f"error querry db: {e}", exc_info=True)
-                return dash.no_update, "", error_content
-            if len(df) == 0:
-                return dash.no_update, "", error_content
-
-            def make_key(info):
-                # return '{} {}-{}-{} {}'.format(
-                #         info.DateTime,
-                #         info.ObsNum,
-                #         info.SubObsNum,
-                #         info.ScanNum,
-                #         info.Roaches,
-                #         )
-                return info.ObsNum
-
-            def make_value(info):
-                return json.dumps({
-                            'obsnum': info.ObsNum,
-                            'subobsnum': info.SubObsNum,
-                            'scannum': info.ScanNum,
-                        })
-
-            options = []
-            for info in df.itertuples():
-                options.append({
-                    'label': make_key(info),
-                    'value': make_value(info)
-                    })
-            return options, "", ""
 
         # a callback to update the check state
         @app.callback(

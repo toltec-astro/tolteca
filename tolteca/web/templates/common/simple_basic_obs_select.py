@@ -41,7 +41,7 @@ PROCESSED_KIDSDATA_SEARCH_PATH_ENV = (
 env_registry.register(
         PROCESSED_KIDSDATA_SEARCH_PATH_ENV,
         "The path to locate processed KIDs data.",
-        get_user_data_dir())
+        get_user_data_dir().as_posix())
 
 _processed_kidsdata_search_paths = list(map(
             Path,
@@ -241,6 +241,18 @@ class KidsDataSelect(ComponentTemplate):
                     },
                     multi=nwid_multi
                     )).checklist
+        if nwid_multi:
+            array_multi = self._array_multi = 'array' in self.multi
+            self._array_select = container.child(
+                    LabeledChecklist(
+                        label_text='Select Network',
+                        checklist_props={
+                            'options': make_network_options(),
+                        },
+                        multi=array_multi
+                        )).checklist
+        else:
+            self._array_select = None
         self._filepaths_store = container.child(dcc.Store, data=None)
 
     def setup_layout(self, app):
@@ -394,7 +406,8 @@ class KidsDataSelect(ComponentTemplate):
                 )
         @timeit
         def update_obsnum_select(n_calls, obsnum_latest):
-            self.logger.debug(f"update obsnum select with obsnum_latest={obsnum_latest}")
+            self.logger.debug(
+                    f"update obsnum select with obsnum_latest={obsnum_latest}")
             error_content = dbc.Alert(
                     'Unable to get data file list', color='danger')
             try:
@@ -434,6 +447,10 @@ class KidsDataSelect(ComponentTemplate):
         return self._nwid_select
 
     @property
+    def array_select(self):
+        return self._array_select
+
+    @property
     def inputs(self):
         return [Input(self._filepaths_store.id, 'data')]
 
@@ -452,6 +469,45 @@ def make_network_options(enabled=None, disabled=None):
                 'label': i,
                 'value': i,
                 'disabled': (i not in enabled) or (i in disabled)
+                }
+        result.append(d)
+    return result
+
+
+def make_array_options(enabled=None, disabled=None):
+    """Return the options dict for select TolTEC arrays."""
+    array_specs = {
+            'a1100': {
+                'label': '1.1mm',
+                'name': 'a1100',
+                'index': 0,
+                'nwids': [0, 1, 2, 3, 4, 5, 6],
+                },
+            'a1400': {
+                'label': '1.4mm',
+                'name': 'a1400',
+                'index': 1,
+                'nwids': [7, 8, 9, 10],
+                },
+            'a2000': {
+                'label': '2.0mm',
+                'name': 'a2000',
+                'index': 2,
+                'nwids': [11, 12],
+                },
+            }
+    if enabled is None:
+        enabled = set(array_specs.keys())
+    if disabled is None:
+        disabled = set()
+    if len(enabled.intersection(disabled)) > 0:
+        raise ValueError('conflict in enabled and disabled kwargs.')
+    result = list()
+    for k, a in array_specs.items():
+        d = {
+                'label': a['label'],
+                'value': k,
+                'disabled': (k not in enabled) or (k in disabled)
                 }
         result.append(d)
     return result
