@@ -111,6 +111,12 @@ dasha_config.update(
                     'title_icon': 'fas fa-tachometer-alt',
                 },
                 {
+                    "template": "tolteca.web.templates.userlog",
+                    "route_name": "userlog",
+                    "title_text": 'User Log',
+                    'title_icon': 'far fa-sticky-note',
+                },
+                {
                     "template": "tolteca.web.templates.logview",
                     "route_name": "logview",
                     "title_text": 'Log View',
