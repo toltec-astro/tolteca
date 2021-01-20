@@ -267,7 +267,7 @@ class SimulatorRuntime(RuntimeContext):
         cfg = self.config['simu']
         outdir = self.rootpath.joinpath(cfg['jobkey'])
         if not outdir.exists():
-            with logit('create output dir'):
+            with logit(self.logger.debug, 'create output dir'):
                 outdir.mkdir(parents=True, exist_ok=True)
         return outdir
 

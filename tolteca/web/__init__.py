@@ -15,6 +15,10 @@ env_registry.register(
         "The TolTEC database url.",
         'mysql+mysqldb://localhost:3306')
 env_registry.register(
+        f"{env_prefix}_DB_TOLTEC_USERLOG_TOOL_URL",
+        "The TolTEC database url for user log tool.",
+        'mysql+mysqldb://localhost:3306')
+env_registry.register(
         f"{env_prefix}_DB_TOLTECA_URL",
         "The TolTECA database url",
         'mysql+mysqldb://localhost:3306')
@@ -33,6 +37,8 @@ env_registry.register(
 
 # resource providers
 db_toltec_url = env_registry.get(f"{env_prefix}_DB_TOLTEC_URL")
+db_toltec_userlog_tool_url = env_registry.get(
+        f"{env_prefix}_DB_TOLTEC_USERLOG_TOOL_URL")
 db_tolteca_url = env_registry.get(f"{env_prefix}_DB_TOLTECA_URL")
 redis_url = "redis://localhost:6379"
 fs_toltec_rootpath = env_registry.get(f"{env_prefix}_FS_TOLTEC_ROOTPATH")
@@ -46,6 +52,7 @@ db_config = {
         "SQLALCHEMY_TRACK_MODIFICATIONS": False,
         "SQLALCHEMY_BINDS": {
             'toltec': db_toltec_url,
+            'toltec_userlog_tool': db_toltec_userlog_tool_url,
             'tolteca': db_tolteca_url,
             'default': db_tolteca_url,
             }

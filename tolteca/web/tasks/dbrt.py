@@ -45,10 +45,14 @@ class DatabaseRuntime(UserDict):
 
     logger = get_logger()
     # this shall be defined in the dasha db config.
-    _binds = ('toltec', 'tolteca')
+    _binds = ('toltec', 'tolteca', 'toltec_userlog_tool')
 
     @staticmethod
     def _setup_toltec(d):
+        d.reflect_tables()
+
+    @staticmethod
+    def _setup_toltec_userlog_tool(d):
         d.reflect_tables()
 
     @staticmethod
