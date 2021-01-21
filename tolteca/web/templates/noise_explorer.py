@@ -66,7 +66,7 @@ class NoiseExplorer(ComponentTemplate):
                     interval_option_value=2000
                     ))
         obsInput = controls_container.child(dbc.Row).child(dbc.Col).child(
-                KidsDataSelect(multi='nwid')
+                KidsDataSelect(multi=['nwid', 'array'])
                 )
         obsInput.setup_live_update_section(
             app, header, query_kwargs={'obs_type': 'Timestream',

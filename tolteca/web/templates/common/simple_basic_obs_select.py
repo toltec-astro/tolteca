@@ -245,9 +245,9 @@ class KidsDataSelect(ComponentTemplate):
             array_multi = self._array_multi = 'array' in self.multi
             self._array_select = container.child(
                     LabeledChecklist(
-                        label_text='Select Network',
+                        label_text='Select by array',
                         checklist_props={
-                            'options': make_network_options(),
+                            'options': make_array_options(),
                         },
                         multi=array_multi
                         )).checklist
@@ -263,10 +263,7 @@ class KidsDataSelect(ComponentTemplate):
         super().setup_layout(app)
 
         @app.callback(
-                [
-                    Output(self.network_select.id, 'options'),
-                    Output(self.network_select.id, 'value'),
-                    ],
+                Output(self.network_select.id, 'options'),
                 [
                     Input(self.obsnum_select.id, 'value'),
                     ],
@@ -277,7 +274,7 @@ class KidsDataSelect(ComponentTemplate):
         def update_network_options(obsnum_value, network_value):
             if obsnum_value is None:
                 options = make_network_options(enabled=set())
-                return options, dash.no_update
+                return options
             obsnum_value = json.loads(obsnum_value)
             if network_value is None:
                 network_value = []
@@ -292,16 +289,65 @@ class KidsDataSelect(ComponentTemplate):
             enabled = set(
                     v['meta']['roachid']
                     for v in obsnum_value if has_processed(v))
-            network_value = network_value.intersection(enabled)
-            if self._nwid_multi:
-                network_value = list(network_value)
-            elif len(network_value) > 0:
-                network_value = next(iter(network_value))
-            else:
-                network_value = next(iter(enabled))
-            options = make_network_options(
-                    enabled=enabled)
-            return options, network_value
+            options = make_network_options(enabled=enabled)
+            return options
+
+        if self.array_select is not None:
+            @app.callback(
+                    [
+                        Output(self.array_select.id, 'options'),
+                        Output(self.array_select.id, 'value'),
+                        ],
+                    [
+                        Input(self.network_select.id, 'options'),
+                        ],
+                    )
+            def update_array_options(network_options):
+                options = make_array_options(
+                        network_options=network_options)
+                return options, ''
+
+            @app.callback(
+                    Output(self.network_select.id, 'value'),
+                    [
+                        Input(self.network_select.id, 'options'),
+                        Input(self.array_select.id, 'value'),
+                        ],
+                    [
+                        State(self.network_select.id, 'value'),
+                        ]
+                    )
+            def update_network_select_value_with_array(
+                    network_select_options, array_select_values,
+                    network_select_values,
+                    ):
+                values = get_networks_for_array(array_select_values)
+                return values
+        else:
+            @app.callback(
+                    Output(self.network_select.id, 'value'),
+                    [
+                        Input(self.network_select.id, 'options'),
+                        ],
+                    [
+                        State(self.network_select.id, 'value'),
+                        ],
+                    )
+            def update_network_select_value_without_array(
+                    options, network_value):
+                enabled = set(o['value'] for o in options if not o['disabled'])
+                if network_value is None:
+                    network_value = []
+                network_value = set(network_value).intersection(enabled)
+                if self._nwid_multi:
+                    network_value = list(network_value)
+                elif len(network_value) > 0:
+                    network_value = next(iter(network_value))
+                elif len(enabled) > 0:
+                    network_value = next(iter(enabled))
+                else:
+                    network_value = None
+                return network_value
 
         @app.callback(
                 [
@@ -474,40 +520,57 @@ def make_network_options(enabled=None, disabled=None):
     return result
 
 
-def make_array_options(enabled=None, disabled=None):
-    """Return the options dict for select TolTEC arrays."""
-    array_specs = {
-            'a1100': {
-                'label': '1.1mm',
-                'name': 'a1100',
-                'index': 0,
-                'nwids': [0, 1, 2, 3, 4, 5, 6],
-                },
-            'a1400': {
-                'label': '1.4mm',
-                'name': 'a1400',
-                'index': 1,
-                'nwids': [7, 8, 9, 10],
-                },
-            'a2000': {
-                'label': '2.0mm',
-                'name': 'a2000',
-                'index': 2,
-                'nwids': [11, 12],
-                },
+_array_option_specs = {
+        'a1100': {
+            'label': '1.1mm',
+            'nwids': [0, 1, 2, 3, 4, 5, 6],
+            },
+        'a1400': {
+            'label': '1.4mm',
+            'nwids': [7, 8, 9, 10],
+            },
+        'a2000': {
+            'label': '2.0mm',
+            'nwids': [11, 12],
+            },
+        'ALL': {
+            'label': 'All',
+            'nwids': list(range(13))
             }
+        }
+
+
+def make_array_options(enabled=None, disabled=None, network_options=None):
+    """Return the options dict for select TolTEC arrays."""
     if enabled is None:
-        enabled = set(array_specs.keys())
+        enabled = set(_array_option_specs.keys())
     if disabled is None:
         disabled = set()
+    if network_options is not None:
+        nw_disabled = set(
+                int(n['value']) for n in network_options if n['disabled'])
+        for k, a in _array_option_specs.items():
+            if set(a['nwids']).issubset(nw_disabled):
+                disabled.add(k)
+                enabled.discard(k)
     if len(enabled.intersection(disabled)) > 0:
         raise ValueError('conflict in enabled and disabled kwargs.')
+
     result = list()
-    for k, a in array_specs.items():
+    for k, a in _array_option_specs.items():
         d = {
                 'label': a['label'],
                 'value': k,
-                'disabled': (k not in enabled) or (k in disabled)
+                'disabled': (k not in enabled) and (k in disabled)
                 }
         result.append(d)
     return result
+
+
+def get_networks_for_array(array_select_values):
+    if array_select_values is None:
+        return None
+    checked = set()
+    for k in array_select_values:
+        checked = checked.union(set(_array_option_specs[k]['nwids']))
+    return list(checked)

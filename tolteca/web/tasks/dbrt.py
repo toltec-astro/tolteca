@@ -1,12 +1,8 @@
 #!/usr/bin/env python
 
-from dasha.web.extensions.db import db  # , dataframe_from_db
-from tollan.utils.db import SqlaDB
+from dasha.web.extensions.db import db, DatabaseRuntime  # , dataframe_from_db
 from tolteca.datamodels.db.toltec import data_prod
-from tollan.utils.log import get_logger
-from collections import UserDict
 from wrapt import ObjectProxy
-import cachetools.func
 
 
 dbrt = ObjectProxy(None)
@@ -17,99 +13,18 @@ after the dasha db extension is loaded.
 """
 
 
-class DatabaseRuntime(UserDict):
-    """A helper class that provide access to
-    TolTEC db connections.
-
-    Parameters
-    ----------
-    binds_required : list, optional
-        The list of binds required. If any is missing, `RuntimeError`
-        is raised. Default is to ignore.
-    """
-
-    def __init__(self, binds_required=None):
-        result = dict()
-        if binds_required is None:
-            binds_required = []
-        for bind in self._binds:
-            result[bind] = self._get_sqladb(
-                    bind, raise_on_error=bind in binds_required)
-        # setup db
-        for b, d in result.items():
-            self._setup_sqladb(
-                    d, func=getattr(self, f'_setup_{b}'),
-                    raise_on_error=b in binds_required
-                    )
-        super().__init__(result)
-
-    logger = get_logger()
-    # this shall be defined in the dasha db config.
-    _binds = ('toltec', 'tolteca', 'toltec_userlog_tool')
-
-    @staticmethod
-    def _setup_toltec(d):
-        d.reflect_tables()
-
-    @staticmethod
-    def _setup_toltec_userlog_tool(d):
-        d.reflect_tables()
-
-    @staticmethod
-    def _setup_tolteca(d):
-        data_prod.init_db(d, create_tables=False)
-        data_prod.init_orm(d)
-
-    @classmethod
-    def _setup_sqladb(cls, sqladb, func, raise_on_error=True):
-        try:
-            func(sqladb)
-        except Exception as e:
-            cls.logger.error(
-                    f"unable to init db {sqladb}: {e}",
-                    exc_info=True)
-            if raise_on_error:
-                raise
-        return sqladb
-
-    def _get_sqladb(cls, bind, raise_on_error=True):
-        if bind not in cls._binds:
-            raise ValueError(f'bind name shall be {cls._binds}')
-        try:
-            result = SqlaDB.from_flask_sqla(db, bind=bind)
-        except Exception as e:
-            cls.logger.error(
-                    f"unable to connect to db bind={bind}: {e}",
-                    exc_info=True)
-            if raise_on_error:
-                raise
-            else:
-                result = None
-        return result
-
-    @cachetools.func.ttl_cache(ttl=1)
-    def ensure_connection(self, b):
-        try:
-            self[b].session.execute('SELECT 1')
-        except Exception as e:
-            self[b].session.rollback()
-            self.logger.debug(f"reconnect db {b}: {e}")
-            self._setup_sqladb(
-                    self[b], func=getattr(self, f'_setup_{b}')
-                    )
-
-    def __key(self):
-        return tuple(self.keys())
-
-    def __hash__(self):
-        return hash(self.__key())
-
-    def __eq__(self, other):
-        if isinstance(other, self.__class__):
-            return self.__key() == other.__key()
-        return NotImplemented
+def setup_tolteca_db(d):
+    data_prod.init_db(d, create_tables=False)
+    data_prod.init_orm(d)
 
 
 if db is not None:
     # make available a global instance if dasha db is initialized.
-    dbrt.__wrapped__ = DatabaseRuntime()
+    dbrt.__wrapped__ = DatabaseRuntime(
+        binds=['toltec', 'tolteca', 'toltec_userlog_tool'],
+        setup_funcs={
+            'toltec': 'reflect_tables',
+            'toltec_userlog_tool': 'reflect_tables',
+            'tolteca': setup_tolteca_db
+            }
+        )

@@ -50,6 +50,7 @@ from tolteca.datamodels.fs.rsync import RsyncAccessor
 from pathlib import Path
 import argparse
 
+
 def main(args):
 
     parser = argparse.ArgumentParser(
@@ -120,3 +121,7 @@ def main(args):
         dataset.write_index_table(
                 option.output, overwrite=option.overwrite,
                 format=fmt)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
