@@ -292,6 +292,25 @@ class KidsDataSelect(ComponentTemplate):
             options = make_network_options(enabled=enabled)
             return options
 
+        def update_network_value_for_options(network_options, network_value):
+            enabled = set(o['value'] for o in network_options if not o['disabled'])
+            if network_value is None:
+                network_value = []
+            if not self._nwid_multi:
+                # make list of values
+                network_value = [network_value]
+            network_value = list(set(network_value).intersection(enabled))
+            if self._nwid_multi:
+                pass
+            elif len(network_value) > 0:
+                network_value = network_value[0]
+            elif len(enabled) > 0:
+                network_value = next(iter(enabled))
+            else:
+                network_value = None
+            return network_value
+
+
         if self.array_select is not None:
             @app.callback(
                     [
@@ -318,11 +337,11 @@ class KidsDataSelect(ComponentTemplate):
                         ]
                     )
             def update_network_select_value_with_array(
-                    network_select_options, array_select_values,
-                    network_select_values,
+                    network_select_options, array_select_value,
+                    network_select_value,
                     ):
-                values = get_networks_for_array(array_select_values)
-                return values
+                value = get_networks_for_array(array_select_value)
+                return update_network_value_for_options(network_select_options, value)
         else:
             @app.callback(
                     Output(self.network_select.id, 'value'),
@@ -335,19 +354,7 @@ class KidsDataSelect(ComponentTemplate):
                     )
             def update_network_select_value_without_array(
                     options, network_value):
-                enabled = set(o['value'] for o in options if not o['disabled'])
-                if network_value is None:
-                    network_value = []
-                network_value = set(network_value).intersection(enabled)
-                if self._nwid_multi:
-                    network_value = list(network_value)
-                elif len(network_value) > 0:
-                    network_value = next(iter(network_value))
-                elif len(enabled) > 0:
-                    network_value = next(iter(enabled))
-                else:
-                    network_value = None
-                return network_value
+                return update_network_value_for_options(options, network_value)
 
         @app.callback(
                 [
