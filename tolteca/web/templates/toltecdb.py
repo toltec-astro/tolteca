@@ -181,14 +181,14 @@ class ToltecDB(ComponentTemplate):
         @timeit
         @cachetools.func.ttl_cache(maxsize=1, ttl=1)
         def query_table_sizes(*table_names):
-            session = _db.session
             result = []
-            for n in table_names:
-                if n not in _t:
-                    result.append(None)
-                else:
-                    result.append(
-                        session.execute(_t[n].count()).scalar())
+            with _db.session_context as session:
+                for n in table_names:
+                    if n not in _t:
+                        result.append(None)
+                    else:
+                        result.append(
+                            session.execute(_t[n].count()).scalar())
             return result
 
         radio_items = select_container.child(
@@ -366,7 +366,8 @@ document.getElementById('{dest}').appendChild(
                         } for i in info.columns
                     ]
             data = info.to_dict('records')
-            size = session.execute(db_table.count()).scalar()
+            with _db.session_context as session:
+                size = session.execute(db_table.count()).scalar()
             if size == 0:
                 n_pages = 1
             else:
@@ -400,8 +401,8 @@ document.getElementById('{dest}').appendChild(
         graph_layout_select = graph_layout_select_group.child(
                 dbc.Select,
                 options=[
-                    {'label': l, 'value': l}
-                    for l in cyto_layouts
+                    {'label': layout, 'value': layout}
+                    for layout in cyto_layouts
                     ],
                 value='cola',
                 )

@@ -5,28 +5,25 @@ from dash.dependencies import Input, Output
 import dash_html_components as html
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc
-from plotly.subplots import make_subplots
+# from plotly.subplots import make_subplots
 import plotly.graph_objs as go
 import plotly.express as px
 from glob import glob
 import numpy as np
-import netCDF4
+import astropy.units as u
 import colorsys
-import dash
+# import dash
 import os
 import bottleneck as bn
 from tollan.utils.log import timeit, get_logger
 from dasha.web.extensions.cache import cache
 from dash.exceptions import PreventUpdate
-from dasha.web.extensions.db import dataframe_from_db
 import scipy.interpolate as interpolate
-import functools
-import json
-import cachetools.func
-from pathlib import Path
+# import functools
 from .common import HeaderWithToltecLogo
 from .common.simple_basic_obs_select import KidsDataSelect
 from dasha.web.templates.common import LiveUpdateSection
+from tolteca.datamodels.toltec import BasicObsData
 
 
 class NoiseExplorer(ComponentTemplate):
@@ -72,81 +69,12 @@ class NoiseExplorer(ComponentTemplate):
             app, header, query_kwargs={'obs_type': 'Timestream',
                                        'n_obs': 100})
 
-
-        # # Set up an InputGroup to format the obsnum input
-        # controls = controls_container
-        # # InputGroups have two children, dbc.Input and dbc.InputGroupAddon
-        # obsIG = controls.child(dbc.Row).child(dbc.Col, className='d-flex').child(dbc.InputGroup,
-        #                                   size='sm',
-        #                                   className='mb-3 w-auto mt-3')
-        # obsIG.child(dbc.InputGroupAddon("Select ObsNum", addon_type="prepend"))
-        # obsInput = obsIG.child(dbc.Select, options=[])
-
-        # set up a network selection section
-        plot_networks_checklist_section = controls_container.child(
-                dbc.Row).child(dbc.Col)
-        plot_networks_checklist_section.child(dbc.Label, 'Select network(s) to show in the plots:')
-        plot_networks_checklist_container = plot_networks_checklist_section.child(dbc.Row, className='mx-0')
-        checklist_presets_container = plot_networks_checklist_container.child(dbc.Col)
-        checklist_presets = checklist_presets_container.child(dbc.Checklist, persistence=False, labelClassName='pr-1', inline=True)
-        checklist_presets.options = [
-                {'label': 'All', 'value': 'all'},
-                {'label': '1.1mm', 'value': '1.1 mm Array'},
-                {'label': '1.4mm', 'value': '1.4 mm Array'},
-                {'label': '2.0mm', 'value': '2.0 mm Array'},
-                ]
-
-        checklist_presets.value = []
-        checklist_networks_container = plot_networks_checklist_container.child(dbc.Col)
-        # make three button groups
-        netSelect = checklist_networks_container.child(dbc.Checklist, persistence=False, labelClassName='pr-1', inline=True)
-
-        checklist_networks_options = [
-                {'label': f'N{i}', 'value': i}
-                for i in range(13)]
-        array_names = ['1.1 mm Array', '1.4 mm Array', '2.0 mm Array']
-        preset_networks_map = dict()
-        preset_networks_map['1.1 mm Array'] = set(o['value'] for o in checklist_networks_options[0:7])
-        preset_networks_map['1.4 mm Array'] = set(o['value'] for o in checklist_networks_options[7:10])
-        preset_networks_map['2.0 mm Array'] = set(o['value'] for o in checklist_networks_options[10:13])
-        preset_networks_map['all'] = functools.reduce(set.union, (preset_networks_map[k] for k in array_names))
-
-        # a callback to update the check state
-        @app.callback(
-                [
-                    Output(netSelect.id, "options"),
-                    Output(netSelect.id, "value"),
-                    ],
-                [
-                    Input(checklist_presets.id, "value"),
-                    Input(obsInput.id, "value"),
-                ]
-            )
-        def on_preset_change(preset_values, info):
-            self.logger.debug(f'info: {info}')
-            # this is all the nws
-            nw_values = set()
-            for pv in preset_values:
-                nw_values = nw_values.union(preset_networks_map[pv])
-            options = [o for o in checklist_networks_options if o['value'] in nw_values]
-            values = list(nw_values)
-            # if we have info from the obsinput,
-            # we can update the options with disabled state
-            if info is None:
-                return options, values
-            files = query_filepaths(**json.loads(info))
-            for option in options:
-                v = option['value']
-                option['disabled'] = (files is None) or (v not in files)
-                if option['disabled']:
-                    values.remove(v)
-            return options, values
-
         # not a big hr fan but let's see how it looks
         body.child(dbc.Row).child(dbc.Col).child(html.Hr())
 
         # this is the big psd plot at the top
-        pPlot = body.child(dbc.Row).child(dbc.Col).child(dcc.Graph, style={'min-width': '1200px'})
+        pPlot = body.child(dbc.Row).child(dbc.Col).child(
+                dcc.Graph, style={'min-width': '1200px'})
 
         # and we need a switch to toggle log_x_axis
         opt = [{"label": "log x-axis", "value": 0}]
@@ -154,20 +82,23 @@ class NoiseExplorer(ComponentTemplate):
                                                         options=opt)
 
         # add a table to show the detector loadings
-        loadingTable = body.child(dbc.Row).child(dcc.Graph, style={'min-width': '1200px'})
+        loadingTable = body.child(dbc.Row).child(
+                dcc.Graph, style={'min-width': '1200px'})
 
         # these next plots will go on the same row
         plotRow = body.child(dbc.Row)
         # a histogram of the median psds of each detector
-        hPlot = plotRow.child(dbc.Col).child(dcc.Graph, style={'min-width': '600px'})
+        hPlot = plotRow.child(dbc.Col).child(
+                dcc.Graph, style={'min-width': '600px'})
         # a plot of detector resonant freq. vs median psd value
-        fPlot = plotRow.child(dbc.Col).child(dcc.Graph, style={'min-width': '600px'})
+        fPlot = plotRow.child(dbc.Col).child(
+                dcc.Graph, style={'min-width': '600px'})
 
         # before we register the callbacks
         super().setup_layout(app)
 
         # register the callbacks
-        self._registerCallbacks(app, obsInput, netSelect,
+        self._registerCallbacks(app, obsInput,
                                 pPlot, hPlot, fPlot, logx,
                                 loadingTable)
 
@@ -192,7 +123,7 @@ class NoiseExplorer(ComponentTemplate):
         return obsnums, networks, obsList
 
     # register the callbacks
-    def _registerCallbacks(self, app, obsInput, netSelect,
+    def _registerCallbacks(self, app, obsInput,
                            pPlot, hPlot, fPlot, logx, loadingTable):
 
         # Generate Median PSD plot vs frequency
@@ -203,16 +134,19 @@ class NoiseExplorer(ComponentTemplate):
                 Output(fPlot.id, "figure"),
                 Output(loadingTable.id, "figure")
             ],
-            [
-               Input(netSelect.id, "value"),
-               Input(obsInput.id, "value"),
+            obsInput.inputs + [
                Input(logx.id, "value")
             ]
         )
-        def makeMedianPsdPlot(selectedNets, selectedObsnum, logx):
-            if (selectedNets is None) or (selectedObsnum is None):
+        def makeMedianPsdPlot(obs_input, logx):
+            # obs_input is the basic_obs_select_value dict
+            # seen in the "details..."
+            # when the nwid multi is set in the select,
+            # this is a list of dict,
+            # which is our case here.
+            if obs_input is None:
                 raise PreventUpdate
-            data = fetchPsdData(selectedNets, **json.loads(selectedObsnum))
+            data = fetchPsdData(obs_input)
             if logx is None:
                 logx = []
             if(len(logx) > 0):
@@ -229,7 +163,10 @@ class NoiseExplorer(ComponentTemplate):
 # Read data from netcdf files
 @timeit
 @cache.memoize(timeout=60 * 60 * 60)
-def _fetchPsdData(net, obsnum, subobsnum, scannum, filepath):
+def _fetchPsdData(filepath):
+
+    with timeit(f"read in solved timestream from {filepath}"):
+        sts = BasicObsData.read(filepath)
 
     def make_stat(arr, axis=None):
         med = bn.nanmedian(arr, axis=axis)
@@ -239,12 +176,10 @@ def _fetchPsdData(net, obsnum, subobsnum, scannum, filepath):
         return med, mad, p25, p75
 
     with timeit(f"read in data from {filepath}"):
-        nc = netCDF4.Dataset(filepath)
-        fs = nc.variables['Header.Kids.tones'][:].data
-        fpsd = nc.variables['Header.Kids.PsdFreq'][:].data
-        xpsd = nc.variables['Data.Kids.xspsd'][:].data.transpose()
-        rpsd = nc.variables['Data.Kids.rspsd'][:].data.transpose()
-        nc.close()
+        fs = sts.meta['tone_axis_data']['f_center']
+        fpsd = sts.meta['f_psd']
+        xpsd = sts.meta['x_psd']
+        rpsd = sts.meta['r_psd']
 
     # construct the medians of the psds of the network
     medxPsd, madxPsd, stdxPsdLow, stdxPsdHigh = make_stat(xpsd, axis=0)
@@ -253,7 +188,7 @@ def _fetchPsdData(net, obsnum, subobsnum, scannum, filepath):
     # also calculate median of each detector's psd
     medxDet = bn.nanmedian(xpsd, axis=1)
     medrDet = bn.nanmedian(rpsd, axis=1)
-    detFreqMHz = fs * 1e-6
+    detFreqMHz = fs.to_value(u.MHz)
 
     # check for NaNs, zeros or negatives
     if np.isnan(medxPsd).any():
@@ -262,13 +197,14 @@ def _fetchPsdData(net, obsnum, subobsnum, scannum, filepath):
         print("\nNaNs detected in medrPsd.")
 
     # estimate the background loading on the network
+    net = sts.meta['nwid']
     Tload = estimateTload(net, np.median(medxPsd), np.median(medrPsd))
 
     return {
          'network': net,
-         'obsnum': obsnum,
-         'subobsnum': subobsnum,
-         'scannum': scannum,
+         'obsnum': sts.meta['obsnum'],
+         'subobsnum': sts.meta['subobsnum'],
+         'scannum': sts.meta['scannum'],
          'fpsd': fpsd,
          'Tload': Tload,
          'medxPsd': medxPsd,
@@ -289,37 +225,18 @@ def _fetchPsdData(net, obsnum, subobsnum, scannum, filepath):
 cache.delete_memoized(_fetchPsdData)
 
 
-def fetchPsdData(nets, obsnum, subobsnum, scannum):
+def fetchPsdData(obs_input_list):
     data = []
-    filepaths = query_filepaths(obsnum, subobsnum, scannum)
-    for net in nets:
-        data.append(_fetchPsdData(net, obsnum, subobsnum, scannum, filepaths[net]))
+    for obs_input in obs_input_list.values():
+        raw_obs_processed_url = obs_input['raw_obs_processed']
+        if raw_obs_processed_url is None:
+            continue
+        try:
+            data.append(_fetchPsdData(raw_obs_processed_url))
+        except Exception:
+            print(f"unable to load file {raw_obs_processed_url}")
+            continue
     return data
-
-
-@timeit
-@cachetools.func.ttl_cache(ttl=1)
-def query_filepaths(obsnum, subobsnum, scannum):
-    # here we check the data file exist if some obs is selected
-    query_str = (
-            f"select "
-            f"id,RoachIndex,FileName "
-            f"from toltec_r1 where ObsNum={obsnum} and SubObsNum={subobsnum} and ScanNum={scannum} "
-            f"order by RoachIndex")
-    try:
-        df = dataframe_from_db(query_str, 'toltec')
-    except Exception as e:
-        return None
-    files = dict()
-    # populate the list of files
-    rpath = Path('/data/data_toltec/reduced/')
-    for nw, filepath in zip(df['RoachIndex'], df['FileName']):
-        filepath = rpath.joinpath(
-                Path(filepath).name).as_posix().replace(
-                        'timestream.nc', 'timestream_processed.nc')
-        if Path(filepath).exists():
-            files[nw] = filepath
-    return files
 
 
 def get_color_pairs():
@@ -332,7 +249,7 @@ def get_color_pairs():
         # manipulate h, l, s values and return as rgb
         return "#{0:02x}{1:02x}{2:02x}".format(
                 *(np.array(
-                    colorsys.hls_to_rgb(h, min(1, l * scale), s = s)
+                    colorsys.hls_to_rgb(h, min(1, l * scale), s=s)
                     ) * 255.).astype(int))
     # colorsLight = [scale_lightness(c, 2) for c in colorsDark]
     colorsLight = [
@@ -432,7 +349,7 @@ def getPsdPlot(data, logx=0):
                          mode='lines',
                          name="Network {} - x".format(data[i]['network']),
                          line=dict(color=colorsDark[i], width=4),
-            ),
+                         ),
         )
         fig.add_trace(
             go.Scattergl(x=data[i]['fpsd'],
@@ -440,7 +357,7 @@ def getPsdPlot(data, logx=0):
                          mode='lines',
                          name="Network {} - r".format(data[i]['network']),
                          line=dict(color=colorsLight[i]),
-            ),
+                         ),
         )
     fig.update_xaxes(range=[0.1, maxf])
 
@@ -503,7 +420,7 @@ def getPvsFPlot(data):
                          mode='markers',
                          name="Network {} - x".format(data[i]['network']),
                          line=dict(color=colorsDark[i], width=4),
-            ),
+                         ),
         )
         fig.add_trace(
             go.Scattergl(x=data[i]['detFreqMHz'],
@@ -511,7 +428,7 @@ def getPvsFPlot(data):
                          mode='markers',
                          name="Network {} - r".format(data[i]['network']),
                          line=dict(color=colorsLight[i]),
-            ),
+                         ),
         )
 
     fig.update_yaxes(automargin=True)
@@ -535,7 +452,6 @@ def getLoadingTable(data):
         'text': "Estimated Loadings", },
         height=250, autosize=False,)
     return fig
-
 
 
 # parser to get obsnums and networks from file names
@@ -625,7 +541,9 @@ def estimateTload(network, medxPSD, medrPSD):
         pn = [7.53e-18, 1.58e-17, 2.96e-17, 5.6e-17, 8.32e-17]
     else:
         pn = [6.98e-18, 1.54e-17, 3.03e-17, 6.02e-17, 9.21e-17]
-    fn = interpolate.interp1d(pn, Trange, kind='quadratic', bounds_error=False, fill_value=np.nan)
+    fn = interpolate.interp1d(
+            pn, Trange,
+            kind='quadratic', bounds_error=False, fill_value=np.nan)
     medianPhotonNoise = medxPSD-medrPSD
     Tload = fn(medianPhotonNoise)
     return Tload

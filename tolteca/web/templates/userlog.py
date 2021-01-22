@@ -27,12 +27,10 @@ def _get_toltec_userlog_id_latest():
 
     dbrt.ensure_connection('toltec')
     t = dbrt['toltec'].tables['userlog']
-    session = dbrt['toltec'].session
-    session.commit()
 
     stmt = se.select([t.c.id]).order_by(se.desc(t.c.id)).limit(1)
-    id_latest = session.execute(stmt).scalar()
-
+    with dbrt['toltec'].session_context as session:
+        id_latest = session.execute(stmt).scalar()
     logger.debug(f"latest id: {id_latest}")
     return id_latest
 
@@ -42,10 +40,10 @@ def _get_toltecdb_obsnum_latest():
 
     dbrt.ensure_connection('toltec')
     t = dbrt['toltec'].tables['toltec']
-    session = dbrt['toltec'].session
-    session.commit()
     stmt = se.select([t.c.ObsNum]).order_by(se.desc(t.c.ObsNum)).limit(1)
-    obsnum_latest = session.execute(stmt).scalar()
+
+    with dbrt['toltec'].session_context as session:
+        obsnum_latest = session.execute(stmt).scalar()
 
     logger.debug(f"latest obsnum: {obsnum_latest}")
     return obsnum_latest
@@ -103,8 +101,6 @@ def insert_to_toltec_userlog(user, obsnum, entry):
     dbrt.ensure_connection('toltec_userlog_tool')
     bind = 'toltec_userlog_tool'
     t = dbrt[bind].tables
-    session = dbrt[bind].session
-    session.commit()
     stmt = (
         se.insert(t['userlog']).
         values(
@@ -117,8 +113,8 @@ def insert_to_toltec_userlog(user, obsnum, entry):
                 })
         )
     logger.debug(f"insert stmt: {stmt}")
-    session.execute(stmt)
-    session.commit()
+    with dbrt[bind].session_context as session:
+        session.execute(stmt)
     return
 
 

@@ -53,11 +53,10 @@ def _get_toltecdb_obsnum_latest():
 
     dbrt.ensure_connection('toltec')
     t = dbrt['toltec'].tables['toltec']
-    session = dbrt['toltec'].session
-    session.commit()
     stmt = se.select([t.c.ObsNum]).order_by(se.desc(t.c.ObsNum)).limit(1)
-    obsnum_latest = session.execute(stmt).scalar()
 
+    with dbrt['toltec'].session_context as session:
+        obsnum_latest = session.execute(stmt).scalar()
     logger.debug(f"latest obsnum: {obsnum_latest}")
     return obsnum_latest
 
@@ -68,7 +67,6 @@ def _get_bods_index_from_toltecdb(
 
     dbrt.ensure_connection('toltec')
     t = dbrt['toltec'].tables
-    session = dbrt['toltec'].session
 
     if obsnum_latest is None:
         obsnum_latest = _get_toltecdb_obsnum_latest()
@@ -114,6 +112,8 @@ def _get_bods_index_from_toltecdb(
                         t['obstype'].c.label == obs_type,
                         t['master'].c.label == 'ICS'
                         ))
+
+    session = dbrt['toltec'].session
     tbl_raw_obs = Table.from_pandas(
             dataframe_from_db(stmt, session=session))
     # logger.debug(f"tbl_raw_obs: {tbl_raw_obs}")
@@ -245,7 +245,7 @@ class KidsDataSelect(ComponentTemplate):
             array_multi = self._array_multi = 'array' in self.multi
             self._array_select = container.child(
                     LabeledChecklist(
-                        label_text='Select by array',
+                        label_text='Select by Array',
                         checklist_props={
                             'options': make_array_options(),
                         },
