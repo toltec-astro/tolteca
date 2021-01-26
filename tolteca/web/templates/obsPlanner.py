@@ -16,8 +16,6 @@ import json
 import yaml
 from io import StringIO
 
-from .common.toltec_sensitivity.Detector import Detector
-
 from astropy.wcs.utils import celestial_frame_to_wcs
 from astropy.convolution import Gaussian2DKernel
 from astroquery.utils import parse_coordinates
@@ -30,6 +28,26 @@ from astropy.time import Time
 from astropy.wcs import WCS
 from datetime import date
 import numpy as np
+from .. import env_registry, env_prefix
+import sys
+
+
+TOLTEC_SENSITIVITY_MODULE_PATH_ENV = (
+        f"{env_prefix}_CUSTOM_TOLTEC_SENSITIVITY_MODULE_PATH")
+
+env_registry.register(
+        TOLTEC_SENSITIVITY_MODULE_PATH_ENV,
+        "The path to locate the toltec_sensitivity module",
+        "toltec_sensitivity")
+
+_toltec_sensitivity_module_path = env_registry.get(
+        TOLTEC_SENSITIVITY_MODULE_PATH_ENV)
+
+
+sys.path.insert(0, Path(_toltec_sensitivity_module_path).parent.as_posix())
+
+
+from toltec_sensitivity import Detector
 
 
 class obsPlanner(ComponentTemplate):
