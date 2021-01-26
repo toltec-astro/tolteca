@@ -1,52 +1,46 @@
 from tollan.utils.log import timeit, get_logger
 from dasha.web.templates import ComponentTemplate
+from dasha.web.templates.collapsecontent import CollapseContent
 from dasha.web.extensions.cache import cache
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
+from dash_extensions import Download
+from dash_extensions.snippets import send_file
+from dash_extensions.snippets import send_bytes
 import dash_bootstrap_components as dbc
 import dash_html_components as html
 import dash_core_components as dcc
-import cachetools.func
-from pathlib import Path
-from itertools import cycle
-from .common import HeaderWithToltecLogo
 import plotly.graph_objs as go
 import dash
 import json
 import yaml
 from io import StringIO
 
-from astropy.wcs.utils import celestial_frame_to_wcs
 from astropy.convolution import Gaussian2DKernel
 from astroquery.utils import parse_coordinates
 from astropy.convolution import convolve_fft
 from tolteca.simu import SimulatorRuntime
-from astropy.coordinates import SkyCoord
 from astroquery.skyview import SkyView
 from astropy import units as u
 from astropy.time import Time
 from astropy.wcs import WCS
+from astropy.io import fits
 from datetime import date
 import numpy as np
+
+from pathlib import Path
 from .. import env_registry, env_prefix
 import sys
 
-
 TOLTEC_SENSITIVITY_MODULE_PATH_ENV = (
         f"{env_prefix}_CUSTOM_TOLTEC_SENSITIVITY_MODULE_PATH")
-
 env_registry.register(
         TOLTEC_SENSITIVITY_MODULE_PATH_ENV,
         "The path to locate the toltec_sensitivity module",
         "toltec_sensitivity")
-
 _toltec_sensitivity_module_path = env_registry.get(
         TOLTEC_SENSITIVITY_MODULE_PATH_ENV)
-
-
 sys.path.insert(0, Path(_toltec_sensitivity_module_path).parent.as_posix())
-
-
 from toltec_sensitivity import Detector
 
 
@@ -54,6 +48,7 @@ class obsPlanner(ComponentTemplate):
 
     # sets up the global Div that the site lives under
     _component_cls = dbc.Container
+    fluid = True
     logger = get_logger()
 
     def __init__(self, *args, **kwargs):
@@ -63,8 +58,9 @@ class obsPlanner(ComponentTemplate):
     def setup_layout(self, app):
         container = self
         header_section, hr_container, body = container.grid(3, 1)
-        hr_container.child(html.H2, "TolTEC Observation Planner", className='my-2')
-                           # style={'color': 'blue'})
+        hr_container.child(html.H2,
+                           "TolTEC Observation Planner",
+                           className='my-2')
         hr_container.child(html.Hr())
 
         # a container for the rest of the page
@@ -229,7 +225,8 @@ class obsPlanner(ComponentTemplate):
         # ---------------------------
         # Mapping Tabs
         # ---------------------------
-        mappingBox = controlBox.child(dbc.Row, className='mt-3').child(dbc.Col).child(dbc.Tabs)
+        mappingBox = controlBox.child(
+            dbc.Row, className='mt-3').child(dbc.Col).child(dbc.Tabs)
         lissBox = mappingBox.child(dbc.Tab, label="Lissajous")
         lissCard = lissBox.child(dbc.Card)
         l_header = lissCard.child(dbc.CardHeader)
@@ -390,9 +387,12 @@ class obsPlanner(ComponentTemplate):
             dbc.Button, "Execute Pattern", color="danger", size='sm',
             style={'width': '45%', "margin-right": '10px'})
 
-        output_state_container = controlBox.child(dbc.Row).child(dbc.Col).child(dbc.Card)
-        lis_output_state = output_state_container.child(html.Div)
-        ras_output_state = output_state_container.child(html.Div)
+        lis_output_state = l_body.child(dbc.Row).child(
+            CollapseContent(
+                button_text='Details ...')).content
+        ras_output_state = r_body.child(dbc.Row).child(
+            CollapseContent(
+                button_text='Details ...')).content
 
         mapping = {'lisRotIn': lisRotIn,
                    'lisxLenIn': lisxLenIn,
@@ -424,7 +424,6 @@ class obsPlanner(ComponentTemplate):
         horizRow = plotsBox.child(dbc.Row)
         horizCard = horizRow.child(dbc.Col, width=12).child(
             dbc.Card)
-            # style={"width": "110rem", "marginTop": 0, "marginBottom": 0})
         h_header = horizCard.child(dbc.CardHeader)
         h_header.child(html.H5, "Horizon Coordinates", className='mb-2')
         h_body = horizCard.child(dbc.CardBody)
@@ -449,14 +448,21 @@ class obsPlanner(ComponentTemplate):
         e_header.child(html.H5, "Celestial Coordinates", className='mb-2')
         e_body = celesCard.child(dbc.CardBody)
         cbr = e_body.child(dbc.Row)
-        # ticrsPlot = cbr.child(dbc.Col).child(dcc.Graph)
-        # cicrsPlot = cbr.child(dbc.Col).child(dcc.Graph)
-        ticrsPlot = cbr.child(dbc.Col).child(dcc.Loading, type='spinner').child(dcc.Graph)
-                                             # style={"float": "right"})
-        cicrsPlot = cbr.child(dbc.Col).child(dcc.Loading, type='spinner').child(dcc.Graph)
-                                             # style={"float": "left"})
+        ticrsPlot = cbr.child(dbc.Col).child(
+            dcc.Loading, type='spinner').child(dcc.Graph)
+        cicrsPlot = cbr.child(dbc.Col).child(
+            dcc.Loading, type='spinner').child(dcc.Graph)
+        cdr = e_body.child(dbc.Row)
+        fitsWrite = cdr.child(dbc.Col, width=2).child(
+            dbc.Button, "Download FITS", color="success", size='sm')
+        fitsOut = cdr.child(dbc.Col, width=1, align='end').child(
+            dbc.Row, align='start').child(
+                dcc.Loading, type='spinner').child(Download)
+        # fitsOut = cdr.child(Download)
+
         # this holds the dynamic settings of the sim rt config
         updated_context = self.child(dcc.Store, data=None)
+
         # before we register the callbacks
         super().setup_layout(app)
 
@@ -464,12 +470,53 @@ class obsPlanner(ComponentTemplate):
         self._registerCallbacks(app, settings, target, mapping,
                                 Execute, dazelPlot, tazelPlot, uptimePlot,
                                 oTable, ticrsPlot, cicrsPlot,
-                                updated_context)
+                                updated_context, fitsOut, fitsWrite)
 
     def _registerCallbacks(self, app, settings, target, mapping,
                            Execute, dazelPlot, tazelPlot, uptimePlot,
-                           oTable, ticrsPlot, cicrsPlot, updated_context):
+                           oTable, ticrsPlot, cicrsPlot, updated_context,
+                           fitsOut, fitsWrite):
         print("Registering Callbacks")
+
+        # download a fits file of the coverage map
+        @app.callback(
+            [
+                Output(fitsOut.id, "data"),
+            ],
+            [
+                Input(fitsWrite.id, "n_clicks")
+            ],
+            [
+                State(settings['showArray'].id, "value"),
+                State(settings['overlayDrop'].id, "value"),
+                State(updated_context.id, 'data'),
+                State(settings['bandIn'].id, "value"),
+                State(settings['atmQIn'].id, "value"),
+                State(settings['telRMSIn'].id, "value"),
+                State(settings['unitsIn'].id, "value"),
+            ],
+            prevent_initial_call=True
+        )
+        def makeDownloadFits(n, s2s, overlay, updated_context,
+                             band, atmQ, telRMS, units):
+            sim = fetchSim(updated_context)
+            if sim is None:
+                raise PreventUpdate
+            obs = generateMappings(sim, band)
+            mAlt = obs['target_altaz'].alt.mean()
+            if(mAlt.to_value(u.deg) < 20):
+                raise PreventUpdate
+            else:
+                d = Detector(band, elevation=mAlt.to_value(u.deg),
+                             atmQuartile=atmQ,
+                             telescopeRMSmicrons=telRMS)
+                showArray = s2s.count('array')
+                tableData, tfig, cfig, hdul = getCelestialPlots(
+                    sim, obs, d, units,
+                    overlay=overlay,
+                    showArray=showArray,
+                )
+            return [send_bytes(hdul.writeto, "obs_planner_cov.fits")]
 
         # update target ra and dec based on name search
         @app.callback(
@@ -702,7 +749,7 @@ class obsPlanner(ComponentTemplate):
                              atmQuartile=atmQ,
                              telescopeRMSmicrons=telRMS)
                 showArray = s2s.count('array')
-                tableData, tfig, cfig = getCelestialPlots(
+                tableData, tfig, cfig, hdul = getCelestialPlots(
                     sim, obs, d, units,
                     overlay=overlay,
                     showArray=showArray,
@@ -811,14 +858,18 @@ def generateMappings(sim, band):
     return obs
 
 
+@timeit
 def fetchConvolved(wcs, bimage, aimage, pixSize, t_total, fwhmArcsec):
     # here is the convolved image
-    c = convolve_fft(bimage, aimage, normalize_kernel=False)
+    with timeit("First convolution: "):
+        c = convolve_fft(
+            bimage, aimage, normalize_kernel=False, allow_huge=True)
 
     # and also smooth by a beam-sized gaussian
     sigma = (fwhmArcsec/2.355)/pixSize.to_value(u.arcsec)
     g = Gaussian2DKernel(sigma, sigma)
-    cimage = convolve_fft(c, g, normalize_kernel=False)
+    with timeit("Second convolution: "):
+        cimage = convolve_fft(c, g, normalize_kernel=False)
 
     # After all of this, cimage is in the units of integration time
     # (in seconds) per pixel.  You can check that cimage.sum() =
@@ -842,9 +893,10 @@ def fetchOverlay(overlay, target, cra, cdec):
     s = overlayImage.shape
     ora = owcs.pixel_to_world_values(np.arange(0, s[0]), 0)[0]
     odec = owcs.pixel_to_world_values(0, np.arange(0, s[1]))[1]
-    return overlayImage, ora, odec
+    return overlayImage, ora, odec, owcs
 
 
+@timeit
 def makeContour(cimage, cra, cdec):
     return go.Contour(
         z=cimage,
@@ -859,6 +911,7 @@ def makeContour(cimage, cra, cdec):
     )
 
 
+@timeit
 def getHorizonPlots(obs, showArray=0):
     # setup
     # obs_coords_altaz are absolute coordinates in alt-az
@@ -1019,6 +1072,7 @@ def makeUptimesFig(obs):
     return upfig
 
 
+@timeit
 def getCelestialPlots(sim, obs, d, units,
                       overlay='None', showArray=0,
                       sensDegred=np.sqrt(2.)):
@@ -1061,6 +1115,13 @@ def getCelestialPlots(sim, obs, d, units,
                       (4.*u.arcmin).to_value(u.degree))
                      / pixSize.to_value(u.deg))
 
+    # if map is too big, increase the pixel size
+    if((nPixRa > 2000) | (nPixDec > 2000)):
+        newPixSize = 3.*u.arcsec
+        nPixDec = np.ceil(nPixDec*pixSize/newPixSize)
+        nPixRa = np.ceil(nPixRa*pixSize/newPixSize)
+        pixSize = newPixSize
+
     # correct for RA wrap if needed
     if((obs_ra.degree.max() > 270.) & (obs_ra.degree.min() < 90.)):
         nPixRa = np.ceil((obs_ra.degree.min() -
@@ -1072,7 +1133,7 @@ def getCelestialPlots(sim, obs, d, units,
     wcs_input_dict = {
         'CTYPE1': 'RA---TAN',
         'CUNIT1': 'deg',
-        'CDELT1': -pixSize.to_value(u.deg),
+        'CDELT1': pixSize.to_value(u.deg),
         'CRPIX1': nPixRa/2.,
         'CRVAL1': obs['target_icrs'].ra.degree,
         'NAXIS1': nPixRa,
@@ -1087,28 +1148,48 @@ def getCelestialPlots(sim, obs, d, units,
     pixels_boresight = wcs.world_to_pixel_values(obs_ra, obs_dec)
     pixels_array = wcs.world_to_pixel_values(a_ra, a_dec)
 
-    prabins = np.arange(wcs.array_shape[0])
-    pdecbins = np.arange(wcs.array_shape[1])
+    prabins = np.arange(wcs.pixel_shape[0])
+    pdecbins = np.arange(wcs.pixel_shape[1])
 
-    arabins = np.arange(np.floor(pixels_array[1].min()),
-                        np.ceil(pixels_array[1].max()+1))
-    adecbins = np.arange(np.floor(pixels_array[0].min()),
-                         np.ceil(pixels_array[0].max()+1))
+    arabins = np.arange(np.floor(pixels_array[0].min()),
+                        np.ceil(pixels_array[0].max()+1))
+    adecbins = np.arange(np.floor(pixels_array[1].min()),
+                         np.ceil(pixels_array[1].max()+1))
 
     # boresight image is made from a histogram
-    bimage, _, _ = np.histogram2d(pixels_boresight[1],
-                                  pixels_boresight[0],
+    # note that x is vertical and y is horizontal in np.histogram2d
+    bimage, _, _ = np.histogram2d(pixels_boresight[0],
+                                  pixels_boresight[1],
                                   bins=[prabins, pdecbins])
+    bimage = bimage.transpose()
     bimage *= sampleTime
 
     # so is the array image
-    aimage, _, _ = np.histogram2d(pixels_array[1],
-                                  pixels_array[0],
+    aimage, _, _ = np.histogram2d(pixels_array[0],
+                                  pixels_array[1],
                                   bins=[arabins, adecbins])
+    # aimage = aimage.transpose()
+
+    s = bimage.shape
+    bra = wcs.pixel_to_world_values(np.arange(0, s[0]), 0)[0]
+    bdec = wcs.pixel_to_world_values(0, np.arange(0, s[1]))[1]
 
     # the convolved image
     cimage, cra, cdec = fetchConvolved(wcs, bimage, aimage, pixSize,
                                        obs['t_total'], d.fwhmArcsec)
+
+    # write the image as a fits file
+    # fitsfile = '/home/toltec/wilson/foo.fits'
+    # fitsfile = BytesIO()
+    # fits.writeto(fitsfile, cimage, wcs.to_header(), overwrite=True)
+    phdu = fits.PrimaryHDU(cimage, wcs.to_header())
+    hdul = fits.HDUList([phdu])
+
+    # update the wcs with the new image informtaion
+    wcs_dict = wcs_input_dict.copy()
+    wcs_dict['NAXIS1'] = cimage.shape[0]
+    wcs_dict['NAXIS2'] = cimage.shape[1]
+    wcs = WCS(wcs_input_dict)
 
     # convert to a sensitivity in mJy rms if requested
     w = np.where(cimage > 0.1*cimage.max())
@@ -1143,8 +1224,17 @@ def getCelestialPlots(sim, obs, d, units,
 
     # the overlay image
     if(overlay != 'None'):
-        overlayImage, ora, odec = fetchOverlay(overlay, obs['target_icrs'],
-                                               cra, cdec)
+        overlayImage, ora, odec, owcs = fetchOverlay(
+            overlay, obs['target_icrs'],
+            cra, cdec)
+        range = [max(cra.max(), ora.max()),
+                 max(cra.min(), ora.min())]
+        # fits.append(fitsfile, overlayImage, owcs.to_header())
+        # print("Appended overlay image to {}".format(fitsfile))
+        ohdu = fits.ImageHDU(overlayImage, owcs.to_header(), name=overlay)
+        hdul.append(ohdu)
+    else:
+        range = [cra.max(), cra.min()]
 
     # the coverage image
     xaxis, yaxis = getXYAxisLayouts()
@@ -1192,8 +1282,9 @@ def getCelestialPlots(sim, obs, d, units,
         ),
         plot_bgcolor='white'
     )
+
     cfig.update_xaxes(title_text="Ra [Deg]",
-                      automargin=True)
+                      automargin=True, range=range)
     cfig.update_yaxes(title_text="Dec [Deg]",
                       scaleanchor="x", scaleratio=1,
                       automargin=True)
@@ -1228,6 +1319,14 @@ def getCelestialPlots(sim, obs, d, units,
                      mode='lines',
                      line=dict(color='red')),
     )
+    range = [obs_ra.max().to_value(u.deg), obs_ra.min().to_value(u.deg)]
+
+    if(showArray):
+        range = [max(obs_ra.max().to_value(u.deg),
+                     a_ra.max().to_value(u.deg)),
+                 min(obs_ra.min().to_value(u.deg),
+                     a_ra.min().to_value(u.deg))]
+
     tfig.update_layout(
         uirevision=True,
         showlegend=False,
@@ -1245,12 +1344,13 @@ def getCelestialPlots(sim, obs, d, units,
         plot_bgcolor='white'
     )
     tfig.update_xaxes(title_text="Ra [deg]",
-                      automargin=True)
+                      automargin=True,
+                      range=range)
     tfig.update_yaxes(title_text="Dec [deg]",
                       scaleanchor="x", scaleratio=1,
                       automargin=True)
 
-    return tableData, tfig, cfig
+    return tableData, tfig, cfig, hdul
 
 
 def getEmptyFig(width, height):
