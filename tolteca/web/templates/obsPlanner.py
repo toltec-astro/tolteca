@@ -1118,8 +1118,10 @@ def getCelestialPlots(sim, obs, d, units,
     # if map is too big, increase the pixel size
     if((nPixRa > 2000) | (nPixDec > 2000)):
         newPixSize = 3.*u.arcsec
-        nPixDec = np.ceil(nPixDec*pixSize/newPixSize)
-        nPixRa = np.ceil(nPixRa*pixSize/newPixSize)
+        nPixDec = np.ceil(
+            nPixDec*pixSize.to_value(u.degree)/newPixSize.to_value(u.degree))
+        nPixRa = np.ceil(
+           nPixRa*pixSize.to_value(u.degree)/newPixSize.to_value(u.degree))
         pixSize = newPixSize
 
     # correct for RA wrap if needed
