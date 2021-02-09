@@ -151,9 +151,9 @@ class sim_fits:
                     elif imgs[layer-1] == None:
                         print('No image for ' + name + '...skipping...')
                         self.hdul[layer].data = imgs[layer-1]
-                        self.hdul[layer].header['NAXIS'] = 0
-                        self.hdul[layer].header['NAXIS1'] = 0
-                        self.hdul[layer].header['NAXIS2'] = 0
+                        #self.hdul[layer].header['NAXIS'] = 0
+                        #self.hdul[layer].header['NAXIS1'] = 0
+                        #self.hdul[layer].header['NAXIS2'] = 0
 
                     layer += 1
                     pi += 1
