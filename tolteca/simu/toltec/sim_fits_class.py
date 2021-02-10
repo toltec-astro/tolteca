@@ -31,26 +31,28 @@ class sim_fits:
         Also checks if pixel scale is 1 arcsecond.
 
         """
+        
+        valid = True
         print('Validating image list\n')
         if isinstance(imgs, list):
             if len(imgs) == 9:
                 print('Found 9 images...proceeding...\n')
-                return True
+                valid= True
             else:
                 print('Incorrect number of images in list (9 required)\n')
-                return False
+                valid = False
         else:
             print('Images should be given in a list\n')
-            return False
+            valid = False
         
 
   #     if ((abs(wcs.wcs.cdelt[0]) - self.required_CDELT) > 1e-6) or ((abs(wcs.wcs.cdelt[1]) - self.required_CDELT) > 1e-6):
         if (abs(wcs.pixel_to_world(0,0).separation(wcs.pixel_to_world(0,1)) 
                 -self.required_CDELT) > 1e-3*u.arcsec):
             print('Pixel scale is incorrect. Please use 1 arcsec pixels.\n')
-            return False
+            valid = False
 
-        return True
+        return valid
 
     def generate_fits(self, imgs, wcs, **kwargs):
 
@@ -173,7 +175,7 @@ if __name__ == "__main__":
     for i in range(nlayers):
         imgs.append(img[:, :, i])
         
-    imgs[0] = None
+    imgs[0] = np.zeros([NAXIS1, NAXIS2])
 
     wcs_input_dict = {
         'CTYPE1': 'RA---TAN',
@@ -190,10 +192,12 @@ if __name__ == "__main__":
         'NAXIS2': 1024
     }
     wcs_dict = WCS(wcs_input_dict)
-    wcs_dict.wcs.cd = np.array([[-CDELT, 0],[0, CDELT]])
+    #wcs_dict.wcs.cd = np.array([[-CDELT, 0],[0, CDELT]])
     header = wcs_dict.to_header(relax=True)
 
     sf = sim_fits()
     sf.generate_fits(imgs=imgs, wcs=wcs_dict)
 
-    # sf.hdul.writeto('/Users/mmccrackan/toltec/temp/test.fits')
+    # sf.hdul.writeto('/Users/mmccrackan/toltec/temp/simu_input_example',
+                    # output_verify='exception', overwrite=True, checksum=False)
+    sf.hdul.close()
