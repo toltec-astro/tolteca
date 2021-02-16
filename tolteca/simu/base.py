@@ -8,6 +8,7 @@ from astropy.modeling import Model, Parameter
 import astropy.units as u
 from astropy.modeling import models
 from astropy import coordinates as coord
+# from astropy.table import Table
 
 from gwcs import coordinate_frames as cf
 from scipy import interpolate
@@ -63,6 +64,88 @@ class _Model(Model, NamespaceMixin):
         logger.debug(
                 f"resolved model {_arg} as {model_cls}")
         return model_cls
+
+
+# class SkyOffsetModel(_Model):
+#     """This computes the relative offsets between two sets of coordinates.
+
+#     """
+#     n_inputs = 2
+#     n_outputs = 2
+
+#     def __init__(self, ref_frame=None, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+#         self._t0 = t0
+#         self._target = target
+#         self._ref_frame = ref_frame
+
+#     def evaluate(self, x, y):
+#         return NotImplemented
+
+#     def evaluate_at(self, ref_coord, *args):
+#         """Returns the mapping pattern as evaluated at given coordinates.
+#         """
+#         frame = _get_skyoffset_frame(ref_coord)
+#         return coord.SkyCoord(*self(*args), frame=frame).transform_to(
+#                 ref_coord.frame)
+
+#     # TODO these three method seems to be better live in a wrapper
+#     # model rather than this model
+#     @property
+#     def t0(self):
+#         return self._t0
+
+#     @property
+#     def target(self):
+#         return self._target
+
+#     input_frame = cf.CelestialFrame(
+#             name='icrs',
+#             reference_frame=coord.ICRS(),
+#             unit=(u.deg, u.deg)
+#             )
+
+#     def __init__(self, *args, **kwargs):
+#         inputs = kwargs.pop('inputs', self.input_frame.axes_names)
+#         super().__init__(*args, **kwargs)
+#         # self.inputs =
+
+
+class SourceModel(_Model):
+    """Base class for models that compute the optical signal.
+    """
+    def __init__(self, *args, **kwargs):
+        inputs = kwargs.pop('inputs', self.input_frame.axes_names)
+        outputs = ('S', )
+        kwargs.setdefault('name', self._name)
+        super().__init__(*args, **kwargs)
+        self.inputs = inputs
+        self.outputs = outputs
+
+
+class SourceCatalogModel(SourceModel):
+    """
+    A model with point sources.
+    """
+    n_inputs = 2
+    n_outputs = 1
+    input_frame = cf.CelestialFrame(
+            name='icrs',
+            reference_frame=coord.ICRS(),
+            unit=(u.deg, u.deg)
+            )
+
+    def __init__(self, lon, lat, flux, psfmodel, *args, **kwargs):
+        self._source_pos = self.input_frame.coordinates(lon, lat)
+        self._source_flux = flux
+        # make a really narrow Gaussian
+        self._source_psfmodel = psfmodel
+        self.__init__(*args, **kwargs)
+
+    def evaluate(self, lon, lat):
+        coo = self.input_frame.coordinates(lon, lat)
+        sep = self._source_pos.separation(coo)
+        return self._psfmodel(sep) * self._source_flux
 
 
 class ProjModel(_Model):
@@ -377,3 +460,18 @@ class SkyAltAzTrajModel(SkyMapModel, metaclass=TrajectoryModelMeta):
             reference_frame=coord.AltAz(),
             unit=(u.deg, u.deg)
             )
+
+
+def resolve_sky_map_ref_frame(ref_frame, observer=None, time_obs=None):
+    """
+    Return a frame with respect to which sky map offset model can be
+    rendered.
+    """
+    if isinstance(ref_frame, str):
+        # this is not public API so be careful for future changes.
+        from astropy.coordinates.sky_coordinate_parsers import (
+                _get_frame_class)
+        ref_frame = _get_frame_class(ref_frame)
+    if ref_frame is coord.AltAz:
+        return observer.altaz(time=time_obs)
+    return ref_frame

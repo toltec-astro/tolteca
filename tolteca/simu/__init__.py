@@ -27,7 +27,9 @@ from schema import Optional, Or, Use, Schema
 from ..utils import RuntimeContext, RuntimeContextError
 
 # import these models as toplevel
-from .base import (SkyRasterScanModel, SkyLissajousModel)  # noqa: F401
+from .base import (
+        SkyRasterScanModel,
+        SkyLissajousModel, resolve_sky_map_ref_frame)  # noqa: F401
 
 
 __all__ = ['SimulatorRuntimeError', 'SimulatorRuntime']
@@ -128,6 +130,8 @@ def _ssf_atm_psd(cfg, cfg_rt):
 @register_to(_simu_source_factory, 'point_source_catalog')
 def _ssf_point_source_catalog(cfg, cfg_rt):
     """Handle simulator source specified as a point source catalog."""
+
+    # from .base import SkyOffsetModel
 
     logger = get_logger()
 
@@ -248,7 +252,8 @@ class SimulatorRuntime(RuntimeContext):
                     object: object
                     },
                 'obs_params': {
-                    'f_smp': Use(u.Quantity),
+                    'f_smp_mapping': Use(u.Quantity),
+                    'f_smp_data': Use(u.Quantity),
                     't_exp': Use(u.Quantity)
                     },
                 'sources': [{
@@ -259,6 +264,7 @@ class SimulatorRuntime(RuntimeContext):
                     'type': Or(*_mapping_model_factory.keys()),
                     object: object
                     },
+                Optional('mapping_only', default=False): bool,
                 object: object
                 },
             }
@@ -373,14 +379,53 @@ class SimulatorRuntime(RuntimeContext):
                     }
                 )
 
+    def run_mapping_only(self):
+        """Run the simulator to generate mapping file only."""
+        simobj = self.get_instrument_simulator()
+
+        mapping = self.get_mapping_model()
+        self.logger.debug(f"mapping: {mapping}")
+
+        obs_params = self.get_obs_params()
+
+        t0 = mapping.t0
+        ref_frame = mapping.ref_frame
+        ref_coord = mapping.target
+        # make t grid
+        t = np.arange(
+                0, obs_params['t_exp'].to_value(u.s),
+                (1 / obs_params['f_smp_mapping']).to_value(u.s)) << u.s
+        time_obs = t0 + t
+
+        _ref_frame = resolve_sky_map_ref_frame(
+                ref_frame, observer=simobj.observer, time_obs=time_obs)
+        _ref_coord = ref_coord.transform_to(_ref_frame)
+        obs_coords = mapping.evaluate_at(_ref_coord, t)
+        # transform all obs_coords to equitorial
+        obs_coords_icrs = obs_coords.transform_to('icrs')
+
+        self.logger.debug(f"time_obs size: {time_obs.shape}")
+        return SimulatorResult(
+                simctx=self,
+                config=self.config,
+                simobj=simobj,
+                obs_params=obs_params,
+                obs_info=locals(),
+                mapping=mapping,
+                )
+
     @timeit
     def cli_run(self, args=None):
         """Run the simulator and save the result.
         """
         cfg = self.config['simu']
 
-        result = self.run()
-        result.save(self.get_or_create_output_dir())
+        mapping_only = cfg['mapping_only']
+        if mapping_only:
+            result = self.run_mapping_only()
+        else:
+            result = self.run()
+        result.save(self.get_or_create_output_dir(), mapping_only=mapping_only)
 
         if not cfg.get('plot', False):
             return
@@ -475,11 +520,12 @@ class SimulatorResult(Namespace):
             yaml.dump(self.config, fo, Dumper=self.simctx.yaml_dumper)
 
     @timeit
-    def save(self, outdir):
+    def save(self, outdir, mapping_only=False):
 
         self._save_config(outdir)
         self._save_lmt_tcs_tel(outdir)
-        self._save_toltec_nc(outdir)
+        if not mapping_only:
+            self._save_toltec_nc(outdir)
 
     @timeit
     def plot_animation(self):

@@ -61,3 +61,17 @@ class SimpleNcFileIO(DataFileIO, NcNodeMapperMixin):
             return self.nc_node
         except NcNodeMapperError:
             return None
+
+    @property
+    def _file_loc(self):
+        # here we return the _source if it is passed to the constructor
+        # we had ensured in open that if self._source is given,
+        # the source passed to open can only be None.
+        # so that source is always the same as self.nc_node.file_loc
+        if self._source is not None:
+            return self._source
+        # if no dataset is open, we just return None
+        if self._file_obj is None:
+            return None
+        # the opened dataset file loc.
+        return self.nc_node.file_loc

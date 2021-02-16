@@ -12,14 +12,14 @@ from astropy import coordinates as coord
 from astropy.time import Time
 from astropy.table import Column, QTable, Table
 from astropy.wcs.utils import celestial_frame_to_wcs
-from astropy.coordinates import AltAz, SkyCoord
+from astropy.coordinates import SkyCoord
 
 from gwcs import coordinate_frames as cf
 
 from kidsproc.kidsmodel.simulator import KidsSimulator
 from tollan.utils.log import timeit
 
-from ..base import ProjModel, _get_skyoffset_frame
+from ..base import ProjModel, _get_skyoffset_frame, resolve_sky_map_ref_frame
 
 
 class ArrayProjModel(ProjModel):
@@ -180,18 +180,16 @@ class ArrayPolarizedProjModel(ArrayProjModel):
         return inputs_new, broadcasts
 
 
-site = {
-    'name': 'LMT',
-    'name_long': 'Large Millimeter Telescope',
-    'location': coord.EarthLocation.from_geodetic(
-            "-97d18m53s", '+18d59m06s', 4600 * u.m),
-    'timezone': timezone('America/Mexico_City'),
-    }
-
-observer = Observer(
-        name=site['name_long'],
-        location=site['location'],
-        timezone=site['timezone'],
+class SiteInfo(object):
+    name = 'LMT'
+    name_long = 'Large Millimeter Telescope'
+    location = coord.EarthLocation.from_geodetic(
+            "-97d18m53s", '+18d59m06s', 4600 * u.m)
+    timezone = timezone('America/Mexico_City')
+    observer = Observer(
+        name=name_long,
+        location=location,
+        timezone=timezone,
         )
 
 
@@ -241,9 +239,9 @@ class SkyProjModel(ProjModel):
         self.evaluate_frame = evaluate_frame
         super().__init__(**kwargs)
 
-    @classmethod
+    @staticmethod
     def _get_native_frame(cls, mjd_obs):
-        return observer.altaz(time=Time(mjd_obs, format='mjd'))
+        return SiteInfo.observer.altaz(time=Time(mjd_obs, format='mjd'))
 
     def get_native_frame(self):
         return self._get_native_frame(self.mjd_obs)
@@ -432,6 +430,10 @@ class ToltecObsSimulator(object):
         }
     beam_model_cls = BeamModel
 
+    @property
+    def observer(self):
+        return SiteInfo.observer
+
     def __init__(self, array_prop_table):
 
         tbl = self._table = self._prepare_table(array_prop_table)
@@ -487,21 +489,6 @@ class ToltecObsSimulator(object):
 
         yield evaluate
 
-    @classmethod
-    def resolve_sky_map_ref_frame(cls, ref_frame, time_obs):
-        """
-        Return a frame with respect to which sky map offset model can be
-        rendered.
-        """
-        if isinstance(ref_frame, str):
-            # this is not public API so be careful for future changes.
-            from astropy.coordinates.sky_coordinate_parsers import (
-                    _get_frame_class)
-            ref_frame = _get_frame_class(ref_frame)
-        if ref_frame is AltAz:
-            return observer.altaz(time=time_obs)
-        return ref_frame
-
     @contextmanager
     def obs_context(self, obs_model, sources, ref_coord=None, ref_frame=None):
         """
@@ -534,7 +521,8 @@ class ToltecObsSimulator(object):
 
             # transform ref_coord to ref_frame
             # need to re-set altaz frame with frame attrs
-            _ref_frame = self.resolve_sky_map_ref_frame(ref_frame, time_obs)
+            _ref_frame = resolve_sky_map_ref_frame(
+                    ref_frame, observer=self.observer, time_obs=time_obs)
             _ref_coord = ref_coord.transform_to(_ref_frame)
             obs_coords = m_obs.evaluate_at(_ref_coord, t)
             # get detector positions, which requires absolute time
