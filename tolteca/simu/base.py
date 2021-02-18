@@ -122,6 +122,26 @@ class SourceModel(_Model):
         self.inputs = inputs
         self.outputs = outputs
 
+class SourceImageModel(SourceModel):
+    """
+    A model given by 2d images.
+    """
+    def __init__(self, data=None, *args, **kwargs):
+        inputs = kwargs.pop('inputs', self.input_frame.axes_names)
+        outputs = ('S', )
+        kwargs.setdefault('name', self._name)
+        super().__init__(*args, **kwargs)
+        self.inputs = inputs
+        self.outputs = outputs
+
+    @classmethod
+    def from_fits(cls, filepath):
+        hdulist = fits.open(filepath)
+        data = {}
+        for hdu in hdulist:
+            data[hdu.header['NAME']] = hdu.data
+        return cls(data=data)
+
 
 class SourceCatalogModel(SourceModel):
     """

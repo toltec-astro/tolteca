@@ -75,8 +75,7 @@ def main(args):
             "-o", "--output",
             metavar="OUTPUT_FILE",
             required=False,
-            help="The output index filename. "
-                 "Only used when download dir is set.",
+            help="The output index filename."
             )
     parser.add_argument(
             "-f", "--overwrite",
@@ -84,9 +83,6 @@ def main(args):
             help="If set, overwrite the existing index file",
             )
     option = parser.parse_args(args)
-    # check that -fo is not set if -d is not
-    if option.download_dir is None and option.output is not None:
-        parser.error("-f/-o can only be used with -d.")
     logger = get_logger()
     # we get a list of remote files from querying the remote file system
     # This by default uses the RsyncAccessor. Since will be using the
@@ -110,6 +106,7 @@ def main(args):
                 dataset['source'], option.download_dir)
         logger.debug(f"local filepaths: {filepaths}")
         dataset = dataset.from_files(filepaths)
+    if option.output:
         dispatch_fmt = {
                 '.ecsv': 'ascii.ecsv',
                 '.asc': 'ascii.commented_header',

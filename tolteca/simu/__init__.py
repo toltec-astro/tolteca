@@ -89,9 +89,30 @@ def _ssf_image(cfg, cfg_rt):
 
     # TODO: finish define the fits file format for simulator input
     # finish implement this function so a source_model is returned
-    fits.open(cfg['filepath'])
+    from .base import SourceImageModel
+    m = SourceImageModel.from_fits(cfg['filepath'])
 
-    return NotImplemented
+    array_masks = {}
+    for a in sim.array_names:
+        arr_mask = np.where(t['array_name']==a)
+        array_masks[a] = arr_mask
+
+    s = m.make_timestream(array_masks, ra, dec, t)
+    # s shape: (1) [7000, 4880]; (2) [7000, 4880, 3]
+    # x shape: [7000, 4880]
+    # s = np.empty((7000, 4880, 3))
+    # 
+    # alt_boresight, az_boresight = m_obs(t) # [1: 4880]
+    # daz = apt['az_off']  # [7000]
+    # dalt = apt['alt_off']#  [7000]
+    # ra, dec = (alt_boresight, az_boresight) + (daz, dalt) # [7000, 4880]
+
+    # for arr_mask in array_masks:
+    #     s[arr_mask, :] = m(a, ra[arr_mask, :], dec[arr_mask, :], t)
+    # non-polar
+    #     7000 -> 3          7000x4880 7000x4880         4880
+    # s [7000, 4880]
+    return m
 
 
 @register_to(_simu_source_factory, 'atmosphere_psd')

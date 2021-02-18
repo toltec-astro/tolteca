@@ -445,8 +445,9 @@ class BasicObsDataset(object):
 
         Parameters
         ----------
-        index_table : `astropy.table.Table`
-            The table that contains the BOD identifiers.
+        index_table : `astropy.table.Table`, str
+            The table or that path to the table that contains
+            the BOD identifiers.
 
         copy : bool
             If True, a copy of the `index_table` is made.
@@ -454,6 +455,9 @@ class BasicObsDataset(object):
         meta : dict
             Additional meta get stored in the table.
         """
+        if not isinstance(index_table, Table):
+            index_table = Table.read(index_table, format='ascii')
+            copy = False  # we don't need to make the copy in this case
         if copy:
             index_table = index_table.copy()
         if meta is not None:
