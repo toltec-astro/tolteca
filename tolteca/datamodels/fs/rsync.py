@@ -128,36 +128,37 @@ class RsyncAccessor(FileStoreAccessor):
         logger = get_logger()
         result = set()
         with tempfile.TemporaryDirectory() as tmp:
+            paths = list()
             for path in args:
                 path = fileloc(path)
                 hostname = path.netloc
                 path = cls._encode_remote_path(
                         hostname, path.path.as_posix())
+                paths.append(path)
 
-                def map_rsync_output(line):
-                    if hostname == '':
-                        return f'{line}'
-                    return cls._encode_remote_path(hostname, f'/{line}')
+            def map_rsync_output(line):
+                if hostname == '':
+                    return f'{line}'
+                return cls._encode_remote_path(hostname, f'/{line}')
 
-                # get file list
-                rsync_cmd = [
-                        cls._get_rsync_cmd(),
-                        '-rn', '--info=name', '--relative',
-                        path, tmp]
-                logger.debug("rsync with cmd: {}".format(' '.join(rsync_cmd)))
-                # this is used to get rid of parent dirs
-                # _path = map_rsync_output(_path.path.as_posix())
-                # if not _path.endswith('/'):
-                #     _path += '/'
-                for p in map(
-                        map_rsync_output,
-                        filter(
-                            cls._filter_rsync_output,
-                            subprocess.check_output(
-                                rsync_cmd).decode().strip().split('\n'))):
-                    # if _path.startswith(p):
-                    # get rid of directories
-                    if p.endswith('/'):
-                        continue
-                    result.add(p)
+            # get file list
+            rsync_cmd = [
+                    cls._get_rsync_cmd(),
+                    '-rn', '--info=name', '--relative', ] + paths + [tmp, ]
+            logger.debug("rsync with cmd: {}".format(' '.join(rsync_cmd)))
+            # this is used to get rid of parent dirs
+            # _path = map_rsync_output(_path.path.as_posix())
+            # if not _path.endswith('/'):
+            #     _path += '/'
+            for p in map(
+                    map_rsync_output,
+                    filter(
+                        cls._filter_rsync_output,
+                        subprocess.check_output(
+                            rsync_cmd).decode().strip().split('\n'))):
+                # if _path.startswith(p):
+                # get rid of directories
+                if p.endswith('/'):
+                    continue
+                result.add(p)
         return result
