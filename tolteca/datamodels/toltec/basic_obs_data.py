@@ -427,13 +427,13 @@ class BasicObsDataset(object):
                f":\n{pformat_tbl}"
 
     @classmethod
-    def from_files(cls, files, **kwargs):
+    def from_files(cls, files, open_=True, **kwargs):
         if not files:
             raise ValueError("no file specified")
         bod_list = []
         for f in files:
             try:
-                bod_list.append(BasicObsData(f))
+                bod_list.append(BasicObsData(f, open_=open_))
             except Exception as e:
                 cls.logger.debug(
                         f'ignored unknown file {f}: {e}', exc_info=False)

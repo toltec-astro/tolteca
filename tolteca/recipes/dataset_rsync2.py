@@ -61,6 +61,11 @@ def main(args):
             help='Path(s) of the remote data files.'
             )
     parser.add_argument(
+            "--load_meta_from_file",
+            action='store_true',
+            help="If set, open source file to load meta.",
+            )
+    parser.add_argument(
             "-s", "--select",
             metavar="COND",
             help='A selection predicate, e.g.,:'
@@ -97,7 +102,7 @@ def main(args):
     # same access to actually download the files, we just make that
     # explicit
     accessor = RsyncAccessor()
-    dataset = BasicObsDataset.from_files(accessor.glob(*option.paths))
+    dataset = BasicObsDataset.from_files(accessor.glob(*option.paths), open_=option.load_meta_from_file)
     if option.select:
         dataset = dataset.select(option.select)
 
