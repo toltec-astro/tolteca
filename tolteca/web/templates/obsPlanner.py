@@ -5,7 +5,6 @@ from dasha.web.extensions.cache import cache
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 from dash_extensions import Download
-from dash_extensions.snippets import send_file
 from dash_extensions.snippets import send_bytes
 import dash_bootstrap_components as dbc
 import dash_html_components as html
@@ -361,14 +360,6 @@ class obsPlanner(ComponentTemplate):
                                          style={'width': '25%',
                                                 'margin-right': '20px'})
 
-        rastExpInRow = r_body.child(dbc.Row, justify='end')
-        rastExpInRow.child(html.Label("t_exp [s]: "))
-        rastExpIn = rastExpInRow.child(dcc.Input, value=5.75,
-                                       min=2, max=60.,
-                                       debounce=True, type='number',
-                                       style={'width': '25%',
-                                              'margin-right': '20px'})
-
         refFrameRastRow = r_body.child(dbc.Row, justify='begin')
         refFrameRastRow.child(html.Label("Tel Frame: "))
         refFrameRast = refFrameRastRow.child(
@@ -409,7 +400,6 @@ class obsPlanner(ComponentTemplate):
                    'rasnScansIn': rasnScansIn,
                    'rasSpeedIn': rasSpeedIn,
                    'rastTurnIn': rastTurnIn,
-                   'rastExpIn': rastExpIn,
                    'refFrameRast': refFrameRast,
                    'rasWrite': rasWrite,
                    'lis_output_state': lis_output_state,
@@ -609,7 +599,6 @@ class obsPlanner(ComponentTemplate):
                 State(mapping['rasnScansIn'].id, "value"),
                 State(mapping['rasSpeedIn'].id, "value"),
                 State(mapping['rastTurnIn'].id, "value"),
-                State(mapping['rastExpIn'].id, "value"),
                 State(target['targRa'].id, "value"),
                 State(target['targDec'].id, "value"),
                 State(target['obsTime'].id, "value"),
@@ -618,7 +607,7 @@ class obsPlanner(ComponentTemplate):
             ],
             prevent_initial_call=True
         )
-        def updateRasterDict(n, r, l, s, ns, speed, turn, tExp, tra, tdec,
+        def updateRasterDict(n, r, l, s, ns, speed, turn, tra, tdec,
                              obsTime, obsDate, refFrame):
             # format date and time of start of observation
             date_object = date.fromisoformat(obsDate)
@@ -631,7 +620,7 @@ class obsPlanner(ComponentTemplate):
                 'nScans': ns,
                 'speed': (speed*u.arcsec).to_value(u.rad),
                 't_turnaround': turn,
-                't_exp': (tExp*u.min).to_value(u.s),
+                't_exp': (10*u.min).to_value(u.s),
                 'x_length': 0.,
                 'y_length': 0.,
                 'x_omega': 0.,
@@ -742,6 +731,7 @@ class obsPlanner(ComponentTemplate):
             obs = generateMappings(sim, band)
             mAlt = obs['target_altaz'].alt.mean()
             if(mAlt.to_value(u.deg) < 20):
+                tableData = None
                 tfig = getEmptyFig(500, 500)
                 cfig = getEmptyFig(500, 500)
             else:
@@ -1170,22 +1160,10 @@ def getCelestialPlots(sim, obs, d, units,
     aimage, _, _ = np.histogram2d(pixels_array[0],
                                   pixels_array[1],
                                   bins=[arabins, adecbins])
-    # aimage = aimage.transpose()
-
-    s = bimage.shape
-    bra = wcs.pixel_to_world_values(np.arange(0, s[0]), 0)[0]
-    bdec = wcs.pixel_to_world_values(0, np.arange(0, s[1]))[1]
 
     # the convolved image
     cimage, cra, cdec = fetchConvolved(wcs, bimage, aimage, pixSize,
                                        obs['t_total'], d.fwhmArcsec)
-
-    # write the image as a fits file
-    # fitsfile = '/home/toltec/wilson/foo.fits'
-    # fitsfile = BytesIO()
-    # fits.writeto(fitsfile, cimage, wcs.to_header(), overwrite=True)
-    phdu = fits.PrimaryHDU(cimage, wcs.to_header())
-    hdul = fits.HDUList([phdu])
 
     # update the wcs with the new image informtaion
     wcs_dict = wcs_input_dict.copy()
@@ -1202,8 +1180,12 @@ def getCelestialPlots(sim, obs, d, units,
     if(units == 'sens'):
         plotTitle = 'Estimated Depth per Beam-sized Area [mJy]'
         cimage = simage
+        hunits = ('UNITS', 'mJy/beam', 'Sensitivity in mJy/beam')
     else:
         plotTitle = 'Integration time per {} pixel'.format(pixSize)
+        hunits = ('UNITS',
+                  's/{} arcsec pixel'.format(pixSize.to_value(u.arcsec)),
+                  'Integration time per pixel')
 
     # construct Table data
     tableData = None
@@ -1224,6 +1206,21 @@ def getCelestialPlots(sim, obs, d, units,
     bod.append(html.Tr([html.Td("Median sens."), html.Td(medSens)]))
     tableData = [html.Tbody(bod)]
 
+    # write the image as a fits file
+    h = wcs.to_header()
+    h['DASHPAGE'] = ('obsPlanner.py', 'TolTEC ObsPlanner')
+    h.append(hunits)
+    h.append(('OBSDUR',
+              '{0:2.3f}'.format(obs['t_total'].to_value(u.s)),
+              'Observation Duration in s'))
+    h.append(('MEANALT',
+              '{0:3.1f}'.format(
+                  obs['target_altaz'].alt.mean().to_value(u.deg)),
+              'deg.'))
+    h.append(('RDETSENS', '{0:2.3f}'.format(d.nefd*sensDegred), 'mJy rt(s)'))
+    phdu = fits.PrimaryHDU(cimage, h)
+    hdul = fits.HDUList([phdu])
+
     # the overlay image
     if(overlay != 'None'):
         overlayImage, ora, odec, owcs = fetchOverlay(
@@ -1236,7 +1233,8 @@ def getCelestialPlots(sim, obs, d, units,
         ohdu = fits.ImageHDU(overlayImage, owcs.to_header(), name=overlay)
         hdul.append(ohdu)
     else:
-        range = [cra.max(), cra.min()]
+        cm = 2.*(cra.max()-cra.mean())/np.cos(np.deg2rad(cdec.mean()))+cra.mean()
+        range = [cm, cra.min()]
 
     # the coverage image
     xaxis, yaxis = getXYAxisLayouts()

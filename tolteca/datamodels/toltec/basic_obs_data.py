@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 from tollan.utils.log import get_logger
-from astropy.table import Table, MaskedColumn, vstack, unique
+from astropy.table import Table, MaskedColumn, vstack, unique, join
 import numpy as np
 # from astropy.io import registry
 from tollan.utils.log import logged_dict_update
@@ -477,3 +477,11 @@ class BasicObsDataset(object):
     def unique(self, *args, **kwargs):
         return self.__class__(
                 index_table=unique(self.index_table, *args, **kwargs))
+
+    def join(self, other, *args, **kwargs):
+        if isinstance(other, self.__class__):
+            other_index_table = other.index_table
+        else:
+            other_index_table = other
+        return self.__class__(
+                index_table=join(self.index_table, other_index_table), *args, **kwargs)

@@ -59,7 +59,7 @@ class RsyncAccessor(FileStoreAccessor):
         return f'{path}'
 
     @classmethod
-    def rsync(cls, filepaths, dest):
+    def rsync(cls, filepaths, dest, path_filter=None):
         """Rsync the list of files to dest.
 
         Parameters
@@ -68,6 +68,8 @@ class RsyncAccessor(FileStoreAccessor):
             The paths to remote files, in scp specifier format.
         dest : str
             The destination.
+        path_filter : callable
+            The filter to apply to the filepaths.
         """
         logger = get_logger()
         # group the paths by host, and create filelist
@@ -83,6 +85,8 @@ class RsyncAccessor(FileStoreAccessor):
                 p = p.as_posix()
             else:
                 raise ValueError(f"invalid file path {p}")
+            if path_filter is not None:
+                p = path_filter(p)
             paths_per_host[h].append(p)
         result = set()
         dest = Path(dest)
@@ -97,7 +101,7 @@ class RsyncAccessor(FileStoreAccessor):
                 #         src, dest.as_posix()
                 #         ]
                 cmd = [
-                        cls._get_rsync_cmd(), '-avhP',
+                        cls._get_rsync_cmd(), '-avhPR', '--append-verify',
                         '--files-from',
                         fo.name, f'{host}:/', dest.as_posix()
                         ]

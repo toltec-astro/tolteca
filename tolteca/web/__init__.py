@@ -72,7 +72,7 @@ ipc_config = {
         }
 celery_config = {
         "CELERY_RESULT_BACKEND": f"{redis_url}/7",
-        "CELERY_RESULT_EXPIRES": 0,  # second
+        "CELERY_RESULT_EXPIRES": 24 * 60 * 60,  # second  == 1day
         "CELERY_BROKER_URL": f"{redis_url}/7",
         }
 dasha_config = {
