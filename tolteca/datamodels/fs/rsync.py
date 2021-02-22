@@ -103,7 +103,7 @@ class RsyncAccessor(FileStoreAccessor):
                 cmd = [
                         cls._get_rsync_cmd(), '-avhPR', '--append-verify',
                         '--files-from',
-                        fo.name, f'{host}:/', dest.as_posix()
+                        fo.name, f'{host}:/' if host is not '' else '/', dest.as_posix()
                         ]
                 # get dry run stats
                 # subprocess.check_output(cmd_stats)
