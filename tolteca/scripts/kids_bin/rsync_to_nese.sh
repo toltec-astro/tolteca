@@ -2,7 +2,8 @@
 
 pyexec="${HOME}/toltec_astro/venvs/toltec/bin/python3"
 scriptdir=$(dirname "$(readlink -f "$0")")
-nese_data_lmt_dir=astrotolteclab@nese.rc.umass.edu:/mount/test_rsync_data_lmt
+nese_rw_mount=${HOME}/nese_rw
+nese_data_lmt_dir=${nese_rw_mount}/test_rsync_data_lmt
 
 if [[ $(hostname) == "clipa" ]]; then
     echo "rsync to nese from clipa"
@@ -23,6 +24,10 @@ if [[ ! $1 ]]; then
     echo "Usage: rsync_to_nese.sh <obsnum>"
     exit 1
 fi
-
+# make sure nese_rw is mounted
+if ! mount |grep ${nese_rw_mount} > /dev/null; then
+    echo NESE rw drive is not mounted, abort!
+    exit 1
+fi
 ${pyexec} /home/toltec/toltec_astro/tolteca/tolteca/recipes/dataset_rsync2.py -s "obsnum>=$1" -m lmt_archive -d ${nese_data_lmt_dir} \
     -fo nese_rsync_$(date +"%Y%m%dT%H%M%S").index /data/data_toltec/ics/toltec*/*.nc
