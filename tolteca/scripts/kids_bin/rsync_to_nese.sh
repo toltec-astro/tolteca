@@ -25,7 +25,7 @@ if [[ ! $1 ]]; then
     exit 1
 fi
 # make sure nese_rw is mounted
-if ! findmnt -M nese_rw --noheadings |grep nese.rc.umass.edu > /dev/null; then
+if ! findmnt -M ${nese_rw_mount} --noheadings |grep nese.rc.umass.edu > /dev/null; then
     echo NESE rw drive is not properly mounted, abort!
     exit 1
 fi
