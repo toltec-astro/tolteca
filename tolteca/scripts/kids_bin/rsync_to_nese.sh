@@ -25,8 +25,8 @@ if [[ ! $1 ]]; then
     exit 1
 fi
 # make sure nese_rw is mounted
-if ! mount |grep ${nese_rw_mount} > /dev/null; then
-    echo NESE rw drive is not mounted, abort!
+if ! mount |grep -E "nese.rc.umass.edu.+${HOME}/nese_rw" > /dev/null; then
+    echo NESE rw drive is not properly mounted, abort!
     exit 1
 fi
 ${pyexec} /home/toltec/toltec_astro/tolteca/tolteca/recipes/dataset_rsync2.py -s "obsnum>=$1" -m lmt_archive -d ${nese_data_lmt_dir} \
