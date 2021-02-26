@@ -19,7 +19,8 @@ from gwcs import coordinate_frames as cf
 from kidsproc.kidsmodel.simulator import KidsSimulator
 from tollan.utils.log import timeit
 
-from ..base import ProjModel, _get_skyoffset_frame, resolve_sky_map_ref_frame
+from ..base import ProjModel, _get_skyoffset_frame
+from ..base import resolve_sky_map_ref_frame as _resolve_sky_map_ref_frame
 
 
 class ArrayProjModel(ProjModel):
@@ -240,7 +241,7 @@ class SkyProjModel(ProjModel):
         super().__init__(**kwargs)
 
     @staticmethod
-    def _get_native_frame(cls, mjd_obs):
+    def _get_native_frame(mjd_obs):
         return SiteInfo.observer.altaz(time=Time(mjd_obs, format='mjd'))
 
     def get_native_frame(self):
@@ -489,6 +490,10 @@ class ToltecObsSimulator(object):
 
         yield evaluate
 
+    def resolve_sky_map_ref_frame(self, ref_frame, time_obs):
+        return _resolve_sky_map_ref_frame(
+                    ref_frame, observer=self.observer, time_obs=time_obs)
+
     @contextmanager
     def obs_context(self, obs_model, sources, ref_coord=None, ref_frame=None):
         """
@@ -521,8 +526,8 @@ class ToltecObsSimulator(object):
 
             # transform ref_coord to ref_frame
             # need to re-set altaz frame with frame attrs
-            _ref_frame = resolve_sky_map_ref_frame(
-                    ref_frame, observer=self.observer, time_obs=time_obs)
+            _ref_frame = self.resolve_sky_map_ref_frame(
+                    ref_frame, time_obs=time_obs)
             _ref_coord = ref_coord.transform_to(_ref_frame)
             obs_coords = m_obs.evaluate_at(_ref_coord, t)
             # get detector positions, which requires absolute time

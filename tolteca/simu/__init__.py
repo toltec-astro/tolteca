@@ -97,7 +97,7 @@ def _ssf_image(cfg, cfg_rt):
         arr_mask = np.where(t['array_name']==a)
         array_masks[a] = arr_mask
 
-    s = m.make_timestream(array_masks, ra, dec, t)
+    s = m.evaluate_tod(ra, dec, t, groups=array_masks)
     # s shape: (1) [7000, 4880]; (2) [7000, 4880, 3]
     # x shape: [7000, 4880]
     # s = np.empty((7000, 4880, 3))
@@ -376,7 +376,7 @@ class SimulatorRuntime(RuntimeContext):
             # make t grid
             t = np.arange(
                     0, obs_params['t_exp'].to_value(u.s),
-                    (1 / obs_params['f_smp']).to_value(u.s)) * u.s
+                    (1 / obs_params['f_smp_data']).to_value(u.s)) * u.s
             s, obs_info = obs(mapping.t0, t)
 
         with simobj.probe_context(fp=None) as probe:
