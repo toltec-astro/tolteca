@@ -39,7 +39,19 @@ env_registry.register(
         "toltec_sensitivity")
 _toltec_sensitivity_module_path = env_registry.get(
         TOLTEC_SENSITIVITY_MODULE_PATH_ENV)
-sys.path.insert(0, Path(_toltec_sensitivity_module_path).parent.as_posix())
+
+TOLTECA_SIMU_TEMPLATE_PATH_ENV = (
+        f"{env_prefix}_CUSTOM_SIMU_TEMPLATE_PATH")
+env_registry.register(
+        TOLTECA_SIMU_TEMPLATE_PATH_ENV,
+        "The path to locate the tolteca.simu template workdir",
+        "base_simu")
+_tolteca_simu_template_path = env_registry.get(
+        TOLTECA_SIMU_TEMPLATE_PATH_ENV)
+
+sys.path.insert(
+        0,
+        Path(_toltec_sensitivity_module_path).expanduser().parent.as_posix())
 from toltec_sensitivity import Detector
 
 
@@ -747,7 +759,8 @@ class obsPlanner(ComponentTemplate):
             return [tableData, tfig, cfig]
 
 
-sim_template_config = SimulatorRuntime('/home/toltec/toltec_astro/run/base_simu/').config
+sim_template_config = SimulatorRuntime(
+        Path(_tolteca_simu_template_path).expanduser()).config
 # here we get rid of the simu tree to avoid unexpected overwrites
 sim_template_config.pop("simu")
 
@@ -776,9 +789,10 @@ def generateMappings(sim, band):
     simulator = sim.get_instrument_simulator()
 
     # construct the relative and absolute times
-    t_total = m_obs.get_total_time()
-    t = np.arange(0, t_total.to_value(u.s),
-                  1./p_obs['f_smp'].to_value(u.Hz)) * u.s
+    t_pattern = m_obs.get_total_time()
+    t_exp = p_obs['t_exp']
+    t = np.arange(0, t_exp.to_value(u.s),
+                  1./p_obs['f_smp_mapping'].to_value(u.Hz)) * u.s
     t0 = m_obs.t0
     t_absolute = t0+t
 
@@ -830,7 +844,8 @@ def generateMappings(sim, band):
         't': t,
         't_absolute': t_absolute,
         't0': t0,
-        't_total': t_total,
+        't_pattern': t_pattern,
+        't_exp': t_exp,
         'obs_coords': obs_coords,
         'obs_coords_icrs': obs_coords_icrs,
         'obs_coords_altaz': obs_coords_altaz,
@@ -849,7 +864,7 @@ def generateMappings(sim, band):
 
 
 @timeit
-def fetchConvolved(wcs, bimage, aimage, pixSize, t_total, fwhmArcsec):
+def fetchConvolved(wcs, bimage, aimage, pixSize, t_exp, fwhmArcsec):
     # here is the convolved image
     with timeit("First convolution: "):
         c = convolve_fft(
@@ -1068,7 +1083,7 @@ def getCelestialPlots(sim, obs, d, units,
                       sensDegred=np.sqrt(2.)):
     simulator = sim.get_instrument_simulator()
     p_obs = sim.get_obs_params()
-    sampleTime = 1./p_obs['f_smp'].to_value(u.Hz)
+    sampleTime = 1./p_obs['f_smp_mapping'].to_value(u.Hz)
     obs_ra = obs['obs_coords_icrs'].ra
     obs_dec = obs['obs_coords_icrs'].dec
     npts = len(obs_ra)
@@ -1163,7 +1178,7 @@ def getCelestialPlots(sim, obs, d, units,
 
     # the convolved image
     cimage, cra, cdec = fetchConvolved(wcs, bimage, aimage, pixSize,
-                                       obs['t_total'], d.fwhmArcsec)
+                                       obs['t_exp'], d.fwhmArcsec)
 
     # update the wcs with the new image informtaion
     wcs_dict = wcs_input_dict.copy()
@@ -1190,7 +1205,7 @@ def getCelestialPlots(sim, obs, d, units,
     # construct Table data
     tableData = None
     name = 'TolTEC ({}mm)'.format(obs['band'])
-    obsDur = "{0:4.1f}".format(obs['t_total'])
+    obsDur = "{0:4.1f}".format(obs['t_exp'])
     mAlt = "{0:3.1f} deg".format(
         obs['target_altaz'].alt.mean().to_value(u.deg))
     dsens = "{0:2.3f} mJy rt(s)".format(d.nefd*sensDegred)
@@ -1211,7 +1226,7 @@ def getCelestialPlots(sim, obs, d, units,
     h['DASHPAGE'] = ('obsPlanner.py', 'TolTEC ObsPlanner')
     h.append(hunits)
     h.append(('OBSDUR',
-              '{0:2.3f}'.format(obs['t_total'].to_value(u.s)),
+              '{0:2.3f}'.format(obs['t_exp'].to_value(u.s)),
               'Observation Duration in s'))
     h.append(('MEANALT',
               '{0:3.1f}'.format(
@@ -1460,7 +1475,8 @@ def writeSimuContext(d, band, lissajous=0):
     oF.write("    select: 'array_name == {}'\n".format(bandName))
     oF.write("    # select: 'pg == 1'\n")
     oF.write("  obs_params:\n")
-    oF.write("    f_smp: 12.2 Hz  # the sample frequency\n")
+    oF.write("    f_smp_data: 488 Hz  # the sample frequency for data\n")
+    oF.write("    f_smp_mapping: 12.2 Hz  # the sample frequency for mapping\n")
     oF.write("    t_exp: {} s\n".format(d['t_exp']))
     oF.write("  sources:\n")
     oF.write("    - type: point_source_catalog\n")

@@ -9,6 +9,7 @@ import astropy.units as u
 from astropy.modeling import models
 from astropy import coordinates as coord
 # from astropy.table import Table
+from astropy.io import fits
 
 from gwcs import coordinate_frames as cf
 from scipy import interpolate
@@ -122,6 +123,7 @@ class SourceModel(_Model):
         self.inputs = inputs
         self.outputs = outputs
 
+
 class SourceImageModel(SourceModel):
     """
     A model given by 2d images.
@@ -141,6 +143,9 @@ class SourceImageModel(SourceModel):
         for hdu in hdulist:
             data[hdu.header['NAME']] = hdu.data
         return cls(data=data)
+
+    def evaluate_tod(self, lon, lat, t, groups=None):
+        return NotImplemented
 
 
 class SourceCatalogModel(SourceModel):
