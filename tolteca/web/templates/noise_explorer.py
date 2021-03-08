@@ -226,6 +226,7 @@ cache.delete_memoized(_fetchPsdData)
 
 
 def fetchPsdData(obs_input_list):
+    logger = get_logger()
     data = []
     for obs_input in obs_input_list.values():
         raw_obs_processed_url = obs_input['raw_obs_processed']
@@ -234,7 +235,8 @@ def fetchPsdData(obs_input_list):
         try:
             data.append(_fetchPsdData(raw_obs_processed_url))
         except Exception:
-            print(f"unable to load file {raw_obs_processed_url}")
+            logger.debug(f"unable to load file {raw_obs_processed_url}", exc_info=True)
+            cache.delete_memoized(_fetchPsdData, raw_obs_processed_url)
             continue
     return data
 

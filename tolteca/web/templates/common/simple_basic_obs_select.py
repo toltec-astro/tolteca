@@ -65,6 +65,8 @@ def _get_bods_index_from_toltecdb(
         obs_type='VNA', n_obs=500, obsnum_latest=None):
     logger = get_logger()
 
+    tname = 'toltec_r1'
+
     dbrt.ensure_connection('toltec')
     t = dbrt['toltec'].tables
 
@@ -77,38 +79,38 @@ def _get_bods_index_from_toltecdb(
     stmt = se.select(
             [
                 sqla_func.timestamp(
-                    t['toltec'].c.Date,
-                    t['toltec'].c.Time).label('time_obs'),
-                t['toltec'].c.ObsNum.label('obsnum'),
-                t['toltec'].c.SubObsNum.label('subobsnum'),
-                t['toltec'].c.ScanNum.label('scannum'),
-                t['toltec'].c.RoachIndex.label('roachid'),
-                t['toltec'].c.RepeatLevel.label('repeat'),
-                t['toltec'].c.TargSweepObsNum.label('cal_obsnum'),
-                t['toltec'].c.TargSweepSubObsNum.label('cal_subobsnum'),
-                t['toltec'].c.TargSweepScanNum.label('cal_scannum'),
+                    t[tname].c.Date,
+                    t[tname].c.Time).label('time_obs'),
+                t[tname].c.ObsNum.label('obsnum'),
+                t[tname].c.SubObsNum.label('subobsnum'),
+                t[tname].c.ScanNum.label('scannum'),
+                t[tname].c.RoachIndex.label('roachid'),
+                t[tname].c.RepeatLevel.label('repeat'),
+                t[tname].c.TargSweepObsNum.label('cal_obsnum'),
+                t[tname].c.TargSweepSubObsNum.label('cal_subobsnum'),
+                t[tname].c.TargSweepScanNum.label('cal_scannum'),
                 t['obstype'].c.label.label('raw_obs_type'),
                 t['master'].c.label.label('master'),
-                t['toltec'].c.FileName.label('source_orig'),
+                t[tname].c.FileName.label('source_orig'),
                 ]).select_from(
-                    t['toltec']
+                    t[tname]
                     .join(
                         t['obstype'],
                         onclause=(
-                            t['toltec'].c.ObsType
+                            t[tname].c.ObsType
                             == t['obstype'].c.id
                             )
                     ).join(
                         t['master'],
                         onclause=(
-                            t['toltec'].c.Master
+                            t[tname].c.Master
                             == t['master'].c.id
                             )
                     )
                 ).where(
                     se.and_(
-                        t['toltec'].c.ObsNum <= obsnum_latest,
-                        t['toltec'].c.ObsNum >= obsnum_since,
+                        t[tname].c.ObsNum <= obsnum_latest,
+                        t[tname].c.ObsNum >= obsnum_since,
                         t['obstype'].c.label == obs_type,
                         t['master'].c.label == 'ICS'
                         ))
@@ -144,6 +146,7 @@ def get_processed_file(raw_file_url):
         p = p.joinpath(processed_filename)
         logger.debug(f"check {p}")
         if p.exists():
+            logger.debug(f'use processed file {p}')
             return fileloc(p).uri
     logger.debug(f"unable to find processed file for {raw_filepath}")
     return None
@@ -289,7 +292,9 @@ class KidsDataSelect(ComponentTemplate):
             enabled = set(
                     v['meta']['roachid']
                     for v in obsnum_value if has_processed(v))
+            print(enabled)
             options = make_network_options(enabled=enabled)
+            print(options)
             return options
 
         def update_network_value_for_options(network_options, network_value):
@@ -297,8 +302,11 @@ class KidsDataSelect(ComponentTemplate):
             if network_value is None:
                 network_value = []
             if not self._nwid_multi:
-                # make list of values
-                network_value = [network_value]
+                if not isinstance(network_value, list):  # this happends somehow
+                    # make list of values
+                    network_value = [network_value]
+            print(network_value)
+            print(self._nwid_multi)
             network_value = list(set(network_value).intersection(enabled))
             if self._nwid_multi:
                 pass
@@ -377,6 +385,8 @@ class KidsDataSelect(ComponentTemplate):
                     obsnum_value, key=lambda v: v['meta']['roachid'])
 
             def make_filepaths(nw):
+                if nw not in d:
+                    return None
                 return {
                         'raw_obs': d[nw]['url'],
                         'raw_obs_processed': get_processed_file(d[nw]['url'])

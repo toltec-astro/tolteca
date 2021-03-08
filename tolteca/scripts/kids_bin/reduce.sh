@@ -124,9 +124,11 @@ elif [[ ${type} == "timestream" ]]; then
 		--output "${scratchdir}/{stem}_processed.nc" --solver_chunk_size 500000 --solver_extra_output ${file} ${args}
 	o=$(basename ${file})
         o=${scratchdir}/${o%.*}_processed.nc
-	echo rm ${o}
-	rm ${o}
-        ${kidscppdir}/build/bin/kids \
+    if [ -f "${o}" ] ; then
+        echo rm ${o}
+        rm "${o}"
+    fi
+    ${kidscppdir}/build/bin/kids \
 		--solver_fitreportdir ${scratchdir} \
 		--output "${scratchdir}/{stem}_processed.nc" --solver_chunk_size 500000 --solver_extra_output ${file} ${args}
 
