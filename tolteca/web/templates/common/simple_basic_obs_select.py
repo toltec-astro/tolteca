@@ -27,10 +27,11 @@ from schema import Schema, Optional, Or, Use
 from pathlib import Path
 import cachetools.func
 import sqlalchemy.sql.expression as se
+from sqlalchemy.sql import alias
 from sqlalchemy.sql import func as sqla_func
 
 from ...tasks.dbrt import dbrt
-from ....datamodels.toltec.basic_obs_data import BasicObsDataset
+from ....datamodels.toltec.basic_obs_data import BasicObsDataset, BasicObsData
 from ... import env_registry, env_prefix
 from ....utils import get_user_data_dir
 
@@ -62,7 +63,7 @@ def _get_toltecdb_obsnum_latest():
 
 
 def _get_bods_index_from_toltecdb(
-        obs_type='VNA', n_obs=500, obsnum_latest=None):
+        obs_type='VNA', n_obs=1, obsnum_latest=None):
     logger = get_logger()
 
     tname = 'toltec_r1'
@@ -76,6 +77,7 @@ def _get_bods_index_from_toltecdb(
 
     logger.debug(
             f"query toltecdb for obsnum [{obsnum_since}:{obsnum_latest}]")
+    t_cal = alias(t[tname])
     stmt = se.select(
             [
                 sqla_func.timestamp(
@@ -89,6 +91,7 @@ def _get_bods_index_from_toltecdb(
                 t[tname].c.TargSweepObsNum.label('cal_obsnum'),
                 t[tname].c.TargSweepSubObsNum.label('cal_subobsnum'),
                 t[tname].c.TargSweepScanNum.label('cal_scannum'),
+                t_cal.c.FileName.label('cal_source_orig'),
                 t['obstype'].c.label.label('raw_obs_type'),
                 t['master'].c.label.label('master'),
                 t[tname].c.FileName.label('source_orig'),
@@ -106,7 +109,15 @@ def _get_bods_index_from_toltecdb(
                             t[tname].c.Master
                             == t['master'].c.id
                             )
-                    )
+                    ).join(
+                        t_cal,
+                        onclause=(
+                            se.and_(
+                                t[tname].c.TargSweepObsNum == t_cal.c.ObsNum,
+                                t[tname].c.TargSweepSubObsNum == t_cal.c.SubObsNum,
+                                t[tname].c.TargSweepScanNum == t_cal.c.ScanNum,
+                                ))
+                            )
                 ).where(
                     se.and_(
                         t[tname].c.ObsNum <= obsnum_latest,
@@ -152,7 +163,7 @@ def get_processed_file(raw_file_url):
     return None
 
 
-@cachetools.func.ttl_cache(maxsize=1, ttl=1)
+@cachetools.func.ttl_cache(maxsize=1, ttl=10)
 def query_basic_obs_data(**kwargs):
 
     logger = get_logger()
@@ -183,6 +194,7 @@ def query_basic_obs_data(**kwargs):
         raw_obs_source['data_items'] = [
                 {
                     'url': d.meta['file_loc'].uri,
+                    'url_cal': fileloc(cal_source).uri,
                     'meta': {
                         k: d.meta[k]
                         for k in [
@@ -191,7 +203,7 @@ def query_basic_obs_data(**kwargs):
                             ]
                         }
                     }
-                for d in ds.bod_list
+                for d, cal_source in zip(ds.bod_list, ds['cal_source_orig'])
                 ]
         raw_obs_sources.append(raw_obs_source)
     result = Table(rows=result, names=group_keys)
@@ -389,7 +401,9 @@ class KidsDataSelect(ComponentTemplate):
                     return None
                 return {
                         'raw_obs': d[nw]['url'],
-                        'raw_obs_processed': get_processed_file(d[nw]['url'])
+                        'raw_obs_processed': get_processed_file(d[nw]['url']),
+                        'cal_obs': d[nw]['url_cal'],
+                        'cal_obs_processed': get_processed_file(d[nw]['url_cal']),
                         }
             filepaths = {
                     nw: make_filepaths(nw)
