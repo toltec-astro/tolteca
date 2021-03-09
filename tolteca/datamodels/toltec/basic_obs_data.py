@@ -95,8 +95,13 @@ class BasicObsData(DataFileIO):
 
         This modifies `meta` in-place.
         """
-        logged_dict_update(
+        try:
+            logged_dict_update(
                 cls.logger.warning, meta, meta_from_source(file_loc))
+        except Exception:
+            cls.logger.debug(
+                    'unable to parse meta from file loc.',
+                    exc_info=True)
         return meta
 
     def _update_meta(self):
@@ -484,4 +489,5 @@ class BasicObsDataset(object):
         else:
             other_index_table = other
         return self.__class__(
-                index_table=join(self.index_table, other_index_table), *args, **kwargs)
+                index_table=join(self.index_table, other_index_table),
+                *args, **kwargs)
