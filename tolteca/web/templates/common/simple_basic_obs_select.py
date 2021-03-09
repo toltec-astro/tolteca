@@ -186,8 +186,16 @@ def _get_bods_index_from_toltecdb(
             f'toltec{i}' for i in tbl_raw_obs['roachid']]
 
     # this need to handle various cases for remote file search
+    # TODO fix this handling of path in db
+    def fix_raw_filepath(p):
+        p = str(p)
+        if p.startswith('/data/'):
+            return p
+        return f'/data/{p}'
     tbl_raw_obs['source'] = [
-            f'{s}' for s in tbl_raw_obs['source_orig']]
+            fix_raw_filepath(s) for s in tbl_raw_obs['source_orig']]
+    tbl_raw_obs['cal_source'] = [
+            fix_raw_filepath(s) for s in tbl_raw_obs['cal_source_orig']]
     # tbl_raw_obs['obsnum', 'subobsnum', 'scannum', 'roachid'].pprint_all()
 
     return tbl_raw_obs
@@ -213,7 +221,7 @@ def get_processed_file(raw_file_url):
     return None
 
 
-@cachetools.func.ttl_cache(maxsize=1, ttl=10)
+@cachetools.func.ttl_cache(maxsize=1, ttl=2)
 def query_basic_obs_data(**kwargs):
 
     logger = get_logger()
@@ -255,7 +263,7 @@ def query_basic_obs_data(**kwargs):
                             ]
                         }
                     }
-                for d, cal_source in zip(ds.bod_list, ds['cal_source_orig'])
+                for d, cal_source in zip(ds.bod_list, ds['cal_source'])
                 ]
         raw_obs_sources.append(raw_obs_source)
     result = Table(rows=result, names=group_keys)
