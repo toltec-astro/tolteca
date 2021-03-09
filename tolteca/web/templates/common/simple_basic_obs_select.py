@@ -73,10 +73,56 @@ def _get_bods_index_from_toltecdb(
 
     if obsnum_latest is None:
         obsnum_latest = _get_toltecdb_obsnum_latest()
-    obsnum_since = obsnum_latest - n_obs + 1
 
+    logger.debug(f"latest obsnum: {obsnum_latest}")
+    obsnum_since = obsnum_latest - n_obs + 1
     logger.debug(
-            f"query toltecdb for obsnum [{obsnum_since}:{obsnum_latest}]")
+            f"query toltecdb for obsnum [{obsnum_since}:{obsnum_latest}] to find id range")
+
+    # run a query to figure out actual id for obsnum_since to obsnum_latest
+    stmt = se.select(
+            [
+                sqla_func.min(t[tname].c.id).label('id_min'),
+                sqla_func.max(t[tname].c.id).label('id_max'),
+                sqla_func.max(t[tname].c.ObsNum).label('ObsNum'),
+                ]).select_from(
+                    t[tname]
+                    .join(
+                        t['obstype'],
+                        onclause=(
+                            t[tname].c.ObsType
+                            == t['obstype'].c.id
+                            )
+                    ).join(
+                        t['master'],
+                        onclause=(
+                            t[tname].c.Master
+                            == t['master'].c.id
+                            )
+                    )
+                ).where(
+                    se.and_(
+                        t[tname].c.ObsNum <= obsnum_latest,
+                        t[tname].c.ObsNum >= obsnum_since,
+                        t['obstype'].c.label == obs_type,
+                        t['master'].c.label == 'ICS'
+                        )
+                ).group_by(
+                    t[tname].c.ObsNum.label('obsnum'),
+                    t[tname].c.SubObsNum.label('subobsnum'),
+                    t[tname].c.ScanNum.label('scannum'),
+                    t[tname].c.RepeatLevel.label('repeat'),
+                    t[tname].c.Master.label('master_id'),
+                ).order_by(
+                        se.desc(t[tname].c.id)
+                ).limit(n_obs)
+    df_group_ids = dataframe_from_db(stmt, session=dbrt['toltec'].session)
+    id_min = df_group_ids['id_min'].min()
+    id_max = df_group_ids['id_max'].max()
+    logger.debug(
+            f"id range of n_obs={n_obs} is [{id_min}, {id_max}] "
+            f"obsnum range [{df_group_ids['ObsNum'].min()}, {df_group_ids['ObsNum'].max()}]")
+
     t_cal = alias(t[tname])
     stmt = se.select(
             [
@@ -116,17 +162,20 @@ def _get_bods_index_from_toltecdb(
                                 t[tname].c.TargSweepObsNum == t_cal.c.ObsNum,
                                 t[tname].c.TargSweepSubObsNum == t_cal.c.SubObsNum,
                                 t[tname].c.TargSweepScanNum == t_cal.c.ScanNum,
+                                t[tname].c.RoachIndex == t_cal.c.RoachIndex,
+                                t[tname].c.Master == t_cal.c.Master,
                                 ))
                             )
                 ).where(
                     se.and_(
-                        t[tname].c.ObsNum <= obsnum_latest,
-                        t[tname].c.ObsNum >= obsnum_since,
+                        t[tname].c.id <= id_max,
+                        t[tname].c.id >= id_min,
                         t['obstype'].c.label == obs_type,
                         t['master'].c.label == 'ICS'
                         ))
 
     session = dbrt['toltec'].session
+    # re_cal
     tbl_raw_obs = Table.from_pandas(
             dataframe_from_db(stmt, session=session))
     # logger.debug(f"tbl_raw_obs: {tbl_raw_obs}")
@@ -139,6 +188,7 @@ def _get_bods_index_from_toltecdb(
     # this need to handle various cases for remote file search
     tbl_raw_obs['source'] = [
             f'{s}' for s in tbl_raw_obs['source_orig']]
+    # tbl_raw_obs['obsnum', 'subobsnum', 'scannum', 'roachid'].pprint_all()
 
     return tbl_raw_obs
 
@@ -170,7 +220,8 @@ def query_basic_obs_data(**kwargs):
 
     logger.debug(f'query basic obs data kwargs={kwargs}')
 
-    tbl_bods = _get_bods_index_from_toltecdb(**kwargs)
+    with timeit('query toltecdb'):
+        tbl_bods = _get_bods_index_from_toltecdb(**kwargs)
 
     logger.debug(
             f'collect {len(tbl_bods)} entries from toltec files db'
@@ -179,7 +230,8 @@ def query_basic_obs_data(**kwargs):
 
     # now collate by obs
     group_keys = ['obsnum', 'subobsnum', 'scannum', 'master', 'repeat']
-    grouped = tbl_bods.group_by(group_keys)
+    with timeit('group baods by roach id'):
+        grouped = tbl_bods.group_by(group_keys)
     result = []  # this holds all the per obs info as a table
     raw_obs_sources = []
     for key, tbl in zip(grouped.groups.keys, grouped.groups):
@@ -304,9 +356,7 @@ class KidsDataSelect(ComponentTemplate):
             enabled = set(
                     v['meta']['roachid']
                     for v in obsnum_value if has_processed(v))
-            print(enabled)
             options = make_network_options(enabled=enabled)
-            print(options)
             return options
 
         def update_network_value_for_options(network_options, network_value):
@@ -317,8 +367,6 @@ class KidsDataSelect(ComponentTemplate):
                 if not isinstance(network_value, list):  # this happends somehow
                     # make list of values
                     network_value = [network_value]
-            print(network_value)
-            print(self._nwid_multi)
             network_value = list(set(network_value).intersection(enabled))
             if self._nwid_multi:
                 pass
