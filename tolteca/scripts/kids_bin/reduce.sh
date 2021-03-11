@@ -63,6 +63,7 @@ echo "additional output to: ${scratchdir}"
 kidscppdir="${HOME}/toltec_astro/kidscpp"
 kidspydir="${HOME}/zma_deprecated/kids_master/scripts"
 pyexec="${HOME}/zma_deprecated/venvs/kids_master/bin/python3"
+fitter_Qr=13000  # TODO need a better way to handle this
 if [[ ${type} == "vna" ]]; then
     echo "do ${type} ${runmode}"
     reportfile=$(basename ${link})
@@ -71,6 +72,7 @@ if [[ ${type} == "vna" ]]; then
     reportfile="${scratchdir}/${reportfile}"
     if [[ ${runmode} == "reduce" ]]; then
         ${kidscppdir}/build/bin/kids --finder_threshold 10 \
+            --fitter_weight_window_Qr ${fitter_Qr} \
 		    --output_d21 ${scratchdir}/'{stem}_d21.nc' \
 		    --output_processed ${scratchdir}/'{stem}_processed.nc' \
 		    --output "${reportfile}" \
@@ -97,6 +99,7 @@ elif [[ ${type} == "targ" ]]; then
     echo "exec: ${kidscppdir}/build/bin/kids --output "${reportfile}"  "${file}" ${args}"
     if [[ ${runmode} == "reduce" ]]; then
         echo ${kidscppdir}/build${debug}/bin/kids \
+            --fitter_weight_window_Qr ${fitter_Qr} \
 		    --output_processed ${scratchdir}/'{stem}_processed.nc' \
             --output "${reportfile}"  "${file}" ${args}
         ${kidscppdir}/build${debug}/bin/kids \
