@@ -27,10 +27,11 @@ from schema import Schema, Optional, Or, Use
 from pathlib import Path
 import cachetools.func
 import sqlalchemy.sql.expression as se
+from sqlalchemy.sql import alias
 from sqlalchemy.sql import func as sqla_func
 
 from ...tasks.dbrt import dbrt
-from ....datamodels.toltec.basic_obs_data import BasicObsDataset
+from ....datamodels.toltec.basic_obs_data import BasicObsDataset, BasicObsData
 from ... import env_registry, env_prefix
 from ....utils import get_user_data_dir
 
@@ -62,58 +63,119 @@ def _get_toltecdb_obsnum_latest():
 
 
 def _get_bods_index_from_toltecdb(
-        obs_type='VNA', n_obs=500, obsnum_latest=None):
+        obs_type='VNA', n_obs=1, obsnum_latest=None):
     logger = get_logger()
+
+    tname = 'toltec_r1'
 
     dbrt.ensure_connection('toltec')
     t = dbrt['toltec'].tables
 
     if obsnum_latest is None:
         obsnum_latest = _get_toltecdb_obsnum_latest()
-    obsnum_since = obsnum_latest - n_obs + 1
 
+    logger.debug(f"latest obsnum: {obsnum_latest}")
+    obsnum_since = obsnum_latest - n_obs + 1
     logger.debug(
-            f"query toltecdb for obsnum [{obsnum_since}:{obsnum_latest}]")
+            f"query toltecdb for obsnum [{obsnum_since}:{obsnum_latest}] to find id range")
+
+    # run a query to figure out actual id for obsnum_since to obsnum_latest
     stmt = se.select(
             [
-                sqla_func.timestamp(
-                    t['toltec'].c.Date,
-                    t['toltec'].c.Time).label('time_obs'),
-                t['toltec'].c.ObsNum.label('obsnum'),
-                t['toltec'].c.SubObsNum.label('subobsnum'),
-                t['toltec'].c.ScanNum.label('scannum'),
-                t['toltec'].c.RoachIndex.label('roachid'),
-                t['toltec'].c.RepeatLevel.label('repeat'),
-                t['toltec'].c.TargSweepObsNum.label('cal_obsnum'),
-                t['toltec'].c.TargSweepSubObsNum.label('cal_subobsnum'),
-                t['toltec'].c.TargSweepScanNum.label('cal_scannum'),
-                t['obstype'].c.label.label('raw_obs_type'),
-                t['master'].c.label.label('master'),
-                t['toltec'].c.FileName.label('source_orig'),
+                sqla_func.min(t[tname].c.id).label('id_min'),
+                sqla_func.max(t[tname].c.id).label('id_max'),
+                sqla_func.max(t[tname].c.ObsNum).label('ObsNum'),
                 ]).select_from(
-                    t['toltec']
+                    t[tname]
                     .join(
                         t['obstype'],
                         onclause=(
-                            t['toltec'].c.ObsType
+                            t[tname].c.ObsType
                             == t['obstype'].c.id
                             )
                     ).join(
                         t['master'],
                         onclause=(
-                            t['toltec'].c.Master
+                            t[tname].c.Master
                             == t['master'].c.id
                             )
                     )
                 ).where(
                     se.and_(
-                        t['toltec'].c.ObsNum <= obsnum_latest,
-                        t['toltec'].c.ObsNum >= obsnum_since,
+                        t[tname].c.ObsNum <= obsnum_latest,
+                        t[tname].c.ObsNum >= obsnum_since,
+                        t['obstype'].c.label == obs_type,
+                        t['master'].c.label == 'ICS'
+                        )
+                ).group_by(
+                    t[tname].c.ObsNum.label('obsnum'),
+                    t[tname].c.SubObsNum.label('subobsnum'),
+                    t[tname].c.ScanNum.label('scannum'),
+                    t[tname].c.RepeatLevel.label('repeat'),
+                    t[tname].c.Master.label('master_id'),
+                ).order_by(
+                        se.desc(t[tname].c.id)
+                ).limit(n_obs)
+    df_group_ids = dataframe_from_db(stmt, session=dbrt['toltec'].session)
+    id_min = df_group_ids['id_min'].min()
+    id_max = df_group_ids['id_max'].max()
+    logger.debug(
+            f"id range of n_obs={n_obs} is [{id_min}, {id_max}] "
+            f"obsnum range [{df_group_ids['ObsNum'].min()}, {df_group_ids['ObsNum'].max()}]")
+
+    t_cal = alias(t[tname])
+    stmt = se.select(
+            [
+                sqla_func.timestamp(
+                    t[tname].c.Date,
+                    t[tname].c.Time).label('time_obs'),
+                t[tname].c.ObsNum.label('obsnum'),
+                t[tname].c.SubObsNum.label('subobsnum'),
+                t[tname].c.ScanNum.label('scannum'),
+                t[tname].c.RoachIndex.label('roachid'),
+                t[tname].c.RepeatLevel.label('repeat'),
+                t[tname].c.TargSweepObsNum.label('cal_obsnum'),
+                t[tname].c.TargSweepSubObsNum.label('cal_subobsnum'),
+                t[tname].c.TargSweepScanNum.label('cal_scannum'),
+                t_cal.c.FileName.label('cal_source_orig'),
+                t['obstype'].c.label.label('raw_obs_type'),
+                t['master'].c.label.label('master'),
+                t[tname].c.FileName.label('source_orig'),
+                ]).select_from(
+                    t[tname]
+                    .join(
+                        t['obstype'],
+                        onclause=(
+                            t[tname].c.ObsType
+                            == t['obstype'].c.id
+                            )
+                    ).join(
+                        t['master'],
+                        onclause=(
+                            t[tname].c.Master
+                            == t['master'].c.id
+                            )
+                    ).join(
+                        t_cal,
+                        onclause=(
+                            se.and_(
+                                t[tname].c.TargSweepObsNum == t_cal.c.ObsNum,
+                                t[tname].c.TargSweepSubObsNum == t_cal.c.SubObsNum,
+                                t[tname].c.TargSweepScanNum == t_cal.c.ScanNum,
+                                t[tname].c.RoachIndex == t_cal.c.RoachIndex,
+                                t[tname].c.Master == t_cal.c.Master,
+                                ))
+                            )
+                ).where(
+                    se.and_(
+                        t[tname].c.id <= id_max,
+                        t[tname].c.id >= id_min,
                         t['obstype'].c.label == obs_type,
                         t['master'].c.label == 'ICS'
                         ))
 
     session = dbrt['toltec'].session
+    # re_cal
     tbl_raw_obs = Table.from_pandas(
             dataframe_from_db(stmt, session=session))
     # logger.debug(f"tbl_raw_obs: {tbl_raw_obs}")
@@ -124,8 +186,17 @@ def _get_bods_index_from_toltecdb(
             f'toltec{i}' for i in tbl_raw_obs['roachid']]
 
     # this need to handle various cases for remote file search
+    # TODO fix this handling of path in db
+    def fix_raw_filepath(p):
+        p = str(p)
+        if p.startswith('/data/'):
+            return p
+        return f'/data/{p}'
     tbl_raw_obs['source'] = [
-            f'{s}' for s in tbl_raw_obs['source_orig']]
+            fix_raw_filepath(s) for s in tbl_raw_obs['source_orig']]
+    tbl_raw_obs['cal_source'] = [
+            fix_raw_filepath(s) for s in tbl_raw_obs['cal_source_orig']]
+    # tbl_raw_obs['obsnum', 'subobsnum', 'scannum', 'roachid'].pprint_all()
 
     return tbl_raw_obs
 
@@ -144,19 +215,21 @@ def get_processed_file(raw_file_url):
         p = p.joinpath(processed_filename)
         logger.debug(f"check {p}")
         if p.exists():
+            logger.debug(f'use processed file {p}')
             return fileloc(p).uri
     logger.debug(f"unable to find processed file for {raw_filepath}")
     return None
 
 
-@cachetools.func.ttl_cache(maxsize=1, ttl=1)
+@cachetools.func.ttl_cache(maxsize=1, ttl=2)
 def query_basic_obs_data(**kwargs):
 
     logger = get_logger()
 
     logger.debug(f'query basic obs data kwargs={kwargs}')
 
-    tbl_bods = _get_bods_index_from_toltecdb(**kwargs)
+    with timeit('query toltecdb'):
+        tbl_bods = _get_bods_index_from_toltecdb(**kwargs)
 
     logger.debug(
             f'collect {len(tbl_bods)} entries from toltec files db'
@@ -165,7 +238,8 @@ def query_basic_obs_data(**kwargs):
 
     # now collate by obs
     group_keys = ['obsnum', 'subobsnum', 'scannum', 'master', 'repeat']
-    grouped = tbl_bods.group_by(group_keys)
+    with timeit('group baods by roach id'):
+        grouped = tbl_bods.group_by(group_keys)
     result = []  # this holds all the per obs info as a table
     raw_obs_sources = []
     for key, tbl in zip(grouped.groups.keys, grouped.groups):
@@ -180,6 +254,7 @@ def query_basic_obs_data(**kwargs):
         raw_obs_source['data_items'] = [
                 {
                     'url': d.meta['file_loc'].uri,
+                    'url_cal': fileloc(cal_source).uri,
                     'meta': {
                         k: d.meta[k]
                         for k in [
@@ -188,7 +263,7 @@ def query_basic_obs_data(**kwargs):
                             ]
                         }
                     }
-                for d in ds.bod_list
+                for d, cal_source in zip(ds.bod_list, ds['cal_source'])
                 ]
         raw_obs_sources.append(raw_obs_source)
     result = Table(rows=result, names=group_keys)
@@ -297,8 +372,9 @@ class KidsDataSelect(ComponentTemplate):
             if network_value is None:
                 network_value = []
             if not self._nwid_multi:
-                # make list of values
-                network_value = [network_value]
+                if not isinstance(network_value, list):  # this happends somehow
+                    # make list of values
+                    network_value = [network_value]
             network_value = list(set(network_value).intersection(enabled))
             if self._nwid_multi:
                 pass
@@ -377,9 +453,13 @@ class KidsDataSelect(ComponentTemplate):
                     obsnum_value, key=lambda v: v['meta']['roachid'])
 
             def make_filepaths(nw):
+                if nw not in d:
+                    return None
                 return {
                         'raw_obs': d[nw]['url'],
-                        'raw_obs_processed': get_processed_file(d[nw]['url'])
+                        'raw_obs_processed': get_processed_file(d[nw]['url']),
+                        'cal_obs': d[nw]['url_cal'],
+                        'cal_obs_processed': get_processed_file(d[nw]['url_cal']),
                         }
             filepaths = {
                     nw: make_filepaths(nw)

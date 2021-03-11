@@ -182,6 +182,10 @@ if celery_app is not None:
                 logger.warn(
                         f"skip files of obstype {entry['ObsType']} {entry}")
                 continue
+            if entry['ObsType'] == 'Timestream':
+                logger.warn(
+                        f"skip files of obstype {entry['ObsType']} {entry}")
+                continue
             if i == 0 and entry['Valid'] == 0:
                 continue
             for filepath in entry['raw_files']:
