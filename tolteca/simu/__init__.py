@@ -83,21 +83,20 @@ def _ssf_image(cfg, cfg_rt):
     cfg = Schema({
         'type': 'image',
         'filepath': Use(path_validator),
+        Optional('label_map', default=None): dict
         }).validate(cfg)
 
     logger.debug(f"source config: {cfg}")
 
-    # TODO: finish define the fits file format for simulator input
-    # finish implement this function so a source_model is returned
     from .base import SourceImageModel
-    m = SourceImageModel.from_fits(cfg['filepath'])
+    m = SourceImageModel.from_fits(cfg['filepath'], label_map=cfg['label_map'])
 
-    array_masks = {}
-    for a in sim.array_names:
-        arr_mask = np.where(t['array_name']==a)
-        array_masks[a] = arr_mask
+    # array_masks = {}
+    # for a in sim.array_names:
+    #     arr_mask = np.where(t['array_name']==a)
+    #     array_masks[a] = arr_mask
 
-    s = m.evaluate_tod(ra, dec, t, groups=array_masks)
+    # s = m.evaluate_tod(ra, dec, t, groups=array_masks)
     # s shape: (1) [7000, 4880]; (2) [7000, 4880, 3]
     # x shape: [7000, 4880]
     # s = np.empty((7000, 4880, 3))

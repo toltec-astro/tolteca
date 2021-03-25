@@ -14,10 +14,11 @@ from astropy.io import fits
 from gwcs import coordinate_frames as cf
 from scipy import interpolate
 
-from tollan.utils.log import get_logger
+from tollan.utils.log import get_logger, timeit
 from tollan.utils import getobj
-from tollan.utils.log import timeit
+# from tollan.utils.fmt import pformat_yaml
 from tollan.utils.namespace import NamespaceMixin
+from tollan.utils.registry import Registry
 
 
 def _get_skyoffset_frame(c):
@@ -115,6 +116,13 @@ class _Model(Model, NamespaceMixin):
 class SourceModel(_Model):
     """Base class for models that compute the optical signal.
     """
+
+    _subclasses = Registry.create()
+
+    def __init_subclass(cls, *args, **kwargs):
+        super().__init_subclass__(*args, **kwargs)
+        cls._subclasses.register(cls, cls)
+
     def __init__(self, *args, **kwargs):
         inputs = kwargs.pop('inputs', self.input_frame.axes_names)
         outputs = ('S', )
@@ -128,24 +136,43 @@ class SourceImageModel(SourceModel):
     """
     A model given by 2d images.
     """
+
+    logger = get_logger()
+
+    n_inputs = 2
+    n_outputs = 1
+    input_frame = cf.CelestialFrame(
+            name='icrs',
+            reference_frame=coord.ICRS(),
+            unit=(u.deg, u.deg)
+            )
+    _name = 'image'
+
     def __init__(self, data=None, *args, **kwargs):
-        inputs = kwargs.pop('inputs', self.input_frame.axes_names)
-        outputs = ('S', )
-        kwargs.setdefault('name', self._name)
         super().__init__(*args, **kwargs)
-        self.inputs = inputs
-        self.outputs = outputs
 
     @classmethod
-    def from_fits(cls, filepath):
+    def from_fits(cls, filepath, label_map=None):
         hdulist = fits.open(filepath)
         data = {}
-        for hdu in hdulist:
-            data[hdu.header['NAME']] = hdu.data
+        for i, hdu in enumerate(hdulist):
+            cls.logger.debug('HDU {}: {}'.format(
+                i, hdu.header.tostring(sep='\n')
+                ))
+            label = hdu.header.get('EXTNAME', i)
+            if label_map is not None and label not in label_map:
+                cls.logger.debug(f"skip ext {label}")
+                continue
+            data[label] = hdu.data
+
+        cls.logger.debug(f'data items found: {list(data.keys())}')
         return cls(data=data)
 
     def evaluate_tod(self, lon, lat, t, groups=None):
-        return NotImplemented
+        return self
+
+    def evaluate(self, lon, lat):
+        pass
 
 
 class SourceCatalogModel(SourceModel):

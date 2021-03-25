@@ -35,7 +35,6 @@ simu:
   # this is the actual simulator
   jobkey: example_simu
   # plot: true
-  mapping_only: true
   instrument:
     name: toltec
     calobj: cal/calobj_default/index.yaml
@@ -52,10 +51,15 @@ simu:
     #   k: some string
     #   m: 2
     - type: image
-      filepath: example_input.fits
+      filepath: toltec_simfits_guter_test2.fits
+      label_map:
+        A1100_I: a1100
+        A1400_I: a1400
+        A2000_I: a2000
     # - type: bkg
     #    value: 1 pW
   # mapping: *example_mapping_model_raster
   mapping: *example_mapping_model_lissajous
+  mapping_only: false
   # mapping: *example_mapping_tel_nc
   #

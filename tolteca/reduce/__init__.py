@@ -95,17 +95,11 @@ class PipelineRuntime(RuntimeContext):
 
     @timeit
     def cli_run(self, args=None):
-        """Run the simulator and save the result.
+        """Run the pipeline and save the result.
         """
-        cfg = self.config['simu']
 
         result = self.run()
         result.save(self.get_or_create_output_dir())
-
-        if not cfg.get('plot', False):
-            return
-
-        result.plot_animation()
 
 
 class PipelineResult(Namespace):
