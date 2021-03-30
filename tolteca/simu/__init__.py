@@ -15,7 +15,6 @@ import re
 import numpy as np
 from astropy.table import Table
 from astropy.time import Time
-from astropy.io import fits
 import astropy.units as u
 from astroquery.utils import parse_coordinates
 import yaml
@@ -29,7 +28,8 @@ from ..utils import RuntimeContext, RuntimeContextError
 # import these models as toplevel
 from .base import (
         SkyRasterScanModel,
-        SkyLissajousModel, resolve_sky_map_ref_frame)  # noqa: F401
+        SkyLissajousModel,
+        resolve_sky_map_ref_frame)  # noqa: F401
 
 
 __all__ = ['SimulatorRuntimeError', 'SimulatorRuntime']
@@ -83,13 +83,17 @@ def _ssf_image(cfg, cfg_rt):
     cfg = Schema({
         'type': 'image',
         'filepath': Use(path_validator),
-        Optional('label_map', default=None): dict
+        Optional('grouping', default=None): str,
+        Optional('extname_map', default=None): dict
         }).validate(cfg)
 
     logger.debug(f"source config: {cfg}")
 
     from .base import SourceImageModel
-    m = SourceImageModel.from_fits(cfg['filepath'], label_map=cfg['label_map'])
+    m = SourceImageModel.from_fits(
+            cfg['filepath'],
+            extname_map=cfg['extname_map'],
+            grouping=cfg['grouping'])
 
     # array_masks = {}
     # for a in sim.array_names:
@@ -100,7 +104,7 @@ def _ssf_image(cfg, cfg_rt):
     # s shape: (1) [7000, 4880]; (2) [7000, 4880, 3]
     # x shape: [7000, 4880]
     # s = np.empty((7000, 4880, 3))
-    # 
+    #
     # alt_boresight, az_boresight = m_obs(t) # [1: 4880]
     # daz = apt['az_off']  # [7000]
     # dalt = apt['alt_off']#  [7000]
@@ -267,6 +271,7 @@ class SimulatorRuntime(RuntimeContext):
         # this defines the subschema relevant to the simulator.
         return {
             'simu': {
+                'jobkey': str,
                 'instrument': {
                     'name': Or(*_instru_simu_factory.keys()),
                     object: object
@@ -284,8 +289,18 @@ class SimulatorRuntime(RuntimeContext):
                     'type': Or(*_mapping_model_factory.keys()),
                     object: object
                     },
+                Optional('plot', default=False): bool,
+                Optional('save', default=False): bool,
                 Optional('mapping_only', default=False): bool,
-                object: object
+                Optional('perf_params', default=dict): {
+                    Optional('chunk_size', default=10 << u.s): Use(u.Quantity),
+                    Optional('mapping_interp_len', default=1 << u.s): Use(
+                        u.Quantity),
+                    Optional('erfa_interp_len', default=300 << u.s): Use(
+                        u.Quantity),
+                    # object: object
+                    },
+                # object: object
                 },
             }
 
@@ -351,52 +366,84 @@ class SimulatorRuntime(RuntimeContext):
         -------
         `SimulatorResult` : The result context containing the simulated data.
         """
-
+        cfg = self.config['simu']
         simobj = self.get_instrument_simulator()
+        obs_params = self.get_obs_params()
+
+        self.logger.debug(
+                pformat_yaml({
+                    'simobj': simobj,
+                    'obsparams': obs_params,
+                    }))
 
         # resolve mapping
         mapping = self.get_mapping_model()
 
-        self.logger.debug(f"mapping: {mapping}")
+        self.logger.debug(f"mapping:\n{mapping}")
 
-        obs_params = self.get_obs_params()
-
+        # resolve sources
         sources = self.get_source_model()
 
-        self.logger.debug(
-                f"simobj: {simobj}\nobs_params: {obs_params}\n"
-                f"sources: {sources}")
+        self.logger.debug("sources: n_sources={}\n{}".format(
+            len(sources), '\n'.join(
+                f'-----\n{s}\n-----' for s in sources
+                )))
 
-        with simobj.obs_context(
-                obs_model=mapping, sources=sources,
-                ref_coord=mapping.target,
-                ref_frame=mapping.ref_frame,
-                ) as obs:
-            # make t grid
-            t = np.arange(
-                    0, obs_params['t_exp'].to_value(u.s),
-                    (1 / obs_params['f_smp_data']).to_value(u.s)) * u.s
-            s, obs_info = obs(mapping.t0, t)
+        # create the time grid and run the simulation
+        t = np.arange(
+                0, obs_params['t_exp'].to_value(u.s),
+                (1 / obs_params['f_smp_data']).to_value(u.s)) * u.s
 
-        with simobj.probe_context(fp=None) as probe:
-            rs, xs, iqs = probe(s)
+        # make chunks
+        chunk_size = cfg['perf_params']['chunk_size']
+        if chunk_size is None:
+            t_chunks = [t]
+        else:
+            n_times_per_chunk = int((
+                    chunk_size * obs_params['f_smp_data']).to_value(
+                            u.dimensionless_unscaled))
+            n_times = len(t)
+            n_chunks = n_times // n_times_per_chunk + bool(
+                    n_times % n_times_per_chunk)
+            self.logger.debug(
+                    f"n_times_per_chunk={n_times_per_chunk} n_times={len(t)} "
+                    f"n_chunks={n_chunks}")
+
+            t_chunks = []
+            for i in range(n_chunks):
+                t_chunks.append(
+                        t[i * n_times_per_chunk:(i + 1) * n_times_per_chunk])
+
+        # construct the simulator payload
+        def data_generator():
+            with simobj.mapping_context(
+                    mapping=mapping, sources=sources,
+                    ) as obs:
+                with simobj.probe_context(fp=None) as probe:
+                    for i, t in enumerate(t_chunks):
+                        s, obs_info = obs(t)
+                        self.logger.debug(
+                                f'chunk #{i}: t=[{t.min()}, {t.max()}] '
+                                f's=[{s.min()} {s.max()}]')
+                        rs, xs, iqs = probe(s)
+                        data = {
+                            'time': t,
+                            'flux': s,
+                            'rs': rs,
+                            'xs': xs,
+                            'iqs': iqs,
+                            'obs_info': obs_info,
+                            }
+                        yield data
 
         return SimulatorResult(
                 simctx=self,
                 config=self.config,
                 simobj=simobj,
                 obs_params=obs_params,
-                obs_info=obs_info,
                 sources=sources,
                 mapping=mapping,
-                data={
-                    # TODO make these names in-line with some standard notion.
-                    'time': t,
-                    'flux': s,
-                    'rs': rs,
-                    'xs': xs,
-                    'iqs': iqs
-                    }
+                data_generator=data_generator
                 )
 
     def run_mapping_only(self):
@@ -445,16 +492,22 @@ class SimulatorRuntime(RuntimeContext):
             result = self.run_mapping_only()
         else:
             result = self.run()
-        result.save(self.get_or_create_output_dir(), mapping_only=mapping_only)
-
-        if not cfg.get('plot', False):
-            return
-
-        result.plot_animation()
+        if cfg['plot']:
+            result.plot_animation()
+        if cfg['save']:
+            result.save(
+                    self.get_or_create_output_dir(), mapping_only=mapping_only)
 
 
 class SimulatorResult(Namespace):
     """A class to hold simulator results."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if hasattr(self, 'data_generator') and hasattr(self, 'data'):
+            raise ValueError("invalid result. can only have data"
+                             "or data_generator")
+        self._lazy = hasattr(self, 'data_generator')
 
     def _save_lmt_tcs_tel(self, outdir):
 
@@ -491,7 +544,13 @@ class SimulatorResult(Namespace):
 
         v_time = nc_tel.createVariable(
                 'Data.TelescopeBackend.TelTime', 'f8', (d_time, ))
-        time_obs = self.obs_info['time_obs']
+
+        if self._lazy:
+            data = next(self.data_generator())
+        else:
+            data = self.data
+
+        time_obs = data['time_obs']
         v_time[:] = time_obs.unix
 
         def add_coords_data(ds, name, arr, dims):
@@ -548,7 +607,7 @@ class SimulatorResult(Namespace):
             self._save_toltec_nc(outdir)
 
     @timeit
-    def plot_animation(self):
+    def plot_animation_native(self):
 
         try:
             import animatplot as amp
@@ -559,9 +618,14 @@ class SimulatorResult(Namespace):
                     "`pip install "
                     "git+https://github.com/Jerry-Ma/animatplot.git`")
 
+        if self._lazy:
+            data = next(self.data_generator())
+        else:
+            data = self.data
+
         simobj = self.simobj
         obs_params = self.obs_params
-        obs_info = self.obs_info
+        obs_info = data['obs_info']
         sources = self.sources
 
         # make some diagnostic plots
@@ -714,6 +778,184 @@ class SimulatorResult(Namespace):
                     src_coords[i].lon,
                     src_coords[i].lat,
                     linewidth=lws[i], color='#aaaaaa')
+        cax = fig.colorbar(
+            pos_blocks[0].scat, ax=ax, shrink=0.8)
+        cax.set_label("Surface Brightness (MJy/sr)")
+        plt.show()
+
+    @timeit
+    def plot_animation(self):
+
+        try:
+            import animatplot as amp
+        except Exception:
+            raise RuntimeContextError(
+                    "Package `animatplot` is required to plot animation. "
+                    "To install, run "
+                    "`pip install "
+                    "git+https://github.com/Jerry-Ma/animatplot.git`")
+
+        if self._lazy:
+            data = next(self.data_generator())
+        else:
+            data = self.data
+
+        simobj = self.simobj
+        obs_params = self.obs_params
+        obs_info = data['obs_info']
+        sources = self.sources
+
+        # make some diagnostic plots
+        tbl = simobj.table
+
+        m = tbl['array_name'] == 'a1100'
+        mtbl = tbl[m]
+        mtbl.meta = tbl.meta['a1100']
+
+        # unpack the obs_info
+        # ref_frame = obs_info['_ref_frame']
+        # ref_coord = obs_info['_ref_coord']
+        projected_frame = obs_info['projected_frame']
+        native_frame = obs_info['native_frame']
+
+        fps = 2 * u.Hz
+        # fps = 12 * u.Hz
+        t_slice = slice(
+                None, None,
+                int(np.ceil(
+                    (obs_params['f_smp_data'] / fps).to_value(
+                        u.dimensionless_unscaled))))
+        fps = (obs_params['f_smp_data'] / t_slice.step).to_value(u.Hz)
+
+        t = data['time']
+        s = data['flux']
+        rs = data['rs']
+        xs = data['xs']
+
+        timeline = amp.Timeline(
+                t[t_slice].to_value(u.s),
+                fps=1 if fps < 1 else fps,
+                units='s')
+        # xx = x_t[m].to_value(u.arcmin)
+        # yy = y_t[m].to_value(u.arcmin)
+        xx = mtbl['x_t'].to_value(u.deg)
+        yy = mtbl['y_t'].to_value(u.deg)
+
+        ss = s[m, t_slice].T.to_value(u.MJy/u.sr)
+        rrs = rs[m, t_slice].T
+        xxs = xs[m, t_slice].T
+
+        cmap = 'viridis'
+        cmap_kwargs = dict(
+                cmap=cmap,
+                vmin=np.min(ss),
+                vmax=np.max(ss),
+                )
+
+        import matplotlib.path as mpath
+        import matplotlib.markers as mmarkers
+        from matplotlib.transforms import Affine2D
+
+        def make_fg_marker(fg):
+            _transform = Affine2D().scale(0.5).rotate_deg(30)
+            polypath = mpath.Path.unit_regular_polygon(6)
+            verts = polypath.vertices
+            top = mpath.Path(verts[(1, 0, 5, 4, 1), :])
+            rot = [0, -60, -180, -240][fg]
+            marker = mmarkers.MarkerStyle(top)
+            marker._transform = _transform.rotate_deg(rot)
+            return marker
+
+        from astropy.visualization.wcsaxes import WCSAxesSubplot, conf
+        from astropy.visualization.wcsaxes.transforms import (
+                CoordinateTransform)
+
+        # coord_meta = {
+        #         'type': ('longitude', 'latitude'),
+        #         'unit': (u.deg, u.deg),
+        #         'wrap': (180, None),
+        #         'name': ('Az Offset', 'Alt Offset')}
+        from astropy.visualization.wcsaxes.utils import get_coord_meta
+        coord_meta = get_coord_meta(native_frame[0])
+        # coord_meta = get_coord_meta('icrs')
+        conf.coordinate_range_samples = 5
+        conf.frame_boundary_samples = 10
+        conf.grid_samples = 5
+        conf.contour_grid_samples = 5
+
+        fig = plt.figure()
+        ax = WCSAxesSubplot(
+                fig, 3, 1, 1,
+                aspect='equal',
+                # transform=Affine2D(),
+                transform=(
+                    # CoordinateTransform(native_frame[0], 'icrs') +
+                    CoordinateTransform(projected_frame[0], native_frame[0])
+                    ),
+                coord_meta=coord_meta,
+                )
+        fig.add_axes(ax)
+        bx = fig.add_subplot(3, 1, 2)
+        cx = fig.add_subplot(3, 1, 3)
+
+        def amp_post_update(block, i):
+            ax.reset_wcs(
+                    transform=(
+                        # CoordinateTransform(native_frame[i], 'icrs')
+                        CoordinateTransform(
+                            projected_frame[i], native_frame[i])
+                        ),
+                    coord_meta=coord_meta)
+        # fig, ax = plt.subplots(subplot_kw={'aspect': 'equal'})
+        # ax.set_facecolor(plt.get_cmap(cmap)(0.))
+        ax.set_facecolor('#4488aa')
+        nfg = 4
+        pos_blocks = np.full((nfg, ), None, dtype=object)
+        for i in range(nfg):
+            mfg = mtbl['fg'] == i
+            pos_blocks[i] = amp.blocks.Scatter(
+                    xx[mfg],
+                    yy[mfg],
+                    s=np.abs(np.hypot(xx[0] - xx[2], yy[0] - yy[2])),
+                    s_in_data_unit=True,
+                    c=ss[:, mfg],
+                    ax=ax,
+                    # post_update=None,
+                    post_update=amp_post_update if i == 0 else None,
+                    marker=make_fg_marker(i),
+                    # edgecolor='#cccccc',
+                    **cmap_kwargs
+                    )
+        # add a block for the IQ values
+        signal_blocks = np.full((2, ), None, dtype=object)
+        for i, (vv, aa) in enumerate(zip((rrs, xxs), (bx, cx))):
+            signal_blocks[i] = amp.blocks.Line(
+                    np.tile(mtbl['f'], (vv.shape[0], 1)),
+                    vv,
+                    ax=aa,
+                    marker='o',
+                    linestyle='none',
+                    )
+        anim = amp.Animation(np.hstack([pos_blocks, signal_blocks]), timeline)
+
+        anim.controls()
+
+        # cax_ticks, cax_label, cmap_kwargs = _make_nw_cmap()
+        # im = ax.scatter(
+        #         x_t[m].to(u.arcmin), y_t[m].to(u.arcmin),
+        #         # c=dists[0, m, 0].to(u.arcmin)
+        #         c=s[0, m, 0].to_value(u.MJy / u.sr)
+        #         # c=tbl['nw'][m], **cmap_kwargs
+        #         )
+        # fig.colorbar(
+        #     im, ax=ax, shrink=0.8)
+        # normalize lw with flux
+        # lws = 0.2 * sources[0]['flux_a1100'] / np.max(sources[0]['flux_a1100'])
+        # for i in range(len(sources)):
+        #     ax.plot(
+        #             src_coords[i].lon,
+        #             src_coords[i].lat,
+        #             linewidth=lws[i], color='#aaaaaa')
         cax = fig.colorbar(
             pos_blocks[0].scat, ax=ax, shrink=0.8)
         cax.set_label("Surface Brightness (MJy/sr)")

@@ -3,7 +3,8 @@
 from contextlib import contextmanager
 import numpy as np
 from pytz import timezone
-
+import functools
+from scipy.interpolate import interp1d
 from astroplan import Observer
 import astropy.units as u
 from astropy.modeling import models, Parameter, Model
@@ -13,13 +14,15 @@ from astropy.time import Time
 from astropy.table import Column, QTable, Table
 from astropy.wcs.utils import celestial_frame_to_wcs
 from astropy.coordinates import SkyCoord
+from astropy.coordinates.erfa_astrom import (
+        erfa_astrom, ErfaAstromInterpolator)
 
 from gwcs import coordinate_frames as cf
 
 from kidsproc.kidsmodel.simulator import KidsSimulator
-from tollan.utils.log import timeit
+from tollan.utils.log import timeit, get_logger
 
-from ..base import ProjModel, _get_skyoffset_frame
+from ..base import ProjModel, _get_skyoffset_frame, SourceImageModel
 from ..base import resolve_sky_map_ref_frame as _resolve_sky_map_ref_frame
 
 
@@ -217,6 +220,8 @@ class SkyProjModel(ProjModel):
     crval1 = Parameter(default=30., unit=output_frame.unit[1])
     mjd_obs = Parameter(default=Time(2000.0, format='jyear').mjd, unit=u.day)
 
+    logger = get_logger()
+
     def __init__(
             self, ref_coord=None, time_obs=None,
             evaluate_frame=None, **kwargs):
@@ -228,10 +233,10 @@ class SkyProjModel(ProjModel):
                 _ref_coord = (
                         ref_coord.data.lon.degree,
                         ref_coord.data.lat.degree) * u.deg
-            kwargs['crval0'] = _ref_coord[0]
-            kwargs['crval1'] = _ref_coord[1]
-            kwargs['n_models'] = np.asarray(_ref_coord[0]).size
-            self.crval_frame = ref_coord.frame
+                kwargs['crval0'] = _ref_coord[0]
+                kwargs['crval1'] = _ref_coord[1]
+                kwargs['n_models'] = np.asarray(_ref_coord[0]).size
+                self.crval_frame = ref_coord.frame
         if time_obs is not None:
             if 'mjd_obs' in kwargs:
                 raise ValueError(
@@ -253,19 +258,67 @@ class SkyProjModel(ProjModel):
             mjd_obs, also_return_native_frame=False):
         ref_frame = cls._get_native_frame(mjd_obs)
         ref_coord = coord.SkyCoord(
-                crval0.value * u.deg, crval1.value * u.deg,
+                crval0.value << u.deg, crval1.value << u.deg,
                 frame=crval_frame).transform_to(ref_frame)
         ref_offset_frame = _get_skyoffset_frame(ref_coord)
+        print(ref_offset_frame)
         if also_return_native_frame:
             return ref_offset_frame, ref_frame
         return ref_offset_frame
 
+    @timeit
     def get_projected_frame(self, **kwargs):
         return self._get_projected_frame(
                 self.crval0, self.crval1, self.crval_frame,
                 self.mjd_obs, **kwargs)
 
     @timeit(_name)
+    def __call__(self, *args, frame=None, eval_interp_len=None, **kwargs):
+        if frame is None:
+            frame = self.evaluate_frame
+        old_evaluate_frame = self.evaluate_frame
+        self.evaluate_frame = frame
+        if eval_interp_len is None:
+            result = super().__call__(*args, **kwargs)
+        else:
+            x, y = args
+            mjd_obs = self.mjd_obs.quantity
+            ref_coord = coord.SkyCoord(
+                self.crval0.value << u.deg, self.crval1.value << u.deg,
+                frame=self.crval_frame)
+
+            # make a subset of crvals for fast evaluate
+            # we need to make sure mjd_obs is sorted before hand
+            if not np.all(np.diff(mjd_obs) >= 0):
+                raise ValueError('mjd_obs has to be sorted ascending.')
+            s = [0]
+            for i, t in enumerate(mjd_obs):
+                if t - mjd_obs[s[-1]] <= eval_interp_len:
+                    continue
+                s.append(i)
+            s.append(-1)
+            self.logger.debug(f"evaluate {len(s)}/{len(mjd_obs)} times")
+            ref_coord_s = ref_coord[s]
+            mjd_obs_s = mjd_obs[s]
+            mdl_s = self.__class__(
+                    ref_coord=ref_coord_s, mjd_obs=mjd_obs_s,
+                    evaluate_frame=self.evaluate_frame)
+            lon_s, lat_s = mdl_s(x[s, :], y[s, :])
+            print(lon_s.shape, lat_s.shape, mjd_obs_s.shape)
+            # now build the spline interp
+            lon_interp = interp1d(
+                    mjd_obs_s, lon_s.degree, axis=0, kind='cubic')
+            lat_interp = interp1d(
+                    mjd_obs_s, lat_s.degree, axis=0, kind='cubic')
+            lon = lon_interp(mjd_obs) << u.deg
+            lat = lat_interp(mjd_obs) << u.deg
+            print(lon.min(), lon.max(), lat.min(), lat.max())
+            print(lon.shape, mjd_obs.shape)
+            result = (lon, lat)
+        self.evaluate_frame = old_evaluate_frame
+        return result
+
+    @timeit
     def evaluate(self, x, y, crval0, crval1, mjd_obs):
 
         ref_offset_frame, ref_frame = self._get_projected_frame(
@@ -284,15 +337,6 @@ class SkyProjModel(ProjModel):
                     det_coords.get_representation_component_names().keys())
             return (getattr(det_coords, attrs[0]),
                     getattr(det_coords, attrs[1]))
-
-    def __call__(self, *args, frame=None, **kwargs):
-        if frame is None:
-            frame = self.evaluate_frame
-        old_evaluate_frame = self.evaluate_frame
-        self.evaluate_frame = frame
-        result = super().__call__(*args, **kwargs)
-        self.evaluate_frame = old_evaluate_frame
-        return result
 
     def mpl_axes_params(self):
         w = celestial_frame_to_wcs(coord.ICRS())
@@ -430,6 +474,7 @@ class ToltecObsSimulator(object):
             },
         }
     beam_model_cls = BeamModel
+    erfa_interp_len = 300 << u.s
 
     @property
     def observer(self):
@@ -490,9 +535,82 @@ class ToltecObsSimulator(object):
 
         yield evaluate
 
+    @timeit
     def resolve_sky_map_ref_frame(self, ref_frame, time_obs):
         return _resolve_sky_map_ref_frame(
                     ref_frame, observer=self.observer, time_obs=time_obs)
+
+    @contextmanager
+    def mapping_context(self, mapping, sources):
+        """
+        Return a function that can be used to get
+        input flux at each detector for given time.
+
+        Parameters
+        ==========
+        mapping : tolteca.simu.base.SkyMapModel
+
+            The model that defines the on-the-fly mapping trajectory.
+
+        sources : tolteca.simu.base.SourceModel
+
+            The list of models that define the input signal and noise.
+        """
+        tbl = self.table
+        x_t = tbl['x_t']
+        y_t = tbl['y_t']
+
+        ref_coord = mapping.target
+        ref_frame = mapping.ref_frame
+        t0 = mapping.t0
+
+        def evaluate(t):
+            with erfa_astrom.set(ErfaAstromInterpolator(self.erfa_interp_len)):
+                time_obs = t0 + t
+                # transform ref_coord to ref_frame
+                # need to re-set altaz frame with frame attrs
+                with timeit("transform bore sight coords to projected frame"):
+                    _ref_frame = self.resolve_sky_map_ref_frame(
+                            ref_frame, time_obs=time_obs)
+                    with timeit(
+                            f'transform ref coords to {len(time_obs)} times'):
+                        _ref_coord = ref_coord.transform_to(_ref_frame)
+                    obs_coords = mapping.evaluate_at(_ref_coord, t)
+                    m_proj_icrs = self.get_sky_projection_model(
+                            ref_coord=obs_coords,
+                            time_obs=time_obs,
+                            evaluate_frame='icrs',
+                            )
+                    projected_frame, native_frame = \
+                        m_proj_icrs.get_projected_frame(
+                            also_return_native_frame=True)
+                # get detector positions, which requires absolute time
+                # to get the altaz to equatorial transformation
+
+                # combine the array projection with sky projection
+                # and evaluate with source frame
+                s_additive = []
+                for m_source in sources:
+                    if isinstance(m_source, SourceImageModel):
+                        # TODO support more types of wcs. For now
+                        # only ICRS is supported
+                        # the projected lon lat
+                        with timeit("transform det coords to projected frame"):
+                            x = np.tile(x_t, (len(time_obs), 1))
+                            y = np.tile(y_t, (len(time_obs), 1))
+                            print(x.shape, y.shape)
+                            lon, lat = m_proj_icrs(
+                                    x, y, eval_interp_len=0.1 << u.s)
+                        # extract the flux
+                        # detector is required to be the first dimension
+                        # for the evaluate_tod
+                        with timeit("extract flux from source image"):
+                            s = m_source.evaluate_tod(tbl, lon.T, lat.T)
+                        s_additive.append(s)
+                s = functools.reduce(np.sum, s_additive)
+                obs_coords_icrs = obs_coords.transform_to('icrs')
+                return s, locals()
+        yield evaluate
 
     @contextmanager
     def obs_context(self, obs_model, sources, ref_coord=None, ref_frame=None):

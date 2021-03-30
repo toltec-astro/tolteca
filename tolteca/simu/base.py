@@ -2,7 +2,9 @@
 
 import numpy as np
 import inspect
+from pathlib import Path
 
+from astropy.wcs import WCS
 from astropy.coordinates.baseframe import frame_transform_graph
 from astropy.modeling import Model, Parameter
 import astropy.units as u
@@ -16,7 +18,7 @@ from scipy import interpolate
 
 from tollan.utils.log import get_logger, timeit
 from tollan.utils import getobj
-# from tollan.utils.fmt import pformat_yaml
+from tollan.utils.fmt import pformat_yaml
 from tollan.utils.namespace import NamespaceMixin
 from tollan.utils.registry import Registry
 
@@ -126,7 +128,6 @@ class SourceModel(_Model):
     def __init__(self, *args, **kwargs):
         inputs = kwargs.pop('inputs', self.input_frame.axes_names)
         outputs = ('S', )
-        kwargs.setdefault('name', self._name)
         super().__init__(*args, **kwargs)
         self.inputs = inputs
         self.outputs = outputs
@@ -134,7 +135,7 @@ class SourceModel(_Model):
 
 class SourceImageModel(SourceModel):
     """
-    A model given by 2d images.
+    A model given by 2-d images.
     """
 
     logger = get_logger()
@@ -146,33 +147,133 @@ class SourceImageModel(SourceModel):
             reference_frame=coord.ICRS(),
             unit=(u.deg, u.deg)
             )
-    _name = 'image'
 
-    def __init__(self, data=None, *args, **kwargs):
+    def __init__(self, data=None, grouping=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._data = data
+        self._grouping = grouping
 
     @classmethod
-    def from_fits(cls, filepath, label_map=None):
+    def from_fits(cls, filepath, extname_map=None, **kwargs):
+        """
+        Parameters
+        ----------
+        filepath : str, pathlib.Path
+            The path to the FITS file.
+
+        extname_map : dict, optional
+            Specify the extensions to included in the returned data.
+            If None, an educated guess will be made.
+        """
+        filepath = Path(filepath)
         hdulist = fits.open(filepath)
-        data = {}
+
+        extname_hdu = dict()
         for i, hdu in enumerate(hdulist):
             cls.logger.debug('HDU {}: {}'.format(
                 i, hdu.header.tostring(sep='\n')
                 ))
             label = hdu.header.get('EXTNAME', i)
-            if label_map is not None and label not in label_map:
-                cls.logger.debug(f"skip ext {label}")
+            extname_hdu[label] = hdu
+
+        if extname_map is None:
+            extname_map = {
+                    k: k for k in extname_hdu.keys()
+                    }
+        cls.logger.debug(f"use extname_map: {pformat_yaml(extname_map)}")
+
+        data = dict()
+        for k, extname in extname_map.items():
+            data[k] = extname_hdu[extname]
+        cls.logger.debug(f'data keys: {list(data.keys())}')
+        return cls(data=data, name=filepath.as_posix(), **kwargs)
+
+    def evaluate_tod(self, tbl, lon, lat):
+        """Extract flux for given array property table.
+
+        Parameters
+        ==========
+        tbl : astropy.table.Table
+            The array property table for mapping the data keys.
+
+        """
+        data = self._data
+        grouping = self._grouping
+        if grouping not in tbl.colnames:
+            raise ValueError(
+                    "unable to map data keys to array property table.")
+        # make masks
+        data_groups = []
+        for g in np.unique(tbl[grouping]):
+            if g not in data:
+                self.logger.debug(f"group {g} not found in data")
                 continue
-            data[label] = hdu.data
+            d = self._data[g]
+            m = tbl[grouping] == g
+            data_groups.append([d, m])
+            self.logger.debug(f"group {g}: {m.sum()}/{len(m)}")
+        self.logger.debug(f"evaluate {len(data_groups)} groups")
 
-        cls.logger.debug(f'data items found: {list(data.keys())}')
-        return cls(data=data)
+        s_out = np.zeros(lon.shape) << u.MJy / u.sr
+        lon = lon.to_value(u.deg)
+        lat = lat.to_value(u.deg)
+        for d, m in data_groups:
+            wcsobj = WCS(d.header)
+            s_out_unit = u.Unit(d.header.get('SIGUNIT', 'adu'))
+            # check lon lat range
+            lon_m = lon[m, :]
+            lat_m = lat[m, :]
+            # s_out_m = s_out[m, :]
+            # w, e = np.min(lon_m), np.max(lon_m)
+            # s, n = np.min(lat_m), np.max(lat_m)
+            # check pixel range
+            ny, nx = d.data.shape
+            # lon lat range of pixel edges
+            lon_e, lat_e = wcsobj.wcs_pix2world(
+                    np.array([0, 0, nx, nx]),
+                    np.array([0, ny, 0, ny]),
+                    0)
+            w_e, e_e = np.min(lon_e), np.max(lon_e)
+            s_e, n_e = np.min(lat_e), np.max(lat_e)
+            self.logger.debug(f"data bbox: w={w_e} e={e_e} s={s_e} n={n_e}")
 
-    def evaluate_tod(self, lon, lat, t, groups=None):
-        return self
+            # mask to include in range lon lat
+            g = (
+                    (lon_m >= w_e) & (lon_m <= e_e)
+                    & (lat_m >= s_e) & (lat_m <= n_e)
+                    )
+            self.logger.debug(f"data mask {g.sum()}/{lon_m.size}")
+            # convert all lon lat to x y
+            x_g, y_g = wcsobj.wcs_world2pix(lon_m[g], lat_m[g], 0)
+            ii = np.rint(y_g).astype(int)
+            jj = np.rint(x_g).astype(int)
+            self.logger.debug(
+                    f"pixel range: [{ii.min()}, {ii.max()}] "
+                    f"[{jj.min()}, {jj.max()}]")
+            # take values in data
+            # ii, jj = np.meshgrid(
+            #         np.rint(y_g).astype(int),
+            #         np.rint(x_g).astype(int), indexing='ij')
+
+            # x, y = w.wcs_world2pix(
+            #         lon[m, :].ravel(), lat[m, :].ravel(), 0)
+            # g = (x >= 0) & (y < imshape[0]) & (jj >=0) & (jj < imshape[1])
+            # import matplotlib.pyplot as plt
+            # fig, ax = plt.subplots(1, 1)
+            # ax.scatter(ii, jj, c=d.data[ii, jj])
+            # plt.show()
+            ig, jg = np.where(g)
+            s_out[np.flatnonzero(m)[ig], jg] = d.data[ii, jj] << s_out_unit
+        print(s_out.shape)
+        print(f'signal range: [{s_out.min()}, {s_out.max()}]')
+        return s_out
 
     def evaluate(self, lon, lat):
         pass
+
+    # def __str__(self):
+    #     return (f'{self.__class__.__name__}({self.name})'
+    #             f'{list(self._data.keys())}')
 
 
 class SourceCatalogModel(SourceModel):
@@ -236,6 +337,7 @@ class SkyMapModel(_Model):
     def evaluate(self, x, y):
         return NotImplemented
 
+    @timeit
     def evaluate_at(self, ref_coord, *args):
         """Returns the mapping pattern as evaluated at given coordinates.
         """
