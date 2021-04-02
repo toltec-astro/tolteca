@@ -15,7 +15,7 @@ _60_simu:
     n_scans: 1
     speed: 30. arcsec/s
     t_turnover: 5 s
-    target: 180d 0d
+    target: 92d -7d
     t0: 2020-04-12T00:00:00
     ref_frame: altaz
     # lst0: ...
@@ -41,31 +41,40 @@ simu:
   instrument:
     name: toltec
     calobj: cal/calobj_default/index.yaml
-    select: 'array_name == "a1100"'
+    # select: 'array_name == "a1100"'
     # select: 'pg == 1'
   perf_params:  # parameters for tuning the simulator performance
-    chunk_size: 100 s  # break the simulation to chunks to reduce memory usage
+    chunk_size: 60 s  # break the simulation to chunks to reduce memory usage
     mapping_interp_len: 1s  # the length detector coords get evaluated
     erfa_interp_len: 300 s  # the length altaz-icrs get evaluated
+    anim_frame_rate: 20 Hz
   obs_params:
     f_smp_mapping: 12 Hz  # the sample frequency for the mapping
     f_smp_data: 488. Hz  # the sample frequency
     t_exp: 40 min    # the lenth of the exposure
   sources:
-    # - type: point_source_catalog
-    #   filepath: inputs/example_input.asc
+    - type: point_source_catalog
+      filepath: toltec_example_source.asc
+      grouping: 'array_name'
+      colname_map:
+        a1100: flux_a1100
+        a1400: flux_a1400
+        a2000: flux_a2000
+        ra: ra
+        dec: dec
+        name: name
     # - type: atmosphere_psd
     #   k: some string
     #   m: 2
-    - type: image
-      filepath: toltec_simfits_guter_test2.fits
-      grouping: 'array_name'
-      extname_map:
-          a1100: 'A1100_I'
-          a1400: 'A1400_I'
-          a2000: 'A2000_I'
+    # - type: image
+    #   filepath: toltec_simfits_guter_test2.fits
+    #   grouping: 'array_name'
+    #   extname_map:
+    #       a1100: 'A1100_I'
+    #       a1400: 'A1400_I'
+    #       a2000: 'A2000_I'
     # - type: bkg
     #    value: 1 pW
-  # mapping: *example_mapping_model_raster
-  mapping: *example_mapping_model_lissajous
+  mapping: *example_mapping_model_raster
+  # mapping: *example_mapping_model_lissajous
   # mapping: *example_mapping_tel_nc

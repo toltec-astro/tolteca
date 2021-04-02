@@ -22,7 +22,9 @@ from gwcs import coordinate_frames as cf
 from kidsproc.kidsmodel.simulator import KidsSimulator
 from tollan.utils.log import timeit, get_logger
 
-from ..base import ProjModel, _get_skyoffset_frame, SourceImageModel
+from ..base import (
+        ProjModel, _get_skyoffset_frame,
+        SourceImageModel, SourceCatalogModel)
 from ..base import resolve_sky_map_ref_frame as _resolve_sky_map_ref_frame
 
 
@@ -261,7 +263,6 @@ class SkyProjModel(ProjModel):
                 crval0.value << u.deg, crval1.value << u.deg,
                 frame=crval_frame).transform_to(ref_frame)
         ref_offset_frame = _get_skyoffset_frame(ref_coord)
-        print(ref_offset_frame)
         if also_return_native_frame:
             return ref_offset_frame, ref_frame
         return ref_offset_frame
@@ -304,7 +305,6 @@ class SkyProjModel(ProjModel):
                     ref_coord=ref_coord_s, mjd_obs=mjd_obs_s,
                     evaluate_frame=self.evaluate_frame)
             lon_s, lat_s = mdl_s(x[s, :], y[s, :])
-            print(lon_s.shape, lat_s.shape, mjd_obs_s.shape)
             # now build the spline interp
             lon_interp = interp1d(
                     mjd_obs_s, lon_s.degree, axis=0, kind='cubic')
@@ -312,8 +312,6 @@ class SkyProjModel(ProjModel):
                     mjd_obs_s, lat_s.degree, axis=0, kind='cubic')
             lon = lon_interp(mjd_obs) << u.deg
             lat = lat_interp(mjd_obs) << u.deg
-            print(lon.min(), lon.max(), lat.min(), lat.max())
-            print(lon.shape, mjd_obs.shape)
             result = (lon, lat)
         self.evaluate_frame = old_evaluate_frame
         return result
@@ -401,12 +399,22 @@ class BeamModel(Model):
 
     def evaluate(self, array_name, x, y):
         out_unit = self._m_beams['a1100'].amplitude.unit
-        out = np.empty(x.shape) * out_unit
+        out = np.empty(x.shape) << out_unit
         for n in self.beam_props['array_names']:
             m = array_name == n
-            m_out = self._m_beams[n](x[m], y[m])
+            mm = self._m_beams[n]
+            (b, t), (l, r) = mm.bounding_box
+            x_m = x[m]
+            y_m = y[m]
+            g = (y_m >= b) & (y_m <= t) & (x_m >= l) & (x_m <= r)
+            m_out = np.zeros(x_m.shape) << out_unit
+            m_out[g] = mm(x_m[g], y_m[g])
             out[m] = m_out.to(out_unit)
         return out
+
+    @property
+    def models(self):
+        return self._m_beams
 
     def prepare_inputs(self, array_name, *inputs, **kwargs):
         # this is necessary to handle the array_name inputs
@@ -591,6 +599,11 @@ class ToltecObsSimulator(object):
                 # and evaluate with source frame
                 s_additive = []
                 for m_source in sources:
+                    if isinstance(m_source, SourceCatalogModel):
+                        m_source = m_source.make_image_model(
+                                beam_models=self._m_beam.models,
+                                pixscale=1 << u.arcsec / u.pix
+                                )
                     if isinstance(m_source, SourceImageModel):
                         # TODO support more types of wcs. For now
                         # only ICRS is supported
@@ -598,7 +611,6 @@ class ToltecObsSimulator(object):
                         with timeit("transform det coords to projected frame"):
                             x = np.tile(x_t, (len(time_obs), 1))
                             y = np.tile(y_t, (len(time_obs), 1))
-                            print(x.shape, y.shape)
                             lon, lat = m_proj_icrs(
                                     x, y, eval_interp_len=0.1 << u.s)
                         # extract the flux
@@ -607,6 +619,32 @@ class ToltecObsSimulator(object):
                         with timeit("extract flux from source image"):
                             s = m_source.evaluate_tod(tbl, lon.T, lat.T)
                         s_additive.append(s)
+                    elif False and isinstance(m_source, SourceCatalogModel):
+                        with timeit("transform src coords to projected frame"):
+                            src_pos = m_source.pos[:, np.newaxis].transform_to(
+                                        native_frame).transform_to(
+                                            projected_frame)
+                            print(src_pos.shape)
+                        # evaluate with beam_model and reduce on sources axes
+                        with timeit("convolve with beam"):
+                            dx = x_t[np.newaxis, :, np.newaxis] - \
+                                src_pos.lon[:, np.newaxis, :]
+                            dy = y_t[np.newaxis, :, np.newaxis] - \
+                                src_pos.lat[:, np.newaxis, :]
+                            an = np.moveaxis(
+                                    np.tile(tbl['array_name'],
+                                        src_pos.shape + (1, )),
+                                    1, 2)
+                            s = self._m_beam(an, dx, dy)
+                            # weighted sum with flux at each detector
+                            # assume no polarization
+                            w = np.vstack([
+                                m_source.data[a] for a in tbl['array_name']]).T
+                            s = np.sum(s * w[:, :, np.newaxis], axis=0)
+                            print(s.shape, w.shape)
+                        s_additive.append(s)
+                if len(s_additive) <= 0:
+                    raise ValueError("no additive source found in source list")
                 s = functools.reduce(np.sum, s_additive)
                 obs_coords_icrs = obs_coords.transform_to('icrs')
                 return s, locals()

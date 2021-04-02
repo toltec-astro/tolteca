@@ -1,5 +1,4 @@
-#! /usr/bin/env python
-
+#!/usr/bin/env python
 
 from tollan.utils import getobj
 from tollan.utils.registry import Registry, register_to
@@ -18,8 +17,8 @@ from astropy.time import Time
 import astropy.units as u
 from astroquery.utils import parse_coordinates
 import yaml
-
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 
 from schema import Optional, Or, Use, Schema
 
@@ -94,27 +93,6 @@ def _ssf_image(cfg, cfg_rt):
             cfg['filepath'],
             extname_map=cfg['extname_map'],
             grouping=cfg['grouping'])
-
-    # array_masks = {}
-    # for a in sim.array_names:
-    #     arr_mask = np.where(t['array_name']==a)
-    #     array_masks[a] = arr_mask
-
-    # s = m.evaluate_tod(ra, dec, t, groups=array_masks)
-    # s shape: (1) [7000, 4880]; (2) [7000, 4880, 3]
-    # x shape: [7000, 4880]
-    # s = np.empty((7000, 4880, 3))
-    #
-    # alt_boresight, az_boresight = m_obs(t) # [1: 4880]
-    # daz = apt['az_off']  # [7000]
-    # dalt = apt['alt_off']#  [7000]
-    # ra, dec = (alt_boresight, az_boresight) + (daz, dalt) # [7000, 4880]
-
-    # for arr_mask in array_masks:
-    #     s[arr_mask, :] = m(a, ra[arr_mask, :], dec[arr_mask, :], t)
-    # non-polar
-    #     7000 -> 3          7000x4880 7000x4880         4880
-    # s [7000, 4880]
     return m
 
 
@@ -164,27 +142,18 @@ def _ssf_point_source_catalog(cfg, cfg_rt):
     cfg = Schema({
         'type': 'point_source_catalog',
         'filepath': Use(path_validator),
+        Optional('grouping', default=None): str,
+        Optional('colname_map', default=None): dict
         }).validate(cfg)
 
     logger.debug(f"source config: {cfg}")
 
-    tbl = Table.read(cfg['filepath'], format='ascii')
-
-    # normalize tbl
-    if 'name' not in tbl.colnames:
-        tbl['name'] = [f'src_{i}' for i in range(len(tbl))]
-    for c in tbl.colnames:
-        if c == 'ra' and tbl[c].unit is None:
-            tbl[c].unit = u.deg
-            logger.debug(f"assume unit {u.deg} for column {c}")
-        elif c == 'dec' and tbl[c].unit is None:
-            tbl[c].unit = u.deg
-            logger.debug(f"assume unit {u.deg} for column {c}")
-        elif re.match(r'flux(_.+)?', c) and tbl[c].unit is None:
-            tbl[c].unit = u.mJy
-            logger.debug(f"assume unit {u.mJy} for column {c}")
-    logger.debug(f"source catalog:\n{tbl}")
-    return tbl
+    from .base import SourceCatalogModel
+    m = SourceCatalogModel.from_table(
+            cfg['filepath'],
+            colname_map=cfg['colname_map'],
+            grouping=cfg['grouping'])
+    return m
 
 
 _mapping_model_factory = Registry.create()
@@ -298,9 +267,9 @@ class SimulatorRuntime(RuntimeContext):
                         u.Quantity),
                     Optional('erfa_interp_len', default=300 << u.s): Use(
                         u.Quantity),
-                    # object: object
+                    Optional('anim_frame_rate', default=12 << u.Hz): Use(
+                        u.Quantity),
                     },
-                # object: object
                 },
             }
 
@@ -508,6 +477,22 @@ class SimulatorResult(Namespace):
             raise ValueError("invalid result. can only have data"
                              "or data_generator")
         self._lazy = hasattr(self, 'data_generator')
+        # wrap data in an iterator so we have a uniform implementation
+        if not self._lazy:
+            def _data_gen():
+                yield self.data
+            self._data_generator = _data_gen
+        self.reset_iterdata()
+
+    def reset_iterdata(self):
+        """Reset the data iterator."""
+        self._iterdata = self.data_generator()
+
+    def iterdata(self, reset=False):
+        """Return data from the data iterator."""
+        if reset:
+            self.reset_iterdata()
+        return next(self._iterdata)
 
     def _save_lmt_tcs_tel(self, outdir):
 
@@ -545,10 +530,7 @@ class SimulatorResult(Namespace):
         v_time = nc_tel.createVariable(
                 'Data.TelescopeBackend.TelTime', 'f8', (d_time, ))
 
-        if self._lazy:
-            data = next(self.data_generator())
-        else:
-            data = self.data
+        data = self.iterdata(reset=True)
 
         time_obs = data['time_obs']
         v_time[:] = time_obs.unix
@@ -607,7 +589,7 @@ class SimulatorResult(Namespace):
             self._save_toltec_nc(outdir)
 
     @timeit
-    def plot_animation_native(self):
+    def plot_animation(self, reset=False):
 
         try:
             import animatplot as amp
@@ -618,207 +600,26 @@ class SimulatorResult(Namespace):
                     "`pip install "
                     "git+https://github.com/Jerry-Ma/animatplot.git`")
 
-        if self._lazy:
-            data = next(self.data_generator())
-        else:
-            data = self.data
+        data = self.iterdata(reset=reset)
 
+        cfg = self.config['simu']
         simobj = self.simobj
         obs_params = self.obs_params
         obs_info = data['obs_info']
-        sources = self.sources
-
-        # make some diagnostic plots
         tbl = simobj.table
 
-        m = tbl['array_name'] == 'a1100'
-        mtbl = tbl[m]
-        mtbl.meta = tbl.meta['a1100']
+        array_names = np.unique(tbl['array_name'])
+        n_arrays = len(array_names)
+
+        # m = tbl['array_name'] == 'a1100'
+        # mtbl = tbl[m]
+        # mtbl.meta = tbl.meta['a1100']
 
         # unpack the obs_info
-        native_frame = obs_info['native_frame']
-        projected_frame = obs_info['projected_frame']
-        src_coords = obs_info['src_coords']
-
-        fps = 2 * u.Hz
-        # fps = 12 * u.Hz
-        t_slice = slice(
-                None, None,
-                int(np.ceil(
-                    (obs_params['f_smp'] / fps).to_value(
-                        u.dimensionless_unscaled))))
-        fps = (obs_params['f_smp'] / t_slice.step).to_value(u.Hz)
-
-        t = self.data['time']
-        s = self.data['flux']
-        rs = self.data['rs']
-        xs = self.data['xs']
-
-        timeline = amp.Timeline(
-                t[t_slice].to_value(u.s),
-                fps=1 if fps < 1 else fps,
-                units='s')
-        # xx = x_t[m].to_value(u.arcmin)
-        # yy = y_t[m].to_value(u.arcmin)
-        xx = mtbl['x_t'].quantity.to_value(u.deg)
-        yy = mtbl['y_t'].quantity.to_value(u.deg)
-
-        ss = s[m, t_slice].T.to_value(u.MJy/u.sr)
-        rrs = rs[m, t_slice].T
-        xxs = xs[m, t_slice].T
-
-        cmap = 'viridis'
-        cmap_kwargs = dict(
-                cmap=cmap,
-                vmin=np.min(ss),
-                vmax=np.max(ss),
-                )
-
-        import matplotlib.path as mpath
-        import matplotlib.markers as mmarkers
-        from matplotlib.transforms import Affine2D
-
-        def make_fg_marker(fg):
-            _transform = Affine2D().scale(0.5).rotate_deg(30)
-            polypath = mpath.Path.unit_regular_polygon(6)
-            verts = polypath.vertices
-            top = mpath.Path(verts[(1, 0, 5, 4, 1), :])
-            rot = [0, -60, -180, -240][fg]
-            marker = mmarkers.MarkerStyle(top)
-            marker._transform = _transform.rotate_deg(rot)
-            return marker
-
-        from astropy.visualization.wcsaxes import WCSAxesSubplot, conf
-        from astropy.visualization.wcsaxes.transforms import (
-                CoordinateTransform)
-
-        # coord_meta = {
-        #         'type': ('longitude', 'latitude'),
-        #         'unit': (u.deg, u.deg),
-        #         'wrap': (180, None),
-        #         'name': ('Az Offset', 'Alt Offset')}
-        from astropy.visualization.wcsaxes.utils import get_coord_meta
-        coord_meta = get_coord_meta(native_frame[0])
-        # coord_meta = get_coord_meta('icrs')
-        conf.coordinate_range_samples = 5
-        conf.frame_boundary_samples = 10
-        conf.grid_samples = 5
-        conf.contour_grid_samples = 5
-
-        fig = plt.figure()
-        ax = WCSAxesSubplot(
-                fig, 3, 1, 1,
-                aspect='equal',
-                # transform=Affine2D(),
-                transform=(
-                    # CoordinateTransform(native_frame[0], 'icrs') +
-                    CoordinateTransform(projected_frame[0], native_frame[0])
-                    ),
-                coord_meta=coord_meta,
-                )
-        fig.add_axes(ax)
-        bx = fig.add_subplot(3, 1, 2)
-        cx = fig.add_subplot(3, 1, 3)
-
-        def amp_post_update(block, i):
-            ax.reset_wcs(
-                    transform=(
-                        # CoordinateTransform(native_frame[i], 'icrs')
-                        CoordinateTransform(
-                            projected_frame[i], native_frame[i])
-                        ),
-                    coord_meta=coord_meta)
-        # fig, ax = plt.subplots(subplot_kw={'aspect': 'equal'})
-        # ax.set_facecolor(plt.get_cmap(cmap)(0.))
-        ax.set_facecolor('#4488aa')
-        nfg = 4
-        pos_blocks = np.full((nfg, ), None, dtype=object)
-        for i in range(nfg):
-            mfg = mtbl['fg'] == i
-            pos_blocks[i] = amp.blocks.Scatter(
-                    xx[mfg],
-                    yy[mfg],
-                    s=np.abs(np.hypot(xx[0] - xx[2], yy[0] - yy[2])),
-                    s_in_data_unit=True,
-                    c=ss[:, mfg],
-                    ax=ax,
-                    # post_update=None,
-                    post_update=amp_post_update if i == 0 else None,
-                    marker=make_fg_marker(i),
-                    # edgecolor='#cccccc',
-                    **cmap_kwargs
-                    )
-        # add a block for the IQ values
-        signal_blocks = np.full((2, ), None, dtype=object)
-        for i, (vv, aa) in enumerate(zip((rrs, xxs), (bx, cx))):
-            signal_blocks[i] = amp.blocks.Line(
-                    np.tile(mtbl['f'], (vv.shape[0], 1)),
-                    vv,
-                    ax=aa,
-                    marker='o',
-                    linestyle='none',
-                    )
-        anim = amp.Animation(np.hstack([pos_blocks, signal_blocks]), timeline)
-
-        anim.controls()
-
-        # cax_ticks, cax_label, cmap_kwargs = _make_nw_cmap()
-        # im = ax.scatter(
-        #         x_t[m].to(u.arcmin), y_t[m].to(u.arcmin),
-        #         # c=dists[0, m, 0].to(u.arcmin)
-        #         c=s[0, m, 0].to_value(u.MJy / u.sr)
-        #         # c=tbl['nw'][m], **cmap_kwargs
-        #         )
-        # fig.colorbar(
-        #     im, ax=ax, shrink=0.8)
-        # normalize lw with flux
-        lws = 0.2 * sources[0]['flux_a1100'] / np.max(sources[0]['flux_a1100'])
-        for i in range(len(sources)):
-            ax.plot(
-                    src_coords[i].lon,
-                    src_coords[i].lat,
-                    linewidth=lws[i], color='#aaaaaa')
-        cax = fig.colorbar(
-            pos_blocks[0].scat, ax=ax, shrink=0.8)
-        cax.set_label("Surface Brightness (MJy/sr)")
-        plt.show()
-
-    @timeit
-    def plot_animation(self):
-
-        try:
-            import animatplot as amp
-        except Exception:
-            raise RuntimeContextError(
-                    "Package `animatplot` is required to plot animation. "
-                    "To install, run "
-                    "`pip install "
-                    "git+https://github.com/Jerry-Ma/animatplot.git`")
-
-        if self._lazy:
-            data = next(self.data_generator())
-        else:
-            data = self.data
-
-        simobj = self.simobj
-        obs_params = self.obs_params
-        obs_info = data['obs_info']
-        sources = self.sources
-
-        # make some diagnostic plots
-        tbl = simobj.table
-
-        m = tbl['array_name'] == 'a1100'
-        mtbl = tbl[m]
-        mtbl.meta = tbl.meta['a1100']
-
-        # unpack the obs_info
-        # ref_frame = obs_info['_ref_frame']
-        # ref_coord = obs_info['_ref_coord']
         projected_frame = obs_info['projected_frame']
         native_frame = obs_info['native_frame']
 
-        fps = 2 * u.Hz
+        fps = cfg['perf_params']['anim_frame_rate']
         # fps = 12 * u.Hz
         t_slice = slice(
                 None, None,
@@ -838,19 +639,12 @@ class SimulatorResult(Namespace):
                 units='s')
         # xx = x_t[m].to_value(u.arcmin)
         # yy = y_t[m].to_value(u.arcmin)
-        xx = mtbl['x_t'].to_value(u.deg)
-        yy = mtbl['y_t'].to_value(u.deg)
+        xx = tbl['x_t'].to_value(u.deg)
+        yy = tbl['y_t'].to_value(u.deg)
 
-        ss = s[m, t_slice].T.to_value(u.MJy/u.sr)
-        rrs = rs[m, t_slice].T
-        xxs = xs[m, t_slice].T
-
-        cmap = 'viridis'
-        cmap_kwargs = dict(
-                cmap=cmap,
-                vmin=np.min(ss),
-                vmax=np.max(ss),
-                )
+        ss = s[:, t_slice].T.to_value(u.MJy/u.sr)
+        rrs = rs[:, t_slice].T
+        xxs = xs[:, t_slice].T
 
         import matplotlib.path as mpath
         import matplotlib.markers as mmarkers
@@ -869,12 +663,6 @@ class SimulatorResult(Namespace):
         from astropy.visualization.wcsaxes import WCSAxesSubplot, conf
         from astropy.visualization.wcsaxes.transforms import (
                 CoordinateTransform)
-
-        # coord_meta = {
-        #         'type': ('longitude', 'latitude'),
-        #         'unit': (u.deg, u.deg),
-        #         'wrap': (180, None),
-        #         'name': ('Az Offset', 'Alt Offset')}
         from astropy.visualization.wcsaxes.utils import get_coord_meta
         coord_meta = get_coord_meta(native_frame[0])
         # coord_meta = get_coord_meta('icrs')
@@ -883,45 +671,62 @@ class SimulatorResult(Namespace):
         conf.grid_samples = 5
         conf.contour_grid_samples = 5
 
-        fig = plt.figure()
-        ax = WCSAxesSubplot(
-                fig, 3, 1, 1,
+        fig = plt.figure(constrained_layout=True)
+        gs_parent = gridspec.GridSpec(nrows=1, ncols=2, figure=fig)
+        gs_array_view = gs_parent[0].subgridspec(nrows=n_arrays, ncols=1)
+        gs_detector_view = gs_parent[1].subgridspec(nrows=2, ncols=1)
+        array_axes = []
+        for i, array_name in enumerate(array_names):
+            ax = WCSAxesSubplot(
+                fig, gs_array_view[i],
                 aspect='equal',
-                # transform=Affine2D(),
                 transform=(
                     # CoordinateTransform(native_frame[0], 'icrs') +
                     CoordinateTransform(projected_frame[0], native_frame[0])
                     ),
                 coord_meta=coord_meta,
                 )
-        fig.add_axes(ax)
-        bx = fig.add_subplot(3, 1, 2)
-        cx = fig.add_subplot(3, 1, 3)
+            fig.add_axes(ax)
+            ax.set_facecolor('#4488aa')
+            array_axes.append(ax)
+        bx = fig.add_subplot(gs_detector_view[0])
+        cx = fig.add_subplot(gs_detector_view[1])
 
         def amp_post_update(block, i):
-            ax.reset_wcs(
+            for ax in array_axes:
+                ax.reset_wcs(
                     transform=(
                         # CoordinateTransform(native_frame[i], 'icrs')
                         CoordinateTransform(
                             projected_frame[i], native_frame[i])
                         ),
                     coord_meta=coord_meta)
-        # fig, ax = plt.subplots(subplot_kw={'aspect': 'equal'})
-        # ax.set_facecolor(plt.get_cmap(cmap)(0.))
-        ax.set_facecolor('#4488aa')
+        cmap = 'viridis'
         nfg = 4
-        pos_blocks = np.full((nfg, ), None, dtype=object)
+        pos_blocks = np.full((nfg, n_arrays, ), None, dtype=object)
         for i in range(nfg):
-            mfg = mtbl['fg'] == i
-            pos_blocks[i] = amp.blocks.Scatter(
-                    xx[mfg],
-                    yy[mfg],
-                    s=np.abs(np.hypot(xx[0] - xx[2], yy[0] - yy[2])),
+            for j, array_name in enumerate(array_names):
+                m = (tbl['fg'] == i) & (tbl['array_name'] == array_name)
+                s_m = ss[:, m]
+                cmap_kwargs = dict(
+                        cmap=cmap,
+                        vmin=np.min(s_m),
+                        vmax=np.max(s_m),
+                        )
+                pos_blocks[i, j] = amp.blocks.Scatter(
+                    xx[m],
+                    yy[m],
+                    # 0 and 2 are to account the two pg of each
+                    # detector position
+                    s=np.hypot(
+                        xx[0] - xx[2],
+                        yy[0] - yy[2]),
                     s_in_data_unit=True,
-                    c=ss[:, mfg],
-                    ax=ax,
+                    c=s_m,
+                    ax=array_axes[j],
                     # post_update=None,
-                    post_update=amp_post_update if i == 0 else None,
+                    # only update the wcs once
+                    post_update=amp_post_update if i + j == 0 else None,
                     marker=make_fg_marker(i),
                     # edgecolor='#cccccc',
                     **cmap_kwargs
@@ -930,33 +735,20 @@ class SimulatorResult(Namespace):
         signal_blocks = np.full((2, ), None, dtype=object)
         for i, (vv, aa) in enumerate(zip((rrs, xxs), (bx, cx))):
             signal_blocks[i] = amp.blocks.Line(
-                    np.tile(mtbl['f'], (vv.shape[0], 1)),
+                    np.tile(tbl['f'], (vv.shape[0], 1)),
                     vv,
                     ax=aa,
-                    marker='o',
+                    marker='.',
                     linestyle='none',
                     )
-        anim = amp.Animation(np.hstack([pos_blocks, signal_blocks]), timeline)
+        anim = amp.Animation(
+                np.hstack([pos_blocks.ravel(), signal_blocks]), timeline)
 
         anim.controls()
 
-        # cax_ticks, cax_label, cmap_kwargs = _make_nw_cmap()
-        # im = ax.scatter(
-        #         x_t[m].to(u.arcmin), y_t[m].to(u.arcmin),
-        #         # c=dists[0, m, 0].to(u.arcmin)
-        #         c=s[0, m, 0].to_value(u.MJy / u.sr)
-        #         # c=tbl['nw'][m], **cmap_kwargs
-        #         )
-        # fig.colorbar(
-        #     im, ax=ax, shrink=0.8)
-        # normalize lw with flux
-        # lws = 0.2 * sources[0]['flux_a1100'] / np.max(sources[0]['flux_a1100'])
-        # for i in range(len(sources)):
-        #     ax.plot(
-        #             src_coords[i].lon,
-        #             src_coords[i].lat,
-        #             linewidth=lws[i], color='#aaaaaa')
-        cax = fig.colorbar(
-            pos_blocks[0].scat, ax=ax, shrink=0.8)
-        cax.set_label("Surface Brightness (MJy/sr)")
+        for i, ax in enumerate(array_axes):
+            cax = fig.colorbar(
+                pos_blocks[0, i].scat, ax=ax, shrink=0.8)
+            cax.set_label("Surface Brightness (MJy/sr)")
         plt.show()
+        self.plot_animation(reset=False)

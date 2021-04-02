@@ -5,13 +5,14 @@ import inspect
 from pathlib import Path
 
 from astropy.wcs import WCS
+from astropy.coordinates import SkyCoord, ICRS, AltAz
 from astropy.coordinates.baseframe import frame_transform_graph
 from astropy.modeling import Model, Parameter
 import astropy.units as u
 from astropy.modeling import models
-from astropy import coordinates as coord
 # from astropy.table import Table
 from astropy.io import fits
+from astropy.table import Table
 
 from gwcs import coordinate_frames as cf
 from scipy import interpolate
@@ -144,7 +145,7 @@ class SourceImageModel(SourceModel):
     n_outputs = 1
     input_frame = cf.CelestialFrame(
             name='icrs',
-            reference_frame=coord.ICRS(),
+            reference_frame=ICRS(),
             unit=(u.deg, u.deg)
             )
 
@@ -230,8 +231,8 @@ class SourceImageModel(SourceModel):
             ny, nx = d.data.shape
             # lon lat range of pixel edges
             lon_e, lat_e = wcsobj.wcs_pix2world(
-                    np.array([0, 0, nx, nx]),
-                    np.array([0, ny, 0, ny]),
+                    np.array([0, 0, nx - 1, nx - 1]),
+                    np.array([0, ny - 1, 0, ny - 1]),
                     0)
             w_e, e_e = np.min(lon_e), np.max(lon_e)
             s_e, n_e = np.min(lat_e), np.max(lat_e)
@@ -243,6 +244,8 @@ class SourceImageModel(SourceModel):
                     & (lat_m >= s_e) & (lat_m <= n_e)
                     )
             self.logger.debug(f"data mask {g.sum()}/{lon_m.size}")
+            if g.sum() == 0:
+                continue
             # convert all lon lat to x y
             x_g, y_g = wcsobj.wcs_world2pix(lon_m[g], lat_m[g], 0)
             ii = np.rint(y_g).astype(int)
@@ -264,36 +267,167 @@ class SourceImageModel(SourceModel):
             # plt.show()
             ig, jg = np.where(g)
             s_out[np.flatnonzero(m)[ig], jg] = d.data[ii, jj] << s_out_unit
-        print(s_out.shape)
-        print(f'signal range: [{s_out.min()}, {s_out.max()}]')
+        self.logger.debug(
+                f'signal range: [{s_out.min()}, {s_out.max()}]')
         return s_out
 
     def evaluate(self, lon, lat):
         pass
-
-    # def __str__(self):
-    #     return (f'{self.__class__.__name__}({self.name})'
-    #             f'{list(self._data.keys())}')
 
 
 class SourceCatalogModel(SourceModel):
     """
     A model with point sources.
     """
+    logger = get_logger()
+
     n_inputs = 2
     n_outputs = 1
     input_frame = cf.CelestialFrame(
             name='icrs',
-            reference_frame=coord.ICRS(),
+            reference_frame=ICRS(),
             unit=(u.deg, u.deg)
             )
 
-    def __init__(self, lon, lat, flux, psfmodel, *args, **kwargs):
-        self._source_pos = self.input_frame.coordinates(lon, lat)
-        self._source_flux = flux
-        # make a really narrow Gaussian
-        self._source_psfmodel = psfmodel
-        self.__init__(*args, **kwargs)
+    def __init__(self, pos, data, grouping=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._pos = pos
+        self._data = data
+        self._grouping = grouping
+
+    def make_image_model(self, beam_models, pixscale):
+
+        pixscale = u.pixel_scale(pixscale)
+        delta_pix = (1. << u.pix).to(u.arcsec, equivalencies=pixscale)
+
+        # convert beam_models to pixel unit
+        if next(iter(beam_models.values())).x_mean.unit.is_equivalent(u.pix):
+            m_beams = beam_models
+        else:
+            m_beams = dict()
+            for k, m in beam_models.items():
+                m_beams[k] = m.__class__(
+                        amplitude=m.amplitude.quantity,
+                        x_mean=m.x_mean.quantity.to_value(
+                            u.pix, equivalencies=pixscale),
+                        y_mean=m.y_mean.quantity.to_value(
+                            u.pix, equivalencies=pixscale),
+                        x_stddev=m.x_stddev.quantity.to_value(
+                            u.pix, equivalencies=pixscale),
+                        y_stddev=m.y_stddev.quantity.to_value(
+                            u.pix, equivalencies=pixscale),
+                        )
+        # use the first pos as the reference
+        ref_coord = self.pos[0]
+
+        wcsobj = WCS(naxis=2)
+        wcsobj.wcs.crpix = [1.5, 1.5]
+        wcsobj.wcs.cdelt = np.array([
+            -delta_pix.to_value(u.deg),
+            delta_pix.to_value(u.deg),
+            ])
+        wcsobj.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+        wcsobj.wcs.crval = [ref_coord.ra.degree, ref_coord.dec.degree]
+
+        # compute the pixel range
+        x, y = wcsobj.wcs_world2pix(self.pos.ra, self.pos.dec, 0)
+        l, r = np.min(x), np.max(x)
+        b, t = np.min(y), np.max(y)
+        w, h = r - l, t - b
+        print(x, y, l, r, b, t, w, h)
+        # size of the square bbox, with added padding on the edge
+        s = int(np.ceil(np.max([w, h]) + 10 * np.max(
+                [m.x_fwhm for m in m_beams.values()])))
+        print(f'size of image: {s}')
+        # figure out center coord
+        c_ra, c_dec = wcsobj.wcs_pix2world((l + r) / 2, (b + t) / 2, 0)
+        # re-center the wcs to pixel center
+        wcsobj.wcs.crpix = [s / 2 + 1, s / 2 + 1]
+        wcsobj.wcs.crval = c_ra, c_dec
+        header = wcsobj.to_header()
+        # compute the pixel positions
+        x, y = wcsobj.wcs_world2pix(self.pos.ra, self.pos.dec, 0)
+        print(x, y)
+        assert ((x < 0) | (x > s)).sum() == 0
+        assert ((y < 0) | (y > s)).sum() == 0
+        # get the pixel
+        # render the image
+        hdus = dict()
+        for k, m in m_beams.items():
+            amp = (self.data[k] * m.amplitude).to(u.MJy / u.sr)
+            img = np.zeros((s, s), dtype=float) << u.MJy / u.sr
+            for xx, yy, aa in zip(x, y, amp):
+                m.amplitude = aa
+                m.x_mean = xx
+                m.y_mean = yy
+                m.render(img)
+            hdu = fits.ImageHDU(
+                    data=m.render(img).to_value(u.MJy / u.sr), header=header)
+            hdu.header['SIGUNIT'] = 'MJy / sr'
+            hdus[k] = hdu
+            self.logger.debug('HDU {}: {}'.format(
+                k, hdu.header.tostring(sep='\n')
+                ))
+        return SourceImageModel(
+                data=hdus, grouping=self._grouping,
+                name=self.name,
+                )
+
+    @property
+    def pos(self):
+        return self._pos
+
+    @property
+    def data(self):
+        return self._data
+
+    @classmethod
+    def from_table(cls, filepath, colname_map=None, **kwargs):
+        """
+        Parameters
+        ----------
+        filepath : str, pathlib.Path
+            The path to the catalog file.
+
+        colname_map : dict, optional
+            Specify the column names to included in the returned data.
+            If None, an educated guess will be made.
+        """
+        # TODO: add code to guess colname map
+        if colname_map is None:
+            colname_map = dict()
+        colname_map = dict(**colname_map)
+        cls.logger.debug(f"use colname_map: {pformat_yaml(colname_map)}")
+
+        def getcol_quantity(tbl, colname, unit):
+            col = tbl[colname]
+            if col.unit is None and unit is not None:
+                cls.logger.debug(f"assume unit {unit} for column {colname}")
+                col.unit = unit
+            if col.unit is None:
+                return col
+            return col.quantity
+
+        # read the data columns
+        tbl = Table.read(filepath, format='ascii')
+        data = dict()
+        for k, c in colname_map.items():
+            if c.startswith('flux'):
+                unit = u.mJy
+            elif c in ['ra', 'dec']:
+                unit = u.deg
+            else:
+                unit = None
+            data[k] = getcol_quantity(tbl, c, unit)
+        cls.logger.debug(f'data keys: {list(data.keys())}')
+
+        # figure out the position
+        # TODO: add handling of different coordinate system in input
+        pos = SkyCoord(
+                data['ra'], data['dec'],
+                frame=ICRS()).transform_to(cls.input_frame.reference_frame)
+
+        return cls(pos=pos, data=data, name=filepath.as_posix(), **kwargs)
 
     def evaluate(self, lon, lat):
         coo = self.input_frame.coordinates(lon, lat)
@@ -342,7 +476,7 @@ class SkyMapModel(_Model):
         """Returns the mapping pattern as evaluated at given coordinates.
         """
         frame = _get_skyoffset_frame(ref_coord)
-        return coord.SkyCoord(*self(*args), frame=frame).transform_to(
+        return SkyCoord(*self(*args), frame=frame).transform_to(
                 ref_coord.frame)
 
     # TODO these three method seems to be better live in a wrapper
@@ -603,7 +737,7 @@ class SkyLissajousModel(SkyMapModel, metaclass=LissajousModelMeta):
 class SkyICRSTrajModel(SkyMapModel, metaclass=TrajectoryModelMeta):
     frame = cf.CelestialFrame(
             name='icrs',
-            reference_frame=coord.ICRS(),
+            reference_frame=ICRS(),
             unit=(u.deg, u.deg)
             )
 
@@ -611,7 +745,7 @@ class SkyICRSTrajModel(SkyMapModel, metaclass=TrajectoryModelMeta):
 class SkyAltAzTrajModel(SkyMapModel, metaclass=TrajectoryModelMeta):
     frame = cf.CelestialFrame(
             name='altaz',
-            reference_frame=coord.AltAz(),
+            reference_frame=AltAz(),
             unit=(u.deg, u.deg)
             )
 
@@ -626,6 +760,6 @@ def resolve_sky_map_ref_frame(ref_frame, observer=None, time_obs=None):
         from astropy.coordinates.sky_coordinate_parsers import (
                 _get_frame_class)
         ref_frame = _get_frame_class(ref_frame)
-    if ref_frame is coord.AltAz:
+    if ref_frame is AltAz:
         return observer.altaz(time=time_obs)
     return ref_frame
