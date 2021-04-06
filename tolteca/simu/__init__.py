@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from tollan.utils import getobj
+from tollan.utils import rupdate
 from tollan.utils.registry import Registry, register_to
 from tollan.utils.fmt import pformat_yaml
 from tollan.utils.schema import create_relpath_validator
@@ -9,10 +10,12 @@ from tollan.utils.nc import ncopen, ncinfo
 from tollan.utils.namespace import Namespace
 
 import netCDF4
-
-import re
+from tollan.utils.nc import NcNodeMapper
+from datetime import datetime
+from collections import UserDict
+from pathlib import Path
+from contextlib import contextmanager
 import numpy as np
-from astropy.table import Table
 from astropy.time import Time
 import astropy.units as u
 from astroquery.utils import parse_coordinates
@@ -471,22 +474,29 @@ class SimulatorRuntime(RuntimeContext):
 class SimulatorResult(Namespace):
     """A class to hold simulator results."""
 
+    logger = get_logger()
+
+    outdir_lockfile = 'simresult.lock'
+    outdir_statefile = 'simresult.state'
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if hasattr(self, 'data_generator') and hasattr(self, 'data'):
             raise ValueError("invalid result. can only have data"
                              "or data_generator")
         self._lazy = hasattr(self, 'data_generator')
+        print(self._lazy)
         # wrap data in an iterator so we have a uniform implementation
         if not self._lazy:
             def _data_gen():
                 yield self.data
-            self._data_generator = _data_gen
+            self.data_generator = _data_gen
         self.reset_iterdata()
 
     def reset_iterdata(self):
         """Reset the data iterator."""
         self._iterdata = self.data_generator()
+        return self._iterdata
 
     def iterdata(self, reset=False):
         """Return data from the data iterator."""
@@ -576,12 +586,274 @@ class SimulatorResult(Namespace):
             v_Q[:, :] = iqs.imag[m, :]
             nc_toltec.close()
 
+    class _PersistentSimulatorState(UserDict):
+        def __init__(self, filepath, init=None, update=None):
+            if filepath.exists():
+                with open(filepath, 'r') as fo:
+                    state = yaml.load(fo)
+                if update is not None:
+                    rupdate(state, update)
+            elif init is not None:
+                state = init
+            else:
+                raise ValueError("cannot initialize state")
+            self._filepath = filepath
+            super().__init__(state)
+
+        def sync(self):
+            with open(self._filepath, 'w') as fo:
+                yaml.dump(self.data, fo)
+            return self
+
+        def reload(self):
+            with open(self._filepath, 'r') as fo:
+                state = yaml.load(fo)
+            self.data = state
+
+        def __str__(self):
+            return pformat_yaml({
+                'state': self.data,
+                'filepath': self._filepath})
+
+    @contextmanager
+    def writelock(self, outdir):
+        outdir = Path(outdir)
+        lockfile = outdir.joinpath(self.outdir_lockfile)
+        if lockfile.exists():
+            raise RuntimeError(f"cannot acquire write lock for {outdir}")
+        state = self._PersistentSimulatorState(
+                outdir.joinpath(self.outdir_statefile),
+                init={
+                    'obsnum': 0,
+                    'subobsnum': 0,
+                    'scannum': 0,
+                    'cal_obsnum': 0,
+                    'cal_subobsnum': 0,
+                    'cal_scannum': 0,
+                    })
+        try:
+            with open(lockfile, 'w'):
+                pass
+            yield state.sync()
+        finally:
+            try:
+                lockfile.unlink()
+            except Exception:
+                self.logger.debug("failed release write lock", exc_info=True)
+
+    @timeit
+    def save(self, outdir, mapping_only=False):
+
+        def make_output_filename(interface, state, suffix):
+            filename = (
+                    f'{interface}_{state["obsnum"]:06d}_'
+                    f'{state["subobsnum"]:03d}_'
+                    f'{state["scannum"]:04d}_'
+                    f'{state["ut"].strftime("%Y_%m_%d_%H_%M_%S")}'
+                    f'{suffix}'
+                    )
+            return outdir.joinpath(filename)
+
+        with self.writelock(outdir) as state:
+            state['obsnum'] += 1
+            state['cal_obsnum'] += 1
+            state['ut'] = datetime.utcnow()
+            state.sync()
+            self.logger.debug(f"outdir state:\n{state}")
+            self._save_config(outdir)
+            # save the data
+            simctx = self.simctx
+            obs_params = simctx.get_obs_params()
+            simobj = self.simobj
+            cfg = self.config['simu']
+
+            output_tel = make_output_filename('tel', state, '.nc')
+            nm_tel = NcNodeMapper(source=output_tel, mode='w')
+
+            nm_tel.setstr(
+                    'Header.File.Name',
+                    output_tel.relative_to(simctx.rootpath).as_posix())
+
+            nm_tel.setstr(
+                    'Header.Source.SourceName',
+                    cfg['jobkey'])
+
+            # create data variables
+            nc_tel = nm_tel.nc_node
+            d_time = 'time'
+            nc_tel.createDimension(d_time, None)
+            v_time = nc_tel.createVariable(
+                    'Data.TelescopeBackend.TelTime', 'f8', (d_time, ))
+            v_ra = nc_tel.createVariable(
+                    'Data.TelescopeBackend.TelSourceRaAct', 'f8', (d_time, ))
+            v_ra.unit = 'deg'
+            v_dec = nc_tel.createVariable(
+                    'Data.TelescopeBackend.TelSourceDecAct', 'f8', (d_time, ))
+            v_dec.unit = 'deg'
+            v_hold = nc_tel.createVariable(
+                    'Data.TelescopeBackend.Hold', 'f8', (d_time, )
+                    )
+
+            # kids data
+            tbl = simobj.table
+            # dump the apt
+            tbl.write(
+                    make_output_filename('apt', state, '.ecsv'),
+                    format='ascii.ecsv')
+            nws = np.unique(tbl['nw'])
+
+            def make_kidsdata_nc(nw):
+                m = tbl['nw'] == nw
+                mtbl = tbl[m]
+                output_toltec = make_output_filename(
+                        f'toltec{nw}', state, '_timestream.nc')
+                nm_toltec = NcNodeMapper(source=output_toltec, mode='w')
+                nc_toltec = nm_toltec.nc_node
+                # add meta data
+                nm_toltec.setstr(
+                        'Header.Toltec.Filename',
+                        output_toltec.relative_to(simctx.rootpath).as_posix())
+                nm_toltec.setscalar(
+                        'Header.Toltec.ObsType', 1, dtype='i4')  # Timestream
+                nm_toltec.setscalar(
+                        'Header.Toltec.Master', 0, dtype='i4')
+                nm_toltec.setscalar(
+                        'Header.Toltec.RepeatLevel', 0, dtype='i4')
+                nm_toltec.setscalar(
+                        'Header.Toltec.RoachIndex', nw, dtype='i4')
+                nm_toltec.setscalar(
+                        'Header.Toltec.ObsNum', state['obsnum'], dtype='i4')
+                nm_toltec.setscalar(
+                        'Header.Toltec.SubObsNum',
+                        state['subobsnum'], dtype='i4')
+                nm_toltec.setscalar(
+                        'Header.Toltec.ScanNum',
+                        state['scannum'], dtype='i4')
+                nm_toltec.setscalar(
+                        'Header.Toltec.TargSweepObsNum',
+                        state['cal_obsnum'], dtype='i4')
+                nm_toltec.setscalar(
+                        'Header.Toltec.TargSweepSubObsNum',
+                        state['cal_subobsnum'], dtype='i4')
+                nm_toltec.setscalar(
+                        'Header.Toltec.TargSweepScanNum',
+                        state['cal_scannum'], dtype='i4')
+                nm_toltec.setscalar(
+                        'Header.Toltec.SampleFreq',
+                        obs_params['f_smp_data'].to_value(u.Hz))
+                nm_toltec.setscalar(
+                        'Header.Toltec.LoCenterFreq', 0.)
+                nm_toltec.setscalar(
+                        'Header.Toltec.InputAtten', 0.)
+                nm_toltec.setscalar(
+                        'Header.Toltec.OutputAtten', 0.)
+                nm_toltec.setscalar(
+                        'Header.Toltec.AccumLen', 524288, dtype='i4')
+                nm_toltec.setscalar(
+                        'Header.Toltec.MaxNumTones', 1000, dtype='i4')
+
+                nc_toltec.createDimension('numSweeps', 1)
+                nc_toltec.createDimension('toneFreqLen', len(mtbl))
+                v_tones = nc_toltec.createVariable(
+                        'Header.Toltec.ToneFreq',
+                        'f8', ('numSweeps', 'toneFreqLen')
+                        )
+                v_tones[0, :] = mtbl['fp']
+                nc_toltec.createDimension('modelParamsNum', 15)
+                nc_toltec.createDimension('modelParamsHeaderItemSize', 32)
+                v_mph = nc_toltec.createVariable(
+                        'Header.Toltec.ModelParamsHeader',
+                        '|S1', ('modelParamsNum', 'modelParamsHeaderItemSize')
+                        )
+                v_mp = nc_toltec.createVariable(
+                        'Header.Toltec.ModelParams',
+                        'f8', ('numSweeps', 'modelParamsNum', 'toneFreqLen')
+                        )
+                mp_map = {
+                        'f_centered': 'fp',
+                        'f_out': 'fr',
+                        'f_in': 'fp',
+                        'flag': None,
+                        'fp': 'fp',
+                        'Qr': 'Qr',
+                        'Qc': 1.,
+                        'fr': 'fr',
+                        'A': 0.,
+                        'normI': 'g0',
+                        'normQ': 'g1',
+                        'slopeI': 'k0',
+                        'slopeQ': 'k1',
+                        'interceptI': 'm0',
+                        'interceptQ': 'm1',
+                        }
+                for i, (k, v) in enumerate(mp_map.items()):
+                    v_mph[i, :] = netCDF4.stringtochar(np.array(k, '|S32'))
+                    if v is not None:
+                        if isinstance(v, str):
+                            v = mtbl[v]
+                        v_mp[0, i, :] = v
+
+                nc_toltec.createDimension('loclen', len(mtbl))
+                nc_toltec.createDimension('iqlen', len(mtbl))
+                nc_toltec.createDimension('tlen', 6)
+                nc_toltec.createDimension('time', None)
+                v_flo = nc_toltec.createVariable(
+                        'Data.Toltec.LoFreq', 'i4', ('time', ))
+                v_time = nc_toltec.createVariable(
+                        'Data.Toltec.Ts', 'i4', ('time', 'tlen'))
+                v_I = nc_toltec.createVariable(
+                        'Data.Toltec.Is', 'i4', ('time', 'iqlen'))
+                v_Q = nc_toltec.createVariable(
+                        'Data.Toltec.Qs', 'i4', ('time', 'iqlen'))
+                return locals()
+
+            if not mapping_only:
+                kds = {
+                        nw: make_kidsdata_nc(nw)
+                        for nw in nws
+                        }
+
+            for data in self.reset_iterdata():
+                obs_coords_icrs = data['obs_info']['obs_coords_icrs']
+                time_obs = data['obs_info']['time_obs']
+                idx = nc_tel.dimensions[d_time].size
+                v_time[idx:] = time_obs.unix
+                v_ra[idx:] = obs_coords_icrs.ra.degree
+                v_dec[idx:] = obs_coords_icrs.dec.degree
+                v_hold[idx:] = data['obs_info']['hold_flags']
+                self.logger.info(
+                        f'write [{idx}:{idx + len(time_obs)}] to'
+                        f' {nc_tel.filepath()}')
+
+                if mapping_only:
+                    continue
+
+                iqs = data['iqs']
+                for nw, kd in kds.items():
+                    nc_toltec = kd['nc_toltec']
+                    idx = nc_toltec.dimensions['time'].size
+                    self.logger.info(
+                        f'write [{nc_toltec.dimensions["iqlen"].size}]'
+                        f'[{idx}:{idx + len(time_obs)}] to'
+                        f' {nc_toltec.filepath()}')
+                    m = kd['m']
+                    kd['v_flo'][idx:] = 0
+                    kd['v_time'][idx:, 0] = data['time']
+                    kd['v_I'][idx:, :] = iqs.real[m, :].T
+                    kd['v_Q'][idx:, :] = iqs.imag[m, :].T
+            # close the files
+            nc_tel.close()
+
+            if not mapping_only:
+                for nw, kd in kds.items():
+                    kd['nc_toltec'].close()
+
     def _save_config(self, outdir):
         with open(outdir.joinpath('tolteca.yaml'), 'w') as fo:
             yaml.dump(self.config, fo, Dumper=self.simctx.yaml_dumper)
 
     @timeit
-    def save(self, outdir, mapping_only=False):
+    def save_simple(self, outdir, mapping_only=False):
 
         self._save_config(outdir)
         self._save_lmt_tcs_tel(outdir)

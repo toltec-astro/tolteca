@@ -19,6 +19,7 @@ from astropy.coordinates.erfa_astrom import (
 
 from gwcs import coordinate_frames as cf
 
+from kidsproc.kidsmodel import ReadoutGainWithLinTrend
 from kidsproc.kidsmodel.simulator import KidsSimulator
 from tollan.utils.log import timeit, get_logger
 
@@ -481,6 +482,23 @@ class ToltecObsSimulator(object):
             'passband': 42 * u.GHz,
             },
         }
+
+    # these are some fiducial kids model params
+    kids_props = {
+        'fp': 'f',  # column name of apt if string
+        'fr': 'f',
+        'Qr': 1e4,
+        'g0': 200,
+        'g1': 0,
+        'g': 200,
+        'phi_g': 0,
+        'f0': 'f',
+        'k0': 0 / u.Hz,
+        'k1': 0 / u.Hz,
+        'm0': 0,
+        'm1': 0
+            }
+    readout_model_cls = ReadoutGainWithLinTrend
     beam_model_cls = BeamModel
     erfa_interp_len = 300 << u.s
 
@@ -495,10 +513,19 @@ class ToltecObsSimulator(object):
 
         # create the simulator
         self._kidssim = KidsSimulator(
-                fr=tbl['f'],
-                Qr=np.full((len(tbl),), 1e4),
+                fr=tbl['fr'],
+                Qr=tbl['Qr'],
                 background=tbl['background'],
                 responsivity=tbl['responsivity'])
+        # create the gain model
+        self._readout_model = self.readout_model_cls(
+                n_models=len(tbl),
+                **{
+                    c: tbl[c]
+                    for c in [
+                        'g0', 'g1', 'g', 'phi_g', 'f0', 'k0', 'k1', 'm0', 'm1']
+                    },
+                )
         # get detector position on the sky in the toltec frame
         x_a = tbl['x'].to(u.cm)
         y_a = tbl['y'].to(u.cm)
@@ -522,6 +549,7 @@ class ToltecObsSimulator(object):
         """
         tbl = self.table
         kidssim = self._kidssim
+        readout = self._readout_model
         if fp is None:
             fp = kidssim._fr
 
@@ -539,7 +567,8 @@ class ToltecObsSimulator(object):
                     * self.table['passband'][:, np.newaxis]
                     ).to(u.pW)
             return kidssim.probe_p(
-                    pwrs + tbl['background'][:, np.newaxis], fp=fp)
+                    pwrs + tbl['background'][:, np.newaxis],
+                    fp=fp, readout_model=readout)
 
         yield evaluate
 
@@ -584,6 +613,7 @@ class ToltecObsSimulator(object):
                             f'transform ref coords to {len(time_obs)} times'):
                         _ref_coord = ref_coord.transform_to(_ref_frame)
                     obs_coords = mapping.evaluate_at(_ref_coord, t)
+                    hold_flags = mapping.evaluate_holdflag(t)
                     m_proj_icrs = self.get_sky_projection_model(
                             ref_coord=obs_coords,
                             time_obs=time_obs,
@@ -619,6 +649,7 @@ class ToltecObsSimulator(object):
                         with timeit("extract flux from source image"):
                             s = m_source.evaluate_tod(tbl, lon.T, lat.T)
                         s_additive.append(s)
+                    # TODO revisit the performance issue here
                     elif False and isinstance(m_source, SourceCatalogModel):
                         with timeit("transform src coords to projected frame"):
                             src_pos = m_source.pos[:, np.newaxis].transform_to(
@@ -738,6 +769,7 @@ class ToltecObsSimulator(object):
         # for the kids simulator
         tbl = tbl.copy()
         meta_keys = ['wl_center', ]
+        # array props
         for array_name in tbl.meta['array_names']:
             m = tbl['array_name'] == array_name
             props = dict(
@@ -749,4 +781,20 @@ class ToltecObsSimulator(object):
                                 np.empty((len(tbl), ), dtype=float),
                                 name=c, unit=props[c].unit))
                 tbl[c][m] = props[c]
+        # kids props
+        for c, v in cls.kids_props.items():
+            if isinstance(v, str) and v in tbl.colnames:
+                tbl[c] = tbl[v]
+                continue
+            if isinstance(v, u.Quantity):
+                value = v.value
+                unit = v.unit
+            else:
+                value = v
+                unit = None
+            if np.isscalar(value):
+                tbl.add_column(
+                        Column(np.full((len(tbl),), value), name=c, unit=unit))
+            else:
+                raise ValueError('invalid kids prop')
         return QTable(tbl)

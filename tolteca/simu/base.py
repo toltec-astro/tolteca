@@ -3,6 +3,7 @@
 import numpy as np
 import inspect
 from pathlib import Path
+import functools
 
 from astropy.wcs import WCS
 from astropy.coordinates import SkyCoord, ICRS, AltAz
@@ -524,7 +525,8 @@ class RasterScanModelMeta(SkyMapModel.__class__):
 
         @timeit(name)
         def evaluate(
-                self, t, length, space, n_scans, rot, speed, t_turnover):
+                self, t, length, space, n_scans, rot, speed, t_turnover,
+                return_holdflag_only=False):
             """This computes a raster patten around the origin.
 
             This assumes a circular turn over trajectory where the
@@ -533,7 +535,11 @@ class RasterScanModelMeta(SkyMapModel.__class__):
             t = np.asarray(t) * t.unit
             t_per_scan = length / speed
 
+            holdflag = np.zeros(t.shape, dtype=bool)
             if n_scans == 1:
+                # TODO this is ugly, will revisit later
+                if return_holdflag_only:
+                    return holdflag
                 # have to make a special case here
                 x = (t / t_per_scan - 0.5) * length
                 y = np.zeros(t.shape) << length.unit
@@ -561,6 +567,9 @@ class RasterScanModelMeta(SkyMapModel.__class__):
                 turnover_frac = np.empty_like(si_frac)
 
                 turnover = si_frac > ratio_scan_to_si
+                if return_holdflag_only:
+                    holdflag[turnover] = True
+                    return holdflag
                 scan_frac[turnover] = 1.
                 scan_frac[~turnover] = si_frac[~turnover] / ratio_scan_to_si
                 turnover_frac[turnover] = si_frac[turnover] - (
@@ -577,7 +586,6 @@ class RasterScanModelMeta(SkyMapModel.__class__):
                 dx = radius_t * np.sin(theta_t)
                 x[turnover] = x[turnover] + dx
                 y[turnover] = y[turnover] + dy
-
                 # make continuous
                 x = x * (-1) ** si
 
@@ -590,6 +598,11 @@ class RasterScanModelMeta(SkyMapModel.__class__):
             return xx, yy
 
         attrs['evaluate'] = evaluate
+        # TODO refactor this part
+        attrs['evaluate_holdflag'] = lambda self, t: evaluate(
+                self, t, self.length, self.space, self.n_scans, self.rot,
+                self.speed, self.t_turnover, return_holdflag_only=True
+                )
         return super().__new__(meta, name, bases, attrs)
 
     def __call__(cls, *args, **kwargs):

@@ -11,9 +11,9 @@ _60_simu:
     type: tolteca.simu:SkyRasterScanModel
     rot: 30. deg
     length: 4. arcmin
-    space: 5. arcsec
-    n_scans: 1
-    speed: 30. arcsec/s
+    space: 1.5 arcsec
+    n_scans: 160
+    speed: 40. arcsec/s
     t_turnover: 5 s
     target: 92d -7d
     t0: 2020-04-12T00:00:00
@@ -35,23 +35,24 @@ _60_simu:
 
 simu:
   jobkey: example_simu
-  plot: true
-  save: false
+  plot: false
+  save: true
   mapping_only: false
   instrument:
     name: toltec
     calobj: cal/calobj_default/index.yaml
     # select: 'array_name == "a1100"'
     # select: 'pg == 1'
+    # select: 'uid == "03_0_137_0"'
   perf_params:  # parameters for tuning the simulator performance
-    chunk_size: 60 s  # break the simulation to chunks to reduce memory usage
+    chunk_size: 30 s  # break the simulation to chunks to reduce memory usage
     mapping_interp_len: 1s  # the length detector coords get evaluated
     erfa_interp_len: 300 s  # the length altaz-icrs get evaluated
     anim_frame_rate: 20 Hz
   obs_params:
     f_smp_mapping: 12 Hz  # the sample frequency for the mapping
-    f_smp_data: 488. Hz  # the sample frequency
-    t_exp: 40 min    # the lenth of the exposure
+    f_smp_data: 122. Hz  # the sample frequency
+    t_exp: 6 s    # the lenth of the exposure
   sources:
     - type: point_source_catalog
       filepath: toltec_example_source.asc
