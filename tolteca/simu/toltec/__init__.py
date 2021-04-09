@@ -677,7 +677,10 @@ class ToltecObsSimulator(object):
                 if len(s_additive) <= 0:
                     raise ValueError("no additive source found in source list")
                 s = functools.reduce(np.sum, s_additive)
+                obs_coords_altaz = obs_coords.transform_to(native_frame)
                 obs_coords_icrs = obs_coords.transform_to('icrs')
+                obs_parallactic_angle = SiteInfo.observer.parallactic_angle(
+                        time_obs, obs_coords_icrs)
                 return s, locals()
         yield evaluate
 

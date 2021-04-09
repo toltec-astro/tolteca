@@ -690,6 +690,15 @@ class SimulatorResult(Namespace):
             v_dec = nc_tel.createVariable(
                     'Data.TelescopeBackend.TelSourceDecAct', 'f8', (d_time, ))
             v_dec.unit = 'deg'
+            v_alt = nc_tel.createVariable(
+                    'Data.TelescopeBackend.TelElAct', 'f8', (d_time, ))
+            v_alt.unit = 'deg'
+            v_az = nc_tel.createVariable(
+                    'Data.TelescopeBackend.TelAzAct', 'f8', (d_time, ))
+            v_az.unit = 'deg'
+            v_pa = nc_tel.createVariable(
+                    'Data.TelescopeBackend.ActParAng', 'f8', (d_time, ))
+            v_pa.unit = 'deg'
             v_hold = nc_tel.createVariable(
                     'Data.TelescopeBackend.Hold', 'f8', (d_time, )
                     )
@@ -815,11 +824,17 @@ class SimulatorResult(Namespace):
 
             for data in self.reset_iterdata():
                 obs_coords_icrs = data['obs_info']['obs_coords_icrs']
+                obs_coords_altaz = data['obs_info']['obs_coords_altaz']
+                obs_parallactic_angle = data['obs_info'][
+                        'obs_parallactic_angle']
                 time_obs = data['obs_info']['time_obs']
                 idx = nc_tel.dimensions[d_time].size
                 v_time[idx:] = time_obs.unix
                 v_ra[idx:] = obs_coords_icrs.ra.degree
                 v_dec[idx:] = obs_coords_icrs.dec.degree
+                v_az[idx:] = obs_coords_altaz.az.degree
+                v_alt[idx:] = obs_coords_altaz.alt.degree
+                v_pa[idx:] = obs_parallactic_angle.degree
                 v_hold[idx:] = data['obs_info']['hold_flags']
                 self.logger.info(
                         f'write [{idx}:{idx + len(time_obs)}] to'

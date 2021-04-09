@@ -123,7 +123,7 @@ class SourceModel(_Model):
 
     _subclasses = Registry.create()
 
-    def __init_subclass(cls, *args, **kwargs):
+    def __init_subclass__(cls, *args, **kwargs):
         super().__init_subclass__(*args, **kwargs)
         cls._subclasses.register(cls, cls)
 
