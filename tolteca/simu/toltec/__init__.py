@@ -677,8 +677,21 @@ class ToltecObsSimulator(object):
                 if len(s_additive) <= 0:
                     raise ValueError("no additive source found in source list")
                 s = functools.reduce(np.sum, s_additive)
-                obs_coords_altaz = obs_coords.transform_to(native_frame)
-                obs_coords_icrs = obs_coords.transform_to('icrs')
+
+                # there is weird cache issue so we cannot
+                # just do the transform easily
+                if hasattr(obs_coords, 'ra'):  # icrs
+                    obs_coords_icrs = SkyCoord(
+                            obs_coords.ra, obs_coords.dec,
+                            frame='icrs'
+                            )
+                    _altaz_frame = self.resolve_sky_map_ref_frame(
+                            'altaz', time_obs=time_obs)
+                    obs_coords_altaz = obs_coords_icrs.transform_to(
+                            _altaz_frame)
+                elif hasattr(obs_coords, 'alt'):  # altaz
+                    obs_coords_icrs = obs_coords.transform_to('icrs')
+                    obs_coords_altaz = obs_coords
                 obs_parallactic_angle = SiteInfo.observer.parallactic_angle(
                         time_obs, obs_coords_icrs)
                 return s, locals()

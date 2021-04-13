@@ -17,7 +17,7 @@ _60_simu:
     t_turnover: 5 s
     target: 92d -7d
     t0: 2020-04-12T00:00:00
-    ref_frame: altaz
+    ref_frame: icrs
     # lst0: ...
   example_mapping_model_lissajous: &example_mapping_model_lissajous
     type: tolteca.simu:SkyLissajousModel
@@ -35,7 +35,7 @@ _60_simu:
 
 simu:
   jobkey: example_simu
-  plot: false
+  plot: true
   save: true
   mapping_only: false
   instrument:
@@ -52,7 +52,7 @@ simu:
   obs_params:
     f_smp_mapping: 12 Hz  # the sample frequency for the mapping
     f_smp_data: 122. Hz  # the sample frequency
-    t_exp: 6 s    # the lenth of the exposure
+    t_exp: 1800 s    # the lenth of the exposure
   sources:
     - type: point_source_catalog
       filepath: toltec_example_source.asc
