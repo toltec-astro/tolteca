@@ -622,8 +622,45 @@ class ToltecObsSimulator(object):
                     projected_frame, native_frame = \
                         m_proj_icrs.get_projected_frame(
                             also_return_native_frame=True)
+
+                    # there is weird cache issue so we cannot
+                    # just do the transform easily
+                    if hasattr(obs_coords, 'ra'):  # icrs
+                        obs_coords_icrs = SkyCoord(
+                                obs_coords.ra, obs_coords.dec,
+                                frame='icrs'
+                                )
+                        _altaz_frame = self.resolve_sky_map_ref_frame(
+                                'altaz', time_obs=time_obs)
+                        obs_coords_altaz = obs_coords_icrs.transform_to(
+                                _altaz_frame)
+                    elif hasattr(obs_coords, 'alt'):  # altaz
+                        obs_coords_icrs = obs_coords.transform_to('icrs')
+                        obs_coords_altaz = obs_coords
+                    obs_parallactic_angle = \
+                        SiteInfo.observer.parallactic_angle(
+                                time_obs, obs_coords_icrs)
+
                 # get detector positions, which requires absolute time
                 # to get the altaz to equatorial transformation
+
+                with timeit("transform det coords to projected frame"):
+                    # this has to take into account
+                    # the rotation of det coord by alt due to M3
+                    # note the negative sign here!
+                    a = -obs_coords_altaz.alt.radian
+                    m_rot_m3 = np.array([
+                        [np.cos(a), -np.sin(a)],
+                        [np.sin(a), np.cos(a)]
+                        ])
+                    # there should be more clever way of this but for now
+                    # we just spell out the rotation
+                    x = m_rot_m3[0, 0][:, np.newaxis] * x_t[np.newaxis, :] \
+                        + m_rot_m3[0, 1][:, np.newaxis] * y_t[np.newaxis, :]
+                    y = m_rot_m3[1, 0][:, np.newaxis] * x_t[np.newaxis, :] \
+                        + m_rot_m3[1, 1][:, np.newaxis] * y_t[np.newaxis, :]
+                    lon, lat = m_proj_icrs(
+                        x, y, eval_interp_len=0.1 << u.s)
 
                 # combine the array projection with sky projection
                 # and evaluate with source frame
@@ -638,11 +675,6 @@ class ToltecObsSimulator(object):
                         # TODO support more types of wcs. For now
                         # only ICRS is supported
                         # the projected lon lat
-                        with timeit("transform det coords to projected frame"):
-                            x = np.tile(x_t, (len(time_obs), 1))
-                            y = np.tile(y_t, (len(time_obs), 1))
-                            lon, lat = m_proj_icrs(
-                                    x, y, eval_interp_len=0.1 << u.s)
                         # extract the flux
                         # detector is required to be the first dimension
                         # for the evaluate_tod
@@ -678,22 +710,6 @@ class ToltecObsSimulator(object):
                     raise ValueError("no additive source found in source list")
                 s = functools.reduce(np.sum, s_additive)
 
-                # there is weird cache issue so we cannot
-                # just do the transform easily
-                if hasattr(obs_coords, 'ra'):  # icrs
-                    obs_coords_icrs = SkyCoord(
-                            obs_coords.ra, obs_coords.dec,
-                            frame='icrs'
-                            )
-                    _altaz_frame = self.resolve_sky_map_ref_frame(
-                            'altaz', time_obs=time_obs)
-                    obs_coords_altaz = obs_coords_icrs.transform_to(
-                            _altaz_frame)
-                elif hasattr(obs_coords, 'alt'):  # altaz
-                    obs_coords_icrs = obs_coords.transform_to('icrs')
-                    obs_coords_altaz = obs_coords
-                obs_parallactic_angle = SiteInfo.observer.parallactic_angle(
-                        time_obs, obs_coords_icrs)
                 return s, locals()
         yield evaluate
 
