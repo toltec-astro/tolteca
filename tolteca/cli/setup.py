@@ -6,11 +6,8 @@ from tollan.utils.cli.path_type import PathType
 
 from . import main_parser
 from ..utils import RuntimeContext
-from ..version import version
 
-from astropy.time import Time
 import sys
-import yaml
 
 
 @main_parser.register_action_parser(
@@ -62,10 +59,6 @@ def cmd_setup(parser):
                 'setup': {
                     'jobkey': option.workdir.resolve().name,
                     'prog': sys.argv[0],
-                    'version': version,
-                    'created_at': Time.now().isot,
                     }
             })
-        # write the setup context to the config_file
-        with open(ctx.setup_file, 'w') as fo:
-            yaml.dump(config, fo)
+        ctx.setup(config=config)

@@ -5,13 +5,15 @@ from tollan.utils.fmt import pformat_yaml
 from tollan.utils import rupdate
 from tollan.utils.log import get_logger, logit
 
+from ..version import version
+from astropy.time import Time
 import astropy.units as u
 from yaml.dumper import SafeDumper
 import appdirs
 from pathlib import Path, PosixPath
 from datetime import datetime
 from cached_property import cached_property
-from schema import Schema, Use
+from schema import Schema, Use, Optional
 from copy import deepcopy
 import inspect
 import yaml
@@ -55,7 +57,7 @@ class RuntimeContext(object):
                     "one and only one of rootpath and config has to be set")
 
         self._rootpath = self._normalize_rootpath(rootpath)
-        self._config = config
+        self._config = self.validate_config(config)
 
     @property
     def rootpath(self):
@@ -133,7 +135,15 @@ class RuntimeContext(object):
             cfg = dict()
             for f in self.config_files:
                 with open(f, 'r') as fo:
-                    rupdate(cfg, yaml.safe_load(fo))
+                    c = yaml.safe_load(fo)
+                    if c is None:
+                        c = dict()  # allow empty yaml file
+                    if not isinstance(c, dict):
+                        # error if invalid config found
+                        raise RuntimeContextError(
+                                f"invalid config file {f}."
+                                f" No top level dict found.")
+                    rupdate(cfg, c)
         cfg = self.validate_config(cfg)
         # update runtime info
         cfg['runtime'] = self.to_dict()
@@ -142,6 +152,8 @@ class RuntimeContext(object):
 
     @classmethod
     def validate_config(cls, cfg):
+        if cfg is None:
+            return None
         return cls.get_config_schema().validate(cfg)
 
     @classmethod
@@ -188,7 +200,7 @@ class RuntimeContext(object):
 
         return {
             'setup': Use(validate_setup),
-            object: object
+            Optional(object): object
             }
 
     @cached_property
@@ -223,11 +235,11 @@ class RuntimeContext(object):
             create=False, force=False, overwrite=False, dry_run=False
             ):
         """
-        Create `PipelineRuntime` instance from `dirpath`.
+        Create `RuntimeContext` instance from `dirpath`.
 
         Parameters
         ----------
-        path : `pathlib.Path`
+        dirpath : `pathlib.Path`, str
             The path to the work directory.
 
         create : bool
@@ -249,6 +261,7 @@ class RuntimeContext(object):
         """
 
         path_is_ok = False
+        dirpath = Path(dirpath)
         if dirpath.exists():
             if dirpath.is_dir():
                 try:
@@ -314,3 +327,46 @@ class RuntimeContext(object):
         for c in configs[1:]:
             rupdate(cfg, c)
         return cls(config=cfg)
+
+    def setup(self, config=None, overwrite=False):
+        """Populate the setup file (50_setup.yaml).
+
+        Parameters
+        ==========
+        config : dict, optional
+            Additional config to add to the setup file.
+
+        overwrite : bool
+            Set to True to force overwrite the existing
+            setup info. Otherwise a `RuntimeContextError` is
+            raised.
+        """
+        # check if already setup
+        with open(self.setup_file, 'r') as fo:
+            setup_cfg = yaml.safe_load(fo)
+            if isinstance(setup_cfg, dict) and 'setup' in setup_cfg:
+                if overwrite:
+                    self.logger.debug(
+                        "runtime context is already setup, overwrite")
+                else:
+                    self.logger.debug("runtime context is already setup, skip")
+                    return
+
+        if config is None:
+            config = dict()
+        else:
+            config = deepcopy(config)
+        rupdate(
+            config,
+            {
+                'setup': {
+                    'version': version,
+                    'created_at': Time.now().isot,
+                    }
+            })
+        # write the setup context to the config_file
+        with open(self.setup_file, 'w') as fo:
+            yaml.dump(config, fo)
+        # invalidate the config cache if needed
+        if 'config' in self.__dict__:
+            del self.__dict__['config']

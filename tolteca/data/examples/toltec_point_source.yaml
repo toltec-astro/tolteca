@@ -1,0 +1,34 @@
+# vim: et ts=2 sts=2 sw=2
+---
+
+simu:
+  jobkey: toltec_point_source
+  instrument:
+    name: toltec
+    calobj: cal/calobj_default/index.yaml
+  obs_params:
+    f_smp_mapping: 12 Hz  # the sample frequency for the mapping_only
+    f_smp_data: 122. Hz  # the sample frequency
+    t_exp: 1 ct    # the lenth of the exposure. ct denotes a full run of the pattern
+  sources:
+    - type: point_source_catalog
+      filepath: toltec_sources.asc
+      grouping: 'array_name'
+      colname_map:
+        a1100: flux_a1100
+        a1400: flux_a1400
+        a2000: flux_a2000
+        ra: ra
+        dec: dec
+        name: name
+  mapping:
+    type: tolteca.simu:SkyRasterScanModel
+    rot: 0. deg
+    length: 1. arcmin
+    space: 1.5 arcsec
+    n_scans: 40
+    speed: 1. arcmin/s
+    t_turnover: 0.1 s
+    target: 92d -7d
+    t0: 2020-04-12T00:00:00
+    ref_frame: icrs

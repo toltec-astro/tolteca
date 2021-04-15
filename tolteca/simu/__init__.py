@@ -9,6 +9,7 @@ from tollan.utils.log import get_logger, logit, timeit
 from tollan.utils.nc import ncopen, ncinfo
 from tollan.utils.namespace import Namespace
 
+import yaml
 import netCDF4
 from tollan.utils.nc import NcNodeMapper
 from datetime import datetime
@@ -19,13 +20,12 @@ import numpy as np
 from astropy.time import Time
 import astropy.units as u
 from astroquery.utils import parse_coordinates
-import yaml
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
 from schema import Optional, Or, Use, Schema
 
-from ..utils import RuntimeContext, RuntimeContextError
+from ..utils import RuntimeContext, RuntimeContextError, get_pkg_data_path
 
 # import these models as toplevel
 from .base import (
@@ -1039,3 +1039,21 @@ class SimulatorResult(Namespace):
             cax.set_label("Surface Brightness (MJy/sr)")
         plt.show()
         self.plot_animation(reset=False)
+
+
+def load_example_configs():
+
+    example_dir = get_pkg_data_path().joinpath('examples')
+    files = ['toltec_point_source.yaml']
+
+    def load_yaml(f):
+        with open(f, 'r') as fo:
+            return yaml.safe_load(fo)
+
+    configs = {
+            f'{f.stem}': load_yaml(f)
+            for f in map(example_dir.joinpath, files)}
+    return configs
+
+
+example_configs = load_example_configs()
