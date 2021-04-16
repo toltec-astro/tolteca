@@ -829,4 +829,7 @@ class ToltecObsSimulator(object):
                         Column(np.full((len(tbl),), value), name=c, unit=unit))
             else:
                 raise ValueError('invalid kids prop')
+        # calibration factor
+        # TODO need to revisit these assumptions
+        tbl['flxscale'] = (1. / tbl['responsivity']).quantity.value
         return QTable(tbl)

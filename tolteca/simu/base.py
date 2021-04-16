@@ -3,7 +3,7 @@
 import numpy as np
 import inspect
 from pathlib import Path
-import functools
+# import functools
 
 from astropy.wcs import WCS
 from astropy.coordinates import SkyCoord, ICRS, AltAz
@@ -13,7 +13,7 @@ import astropy.units as u
 from astropy.modeling import models
 # from astropy.table import Table
 from astropy.io import fits
-from astropy.table import Table
+from astropy.table import Table, QTable
 
 from gwcs import coordinate_frames as cf
 from scipy import interpolate
@@ -133,6 +133,10 @@ class SourceModel(_Model):
         super().__init__(*args, **kwargs)
         self.inputs = inputs
         self.outputs = outputs
+
+    @property
+    def data(self):
+        return self._data
 
 
 class SourceImageModel(SourceModel):
@@ -335,11 +339,10 @@ class SourceCatalogModel(SourceModel):
         l, r = np.min(x), np.max(x)
         b, t = np.min(y), np.max(y)
         w, h = r - l, t - b
-        print(x, y, l, r, b, t, w, h)
         # size of the square bbox, with added padding on the edge
         s = int(np.ceil(np.max([w, h]) + 10 * np.max(
                 [m.x_fwhm for m in m_beams.values()])))
-        print(f'size of image: {s}')
+        self.logger.debug(f'source image size: {s}')
         # figure out center coord
         c_ra, c_dec = wcsobj.wcs_pix2world((l + r) / 2, (b + t) / 2, 0)
         # re-center the wcs to pixel center
@@ -348,7 +351,6 @@ class SourceCatalogModel(SourceModel):
         header = wcsobj.to_header()
         # compute the pixel positions
         x, y = wcsobj.wcs_world2pix(self.pos.ra, self.pos.dec, 0)
-        print(x, y)
         assert ((x < 0) | (x > s)).sum() == 0
         assert ((y < 0) | (y > s)).sum() == 0
         # get the pixel
@@ -357,13 +359,13 @@ class SourceCatalogModel(SourceModel):
         for k, m in m_beams.items():
             amp = (self.data[k] * m.amplitude).to(u.MJy / u.sr)
             img = np.zeros((s, s), dtype=float) << u.MJy / u.sr
+            m = m.copy()
             for xx, yy, aa in zip(x, y, amp):
                 m.amplitude = aa
                 m.x_mean = xx
                 m.y_mean = yy
                 m.render(img)
-            hdu = fits.ImageHDU(
-                    data=m.render(img).to_value(u.MJy / u.sr), header=header)
+            hdu = fits.ImageHDU(img.to_value(u.MJy / u.sr), header=header)
             hdu.header['SIGUNIT'] = 'MJy / sr'
             hdus[k] = hdu
             self.logger.debug('HDU {}: {}'.format(
@@ -377,10 +379,6 @@ class SourceCatalogModel(SourceModel):
     @property
     def pos(self):
         return self._pos
-
-    @property
-    def data(self):
-        return self._data
 
     @classmethod
     def from_table(cls, filepath, colname_map=None, **kwargs):
@@ -411,7 +409,7 @@ class SourceCatalogModel(SourceModel):
 
         # read the data columns
         tbl = Table.read(filepath, format='ascii')
-        data = dict()
+        data = QTable()
         for k, c in colname_map.items():
             if c.startswith('flux'):
                 unit = u.mJy
@@ -420,7 +418,7 @@ class SourceCatalogModel(SourceModel):
             else:
                 unit = None
             data[k] = getcol_quantity(tbl, c, unit)
-        cls.logger.debug(f'data keys: {list(data.keys())}')
+        cls.logger.debug(f'data keys: {data.colnames}')
 
         # figure out the position
         # TODO: add handling of different coordinate system in input
