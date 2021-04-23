@@ -665,6 +665,7 @@ class SimulatorResult(Namespace):
             simctx = self.simctx
             obs_params = simctx.get_obs_params()
             simobj = self.simobj
+            mapping = simctx.get_mapping_model()
             cfg = self.config['simu']
 
             output_tel = make_output_filename('tel', state, '.nc')
@@ -685,10 +686,10 @@ class SimulatorResult(Namespace):
             v_time = nc_tel.createVariable(
                     'Data.TelescopeBackend.TelTime', 'f8', (d_time, ))
             v_ra = nc_tel.createVariable(
-                    'Data.TelescopeBackend.TelSourceRaAct', 'f8', (d_time, ))
+                    'Data.TelescopeBackend.TelRaAct', 'f8', (d_time, ))
             v_ra.unit = 'deg'
             v_dec = nc_tel.createVariable(
-                    'Data.TelescopeBackend.TelSourceDecAct', 'f8', (d_time, ))
+                    'Data.TelescopeBackend.TelDecAct', 'f8', (d_time, ))
             v_dec.unit = 'deg'
             v_alt = nc_tel.createVariable(
                     'Data.TelescopeBackend.TelElAct', 'f8', (d_time, ))
@@ -702,6 +703,18 @@ class SimulatorResult(Namespace):
             v_hold = nc_tel.createVariable(
                     'Data.TelescopeBackend.Hold', 'f8', (d_time, )
                     )
+            # not sure why d_coord is all 2 for the coords
+            d_coord = 'Header.Source.Ra_xlen'
+            nc_tel.createDimension(d_coord, 2)
+            v_source_ra = nc_tel.createVariable(
+                    'Header.Source.Ra', 'f8', (d_coord, ))
+            v_source_ra.unit = 'deg'
+            v_source_dec = nc_tel.createVariable(
+                    'Header.Source.Dec', 'f8', (d_coord, ))
+            v_source_dec.unit = 'deg'
+            ref_coord = mapping.target.transform_to('icrs')
+            v_source_ra[:] = ref_coord.ra.degree
+            v_source_dec[:] = ref_coord.dec.degree
 
             # kids data
             tbl = simobj.table

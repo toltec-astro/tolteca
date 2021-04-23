@@ -647,8 +647,7 @@ class ToltecObsSimulator(object):
                 with timeit("transform det coords to projected frame"):
                     # this has to take into account
                     # the rotation of det coord by alt due to M3
-                    # note the negative sign here!
-                    a = -obs_coords_altaz.alt.radian
+                    a = obs_coords_altaz.alt.radian
                     m_rot_m3 = np.array([
                         [np.cos(a), -np.sin(a)],
                         [np.sin(a), np.cos(a)]

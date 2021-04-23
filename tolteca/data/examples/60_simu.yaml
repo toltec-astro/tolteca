@@ -35,7 +35,7 @@ _60_simu:
 
 simu:
   jobkey: example_simu
-  plot: true
+  plot: false
   save: true
   mapping_only: false
   instrument:
@@ -52,7 +52,7 @@ simu:
   obs_params:
     f_smp_mapping: 12 Hz  # the sample frequency for the mapping
     f_smp_data: 122. Hz  # the sample frequency
-    t_exp: 1800 s    # the lenth of the exposure
+    t_exp: 18 s    # the lenth of the exposure
   sources:
     - type: point_source_catalog
       filepath: toltec_example_source.asc
