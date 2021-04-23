@@ -513,6 +513,7 @@ class RasterScanModelMeta(SkyMapModel.__class__):
             speed=Parameter(default=1., unit=frame_unit / u.s),
             # accel=Parameter(default=1., unit=cls.frame_unit / u.s ** 2),
             t_turnover=Parameter(default=1., unit=u.s),
+            pattern='raster',
                 ))
 
         def get_total_time(self):
@@ -629,6 +630,7 @@ class LissajousModelMeta(SkyMapModel.__class__):
             y_omega=Parameter(default=1. * u.rad / u.s),
             delta=Parameter(default=0., unit=u.rad),
             rot=Parameter(default=0., unit=u.deg),
+            pattern='lissajous',
                 ))
 
         def get_total_time(self):

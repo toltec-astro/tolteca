@@ -790,7 +790,10 @@ def generateMappings(sim, band):
 
     # construct the relative and absolute times
     t_pattern = m_obs.get_total_time()
-    t_exp = p_obs['t_exp']
+    if m_obs.pattern == 'raster':
+        t_exp = t_pattern
+    else:
+        t_exp = p_obs['t_exp']
     t = np.arange(0, t_exp.to_value(u.s),
                   1./p_obs['f_smp_mapping'].to_value(u.Hz)) * u.s
     t0 = m_obs.t0

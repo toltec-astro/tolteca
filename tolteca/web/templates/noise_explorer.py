@@ -98,6 +98,9 @@ class NoiseExplorer(ComponentTemplate):
 
         # the individual detector plots
         iCtrlRow = body.child(dbc.Row)
+        fPopt = [{"label": "Plot maximum instead of median", "value": 0}]
+        fPchoice = iCtrlRow.child(dbc.Col, width=1).child(dbc.Checklist,
+                                                          options=fPopt)
         IQopt = [{"label": "Plot I/Q instead of x/r", "value": 0}]
         IQchoice = iCtrlRow.child(dbc.Col).child(dbc.Checklist,
                                                  options=IQopt)
@@ -122,7 +125,7 @@ class NoiseExplorer(ComponentTemplate):
         self._registerCallbacks(app, obsInput,
                                 pPlot, hPlot, fPlot, logx,
                                 loadingTable, ipsdPlot, ixPlot, irPlot,
-                                tunePlot, IQchoice, resTable)
+                                tunePlot, IQchoice, resTable, fPchoice)
 
     # refreshes the file list
     def _updateFileList(self):
@@ -149,7 +152,8 @@ class NoiseExplorer(ComponentTemplate):
                            pPlot, hPlot, fPlot, logx,
                            loadingTable,
                            ipsdPlot, ixPlot, irPlot,
-                           tunePlot, IQchoice, resTable):
+                           tunePlot, IQchoice, resTable,
+                           fPchoice):
 
         # Generate Median PSD plot vs frequency
         @app.callback(
@@ -160,10 +164,11 @@ class NoiseExplorer(ComponentTemplate):
                 Output(loadingTable.id, "figure")
             ],
             obsInput.inputs + [
-               Input(logx.id, "value")
+                Input(logx.id, "value"),
+                Input(fPchoice.id, "value"),
             ]
         )
-        def makeMedianPsdPlot(obs_input, logx):
+        def makeMedianPsdPlot(obs_input, logx, fPchoice):
             # obs_input is the basic_obs_select_value dict
             # seen in the "details..."
             # when the nwid multi is set in the select,
@@ -178,9 +183,16 @@ class NoiseExplorer(ComponentTemplate):
                 lx = 1
             else:
                 lx = 0
+            if fPchoice is None:
+                fPchoice = []
+            if(len(fPchoice) > 0):
+                plotMax = 1
+            else:
+                plotMax = 0
+
             pfig = getPsdPlot(data, logx=lx)
             hfig = getDetMedHist(data)
-            ffig = getPvsFPlot(data)
+            ffig = getPvsFPlot(data, plotMax=plotMax)
             ltfig = getLoadingTable(data)
             return [pfig, hfig, ffig, ltfig]
 
@@ -255,6 +267,11 @@ def _fetchPsdData(filepath):
     medrDet = bn.nanmedian(rpsd, axis=1)
     detFreqMHz = fs.to_value(u.MHz)
 
+    # and calculate the maximum value of each detector's psd at f>10Hz
+    w = np.where(fpsd > 10)[0]
+    maxxDet = bn.nanmax(xpsd[:, w], axis=1)
+    maxrDet = bn.nanmax(rpsd[:, w], axis=1)
+
     # check for NaNs, zeros or negatives
     if np.isnan(medxPsd).any():
         print("\nNaNs detected in medxPsd.")
@@ -285,6 +302,8 @@ def _fetchPsdData(filepath):
          'detFreqMHz': detFreqMHz,
          'medxDet': np.log10(medxDet),
          'medrDet': np.log10(medrDet),
+         'maxxDet': maxxDet,
+         'maxrDet': maxrDet,
          'x': sts.x,
          'r': sts.r,
          }
@@ -521,11 +540,14 @@ def getPsdPlot(data, logx=0):
 
 
 # plotly code to generate med psd vs tone freq.
-def getPvsFPlot(data):
+def getPvsFPlot(data, plotMax=0):
     fig = go.Figure()
     xaxis, yaxis = getXYAxisLayouts()
     xaxis['title_text'] = "Detector Tone Freq. [MHz]"
-    yaxis['title_text'] = "Median Detector PSD"
+    if(plotMax == 0):
+        yaxis['title_text'] = "Median Detector PSD"
+    else:
+        yaxis['title_text'] = "Maximum of Detector PSD for f>10Hz"
     fig.update_layout(
         uirevision=True,
         showlegend=True,
@@ -541,15 +563,23 @@ def getPvsFPlot(data):
         ),
         plot_bgcolor='white'
     )
-    fig.update_yaxes(range=[-17.5, -15.3])
+    if(plotMax == 0):
+        fig.update_yaxes(range=[-17.5, -15.3])
     if(len(data) == 0):
         return fig
 
     colorsDark, colorsLight = get_color_pairs()
     for i in np.arange(len(data)):
+        if(plotMax == 0):
+            yxdata = 10**(data[i]['medxDet'])
+            yrdata = 10**(data[i]['medrDet'])
+        else:
+            yxdata = data[i]['maxxDet']
+            yrdata = data[i]['maxrDet']
+
         fig.add_trace(
             go.Scattergl(x=data[i]['detFreqMHz'],
-                         y=10**(data[i]['medxDet']),
+                         y=yxdata,
                          mode='markers',
                          name="Network {} - x".format(data[i]['network']),
                          line=dict(color=colorsDark[i], width=4),
@@ -557,7 +587,7 @@ def getPvsFPlot(data):
         )
         fig.add_trace(
             go.Scattergl(x=data[i]['detFreqMHz'],
-                         y=10**(data[i]['medrDet']),
+                         y=yrdata,
                          mode='markers',
                          name="Network {} - r".format(data[i]['network']),
                          line=dict(color=colorsLight[i]),
