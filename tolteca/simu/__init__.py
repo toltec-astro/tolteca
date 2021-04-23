@@ -687,19 +687,19 @@ class SimulatorResult(Namespace):
                     'Data.TelescopeBackend.TelTime', 'f8', (d_time, ))
             v_ra = nc_tel.createVariable(
                     'Data.TelescopeBackend.TelRaAct', 'f8', (d_time, ))
-            v_ra.unit = 'deg'
+            v_ra.unit = 'rad'
             v_dec = nc_tel.createVariable(
                     'Data.TelescopeBackend.TelDecAct', 'f8', (d_time, ))
-            v_dec.unit = 'deg'
+            v_dec.unit = 'rad'
             v_alt = nc_tel.createVariable(
                     'Data.TelescopeBackend.TelElAct', 'f8', (d_time, ))
-            v_alt.unit = 'deg'
+            v_alt.unit = 'rad'
             v_az = nc_tel.createVariable(
                     'Data.TelescopeBackend.TelAzAct', 'f8', (d_time, ))
-            v_az.unit = 'deg'
+            v_az.unit = 'rad'
             v_pa = nc_tel.createVariable(
                     'Data.TelescopeBackend.ActParAng', 'f8', (d_time, ))
-            v_pa.unit = 'deg'
+            v_pa.unit = 'rad'
             v_hold = nc_tel.createVariable(
                     'Data.TelescopeBackend.Hold', 'f8', (d_time, )
                     )
@@ -708,13 +708,13 @@ class SimulatorResult(Namespace):
             nc_tel.createDimension(d_coord, 2)
             v_source_ra = nc_tel.createVariable(
                     'Header.Source.Ra', 'f8', (d_coord, ))
-            v_source_ra.unit = 'deg'
+            v_source_ra.unit = 'rad'
             v_source_dec = nc_tel.createVariable(
                     'Header.Source.Dec', 'f8', (d_coord, ))
-            v_source_dec.unit = 'deg'
+            v_source_dec.unit = 'rad'
             ref_coord = mapping.target.transform_to('icrs')
-            v_source_ra[:] = ref_coord.ra.degree
-            v_source_dec[:] = ref_coord.dec.degree
+            v_source_ra[:] = ref_coord.ra.radian
+            v_source_dec[:] = ref_coord.dec.radian
 
             # kids data
             tbl = simobj.table
@@ -843,11 +843,11 @@ class SimulatorResult(Namespace):
                 time_obs = data['obs_info']['time_obs']
                 idx = nc_tel.dimensions[d_time].size
                 v_time[idx:] = time_obs.unix
-                v_ra[idx:] = obs_coords_icrs.ra.degree
-                v_dec[idx:] = obs_coords_icrs.dec.degree
-                v_az[idx:] = obs_coords_altaz.az.degree
-                v_alt[idx:] = obs_coords_altaz.alt.degree
-                v_pa[idx:] = obs_parallactic_angle.degree
+                v_ra[idx:] = obs_coords_icrs.ra.radian
+                v_dec[idx:] = obs_coords_icrs.dec.radian
+                v_az[idx:] = obs_coords_altaz.az.radian
+                v_alt[idx:] = obs_coords_altaz.alt.radian
+                v_pa[idx:] = obs_parallactic_angle.radian
                 v_hold[idx:] = data['obs_info']['hold_flags']
                 self.logger.info(
                         f'write [{idx}:{idx + len(time_obs)}] to'
