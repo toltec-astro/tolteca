@@ -156,6 +156,34 @@ def test_nc_file_io_kind_and_meta():
     assert df.meta['obsnum'] == 10943
 
 
+def test_nc_file_io_kind_and_meta_after_change_atten_header_key():
+
+    # local new file
+    filepath = get_pkg_data_path().joinpath(
+            'tests/basic_obs_data/'
+            'toltec12_014659_000_0000_2021_04_23_22_10_43_timestream.nc')
+
+    with NcFileIO(source=filepath) as df:
+        assert df.meta['obsnum'] == 14659
+        assert df.meta['atten_drive'] == 30
+        assert df.meta['atten_sense'] == 0
+        with pytest.raises(
+                KeyError, match=""):
+            assert df.meta['atten_in'] == 0
+    # local new file
+    filepath = get_pkg_data_path().joinpath(
+            'tests/basic_obs_data/'
+            'toltec0_010943_000_0000_2020_07_13_22_32_19_targsweep.nc')
+
+    with NcFileIO(source=filepath) as df:
+        assert df.meta['obsnum'] == 10943
+        assert df.meta['atten_drive'] == 16
+        assert df.meta['atten_sense'] == 6
+        with pytest.raises(
+                KeyError, match="atten_in"):
+            assert df.meta['atten_in'] == 0
+
+
 def test_nc_file_io_target_sweep_block_info():
 
     # local file
@@ -242,7 +270,7 @@ def test_nc_file_pickle():
 
         # pickle does not here because the file is open
         with pytest.raises(
-                AttributeError, match="Can't pickle local object.+"):
+                NotImplementedError, match="Dataset is not picklable"):
             pickle.dumps(df)
 
     # file is closed, we try to pickle and check roundtrip

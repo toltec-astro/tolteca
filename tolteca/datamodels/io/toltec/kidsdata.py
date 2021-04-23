@@ -104,9 +104,9 @@ class _KidsDataAxisSlicerMeta(ABCMeta):
                 slicer = slicer_cls(inst)
                 file_obj = inst
             if axis_type not in file_obj.axis_types:
-                    raise ValueError(
-                            f"{axis_type} axis is not available"
-                            f" for data kind {file_obj.data_kind}")
+                raise ValueError(
+                    f"{axis_type} axis is not available"
+                    f" for data kind {file_obj.data_kind}")
             slicer._axis_type = axis_type
             return slicer
 
@@ -281,8 +281,14 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                 KidsDataKind.KidsData: {
                     "fsmp": "Header.Toltec.SampleFreq",
                     "flo_center": "Header.Toltec.LoCenterFreq",
-                    "atten_in": "Header.Toltec.InputAtten",
-                    "atten_out": "Header.Toltec.OutputAtten",
+                    "atten_drive": [
+                        # the names in list will be queried in order
+                        # and the first one found in the file is used.
+                        "Header.Toltec.DriveAtten",
+                        "Header.Toltec.OutputAtten"],
+                    "atten_sense": [
+                        "Header.Toltec.SenseAtten",
+                        "Header.Toltec.InputAtten"],
                     "roachid": "Header.Toltec.RoachIndex",
                     "obsnum": "Header.Toltec.ObsNum",
                     "subobsnum": "Header.Toltec.SubObsNum",
@@ -439,7 +445,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         """Create node mappers for the inner most level of dict of node_maps.
         """
         def _get_sub_node(n):
-            if all(isinstance(v, str) for v in n.values()):
+            if all(not isinstance(v, dict) for v in n.values()):
                 return NcNodeMapper(nc_node_map=n)
             return {k: _get_sub_node(v) for k, v in n.items()}
         return _get_sub_node(node_maps)
