@@ -12,7 +12,7 @@ from copy import deepcopy
 from tollan.utils.fmt import pformat_yaml
 from tollan.utils.log import get_logger, timeit
 from ..base import PipelineEngine
-from tollan.utils import call_subprocess_with_live_output
+from tollan.utils import call_subprocess_with_live_output, make_subprocess_env
 import numpy as np
 import astropy.units as u
 
@@ -61,7 +61,8 @@ class Citlali(PipelineEngine):
     def _get_citlali_version(cls, citlali_cmd):
         output = subprocess.check_output(
                 (citlali_cmd, '--version'),
-                stderr=subprocess.STDOUT
+                stderr=subprocess.STDOUT,
+                env=make_subprocess_env()
                 ).decode()
         # logger.debug(f'citlali version:\n{output}')
         r = re.compile(
