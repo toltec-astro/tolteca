@@ -53,7 +53,15 @@ def _isf_toltec(cfg, cfg_rt):
     path_validator = create_relpath_validator(cfg_rt['rootpath'])
 
     def get_calobj(p):
-        return ToltecCalib.from_indexfile(path_validator(p))
+        try:
+            return ToltecCalib.from_indexfile(path_validator(p))
+        except Exception:
+            logger.debug(
+                    'invalid calibration object index file path,'
+                    ' fallback to default')
+            default_cal_indexfile = get_pkg_data_path().joinpath(
+                    'cal/toltec_default/index.yaml')
+            return ToltecCalib.from_indexfile(default_cal_indexfile)
 
     cfg = Schema({
         'name': 'toltec',
@@ -264,7 +272,13 @@ class SimulatorRuntime(RuntimeContext):
                 Optional('plot', default=False): bool,
                 Optional('save', default=False): bool,
                 Optional('mapping_only', default=False): bool,
-                Optional('perf_params', default=dict): {
+                Optional('perf_params', default={
+                        # TODO refactor here to not repeat
+                        'chunk_size': 10 << u.s,
+                        'mapping_interp_len': 1 << u.s,
+                        'erfa_interp_len': 300 << u.s,
+                        'anim_frame_rate': 12 << u.Hz,
+                    }): {
                     Optional('chunk_size', default=10 << u.s): Use(u.Quantity),
                     Optional('mapping_interp_len', default=1 << u.s): Use(
                         u.Quantity),
@@ -362,8 +376,18 @@ class SimulatorRuntime(RuntimeContext):
                 )))
 
         # create the time grid and run the simulation
+        # here we resolve the special `ct` unit according to the number
+        # of repeats of the mapping pattern
+        t_exp = obs_params['t_exp']
+
+        t_pattern = mapping.get_total_time()
+        self.logger.debug(f"mapping pattern time: {t_pattern}")
+        if t_exp.unit.is_equivalent(u.ct):
+            ct_exp = t_exp.to_value(u.ct)
+            t_exp = mapping.get_total_time() * ct_exp
+            self.logger.debug(f"resolve t_exp={t_exp} from count={ct_exp}")
         t = np.arange(
-                0, obs_params['t_exp'].to_value(u.s),
+                0, t_exp.to_value(u.s),
                 (1 / obs_params['f_smp_data']).to_value(u.s)) * u.s
 
         # make chunks
@@ -389,24 +413,24 @@ class SimulatorRuntime(RuntimeContext):
         # construct the simulator payload
         def data_generator():
             with simobj.mapping_context(
-                    mapping=mapping, sources=sources,
-                    ) as obs:
-                with simobj.probe_context(fp=None) as probe:
-                    for i, t in enumerate(t_chunks):
-                        s, obs_info = obs(t)
-                        self.logger.debug(
-                                f'chunk #{i}: t=[{t.min()}, {t.max()}] '
-                                f's=[{s.min()} {s.max()}]')
-                        rs, xs, iqs = probe(s)
-                        data = {
-                            'time': t,
-                            'flux': s,
-                            'rs': rs,
-                            'xs': xs,
-                            'iqs': iqs,
-                            'obs_info': obs_info,
-                            }
-                        yield data
+                    mapping=mapping, sources=sources
+                    ) as obs, simobj.probe_context(
+                            fp=None) as probe:
+                for i, t in enumerate(t_chunks):
+                    s, obs_info = obs(t)
+                    self.logger.debug(
+                            f'chunk #{i}: t=[{t.min()}, {t.max()}] '
+                            f's=[{s.min()} {s.max()}]')
+                    rs, xs, iqs = probe(s)
+                    data = {
+                        'time': t,
+                        'flux': s,
+                        'rs': rs,
+                        'xs': xs,
+                        'iqs': iqs,
+                        'obs_info': obs_info,
+                        }
+                    yield data
 
         return SimulatorResult(
                 simctx=self,
@@ -485,7 +509,6 @@ class SimulatorResult(Namespace):
             raise ValueError("invalid result. can only have data"
                              "or data_generator")
         self._lazy = hasattr(self, 'data_generator')
-        print(self._lazy)
         # wrap data in an iterator so we have a uniform implementation
         if not self._lazy:
             def _data_gen():

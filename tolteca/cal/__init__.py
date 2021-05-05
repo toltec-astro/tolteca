@@ -27,11 +27,12 @@ class ToltecCalib(object):
                     for n in self.index['array_names']
                     ]
 
-            # strip the meta and attach array name
+            # strip the meta and attach array name and array index
             def _proc(t):
                 m = t.meta
                 t.meta = None
                 t['array_name'] = m['name']
+                t['array'] = m['index']
                 return m
 
             metas = [_proc(t) for t in tbls]

@@ -517,8 +517,8 @@ class RasterScanModelMeta(SkyMapModel.__class__):
                 ))
 
         def get_total_time(self):
-            return self.length / self.speed * self.n_scans + \
-                    self.t_turnover * (self.n_scans - 1.)
+            return (self.length / self.speed * self.n_scans + \
+                    self.t_turnover * (self.n_scans - 1.)).to(u.s)
 
         attrs['get_total_time'] = get_total_time
 
@@ -639,7 +639,7 @@ class LissajousModelMeta(SkyMapModel.__class__):
             r = (t_y / t_x).to_value(u.dimensionless_unscaled)
             s = 100
             r = np.lcm(int(r * s), s) / s
-            return t_x * r
+            return (t_x * r).to(u.s)
 
         attrs['get_total_time'] = get_total_time
 

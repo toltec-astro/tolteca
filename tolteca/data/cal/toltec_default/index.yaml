@@ -1,24 +1,22 @@
 ---
-description: |
-
-    This is adapted from the original version in ordered to be used as the
-    default calibration object by the tolteca python package.
-
-version: v1.0.0-tolteca_package_data
-history:
-    - author: Zhiyuan Ma
-      date: 2021-04-26
-      description: |-
-          Included in the tolteca python package data
-          Tagged as v1.0.0-tolteca_package_data
 array_names:
-    - a1100
-    - a1400
-    - a2000
+- a1100
+- a1400
+- a2000
 array_prop_table:
-    a1100:
-        path: 'data/a1100_prop.ecsv'
-    a1400:
-        path: 'data/a1400_prop.ecsv'
-    a2000:
-        path: 'data/a2000_prop.ecsv'
+  a1100:
+    path: data/a1100_prop.ecsv
+  a1400:
+    path: data/a1400_prop.ecsv
+  a2000:
+    path: data/a2000_prop.ecsv
+description: >-
+  This is the most bare-bone version of a calibration object. This
+  calibration object is used as the default for the tolteca python
+  package and is distributed along with the source code in the package
+  data directory.
+history:
+- author: Zhiyuan Ma
+  date: 2021-04-26
+  description: Initial release as v1.0.0-tolteca_package_data
+version: v1.0.0-tolteca_package_data

@@ -32,6 +32,7 @@
 # meta: !!omap
 # - {name: a1400}
 # - {name_long: TolTEC 1.4 mm array}
+# - {index: 1}
 # - {n_detectors: 2534}
 # - wl_center: !astropy.units.Quantity
 #     unit: !astropy.units.Unit {unit: cm}
@@ -71,7 +72,7 @@
 #     order: C
 #     shape: !!python/tuple [88]
 # - {generated_by: create_array_prop_table.py a1400}
-# - {created_on: '2020-04-10T01:41:24.708'}
+# - {created_on: '2021-05-04T19:30:21.751'}
 # - {version: v1.0.0}
 # schema: astropy-2.0
 uid nw pg loc ori fg design_group i j k x y f flag flag_summary

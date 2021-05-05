@@ -134,6 +134,86 @@ def _meta_from_wyatt_filename(file_loc):
     return meta
 
 
+@register_to(_filepath_meta_parsers, 'lmt_tel')
+def _meta_from_lmt_tel_filename(file_loc):
+    """Return the meta data parsed from the LMT telescope filename."""
+
+    path = file_loc.path
+    filename = path.name
+
+    re_lmt_tel_file = (
+        r'^(?P<interface>tel)'
+        r'_(?P<ut>\d{4}-\d{2}-\d{2})'
+        r'_(?P<obsnum>\d+)_(?P<subobsnum>\d+)_(?P<scannum>\d+)'
+        r'\.(?P<fileext>.+)$')
+
+    def parse_ut(v):
+        result = Time(
+            datetime.strptime(v, '%Y_%m_%d_%H_%M_%S'),
+            scale='utc')
+        result.format = 'isot'
+        return result
+
+    type_dispatcher = {
+        'obsnum': int,
+        'subobsnum': int,
+        'scannum': int,
+        'ut': parse_ut,
+        'fileext': lambda s: s.lower(),
+        'interface': lambda s: ('lmt' if s == 'tel' else s)
+        }
+
+    meta = dict_from_regex_match(
+            re_lmt_tel_file, filename, type_dispatcher)
+    if meta is None:
+        return None
+
+    # add more items to the meta
+    meta['file_loc'] = file_loc
+    meta['instru'] = 'lmt'
+    return meta
+
+
+@register_to(_filepath_meta_parsers, 'tolteca.simu')
+def _meta_from_simu_filename(file_loc):
+    """Return the meta data parsed from the tolteca.simu results."""
+
+    path = file_loc.path
+    filename = path.name
+
+    re_simu = re.compile(
+        r'^(?P<interface>tel|apt)_(?P<obsnum>\d+)_'
+        r'(?P<subobsnum>\d+)_(?P<scannum>\d+)_'
+        r'(?P<ut>\d{4}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))'
+        r'\.(?P<fileext>.+)$')
+
+    def parse_ut(v):
+        result = Time(
+            datetime.strptime(v, '%Y_%m_%d_%H_%M_%S'),
+            scale='utc')
+        result.format = 'isot'
+        return result
+
+    type_dispatcher = {
+        'obsnum': int,
+        'subobsnum': int,
+        'scannum': int,
+        'ut': parse_ut,
+        'fileext': lambda s: s.lower(),
+        'interface': lambda s: ('lmt' if s == 'tel' else s)
+        }
+
+    meta = dict_from_regex_match(
+            re_simu, filename, type_dispatcher)
+    if meta is None:
+        return None
+
+    # add more items to the meta
+    meta['file_loc'] = file_loc
+    meta['instru'] = 'tolteca.simu'
+    return meta
+
+
 def meta_from_source(source):
     """Extract meta data from `source` according to the file naming
     conventions.

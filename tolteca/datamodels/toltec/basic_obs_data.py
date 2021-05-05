@@ -228,7 +228,14 @@ class BasicObsDataset(object):
                 if col == 'source':
                     value = bod.file_loc.rsync_path
                 else:
-                    value = bod.meta.get(col, None)
+                    # default values for master and repeat
+                    if col == 'master':
+                        defval = 'unknown'
+                    elif col == 'repeat':
+                        defval = 0
+                    else:
+                        defval = None
+                    value = bod.meta.get(col, defval)
                 tbl[col].append(value)
         tbl = Table(data=tbl)
         return tbl

@@ -543,6 +543,14 @@ class ToltecObsSimulator(object):
         m_proj = SkyProjModel(**kwargs)
         return m_proj
 
+    @property
+    def kidssim(self):
+        return self._kidssim
+
+    @property
+    def kids_readout_model(self):
+        return self._readout_model
+
     @contextmanager
     def probe_context(self, fp=None):
         """Return a function that can be used to get IQ for given flux
@@ -694,7 +702,8 @@ class ToltecObsSimulator(object):
                             dy = y_t[np.newaxis, :, np.newaxis] - \
                                 src_pos.lat[:, np.newaxis, :]
                             an = np.moveaxis(
-                                    np.tile(tbl['array_name'],
+                                    np.tile(
+                                        tbl['array_name'],
                                         src_pos.shape + (1, )),
                                     1, 2)
                             s = self._m_beam(an, dx, dy)
