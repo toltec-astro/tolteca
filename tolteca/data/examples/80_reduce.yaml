@@ -17,6 +17,8 @@ reduce:
         mgrid1: 0.0
         pixelsize: 0.75
         grouping: 'array_name'  # any column name in the apt.ecsv
+        pattern: Raster
+        offset: 0.
       tod:
         despike:
           enabled: false

@@ -328,6 +328,15 @@ class RuntimeContext(object):
             rupdate(cfg, c)
         return cls(config=cfg)
 
+    def symlink_to_bindir(self, src, link_name=None):
+        src = Path(src)
+        if link_name is None:
+            link_name = src.name
+        dst = self.bindir.joinpath(link_name)
+        dst.symlink_to(src)  # note this may seem backward but it is the way
+        self.logger.debug(f"symlink {src} to {dst}")
+        return dst
+
     def setup(self, config=None, overwrite=False):
         """Populate the setup file (50_setup.yaml).
 

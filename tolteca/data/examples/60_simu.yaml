@@ -11,10 +11,10 @@ _60_simu:
     type: tolteca.simu:SkyRasterScanModel
     rot: 0. deg
     length: 4. arcmin
-    space: 4 arcsec
-    n_scans: 60
+    space: 2 arcsec
+    n_scans: 120
     speed: 40. arcsec/s
-    t_turnover: 5 s
+    t_turnover: 1 s
     target: 92d -7d
     t0: 2020-04-12T00:00:00
     ref_frame: icrs

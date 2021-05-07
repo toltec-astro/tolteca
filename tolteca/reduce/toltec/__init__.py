@@ -155,6 +155,14 @@ class Citlali(PipelineEngine):
                 self.logger.debug(
                         f"collected {len(data_items)} data_items"
                         f" {len(cal_items)} cal_items")
+                # this is a hack. TODO fix the proper ordering of data items
+                data_items = sorted(
+                        data_items,
+                        key=lambda d: (
+                            int(d['meta']['interface'][6:])
+                            if d['meta']['interface'].startswith('toltec')
+                            else -1)
+                        )
                 return {
                         'meta': meta,
                         'data_items': data_items,
@@ -178,6 +186,7 @@ class Citlali(PipelineEngine):
             # run the pipeline
             cmd = [
                     self._binpath,
+                    '-l', 'error',
                     cfg_filepath.as_posix(),
                     ]
             self.logger.debug("reduce with cmd: {}".format(' '.join(cmd)))
