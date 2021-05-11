@@ -187,8 +187,8 @@ def autodrive(
 
     for (i, ti), (j, swp) in itertools.product(
             enumerate(tis), enumerate(swps)):
-        a_drvs[i, j] = a_drv = swp.meta['atten_out']
-        a_tots[i, j] = a_tot = swp.meta['atten_in'] + swp.meta['atten_out']
+        a_drvs[i, j] = a_drv = swp.meta['atten_drive']
+        a_tots[i, j] = a_tot = swp.meta['atten_sense'] + swp.meta['atten_drive']
         # compute abs of derotated d21 and find the maximum
         fs = swp.frequency[ti, :].to('Hz').value
         iqs = swp.S21[ti, :]
@@ -519,7 +519,7 @@ def main(args):
         with open(cmd_file, 'w') as fo:
             args = []
             for r in result:
-                args.append(f"-AttenOutputCmd[{r['nw']}]")
+                args.append(f"-AttenDriveCmd[{r['nw']}]")
                 args.append(f"{r['p95']}")
             fo.write('set ToltecBackend {}\n'.format(' '.join(args)))
         if option.plot:

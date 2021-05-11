@@ -146,11 +146,14 @@ class HkDataViewer(ComponentTemplate):
                     return None
                 # figure out sample rate
                 time_var = 'Data.ToltecThermetry.Time1'
-                dt = nc.getvar(time_var)[-2:]
+                dt = nc.getvar(time_var)[-10:]
                 if len(dt) == 2:
-                    dt = (np.diff(dt)[0]) << u.s
+                    dt = (np.diff(dt).max()) << u.s
                 else:
                     dt = 5 << u.s
+                fsmp = 1 / dt
+                if np.isinf(fsmp):
+                    fsmp = 0.2 << u.Hz
                 # calc the slice from datalen
                 datalen_value, datalen_unit = datalen_value.split()
                 datalen = datalen_value << u.Unit(datalen_unit)

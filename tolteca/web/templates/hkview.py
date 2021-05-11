@@ -188,11 +188,14 @@ class HkDataViewer(ComponentTemplate):
                     dt = (np.diff(dt)[0]) << u.s
                 else:
                     dt = 5 << u.s
+                fsmp = 1 / dt
+                if np.isinf(fsmp):
+                    fsmp = 0.2 << u.Hz
                 # calc the slice from datalen
                 datalen_value, datalen_unit = datalen_value.split()
                 datalen = datalen_value << u.Unit(datalen_unit)
                 n_samples = int(
-                        (datalen / dt).to_value(u.dimensionless_unscaled))
+                        (datalen * fsmp).to_value(u.dimensionless_unscaled))
                 if n_samples < 1:
                     n_samples = 1
 

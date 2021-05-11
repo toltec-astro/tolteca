@@ -148,8 +148,8 @@ def _fetchVnaData(filepath):
         'S21': makeS21(vna.S21.real.value, vna.S21.imag.value),
         'candidates': vna.unified.meta['candidates'],
         'LoCenterFreq': vna.meta['flo_center'],
-        'InputAtten': vna.meta['atten_in'],
-        'OutputAtten': vna.meta['atten_out'],
+        'SenseAtten': vna.meta['atten_sense'],
+        'DriveAtten': vna.meta['atten_drive'],
          }
 
 

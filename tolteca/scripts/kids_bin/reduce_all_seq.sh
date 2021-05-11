@@ -2,9 +2,9 @@
 
 if [[ ! $1 ]]; then
 	echo "reduce the latest"
-	name_pattern='*toltec*[0-9].nc'
+	name_pattern='*toltec[0-9]*[0-9].nc'
 else
-	name_pattern="*toltec*[0-9]${1}*.nc"
+	name_pattern="*toltec[0-9]*[0-9]${1}*.nc"
 fi
 echo $name_pattern
 echo $(find /data/data_toltec/ics/ -name "${name_pattern}")

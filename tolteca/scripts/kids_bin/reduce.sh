@@ -62,7 +62,7 @@ echo "additional output to: ${scratchdir}"
 
 kidscppdir="${HOME}/toltec_astro/kidscpp"
 kidspydir="${HOME}/zma_deprecated/kids_master/scripts"
-pyexec="${HOME}/zma_deprecated/venvs/kids_master/bin/python3"
+pyexec="${HOME}/toltec_astro/venvs/toltec/bin/python3"
 finder_thresh=10  # TODO need a better way to handle this
 fitter_Qr=13000  # TODO need a better way to handle this
 if [[ ${type} == "vna" ]]; then
