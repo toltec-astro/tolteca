@@ -158,10 +158,11 @@ def autodrive(
     for _, (swp, mdl) in enumerate(zip(swps, mdls)):
         swp.mdl = mdl
         swp.S21_mdl = mdl.model(swp.frequency)
+        # TODO sort out the unit stuff here
         swp.S21_derot = swp.mdl.model.derotate(
-                swp.S21.to_value(u.adu), swp.frequency)
+                swp.S21.to_value(u.adu), swp.frequency).to_value(u.dimensionless_unscaled) << u.adu
         swp.adiqs_derot = np.abs(swp.diqs_df(
-            swp.S21_derot, swp.frequency.to_value(u.Hz), smooth=0))
+            swp.S21_derot, swp.frequency, smooth=0))
 
     if toneloc is None or output is not None:
         toneloc = slice(None)
@@ -193,7 +194,7 @@ def autodrive(
         fs = swp.frequency[ti, :].to('Hz').value
         iqs = swp.S21[ti, :]
         iqs_mdl = swp.S21_mdl[ti, :]
-        iqs_derot = swp.S21_derot[ti, :]
+        iqs_derot = swp.S21_derot[ti, :].to_value(u.adu)
         # adiqs_derot = swp.adiqs_derot[ti, :]
         adiqs_derot = np.abs(np.gradient(iqs_derot, fs))
         # we only find the max within one fwhm of the resonance
