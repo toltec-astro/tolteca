@@ -4,6 +4,7 @@ from tollan.utils.log import get_logger
 from tollan.utils import rupdate
 from tollan.utils.cli.path_type import PathType
 
+from .. import version
 from . import main_parser
 from ..utils import RuntimeContext
 
@@ -43,22 +44,25 @@ def cmd_setup(parser):
         logger.debug(f"option: {option}")
         logger.debug(f"unknown_args: {unknown_args}")
 
-        ctx = RuntimeContext.from_dir(
-                option.workdir,
-                create=True,
-                force=option.force,
-                overwrite=option.overwrite,
-                dry_run=option.dry_run,
-                )
-        logger.debug(f"runtime context: {ctx}")
-
         config = option.config or dict()
         rupdate(
             config,
             {
                 'setup': {
                     'jobkey': option.workdir.resolve().name,
-                    'prog': sys.argv[0],
+                    'exec_path': sys.argv[0],
+                    'cmd': ' '.join(sys.argv),
+                    'version': version.version
                     }
             })
-        ctx.setup(config=config)
+
+        ctx = RuntimeContext.from_dir(
+                option.workdir,
+                create=True,
+                force=option.force,
+                overwrite=option.overwrite,
+                dry_run=option.dry_run,
+                init_config=config
+                )
+        logger.debug(f"runtime context: {ctx}")
+        ctx.config  # load config

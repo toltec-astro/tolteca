@@ -10,7 +10,7 @@ from astropy.time import Time
 import appdirs
 from pathlib import Path
 from cached_property import cached_property
-from schema import Use, Optional, Schema
+from schema import Use, Optional
 from copy import deepcopy
 import yaml
 
@@ -153,35 +153,35 @@ class RuntimeContext(DirConfMixin):
         return cfg
 
     @classmethod
+    def _validate_setup(cls, cfg_setup):
+        # TODO implement more logic to verify the settings
+        if cfg_setup is None:
+            cfg_setup = {}
+
+        # check version
+        from ..version import version
+        # for now we just issue a warning but this will be replaced
+        # by actual version comparison.
+        if 'version' not in cfg_setup:
+            cls.logger.warning("no version info found.")
+            cfg_setup['version'] = version
+        if cfg_setup['version'] != version:
+            cls.logger.warning(
+                    f"mismatch of tolteca version "
+                    f"{cfg_setup['version']} -> {version}")
+        return cfg_setup
+
+    @classmethod
     def extend_config_schema(cls):
         # this defines a basic schema to validate the config
-
-        def validate_setup(cfg_setup):
-            # TODO implement more logic to verify the settings
-            if cfg_setup is None:
-                cfg_setup = {}
-
-            # check version
-            from ..version import version
-            # for now we just issue a warning but this will be replaced
-            # by actual version comparison.
-            if 'version' not in cfg_setup:
-                cls.logger.warning("no version info found.")
-                cfg_setup['version'] = version
-            if cfg_setup['version'] != version:
-                cls.logger.warning(
-                        f"mismatch of tolteca version "
-                        f"{cfg_setup['version']} -> {version}")
-            return cfg_setup
-
         return {
-            'setup': Use(validate_setup),
+            'setup': Use(cls._validate_setup),
             Optional(object): object
             }
 
     @classmethod
     def from_dir(
-            cls, dirpath, **kwargs
+            cls, dirpath, init_config=None, **kwargs
             ):
         """
         Create `RuntimeContext` instance from `dirpath`.
@@ -196,11 +196,35 @@ class RuntimeContext(DirConfMixin):
         ----------
         dirpath : `pathlib.Path`, str
             The path to the work directory.
+        init_config : dict, optional
+            The dict to add to setup_file.
         **kwargs : dict, optional
             Additional arguments passed to the underlying
             :meth:`DirConfMixin.populate_dir`.
         """
         dirpath = cls.populate_dir(dirpath, **kwargs)
+        if kwargs.get('dry_run', False):
+            # when dry_run we just create a in-memory rc
+            cfg = {
+                    'runtime': {
+                        'rootpath': dirpath
+                        }
+                    }
+            if init_config is not None:
+                rupdate(cfg, init_config)
+            return cls(config=cfg)
+        # write init_config to setup_file
+        if init_config is not None:
+            setup_file = cls._resolve_content_path(dirpath, 'setup_file')
+            with open(setup_file, 'r') as fo:
+                cfg = yaml.safe_load(fo)
+                if cfg is None or not isinstance(cfg, dict):
+                    cfg = dict()
+                rupdate(cfg, init_config)
+            cls.write_config_to_yaml(
+                    cfg,
+                    setup_file,
+                    overwrite=True)
         return cls(rootpath=dirpath)
 
     @classmethod
@@ -249,16 +273,21 @@ class RuntimeContext(DirConfMixin):
             raised.
         """
         # check if already setup
-        with open(self.setup_file, 'r') as fo:
-            setup_cfg = yaml.safe_load(fo)
-            if isinstance(setup_cfg, dict) and 'setup' in setup_cfg:
-                if overwrite:
-                    self.logger.debug(
-                        "runtime context is already setup, overwrite")
-                else:
-                    raise RuntimeContextError(
-                            'runtime context is already setup'
-                            )
+        if self.is_persistent:
+            with open(self.setup_file, 'r') as fo:
+                setup_cfg = yaml.safe_load(fo)
+        else:
+            # use the unvalidated version here so we can setup for the
+            # first time
+            setup_cfg = self._config
+        if isinstance(setup_cfg, dict) and 'setup' in setup_cfg:
+            if overwrite:
+                self.logger.debug(
+                    "runtime context is already setup, overwrite")
+            else:
+                raise RuntimeContextError(
+                        'runtime context is already setup'
+                        )
         if config is None:
             config = dict()
         else:
@@ -271,9 +300,13 @@ class RuntimeContext(DirConfMixin):
                     'created_at': Time.now().isot,
                     }
             })
-        # write the setup context to the setup_file
-        with open(self.setup_file, 'w') as fo:
-            yaml.dump(config, fo)
+        if self.is_persistent:
+            # write the setup context to the setup_file
+            with open(self.setup_file, 'w') as fo:
+                yaml.dump(config, fo)
+        else:
+            # create setup key in the config
+            rupdate(self._config, config)
         # invalidate the config cache if needed
         # so later self.config will pick up the new setting
         if 'config' in self.__dict__:

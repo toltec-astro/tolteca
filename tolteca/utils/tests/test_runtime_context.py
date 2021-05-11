@@ -13,7 +13,7 @@ from ... import version
 def test_runtime_context():
 
     with tempfile.TemporaryDirectory() as tmp:
-        tmp = Path(tmp)
+        tmp = Path(tmp).resolve()
         with pytest.raises(
                 RuntimeContextError, match='missing runtime context contents'
                 ):
