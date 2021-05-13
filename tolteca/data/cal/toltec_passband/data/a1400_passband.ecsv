@@ -30,12 +30,11 @@
 # - wl_max: !astropy.units.Quantity
 #     unit: *id002
 #     value: 1.609278318750336
-# - {wl_step: 29979245.8}
 # - wl_range: !astropy.units.Quantity
 #     unit: *id002
 #     value: 0.5057207173368043
 # - {generated_by: create_passband_table.py a1400}
-# - {created_on: '2021-05-13T03:11:57.252'}
+# - {created_on: '2021-05-13T03:33:09.495'}
 # - {version: v1.0.0}
 # schema: astropy-2.0
 f wl throughput
