@@ -1,0 +1,21 @@
+---
+array_names:
+- a1100
+- a1400
+- a2000
+description: >-
+  The data for the TolTEC passbands. The data are included as part
+  of the tolteca python package and is distributed along with the source
+  code in the package data directory.
+history:
+- author: Zhiyuan Ma
+  date: 2021-05-12
+  description: Initial release as v1.0.0-tolteca_package_data
+passband_table:
+  a1100:
+    path: data/a1100_passband.ecsv
+  a1400:
+    path: data/a1400_passband.ecsv
+  a2000:
+    path: data/a2000_passband.ecsv
+version: v1.0.0-tolteca_package_data
