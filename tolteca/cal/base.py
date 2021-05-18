@@ -8,12 +8,12 @@ from tollan.utils.schema import create_relpath_validator
 
 
 class CalibBase(object):
-    """Base class for calibration data.
+    """Base class for calibration object.
 
-    The calibration data is typically static data that are generated from
-    external procedures. This class defines a scheme to access such data via
-    the notion of the "index file", which is created for each calibration
-    dataset and describes all the details of the data items.
+    Calibration object (calobj) are typically static data that are generated
+    from external procedures. This class defines a scheme to access such data
+    via the notion of the "index file", which is created for each dataset and
+    describes all the details of the data items.
 
     Parameters
     ----------
@@ -57,3 +57,54 @@ class CalibBase(object):
     def resolve_path(self, path):
         """Return the absolute path by prefixing with :attr:`rootpath`."""
         return self._path_validator(path)
+
+
+class CalibStack(CalibBase):
+    """A class to manage multiple calibration objects.
+
+    A calibration stack is a composite calibration object that consists of
+    one or more calibration objects as its component.
+
+    A calibration stack can be either created on the fly by composing
+    multiple calibration objects, or from a index file that specifies
+    the component calibration index files as a dictionary.
+
+    Parameters
+    ----------
+    index_filepath : str or `pathlib.Path`, optional
+        The index file path that defines the calibration stack.
+
+    index : dict, optional
+        The index dict that defines the calibration stack.
+    """
+
+    def __init__(self, index_filepath=None, index=None):
+        if sum([index_filepath is None, index is None]) != 1:
+            raise ValueError("one of index_filepath or index has to be set.")
+        if index_filepath is not None:
+            super().__init__(index_filepath)
+        elif index is not None:
+            self._index = self._validate_index(index)
+            self._rootpath = None
+        else:
+            raise  # should not happen
+
+    def resolve_path(self, path):
+        if self._rootpath is None:
+            raise NotImplementedError(
+                    'unable to resolve path: no rootpath')
+        return super().resolve_path(path)
+
+    @staticmethod
+    def _validate_index(index):
+
+        # make sure index is a list of calibration objects
+        if not isinstance(index, dict):
+            raise ValueError(
+                'index has to be a dict of calibration objects or the index')
+        for k, v in index.items():
+            if not isinstance(v, CalibBase):
+                raise ValueError(
+                        f'index item {k} is not a calibration object.'
+                        )
+        return index
