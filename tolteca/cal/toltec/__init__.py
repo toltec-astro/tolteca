@@ -23,7 +23,7 @@ class ToltecArrayProp(CalibBase):
         if array_name is None:
             # stack the tables
             tbls = [
-                    self.get_array_prop_table(n)
+                    self.get(array_name=n)
                     for n in self.index['array_names']
                     ]
 
@@ -33,7 +33,10 @@ class ToltecArrayProp(CalibBase):
                 m = t.meta
                 t.meta = None
                 t['array_name'] = m['name']
+                t['array_name'].description = 'The array name.'
                 t['array'] = m['index']
+                t['array'].description = \
+                    'The array index (0=a1100, 1=a1400, 2=a2000).'
                 return m
 
             metas = [_proc(t) for t in tbls]

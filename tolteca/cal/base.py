@@ -5,6 +5,7 @@ from tollan.utils import fileloc
 from pathlib import Path
 from astropy.io.misc.yaml import load as yaml_load
 from tollan.utils.schema import create_relpath_validator
+from schema import Schema
 
 
 class CalibBase(object):
@@ -97,14 +98,6 @@ class CalibStack(CalibBase):
 
     @staticmethod
     def _validate_index(index):
-
-        # make sure index is a list of calibration objects
-        if not isinstance(index, dict):
-            raise ValueError(
-                'index has to be a dict of calibration objects or the index')
-        for k, v in index.items():
-            if not isinstance(v, CalibBase):
-                raise ValueError(
-                        f'index item {k} is not a calibration object.'
-                        )
-        return index
+        return Schema({
+            str: CalibBase,
+            }).validate(index)

@@ -44,7 +44,7 @@ class ArrayProjModel(ProjModel):
                 'rot_from_a1100': 180. * u.deg
                 },
             'a2000': {
-                'rot_from_a1100': 0. * u.deg
+                'rot_from_a1100': 180. * u.deg
                 },
             'toltec': {
                 'rot_from_a1100': 90. * u.deg,
