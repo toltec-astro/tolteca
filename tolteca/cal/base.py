@@ -34,7 +34,15 @@ class CalibBase(object):
     @property
     def index(self):
         """The index of the calibration object."""
-        return self._index
+        return self.validate_index(self._index)
+
+    @classmethod
+    def validate_index(cls, index):
+        """The schema that validates the index.
+
+        The default is to not validate.
+        """
+        return index
 
     @classmethod
     def from_uri(cls, uri, **kwargs):
