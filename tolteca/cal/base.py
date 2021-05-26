@@ -6,6 +6,7 @@ from pathlib import Path
 from astropy.io.misc.yaml import load as yaml_load
 from tollan.utils.schema import create_relpath_validator
 from schema import Schema
+from cached_property import cached_property
 
 
 class CalibBase(object):
@@ -27,14 +28,14 @@ class CalibBase(object):
         index_filepath = Path(index_filepath)
         with open(index_filepath, 'r') as fo:
             index = yaml_load(fo)
-        self._index = index
+        self._index = self.validate_index(index)
         self._rootpath = index_filepath.parent
         self._path_validator = create_relpath_validator(self._rootpath)
 
     @property
     def index(self):
         """The index of the calibration object."""
-        return self.validate_index(self._index)
+        return self._index
 
     @classmethod
     def validate_index(cls, index):

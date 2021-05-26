@@ -11,5 +11,8 @@ def test_array_prop():
 
     cal = ToltecArrayProp.from_indexfile(filepath)
     apt = cal.get(array_name=None)
-
     assert len(apt) == 7718
+
+    cal = ToltecArrayProp.from_indexfile(filepath)
+    apt = cal.get(array_name='a1100')
+    assert len(apt) == 4012
