@@ -107,6 +107,27 @@ def _ssf_image(cfg, cfg_rt):
     return m
 
 
+@register_to(_simu_source_factory, 'toltec_lmt_loading')
+def _ssf_(cfg, cfg_rt):
+    """Handle simulator source for TolTEC LMT loading."""
+
+    logger = get_logger()
+
+    path_validator = create_relpath_validator(cfg_rt['rootpath'])
+
+    cfg = Schema({
+        'type': 'toltec_lmt_loading',
+        Optional('atm_model', default='am_q50'): str,
+        }).validate(cfg)
+
+    logger.debug(f"source config: {cfg}")
+
+    from .toltec.lmt_loading_models import LmtLoadingModel
+    m = LmtLoadingModel(
+            atm_model=cfg['atm_model'])
+    return m
+
+
 @register_to(_simu_source_factory, 'atmosphere_psd')
 def _ssf_atm_psd(cfg, cfg_rt):
     """Handle creation of atmosphere signal timestreams via PSD."""
