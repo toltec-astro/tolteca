@@ -85,10 +85,18 @@ class RuntimeContext(DirConfMixin):
                         f'Use {self.__class__.__name__}.from_dir '
                         f'with create=True instead.'
                         )
+        elif config is not None:
+            # make our own copy because we may update it
+            config = deepcopy(config)
         self._rootpath = rootpath
         # we delay the validating of config to accessing time
         # in property ``config``
         self._config = config
+        if not self.is_persistent:
+            # when user provide config directly
+            # it is likely that its not setup, therefore
+            # just do it here
+            self.setup()
 
     @property
     def is_persistent(self):
@@ -307,6 +315,51 @@ class RuntimeContext(DirConfMixin):
         else:
             # create setup key in the config
             rupdate(self._config, config)
+        # invalidate the config cache if needed
+        # so later self.config will pick up the new setting
+        if 'config' in self.__dict__:
+            del self.__dict__['config']
+        return self
+
+    def update(self, config, config_file=None, overwrite=False):
+        """Populate the `config_file` with `config`.
+
+        Parameters
+        ----------
+        config : dict
+            Config to add to `config_file`.
+        config : str, `pathlib.Path`, optional
+            Config to add to `config_file`. When self is not persistent
+            this has to be set to None.
+        overwrite : bool
+            Set to True to force overwrite the existing
+            config info. Otherwise a `RuntimeContextError` is
+            raised.
+        """
+        if self.is_persistent:
+            with open(config_file, 'r') as fo:
+                cfg = yaml.safe_load(fo)
+        else:
+            cfg = self._config
+        if config is None:
+            config = dict()
+        if isinstance(cfg, dict):
+            common_keys = set(cfg.keys()).intersection(set(config.keys()))
+            if len(common_keys) > 0:
+                if overwrite:
+                    self.logger.debug(
+                        f"keys {common_keys} exists, overwrite")
+                else:
+                    raise RuntimeContextError(
+                        f'keys {common_keys} already exists'
+                        )
+        rupdate(cfg, config)
+        if self.is_persistent:
+            # write the setup context to the setup_file
+            with open(config_file, 'w') as fo:
+                yaml.dump(cfg, fo)
+        else:
+            self._config = cfg
         # invalidate the config cache if needed
         # so later self.config will pick up the new setting
         if 'config' in self.__dict__:
