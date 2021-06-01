@@ -346,7 +346,7 @@ class ToltecDashboard(ComponentTemplate):
                 roach_indices = list(range(
                         *array_prop['roaches'].indices(len(data))))
                 # mask out the invalid values
-                z = np.asarray(data[array_prop['roaches']])
+                z = np.asarray(data[array_prop['roaches']]).astype('d')
                 z[z <= 0] = np.nan
                 trace = {
                         'name': array_prop['name_long'],

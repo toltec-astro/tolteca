@@ -159,6 +159,12 @@ dasha_config.update(
                     'title_icon': 'fas fa-wave-square',
                 },
                 {
+                    "template": "tolteca.web.templates.disk_stats",
+                    "route_name": "disk_stats",
+                    'title_text': "(dbg) Disk Stats",
+                    'title_icon': 'fas fa-hdd',
+                },
+                {
                     "template": "tolteca.web.templates.toltecdb",
                     "route_name": "toltecdb",
                     'title_text': "(dbg) Databases",

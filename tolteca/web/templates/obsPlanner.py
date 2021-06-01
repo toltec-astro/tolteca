@@ -181,7 +181,7 @@ class obsPlanner(ComponentTemplate):
         c_header.child(html.H5, "Target Choice", className='mb-2')
 
         targNameRow = c_body.child(dbc.Row, justify='end')
-        targNameRow.child(html.Label("Search Target Name: "))
+        targNameRow.child(html.Label("Target Name or Coord String: "))
         targName = targNameRow.child(dcc.Input, value="", debounce=True,
                                      type='text',
                                      style=dict(width='45%',))
