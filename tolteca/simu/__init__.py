@@ -108,12 +108,10 @@ def _ssf_image(cfg, cfg_rt):
 
 
 @register_to(_simu_source_factory, 'toltec_lmt_loading')
-def _ssf_(cfg, cfg_rt):
+def _ssf_toltec_lmt_loading(cfg, cfg_rt):
     """Handle simulator source for TolTEC LMT loading."""
 
     logger = get_logger()
-
-    path_validator = create_relpath_validator(cfg_rt['rootpath'])
 
     cfg = Schema({
         'type': 'toltec_lmt_loading',
@@ -125,6 +123,24 @@ def _ssf_(cfg, cfg_rt):
     from .toltec.lmt_loading_models import LmtLoadingModel
     m = LmtLoadingModel(
             atm_model=cfg['atm_model'])
+    return m
+
+
+@register_to(_simu_source_factory, 'toltec_readout_noise')
+def _ssf_toltec_readout_noise(cfg, cfg_rt):
+    """Handle simulator source for TolTEC readout noise."""
+
+    logger = get_logger()
+
+    cfg = Schema({
+        'type': 'toltec_readout_noise',
+        Optional('scale_factor', default=1.): float,
+        }).validate(cfg)
+
+    logger.debug(f"source config: {cfg}")
+
+    from .toltec import KidsReadoutNoiseModel
+    m = KidsReadoutNoiseModel(scale_factor=cfg['scale_factor'])
     return m
 
 

@@ -24,6 +24,7 @@ from kidsproc.kidsmodel.simulator import KidsSimulator
 from tollan.utils.log import timeit, get_logger
 
 from ..base import (
+        _Model,
         ProjModel, _get_skyoffset_frame,
         SourceImageModel, SourceCatalogModel)
 from ..base import resolve_sky_map_ref_frame as _resolve_sky_map_ref_frame
@@ -841,3 +842,11 @@ class ToltecObsSimulator(object):
         # TODO need to revisit these assumptions
         tbl['flxscale'] = (1. / tbl['responsivity']).quantity.value
         return QTable(tbl)
+
+
+class KidsReadoutNoiseModel(_Model):
+    """
+    A model of the TolTEC KIDs readout noise.
+
+    """
+    pass
