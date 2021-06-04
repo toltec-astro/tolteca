@@ -47,7 +47,7 @@ import numpy as np
 from astropy.table import Table, join
 import astropy.units as u
 import matplotlib.pyplot as plt
-
+from astropy.modeling.models import Rotation2D
 
 from tolteca.recipes import get_logger
 from tollan.utils.mpl import save_or_show
@@ -281,9 +281,30 @@ def match_per_nw_fg(
                 (
                     apt_right['fg'] == key['fg'] + 2)
                 )
+        scales = {
+                'x': 1.,
+                'y': 1.,
+                }
+        offsets = {
+                'x': 0.,
+                'y': 0.,
+                }
+        rotate = [0.0, ]
 
+        def trans_left(x, y):
+            m_rot = Rotation2D._compute_matrix(
+                    angle=(rotate[0] << u.deg).to_value('rad'))
+
+            cx = np.median(x)
+            cy = np.median(y)
+            xy = m_rot @ np.c_[
+                    (x - cx) * scales['x'],
+                    (y - cy) * scales['y'],
+                    ].T
+            return xy[0] + cx + offsets['x'], xy[1] + cy + offsets['y']
         sc_left = ax.scatter(
-                xy_left[m_left]['x'], xy_left[m_left]['y'], s=60,
+                *trans_left(xy_left[m_left]['x'], xy_left[m_left]['y']),
+                s=60,
                 marker='o', facecolor='none', color='black', picker=True)
         sc_right_pg0 = ax.scatter(
                 xy_right[m_right_pg0]['x'], xy_right[m_right_pg0]['y'], s=40,
@@ -291,6 +312,26 @@ def match_per_nw_fg(
         sc_right_pg1 = ax.scatter(
                 xy_right[m_right_pg1]['x'], xy_right[m_right_pg1]['y'], s=30,
                 marker='o', color='green', picker=True)
+        fig.text(
+                0.98, 0.5,
+                '''
+Interactive matcher:
+left-click: select
+         e: save
+         d: delete
+      left: -x
+      right: +x
+      down: -y
+        up: +y
+         7: x in
+         8: x out
+         9: y in
+         0: y out
+''',
+                fontsize=10, fontfamily='monospace',
+                horizontalalignment='right',
+                verticalalignment='center',
+                )
 
         mode = 'append'
         mtk = (key['nw'], key['fg'])
@@ -309,13 +350,16 @@ def match_per_nw_fg(
 
             def _xy(r):
                 return [r['x'], r['y']]
+
+            def _xy_l(r):
+                return list(trans_left(r['x'], r['y']))
             for tri in tris:
                 if not set(tri.keys()).issuperset({
                         'left', 'right_pg0', 'right_pg1'}):
                     continue
                 p = Polygon(
                     np.array([
-                        _xy(xy_left[tri['left']]),
+                        _xy_l(xy_left[tri['left']]),
                         _xy(xy_right[tri['right_pg0']]),
                         _xy(xy_right[tri['right_pg1']]),
                         ]
@@ -351,6 +395,12 @@ def match_per_nw_fg(
             # update all tris
         fig.canvas.mpl_connect('pick_event', onpick)
 
+        def _update_sc_left():
+            x, y = trans_left(xy_left[m_left]['x'], xy_left[m_left]['y'])
+            sc_left.set_offsets(np.vstack([x, y]).T)
+            _plot_tris()
+            ax.figure.canvas.draw_idle()
+
         def onkey(event):
             if event.key == 'd':
                 print("remove last tris")
@@ -358,11 +408,68 @@ def match_per_nw_fg(
                     return
                 tris.remove(tris[-1])
                 _plot_tris()
-            elif event.key == 'e':
+                return
+            if event.key == 'e':
                 print("dump tris")
                 with open(pfile, 'wb') as fo:
                     pickle.dump(matched_tris, fo)
-
+                return
+            if event.key.startswith('shift+'):
+                d = 0.25
+                ds = 1.005
+                key = event.key.split('+')[-1]
+            else:
+                d = 1.25
+                ds = 1.025
+                key = event.key
+            if key == 'left':
+                offsets['x'] -= d
+                _update_sc_left()
+                return
+            if key == 'right':
+                offsets['x'] += d
+                _update_sc_left()
+                return
+            if key == 'up':
+                offsets['y'] += d
+                _update_sc_left()
+                return
+            if key == 'down':
+                offsets['y'] -= d
+                _update_sc_left()
+                return
+            if key == '7':
+                scales['x'] /= ds
+                _update_sc_left()
+                return
+            if key == '8':
+                scales['x'] *= ds
+                _update_sc_left()
+                return
+            if key == '9':
+                scales['y'] *= ds
+                _update_sc_left()
+                return
+            if key == '0':
+                scales['y'] /= ds
+                _update_sc_left()
+                return
+            if key == 'o':
+                rotate[0] -= 1.
+                _update_sc_left()
+                return
+            if key == 'p':
+                rotate[0] += 1.
+                _update_sc_left()
+                return
+            if key == 'r':
+                offsets['x'] = 0
+                offsets['y'] = 0
+                scales['x'] = 1
+                scales['y'] = 1
+                rotate[0] = 0.
+                _update_sc_left()
+                return
         fig.canvas.mpl_connect('key_press_event', onkey)
         _plot_tris()
         plt.show()

@@ -111,9 +111,6 @@ class ToltecPassband(CalibBase):
 class ToltecCalib(CalibStack):
     """A class to manage TolTEC calibration data."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     @property
     def array_names(self):
         return self.index['array_names']

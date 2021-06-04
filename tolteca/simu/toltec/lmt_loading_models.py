@@ -17,7 +17,7 @@ class LmtAtmosphereModel(_Model):
 
     Parameters
     ----------
-    name : {"am_q25", "am_q50"}, default="am_q50"
+    name : {"am_q25", "am_q50", "am_q75"}, default="am_q50"
         The source dataset used in the model.
         The "am_q*" data are constructed with the am code
         https://www.cfa.harvard.edu/~spaine/am/, with
@@ -80,6 +80,7 @@ class LmtAtmosphereModel(_Model):
     def _load_data(cls, name):
         base_url = 'https://drive.google.com/uc?export=download&id={id_}'
         id_ = {
+                'am_q75': '1pPwjYVzP-PhH0wjH0lIR8CbCPudfuJ8q',
                 'am_q50': '19dn0ZrHegW7NL8nIZ5ahspYTE83ykjPA',
                 'am_q25': '1ZiM9KU0TfChKi1m8gCbuIztFJWLVqKUy',
                 }[name]

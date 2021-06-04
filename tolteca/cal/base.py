@@ -60,7 +60,7 @@ class CalibBase(object):
 
     @property
     def _index_schema(self):
-        # default schema is arbituary dict
+        # default schema is arbitrary dict
         return Schema({object: object})
 
     def _validate_index(self, index):
@@ -90,9 +90,22 @@ class CalibBase(object):
         """Create instance from index and rootpath."""
         return cls(index=index, rootpath=rootpath)
 
-    def resolve_path(self, path):
-        """Return the absolute path by prefixing with :attr:`rootpath`."""
-        return self._path_validator(path)
+    def resolve_path(self, path, validate=True):
+        """Return the absolute path by prefixing with :attr:`rootpath`.
+
+        Parameters
+        ----------
+        path : str, pathlib.Path
+            The path to resolve.
+        validate : bool
+            If true, check existence use the rootpath validator.
+        """
+        if validate:
+            return self._path_validator(path)
+        path = Path(path)
+        if path.is_absolute():
+            return path
+        return self._rootpath / path
 
 
 class CalibStack(CalibBase):
@@ -105,34 +118,5 @@ class CalibStack(CalibBase):
     multiple calibration objects, or from a index file that specifies
     the component calibration index files as a dictionary.
 
-    Parameters
-    ----------
-    index_filepath : str or `pathlib.Path`, optional
-        The index file path that defines the calibration stack.
-
-    index : dict, optional
-        The index dict that defines the calibration stack.
     """
-
-    def __init__(self, index_filepath=None, index=None):
-        if sum([index_filepath is None, index is None]) != 1:
-            raise ValueError("one of index_filepath or index has to be set.")
-        if index_filepath is not None:
-            super().__init__(index_filepath)
-        elif index is not None:
-            self._index = self._validate_index(index)
-            self._rootpath = None
-        else:
-            raise  # should not happen
-
-    def resolve_path(self, path):
-        if self._rootpath is None:
-            raise NotImplementedError(
-                    'unable to resolve path: no rootpath')
-        return super().resolve_path(path)
-
-    @staticmethod
-    def _validate_index(index):
-        return Schema({
-            str: CalibBase,
-            }).validate(index)
+    pass
