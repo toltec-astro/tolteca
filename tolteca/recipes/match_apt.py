@@ -291,12 +291,17 @@ def match_per_nw_fg(
                 }
         rotate = [0.0, ]
 
+        cx = [None]
+        cy = [None]
+
         def trans_left(x, y):
             m_rot = Rotation2D._compute_matrix(
                     angle=(rotate[0] << u.deg).to_value('rad'))
 
-            cx = np.median(x)
-            cy = np.median(y)
+            if cx[0] is None:
+                cx[0] = np.median(x)
+            if cy[0] is None:
+                cy[0] = np.median(y)
             xy = m_rot @ np.c_[
                     (x - cx) * scales['x'],
                     (y - cy) * scales['y'],
@@ -479,6 +484,10 @@ left-click: select
 
 def _cal_wcs(xy0, xy1):
 
+    if len(xy0[0]) < 5:
+        print("to few points for wcs fit")
+        return None
+
     from astropy.wcs.utils import fit_wcs_from_points
     from astropy import wcs
 
@@ -559,6 +568,8 @@ def cal_wcs(
             (xy_rpg0_in['y'] + xy_rpg1_in['y']) * 0.5,
             )
         wd = result[array_name] = _cal_wcs(xy0, xy1)
+        if wd is None:
+            continue
         # calculated corrected xy position
         rd = wd['w1'].all_pix2world(*xy1, 0)
         xy = wd['w'].all_world2pix(*rd, 0)
@@ -629,6 +640,8 @@ def correct_with_wcs(xy_right, apt_right, wcs_info, save_plot=None):
             sharex=True, sharey=True)
 
     for i, (array_name, wd) in enumerate(wcs_info.items()):
+        if wd is None:
+            continue
         w1 = wd['w1']
         w = wd['w']
         m = (apt_right['array_name'] == array_name)
@@ -651,7 +664,7 @@ def correct_with_wcs(xy_right, apt_right, wcs_info, save_plot=None):
         axes[0, i].set_aspect('equal')
     save_or_show(fig, filepath=save_plot, save=save_plot is not None)
     result = Table()
-    assert np.isnan(x_cor).sum() == 0
+    # assert np.isnan(x_cor).sum() == 0
     result['x'] = x_cor
     result['y'] = y_cor
     return result
@@ -1196,12 +1209,12 @@ def main(args):
             'align_snr_cut': match_outline_snr_cut,
             'align_transform': xy_left_outline_matched.meta,
             'distortion_correction': {
-                array_name: {
+                array_name: ({
                     'wcs_fiducial': wd['w'].to_header(
                         relax=True).tostring(),
                     'wcs_fitted': wd['w1'].to_header(
                         relax=True).tostring(),
-                    }
+                    } if wd is not None else None)
                 for array_name, wd in wcs_info.items()
                 }
             }

@@ -1,0 +1,16 @@
+# vim: et ts=2 sts=2 sw=2
+---
+
+description:
+version:
+history:
+meta:
+  data_prod_type: test_data_prod
+  history:
+test_key: 1
+another_test_key: 'some value'
+test_list:
+- path: file1.txt
+  name: file1
+- path: file2.txt
+  name: file2
