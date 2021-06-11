@@ -5,17 +5,35 @@ from schema import Schema, Optional, Or
 from ..base import CalibStack, CalibBase
 
 
-class ToltecArrayProp(CalibBase):
+class ToltecCalibBase(CalibBase):
+    """Base calss for calibration object for the TolTEC instrument.
+
+    """
+
+    # this defines all the unique keys that could be used
+    # in TolTEC calibration objects.
+    _unique_key_dict = {
+            'array_names': ['a1100', 'a1400', 'a2000']
+            'interfaces': [
+                'toltec{i}' for i in range(13)] \
+                + ['hwpr', 'toltec_hk', '']
+            }
+
+    array_names = ['a1100', 'a1400', 'a2000']
+    """The TolTEC array names.
+
+    These are used as the key to query per-array properties.
+    """
+
+    interfaces = ['toltec{}']
+
+
+class ToltecArrayProp(ToltecCalibBase):
     """Calibration object for TolTEC array property table."""
 
-    @property
-    def array_names(self):
-        return self.index['array_names']
-
-    @classmethod
-    def validate_index(cls, index):
+    def _index_schema(cls, index):
         # apt can be specified per-array or merged in the index file.
-        s = Schema({
+        return Schema({
             'array_prop_table': Or(
                 {
                     # one table per array
@@ -102,7 +120,8 @@ class ToltecPassband(CalibBase):
             merge the passbands for all the arrays.
         """
         if array_name is None:
-            return
+            # TODO add merged passband table
+            raise NotImplementedError
         filepath = self.resolve_path(
                 self.index['passbands'][array_name]['path'])
         return Table.read(filepath, format='ascii')
@@ -113,10 +132,10 @@ class ToltecCalib(CalibStack):
 
     @property
     def array_names(self):
-        return self.index['array_names']
+        return self.index['array_prop_table']
 
-    def get_array_prop_table(self, array_name=None):
-        return self.index['array_prop_table'].get(array_name)
+    def get_array_prop_table(self, **kwargs):
+        return self.index['array_prop_table'].get(**kwrags)
 
-    def get_passband(self, array_name=None):
+    def get_passband_table(self, **kwargs):
         return self.index['passband_table'].get(array_name)

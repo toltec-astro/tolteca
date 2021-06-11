@@ -1,0 +1,13 @@
+# vim: et ts=2 sts=2 sw=2
+---
+
+instru: lmt
+name: LMT
+name_long: "Large Millimeter Telescope"
+
+site:
+  location:
+    lon: -97d18m53s
+    lat: +18d59m06s
+    height: "4600 m"
+  timezone: 'America/Mexico_City'
