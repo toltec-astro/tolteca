@@ -17,6 +17,7 @@ from collections import UserDict
 from pathlib import Path
 from contextlib import contextmanager
 import numpy as np
+from astropy.table import Table
 from astropy.time import Time
 import astropy.units as u
 from astroquery.utils import parse_coordinates
@@ -107,22 +108,26 @@ def _ssf_image(cfg, cfg_rt):
     return m
 
 
-@register_to(_simu_source_factory, 'toltec_lmt_loading')
-def _ssf_toltec_lmt_loading(cfg, cfg_rt):
+@register_to(_simu_source_factory, 'toltec_array_loading')
+def _ssf_toltec_array_loading(cfg, cfg_rt):
     """Handle simulator source for TolTEC LMT loading."""
 
     logger = get_logger()
 
     cfg = Schema({
-        'type': 'toltec_lmt_loading',
-        Optional('atm_model', default='am_q50'): str,
+        'type': 'toltec_array_loading',
+        Optional('atm_model_name', default='am_q50'): str,
         }).validate(cfg)
 
     logger.debug(f"source config: {cfg}")
 
-    from .toltec.lmt_loading_models import LmtLoadingModel
-    m = LmtLoadingModel(
-            atm_model=cfg['atm_model'])
+    from .toltec import ArrayLoadingModel
+    from .toltec import toltec_info
+    m = {
+            array_name: ArrayLoadingModel(
+                atm_model_name=cfg['atm_model_name'], array_name=array_name)
+            for array_name in toltec_info['array_names']}
+    logger.debug(f"toltec array loading models: {m}")
     return m
 
 
@@ -197,7 +202,7 @@ def _ssf_point_source_catalog(cfg, cfg_rt):
     logger.debug(f"source config: {cfg}")
 
     from .base import SourceCatalogModel
-    m = SourceCatalogModel.from_table(
+    m = SourceCatalogModel.from_file(
             cfg['filepath'],
             colname_map=cfg['colname_map'],
             grouping=cfg['grouping'])
@@ -452,13 +457,15 @@ class SimulatorRuntime(RuntimeContext):
             with simobj.mapping_context(
                     mapping=mapping, sources=sources
                     ) as obs, simobj.probe_context(
-                            fp=None) as probe:
+                            fp=None, sources=sources,
+                            f_smp=obs_params['f_smp_data']) as probe:
                 for i, t in enumerate(t_chunks):
                     s, obs_info = obs(t)
                     self.logger.debug(
                             f'chunk #{i}: t=[{t.min()}, {t.max()}] '
                             f's=[{s.min()} {s.max()}]')
-                    rs, xs, iqs = probe(s)
+                    rs, xs, iqs, probe_info = probe(
+                            s, alt=obs_info['alt'].T)
                     data = {
                         'time': t,
                         'flux': s,
@@ -466,6 +473,7 @@ class SimulatorRuntime(RuntimeContext):
                         'xs': xs,
                         'iqs': iqs,
                         'obs_info': obs_info,
+                        'probe_info': probe_info,
                         }
                     yield data
 
@@ -895,7 +903,15 @@ class SimulatorResult(Namespace):
                         for nw in nws
                         }
 
-            for data in self.reset_iterdata():
+            for ci, data in enumerate(self.reset_iterdata()):
+                if ci == 0:
+                    # we dump the apt table again with the additional
+                    # info including flxscale
+                    tbl = Table(simobj.table)
+                    tbl['flxscale'] = data['probe_info']['flxscale']
+                    tbl.write(
+                            make_output_filename('apt', state, '.ecsv'),
+                            format='ascii.ecsv')
                 obs_coords_icrs = data['obs_info']['obs_coords_icrs']
                 obs_coords_altaz = data['obs_info']['obs_coords_altaz']
                 obs_parallactic_angle = data['obs_info'][

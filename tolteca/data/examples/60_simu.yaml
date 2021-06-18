@@ -64,6 +64,8 @@ simu:
         ra: ra
         dec: dec
         name: name
+    - type: toltec_array_loading
+      atm_model_name: 'am_q25'  # choose from ['am_q25', 'am_q50', 'am_q75']
     # - type: atmosphere_psd
     #   k: some string
     #   m: 2

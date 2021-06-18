@@ -381,12 +381,29 @@ class SourceCatalogModel(SourceModel):
         return self._pos
 
     @classmethod
-    def from_table(cls, filepath, colname_map=None, **kwargs):
+    def from_file(cls, filepath, **kwargs):
+        """Create instance from file path.
+
+        Parameters
+        ----------
+        filepath : str, `pathlib.Path`
+            The path to the catalog file.
+
+        **kwargs
+            Arguments passed to `from_table`.
+        """
+        tbl = Table.read(filepath, format='ascii')
+        # use this to keep track of the original table filepath
+        tbl.meta['_source'] = Path(filepath)
+        return cls.from_table(tbl, **kwargs)
+
+    @classmethod
+    def from_table(cls, tbl, colname_map=None, **kwargs):
         """
         Parameters
         ----------
-        filepath : str, pathlib.Path
-            The path to the catalog file.
+        tbl : `astropy.table.Table`
+            The table containing the source catalog.
 
         colname_map : dict, optional
             Specify the column names to included in the returned data.
@@ -407,8 +424,7 @@ class SourceCatalogModel(SourceModel):
                 return col
             return col.quantity
 
-        # read the data columns
-        tbl = Table.read(filepath, format='ascii')
+        # we use a qtable to hold the data internally
         data = QTable()
         for k, c in colname_map.items():
             if c.startswith('flux'):
@@ -426,7 +442,12 @@ class SourceCatalogModel(SourceModel):
                 data['ra'], data['dec'],
                 frame=ICRS()).transform_to(cls.input_frame.reference_frame)
 
-        return cls(pos=pos, data=data, name=filepath.as_posix(), **kwargs)
+        filepath = tbl.meta.get('_source', None)
+        if filepath is not None:
+            name = filepath.as_posix()
+        else:
+            name = None
+        return cls(pos=pos, data=data, name=name, **kwargs)
 
     def evaluate(self, lon, lat):
         coo = self.input_frame.coordinates(lon, lat)
@@ -517,8 +538,8 @@ class RasterScanModelMeta(SkyMapModel.__class__):
                 ))
 
         def get_total_time(self):
-            return (self.length / self.speed * self.n_scans + \
-                    self.t_turnover * (self.n_scans - 1.)).to(u.s)
+            return (self.length / self.speed * self.n_scans
+                    + self.t_turnover * (self.n_scans - 1.)).to(u.s)
 
         attrs['get_total_time'] = get_total_time
 

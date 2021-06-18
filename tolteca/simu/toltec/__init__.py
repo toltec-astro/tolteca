@@ -2,10 +2,8 @@
 
 from contextlib import contextmanager
 import numpy as np
-from pytz import timezone
 import functools
 from scipy.interpolate import interp1d
-from astroplan import Observer
 import astropy.units as u
 from astropy.modeling import models, Parameter, Model
 from astropy.modeling.functional_models import GAUSSIAN_SIGMA_TO_FWHM
@@ -16,6 +14,9 @@ from astropy.wcs.utils import celestial_frame_to_wcs
 from astropy.coordinates import SkyCoord
 from astropy.coordinates.erfa_astrom import (
         erfa_astrom, ErfaAstromInterpolator)
+from astropy.cosmology import default_cosmology
+from astropy import constants as const
+from astropy.utils.decorators import classproperty
 
 from gwcs import coordinate_frames as cf
 
@@ -28,6 +29,42 @@ from ..base import (
         ProjModel, _get_skyoffset_frame,
         SourceImageModel, SourceCatalogModel)
 from ..base import resolve_sky_map_ref_frame as _resolve_sky_map_ref_frame
+from ...utils import get_pkg_data_path
+from ...common.toltec import info as toltec_info  # noqa: F401
+from .lmt import info as site_info
+from .lmt import get_lmt_atm_models
+
+__all__ = [
+        'toltec_info'
+        'site_info',
+        'get_default_passbands',
+        'get_default_cosmology',
+        'get_observer',
+        'ArrayProjModel',
+        ]
+
+
+def get_default_passbands():
+    """Return the default passband tables as a dict.
+    """
+    from ...cal.toltec import ToltecPassband
+    calobj = ToltecPassband.from_indexfile(get_pkg_data_path().joinpath(
+        'cal/toltec_passband/index.yaml'
+        ))
+    result = dict()
+    for array_name in calobj.array_names:
+        result[array_name] = calobj.get(array_name=array_name)
+    return result
+
+
+def get_default_cosmology():
+    """Return the default cosmology."""
+    return default_cosmology.get()
+
+
+def get_observer():
+    """Return the `astroplan.Observer` object for LMT TolTEC."""
+    return site_info['observer']
 
 
 class ArrayProjModel(ProjModel):
@@ -188,19 +225,6 @@ class ArrayPolarizedProjModel(ArrayProjModel):
         return inputs_new, broadcasts
 
 
-class SiteInfo(object):
-    name = 'LMT'
-    name_long = 'Large Millimeter Telescope'
-    location = coord.EarthLocation.from_geodetic(
-            "-97d18m53s", '+18d59m06s', 4600 * u.m)
-    timezone = timezone('America/Mexico_City')
-    observer = Observer(
-        name=name_long,
-        location=location,
-        timezone=timezone,
-        )
-
-
 class SkyProjModel(ProjModel):
     """A sky projection model for TolTEC.
 
@@ -224,6 +248,7 @@ class SkyProjModel(ProjModel):
     crval1 = Parameter(default=30., unit=output_frame.unit[1])
     mjd_obs = Parameter(default=Time(2000.0, format='jyear').mjd, unit=u.day)
 
+    observer = get_observer()
     logger = get_logger()
 
     def __init__(
@@ -249,9 +274,9 @@ class SkyProjModel(ProjModel):
         self.evaluate_frame = evaluate_frame
         super().__init__(**kwargs)
 
-    @staticmethod
-    def _get_native_frame(mjd_obs):
-        return SiteInfo.observer.altaz(time=Time(mjd_obs, format='mjd'))
+    @classmethod
+    def _get_native_frame(cls, mjd_obs):
+        return cls.observer.altaz(time=Time(mjd_obs, format='mjd'))
 
     def get_native_frame(self):
         return self._get_native_frame(self.mjd_obs)
@@ -351,7 +376,7 @@ class SkyProjModel(ProjModel):
 
 
 class BeamModel(Model):
-    """A model that describes the beam shape.
+    """A model that describes the TolTEC beam shapes.
     """
     beam_props = {
             'array_names': ('a1100', 'a1400', 'a2000'),
@@ -425,6 +450,358 @@ class BeamModel(Model):
                 array_name_idx, *inputs, **kwargs)
         inputs_new[0] = np.ravel(array_name)[inputs_new[0].astype(int)]
         return inputs_new, broadcasts
+
+
+class ArrayLoadingModel(_Model):
+    """
+    A model of the LMT optical loading at the TolTEC arrays.
+
+    This is based on the Mapping-speed-caluator
+    """
+
+    # TODO allow overwriting these per instance.
+    _toltec_passbands = get_default_passbands()
+    _cosmo = get_default_cosmology()
+
+    logger = get_logger()
+
+    n_inputs = 1
+    n_outputs = 2
+
+    @property
+    def input_units(self):
+        return {self.inputs[0]: u.deg}
+
+    def __init__(self, array_name, atm_model_name='am_q50', *args, **kwargs):
+        super().__init__(name=f'{array_name}_loading', *args, **kwargs)
+        self._inputs = ('alt', )
+        self._outputs = ('P', 'nep')
+        self._array_name = array_name
+        self._passband = self._toltec_passbands[array_name]
+        self._f = self._passband['f'].quantity
+        # check the f step, they shall be uniform
+        df = np.diff(self._f).value
+        if np.std(df) / df[0] > 1e-7:
+            raise ValueError(
+                "invalid passband format, frequency grid has to be uniform")
+        self._df = self._f[1] - self._f[0]
+        self._throughput = self._passband['throughput']
+        self._atm_model, self._atm_tx_model = get_lmt_atm_models(
+                name=atm_model_name)
+
+    @classproperty
+    def _internal_params(cls):
+        """Lower level instrument parameters for LMT/TolTEC.
+
+        Note that all these values does not take into account the
+        passbands, and are frequency independent.
+        """
+        # TODO merge this to the instrument fact yaml file?
+        p = {
+                'det_optical_efficiency': 0.8,
+                'det_noise_factor': 0.334,
+                'horn_aperture_efficiency': 0.35,
+                'tel_diameter': 48. << u.m,
+                'tel_surface_rms': 76. << u.um,
+                'tel_emissivity': 0.06,
+                'T_coldbox': 5.75 << u.K,
+                'T_tel': 273. << u.K,  # telescope ambient temperature
+                'T_coupling_optics': 290. << u.K,  # coupling optics
+                }
+        # derived values
+        p['tel_area'] = np.pi * (p['tel_diameter'] / 2.) ** 2
+        # effective optics temperature due to telescope and the coupling
+        p['T_warm'] = (
+                p['tel_emissivity'] * p['T_tel']
+                # TODO add documents for the numbers here
+                + 3. * p['T_coupling_optics'] * 0.01
+                )
+        # cold efficiency is the efficiency inside the cold box.
+        p['cold_efficiency'] = (
+                p['det_optical_efficiency'] * p['horn_aperture_efficiency'])
+        # effetive temperature at detectors for warm components through
+        # the cold box
+        p['T_det_warm'] = (p['T_warm'] * p['cold_efficiency'])
+        # effetive temperature at detectors for cold box
+        # note that the "horn aperture efficiency" is actually the
+        # internal system aperture efficiency since it includes the
+        # truncation of the lyot stop and the loss to the cold optics
+        p['T_det_coldbox'] = (
+                p['T_coldbox'] * p['det_optical_efficiency']
+                * (1. - p['horn_aperture_efficiency'])
+                )
+        return p
+
+    @property
+    def _tel_primary_surface_optical_efficiency(self):
+        """The telescope optical efficiency due to RMS of the
+        primary surface over the passband.
+
+        This is just the Ruze formula.
+        """
+        tel_surface_rms = self._internal_params['tel_surface_rms']
+        f = self._f
+        return np.exp(-((4.0 * np.pi * tel_surface_rms)/(const.c / f)) ** 2)
+
+    @property
+    def _system_efficiency(self):
+        """The overall system efficiency over the passband."""
+        return (
+                self._tel_primary_surface_optical_efficiency
+                * self._internal_params['cold_efficiency']
+                * self._throughput
+                )
+
+    @staticmethod
+    def _wsum(q, w):
+        """Return weighted sum of some quantity.
+
+        q : `astropy.units.Quantity`
+            The quantity.
+
+        w : float
+            The wegith.
+        """
+        if w.ndim > 1:
+            raise ValueError("weight has to be 1d")
+        return np.nansum(q * w, axis=-1) / np.nansum(w)
+
+    def _get_T_atm(
+            self, alt,
+            return_avg=False):
+        """Return the atmosphere temperature.
+
+        This is the "true" temperature without taking into account the system
+        efficiency.
+
+        Parameters
+        ----------
+        alt : `astropy.units.Quantity`
+            The altitude.
+        return_avg : bool, optional
+            If True, return the weighted sum over the passband instead.
+        """
+        atm_model = self._atm_model
+        # here we put the alt on the first axis for easier reduction on f.
+        T_atm = atm_model(*np.meshgrid(self._f, alt, indexing='ij')).T
+        if return_avg:
+            T_atm = self._wsum(T_atm, self._throughput)
+        T_atm = np.squeeze(T_atm)
+        return T_atm
+
+    def _get_tx_atm(self, alt):
+        """Return the atmosphere transmission.
+
+        Parameters
+        ----------
+        alt : `astropy.units.Quantity`
+            The altitude.
+        """
+        atm_tx_model = self._atm_tx_model
+        # here we put the alt on the first axis for easier reduction on f.
+        tx_atm = atm_tx_model(*np.meshgrid(self._f, alt, indexing='ij')).T
+        tx_atm = np.squeeze(tx_atm)
+        return tx_atm
+
+    def _get_T(
+            self, alt,
+            return_avg=False
+            ):
+        """Return the effective temperature at altitude `alt`, as seen
+        by the cryostat.
+
+        Parameters
+        ----------
+        alt : `astropy.units.Quantity`
+            The altitude.
+        return_avg : bool, optional
+            If True, return the weighted sum over the passband instead.
+        """
+        T_atm = self._get_T_atm(alt, return_avg=False)
+        # add the telescope warm component temps
+        T_tot = T_atm + self._internal_params['T_warm']
+        if return_avg:
+            T_tot = self._wsum(T_tot, self._system_efficiency)
+        return T_tot
+
+    def _get_T_det(
+            self, alt,
+            return_avg=True):
+        """Return the effective temperature seen by the detectors
+        at altitude `alt`.
+
+        Parameters
+        ----------
+        alt : `astropy.units.Quantity`
+            The altitude.
+        return_avg : bool, optional
+            If True, return the weighted sum over the passband instead.
+        """
+        T_atm = self._get_T_atm(alt, return_avg=False)
+        # TODO why no telescope efficiency term?
+        T_det = (
+                T_atm * self._internal_params['cold_efficiency']
+                + self._internal_params['T_det_warm']
+                + self._internal_params['T_det_coldbox']
+                ) * self._throughput
+        if return_avg:
+            # note this is different from the Detector.py in that
+            # does not mistakenly (?) average over the passband again
+            T_det = np.mean(T_det)
+        return T_det
+
+    def _T_to_dP(self, T):
+        """Return the Rayleigh-Jeans power for the passband frequency bins.
+
+        Parameters
+        ----------
+        T : `astropy.units.Quantity`
+            The temperature.
+        """
+        # power from RJ source in frequency bin df
+        # TODO this can be done this way because we ensured df is contant
+        # over the passband.
+        # we may change this to trapz to allow arbitrary grid?
+        return const.k_B * T * self._df
+
+    def _T_to_dnep(self, T):
+        """Return the photon noise equivalent power in W / sqrt(Hz) for
+        the passband frequency bins.
+        """
+        f = self._f
+        df = self._df
+        dP = self._T_to_dP(T)
+
+        shot = 2. * const.k_B * T * const.h * f * df
+        wave = 2. * dP ** 2 / df
+        return np.sqrt(shot + wave)
+
+    def _T_to_dnet_cmb(self, T, tx_atm):
+        """Return the noise equivalent CMB temperature in K / sqrt(Hz) for
+        the passband frequency bins.
+
+        Parameters
+        ----------
+        T : `astropy.units.Quantity`
+            The temperature.
+        tx_atm : array
+            The atmosphere transmission.
+        """
+        f = self._f
+        df = self._df
+        Tcmb = self._cosmo.Tcmb(0)
+
+        dnep = self._T_to_dnep(T)
+        x = const.h * f / (const.k_B * Tcmb)
+        net_integrand = (
+                (const.k_B * x) ** 2.
+                * (1. / const.k_B)
+                * np.exp(x) / (np.expm1(x)) ** 2.
+                )
+        dnet = dnep / (
+                np.sqrt(2.0)
+                * self._system_efficiency
+                * net_integrand
+                * df)
+        # scale by the atmosphere transmission so this is comparable
+        # to astronomical sources.
+        return dnet / tx_atm
+
+    def _dnep_to_dnefd(self, dnep, tx_atm):
+        """Return the noise equivalent flux density in Jy / sqrt(Hz) for
+        the passband frequency bins.
+
+        Parameters
+        ----------
+        T : `astropy.units.Quantity`
+            The temperature.
+        tx_atm : array
+            The atmosphere transmission.
+        """
+        df = self._df
+        A = self._internal_params['tel_area']
+        # TODO Z. Ma: I combined the sqrt(2) term. need to check the eqn here.
+        dnefd = (
+                dnep
+                / (A * df)
+                / self._system_efficiency
+                * np.sqrt(2.))
+        # scale by the atmosphere transmission so this is comparable
+        # to astronomical sources.
+        return dnefd / tx_atm  # Jy / sqrt(Hz)
+
+    def _get_P(self, alt):
+        """Return the detector power loading at altitude `alt`.
+
+        """
+        T_det = self._get_T_det(alt=alt, return_avg=False)
+        return np.nansum(self._T_to_dP(T_det), axis=-1).to(u.pW)
+
+    def _get_noise(self, alt, return_avg=True):
+        """Return the noise at altitude `alt`.
+
+        Parameters
+        ----------
+        alt : `astropy.units.Quantity`
+            The altitude.
+        return_avg : bool, optional
+            If True, return the value integrated for the passband.
+        """
+        # noise calculations
+        # strategy is to do this for each frequency bin and then do a
+        # weighted average across the band.  This is copied directly from
+        # Sean's python code.
+        T_det = self._get_T_det(alt=alt, return_avg=False)
+        dnep_phot = self._T_to_dnep(T_det)
+
+        # detector noise factor coefficient
+        det_noise_coeff = np.sqrt(
+                1. + self._internal_params['det_noise_factor'])
+
+        dnep = dnep_phot * det_noise_coeff
+
+        # atm transmission
+        tx_atm = self._get_tx_atm(alt)
+        # the equivalent noise in astronomical units
+        dnet_cmb = (
+                self._T_to_dnet_cmb(T_det, tx_atm=tx_atm)
+                * det_noise_coeff
+                )
+        dnefd = self._dnep_to_dnefd(dnep, tx_atm=tx_atm)
+
+        if return_avg:
+            # integrate these up
+            net_cmb = np.sqrt(1.0 / np.nansum(dnet_cmb ** (-2.0), axis=-1))
+            nefd = np.sqrt(1.0 / np.nansum(dnefd ** (-2.0), axis=-1))
+            # nep is sum of squares
+            nep = np.sqrt(np.nansum(dnep ** 2.0, axis=-1))
+            # power just adds
+            return {
+                    'net_cmb': net_cmb.to(u.mK * u.Hz ** -0.5),
+                    'nefd': nefd.to(u.mJy * u.Hz ** -0.5),
+                    'nep': nep.to(u.aW * u.Hz ** -0.5)
+                    }
+        return {
+                    'dnet_cmb': net_cmb.to(u.mK * u.Hz ** -0.5),
+                    'dnefd': nefd.to(u.mJy * u.Hz ** -0.5),
+                    'dnep': nep.to(u.aW * u.Hz ** -0.5)
+                    }
+
+    def make_summary_table(self, alt=None):
+        """Return a summary for a list of altitudes.
+
+        """
+        if alt is None:
+            alt = [50., 60., 70.] << u.deg
+        result = dict()
+        result['P'] = self._get_P(alt)
+        result.update(self._get_noise(alt, return_avg=True))
+        return Table(result)
+
+    def evaluate(self, alt):
+        P = self._get_P(alt)
+        nep = self._get_noise(alt, return_avg=True)['nep']
+        return P, nep
 
 
 class ToltecObsSimulator(object):
@@ -502,10 +879,11 @@ class ToltecObsSimulator(object):
     readout_model_cls = ReadoutGainWithLinTrend
     beam_model_cls = BeamModel
     erfa_interp_len = 300 << u.s
+    _observer = site_info['observer']
 
     @property
     def observer(self):
-        return SiteInfo.observer
+        return self._observer
 
     def __init__(self, array_prop_table):
 
@@ -553,32 +931,225 @@ class ToltecObsSimulator(object):
         return self._readout_model
 
     @contextmanager
-    def probe_context(self, fp=None):
-        """Return a function that can be used to get IQ for given flux
+    def probe_context(
+            self, fp=None,
+            sources=None,
+            f_smp=None,
+            ):
+        """Return a function that can be used to get IQ for given flux.
+
+        When `with_array_loading` is True, the generated power loading
+        will be the sum of the contribution from the astronomical source
+        and the telescope and atmosphere:
+
+            P_tot = P_src + P_bkg_fixture + P_atm(alt)
+
+        We set the tune of the KidsSimulator,
+        such that x=0 at P=P_bkg_fixture + P_atm(alt_of_tune_obs).
+
+        Thus the measured detuning parameters is proportional to
+
+            P_src + (P_atm(alt) - P_atm(alt_of_tune_obs))
         """
         tbl = self.table
+        # make a copy here because
+        # we'll adjust the bkg
         kidssim = self._kidssim
         readout = self._readout_model
         if fp is None:
             fp = kidssim._fr
+        # check the sources for array loading model
+        if sources is not None:
+            for source in sources:
+                if isinstance(source, dict) and isinstance(
+                        next(iter(source.values())), ArrayLoadingModel):
+                    array_loading_model = source
+                    break
+            else:
+                array_loading_model = None
+        else:
+            array_loading_model = None
+        logger = get_logger()
+        logger.debug(
+                f"evaluate array loading model: {array_loading_model}")
+        if array_loading_model is not None:
+            # the loading model is per-array
+            # this holds the power at which x=0
+            # this has to be a constant for all evaluate calls
+            p_tune = dict()
 
-        def evaluate(s):
-            # convert to brightness temperature and
-            # assuming a square pass band, we can get the power loading
-            tbs = s.to(
-                    u.K,
-                    equivalencies=u.brightness_temperature(
-                        self.table['wl_center'][:, np.newaxis]))
-            pwrs = (
-                    tbs.to(
-                        u.J,
-                        equivalencies=u.temperature_energy())
-                    * self.table['passband'][:, np.newaxis]
-                    ).to(u.pW)
-            return kidssim.probe_p(
-                    pwrs + tbl['background'][:, np.newaxis],
-                    fp=fp, readout_model=readout)
+            for array_name, alm in array_loading_model.items():
+                p_tune[array_name] = None
 
+            def evaluate(s, alt=None):
+                if alt is None:
+                    raise ValueError(
+                            "need altitudes to evaluate array loading model")
+
+                def _evaluate(s, wl_center, pb_width, alt, alm):
+                    # per-array eval
+                    # we also need to ravel s and alt so that they become
+                    # 1d
+                    # brightness temperature
+                    logger.debug(
+                            f"evaluate loading model name={alm}")
+                    tbs = np.ravel(
+                            s.to(
+                                u.K,
+                                equivalencies=u.brightness_temperature(
+                                    wl_center)))
+                    pwrs = (
+                        tbs.to(
+                            u.J,
+                            equivalencies=u.temperature_energy())
+                        * pb_width
+                        ).to(u.pW)
+                    # note that we cannot afford
+                    # doing this for each frequency bin.
+                    # we'll just assume a square passband with width=df
+                    # overall sys_eff
+                    sys_eff = alm._wsum(
+                            alm._system_efficiency, alm._throughput
+                            )
+                    pwrs = pwrs * sys_eff
+
+                    # add the loading temperate from non astro source
+                    alt = np.ravel(alt)
+                    # again, this is too slow to do for each sample,
+                    # we'll just use interpolation.
+                    alt_min = np.min(alt)
+                    alt_max = np.max(alt)
+                    alt_grid = np.arange(
+                            alt_min.to_value(u.deg),
+                            alt_max.to_value(u.deg) + 0.1,
+                            0.1
+                            ) << u.deg
+                    if len(alt_grid) < 10:
+                        # make sure we have enough elevation points
+                        alt_grid = np.linspace(
+                            alt_min.to_value(u.deg),
+                            alt_max.to_value(u.deg),
+                            10
+                            ) << u.deg
+                    p_interp = interp1d(
+                            alt_grid, alm._get_P(alt_grid).to_value(u.pW),
+                            kind='cubic'
+                            )
+                    dp_interp = interp1d(
+                            alt_grid,
+                            (
+                                alm._get_noise(alt_grid)['nep']
+                                * np.sqrt(f_smp / 2.)).to_value(u.pW),
+                            kind='cubic'
+                            )
+
+                    pwrs_non_src = p_interp(alt) << u.pW
+                    dpwr = dp_interp(alt)
+                    dpwr = np.random.normal(0., dpwr) << u.pW
+                    # print(np.min(pwrs), np.max(pwrs))
+                    # print(np.min(pwrs_non_src), np.max(pwrs_non_src))
+                    # print(np.min(dpwr), np.max(dpwr))
+                    # import matplotlib.pyplot as plt
+                    # fig, axes = plt.subplots(3, 1, constrained_layout=True)
+                    # axes[0].imshow(pwrs.reshape(s.shape))
+                    # axes[1].imshow(pwrs_non_src.reshape(s.shape))
+                    # axes[2].imshow(dpwr.reshape(s.shape))
+                    # plt.show()
+                    # make a realization of the pwrs
+                    pwrs = pwrs + pwrs_non_src + dpwr
+                    return pwrs.reshape(s.shape)
+
+                # the alm has to be evaluated on a per array basis
+                pwrs = np.empty(s.shape)
+                # adjust the bkg
+                _kidssim = kidssim.copy()
+
+                for array_name, alm in array_loading_model.items():
+                    m = tbl['array_name'] == array_name
+                    if p_tune[array_name] is None:
+                        # take the mean of  alt as the tune position
+                        p_tune[array_name] = alm._get_P(np.mean(alt))
+                        logger.debug(
+                            f"set P_tune[{array_name}]={p_tune[array_name]}")
+                    else:
+                        logger.debug(
+                            f"use P_tune[{array_name}]={p_tune[array_name]}")
+                    with timeit(f"calc array loading for {array_name}"):
+                        pwrs[m, :] = _evaluate(
+                            s[m, :], wl_center=tbl[m]['wl_center'][0],
+                            pb_width=tbl[m]['passband'][0],
+                            alt=alt[m, :], alm=alm,
+                            ).to_value(u.pW)
+                    _kidssim._background[m] = p_tune[array_name]
+                pwrs = pwrs << u.pW
+                rs, xs, iqs = _kidssim.probe_p(
+                        pwrs,
+                        fp=fp, readout_model=readout)
+                # compute the flxscale
+                pwr_norm = np.empty((s.shape[0], ))
+                for array_name, alm in array_loading_model.items():
+                    m = tbl['array_name'] == array_name
+                    wl_center = tbl[m]['wl_center'][0]
+                    pb_width = tbl[m]['passband'][0]
+                    tb = (1. << u.MJy / u.sr).to(
+                            u.K,
+                            equivalencies=u.brightness_temperature(
+                                wl_center)
+                            )
+                    pwr = (
+                            tb.to(
+                                u.J,
+                                equivalencies=u.temperature_energy())
+                            * pb_width).to(u.pW)
+                    sys_eff = alm._wsum(
+                            alm._system_efficiency, alm._throughput
+                            )
+                    pwr_norm[m] = (
+                            pwr * sys_eff + p_tune[array_name]).to_value(u.pW)
+                pwr_norm = pwr_norm << u.pW
+                _, x_norm, _ = _kidssim.probe_p(
+                        pwr_norm[:, np.newaxis],
+                        fp=fp, readout_model=readout)
+                flxscale = 1. / np.squeeze(x_norm)
+                logger.debug(f"flxscale: {flxscale.mean()}")
+                return rs, xs, iqs, locals()
+        else:
+            # when loading model is not specified, we just use
+            # the pre-defined values.
+            def evaluate(s, alt=None):
+                # convert to brightness temperature and
+                # assuming a square pass band, we can get the power loading
+                # TODO use the real passbands.
+                tbs = s.to(
+                        u.K,
+                        equivalencies=u.brightness_temperature(
+                            tbl['wl_center'][:, np.newaxis]))
+                pwrs = (
+                        tbs.to(
+                            u.J,
+                            equivalencies=u.temperature_energy())
+                        * tbl['passband'][:, np.newaxis]
+                        ).to(u.pW)
+                rs, xs, iqs = kidssim.probe_p(
+                        pwrs + tbl['background'][:, np.newaxis],
+                        fp=fp, readout_model=readout)
+                # compute flxscale
+                pwr_norm = (
+                        (
+                            np.ones((s.shape[0], 1)) << u.MJy / u.sr).to(
+                                u.K,
+                                equivalencies=u.brightness_temperature(
+                                    tbl['wl_center'][:, np.newaxis])).to(
+                                    u.J,
+                                    equivalencies=u.temperature_energy())
+                                * tbl['passband'][:, np.newaxis]
+                        ).to(u.pW)
+                _, x_norm, _ = kidssim.probe_p(
+                        pwr_norm + tbl['background'][:, np.newaxis],
+                        fp=fp, readout_model=readout)
+                flxscale = 1. / np.squeeze(x_norm)
+                logger.debug(f"flxscale: {flxscale.mean()}")
+                return rs, xs, iqs, locals()
         yield evaluate
 
     @timeit
@@ -593,7 +1164,7 @@ class ToltecObsSimulator(object):
         input flux at each detector for given time.
 
         Parameters
-        ==========
+        ----------
         mapping : tolteca.simu.base.SkyMapModel
 
             The model that defines the on-the-fly mapping trajectory.
@@ -628,6 +1199,11 @@ class ToltecObsSimulator(object):
                             time_obs=time_obs,
                             evaluate_frame='icrs',
                             )
+                    m_proj_native = self.get_sky_projection_model(
+                            ref_coord=obs_coords,
+                            time_obs=time_obs,
+                            evaluate_frame='native',
+                            )
                     projected_frame, native_frame = \
                         m_proj_icrs.get_projected_frame(
                             also_return_native_frame=True)
@@ -647,7 +1223,7 @@ class ToltecObsSimulator(object):
                         obs_coords_icrs = obs_coords.transform_to('icrs')
                         obs_coords_altaz = obs_coords
                     obs_parallactic_angle = \
-                        SiteInfo.observer.parallactic_angle(
+                        self.observer.parallactic_angle(
                                 time_obs, obs_coords_icrs)
 
                 # get detector positions, which requires absolute time
@@ -669,6 +1245,7 @@ class ToltecObsSimulator(object):
                         + m_rot_m3[1, 1][:, np.newaxis] * y_t[np.newaxis, :]
                     lon, lat = m_proj_icrs(
                         x, y, eval_interp_len=0.1 << u.s)
+                    az, alt = m_proj_native(x, y, eval_interp_len=0.1 << u.s)
 
                 # combine the array projection with sky projection
                 # and evaluate with source frame
@@ -695,7 +1272,6 @@ class ToltecObsSimulator(object):
                             src_pos = m_source.pos[:, np.newaxis].transform_to(
                                         native_frame).transform_to(
                                             projected_frame)
-                            print(src_pos.shape)
                         # evaluate with beam_model and reduce on sources axes
                         with timeit("convolve with beam"):
                             dx = x_t[np.newaxis, :, np.newaxis] - \
@@ -713,7 +1289,6 @@ class ToltecObsSimulator(object):
                             w = np.vstack([
                                 m_source.data[a] for a in tbl['array_name']]).T
                             s = np.sum(s * w[:, :, np.newaxis], axis=0)
-                            print(s.shape, w.shape)
                         s_additive.append(s)
                 if len(s_additive) <= 0:
                     raise ValueError("no additive source found in source list")

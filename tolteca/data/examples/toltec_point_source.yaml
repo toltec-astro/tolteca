@@ -21,6 +21,8 @@ simu:
         ra: ra
         dec: dec
         name: name
+    - type: toltec_array_loading
+      atm_model_name: 'am_q50'
   mapping:
     type: tolteca.simu:SkyRasterScanModel
     rot: 0. deg
