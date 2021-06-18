@@ -683,6 +683,8 @@ class LissajousModelMeta(SkyMapModel.__class__):
             return xx, yy
 
         attrs['evaluate'] = evaluate
+        attrs['evaluate_holdflag'] = \
+            lambda self, t: np.zeros(t.shape, dtype=bool)
         return super().__new__(meta, name, bases, attrs)
 
     def __call__(cls, *args, **kwargs):
