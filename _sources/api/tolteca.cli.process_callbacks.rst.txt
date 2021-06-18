@@ -1,6 +1,0 @@
-process_callbacks
-=================
-
-.. currentmodule:: tolteca.cli
-
-.. autofunction:: process_callbacks

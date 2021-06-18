@@ -1,0 +1,61 @@
+BasicObsDataset
+===============
+
+.. currentmodule:: tolteca.datamodels.toltec
+
+.. autoclass:: BasicObsDataset
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~BasicObsDataset.bod_list
+      ~BasicObsDataset.history
+      ~BasicObsDataset.index_table
+      ~BasicObsDataset.logger
+      ~BasicObsDataset.meta
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~BasicObsDataset.add_meta_cols
+      ~BasicObsDataset.dump
+      ~BasicObsDataset.from_files
+      ~BasicObsDataset.from_index_table
+      ~BasicObsDataset.get_meta_keys
+      ~BasicObsDataset.join
+      ~BasicObsDataset.load
+      ~BasicObsDataset.read
+      ~BasicObsDataset.read_all
+      ~BasicObsDataset.select
+      ~BasicObsDataset.sort
+      ~BasicObsDataset.unique
+      ~BasicObsDataset.vstack
+      ~BasicObsDataset.write_index_table
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: bod_list
+   .. autoattribute:: history
+   .. autoattribute:: index_table
+   .. autoattribute:: logger
+   .. autoattribute:: meta
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: add_meta_cols
+   .. automethod:: dump
+   .. automethod:: from_files
+   .. automethod:: from_index_table
+   .. automethod:: get_meta_keys
+   .. automethod:: join
+   .. automethod:: load
+   .. automethod:: read
+   .. automethod:: read_all
+   .. automethod:: select
+   .. automethod:: sort
+   .. automethod:: unique
+   .. automethod:: vstack
+   .. automethod:: write_index_table

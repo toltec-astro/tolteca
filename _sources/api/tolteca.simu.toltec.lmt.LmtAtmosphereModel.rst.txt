@@ -1,0 +1,39 @@
+LmtAtmosphereModel
+==================
+
+.. currentmodule:: tolteca.simu.toltec.lmt
+
+.. autoclass:: LmtAtmosphereModel
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~LmtAtmosphereModel.input_units
+      ~LmtAtmosphereModel.input_units_equivalencies
+      ~LmtAtmosphereModel.logger
+      ~LmtAtmosphereModel.n_inputs
+      ~LmtAtmosphereModel.n_outputs
+      ~LmtAtmosphereModel.return_units
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~LmtAtmosphereModel.__call__
+      ~LmtAtmosphereModel.evaluate
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: input_units
+   .. autoattribute:: input_units_equivalencies
+   .. autoattribute:: logger
+   .. autoattribute:: n_inputs
+   .. autoattribute:: n_outputs
+   .. autoattribute:: return_units
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: evaluate

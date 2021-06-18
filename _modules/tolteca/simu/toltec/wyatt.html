@@ -1,0 +1,225 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tolteca.simu.toltec.wyatt &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/plot_directive.css" />
+    
+    <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+    <script src="../../../../_static/jquery.js"></script>
+    <script src="../../../../_static/underscore.js"></script>
+    <script src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../simu.html" >tolteca.simu</a> &#187;</li>
+      <li><a href="../toltec.html" accesskey="U">tolteca.simu.toltec</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tolteca.simu.toltec.wyatt</h1><div class="highlight"><pre>
+<span></span><span class="ch">#! /usr/bin/env python</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">u</span>
+<span class="kn">from</span> <span class="nn">astropy.modeling</span> <span class="kn">import</span> <span class="n">models</span><span class="p">,</span> <span class="n">Parameter</span>
+<span class="kn">from</span> <span class="nn">astropy</span> <span class="kn">import</span> <span class="n">coordinates</span> <span class="k">as</span> <span class="n">coord</span>
+
+<span class="kn">from</span> <span class="nn">gwcs</span> <span class="kn">import</span> <span class="n">wcs</span>
+<span class="kn">from</span> <span class="nn">gwcs</span> <span class="kn">import</span> <span class="n">coordinate_frames</span> <span class="k">as</span> <span class="n">cf</span>
+
+<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">timeit</span>
+
+<span class="kn">from</span> <span class="nn">..base</span> <span class="kn">import</span> <span class="p">(</span>
+        <span class="n">ProjModel</span><span class="p">,</span>
+        <span class="n">SkyMapModel</span><span class="p">,</span>
+        <span class="n">RasterScanModelMeta</span><span class="p">,</span>
+        <span class="n">LissajousModelMeta</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">ArrayProjModel</span>
+
+
+<div class="viewcode-block" id="WyattRasterScanModel"><a class="viewcode-back" href="../../../../api/tolteca.simu.toltec.wyatt.WyattRasterScanModel.html#tolteca.simu.toltec.wyatt.WyattRasterScanModel">[docs]</a><span class="k">class</span> <span class="nc">WyattRasterScanModel</span><span class="p">(</span><span class="n">SkyMapModel</span><span class="p">,</span> <span class="n">metaclass</span><span class="o">=</span><span class="n">RasterScanModelMeta</span><span class="p">):</span>
+    <span class="n">frame</span> <span class="o">=</span> <span class="n">cf</span><span class="o">.</span><span class="n">Frame2D</span><span class="p">(</span>
+                <span class="n">name</span><span class="o">=</span><span class="s1">&#39;wyatt&#39;</span><span class="p">,</span> <span class="n">axes_names</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">),</span>
+                <span class="n">unit</span><span class="o">=</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">cm</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">cm</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="WyattLissajousModel"><a class="viewcode-back" href="../../../../api/tolteca.simu.toltec.wyatt.WyattLissajousModel.html#tolteca.simu.toltec.wyatt.WyattLissajousModel">[docs]</a><span class="k">class</span> <span class="nc">WyattLissajousModel</span><span class="p">(</span><span class="n">SkyMapModel</span><span class="p">,</span> <span class="n">metaclass</span><span class="o">=</span><span class="n">LissajousModelMeta</span><span class="p">):</span>
+    <span class="n">frame</span> <span class="o">=</span> <span class="n">cf</span><span class="o">.</span><span class="n">Frame2D</span><span class="p">(</span>
+                <span class="n">name</span><span class="o">=</span><span class="s1">&#39;wyatt&#39;</span><span class="p">,</span> <span class="n">axes_names</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">),</span>
+                <span class="n">unit</span><span class="o">=</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">cm</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">cm</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="WyattProjModel"><a class="viewcode-back" href="../../../../api/tolteca.simu.toltec.wyatt.WyattProjModel.html#tolteca.simu.toltec.wyatt.WyattProjModel">[docs]</a><span class="k">class</span> <span class="nc">WyattProjModel</span><span class="p">(</span><span class="n">ProjModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A projection model for the Wyatt robot arm.</span>
+
+<span class="sd">    This model is an affine transformation that projects the designed positions</span>
+<span class="sd">    of detectors on the toltec frame to a plane in front of the cryostat</span>
+<span class="sd">    window, on which the Wyatt robot arm moves.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    rot: `astropy.units.Quantity`</span>
+<span class="sd">        Rotation angle between the Wyatt frame and the TolTEC frame.</span>
+<span class="sd">    scale: 2-tuple of `astropy.units.Quantity`</span>
+<span class="sd">        Scale between the Wyatt frame and the TolTEC frame</span>
+<span class="sd">    ref_coord: 2-tuple of `astropy.units.Quantity`</span>
+<span class="sd">        The coordinate of the TolTEC frame origin on the Wyatt frame.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">input_frame</span> <span class="o">=</span> <span class="n">ArrayProjModel</span><span class="o">.</span><span class="n">output_frame</span>
+    <span class="n">output_frame</span> <span class="o">=</span> <span class="n">cf</span><span class="o">.</span><span class="n">Frame2D</span><span class="p">(</span>
+                <span class="n">name</span><span class="o">=</span><span class="s1">&#39;wyatt&#39;</span><span class="p">,</span>
+                <span class="n">axes_names</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">),</span>
+                <span class="n">unit</span><span class="o">=</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">cm</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">cm</span><span class="p">))</span>
+    <span class="n">_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">output_frame</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_proj&#39;</span>
+
+    <span class="n">n_inputs</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">n_outputs</span> <span class="o">=</span> <span class="mi">2</span>
+
+    <span class="n">crval0</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="n">output_frame</span><span class="o">.</span><span class="n">unit</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">crval1</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="n">output_frame</span><span class="o">.</span><span class="n">unit</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rot</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span> <span class="n">ref_coord</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">scale</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">unit</span><span class="o">.</span><span class="n">is_equivalent</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">m</span> <span class="o">/</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;invalid unit for scale.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ref_coord</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s1">&#39;crval0&#39;</span> <span class="ow">in</span> <span class="n">kwargs</span> <span class="ow">or</span> <span class="s1">&#39;crval1&#39;</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">&quot;ref_coord cannot be specified along with crvals&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ref_coord</span><span class="p">,</span> <span class="n">coord</span><span class="o">.</span><span class="n">SkyCoord</span><span class="p">):</span>
+                <span class="n">ref_coord</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="n">ref_coord</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">degree</span><span class="p">,</span> <span class="n">ref_coord</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">degree</span><span class="p">)</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;crval0&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ref_coord</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;crval1&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ref_coord</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;n_models&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">ref_coord</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">size</span>
+
+        <span class="n">m_rot</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">Rotation2D</span><span class="o">.</span><span class="n">_compute_matrix</span><span class="p">(</span><span class="n">angle</span><span class="o">=</span><span class="n">rot</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="s1">&#39;rad&#39;</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_t2w_0</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">AffineTransformation2D</span><span class="p">(</span>
+                <span class="n">m_rot</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">,</span>
+                <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">)</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span>
+                    <span class="n">models</span><span class="o">.</span><span class="n">Multiply</span><span class="p">(</span><span class="n">scale</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&amp;</span> <span class="n">models</span><span class="o">.</span><span class="n">Multiply</span><span class="p">(</span><span class="n">scale</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                    <span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+<div class="viewcode-block" id="WyattProjModel.evaluate"><a class="viewcode-back" href="../../../../api/tolteca.simu.toltec.wyatt.WyattProjModel.html#tolteca.simu.toltec.wyatt.WyattProjModel.evaluate">[docs]</a>    <span class="nd">@timeit</span><span class="p">(</span><span class="n">_name</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">crval0</span><span class="p">,</span> <span class="n">crval1</span><span class="p">):</span>
+        <span class="n">c0</span><span class="p">,</span> <span class="n">c1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_t2w_0</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">c0</span> <span class="o">+</span> <span class="n">crval0</span><span class="p">,</span> <span class="n">c1</span> <span class="o">+</span> <span class="n">crval1</span></div>
+
+<div class="viewcode-block" id="WyattProjModel.get_map_wcs"><a class="viewcode-back" href="../../../../api/tolteca.simu.toltec.wyatt.WyattProjModel.html#tolteca.simu.toltec.wyatt.WyattProjModel.get_map_wcs">[docs]</a>    <span class="k">def</span> <span class="nf">get_map_wcs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pixscale</span><span class="p">,</span> <span class="n">ref_coord</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="sd">&quot;&quot;&quot;Return a WCS object that describes a Wyatt map of given pixel scale.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        pixscale: 2-tuple of `astropy.units.Quantity`</span>
+<span class="sd">            Pixel scale of Wyatt map on the Wyatt frame, specified as</span>
+<span class="sd">            value per pix.</span>
+<span class="sd">        ref_coord: 2-tuple of `astropy.units.Quantity`, optional</span>
+<span class="sd">            The coordinate of pixel (0, 0).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># transformation to go from Wyatt coords to pix coords</span>
+        <span class="n">w2m</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">models</span><span class="o">.</span><span class="n">Multiply</span><span class="p">(</span><span class="mf">1.</span> <span class="o">/</span> <span class="n">pixscale</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&amp;</span>
+            <span class="n">models</span><span class="o">.</span><span class="n">Multiply</span><span class="p">(</span><span class="mf">1.</span> <span class="o">/</span> <span class="n">pixscale</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="p">)</span>
+
+        <span class="c1"># the coord frame used in the array design.</span>
+        <span class="n">af</span> <span class="o">=</span> <span class="n">cf</span><span class="o">.</span><span class="n">Frame2D</span><span class="p">(</span>
+                <span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">array_name</span><span class="p">,</span> <span class="n">axes_names</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">),</span>
+                <span class="n">unit</span><span class="o">=</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">um</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">um</span><span class="p">))</span>
+        <span class="c1"># the coord frame on the Wyatt plane</span>
+        <span class="n">wf</span> <span class="o">=</span> <span class="n">cf</span><span class="o">.</span><span class="n">Frame2D</span><span class="p">(</span>
+                <span class="n">name</span><span class="o">=</span><span class="s1">&#39;wyatt&#39;</span><span class="p">,</span> <span class="n">axes_names</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">),</span>
+                <span class="n">unit</span><span class="o">=</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">cm</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">cm</span><span class="p">))</span>
+        <span class="c1"># the coord frame on the wyatt map. It is aligned with wyatt.</span>
+        <span class="n">mf</span> <span class="o">=</span> <span class="n">cf</span><span class="o">.</span><span class="n">Frame2D</span><span class="p">(</span>
+                <span class="n">name</span><span class="o">=</span><span class="s1">&#39;wyattmap&#39;</span><span class="p">,</span> <span class="n">axes_names</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">),</span>
+                <span class="n">unit</span><span class="o">=</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">pix</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">pix</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">ref_coord</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ref_coord</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">crval0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">crval1</span>
+        <span class="n">a2w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_a2w_0</span> <span class="o">|</span> <span class="p">(</span>
+                <span class="n">models</span><span class="o">.</span><span class="n">Shift</span><span class="p">(</span><span class="n">ref_coord</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&amp;</span> <span class="n">models</span><span class="o">.</span><span class="n">Shift</span><span class="p">(</span><span class="n">ref_coord</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+        <span class="n">pipeline</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="p">(</span><span class="n">af</span><span class="p">,</span> <span class="n">a2w</span><span class="p">),</span>
+                <span class="p">(</span><span class="n">wf</span><span class="p">,</span> <span class="n">w2m</span><span class="p">),</span>
+                <span class="p">(</span><span class="n">mf</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="p">]</span>
+        <span class="k">return</span> <span class="n">wcs</span><span class="o">.</span><span class="n">WCS</span><span class="p">(</span><span class="n">pipeline</span><span class="p">)</span></div></div>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2021, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
+    Last built 18 Jun 2021. <br/>
+  </p>
+</footer>
+  </body>
+</html>

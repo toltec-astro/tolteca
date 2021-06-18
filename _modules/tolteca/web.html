@@ -4,16 +4,17 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>tolteca.web &#8212; tolteca v0.1.dev84+gfc9946a.d20200423</title>
-    <link rel="stylesheet" href="../../_static/bootstrap-astropy.css" type="text/css" />
-    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tolteca.web &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/bootstrap-astropy.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
     
-    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
     <script src="../../_static/jquery.js"></script>
     <script src="../../_static/underscore.js"></script>
     <script src="../../_static/doctools.js"></script>
-    <script src="../../_static/language_data.js"></script>
     <script type="text/javascript" src="../../_static/sidebar.js"></script>
     <script type="text/javascript" src="../../_static/copybutton.js"></script>
     <link rel="shortcut icon" href="../../_static/astropy_logo.ico"/>
@@ -46,7 +47,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../index.html">tolteca v0.1.dev84+gfc9946a.d20200423</a>
+	<a href="../../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
 	 &#187;
       </li>
       <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li>
@@ -67,101 +68,183 @@
 <span class="sd">&quot;&quot;&quot;DashA site for TolTECA.&quot;&quot;&quot;</span>
 
 <span class="kn">from</span> <span class="nn">tollan.utils.env</span> <span class="kn">import</span> <span class="n">env_registry</span>
-<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
-<span class="kn">from</span> <span class="nn">tolteca.fs.toltec</span> <span class="kn">import</span> <span class="n">ToltecDataFileStore</span>
+<span class="kn">from</span> <span class="nn">tolteca.datamodels.fs.toltec</span> <span class="kn">import</span> <span class="n">ToltecDataFileStore</span>
 <span class="kn">from</span> <span class="nn">..utils</span> <span class="kn">import</span> <span class="n">get_user_data_dir</span>
+<span class="kn">import</span> <span class="nn">dash_bootstrap_components</span> <span class="k">as</span> <span class="nn">dbc</span>
 
+
+<span class="n">env_prefix</span> <span class="o">=</span> <span class="s1">&#39;TOLTECA&#39;</span>
 
 <span class="n">env_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
-        <span class="s2">&quot;TOLTECA_TOLTEC_DB_URL&quot;</span><span class="p">,</span> <span class="s2">&quot;The toltec database url&quot;</span><span class="p">)</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_DB_TOLTEC_URL&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;The TolTEC database url.&quot;</span><span class="p">,</span>
+        <span class="s1">&#39;mysql+mysqldb://localhost:3306&#39;</span><span class="p">)</span>
 <span class="n">env_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
-        <span class="s2">&quot;TOLTECA_TOLTEC_DATA_ROOTPATH&quot;</span><span class="p">,</span> <span class="s2">&quot;The root path to toltec data files&quot;</span><span class="p">)</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_DB_TOLTEC_USERLOG_TOOL_URL&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;The TolTEC database url for user log tool.&quot;</span><span class="p">,</span>
+        <span class="s1">&#39;mysql+mysqldb://localhost:3306&#39;</span><span class="p">)</span>
+<span class="n">env_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_DB_TOLTECA_URL&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;The TolTECA database url&quot;</span><span class="p">,</span>
+        <span class="s1">&#39;mysql+mysqldb://localhost:3306&#39;</span><span class="p">)</span>
+<span class="n">env_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_FS_TOLTEC_ROOTPATH&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;The root path to TolTEC data files&quot;</span><span class="p">,</span>
+        <span class="n">get_user_data_dir</span><span class="p">())</span>
+<span class="n">env_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_LMT_OCS3_URL&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;The OCS3_URL&quot;</span><span class="p">,</span>
+        <span class="s1">&#39;socket://localhost:61559&#39;</span><span class="p">)</span>
+<span class="n">env_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_FS_TOLTEC_HK_ROOTPATH&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;The root path to TolTEC housekeeping data files&quot;</span><span class="p">,</span>
+        <span class="n">get_user_data_dir</span><span class="p">())</span>
 
-<span class="c1"># service provider settings</span>
-<span class="n">tolteca_app_db_filename</span> <span class="o">=</span> <span class="s1">&#39;tolteca_app_db.sqlite&#39;</span>
-<span class="n">tolteca_app_db_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span>
-        <span class="n">tolteca_app_db_filename</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span>
-<span class="n">tolteca_toltec_db_url</span> <span class="o">=</span> <span class="n">env_registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
-        <span class="s2">&quot;TOLTECA_TOLTEC_DB_URL&quot;</span><span class="p">,</span> <span class="s1">&#39;mysql+mysqldb://localhost:3306&#39;</span><span class="p">)</span>
-<span class="n">tolteca_redis_url</span> <span class="o">=</span> <span class="s2">&quot;redis://localhost:6379&quot;</span>
-<span class="n">tolteca_toltec_data_rootpath</span> <span class="o">=</span> <span class="n">env_registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
-        <span class="s2">&quot;TOLTECA_TOLTEC_DATA_ROOTPATH&quot;</span><span class="p">,</span> <span class="n">get_user_data_dir</span><span class="p">())</span>
-<span class="n">tolteca_toltec_datastore</span> <span class="o">=</span> <span class="n">ToltecDataFileStore</span><span class="p">(</span><span class="n">tolteca_toltec_data_rootpath</span><span class="p">)</span>
+<span class="c1"># resource providers</span>
+<span class="n">db_toltec_url</span> <span class="o">=</span> <span class="n">env_registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_DB_TOLTEC_URL&quot;</span><span class="p">)</span>
+<span class="n">db_toltec_userlog_tool_url</span> <span class="o">=</span> <span class="n">env_registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_DB_TOLTEC_USERLOG_TOOL_URL&quot;</span><span class="p">)</span>
+<span class="n">db_tolteca_url</span> <span class="o">=</span> <span class="n">env_registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_DB_TOLTECA_URL&quot;</span><span class="p">)</span>
+<span class="n">redis_url</span> <span class="o">=</span> <span class="s2">&quot;redis://localhost:6379&quot;</span>
+<span class="n">fs_toltec_rootpath</span> <span class="o">=</span> <span class="n">env_registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_FS_TOLTEC_ROOTPATH&quot;</span><span class="p">)</span>
+<span class="n">fs_toltec_hk_rootpath</span> <span class="o">=</span> <span class="n">env_registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_FS_TOLTEC_HK_ROOTPATH&quot;</span><span class="p">)</span>
+<span class="n">lmt_ocs3_url</span> <span class="o">=</span> <span class="n">env_registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_LMT_OCS3_URL&quot;</span><span class="p">)</span>
+<span class="n">toltec_datastore</span> <span class="o">=</span> <span class="n">ToltecDataFileStore</span><span class="p">(</span><span class="n">fs_toltec_rootpath</span><span class="p">)</span>
 
 
 <span class="c1"># site configs</span>
 <span class="n">db_config</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s2">&quot;SQLALCHEMY_TRACK_MODIFICATIONS&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
         <span class="s2">&quot;SQLALCHEMY_BINDS&quot;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="s1">&#39;appdb&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;sqlite:////</span><span class="si">{</span><span class="n">tolteca_app_db_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
-            <span class="s1">&#39;toltecdb&#39;</span><span class="p">:</span> <span class="n">tolteca_toltec_db_url</span>
+            <span class="s1">&#39;toltec&#39;</span><span class="p">:</span> <span class="n">db_toltec_url</span><span class="p">,</span>
+            <span class="s1">&#39;toltec_userlog_tool&#39;</span><span class="p">:</span> <span class="n">db_toltec_userlog_tool_url</span><span class="p">,</span>
+            <span class="s1">&#39;tolteca&#39;</span><span class="p">:</span> <span class="n">db_tolteca_url</span><span class="p">,</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="n">db_tolteca_url</span><span class="p">,</span>
             <span class="p">}</span>
         <span class="p">}</span>
 <span class="n">cache_config</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s2">&quot;CACHE_TYPE&quot;</span><span class="p">:</span> <span class="s1">&#39;redis&#39;</span><span class="p">,</span>
         <span class="s2">&quot;CACHE_DEFAULT_TIMEOUT&quot;</span><span class="p">:</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">5</span><span class="p">,</span>  <span class="c1"># second</span>
         <span class="s2">&quot;CACHE_KEY_PREFIX&quot;</span><span class="p">:</span> <span class="s1">&#39;tolteca_&#39;</span><span class="p">,</span>
-        <span class="s2">&quot;CACHE_REDIS_URL&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tolteca_redis_url</span><span class="si">}</span><span class="s2">/0&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;CACHE_REDIS_URL&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">redis_url</span><span class="si">}</span><span class="s2">/0&quot;</span><span class="p">,</span>
         <span class="p">}</span>
 <span class="n">ipc_config</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s1">&#39;backends&#39;</span><span class="p">:</span> <span class="p">{</span>
             <span class="s1">&#39;rejson&#39;</span><span class="p">:</span> <span class="p">{</span>
-                <span class="s1">&#39;url&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tolteca_redis_url</span><span class="si">}</span><span class="s2">/1&quot;</span><span class="p">,</span>
+                <span class="s1">&#39;url&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">redis_url</span><span class="si">}</span><span class="s2">/1&quot;</span><span class="p">,</span>
                 <span class="p">},</span>
-            <span class="s1">&#39;redis&#39;</span><span class="p">:</span> <span class="p">{</span>
-                <span class="s1">&#39;url&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tolteca_redis_url</span><span class="si">}</span><span class="s2">/2&quot;</span><span class="p">,</span>
-                <span class="p">},</span>
-            <span class="s1">&#39;cache&#39;</span><span class="p">:</span> <span class="p">{}</span>
             <span class="p">}</span>
         <span class="p">}</span>
 <span class="n">celery_config</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s2">&quot;CELERY_RESULT_BACKEND&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tolteca_redis_url</span><span class="si">}</span><span class="s2">/3&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;CELERY_RESULT_EXPIRES&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>  <span class="c1"># second</span>
-        <span class="s2">&quot;CELERY_BROKER_URL&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tolteca_redis_url</span><span class="si">}</span><span class="s2">/3&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;CELERY_RESULT_BACKEND&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">redis_url</span><span class="si">}</span><span class="s2">/7&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;CELERY_RESULT_EXPIRES&quot;</span><span class="p">:</span> <span class="mi">24</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span><span class="p">,</span>  <span class="c1"># second  == 1day</span>
+        <span class="s2">&quot;CELERY_BROKER_URL&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">redis_url</span><span class="si">}</span><span class="s2">/7&quot;</span><span class="p">,</span>
         <span class="p">}</span>
 <span class="n">dasha_config</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s2">&quot;TITLE&quot;</span><span class="p">:</span> <span class="s2">&quot;TolTECA&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s2">&quot;TolTECA&quot;</span><span class="p">,</span>
         <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;dasha.web.templates.slapdash&quot;</span><span class="p">,</span>
+        <span class="s1">&#39;EXTERNAL_STYLESHEETS&#39;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="c1"># dbc.themes.MATERIA,</span>
+            <span class="c1"># dbc.themes.YETI,</span>
+            <span class="n">dbc</span><span class="o">.</span><span class="n">themes</span><span class="o">.</span><span class="n">BOOTSTRAP</span><span class="p">,</span>
+            <span class="p">],</span>
+        <span class="s1">&#39;ASSETS_IGNORE&#39;</span><span class="p">:</span> <span class="s1">&#39;bootstrap.*&#39;</span>
         <span class="p">}</span>
 
 
 <span class="c1"># tolteca payloads</span>
-<span class="kn">from</span> <span class="nn">.tasks</span> <span class="kn">import</span> <span class="n">toltecdb</span>  <span class="c1"># noqa: E402</span>
+<span class="c1"># from .tasks import toltecdb  # noqa: E402</span>
 
 
 <div class="viewcode-block" id="load_task_modules"><a class="viewcode-back" href="../../api/tolteca.web.load_task_modules.html#tolteca.web.load_task_modules">[docs]</a><span class="k">def</span> <span class="nf">load_task_modules</span><span class="p">():</span>
-    <span class="kn">from</span> <span class="nn">.tasks</span> <span class="kn">import</span> <span class="n">kidsview</span>  <span class="c1"># noqa: F401</span>
-    <span class="kn">from</span> <span class="nn">.tasks</span> <span class="kn">import</span> <span class="n">kidsreduce</span>  <span class="c1"># noqa: F401</span></div>
+    <span class="c1"># from .tasks import kidsview  # noqa: F401</span>
+    <span class="kn">from</span> <span class="nn">.tasks</span> <span class="kn">import</span> <span class="n">kidsreduce</span>  <span class="c1"># noqa: F401</span>
+    <span class="kn">from</span> <span class="nn">.tasks</span> <span class="kn">import</span> <span class="n">ocs3</span>  <span class="c1"># noqa: F401</span></div>
 
 
 <span class="n">celery_config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
-        <span class="n">tasks</span><span class="o">=</span><span class="n">toltecdb</span><span class="o">.</span><span class="n">tasks</span><span class="p">,</span>
+        <span class="c1"># tasks=toltecdb.tasks,</span>
         <span class="n">post_init_app</span><span class="o">=</span><span class="n">load_task_modules</span>
         <span class="p">)</span>
 
 <span class="n">dasha_config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
         <span class="n">pages</span><span class="o">=</span><span class="p">[</span>
                 <span class="p">{</span>
-                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;dasha.web.templates.viewgrid&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;toltecdb&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;views&quot;</span><span class="p">:</span> <span class="n">toltecdb</span><span class="o">.</span><span class="n">views</span><span class="p">,</span>
-                    <span class="s1">&#39;title_text&#39;</span><span class="p">:</span> <span class="s2">&quot;Databases&quot;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-table&#39;</span><span class="p">,</span>
+                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.toltecdashboard&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;toltecdashboard&quot;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_text&#39;</span><span class="p">:</span> <span class="s2">&quot;Dashboard&quot;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-tachometer-alt&#39;</span><span class="p">,</span>
                 <span class="p">},</span>
                 <span class="p">{</span>
-                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.kidsview&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;kidsview&quot;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_text&#39;</span><span class="p">:</span> <span class="s2">&quot;Kids View&quot;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-chart-line&#39;</span><span class="p">,</span>
-                    <span class="s1">&#39;update_interval&#39;</span><span class="p">:</span> <span class="mf">1000.</span><span class="p">,</span>
+                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.logview&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;logview&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;Log View&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;far fa-sticky-note&#39;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.beammap&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;beammap&quot;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_text&#39;</span><span class="p">:</span> <span class="s2">&quot;Beammap&quot;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-layer-group&#39;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.dichroic&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;dichroic&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;Dichro Temp&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-thermometer-half&#39;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.hkview&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;hkview&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;HK View&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-thermometer-half&#39;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.kids_explorer&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;kids_explorer&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;KIDs Explorer&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-icicles&#39;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.vna_explorer&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;vna_explorer&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;VNA Explorer&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-icicles&#39;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.tune_explorer&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;tune_explorer&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;TUNE Explorer&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-icicles&#39;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.noise_explorer&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;noise_explorer&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;Noise Explorer&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-wave-square&#39;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.disk_stats&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;disk_stats&quot;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_text&#39;</span><span class="p">:</span> <span class="s2">&quot;(dbg) Disk Stats&quot;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-hdd&#39;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.toltecdb&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;toltecdb&quot;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_text&#39;</span><span class="p">:</span> <span class="s2">&quot;(dbg) Databases&quot;</span><span class="p">,</span>
+                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-table&#39;</span><span class="p">,</span>
                 <span class="p">},</span>
                 <span class="p">{</span>
                     <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.taskview&quot;</span><span class="p">,</span>
                     <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;taskview&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;(dbg) Beat Schedule&#39;</span><span class="p">,</span>
+                    <span class="s2">&quot;title_icon&quot;</span><span class="p">:</span> <span class="s1">&#39;fas fa-tasks&#39;</span>
                 <span class="p">},</span>
                 <span class="p">{</span>
                     <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.kidsreduceview&quot;</span><span class="p">,</span>
                     <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;kidsreduce&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;(dbg) TRS Info&#39;</span><span class="p">,</span>
                 <span class="p">},</span>
             <span class="p">],</span>
         <span class="p">)</span>
@@ -195,6 +278,7 @@
 <span class="c1"># from .defaults import create_server  # noqa: F401</span>
 </pre></div>
 
+            <div class="clearer"></div>
           </div>
         </div>
       </div>
@@ -210,9 +294,9 @@
   <p class="pull-right"> &nbsp;
     <a href="#">Back to Top</a></p>
   <p>
-    &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 3.0.2. &nbsp;
-    Last built 23 Apr 2020. <br/>
+    &copy; Copyright 2021, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
+    Last built 18 Jun 2021. <br/>
   </p>
 </footer>
   </body>

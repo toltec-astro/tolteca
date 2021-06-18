@@ -1,0 +1,33 @@
+SimulatorRuntime
+================
+
+.. currentmodule:: tolteca.simu
+
+.. autoclass:: SimulatorRuntime
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~SimulatorRuntime.cli_run
+      ~SimulatorRuntime.extend_config_schema
+      ~SimulatorRuntime.get_instrument_simulator
+      ~SimulatorRuntime.get_mapping_model
+      ~SimulatorRuntime.get_obs_params
+      ~SimulatorRuntime.get_or_create_output_dir
+      ~SimulatorRuntime.get_source_model
+      ~SimulatorRuntime.run
+      ~SimulatorRuntime.run_mapping_only
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: cli_run
+   .. automethod:: extend_config_schema
+   .. automethod:: get_instrument_simulator
+   .. automethod:: get_mapping_model
+   .. automethod:: get_obs_params
+   .. automethod:: get_or_create_output_dir
+   .. automethod:: get_source_model
+   .. automethod:: run
+   .. automethod:: run_mapping_only

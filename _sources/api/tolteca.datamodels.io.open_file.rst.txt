@@ -1,0 +1,6 @@
+open_file
+=========
+
+.. currentmodule:: tolteca.datamodels.io
+
+.. autofunction:: open_file

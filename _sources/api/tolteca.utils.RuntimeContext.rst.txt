@@ -1,0 +1,45 @@
+RuntimeContext
+==============
+
+.. currentmodule:: tolteca.utils
+
+.. autoclass:: RuntimeContext
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~RuntimeContext.config
+      ~RuntimeContext.config_files
+      ~RuntimeContext.is_persistent
+      ~RuntimeContext.logger
+      ~RuntimeContext.rootpath
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~RuntimeContext.extend_config_schema
+      ~RuntimeContext.from_config
+      ~RuntimeContext.from_dir
+      ~RuntimeContext.setup
+      ~RuntimeContext.symlink_to_bindir
+      ~RuntimeContext.update
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: config
+   .. autoattribute:: config_files
+   .. autoattribute:: is_persistent
+   .. autoattribute:: logger
+   .. autoattribute:: rootpath
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: extend_config_schema
+   .. automethod:: from_config
+   .. automethod:: from_dir
+   .. automethod:: setup
+   .. automethod:: symlink_to_bindir
+   .. automethod:: update

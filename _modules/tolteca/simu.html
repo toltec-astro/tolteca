@@ -1,0 +1,1238 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tolteca.simu &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+    
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
+	 &#187;
+      </li>
+      <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tolteca.simu</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python</span>
+
+<span class="kn">from</span> <span class="nn">tollan.utils</span> <span class="kn">import</span> <span class="n">getobj</span>
+<span class="kn">from</span> <span class="nn">tollan.utils</span> <span class="kn">import</span> <span class="n">rupdate</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.registry</span> <span class="kn">import</span> <span class="n">Registry</span><span class="p">,</span> <span class="n">register_to</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_yaml</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.schema</span> <span class="kn">import</span> <span class="n">create_relpath_validator</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span><span class="p">,</span> <span class="n">logit</span><span class="p">,</span> <span class="n">timeit</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.nc</span> <span class="kn">import</span> <span class="n">ncopen</span><span class="p">,</span> <span class="n">ncinfo</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.namespace</span> <span class="kn">import</span> <span class="n">Namespace</span>
+
+<span class="kn">import</span> <span class="nn">yaml</span>
+<span class="kn">import</span> <span class="nn">netCDF4</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.nc</span> <span class="kn">import</span> <span class="n">NcNodeMapper</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">UserDict</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span> <span class="nn">contextlib</span> <span class="kn">import</span> <span class="n">contextmanager</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">astropy.table</span> <span class="kn">import</span> <span class="n">Table</span>
+<span class="kn">from</span> <span class="nn">astropy.time</span> <span class="kn">import</span> <span class="n">Time</span>
+<span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">u</span>
+<span class="kn">from</span> <span class="nn">astroquery.utils</span> <span class="kn">import</span> <span class="n">parse_coordinates</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">matplotlib.gridspec</span> <span class="k">as</span> <span class="nn">gridspec</span>
+
+<span class="kn">from</span> <span class="nn">schema</span> <span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Or</span><span class="p">,</span> <span class="n">Use</span><span class="p">,</span> <span class="n">Schema</span>
+
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="kn">import</span> <span class="n">RuntimeContext</span><span class="p">,</span> <span class="n">RuntimeContextError</span><span class="p">,</span> <span class="n">get_pkg_data_path</span>
+
+<span class="c1"># import these models as toplevel</span>
+<span class="kn">from</span> <span class="nn">.base</span> <span class="kn">import</span> <span class="p">(</span>
+        <span class="n">SkyRasterScanModel</span><span class="p">,</span>
+        <span class="n">SkyLissajousModel</span><span class="p">,</span>
+        <span class="n">resolve_sky_map_ref_frame</span><span class="p">)</span>  <span class="c1"># noqa: F401</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;SimulatorRuntimeError&#39;</span><span class="p">,</span> <span class="s1">&#39;SimulatorRuntime&#39;</span><span class="p">]</span>
+
+
+<span class="n">_instru_simu_factory</span> <span class="o">=</span> <span class="n">Registry</span><span class="o">.</span><span class="n">create</span><span class="p">()</span>
+<span class="sd">&quot;&quot;&quot;This holds the handler of the instrument simulator config.&quot;&quot;&quot;</span>
+
+
+<span class="nd">@register_to</span><span class="p">(</span><span class="n">_instru_simu_factory</span><span class="p">,</span> <span class="s1">&#39;toltec&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">_isf_toltec</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">cfg_rt</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Create and return `ToltecObsSimulator` from the config.&quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="kn">from</span> <span class="nn">..cal</span> <span class="kn">import</span> <span class="n">ToltecCalib</span>
+    <span class="kn">from</span> <span class="nn">.toltec</span> <span class="kn">import</span> <span class="n">ToltecObsSimulator</span>
+
+    <span class="n">path_validator</span> <span class="o">=</span> <span class="n">create_relpath_validator</span><span class="p">(</span><span class="n">cfg_rt</span><span class="p">[</span><span class="s1">&#39;rootpath&#39;</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">get_calobj</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ToltecCalib</span><span class="o">.</span><span class="n">from_indexfile</span><span class="p">(</span><span class="n">path_validator</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="s1">&#39;invalid calibration object index file path,&#39;</span>
+                    <span class="s1">&#39; fallback to default&#39;</span><span class="p">)</span>
+            <span class="n">default_cal_indexfile</span> <span class="o">=</span> <span class="n">get_pkg_data_path</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span>
+                    <span class="s1">&#39;cal/toltec_default/index.yaml&#39;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">ToltecCalib</span><span class="o">.</span><span class="n">from_indexfile</span><span class="p">(</span><span class="n">default_cal_indexfile</span><span class="p">)</span>
+
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">Schema</span><span class="p">({</span>
+        <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;toltec&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;calobj&#39;</span><span class="p">:</span> <span class="n">Use</span><span class="p">(</span><span class="n">get_calobj</span><span class="p">),</span>
+        <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;select&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span> <span class="nb">str</span>
+        <span class="p">})</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;simulator config: </span><span class="si">{</span><span class="n">cfg</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">apt</span> <span class="o">=</span> <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;calobj&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">get_array_prop_table</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;select&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">apt</span><span class="p">)</span>
+        <span class="n">apt</span> <span class="o">=</span> <span class="n">apt</span><span class="p">[</span><span class="n">apt</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span><span class="o">.</span><span class="n">eval</span><span class="p">(</span><span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;select&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()]</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;select </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">apt</span><span class="p">)</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2"> detectors: </span><span class="si">{</span><span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;select&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ToltecObsSimulator</span><span class="p">(</span><span class="n">apt</span><span class="p">)</span>
+
+
+<span class="n">_simu_source_factory</span> <span class="o">=</span> <span class="n">Registry</span><span class="o">.</span><span class="n">create</span><span class="p">()</span>
+<span class="sd">&quot;&quot;&quot;This holds the handler of the source config for the simulator.&quot;&quot;&quot;</span>
+
+
+<span class="nd">@register_to</span><span class="p">(</span><span class="n">_simu_source_factory</span><span class="p">,</span> <span class="s1">&#39;image&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">_ssf_image</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">cfg_rt</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Handle simulator source specified as a FITS file.&quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="n">path_validator</span> <span class="o">=</span> <span class="n">create_relpath_validator</span><span class="p">(</span><span class="n">cfg_rt</span><span class="p">[</span><span class="s1">&#39;rootpath&#39;</span><span class="p">])</span>
+
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">Schema</span><span class="p">({</span>
+        <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;image&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;filepath&#39;</span><span class="p">:</span> <span class="n">Use</span><span class="p">(</span><span class="n">path_validator</span><span class="p">),</span>
+        <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;grouping&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;extname_map&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span> <span class="nb">dict</span>
+        <span class="p">})</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;source config: </span><span class="si">{</span><span class="n">cfg</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="kn">from</span> <span class="nn">.base</span> <span class="kn">import</span> <span class="n">SourceImageModel</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">SourceImageModel</span><span class="o">.</span><span class="n">from_fits</span><span class="p">(</span>
+            <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;filepath&#39;</span><span class="p">],</span>
+            <span class="n">extname_map</span><span class="o">=</span><span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;extname_map&#39;</span><span class="p">],</span>
+            <span class="n">grouping</span><span class="o">=</span><span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;grouping&#39;</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">m</span>
+
+
+<span class="nd">@register_to</span><span class="p">(</span><span class="n">_simu_source_factory</span><span class="p">,</span> <span class="s1">&#39;toltec_array_loading&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">_ssf_toltec_array_loading</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">cfg_rt</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Handle simulator source for TolTEC LMT loading.&quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">Schema</span><span class="p">({</span>
+        <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;toltec_array_loading&#39;</span><span class="p">,</span>
+        <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;atm_model_name&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">&#39;am_q50&#39;</span><span class="p">):</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="p">})</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;source config: </span><span class="si">{</span><span class="n">cfg</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="kn">from</span> <span class="nn">.toltec</span> <span class="kn">import</span> <span class="n">ArrayLoadingModel</span>
+    <span class="kn">from</span> <span class="nn">.toltec</span> <span class="kn">import</span> <span class="n">toltec_info</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">array_name</span><span class="p">:</span> <span class="n">ArrayLoadingModel</span><span class="p">(</span>
+                <span class="n">atm_model_name</span><span class="o">=</span><span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;atm_model_name&#39;</span><span class="p">],</span> <span class="n">array_name</span><span class="o">=</span><span class="n">array_name</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">array_name</span> <span class="ow">in</span> <span class="n">toltec_info</span><span class="p">[</span><span class="s1">&#39;array_names&#39;</span><span class="p">]}</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;toltec array loading models: </span><span class="si">{</span><span class="n">m</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">m</span>
+
+
+<span class="nd">@register_to</span><span class="p">(</span><span class="n">_simu_source_factory</span><span class="p">,</span> <span class="s1">&#39;toltec_readout_noise&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">_ssf_toltec_readout_noise</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">cfg_rt</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Handle simulator source for TolTEC readout noise.&quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">Schema</span><span class="p">({</span>
+        <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;toltec_readout_noise&#39;</span><span class="p">,</span>
+        <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;scale_factor&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="p">})</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;source config: </span><span class="si">{</span><span class="n">cfg</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="kn">from</span> <span class="nn">.toltec</span> <span class="kn">import</span> <span class="n">KidsReadoutNoiseModel</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">KidsReadoutNoiseModel</span><span class="p">(</span><span class="n">scale_factor</span><span class="o">=</span><span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;scale_factor&#39;</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">m</span>
+
+
+<span class="nd">@register_to</span><span class="p">(</span><span class="n">_simu_source_factory</span><span class="p">,</span> <span class="s1">&#39;atmosphere_psd&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">_ssf_atm_psd</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">cfg_rt</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Handle creation of atmosphere signal timestreams via PSD.&quot;&quot;&quot;</span>
+
+    <span class="c1"># TODO: finish the implementation.</span>
+    <span class="c1"># a base model is needed so that the returned model</span>
+    <span class="c1"># is a subclass of that. This will allow the driver to</span>
+    <span class="c1"># evaluate the model at appropriate stage.</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">Schema</span><span class="p">({</span>
+        <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;atmosphere_psd&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;k&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="s1">&#39;m&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="p">})</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;source config: </span><span class="si">{</span><span class="n">cfg</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="c1"># k = cfg[&#39;k&#39;]</span>
+    <span class="c1"># m = cfg[&#39;m&#39;]</span>
+
+    <span class="c1"># from .atm_model import kgenerator</span>
+    <span class="c1"># psd = kgenerator(k, m)</span>
+
+    <span class="k">def</span> <span class="nf">get_timestream</span><span class="p">(</span><span class="n">ra</span><span class="p">,</span> <span class="n">dec</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+        <span class="c1"># time is a vector</span>
+        <span class="n">surface_brightness</span> <span class="o">=</span> <span class="bp">NotImplemented</span>
+        <span class="k">return</span> <span class="n">surface_brightness</span>  <span class="c1"># vector of the same size as time</span>
+
+    <span class="k">return</span> <span class="n">get_timestream</span>
+
+
+<span class="nd">@register_to</span><span class="p">(</span><span class="n">_simu_source_factory</span><span class="p">,</span> <span class="s1">&#39;point_source_catalog&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">_ssf_point_source_catalog</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">cfg_rt</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Handle simulator source specified as a point source catalog.&quot;&quot;&quot;</span>
+
+    <span class="c1"># from .base import SkyOffsetModel</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="n">path_validator</span> <span class="o">=</span> <span class="n">create_relpath_validator</span><span class="p">(</span><span class="n">cfg_rt</span><span class="p">[</span><span class="s1">&#39;rootpath&#39;</span><span class="p">])</span>
+
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">Schema</span><span class="p">({</span>
+        <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;point_source_catalog&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;filepath&#39;</span><span class="p">:</span> <span class="n">Use</span><span class="p">(</span><span class="n">path_validator</span><span class="p">),</span>
+        <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;grouping&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;colname_map&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span> <span class="nb">dict</span>
+        <span class="p">})</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;source config: </span><span class="si">{</span><span class="n">cfg</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="kn">from</span> <span class="nn">.base</span> <span class="kn">import</span> <span class="n">SourceCatalogModel</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">SourceCatalogModel</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span>
+            <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;filepath&#39;</span><span class="p">],</span>
+            <span class="n">colname_map</span><span class="o">=</span><span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;colname_map&#39;</span><span class="p">],</span>
+            <span class="n">grouping</span><span class="o">=</span><span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;grouping&#39;</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">m</span>
+
+
+<span class="n">_mapping_model_factory</span> <span class="o">=</span> <span class="n">Registry</span><span class="o">.</span><span class="n">create</span><span class="p">()</span>
+<span class="sd">&quot;&quot;&quot;This holds the handler of the mapping model for the simulator.&quot;&quot;&quot;</span>
+
+
+<span class="nd">@register_to</span><span class="p">(</span><span class="n">_mapping_model_factory</span><span class="p">,</span> <span class="s1">&#39;lmt_tcs&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">_mmf_lmt_tcs</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">cfg_rt</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Handle mapping model specified as LMT/TCS pointing file.&quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="n">path_validator</span> <span class="o">=</span> <span class="n">create_relpath_validator</span><span class="p">(</span><span class="n">cfg_rt</span><span class="p">[</span><span class="s1">&#39;rootpath&#39;</span><span class="p">])</span>
+
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">Schema</span><span class="p">({</span>
+        <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;lmt_tcs&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;filepath&#39;</span><span class="p">:</span> <span class="n">Use</span><span class="p">(</span><span class="n">path_validator</span><span class="p">),</span>
+        <span class="p">})</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mapping config: </span><span class="si">{</span><span class="n">cfg</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="c1"># TODO: finish define the fits file format for simulator input</span>
+    <span class="k">with</span> <span class="n">ncopen</span><span class="p">(</span><span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;filepath&#39;</span><span class="p">])</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">ncinfo</span><span class="p">(</span><span class="n">fo</span><span class="p">))</span>
+
+    <span class="kn">from</span> <span class="nn">.toltec.tel</span> <span class="kn">import</span> <span class="n">LmtTelFileIO</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">LmtTelFileIO</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;filepath&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;resolved mapping model: </span><span class="si">{</span><span class="n">m</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">m</span>
+
+
+<span class="k">def</span> <span class="nf">_register_mapping_model_factory</span><span class="p">(</span><span class="n">clspath</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This can be used to export `clspath` as mapping model factory.&quot;&quot;&quot;</span>
+
+    <span class="c1"># this is not public API so be careful for future changes.</span>
+    <span class="kn">from</span> <span class="nn">astropy.coordinates.sky_coordinate_parsers</span> <span class="kn">import</span> <span class="n">_get_frame_class</span>
+
+    <span class="nd">@register_to</span><span class="p">(</span><span class="n">_mapping_model_factory</span><span class="p">,</span> <span class="n">clspath</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_mmf_map_model</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">cfg_rt</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Handle mapping model specified as model defined in `~tolteca.simu`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;_mmf_</span><span class="si">{</span><span class="n">clspath</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="c1"># TODO add inspect to the cls constructor to find out the necessary</span>
+        <span class="c1"># conversion of values</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="n">Schema</span><span class="p">({</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="n">Use</span><span class="p">(</span><span class="n">getobj</span><span class="p">),</span>
+            <span class="s1">&#39;target&#39;</span><span class="p">:</span> <span class="n">Use</span><span class="p">(</span><span class="n">parse_coordinates</span><span class="p">),</span>
+            <span class="s1">&#39;ref_frame&#39;</span><span class="p">:</span> <span class="n">Use</span><span class="p">(</span><span class="n">_get_frame_class</span><span class="p">),</span>
+            <span class="s1">&#39;t0&#39;</span><span class="p">:</span> <span class="n">Use</span><span class="p">(</span><span class="n">Time</span><span class="p">),</span>
+            <span class="nb">object</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
+            <span class="p">})</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mapping model config: </span><span class="si">{</span><span class="n">cfg</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="bp">cls</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;type&#39;</span><span class="p">)</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;target&#39;</span><span class="p">)</span>
+        <span class="n">t0</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;t0&#39;</span><span class="p">)</span>
+        <span class="n">ref_frame</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;ref_frame&#39;</span><span class="p">)</span>
+        <span class="n">kwargs</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="n">k</span><span class="p">:</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                <span class="p">}</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span><span class="n">t0</span><span class="o">=</span><span class="n">t0</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">target</span><span class="p">,</span> <span class="n">ref_frame</span><span class="o">=</span><span class="n">ref_frame</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;resolved mapping model: </span><span class="si">{</span><span class="n">m</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">m</span>
+
+
+<span class="n">_register_mapping_model_factory</span><span class="p">(</span><span class="s1">&#39;tolteca.simu:SkyRasterScanModel&#39;</span><span class="p">)</span>
+<span class="n">_register_mapping_model_factory</span><span class="p">(</span><span class="s1">&#39;tolteca.simu:SkyLissajousModel&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="SimulatorRuntimeError"><a class="viewcode-back" href="../../api/tolteca.simu.SimulatorRuntimeError.html#tolteca.simu.SimulatorRuntimeError">[docs]</a><span class="k">class</span> <span class="nc">SimulatorRuntimeError</span><span class="p">(</span><span class="n">RuntimeContextError</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Raise when errors occur in `SimulatorRuntime`.&quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="SimulatorRuntime"><a class="viewcode-back" href="../../api/tolteca.simu.SimulatorRuntime.html#tolteca.simu.SimulatorRuntime">[docs]</a><span class="k">class</span> <span class="nc">SimulatorRuntime</span><span class="p">(</span><span class="n">RuntimeContext</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A class that manages the runtime of the simulator.&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="SimulatorRuntime.extend_config_schema"><a class="viewcode-back" href="../../api/tolteca.simu.SimulatorRuntime.html#tolteca.simu.SimulatorRuntime.extend_config_schema">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">extend_config_schema</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="c1"># this defines the subschema relevant to the simulator.</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s1">&#39;simu&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;jobkey&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                <span class="s1">&#39;instrument&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">Or</span><span class="p">(</span><span class="o">*</span><span class="n">_instru_simu_factory</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span>
+                    <span class="nb">object</span><span class="p">:</span> <span class="nb">object</span>
+                    <span class="p">},</span>
+                <span class="s1">&#39;obs_params&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;f_smp_mapping&#39;</span><span class="p">:</span> <span class="n">Use</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">),</span>
+                    <span class="s1">&#39;f_smp_data&#39;</span><span class="p">:</span> <span class="n">Use</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">),</span>
+                    <span class="s1">&#39;t_exp&#39;</span><span class="p">:</span> <span class="n">Use</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">)</span>
+                    <span class="p">},</span>
+                <span class="s1">&#39;sources&#39;</span><span class="p">:</span> <span class="p">[{</span>
+                    <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="n">Or</span><span class="p">(</span><span class="o">*</span><span class="n">_simu_source_factory</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span>
+                    <span class="nb">object</span><span class="p">:</span> <span class="nb">object</span>
+                    <span class="p">}],</span>
+                <span class="s1">&#39;mapping&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="n">Or</span><span class="p">(</span><span class="o">*</span><span class="n">_mapping_model_factory</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span>
+                    <span class="nb">object</span><span class="p">:</span> <span class="nb">object</span>
+                    <span class="p">},</span>
+                <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;plot&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span> <span class="nb">bool</span><span class="p">,</span>
+                <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;save&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span> <span class="nb">bool</span><span class="p">,</span>
+                <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;mapping_only&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span> <span class="nb">bool</span><span class="p">,</span>
+                <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;perf_params&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="p">{</span>
+                        <span class="c1"># TODO refactor here to not repeat</span>
+                        <span class="s1">&#39;chunk_size&#39;</span><span class="p">:</span> <span class="mi">10</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">,</span>
+                        <span class="s1">&#39;mapping_interp_len&#39;</span><span class="p">:</span> <span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">,</span>
+                        <span class="s1">&#39;erfa_interp_len&#39;</span><span class="p">:</span> <span class="mi">300</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">,</span>
+                        <span class="s1">&#39;anim_frame_rate&#39;</span><span class="p">:</span> <span class="mi">12</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">,</span>
+                    <span class="p">}):</span> <span class="p">{</span>
+                    <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;chunk_size&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">10</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">):</span> <span class="n">Use</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">),</span>
+                    <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;mapping_interp_len&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">):</span> <span class="n">Use</span><span class="p">(</span>
+                        <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">),</span>
+                    <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;erfa_interp_len&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">300</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">):</span> <span class="n">Use</span><span class="p">(</span>
+                        <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">),</span>
+                    <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;anim_frame_rate&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">12</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">):</span> <span class="n">Use</span><span class="p">(</span>
+                        <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">),</span>
+                    <span class="p">},</span>
+                <span class="p">},</span>
+            <span class="p">}</span></div>
+
+<div class="viewcode-block" id="SimulatorRuntime.get_or_create_output_dir"><a class="viewcode-back" href="../../api/tolteca.simu.SimulatorRuntime.html#tolteca.simu.SimulatorRuntime.get_or_create_output_dir">[docs]</a>    <span class="k">def</span> <span class="nf">get_or_create_output_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;simu&#39;</span><span class="p">]</span>
+        <span class="n">outdir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rootpath</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;jobkey&#39;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">outdir</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">with</span> <span class="n">logit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span> <span class="s1">&#39;create output dir&#39;</span><span class="p">):</span>
+                <span class="n">outdir</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">outdir</span></div>
+
+<div class="viewcode-block" id="SimulatorRuntime.get_mapping_model"><a class="viewcode-back" href="../../api/tolteca.simu.SimulatorRuntime.html#tolteca.simu.SimulatorRuntime.get_mapping_model">[docs]</a>    <span class="k">def</span> <span class="nf">get_mapping_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the mapping model specified in the runtime config.&quot;&quot;&quot;</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;simu&#39;</span><span class="p">]</span>
+        <span class="n">cfg_rt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;runtime&#39;</span><span class="p">]</span>
+        <span class="n">mapping</span> <span class="o">=</span> <span class="n">_mapping_model_factory</span><span class="p">[</span><span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;mapping&#39;</span><span class="p">][</span><span class="s1">&#39;type&#39;</span><span class="p">]](</span>
+                <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;mapping&#39;</span><span class="p">],</span> <span class="n">cfg_rt</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mapping</span></div>
+
+<div class="viewcode-block" id="SimulatorRuntime.get_source_model"><a class="viewcode-back" href="../../api/tolteca.simu.SimulatorRuntime.html#tolteca.simu.SimulatorRuntime.get_source_model">[docs]</a>    <span class="k">def</span> <span class="nf">get_source_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the source model specified in the runtime config.&quot;&quot;&quot;</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;simu&#39;</span><span class="p">]</span>
+        <span class="n">cfg_rt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;runtime&#39;</span><span class="p">]</span>
+
+        <span class="c1"># resolve sources</span>
+        <span class="n">sources</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">src</span> <span class="ow">in</span> <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;sources&#39;</span><span class="p">]:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="n">_simu_source_factory</span><span class="p">[</span><span class="n">src</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]](</span>
+                        <span class="n">src</span><span class="p">,</span> <span class="n">cfg_rt</span>
+                        <span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">SimulatorRuntimeError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;invalid simulation source:</span><span class="se">\n</span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">src</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">sources</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">sources</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">SimulatorRuntimeError</span><span class="p">(</span><span class="s2">&quot;no valid simulation sources found.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">sources</span></div>
+
+<div class="viewcode-block" id="SimulatorRuntime.get_instrument_simulator"><a class="viewcode-back" href="../../api/tolteca.simu.SimulatorRuntime.html#tolteca.simu.SimulatorRuntime.get_instrument_simulator">[docs]</a>    <span class="k">def</span> <span class="nf">get_instrument_simulator</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the instrument simulator specified in the runtime config.&quot;&quot;&quot;</span>
+
+        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;simu&#39;</span><span class="p">]</span>
+        <span class="n">cfg_rt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;runtime&#39;</span><span class="p">]</span>
+
+        <span class="n">simobj</span> <span class="o">=</span> <span class="n">_instru_simu_factory</span><span class="p">[</span><span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;instrument&#39;</span><span class="p">][</span><span class="s1">&#39;name&#39;</span><span class="p">]](</span>
+                <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;instrument&#39;</span><span class="p">],</span> <span class="n">cfg_rt</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">simobj</span></div>
+
+<div class="viewcode-block" id="SimulatorRuntime.get_obs_params"><a class="viewcode-back" href="../../api/tolteca.simu.SimulatorRuntime.html#tolteca.simu.SimulatorRuntime.get_obs_params">[docs]</a>    <span class="k">def</span> <span class="nf">get_obs_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the observation parameters specified in the runtime config.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;simu&#39;</span><span class="p">]</span>
+        <span class="n">obs_params</span> <span class="o">=</span> <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;obs_params&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">obs_params</span></div>
+
+<div class="viewcode-block" id="SimulatorRuntime.run"><a class="viewcode-back" href="../../api/tolteca.simu.SimulatorRuntime.html#tolteca.simu.SimulatorRuntime.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Run the simulator.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        `SimulatorResult` : The result context containing the simulated data.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;simu&#39;</span><span class="p">]</span>
+        <span class="n">simobj</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_instrument_simulator</span><span class="p">()</span>
+        <span class="n">obs_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_obs_params</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="n">pformat_yaml</span><span class="p">({</span>
+                    <span class="s1">&#39;simobj&#39;</span><span class="p">:</span> <span class="n">simobj</span><span class="p">,</span>
+                    <span class="s1">&#39;obsparams&#39;</span><span class="p">:</span> <span class="n">obs_params</span><span class="p">,</span>
+                    <span class="p">}))</span>
+
+        <span class="c1"># resolve mapping</span>
+        <span class="n">mapping</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_mapping_model</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mapping:</span><span class="se">\n</span><span class="si">{</span><span class="n">mapping</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># resolve sources</span>
+        <span class="n">sources</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_source_model</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;sources: n_sources=</span><span class="si">{}</span><span class="se">\n</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="nb">len</span><span class="p">(</span><span class="n">sources</span><span class="p">),</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s1">&#39;-----</span><span class="se">\n</span><span class="si">{</span><span class="n">s</span><span class="si">}</span><span class="se">\n</span><span class="s1">-----&#39;</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sources</span>
+                <span class="p">)))</span>
+
+        <span class="c1"># create the time grid and run the simulation</span>
+        <span class="c1"># here we resolve the special `ct` unit according to the number</span>
+        <span class="c1"># of repeats of the mapping pattern</span>
+        <span class="n">t_exp</span> <span class="o">=</span> <span class="n">obs_params</span><span class="p">[</span><span class="s1">&#39;t_exp&#39;</span><span class="p">]</span>
+
+        <span class="n">t_pattern</span> <span class="o">=</span> <span class="n">mapping</span><span class="o">.</span><span class="n">get_total_time</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mapping pattern time: </span><span class="si">{</span><span class="n">t_pattern</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">t_exp</span><span class="o">.</span><span class="n">unit</span><span class="o">.</span><span class="n">is_equivalent</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">ct</span><span class="p">):</span>
+            <span class="n">ct_exp</span> <span class="o">=</span> <span class="n">t_exp</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">ct</span><span class="p">)</span>
+            <span class="n">t_exp</span> <span class="o">=</span> <span class="n">mapping</span><span class="o">.</span><span class="n">get_total_time</span><span class="p">()</span> <span class="o">*</span> <span class="n">ct_exp</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;resolve t_exp=</span><span class="si">{</span><span class="n">t_exp</span><span class="si">}</span><span class="s2"> from count=</span><span class="si">{</span><span class="n">ct_exp</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span>
+                <span class="mi">0</span><span class="p">,</span> <span class="n">t_exp</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">),</span>
+                <span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="n">obs_params</span><span class="p">[</span><span class="s1">&#39;f_smp_data&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">))</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span>
+
+        <span class="c1"># make chunks</span>
+        <span class="n">chunk_size</span> <span class="o">=</span> <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;perf_params&#39;</span><span class="p">][</span><span class="s1">&#39;chunk_size&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">chunk_size</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">t_chunks</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">n_times_per_chunk</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span>
+                    <span class="n">chunk_size</span> <span class="o">*</span> <span class="n">obs_params</span><span class="p">[</span><span class="s1">&#39;f_smp_data&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span>
+                            <span class="n">u</span><span class="o">.</span><span class="n">dimensionless_unscaled</span><span class="p">))</span>
+            <span class="n">n_times</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+            <span class="n">n_chunks</span> <span class="o">=</span> <span class="n">n_times</span> <span class="o">//</span> <span class="n">n_times_per_chunk</span> <span class="o">+</span> <span class="nb">bool</span><span class="p">(</span>
+                    <span class="n">n_times</span> <span class="o">%</span> <span class="n">n_times_per_chunk</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;n_times_per_chunk=</span><span class="si">{</span><span class="n">n_times_per_chunk</span><span class="si">}</span><span class="s2"> n_times=</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="si">}</span><span class="s2"> &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;n_chunks=</span><span class="si">{</span><span class="n">n_chunks</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+            <span class="n">t_chunks</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_chunks</span><span class="p">):</span>
+                <span class="n">t_chunks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                        <span class="n">t</span><span class="p">[</span><span class="n">i</span> <span class="o">*</span> <span class="n">n_times_per_chunk</span><span class="p">:(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">n_times_per_chunk</span><span class="p">])</span>
+
+        <span class="c1"># construct the simulator payload</span>
+        <span class="k">def</span> <span class="nf">data_generator</span><span class="p">():</span>
+            <span class="k">with</span> <span class="n">simobj</span><span class="o">.</span><span class="n">mapping_context</span><span class="p">(</span>
+                    <span class="n">mapping</span><span class="o">=</span><span class="n">mapping</span><span class="p">,</span> <span class="n">sources</span><span class="o">=</span><span class="n">sources</span>
+                    <span class="p">)</span> <span class="k">as</span> <span class="n">obs</span><span class="p">,</span> <span class="n">simobj</span><span class="o">.</span><span class="n">probe_context</span><span class="p">(</span>
+                            <span class="n">fp</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sources</span><span class="o">=</span><span class="n">sources</span><span class="p">,</span>
+                            <span class="n">f_smp</span><span class="o">=</span><span class="n">obs_params</span><span class="p">[</span><span class="s1">&#39;f_smp_data&#39;</span><span class="p">])</span> <span class="k">as</span> <span class="n">probe</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">t_chunks</span><span class="p">):</span>
+                    <span class="n">s</span><span class="p">,</span> <span class="n">obs_info</span> <span class="o">=</span> <span class="n">obs</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s1">&#39;chunk #</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">: t=[</span><span class="si">{</span><span class="n">t</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s1">, </span><span class="si">{</span><span class="n">t</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s1">] &#39;</span>
+                            <span class="sa">f</span><span class="s1">&#39;s=[</span><span class="si">{</span><span class="n">s</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="n">s</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s1">]&#39;</span><span class="p">)</span>
+                    <span class="n">rs</span><span class="p">,</span> <span class="n">xs</span><span class="p">,</span> <span class="n">iqs</span><span class="p">,</span> <span class="n">probe_info</span> <span class="o">=</span> <span class="n">probe</span><span class="p">(</span>
+                            <span class="n">s</span><span class="p">,</span> <span class="n">alt</span><span class="o">=</span><span class="n">obs_info</span><span class="p">[</span><span class="s1">&#39;alt&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+                    <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+                        <span class="s1">&#39;time&#39;</span><span class="p">:</span> <span class="n">t</span><span class="p">,</span>
+                        <span class="s1">&#39;flux&#39;</span><span class="p">:</span> <span class="n">s</span><span class="p">,</span>
+                        <span class="s1">&#39;rs&#39;</span><span class="p">:</span> <span class="n">rs</span><span class="p">,</span>
+                        <span class="s1">&#39;xs&#39;</span><span class="p">:</span> <span class="n">xs</span><span class="p">,</span>
+                        <span class="s1">&#39;iqs&#39;</span><span class="p">:</span> <span class="n">iqs</span><span class="p">,</span>
+                        <span class="s1">&#39;obs_info&#39;</span><span class="p">:</span> <span class="n">obs_info</span><span class="p">,</span>
+                        <span class="s1">&#39;probe_info&#39;</span><span class="p">:</span> <span class="n">probe_info</span><span class="p">,</span>
+                        <span class="p">}</span>
+                    <span class="k">yield</span> <span class="n">data</span>
+
+        <span class="k">return</span> <span class="n">SimulatorResult</span><span class="p">(</span>
+                <span class="n">simctx</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span>
+                <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">,</span>
+                <span class="n">simobj</span><span class="o">=</span><span class="n">simobj</span><span class="p">,</span>
+                <span class="n">obs_params</span><span class="o">=</span><span class="n">obs_params</span><span class="p">,</span>
+                <span class="n">sources</span><span class="o">=</span><span class="n">sources</span><span class="p">,</span>
+                <span class="n">mapping</span><span class="o">=</span><span class="n">mapping</span><span class="p">,</span>
+                <span class="n">data_generator</span><span class="o">=</span><span class="n">data_generator</span>
+                <span class="p">)</span></div>
+
+<div class="viewcode-block" id="SimulatorRuntime.run_mapping_only"><a class="viewcode-back" href="../../api/tolteca.simu.SimulatorRuntime.html#tolteca.simu.SimulatorRuntime.run_mapping_only">[docs]</a>    <span class="k">def</span> <span class="nf">run_mapping_only</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Run the simulator to generate mapping file only.&quot;&quot;&quot;</span>
+        <span class="n">simobj</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_instrument_simulator</span><span class="p">()</span>
+
+        <span class="n">mapping</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_mapping_model</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mapping: </span><span class="si">{</span><span class="n">mapping</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="n">obs_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_obs_params</span><span class="p">()</span>
+
+        <span class="n">t0</span> <span class="o">=</span> <span class="n">mapping</span><span class="o">.</span><span class="n">t0</span>
+        <span class="n">ref_frame</span> <span class="o">=</span> <span class="n">mapping</span><span class="o">.</span><span class="n">ref_frame</span>
+        <span class="n">ref_coord</span> <span class="o">=</span> <span class="n">mapping</span><span class="o">.</span><span class="n">target</span>
+        <span class="c1"># make t grid</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span>
+                <span class="mi">0</span><span class="p">,</span> <span class="n">obs_params</span><span class="p">[</span><span class="s1">&#39;t_exp&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">),</span>
+                <span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="n">obs_params</span><span class="p">[</span><span class="s1">&#39;f_smp_mapping&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">))</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span>
+        <span class="n">time_obs</span> <span class="o">=</span> <span class="n">t0</span> <span class="o">+</span> <span class="n">t</span>
+
+        <span class="n">_ref_frame</span> <span class="o">=</span> <span class="n">resolve_sky_map_ref_frame</span><span class="p">(</span>
+                <span class="n">ref_frame</span><span class="p">,</span> <span class="n">observer</span><span class="o">=</span><span class="n">simobj</span><span class="o">.</span><span class="n">observer</span><span class="p">,</span> <span class="n">time_obs</span><span class="o">=</span><span class="n">time_obs</span><span class="p">)</span>
+        <span class="n">_ref_coord</span> <span class="o">=</span> <span class="n">ref_coord</span><span class="o">.</span><span class="n">transform_to</span><span class="p">(</span><span class="n">_ref_frame</span><span class="p">)</span>
+        <span class="n">obs_coords</span> <span class="o">=</span> <span class="n">mapping</span><span class="o">.</span><span class="n">evaluate_at</span><span class="p">(</span><span class="n">_ref_coord</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+        <span class="c1"># transform all obs_coords to equitorial</span>
+        <span class="n">obs_coords_icrs</span> <span class="o">=</span> <span class="n">obs_coords</span><span class="o">.</span><span class="n">transform_to</span><span class="p">(</span><span class="s1">&#39;icrs&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;time_obs size: </span><span class="si">{</span><span class="n">time_obs</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">SimulatorResult</span><span class="p">(</span>
+                <span class="n">simctx</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span>
+                <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">,</span>
+                <span class="n">simobj</span><span class="o">=</span><span class="n">simobj</span><span class="p">,</span>
+                <span class="n">obs_params</span><span class="o">=</span><span class="n">obs_params</span><span class="p">,</span>
+                <span class="n">obs_info</span><span class="o">=</span><span class="nb">locals</span><span class="p">(),</span>
+                <span class="n">mapping</span><span class="o">=</span><span class="n">mapping</span><span class="p">,</span>
+                <span class="p">)</span></div>
+
+<div class="viewcode-block" id="SimulatorRuntime.cli_run"><a class="viewcode-back" href="../../api/tolteca.simu.SimulatorRuntime.html#tolteca.simu.SimulatorRuntime.cli_run">[docs]</a>    <span class="nd">@timeit</span>
+    <span class="k">def</span> <span class="nf">cli_run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Run the simulator and save the result.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;simu&#39;</span><span class="p">]</span>
+
+        <span class="n">mapping_only</span> <span class="o">=</span> <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;mapping_only&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">mapping_only</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_mapping_only</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;plot&#39;</span><span class="p">]:</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">plot_animation</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;save&#39;</span><span class="p">]:</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">save</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">get_or_create_output_dir</span><span class="p">(),</span> <span class="n">mapping_only</span><span class="o">=</span><span class="n">mapping_only</span><span class="p">)</span></div></div>
+
+
+<span class="k">class</span> <span class="nc">SimulatorResult</span><span class="p">(</span><span class="n">Namespace</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A class to hold simulator results.&quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="n">outdir_lockfile</span> <span class="o">=</span> <span class="s1">&#39;simresult.lock&#39;</span>
+    <span class="n">outdir_statefile</span> <span class="o">=</span> <span class="s1">&#39;simresult.state&#39;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;data_generator&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;invalid result. can only have data&quot;</span>
+                             <span class="s2">&quot;or data_generator&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_lazy</span> <span class="o">=</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;data_generator&#39;</span><span class="p">)</span>
+        <span class="c1"># wrap data in an iterator so we have a uniform implementation</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lazy</span><span class="p">:</span>
+            <span class="k">def</span> <span class="nf">_data_gen</span><span class="p">():</span>
+                <span class="k">yield</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data_generator</span> <span class="o">=</span> <span class="n">_data_gen</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reset_iterdata</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">reset_iterdata</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Reset the data iterator.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_iterdata</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_generator</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_iterdata</span>
+
+    <span class="k">def</span> <span class="nf">iterdata</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reset</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return data from the data iterator.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">reset</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">reset_iterdata</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nb">next</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_iterdata</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_save_lmt_tcs_tel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">outdir</span><span class="p">):</span>
+
+        <span class="n">simctx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">simctx</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;simu&#39;</span><span class="p">]</span>
+
+        <span class="n">output_tel</span> <span class="o">=</span> <span class="n">outdir</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;tel.nc&#39;</span><span class="p">)</span>
+
+        <span class="n">nc_tel</span> <span class="o">=</span> <span class="n">netCDF4</span><span class="o">.</span><span class="n">Dataset</span><span class="p">(</span><span class="n">output_tel</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;NETCDF4&#39;</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">add_str</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">128</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="n">dim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">dim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">dim</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+                <span class="n">dim_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s1">_slen&#39;</span>
+                <span class="n">ds</span><span class="o">.</span><span class="n">createDimension</span><span class="p">(</span><span class="n">dim_name</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">dim_name</span> <span class="o">=</span> <span class="n">dim</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39;S1&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">dim_name</span><span class="p">,</span> <span class="p">))</span>
+            <span class="n">v</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">netCDF4</span><span class="o">.</span><span class="n">stringtochar</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">s</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;S</span><span class="si">{</span><span class="n">dim</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">))</span>
+
+        <span class="n">add_str</span><span class="p">(</span>
+                <span class="n">nc_tel</span><span class="p">,</span>
+                <span class="s1">&#39;Header.File.Name&#39;</span><span class="p">,</span>
+                <span class="n">output_tel</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">simctx</span><span class="o">.</span><span class="n">rootpath</span><span class="p">)</span><span class="o">.</span><span class="n">as_posix</span><span class="p">())</span>
+        <span class="n">add_str</span><span class="p">(</span>
+                <span class="n">nc_tel</span><span class="p">,</span>
+                <span class="s1">&#39;Header.Source.SourceName&#39;</span><span class="p">,</span>
+                <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;jobkey&#39;</span><span class="p">])</span>
+
+        <span class="n">d_time</span> <span class="o">=</span> <span class="s1">&#39;time&#39;</span>
+
+        <span class="n">nc_tel</span><span class="o">.</span><span class="n">createDimension</span><span class="p">(</span><span class="n">d_time</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+        <span class="n">v_time</span> <span class="o">=</span> <span class="n">nc_tel</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span>
+                <span class="s1">&#39;Data.TelescopeBackend.TelTime&#39;</span><span class="p">,</span> <span class="s1">&#39;f8&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">d_time</span><span class="p">,</span> <span class="p">))</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">iterdata</span><span class="p">(</span><span class="n">reset</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="n">time_obs</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;time_obs&#39;</span><span class="p">]</span>
+        <span class="n">v_time</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">time_obs</span><span class="o">.</span><span class="n">unix</span>
+
+        <span class="k">def</span> <span class="nf">add_coords_data</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">arr</span><span class="p">,</span> <span class="n">dims</span><span class="p">):</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39;f8&#39;</span><span class="p">,</span> <span class="n">dims</span><span class="p">)</span>
+            <span class="n">v</span><span class="o">.</span><span class="n">units</span> <span class="o">=</span> <span class="s1">&#39;deg&#39;</span>
+            <span class="n">v</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">arr</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span>
+
+        <span class="n">obs_coords_icrs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">obs_info</span><span class="p">[</span><span class="s1">&#39;obs_coords_icrs&#39;</span><span class="p">]</span>
+        <span class="n">add_coords_data</span><span class="p">(</span>
+            <span class="n">nc_tel</span><span class="p">,</span>
+            <span class="s1">&#39;Data.TelescopeBackend.TelSourceRaAct&#39;</span><span class="p">,</span>
+            <span class="n">obs_coords_icrs</span><span class="o">.</span><span class="n">ra</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">d_time</span><span class="p">,</span> <span class="p">))</span>
+        <span class="n">add_coords_data</span><span class="p">(</span>
+            <span class="n">nc_tel</span><span class="p">,</span>
+            <span class="s1">&#39;Data.TelescopeBackend.TelSourceDecAct&#39;</span><span class="p">,</span>
+            <span class="n">obs_coords_icrs</span><span class="o">.</span><span class="n">dec</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">d_time</span><span class="p">,</span> <span class="p">))</span>
+
+        <span class="n">nc_tel</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_save_toltec_nc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">outdir</span><span class="p">):</span>
+        <span class="n">simobj</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">simobj</span>
+        <span class="c1"># output data_files</span>
+        <span class="n">nws</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">simobj</span><span class="o">.</span><span class="n">table</span><span class="p">[</span><span class="s1">&#39;nw&#39;</span><span class="p">])</span>
+
+        <span class="n">iqs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;iqs&#39;</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">nw</span> <span class="ow">in</span> <span class="n">nws</span><span class="p">:</span>
+            <span class="n">tbl</span> <span class="o">=</span> <span class="n">simobj</span><span class="o">.</span><span class="n">table</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;nw&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">nw</span>
+            <span class="n">tbl</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="n">m</span><span class="p">]</span>
+            <span class="n">output_toltec</span> <span class="o">=</span> <span class="n">outdir</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;toltec</span><span class="si">{</span><span class="n">nw</span><span class="si">}</span><span class="s1">.nc&#39;</span><span class="p">)</span>
+
+            <span class="n">nc_toltec</span> <span class="o">=</span> <span class="n">netCDF4</span><span class="o">.</span><span class="n">Dataset</span><span class="p">(</span><span class="n">output_toltec</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;NETCDF4&#39;</span><span class="p">)</span>
+            <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createDimension</span><span class="p">(</span><span class="s1">&#39;nkids&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">tbl</span><span class="p">))</span>
+            <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createDimension</span><span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="n">v_I</span> <span class="o">=</span> <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span><span class="s1">&#39;I&#39;</span><span class="p">,</span> <span class="s1">&#39;f8&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;nkids&#39;</span><span class="p">,</span> <span class="s1">&#39;time&#39;</span><span class="p">))</span>
+            <span class="n">v_Q</span> <span class="o">=</span> <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span><span class="s1">&#39;Q&#39;</span><span class="p">,</span> <span class="s1">&#39;f8&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;nkids&#39;</span><span class="p">,</span> <span class="s1">&#39;time&#39;</span><span class="p">))</span>
+            <span class="n">v_I</span><span class="p">[:,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">iqs</span><span class="o">.</span><span class="n">real</span><span class="p">[</span><span class="n">m</span><span class="p">,</span> <span class="p">:]</span>
+            <span class="n">v_Q</span><span class="p">[:,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">iqs</span><span class="o">.</span><span class="n">imag</span><span class="p">[</span><span class="n">m</span><span class="p">,</span> <span class="p">:]</span>
+            <span class="n">nc_toltec</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="k">class</span> <span class="nc">_PersistentSimulatorState</span><span class="p">(</span><span class="n">UserDict</span><span class="p">):</span>
+        <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filepath</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">update</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">filepath</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
+                    <span class="n">state</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fo</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">update</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">rupdate</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">update</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">init</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">state</span> <span class="o">=</span> <span class="n">init</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;cannot initialize state&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_filepath</span> <span class="o">=</span> <span class="n">filepath</span>
+            <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">sync</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_filepath</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
+                <span class="n">yaml</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">fo</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span>
+
+        <span class="k">def</span> <span class="nf">reload</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_filepath</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
+                <span class="n">state</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fo</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">state</span>
+
+        <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">pformat_yaml</span><span class="p">({</span>
+                <span class="s1">&#39;state&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                <span class="s1">&#39;filepath&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_filepath</span><span class="p">})</span>
+
+    <span class="nd">@contextmanager</span>
+    <span class="k">def</span> <span class="nf">writelock</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">outdir</span><span class="p">):</span>
+        <span class="n">outdir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">outdir</span><span class="p">)</span>
+        <span class="n">lockfile</span> <span class="o">=</span> <span class="n">outdir</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">outdir_lockfile</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">lockfile</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;cannot acquire write lock for </span><span class="si">{</span><span class="n">outdir</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_PersistentSimulatorState</span><span class="p">(</span>
+                <span class="n">outdir</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">outdir_statefile</span><span class="p">),</span>
+                <span class="n">init</span><span class="o">=</span><span class="p">{</span>
+                    <span class="s1">&#39;obsnum&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                    <span class="s1">&#39;subobsnum&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                    <span class="s1">&#39;scannum&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                    <span class="s1">&#39;cal_obsnum&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                    <span class="s1">&#39;cal_subobsnum&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                    <span class="s1">&#39;cal_scannum&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                    <span class="p">})</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">lockfile</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">):</span>
+                <span class="k">pass</span>
+            <span class="k">yield</span> <span class="n">state</span><span class="o">.</span><span class="n">sync</span><span class="p">()</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">lockfile</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;failed release write lock&quot;</span><span class="p">,</span> <span class="n">exc_info</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="nd">@timeit</span>
+    <span class="k">def</span> <span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">outdir</span><span class="p">,</span> <span class="n">mapping_only</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+
+        <span class="k">def</span> <span class="nf">make_output_filename</span><span class="p">(</span><span class="n">interface</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">suffix</span><span class="p">):</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">interface</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">state</span><span class="p">[</span><span class="s2">&quot;obsnum&quot;</span><span class="p">]</span><span class="si">:</span><span class="s1">06d</span><span class="si">}</span><span class="s1">_&#39;</span>
+                    <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">state</span><span class="p">[</span><span class="s2">&quot;subobsnum&quot;</span><span class="p">]</span><span class="si">:</span><span class="s1">03d</span><span class="si">}</span><span class="s1">_&#39;</span>
+                    <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">state</span><span class="p">[</span><span class="s2">&quot;scannum&quot;</span><span class="p">]</span><span class="si">:</span><span class="s1">04d</span><span class="si">}</span><span class="s1">_&#39;</span>
+                    <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">state</span><span class="p">[</span><span class="s2">&quot;ut&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y_%m_</span><span class="si">%d</span><span class="s2">_%H_%M_%S&quot;</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span>
+                    <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">suffix</span><span class="si">}</span><span class="s1">&#39;</span>
+                    <span class="p">)</span>
+            <span class="k">return</span> <span class="n">outdir</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">writelock</span><span class="p">(</span><span class="n">outdir</span><span class="p">)</span> <span class="k">as</span> <span class="n">state</span><span class="p">:</span>
+            <span class="n">state</span><span class="p">[</span><span class="s1">&#39;obsnum&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">state</span><span class="p">[</span><span class="s1">&#39;cal_obsnum&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">state</span><span class="p">[</span><span class="s1">&#39;ut&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span>
+            <span class="n">state</span><span class="o">.</span><span class="n">sync</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;outdir state:</span><span class="se">\n</span><span class="si">{</span><span class="n">state</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_save_config</span><span class="p">(</span><span class="n">outdir</span><span class="p">)</span>
+            <span class="c1"># save the data</span>
+            <span class="n">simctx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">simctx</span>
+            <span class="n">obs_params</span> <span class="o">=</span> <span class="n">simctx</span><span class="o">.</span><span class="n">get_obs_params</span><span class="p">()</span>
+            <span class="n">simobj</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">simobj</span>
+            <span class="n">mapping</span> <span class="o">=</span> <span class="n">simctx</span><span class="o">.</span><span class="n">get_mapping_model</span><span class="p">()</span>
+            <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;simu&#39;</span><span class="p">]</span>
+
+            <span class="n">output_tel</span> <span class="o">=</span> <span class="n">make_output_filename</span><span class="p">(</span><span class="s1">&#39;tel&#39;</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="s1">&#39;.nc&#39;</span><span class="p">)</span>
+            <span class="n">nm_tel</span> <span class="o">=</span> <span class="n">NcNodeMapper</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="n">output_tel</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+
+            <span class="n">nm_tel</span><span class="o">.</span><span class="n">setstr</span><span class="p">(</span>
+                    <span class="s1">&#39;Header.File.Name&#39;</span><span class="p">,</span>
+                    <span class="n">output_tel</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">simctx</span><span class="o">.</span><span class="n">rootpath</span><span class="p">)</span><span class="o">.</span><span class="n">as_posix</span><span class="p">())</span>
+
+            <span class="n">nm_tel</span><span class="o">.</span><span class="n">setstr</span><span class="p">(</span>
+                    <span class="s1">&#39;Header.Source.SourceName&#39;</span><span class="p">,</span>
+                    <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;jobkey&#39;</span><span class="p">])</span>
+
+            <span class="c1"># create data variables</span>
+            <span class="n">nc_tel</span> <span class="o">=</span> <span class="n">nm_tel</span><span class="o">.</span><span class="n">nc_node</span>
+            <span class="n">d_time</span> <span class="o">=</span> <span class="s1">&#39;time&#39;</span>
+            <span class="n">nc_tel</span><span class="o">.</span><span class="n">createDimension</span><span class="p">(</span><span class="n">d_time</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="n">v_time</span> <span class="o">=</span> <span class="n">nc_tel</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span>
+                    <span class="s1">&#39;Data.TelescopeBackend.TelTime&#39;</span><span class="p">,</span> <span class="s1">&#39;f8&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">d_time</span><span class="p">,</span> <span class="p">))</span>
+            <span class="n">v_ra</span> <span class="o">=</span> <span class="n">nc_tel</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span>
+                    <span class="s1">&#39;Data.TelescopeBackend.TelRaAct&#39;</span><span class="p">,</span> <span class="s1">&#39;f8&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">d_time</span><span class="p">,</span> <span class="p">))</span>
+            <span class="n">v_ra</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="s1">&#39;rad&#39;</span>
+            <span class="n">v_dec</span> <span class="o">=</span> <span class="n">nc_tel</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span>
+                    <span class="s1">&#39;Data.TelescopeBackend.TelDecAct&#39;</span><span class="p">,</span> <span class="s1">&#39;f8&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">d_time</span><span class="p">,</span> <span class="p">))</span>
+            <span class="n">v_dec</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="s1">&#39;rad&#39;</span>
+            <span class="n">v_alt</span> <span class="o">=</span> <span class="n">nc_tel</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span>
+                    <span class="s1">&#39;Data.TelescopeBackend.TelElAct&#39;</span><span class="p">,</span> <span class="s1">&#39;f8&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">d_time</span><span class="p">,</span> <span class="p">))</span>
+            <span class="n">v_alt</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="s1">&#39;rad&#39;</span>
+            <span class="n">v_az</span> <span class="o">=</span> <span class="n">nc_tel</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span>
+                    <span class="s1">&#39;Data.TelescopeBackend.TelAzAct&#39;</span><span class="p">,</span> <span class="s1">&#39;f8&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">d_time</span><span class="p">,</span> <span class="p">))</span>
+            <span class="n">v_az</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="s1">&#39;rad&#39;</span>
+            <span class="n">v_pa</span> <span class="o">=</span> <span class="n">nc_tel</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span>
+                    <span class="s1">&#39;Data.TelescopeBackend.ActParAng&#39;</span><span class="p">,</span> <span class="s1">&#39;f8&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">d_time</span><span class="p">,</span> <span class="p">))</span>
+            <span class="n">v_pa</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="s1">&#39;rad&#39;</span>
+            <span class="n">v_hold</span> <span class="o">=</span> <span class="n">nc_tel</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span>
+                    <span class="s1">&#39;Data.TelescopeBackend.Hold&#39;</span><span class="p">,</span> <span class="s1">&#39;f8&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">d_time</span><span class="p">,</span> <span class="p">)</span>
+                    <span class="p">)</span>
+            <span class="c1"># not sure why d_coord is all 2 for the coords</span>
+            <span class="n">d_coord</span> <span class="o">=</span> <span class="s1">&#39;Header.Source.Ra_xlen&#39;</span>
+            <span class="n">nc_tel</span><span class="o">.</span><span class="n">createDimension</span><span class="p">(</span><span class="n">d_coord</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="n">v_source_ra</span> <span class="o">=</span> <span class="n">nc_tel</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span>
+                    <span class="s1">&#39;Header.Source.Ra&#39;</span><span class="p">,</span> <span class="s1">&#39;f8&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">d_coord</span><span class="p">,</span> <span class="p">))</span>
+            <span class="n">v_source_ra</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="s1">&#39;rad&#39;</span>
+            <span class="n">v_source_dec</span> <span class="o">=</span> <span class="n">nc_tel</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span>
+                    <span class="s1">&#39;Header.Source.Dec&#39;</span><span class="p">,</span> <span class="s1">&#39;f8&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">d_coord</span><span class="p">,</span> <span class="p">))</span>
+            <span class="n">v_source_dec</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="s1">&#39;rad&#39;</span>
+            <span class="n">ref_coord</span> <span class="o">=</span> <span class="n">mapping</span><span class="o">.</span><span class="n">target</span><span class="o">.</span><span class="n">transform_to</span><span class="p">(</span><span class="s1">&#39;icrs&#39;</span><span class="p">)</span>
+            <span class="n">v_source_ra</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">ref_coord</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">radian</span>
+            <span class="n">v_source_dec</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">ref_coord</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">radian</span>
+
+            <span class="c1"># kids data</span>
+            <span class="n">tbl</span> <span class="o">=</span> <span class="n">simobj</span><span class="o">.</span><span class="n">table</span>
+            <span class="c1"># dump the apt</span>
+            <span class="n">tbl</span><span class="o">.</span><span class="n">write</span><span class="p">(</span>
+                    <span class="n">make_output_filename</span><span class="p">(</span><span class="s1">&#39;apt&#39;</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="s1">&#39;.ecsv&#39;</span><span class="p">),</span>
+                    <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;ascii.ecsv&#39;</span><span class="p">)</span>
+            <span class="n">nws</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;nw&#39;</span><span class="p">])</span>
+
+            <span class="k">def</span> <span class="nf">make_kidsdata_nc</span><span class="p">(</span><span class="n">nw</span><span class="p">):</span>
+                <span class="n">m</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;nw&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">nw</span>
+                <span class="n">mtbl</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="n">m</span><span class="p">]</span>
+                <span class="n">output_toltec</span> <span class="o">=</span> <span class="n">make_output_filename</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s1">&#39;toltec</span><span class="si">{</span><span class="n">nw</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="s1">&#39;_timestream.nc&#39;</span><span class="p">)</span>
+                <span class="n">nm_toltec</span> <span class="o">=</span> <span class="n">NcNodeMapper</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="n">output_toltec</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+                <span class="n">nc_toltec</span> <span class="o">=</span> <span class="n">nm_toltec</span><span class="o">.</span><span class="n">nc_node</span>
+                <span class="c1"># add meta data</span>
+                <span class="n">nm_toltec</span><span class="o">.</span><span class="n">setstr</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.Filename&#39;</span><span class="p">,</span>
+                        <span class="n">output_toltec</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">simctx</span><span class="o">.</span><span class="n">rootpath</span><span class="p">)</span><span class="o">.</span><span class="n">as_posix</span><span class="p">())</span>
+                <span class="n">nm_toltec</span><span class="o">.</span><span class="n">setscalar</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.ObsType&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;i4&#39;</span><span class="p">)</span>  <span class="c1"># Timestream</span>
+                <span class="n">nm_toltec</span><span class="o">.</span><span class="n">setscalar</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.Master&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;i4&#39;</span><span class="p">)</span>
+                <span class="n">nm_toltec</span><span class="o">.</span><span class="n">setscalar</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.RepeatLevel&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;i4&#39;</span><span class="p">)</span>
+                <span class="n">nm_toltec</span><span class="o">.</span><span class="n">setscalar</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.RoachIndex&#39;</span><span class="p">,</span> <span class="n">nw</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;i4&#39;</span><span class="p">)</span>
+                <span class="n">nm_toltec</span><span class="o">.</span><span class="n">setscalar</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.ObsNum&#39;</span><span class="p">,</span> <span class="n">state</span><span class="p">[</span><span class="s1">&#39;obsnum&#39;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;i4&#39;</span><span class="p">)</span>
+                <span class="n">nm_toltec</span><span class="o">.</span><span class="n">setscalar</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.SubObsNum&#39;</span><span class="p">,</span>
+                        <span class="n">state</span><span class="p">[</span><span class="s1">&#39;subobsnum&#39;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;i4&#39;</span><span class="p">)</span>
+                <span class="n">nm_toltec</span><span class="o">.</span><span class="n">setscalar</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.ScanNum&#39;</span><span class="p">,</span>
+                        <span class="n">state</span><span class="p">[</span><span class="s1">&#39;scannum&#39;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;i4&#39;</span><span class="p">)</span>
+                <span class="n">nm_toltec</span><span class="o">.</span><span class="n">setscalar</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.TargSweepObsNum&#39;</span><span class="p">,</span>
+                        <span class="n">state</span><span class="p">[</span><span class="s1">&#39;cal_obsnum&#39;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;i4&#39;</span><span class="p">)</span>
+                <span class="n">nm_toltec</span><span class="o">.</span><span class="n">setscalar</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.TargSweepSubObsNum&#39;</span><span class="p">,</span>
+                        <span class="n">state</span><span class="p">[</span><span class="s1">&#39;cal_subobsnum&#39;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;i4&#39;</span><span class="p">)</span>
+                <span class="n">nm_toltec</span><span class="o">.</span><span class="n">setscalar</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.TargSweepScanNum&#39;</span><span class="p">,</span>
+                        <span class="n">state</span><span class="p">[</span><span class="s1">&#39;cal_scannum&#39;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;i4&#39;</span><span class="p">)</span>
+                <span class="n">nm_toltec</span><span class="o">.</span><span class="n">setscalar</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.SampleFreq&#39;</span><span class="p">,</span>
+                        <span class="n">obs_params</span><span class="p">[</span><span class="s1">&#39;f_smp_data&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">))</span>
+                <span class="n">nm_toltec</span><span class="o">.</span><span class="n">setscalar</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.LoCenterFreq&#39;</span><span class="p">,</span> <span class="mf">0.</span><span class="p">)</span>
+                <span class="n">nm_toltec</span><span class="o">.</span><span class="n">setscalar</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.InputAtten&#39;</span><span class="p">,</span> <span class="mf">0.</span><span class="p">)</span>
+                <span class="n">nm_toltec</span><span class="o">.</span><span class="n">setscalar</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.OutputAtten&#39;</span><span class="p">,</span> <span class="mf">0.</span><span class="p">)</span>
+                <span class="n">nm_toltec</span><span class="o">.</span><span class="n">setscalar</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.AccumLen&#39;</span><span class="p">,</span> <span class="mi">524288</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;i4&#39;</span><span class="p">)</span>
+                <span class="n">nm_toltec</span><span class="o">.</span><span class="n">setscalar</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.MaxNumTones&#39;</span><span class="p">,</span> <span class="mi">1000</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;i4&#39;</span><span class="p">)</span>
+
+                <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createDimension</span><span class="p">(</span><span class="s1">&#39;numSweeps&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createDimension</span><span class="p">(</span><span class="s1">&#39;toneFreqLen&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">mtbl</span><span class="p">))</span>
+                <span class="n">v_tones</span> <span class="o">=</span> <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.ToneFreq&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;f8&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;numSweeps&#39;</span><span class="p">,</span> <span class="s1">&#39;toneFreqLen&#39;</span><span class="p">)</span>
+                        <span class="p">)</span>
+                <span class="n">v_tones</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">mtbl</span><span class="p">[</span><span class="s1">&#39;fp&#39;</span><span class="p">]</span>
+                <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createDimension</span><span class="p">(</span><span class="s1">&#39;modelParamsNum&#39;</span><span class="p">,</span> <span class="mi">15</span><span class="p">)</span>
+                <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createDimension</span><span class="p">(</span><span class="s1">&#39;modelParamsHeaderItemSize&#39;</span><span class="p">,</span> <span class="mi">32</span><span class="p">)</span>
+                <span class="n">v_mph</span> <span class="o">=</span> <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.ModelParamsHeader&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;|S1&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;modelParamsNum&#39;</span><span class="p">,</span> <span class="s1">&#39;modelParamsHeaderItemSize&#39;</span><span class="p">)</span>
+                        <span class="p">)</span>
+                <span class="n">v_mp</span> <span class="o">=</span> <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span>
+                        <span class="s1">&#39;Header.Toltec.ModelParams&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;f8&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;numSweeps&#39;</span><span class="p">,</span> <span class="s1">&#39;modelParamsNum&#39;</span><span class="p">,</span> <span class="s1">&#39;toneFreqLen&#39;</span><span class="p">)</span>
+                        <span class="p">)</span>
+                <span class="n">mp_map</span> <span class="o">=</span> <span class="p">{</span>
+                        <span class="s1">&#39;f_centered&#39;</span><span class="p">:</span> <span class="s1">&#39;fp&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;f_out&#39;</span><span class="p">:</span> <span class="s1">&#39;fr&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;f_in&#39;</span><span class="p">:</span> <span class="s1">&#39;fp&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;flag&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+                        <span class="s1">&#39;fp&#39;</span><span class="p">:</span> <span class="s1">&#39;fp&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;Qr&#39;</span><span class="p">:</span> <span class="s1">&#39;Qr&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;Qc&#39;</span><span class="p">:</span> <span class="mf">1.</span><span class="p">,</span>
+                        <span class="s1">&#39;fr&#39;</span><span class="p">:</span> <span class="s1">&#39;fr&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;A&#39;</span><span class="p">:</span> <span class="mf">0.</span><span class="p">,</span>
+                        <span class="s1">&#39;normI&#39;</span><span class="p">:</span> <span class="s1">&#39;g0&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;normQ&#39;</span><span class="p">:</span> <span class="s1">&#39;g1&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;slopeI&#39;</span><span class="p">:</span> <span class="s1">&#39;k0&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;slopeQ&#39;</span><span class="p">:</span> <span class="s1">&#39;k1&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;interceptI&#39;</span><span class="p">:</span> <span class="s1">&#39;m0&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;interceptQ&#39;</span><span class="p">:</span> <span class="s1">&#39;m1&#39;</span><span class="p">,</span>
+                        <span class="p">}</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">mp_map</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                    <span class="n">v_mph</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">netCDF4</span><span class="o">.</span><span class="n">stringtochar</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="s1">&#39;|S32&#39;</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                            <span class="n">v</span> <span class="o">=</span> <span class="n">mtbl</span><span class="p">[</span><span class="n">v</span><span class="p">]</span>
+                        <span class="n">v_mp</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">v</span>
+
+                <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createDimension</span><span class="p">(</span><span class="s1">&#39;loclen&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">mtbl</span><span class="p">))</span>
+                <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createDimension</span><span class="p">(</span><span class="s1">&#39;iqlen&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">mtbl</span><span class="p">))</span>
+                <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createDimension</span><span class="p">(</span><span class="s1">&#39;tlen&#39;</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
+                <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createDimension</span><span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="n">v_flo</span> <span class="o">=</span> <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span>
+                        <span class="s1">&#39;Data.Toltec.LoFreq&#39;</span><span class="p">,</span> <span class="s1">&#39;i4&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="p">))</span>
+                <span class="n">v_time</span> <span class="o">=</span> <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span>
+                        <span class="s1">&#39;Data.Toltec.Ts&#39;</span><span class="p">,</span> <span class="s1">&#39;i4&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="s1">&#39;tlen&#39;</span><span class="p">))</span>
+                <span class="n">v_I</span> <span class="o">=</span> <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span>
+                        <span class="s1">&#39;Data.Toltec.Is&#39;</span><span class="p">,</span> <span class="s1">&#39;i4&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="s1">&#39;iqlen&#39;</span><span class="p">))</span>
+                <span class="n">v_Q</span> <span class="o">=</span> <span class="n">nc_toltec</span><span class="o">.</span><span class="n">createVariable</span><span class="p">(</span>
+                        <span class="s1">&#39;Data.Toltec.Qs&#39;</span><span class="p">,</span> <span class="s1">&#39;i4&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="s1">&#39;iqlen&#39;</span><span class="p">))</span>
+                <span class="k">return</span> <span class="nb">locals</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">mapping_only</span><span class="p">:</span>
+                <span class="n">kds</span> <span class="o">=</span> <span class="p">{</span>
+                        <span class="n">nw</span><span class="p">:</span> <span class="n">make_kidsdata_nc</span><span class="p">(</span><span class="n">nw</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="n">nw</span> <span class="ow">in</span> <span class="n">nws</span>
+                        <span class="p">}</span>
+
+            <span class="k">for</span> <span class="n">ci</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reset_iterdata</span><span class="p">()):</span>
+                <span class="k">if</span> <span class="n">ci</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="c1"># we dump the apt table again with the additional</span>
+                    <span class="c1"># info including flxscale</span>
+                    <span class="n">tbl</span> <span class="o">=</span> <span class="n">Table</span><span class="p">(</span><span class="n">simobj</span><span class="o">.</span><span class="n">table</span><span class="p">)</span>
+                    <span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;flxscale&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;probe_info&#39;</span><span class="p">][</span><span class="s1">&#39;flxscale&#39;</span><span class="p">]</span>
+                    <span class="n">tbl</span><span class="o">.</span><span class="n">write</span><span class="p">(</span>
+                            <span class="n">make_output_filename</span><span class="p">(</span><span class="s1">&#39;apt&#39;</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="s1">&#39;.ecsv&#39;</span><span class="p">),</span>
+                            <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;ascii.ecsv&#39;</span><span class="p">)</span>
+                <span class="n">obs_coords_icrs</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;obs_info&#39;</span><span class="p">][</span><span class="s1">&#39;obs_coords_icrs&#39;</span><span class="p">]</span>
+                <span class="n">obs_coords_altaz</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;obs_info&#39;</span><span class="p">][</span><span class="s1">&#39;obs_coords_altaz&#39;</span><span class="p">]</span>
+                <span class="n">obs_parallactic_angle</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;obs_info&#39;</span><span class="p">][</span>
+                        <span class="s1">&#39;obs_parallactic_angle&#39;</span><span class="p">]</span>
+                <span class="n">time_obs</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;obs_info&#39;</span><span class="p">][</span><span class="s1">&#39;time_obs&#39;</span><span class="p">]</span>
+                <span class="n">idx</span> <span class="o">=</span> <span class="n">nc_tel</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="n">d_time</span><span class="p">]</span><span class="o">.</span><span class="n">size</span>
+                <span class="n">v_time</span><span class="p">[</span><span class="n">idx</span><span class="p">:]</span> <span class="o">=</span> <span class="n">time_obs</span><span class="o">.</span><span class="n">unix</span>
+                <span class="n">v_ra</span><span class="p">[</span><span class="n">idx</span><span class="p">:]</span> <span class="o">=</span> <span class="n">obs_coords_icrs</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">radian</span>
+                <span class="n">v_dec</span><span class="p">[</span><span class="n">idx</span><span class="p">:]</span> <span class="o">=</span> <span class="n">obs_coords_icrs</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">radian</span>
+                <span class="n">v_az</span><span class="p">[</span><span class="n">idx</span><span class="p">:]</span> <span class="o">=</span> <span class="n">obs_coords_altaz</span><span class="o">.</span><span class="n">az</span><span class="o">.</span><span class="n">radian</span>
+                <span class="n">v_alt</span><span class="p">[</span><span class="n">idx</span><span class="p">:]</span> <span class="o">=</span> <span class="n">obs_coords_altaz</span><span class="o">.</span><span class="n">alt</span><span class="o">.</span><span class="n">radian</span>
+                <span class="n">v_pa</span><span class="p">[</span><span class="n">idx</span><span class="p">:]</span> <span class="o">=</span> <span class="n">obs_parallactic_angle</span><span class="o">.</span><span class="n">radian</span>
+                <span class="n">v_hold</span><span class="p">[</span><span class="n">idx</span><span class="p">:]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;obs_info&#39;</span><span class="p">][</span><span class="s1">&#39;hold_flags&#39;</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s1">&#39;write [</span><span class="si">{</span><span class="n">idx</span><span class="si">}</span><span class="s1">:</span><span class="si">{</span><span class="n">idx</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">time_obs</span><span class="p">)</span><span class="si">}</span><span class="s1">] to&#39;</span>
+                        <span class="sa">f</span><span class="s1">&#39; </span><span class="si">{</span><span class="n">nc_tel</span><span class="o">.</span><span class="n">filepath</span><span class="p">()</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">mapping_only</span><span class="p">:</span>
+                    <span class="k">continue</span>
+
+                <span class="n">iqs</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;iqs&#39;</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">nw</span><span class="p">,</span> <span class="n">kd</span> <span class="ow">in</span> <span class="n">kds</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="n">nc_toltec</span> <span class="o">=</span> <span class="n">kd</span><span class="p">[</span><span class="s1">&#39;nc_toltec&#39;</span><span class="p">]</span>
+                    <span class="n">idx</span> <span class="o">=</span> <span class="n">nc_toltec</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="s1">&#39;time&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">size</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s1">&#39;write [</span><span class="si">{</span><span class="n">nc_toltec</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="s2">&quot;iqlen&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s1">]&#39;</span>
+                        <span class="sa">f</span><span class="s1">&#39;[</span><span class="si">{</span><span class="n">idx</span><span class="si">}</span><span class="s1">:</span><span class="si">{</span><span class="n">idx</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">time_obs</span><span class="p">)</span><span class="si">}</span><span class="s1">] to&#39;</span>
+                        <span class="sa">f</span><span class="s1">&#39; </span><span class="si">{</span><span class="n">nc_toltec</span><span class="o">.</span><span class="n">filepath</span><span class="p">()</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                    <span class="n">m</span> <span class="o">=</span> <span class="n">kd</span><span class="p">[</span><span class="s1">&#39;m&#39;</span><span class="p">]</span>
+                    <span class="n">kd</span><span class="p">[</span><span class="s1">&#39;v_flo&#39;</span><span class="p">][</span><span class="n">idx</span><span class="p">:]</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="n">kd</span><span class="p">[</span><span class="s1">&#39;v_time&#39;</span><span class="p">][</span><span class="n">idx</span><span class="p">:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;time&#39;</span><span class="p">]</span>
+                    <span class="n">kd</span><span class="p">[</span><span class="s1">&#39;v_I&#39;</span><span class="p">][</span><span class="n">idx</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">iqs</span><span class="o">.</span><span class="n">real</span><span class="p">[</span><span class="n">m</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">T</span>
+                    <span class="n">kd</span><span class="p">[</span><span class="s1">&#39;v_Q&#39;</span><span class="p">][</span><span class="n">idx</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">iqs</span><span class="o">.</span><span class="n">imag</span><span class="p">[</span><span class="n">m</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">T</span>
+            <span class="c1"># close the files</span>
+            <span class="n">nc_tel</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">mapping_only</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">nw</span><span class="p">,</span> <span class="n">kd</span> <span class="ow">in</span> <span class="n">kds</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="n">kd</span><span class="p">[</span><span class="s1">&#39;nc_toltec&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_save_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">outdir</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">outdir</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;tolteca.yaml&#39;</span><span class="p">),</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
+            <span class="n">yaml</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">,</span> <span class="n">fo</span><span class="p">,</span> <span class="n">Dumper</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">simctx</span><span class="o">.</span><span class="n">yaml_dumper</span><span class="p">)</span>
+
+    <span class="nd">@timeit</span>
+    <span class="k">def</span> <span class="nf">save_simple</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">outdir</span><span class="p">,</span> <span class="n">mapping_only</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_save_config</span><span class="p">(</span><span class="n">outdir</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_save_lmt_tcs_tel</span><span class="p">(</span><span class="n">outdir</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">mapping_only</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_save_toltec_nc</span><span class="p">(</span><span class="n">outdir</span><span class="p">)</span>
+
+    <span class="nd">@timeit</span>
+    <span class="k">def</span> <span class="nf">plot_animation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reset</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">animatplot</span> <span class="k">as</span> <span class="nn">amp</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">RuntimeContextError</span><span class="p">(</span>
+                    <span class="s2">&quot;Package `animatplot` is required to plot animation. &quot;</span>
+                    <span class="s2">&quot;To install, run &quot;</span>
+                    <span class="s2">&quot;`pip install &quot;</span>
+                    <span class="s2">&quot;git+https://github.com/Jerry-Ma/animatplot.git`&quot;</span><span class="p">)</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">iterdata</span><span class="p">(</span><span class="n">reset</span><span class="o">=</span><span class="n">reset</span><span class="p">)</span>
+
+        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;simu&#39;</span><span class="p">]</span>
+        <span class="n">simobj</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">simobj</span>
+        <span class="n">obs_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">obs_params</span>
+        <span class="n">obs_info</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;obs_info&#39;</span><span class="p">]</span>
+        <span class="n">tbl</span> <span class="o">=</span> <span class="n">simobj</span><span class="o">.</span><span class="n">table</span>
+
+        <span class="n">array_names</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;array_name&#39;</span><span class="p">])</span>
+        <span class="n">n_arrays</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">array_names</span><span class="p">)</span>
+
+        <span class="c1"># m = tbl[&#39;array_name&#39;] == &#39;a1100&#39;</span>
+        <span class="c1"># mtbl = tbl[m]</span>
+        <span class="c1"># mtbl.meta = tbl.meta[&#39;a1100&#39;]</span>
+
+        <span class="c1"># unpack the obs_info</span>
+        <span class="n">projected_frame</span> <span class="o">=</span> <span class="n">obs_info</span><span class="p">[</span><span class="s1">&#39;projected_frame&#39;</span><span class="p">]</span>
+        <span class="n">native_frame</span> <span class="o">=</span> <span class="n">obs_info</span><span class="p">[</span><span class="s1">&#39;native_frame&#39;</span><span class="p">]</span>
+
+        <span class="n">fps</span> <span class="o">=</span> <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;perf_params&#39;</span><span class="p">][</span><span class="s1">&#39;anim_frame_rate&#39;</span><span class="p">]</span>
+        <span class="c1"># fps = 12 * u.Hz</span>
+        <span class="n">t_slice</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span>
+                <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span>
+                    <span class="p">(</span><span class="n">obs_params</span><span class="p">[</span><span class="s1">&#39;f_smp_data&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">fps</span><span class="p">)</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span>
+                        <span class="n">u</span><span class="o">.</span><span class="n">dimensionless_unscaled</span><span class="p">))))</span>
+        <span class="n">fps</span> <span class="o">=</span> <span class="p">(</span><span class="n">obs_params</span><span class="p">[</span><span class="s1">&#39;f_smp_data&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">t_slice</span><span class="o">.</span><span class="n">step</span><span class="p">)</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">)</span>
+
+        <span class="n">t</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;time&#39;</span><span class="p">]</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;flux&#39;</span><span class="p">]</span>
+        <span class="n">rs</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;rs&#39;</span><span class="p">]</span>
+        <span class="n">xs</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;xs&#39;</span><span class="p">]</span>
+
+        <span class="n">timeline</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">Timeline</span><span class="p">(</span>
+                <span class="n">t</span><span class="p">[</span><span class="n">t_slice</span><span class="p">]</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">),</span>
+                <span class="n">fps</span><span class="o">=</span><span class="mi">1</span> <span class="k">if</span> <span class="n">fps</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">fps</span><span class="p">,</span>
+                <span class="n">units</span><span class="o">=</span><span class="s1">&#39;s&#39;</span><span class="p">)</span>
+        <span class="c1"># xx = x_t[m].to_value(u.arcmin)</span>
+        <span class="c1"># yy = y_t[m].to_value(u.arcmin)</span>
+        <span class="n">xx</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;x_t&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span>
+        <span class="n">yy</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;y_t&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span>
+
+        <span class="n">ss</span> <span class="o">=</span> <span class="n">s</span><span class="p">[:,</span> <span class="n">t_slice</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">MJy</span><span class="o">/</span><span class="n">u</span><span class="o">.</span><span class="n">sr</span><span class="p">)</span>
+        <span class="n">rrs</span> <span class="o">=</span> <span class="n">rs</span><span class="p">[:,</span> <span class="n">t_slice</span><span class="p">]</span><span class="o">.</span><span class="n">T</span>
+        <span class="n">xxs</span> <span class="o">=</span> <span class="n">xs</span><span class="p">[:,</span> <span class="n">t_slice</span><span class="p">]</span><span class="o">.</span><span class="n">T</span>
+
+        <span class="kn">import</span> <span class="nn">matplotlib.path</span> <span class="k">as</span> <span class="nn">mpath</span>
+        <span class="kn">import</span> <span class="nn">matplotlib.markers</span> <span class="k">as</span> <span class="nn">mmarkers</span>
+        <span class="kn">from</span> <span class="nn">matplotlib.transforms</span> <span class="kn">import</span> <span class="n">Affine2D</span>
+
+        <span class="k">def</span> <span class="nf">make_fg_marker</span><span class="p">(</span><span class="n">fg</span><span class="p">):</span>
+            <span class="n">_transform</span> <span class="o">=</span> <span class="n">Affine2D</span><span class="p">()</span><span class="o">.</span><span class="n">scale</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span><span class="o">.</span><span class="n">rotate_deg</span><span class="p">(</span><span class="mi">30</span><span class="p">)</span>
+            <span class="n">polypath</span> <span class="o">=</span> <span class="n">mpath</span><span class="o">.</span><span class="n">Path</span><span class="o">.</span><span class="n">unit_regular_polygon</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span>
+            <span class="n">verts</span> <span class="o">=</span> <span class="n">polypath</span><span class="o">.</span><span class="n">vertices</span>
+            <span class="n">top</span> <span class="o">=</span> <span class="n">mpath</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">verts</span><span class="p">[(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">:])</span>
+            <span class="n">rot</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">60</span><span class="p">,</span> <span class="o">-</span><span class="mi">180</span><span class="p">,</span> <span class="o">-</span><span class="mi">240</span><span class="p">][</span><span class="n">fg</span><span class="p">]</span>
+            <span class="n">marker</span> <span class="o">=</span> <span class="n">mmarkers</span><span class="o">.</span><span class="n">MarkerStyle</span><span class="p">(</span><span class="n">top</span><span class="p">)</span>
+            <span class="n">marker</span><span class="o">.</span><span class="n">_transform</span> <span class="o">=</span> <span class="n">_transform</span><span class="o">.</span><span class="n">rotate_deg</span><span class="p">(</span><span class="n">rot</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">marker</span>
+
+        <span class="kn">from</span> <span class="nn">astropy.visualization.wcsaxes</span> <span class="kn">import</span> <span class="n">WCSAxesSubplot</span><span class="p">,</span> <span class="n">conf</span>
+        <span class="kn">from</span> <span class="nn">astropy.visualization.wcsaxes.transforms</span> <span class="kn">import</span> <span class="p">(</span>
+                <span class="n">CoordinateTransform</span><span class="p">)</span>
+        <span class="kn">from</span> <span class="nn">astropy.visualization.wcsaxes.utils</span> <span class="kn">import</span> <span class="n">get_coord_meta</span>
+        <span class="n">coord_meta</span> <span class="o">=</span> <span class="n">get_coord_meta</span><span class="p">(</span><span class="n">native_frame</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="c1"># coord_meta = get_coord_meta(&#39;icrs&#39;)</span>
+        <span class="n">conf</span><span class="o">.</span><span class="n">coordinate_range_samples</span> <span class="o">=</span> <span class="mi">5</span>
+        <span class="n">conf</span><span class="o">.</span><span class="n">frame_boundary_samples</span> <span class="o">=</span> <span class="mi">10</span>
+        <span class="n">conf</span><span class="o">.</span><span class="n">grid_samples</span> <span class="o">=</span> <span class="mi">5</span>
+        <span class="n">conf</span><span class="o">.</span><span class="n">contour_grid_samples</span> <span class="o">=</span> <span class="mi">5</span>
+
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">constrained_layout</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">gs_parent</span> <span class="o">=</span> <span class="n">gridspec</span><span class="o">.</span><span class="n">GridSpec</span><span class="p">(</span><span class="n">nrows</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">ncols</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">figure</span><span class="o">=</span><span class="n">fig</span><span class="p">)</span>
+        <span class="n">gs_array_view</span> <span class="o">=</span> <span class="n">gs_parent</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">subgridspec</span><span class="p">(</span><span class="n">nrows</span><span class="o">=</span><span class="n">n_arrays</span><span class="p">,</span> <span class="n">ncols</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">gs_detector_view</span> <span class="o">=</span> <span class="n">gs_parent</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">subgridspec</span><span class="p">(</span><span class="n">nrows</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">ncols</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">array_axes</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">array_name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">array_names</span><span class="p">):</span>
+            <span class="n">ax</span> <span class="o">=</span> <span class="n">WCSAxesSubplot</span><span class="p">(</span>
+                <span class="n">fig</span><span class="p">,</span> <span class="n">gs_array_view</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">aspect</span><span class="o">=</span><span class="s1">&#39;equal&#39;</span><span class="p">,</span>
+                <span class="n">transform</span><span class="o">=</span><span class="p">(</span>
+                    <span class="c1"># CoordinateTransform(native_frame[0], &#39;icrs&#39;) +</span>
+                    <span class="n">CoordinateTransform</span><span class="p">(</span><span class="n">projected_frame</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">native_frame</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                    <span class="p">),</span>
+                <span class="n">coord_meta</span><span class="o">=</span><span class="n">coord_meta</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="n">fig</span><span class="o">.</span><span class="n">add_axes</span><span class="p">(</span><span class="n">ax</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_facecolor</span><span class="p">(</span><span class="s1">&#39;#4488aa&#39;</span><span class="p">)</span>
+            <span class="n">array_axes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ax</span><span class="p">)</span>
+        <span class="n">bx</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs_detector_view</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">cx</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs_detector_view</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="k">def</span> <span class="nf">amp_post_update</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="n">array_axes</span><span class="p">:</span>
+                <span class="n">ax</span><span class="o">.</span><span class="n">reset_wcs</span><span class="p">(</span>
+                    <span class="n">transform</span><span class="o">=</span><span class="p">(</span>
+                        <span class="c1"># CoordinateTransform(native_frame[i], &#39;icrs&#39;)</span>
+                        <span class="n">CoordinateTransform</span><span class="p">(</span>
+                            <span class="n">projected_frame</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">native_frame</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+                        <span class="p">),</span>
+                    <span class="n">coord_meta</span><span class="o">=</span><span class="n">coord_meta</span><span class="p">)</span>
+        <span class="n">cmap</span> <span class="o">=</span> <span class="s1">&#39;viridis&#39;</span>
+        <span class="n">nfg</span> <span class="o">=</span> <span class="mi">4</span>
+        <span class="n">pos_blocks</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">nfg</span><span class="p">,</span> <span class="n">n_arrays</span><span class="p">,</span> <span class="p">),</span> <span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nfg</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">array_name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">array_names</span><span class="p">):</span>
+                <span class="n">m</span> <span class="o">=</span> <span class="p">(</span><span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;fg&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">i</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;array_name&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">array_name</span><span class="p">)</span>
+                <span class="n">s_m</span> <span class="o">=</span> <span class="n">ss</span><span class="p">[:,</span> <span class="n">m</span><span class="p">]</span>
+                <span class="n">cmap_kwargs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+                        <span class="n">cmap</span><span class="o">=</span><span class="n">cmap</span><span class="p">,</span>
+                        <span class="n">vmin</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">s_m</span><span class="p">),</span>
+                        <span class="n">vmax</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">s_m</span><span class="p">),</span>
+                        <span class="p">)</span>
+                <span class="n">pos_blocks</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">blocks</span><span class="o">.</span><span class="n">Scatter</span><span class="p">(</span>
+                    <span class="n">xx</span><span class="p">[</span><span class="n">m</span><span class="p">],</span>
+                    <span class="n">yy</span><span class="p">[</span><span class="n">m</span><span class="p">],</span>
+                    <span class="c1"># 0 and 2 are to account the two pg of each</span>
+                    <span class="c1"># detector position</span>
+                    <span class="n">s</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">hypot</span><span class="p">(</span>
+                        <span class="n">xx</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">xx</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+                        <span class="n">yy</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">yy</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span>
+                    <span class="n">s_in_data_unit</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="n">c</span><span class="o">=</span><span class="n">s_m</span><span class="p">,</span>
+                    <span class="n">ax</span><span class="o">=</span><span class="n">array_axes</span><span class="p">[</span><span class="n">j</span><span class="p">],</span>
+                    <span class="c1"># post_update=None,</span>
+                    <span class="c1"># only update the wcs once</span>
+                    <span class="n">post_update</span><span class="o">=</span><span class="n">amp_post_update</span> <span class="k">if</span> <span class="n">i</span> <span class="o">+</span> <span class="n">j</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                    <span class="n">marker</span><span class="o">=</span><span class="n">make_fg_marker</span><span class="p">(</span><span class="n">i</span><span class="p">),</span>
+                    <span class="c1"># edgecolor=&#39;#cccccc&#39;,</span>
+                    <span class="o">**</span><span class="n">cmap_kwargs</span>
+                    <span class="p">)</span>
+        <span class="c1"># add a block for the IQ values</span>
+        <span class="n">signal_blocks</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="p">),</span> <span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">vv</span><span class="p">,</span> <span class="n">aa</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">((</span><span class="n">rrs</span><span class="p">,</span> <span class="n">xxs</span><span class="p">),</span> <span class="p">(</span><span class="n">bx</span><span class="p">,</span> <span class="n">cx</span><span class="p">))):</span>
+            <span class="n">signal_blocks</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">blocks</span><span class="o">.</span><span class="n">Line</span><span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;f&#39;</span><span class="p">],</span> <span class="p">(</span><span class="n">vv</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">)),</span>
+                    <span class="n">vv</span><span class="p">,</span>
+                    <span class="n">ax</span><span class="o">=</span><span class="n">aa</span><span class="p">,</span>
+                    <span class="n">marker</span><span class="o">=</span><span class="s1">&#39;.&#39;</span><span class="p">,</span>
+                    <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;none&#39;</span><span class="p">,</span>
+                    <span class="p">)</span>
+        <span class="n">anim</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">Animation</span><span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">pos_blocks</span><span class="o">.</span><span class="n">ravel</span><span class="p">(),</span> <span class="n">signal_blocks</span><span class="p">]),</span> <span class="n">timeline</span><span class="p">)</span>
+
+        <span class="n">anim</span><span class="o">.</span><span class="n">controls</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">ax</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">array_axes</span><span class="p">):</span>
+            <span class="n">cax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span>
+                <span class="n">pos_blocks</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">scat</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">shrink</span><span class="o">=</span><span class="mf">0.8</span><span class="p">)</span>
+            <span class="n">cax</span><span class="o">.</span><span class="n">set_label</span><span class="p">(</span><span class="s2">&quot;Surface Brightness (MJy/sr)&quot;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">plot_animation</span><span class="p">(</span><span class="n">reset</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">load_example_configs</span><span class="p">():</span>
+
+    <span class="n">example_dir</span> <span class="o">=</span> <span class="n">get_pkg_data_path</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;examples&#39;</span><span class="p">)</span>
+    <span class="n">files</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;toltec_point_source.yaml&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">load_yaml</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">fo</span><span class="p">)</span>
+
+    <span class="n">configs</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">f</span><span class="o">.</span><span class="n">stem</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">:</span> <span class="n">load_yaml</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="nb">map</span><span class="p">(</span><span class="n">example_dir</span><span class="o">.</span><span class="n">joinpath</span><span class="p">,</span> <span class="n">files</span><span class="p">)}</span>
+    <span class="k">return</span> <span class="n">configs</span>
+
+
+<span class="n">example_configs</span> <span class="o">=</span> <span class="n">load_example_configs</span><span class="p">()</span>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2021, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
+    Last built 18 Jun 2021. <br/>
+  </p>
+</footer>
+  </body>
+</html>

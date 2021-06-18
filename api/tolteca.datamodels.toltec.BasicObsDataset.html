@@ -1,0 +1,363 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>BasicObsDataset &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+    
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="ToltecDataProd" href="tolteca.datamodels.toltec.ToltecDataProd.html" />
+    <link rel="prev" title="BasicObsData" href="tolteca.datamodels.toltec.BasicObsData.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="tolteca.datamodels.toltec.ToltecDataProd.html" title="ToltecDataProd">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="tolteca.datamodels.toltec.BasicObsData.html" title="BasicObsData">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
+	 &#187;
+      </li>
+      <li><a href="../tolteca/index.html" accesskey="U">TolTECA Documentation</a> &#187;</li>
+      
+      <li>BasicObsDataset</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="basicobsdataset">
+<h1>BasicObsDataset<a class="headerlink" href="#basicobsdataset" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">tolteca.datamodels.toltec.</span></span><span class="sig-name descname"><span class="pre">BasicObsDataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">index_table</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bod_list</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_meta_cols</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'intersection'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.9)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>A helper class to access a set of TolTEC basic obs data items.</p>
+<p>An instance of this class is typically created from one of its
+<code class="docutils literal notranslate"><span class="pre">from_*</span></code> factory functions.</p>
+<p>This class is implemented as a thin wrapper around an index table (a
+<a class="reference external" href="https://docs.astropy.org/en/stable/api/astropy.table.Table.html#astropy.table.Table" title="(in Astropy v4.2)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Table</span></code></a> instance) that contains information to identify
+BOD items.</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl>
+<dt><strong>index_table</strong><span class="classifier"><a class="reference external" href="https://docs.astropy.org/en/stable/api/astropy.table.Table.html#astropy.table.Table" title="(in Astropy v4.2)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Table</span></code></a></span></dt><dd><p>The table that identifies a set of BOD items.</p>
+</dd>
+<dt><strong>bod_list</strong><span class="classifier">list</span></dt><dd><p>A list of <a class="reference internal" href="tolteca.datamodels.toltec.BasicObsData.html#tolteca.datamodels.toltec.BasicObsData" title="tolteca.datamodels.toltec.BasicObsData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsData</span></code></a> instances.</p>
+</dd>
+<dt><strong>include_meta_cols</strong><span class="classifier">str, list</span></dt><dd><p>The columns to include in the index table, extracted from the
+loaded meta data.</p>
+</dd>
+<dt><strong>**kwargs :</strong></dt><dd><p>Passed to <a class="reference internal" href="tolteca.datamodels.toltec.BasicObsData.html#tolteca.datamodels.toltec.BasicObsData" title="tolteca.datamodels.toltec.BasicObsData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsData</span></code></a> constructor.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">Attributes Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.bod_list" title="tolteca.datamodels.toltec.BasicObsDataset.bod_list"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bod_list</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.history" title="tolteca.datamodels.toltec.BasicObsDataset.history"><code class="xref py py-obj docutils literal notranslate"><span class="pre">history</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.index_table" title="tolteca.datamodels.toltec.BasicObsDataset.index_table"><code class="xref py py-obj docutils literal notranslate"><span class="pre">index_table</span></code></a></p></td>
+<td><p>The index table.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.logger" title="tolteca.datamodels.toltec.BasicObsDataset.logger"><code class="xref py py-obj docutils literal notranslate"><span class="pre">logger</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.meta" title="tolteca.datamodels.toltec.BasicObsDataset.meta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">meta</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.add_meta_cols" title="tolteca.datamodels.toltec.BasicObsDataset.add_meta_cols"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_meta_cols</span></code></a>(keys)</p></td>
+<td><p>Add meta data info to the index table.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.dump" title="tolteca.datamodels.toltec.BasicObsDataset.dump"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dump</span></code></a>(filepath)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.from_files" title="tolteca.datamodels.toltec.BasicObsDataset.from_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_files</span></code></a>(files[, open_])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.from_index_table" title="tolteca.datamodels.toltec.BasicObsDataset.from_index_table"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_index_table</span></code></a>(index_table[, copy, meta])</p></td>
+<td><p>Return a dataset from an index table.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.get_meta_keys" title="tolteca.datamodels.toltec.BasicObsDataset.get_meta_keys"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_meta_keys</span></code></a>(option)</p></td>
+<td><p>Return a set of meta keys.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.join" title="tolteca.datamodels.toltec.BasicObsDataset.join"><code class="xref py py-obj docutils literal notranslate"><span class="pre">join</span></code></a>(other, *args, **kwargs)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.load" title="tolteca.datamodels.toltec.BasicObsDataset.load"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load</span></code></a>(filepath)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.read" title="tolteca.datamodels.toltec.BasicObsDataset.read"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read</span></code></a>(*args, **kwargs)</p></td>
+<td><p>Return a generator of data items.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.read_all" title="tolteca.datamodels.toltec.BasicObsDataset.read_all"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_all</span></code></a>(*args, **kwargs)</p></td>
+<td><p>Return a list of data items.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.select" title="tolteca.datamodels.toltec.BasicObsDataset.select"><code class="xref py py-obj docutils literal notranslate"><span class="pre">select</span></code></a>(cond[, desc])</p></td>
+<td><p>Return a subset of the dataset specified by <code class="xref py py-obj docutils literal notranslate"><span class="pre">cond</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.sort" title="tolteca.datamodels.toltec.BasicObsDataset.sort"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sort</span></code></a>(*args)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.unique" title="tolteca.datamodels.toltec.BasicObsDataset.unique"><code class="xref py py-obj docutils literal notranslate"><span class="pre">unique</span></code></a>(*args, **kwargs)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.vstack" title="tolteca.datamodels.toltec.BasicObsDataset.vstack"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vstack</span></code></a>(instances)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.write_index_table" title="tolteca.datamodels.toltec.BasicObsDataset.write_index_table"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_index_table</span></code></a>(*args, **kwargs)</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Attributes Documentation</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.bod_list">
+<span class="sig-name descname"><span class="pre">bod_list</span></span><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.bod_list" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.history">
+<span class="sig-name descname"><span class="pre">history</span></span><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.history" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.index_table">
+<span class="sig-name descname"><span class="pre">index_table</span></span><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.index_table" title="Permalink to this definition">¶</a></dt>
+<dd><p>The index table.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.logger">
+<span class="sig-name descname"><span class="pre">logger</span></span><em class="property"> <span class="pre">=</span> <span class="pre">&lt;Logger</span> <span class="pre">BasicObsDataset</span> <span class="pre">(DEBUG)&gt;</span></em><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.logger" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.meta">
+<span class="sig-name descname"><span class="pre">meta</span></span><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.meta" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.add_meta_cols">
+<span class="sig-name descname"><span class="pre">add_meta_cols</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">keys</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.add_meta_cols"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.add_meta_cols" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add meta data info to the index table.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>keys</strong><span class="classifier">list, str</span></dt><dd><p>The keys to add. When string, this is passed as the option to
+<a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.get_meta_keys" title="tolteca.datamodels.toltec.BasicObsDataset.get_meta_keys"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_meta_keys()</span></code></a> to get the keys.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.dump">
+<span class="sig-name descname"><span class="pre">dump</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filepath</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.dump"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.dump" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.from_files">
+<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">from_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">files</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">open_</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.from_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.from_files" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.from_index_table">
+<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">from_index_table</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">index_table</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">copy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">meta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.from_index_table"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.from_index_table" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a dataset from an index table.</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl>
+<dt><strong>index_table</strong><span class="classifier"><a class="reference external" href="https://docs.astropy.org/en/stable/api/astropy.table.Table.html#astropy.table.Table" title="(in Astropy v4.2)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">astropy.table.Table</span></code></a>, str</span></dt><dd><p>The table or that path to the table that contains
+the BOD identifiers.</p>
+</dd>
+<dt><strong>copy</strong><span class="classifier">bool</span></dt><dd><p>If True, a copy of the <a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.index_table" title="tolteca.datamodels.toltec.BasicObsDataset.index_table"><code class="xref py py-obj docutils literal notranslate"><span class="pre">index_table</span></code></a> is made.</p>
+</dd>
+<dt><strong>meta</strong><span class="classifier">dict</span></dt><dd><p>Additional meta get stored in the table.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.get_meta_keys">
+<span class="sig-name descname"><span class="pre">get_meta_keys</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">option</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.get_meta_keys"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.get_meta_keys" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a set of meta keys.</p>
+<p><code class="xref py py-obj docutils literal notranslate"><span class="pre">option</span></code> can be one of:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">union</span></code>: The union of all meta keys in all BODs.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">intersection</span></code>: The intersection of all meta keys in all BODs.</p></li>
+</ol>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.join">
+<span class="sig-name descname"><span class="pre">join</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">other</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.join"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.join" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.load">
+<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filepath</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.load"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.load" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.read">
+<span class="sig-name descname"><span class="pre">read</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.read"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.read" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a generator of data items.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.read_all">
+<span class="sig-name descname"><span class="pre">read_all</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.read_all"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.read_all" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a list of data items.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.select">
+<span class="sig-name descname"><span class="pre">select</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cond</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">desc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.select"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.select" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a subset of the dataset specified by <code class="xref py py-obj docutils literal notranslate"><span class="pre">cond</span></code></p>
+<p>When <code class="xref py py-obj docutils literal notranslate"><span class="pre">cond</span></code> is a string, the index table is converted to
+<code class="xref py py-obj docutils literal notranslate"><span class="pre">DataFrame</span></code> and the selection is done by
+<a href="#id1"><span class="problematic" id="id2">:meta:`~pandas.DataFrame.eval`</span></a>.</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl>
+<dt><strong>cond</strong><span class="classifier">str or <a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v1.20)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ndarray</span></code></a></span></dt><dd><p>The condition to create the subset.</p>
+</dd>
+<dt><strong>desc</strong><span class="classifier">str</span></dt><dd><p>A description of this selection to include in the table meta.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt><a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset" title="tolteca.datamodels.toltec.BasicObsDataset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsDataset</span></code></a></dt><dd><p>The subset as a new dataset instance.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.sort">
+<span class="sig-name descname"><span class="pre">sort</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.sort"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.sort" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.unique">
+<span class="sig-name descname"><span class="pre">unique</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.unique"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.unique" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.vstack">
+<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">vstack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">instances</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.vstack"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.vstack" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.write_index_table">
+<span class="sig-name descname"><span class="pre">write_index_table</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.write_index_table"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.write_index_table" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">BasicObsDataset</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/api/tolteca.datamodels.toltec.BasicObsDataset.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2021, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
+    Last built 18 Jun 2021. <br/>
+  </p>
+</footer>
+  </body>
+</html>

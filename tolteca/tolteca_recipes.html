@@ -4,23 +4,25 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>TolTECA Recipes &#8212; tolteca v0.1.dev84+gfc9946a.d20200423</title>
-    <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
-    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>TolTECA Recipes &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-astropy.css" />
     <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
     
-    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
     <script src="../_static/jquery.js"></script>
     <script src="../_static/underscore.js"></script>
     <script src="../_static/doctools.js"></script>
-    <script src="../_static/language_data.js"></script>
     <script type="text/javascript" src="../_static/sidebar.js"></script>
     <script type="text/javascript" src="../_static/copybutton.js"></script>
     <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="main" href="../api/tolteca.recipes.simu_hwp_noise.main.html" />
-    <link rel="prev" title="TolTECA workflow" href="tolteca_workflow.html" />
+    <link rel="prev" title="TolTECA Documentation" href="index.html" />
     <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
 
   </head><body>
@@ -53,13 +55,13 @@
 	</a>
       </li>
       <li class="right">
-	<a href="tolteca_workflow.html" title="TolTECA workflow">
+	<a href="index.html" title="TolTECA Documentation">
 	  &laquo; previous
 	</a>
 	 |
       </li>
       <li>
-	<a href="../index.html">tolteca v0.1.dev84+gfc9946a.d20200423</a>
+	<a href="../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
 	 &#187;
       </li>
       <li><a href="index.html" accesskey="U">TolTECA Documentation</a> &#187;</li>
@@ -74,17 +76,17 @@
         <div class="bodywrapper">
           <div class="body" role="main">
             
-  <div class="section" id="tolteca-recipes">
+  <section id="tolteca-recipes">
 <h1>TolTECA Recipes<a class="headerlink" href="#tolteca-recipes" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="module-tolteca.recipes">
+<section id="module-tolteca.recipes">
 <span id="tolteca-recipes-package"></span><h2>tolteca.recipes Package<a class="headerlink" href="#module-tolteca.recipes" title="Permalink to this headline">¶</a></h2>
 <p>This package contains a set of recipes that make use of <a class="reference internal" href="index.html#module-tolteca" title="tolteca"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tolteca</span></code></a>.</p>
-</div>
-<div class="section" id="module-tolteca.recipes.simu_hwp_noise">
+</section>
+<section id="module-tolteca.recipes.simu_hwp_noise">
 <span id="tolteca-recipes-simu-hwp-noise-module"></span><h2>tolteca.recipes.simu_hwp_noise Module<a class="headerlink" href="#module-tolteca.recipes.simu_hwp_noise" title="Permalink to this headline">¶</a></h2>
 <p>This recipe makes use of the <code class="xref py py-obj docutils literal notranslate"><span class="pre">KidsSimulator</span></code> to investigate
 the impact of the half wave plate to the observed noise.</p>
-<div class="section" id="functions">
+<section id="functions">
 <h3>Functions<a class="headerlink" href="#functions" title="Permalink to this headline">¶</a></h3>
 <table class="longtable docutils align-default">
 <colgroup>
@@ -96,7 +98,7 @@ the impact of the half wave plate to the observed noise.</p>
 <td><p>Find the roots of a function.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">gaussian_filter1d</span></code>(input, sigma[, axis, …])</p></td>
-<td><p>One-dimensional Gaussian filter.</p></td>
+<td><p>1-D Gaussian filter.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">init_log</span></code>([preset, level, file_, colored])</p></td>
 <td><p>Initialize logging with some sensible presets.</p></td>
@@ -110,11 +112,11 @@ the impact of the half wave plate to the observed noise.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.make_plot.html#tolteca.recipes.simu_hwp_noise.make_plot" title="tolteca.recipes.simu_hwp_noise.make_plot"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_plot</span></code></a>(data)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.make_tabular_legend.html#tolteca.recipes.simu_hwp_noise.make_tabular_legend" title="tolteca.recipes.simu_hwp_noise.make_tabular_legend"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_tabular_legend</span></code></a>(ax, handles, \*cols[, …])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.make_tabular_legend.html#tolteca.recipes.simu_hwp_noise.make_tabular_legend" title="tolteca.recipes.simu_hwp_noise.make_tabular_legend"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_tabular_legend</span></code></a>(ax, handles, *cols[, …])</p></td>
 <td><p></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">quantity_support</span></code>([format])</p></td>
-<td><p>Enable support for plotting <a class="reference external" href="http://docs.astropy.org/en/stable/api/astropy.units.Quantity.html#astropy.units.Quantity" title="(in Astropy v4.0.1)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">astropy.units.Quantity</span></code></a> instances in matplotlib.</p></td>
+<td><p>Enable support for plotting <a class="reference external" href="https://docs.astropy.org/en/stable/api/astropy.units.Quantity.html#astropy.units.Quantity" title="(in Astropy v4.2)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">astropy.units.Quantity</span></code></a> instances in matplotlib.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.save_or_show.html#tolteca.recipes.simu_hwp_noise.save_or_show" title="tolteca.recipes.simu_hwp_noise.save_or_show"><code class="xref py py-obj docutils literal notranslate"><span class="pre">save_or_show</span></code></a>(fig, filepath[, bbox_inches])</p></td>
 <td><p>Save figure or show  plot, depending on the last sys.argv</p></td>
@@ -122,16 +124,13 @@ the impact of the half wave plate to the observed noise.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.simulate_hwp.html#tolteca.recipes.simu_hwp_noise.simulate_hwp" title="tolteca.recipes.simu_hwp_noise.simulate_hwp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">simulate_hwp</span></code></a>(Qr, readout_noise, hwp_var_temp)</p></td>
 <td><p>Make simulated timestream and calculate some useful quantities of the HWP under some assumed parameters.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">timeit</span></code>(arg)</p></td>
-<td><p>Decorator that logs the execution time of the decorated item.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.worker.html#tolteca.recipes.simu_hwp_noise.worker" title="tolteca.recipes.simu_hwp_noise.worker"><code class="xref py py-obj docutils literal notranslate"><span class="pre">worker</span></code></a>(args)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.worker.html#tolteca.recipes.simu_hwp_noise.worker" title="tolteca.recipes.simu_hwp_noise.worker"><code class="xref py py-obj docutils literal notranslate"><span class="pre">worker</span></code></a>(args)</p></td>
 <td><p></p></td>
 </tr>
 </tbody>
 </table>
-</div>
-<div class="section" id="classes">
+</section>
+<section id="classes">
 <h3>Classes<a class="headerlink" href="#classes" title="Permalink to this headline">¶</a></h3>
 <table class="longtable docutils align-default">
 <colgroup>
@@ -139,35 +138,38 @@ the impact of the half wave plate to the observed noise.</p>
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.HwpConstraint.html#tolteca.recipes.simu_hwp_noise.HwpConstraint" title="tolteca.recipes.simu_hwp_noise.HwpConstraint"><code class="xref py py-obj docutils literal notranslate"><span class="pre">HwpConstraint</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.HwpConstraint.html#tolteca.recipes.simu_hwp_noise.HwpConstraint" title="tolteca.recipes.simu_hwp_noise.HwpConstraint"><code class="xref py py-obj docutils literal notranslate"><span class="pre">HwpConstraint</span></code></a>()</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.HwpTrend.html#tolteca.recipes.simu_hwp_noise.HwpTrend" title="tolteca.recipes.simu_hwp_noise.HwpTrend"><code class="xref py py-obj docutils literal notranslate"><span class="pre">HwpTrend</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_hwp_noise.HwpTrend.html#tolteca.recipes.simu_hwp_noise.HwpTrend" title="tolteca.recipes.simu_hwp_noise.HwpTrend"><code class="xref py py-obj docutils literal notranslate"><span class="pre">HwpTrend</span></code></a>()</p></td>
 <td><p></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">KidsSimulator</span></code>([fr, Qr, background, responsivity])</p></td>
 <td><p>Class that make simulated kids data.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Path</span></code></p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Path</span></code>(*args, **kwargs)</p></td>
 <td><p>PurePath subclass that can make system calls.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">timeit</span></code>(arg)</p></td>
+<td><p>Context decorator that logs the execution time of the decorated item.</p></td>
 </tr>
 </tbody>
 </table>
-</div>
-<div class="section" id="class-inheritance-diagram">
+</section>
+<section id="class-inheritance-diagram">
 <h3>Class Inheritance Diagram<a class="headerlink" href="#class-inheritance-diagram" title="Permalink to this headline">¶</a></h3>
 <div class="graphviz"><object data="../_images/inheritance-cc3e44b3dd02dd2ac140d62fc5080d9b2a789d05.svg" type="image/svg+xml" class="inheritance graphviz">
 <p class="warning">Inheritance diagram of tolteca.recipes.simu_hwp_noise.HwpConstraint, tolteca.recipes.simu_hwp_noise.HwpTrend</p></object></div>
-</div>
-</div>
-<div class="section" id="module-tolteca.recipes.simu_obs">
+</section>
+</section>
+<section id="module-tolteca.recipes.simu_obs">
 <span id="tolteca-recipes-simu-obs-module"></span><h2>tolteca.recipes.simu_obs Module<a class="headerlink" href="#module-tolteca.recipes.simu_obs" title="Permalink to this headline">¶</a></h2>
 <p>This recipe defines a TolTEC KIDs data simulator.</p>
 <p>This recipe additionally requires to install a custom version of animatplot:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">git</span><span class="o">+</span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">Jerry</span><span class="o">-</span><span class="n">Ma</span><span class="o">/</span><span class="n">animatplot</span><span class="o">.</span><span class="n">git</span>
 </pre></div>
 </div>
-<div class="section" id="id1">
+<section id="id1">
 <h3>Functions<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h3>
 <table class="longtable docutils align-default">
 <colgroup>
@@ -196,116 +198,22 @@ the impact of the half wave plate to the observed noise.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_obs.plot_obs_on_wyatt.html#tolteca.recipes.simu_obs.plot_obs_on_wyatt" title="tolteca.recipes.simu_obs.plot_obs_on_wyatt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_obs_on_wyatt</span></code></a>(calobj, m_obs, …)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_obs.plot_projected.html#tolteca.recipes.simu_obs.plot_projected" title="tolteca.recipes.simu_obs.plot_projected"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_projected</span></code></a>(calobj, proj_model, \*\*kwargs)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_obs.plot_projected.html#tolteca.recipes.simu_obs.plot_projected" title="tolteca.recipes.simu_obs.plot_projected"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_projected</span></code></a>(calobj, proj_model, **kwargs)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">timeit</span></code>(arg)</p></td>
-<td><p>Decorator that logs the execution time of the decorated item.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">timezone</span></code>(zone)</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">timezone</span></code>(zone)</p></td>
 <td><p>Return a datetime.tzinfo implementation for the given timezone</p></td>
 </tr>
 </tbody>
 </table>
-</div>
-<div class="section" id="id2">
-<h3>Classes<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h3>
-<table class="longtable docutils align-default">
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 90%" />
-</colgroup>
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_obs.ArrayProjModel.html#tolteca.recipes.simu_obs.ArrayProjModel" title="tolteca.recipes.simu_obs.ArrayProjModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ArrayProjModel</span></code></a>(**kwargs)</p></td>
-<td><p>A model that transforms the detector locations per array to a common instrument coordinate system.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_obs.BeamModel.html#tolteca.recipes.simu_obs.BeamModel" title="tolteca.recipes.simu_obs.BeamModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BeamModel</span></code></a>(**kwargs)</p></td>
-<td><p>A model that describes the beam shape.</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Column</span></code></p></td>
-<td><p>Define a data column for use in a Table object.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">KidsSimulator</span></code>([fr, Qr, background, responsivity])</p></td>
-<td><p>Class that make simulated kids data.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_obs.LissajousModelMeta.html#tolteca.recipes.simu_obs.LissajousModelMeta" title="tolteca.recipes.simu_obs.LissajousModelMeta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">LissajousModelMeta</span></code></a>(name, bases, members)</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Model</span></code>(*args[, meta, name])</p></td>
-<td><p>Base class for all models.</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">MultiActionArgumentParser</span></code>(*args, **kwargs)</p></td>
-<td><p>This class wraps the <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.8)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">argparse.ArgumentParser</span></code></a> so that it allows defining subcommands with ease.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Observer</span></code>([location, timezone, name, …])</p></td>
-<td><p>A container class for information about an observer’s location and environment.</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Parameter</span></code>([name, description, default, …])</p></td>
-<td><p>Wraps individual parameters.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">PixCoord</span></code>(x, y)</p></td>
-<td><p>Pixel coordinates.</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">PolygonPixelRegion</span></code>(vertices[, meta, visual])</p></td>
-<td><p>A polygon in pixel coordinates.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">PolygonSkyRegion</span></code>(vertices[, meta, visual])</p></td>
-<td><p>A polygon defined using vertices in sky coordinates.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_obs.ProjModel.html#tolteca.recipes.simu_obs.ProjModel" title="tolteca.recipes.simu_obs.ProjModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ProjModel</span></code></a>(*args, **kwargs)</p></td>
-<td><p>Base class for models that transform the detector locations.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_obs.RasterScanModelMeta.html#tolteca.recipes.simu_obs.RasterScanModelMeta" title="tolteca.recipes.simu_obs.RasterScanModelMeta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RasterScanModelMeta</span></code></a>(name, bases, members)</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_obs.SkyLissajousModel.html#tolteca.recipes.simu_obs.SkyLissajousModel" title="tolteca.recipes.simu_obs.SkyLissajousModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SkyLissajousModel</span></code></a>([x_length, y_length, …])</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_obs.SkyMapModel.html#tolteca.recipes.simu_obs.SkyMapModel" title="tolteca.recipes.simu_obs.SkyMapModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SkyMapModel</span></code></a>(*args[, meta, name])</p></td>
-<td><p>A model that describes mapping patterns on the sky.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_obs.SkyProjModel.html#tolteca.recipes.simu_obs.SkyProjModel" title="tolteca.recipes.simu_obs.SkyProjModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SkyProjModel</span></code></a>([ref_coord, time_obs, …])</p></td>
-<td><p>A sky projection model for TolTEC.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_obs.SkyRasterScanModel.html#tolteca.recipes.simu_obs.SkyRasterScanModel" title="tolteca.recipes.simu_obs.SkyRasterScanModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SkyRasterScanModel</span></code></a>([length, space, n_scans, …])</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Table</span></code>([data, masked, names, dtype, meta, …])</p></td>
-<td><p>A class to represent tables of heterogeneous data.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Time</span></code>(val[, val2, format, scale, precision, …])</p></td>
-<td><p>Represent and manipulate times and dates for astronomy.</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Timer</span></code>(msg)</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_obs.ToltecObsSimulator.html#tolteca.recipes.simu_obs.ToltecObsSimulator" title="tolteca.recipes.simu_obs.ToltecObsSimulator"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ToltecObsSimulator</span></code></a>(array_prop_table)</p></td>
-<td><p>A class that make simulated observations for TolTEC.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_obs.WyattLissajousModel.html#tolteca.recipes.simu_obs.WyattLissajousModel" title="tolteca.recipes.simu_obs.WyattLissajousModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">WyattLissajousModel</span></code></a>([x_length, y_length, …])</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_obs.WyattProjModel.html#tolteca.recipes.simu_obs.WyattProjModel" title="tolteca.recipes.simu_obs.WyattProjModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">WyattProjModel</span></code></a>(rot, scale[, ref_coord])</p></td>
-<td><p>A projection model for the Wyatt robot arm.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.simu_obs.WyattRasterScanModel.html#tolteca.recipes.simu_obs.WyattRasterScanModel" title="tolteca.recipes.simu_obs.WyattRasterScanModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">WyattRasterScanModel</span></code></a>([length, space, …])</p></td>
-<td><p></p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="section" id="id3">
-<h3>Class Inheritance Diagram<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h3>
-<div class="graphviz"><object data="../_images/inheritance-af3a05273adcad0da3d303725c6944b1f26b0c66.svg" type="image/svg+xml" class="inheritance graphviz">
-<p class="warning">Inheritance diagram of tolteca.recipes.simu_obs.ArrayProjModel, tolteca.recipes.simu_obs.BeamModel, tolteca.recipes.simu_obs.LissajousModelMeta, tolteca.recipes.simu_obs.ProjModel, tolteca.recipes.simu_obs.RasterScanModelMeta, tolteca.recipes.simu_obs.SkyLissajousModel, tolteca.recipes.simu_obs.SkyMapModel, tolteca.recipes.simu_obs.SkyProjModel, tolteca.recipes.simu_obs.SkyRasterScanModel, tolteca.recipes.simu_obs.ToltecObsSimulator, tolteca.recipes.simu_obs.WyattLissajousModel, tolteca.recipes.simu_obs.WyattProjModel, tolteca.recipes.simu_obs.WyattRasterScanModel</p></object></div>
-</div>
-</div>
-<div class="section" id="module-tolteca.recipes.autodrive">
+</section>
+</section>
+<section id="module-tolteca.recipes.autodrive">
 <span id="tolteca-recipes-autodrive-module"></span><h2>tolteca.recipes.autodrive Module<a class="headerlink" href="#module-tolteca.recipes.autodrive" title="Permalink to this headline">¶</a></h2>
 <p>This recipe implements the “autodrive” procedure to determine the best
 drive attenuations for the KIDs.</p>
-<div class="section" id="id4">
-<h3>Functions<a class="headerlink" href="#id4" title="Permalink to this headline">¶</a></h3>
+<section id="id2">
+<h3>Functions<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h3>
 <table class="longtable docutils align-default">
 <colgroup>
 <col style="width: 10%" />
@@ -327,8 +235,14 @@ drive attenuations for the KIDs.</p>
 <tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_logger</span></code>([name])</p></td>
 <td><p>Return a logger named <code class="xref py py-obj docutils literal notranslate"><span class="pre">name</span></code> if specified, otherwise use the name of the calling context.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.autodrive.load_autodrive_data.html#tolteca.recipes.autodrive.load_autodrive_data" title="tolteca.recipes.autodrive.load_autodrive_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_autodrive_data</span></code></a>(dataset)</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">join</span></code>(left, right[, keys, join_type, …])</p></td>
+<td><p>Perform a join of the left table with the right table on specified keys.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.autodrive.load_autodrive_data.html#tolteca.recipes.autodrive.load_autodrive_data" title="tolteca.recipes.autodrive.load_autodrive_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_autodrive_data</span></code></a>(dataset)</p></td>
 <td><p>Given a dataset, try load all the necessary data to run the autodrive.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.autodrive.main.html#tolteca.recipes.autodrive.main" title="tolteca.recipes.autodrive.main"><code class="xref py py-obj docutils literal notranslate"><span class="pre">main</span></code></a>(args)</p></td>
+<td><p></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_slice</span></code>(slice_str)</p></td>
 <td><p>Return a slice object from string.</p></td>
@@ -338,11 +252,11 @@ drive attenuations for the KIDs.</p>
 </tr>
 </tbody>
 </table>
-</div>
-</div>
-<div class="section" id="module-tolteca.recipes.dataset_rsync">
+</section>
+</section>
+<section id="module-tolteca.recipes.dataset_rsync">
 <span id="tolteca-recipes-dataset-rsync-module"></span><h2>tolteca.recipes.dataset_rsync Module<a class="headerlink" href="#module-tolteca.recipes.dataset_rsync" title="Permalink to this headline">¶</a></h2>
-<p>This recipe shows how to use the <code class="xref py py-obj docutils literal notranslate"><span class="pre">tolteca.fs.rsync_accessor.RsyncAccessor</span></code>
+<p>This recipe shows how to use the <code class="xref py py-obj docutils literal notranslate"><span class="pre">tolteca.datamodels.fs.rsync.RsyncAccessor</span></code>
 to select and retrieve TolTEC data files from remote.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">-s</span></code> switch makes use of the <code class="docutils literal notranslate"><span class="pre">panads.DataFrame.query</span></code>, and the
 documentation on composing the query string could be found here:
@@ -376,67 +290,28 @@ for later use:</p>
 created in the current directory.</p>
 </li>
 </ol>
-</div>
-<div class="section" id="module-tolteca.recipes.dataset_simple_example">
-<span id="tolteca-recipes-dataset-simple-example-module"></span><h2>tolteca.recipes.dataset_simple_example Module<a class="headerlink" href="#module-tolteca.recipes.dataset_simple_example" title="Permalink to this headline">¶</a></h2>
-<p>This recipe shows how to use the <code class="xref py py-obj docutils literal notranslate"><span class="pre">tolteca.fs.toltec.ToltecDataset</span></code>
-to open files, load data objects, save the data objects for repeated analysis,
-and do some plots.</p>
-<p>Example usage:</p>
-<p>The below will load an dataset index table, and do some process,
-and save a pickle file:</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span># noqa: E501
-$ python dataset_simple_example.py --dataset my_local_data_dir/dataset_example.asc -s &#39;obsid == [10718, 10728]&#39; --dump dataset_simple_example.pickle
-</pre></div>
-</div>
-<p>Next time, one can load the pickle and do a plot</p>
-<blockquote>
-<div><p>$ python dataset_simple_example.py –dataset dataset_simple_example.pickle –plot</p>
-</div></blockquote>
-</div>
-<div class="section" id="module-tolteca.recipes.match_tunes">
-<span id="tolteca-recipes-match-tunes-module"></span><h2>tolteca.recipes.match_tunes Module<a class="headerlink" href="#module-tolteca.recipes.match_tunes" title="Permalink to this headline">¶</a></h2>
-<p>This recipe helps match the tones in two tune files.</p>
-<p>The code requires an external tool <code class="xref py py-obj docutils literal notranslate"><span class="pre">stilts</span></code> to match the tones in
-different files. This code will try download it automatically if not
-already installed. Please refer to <a class="reference external" href="http://www.star.bris.ac.uk/~mbt/stilts/">http://www.star.bris.ac.uk/~mbt/stilts/</a>
-for more information.</p>
-<div class="section" id="id5">
-<h3>Functions<a class="headerlink" href="#id5" title="Permalink to this headline">¶</a></h3>
+<section id="id3">
+<h3>Functions<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h3>
 <table class="longtable docutils align-default">
 <colgroup>
 <col style="width: 10%" />
 <col style="width: 90%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.match_tunes.find_global_shift.html#tolteca.recipes.match_tunes.find_global_shift" title="tolteca.recipes.match_tunes.find_global_shift"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_global_shift</span></code></a>(dataset[, pairing, roi, …])</p></td>
-<td><p>Given a set of tune files, try find the relative shift of the resonance frequencies of all detectors among them.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_logger</span></code>([name])</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_logger</span></code>([name])</p></td>
 <td><p>Return a logger named <code class="xref py py-obj docutils literal notranslate"><span class="pre">name</span></code> if specified, otherwise use the name of the calling context.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.match_tunes.match_tones.html#tolteca.recipes.match_tunes.match_tones" title="tolteca.recipes.match_tunes.match_tones"><code class="xref py py-obj docutils literal notranslate"><span class="pre">match_tones</span></code></a>(left, right[, eps, …])</p></td>
-<td><p>Return a table with tones matched.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.match_tunes.prepare_d21_data.html#tolteca.recipes.match_tunes.prepare_d21_data" title="tolteca.recipes.match_tunes.prepare_d21_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prepare_d21_data</span></code></a>(dataset)</p></td>
-<td><p>Prepare the dataset for tone match.</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">save_or_show</span></code>(fig, filepath[, bbox_inches, …])</p></td>
-<td><p>Save figure or show  plot, depending on the last sys.argv</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">stilts_match1d</span></code>(tbl1, tbl2, colname, radius)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.dataset_rsync.main.html#tolteca.recipes.dataset_rsync.main" title="tolteca.recipes.dataset_rsync.main"><code class="xref py py-obj docutils literal notranslate"><span class="pre">main</span></code></a>(args)</p></td>
 <td><p></p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">vstack</span></code>(tables[, join_type, metadata_conflicts])</p></td>
-<td><p>Stack tables vertically (along rows)</p></td>
 </tr>
 </tbody>
 </table>
-</div>
-</div>
-</div>
+</section>
+</section>
+</section>
 
 
+            <div class="clearer"></div>
           </div>
         </div>
       </div>
@@ -453,18 +328,14 @@ for more information.</p>
 </li>
 <li><a class="reference internal" href="#module-tolteca.recipes.simu_obs">tolteca.recipes.simu_obs Module</a><ul>
 <li><a class="reference internal" href="#id1">Functions</a></li>
-<li><a class="reference internal" href="#id2">Classes</a></li>
-<li><a class="reference internal" href="#id3">Class Inheritance Diagram</a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-tolteca.recipes.autodrive">tolteca.recipes.autodrive Module</a><ul>
-<li><a class="reference internal" href="#id4">Functions</a></li>
+<li><a class="reference internal" href="#id2">Functions</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#module-tolteca.recipes.dataset_rsync">tolteca.recipes.dataset_rsync Module</a></li>
-<li><a class="reference internal" href="#module-tolteca.recipes.dataset_simple_example">tolteca.recipes.dataset_simple_example Module</a></li>
-<li><a class="reference internal" href="#module-tolteca.recipes.match_tunes">tolteca.recipes.match_tunes Module</a><ul>
-<li><a class="reference internal" href="#id5">Functions</a></li>
+<li><a class="reference internal" href="#module-tolteca.recipes.dataset_rsync">tolteca.recipes.dataset_rsync Module</a><ul>
+<li><a class="reference internal" href="#id3">Functions</a></li>
 </ul>
 </li>
 </ul>
@@ -482,9 +353,9 @@ for more information.</p>
        rel="nofollow">Page Source</a> &nbsp;
     <a href="#">Back to Top</a></p>
   <p>
-    &copy; Copyright 2020, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 3.0.2. &nbsp;
-    Last built 23 Apr 2020. <br/>
+    &copy; Copyright 2021, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
+    Last built 18 Jun 2021. <br/>
   </p>
 </footer>
   </body>

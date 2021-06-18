@@ -1,6 +1,0 @@
-find_global_shift
-=================
-
-.. currentmodule:: tolteca.recipes.match_tunes
-
-.. autofunction:: find_global_shift

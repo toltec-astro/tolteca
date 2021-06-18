@@ -1,0 +1,212 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>LmtAtmosphereTxModel &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+    
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="WyattLissajousModel" href="tolteca.simu.toltec.wyatt.WyattLissajousModel.html" />
+    <link rel="prev" title="LmtAtmosphereModel" href="tolteca.simu.toltec.lmt.LmtAtmosphereModel.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="tolteca.simu.toltec.wyatt.WyattLissajousModel.html" title="WyattLissajousModel">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="tolteca.simu.toltec.lmt.LmtAtmosphereModel.html" title="LmtAtmosphereModel">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
+	 &#187;
+      </li>
+      <li><a href="../tolteca/index.html" accesskey="U">TolTECA Documentation</a> &#187;</li>
+      
+      <li>LmtAtmosphereTxModel</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="lmtatmospheretxmodel">
+<h1>LmtAtmosphereTxModel<a class="headerlink" href="#lmtatmospheretxmodel" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="tolteca.simu.toltec.lmt.LmtAtmosphereTxModel">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">tolteca.simu.toltec.lmt.</span></span><span class="sig-name descname"><span class="pre">LmtAtmosphereTxModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'am_q50'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/simu/toltec/lmt.html#LmtAtmosphereTxModel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.simu.toltec.lmt.LmtAtmosphereTxModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">tolteca.simu.base._Model</span></code></p>
+<p>A model of the LMT atmosphere transmission.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>name</strong><span class="classifier">{“am_q25”, “am_q50”, “am_q75”}, default=”am_q50”</span></dt><dd><p>The source dataset used in the model.
+The “am_q*” data are constructed with the am code
+<a class="reference external" href="https://www.cfa.harvard.edu/~spaine/am/">https://www.cfa.harvard.edu/~spaine/am/</a>, with
+quartiles set to 25 and 50, respectively.</p>
+</dd>
+<dt><strong>*args, **kwargs</strong></dt><dd><p>Arguments passed to the <code class="xref py py-obj docutils literal notranslate"><span class="pre">_Model</span></code> constructor.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">Attributes Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.input_units" title="tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.input_units"><code class="xref py py-obj docutils literal notranslate"><span class="pre">input_units</span></code></a></p></td>
+<td><p>This property is used to indicate what units or sets of units the evaluate method expects, and returns a dictionary mapping inputs to units (or <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a> if any units are accepted).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.input_units_equivalencies" title="tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.input_units_equivalencies"><code class="xref py py-obj docutils literal notranslate"><span class="pre">input_units_equivalencies</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.logger" title="tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.logger"><code class="xref py py-obj docutils literal notranslate"><span class="pre">logger</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.n_inputs" title="tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.n_inputs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">n_inputs</span></code></a></p></td>
+<td><p>The number of inputs.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.n_outputs" title="tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.n_outputs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">n_outputs</span></code></a></p></td>
+<td><p>The number of outputs.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.__call__" title="tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.__call__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__call__</span></code></a>(*inputs[, model_set_axis, …])</p></td>
+<td><p>Evaluate this model using the given input(s) and the parameter values that were specified when the model was instantiated.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.evaluate" title="tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.evaluate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">evaluate</span></code></a>(f, alt)</p></td>
+<td><p>Evaluate the model on some input variables.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Attributes Documentation</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.input_units">
+<span class="sig-name descname"><span class="pre">input_units</span></span><a class="headerlink" href="#tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.input_units" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.input_units_equivalencies">
+<span class="sig-name descname"><span class="pre">input_units_equivalencies</span></span><em class="property"> <span class="pre">=</span> <span class="pre">{'f':</span> <span class="pre">[(Unit(&quot;m&quot;),</span> <span class="pre">Unit(&quot;Hz&quot;),</span> <span class="pre">&lt;function</span> <span class="pre">spectral.&lt;locals&gt;.&lt;lambda&gt;&gt;),</span> <span class="pre">(Unit(&quot;m&quot;),</span> <span class="pre">Unit(&quot;J&quot;),</span> <span class="pre">&lt;function</span> <span class="pre">spectral.&lt;locals&gt;.&lt;lambda&gt;&gt;),</span> <span class="pre">(Unit(&quot;Hz&quot;),</span> <span class="pre">Unit(&quot;J&quot;),</span> <span class="pre">&lt;function</span> <span class="pre">spectral.&lt;locals&gt;.&lt;lambda&gt;&gt;,</span> <span class="pre">&lt;function</span> <span class="pre">spectral.&lt;locals&gt;.&lt;lambda&gt;&gt;),</span> <span class="pre">(Unit(&quot;m&quot;),</span> <span class="pre">Unit(&quot;1</span> <span class="pre">/</span> <span class="pre">m&quot;),</span> <span class="pre">&lt;function</span> <span class="pre">spectral.&lt;locals&gt;.&lt;lambda&gt;&gt;),</span> <span class="pre">(Unit(&quot;Hz&quot;),</span> <span class="pre">Unit(&quot;1</span> <span class="pre">/</span> <span class="pre">m&quot;),</span> <span class="pre">&lt;function</span> <span class="pre">spectral.&lt;locals&gt;.&lt;lambda&gt;&gt;,</span> <span class="pre">&lt;function</span> <span class="pre">spectral.&lt;locals&gt;.&lt;lambda&gt;&gt;),</span> <span class="pre">(Unit(&quot;J&quot;),</span> <span class="pre">Unit(&quot;1</span> <span class="pre">/</span> <span class="pre">m&quot;),</span> <span class="pre">&lt;function</span> <span class="pre">spectral.&lt;locals&gt;.&lt;lambda&gt;&gt;,</span> <span class="pre">&lt;function</span> <span class="pre">spectral.&lt;locals&gt;.&lt;lambda&gt;&gt;),</span> <span class="pre">(Unit(&quot;1</span> <span class="pre">/</span> <span class="pre">m&quot;),</span> <span class="pre">Unit(&quot;rad</span> <span class="pre">/</span> <span class="pre">m&quot;),</span> <span class="pre">&lt;function</span> <span class="pre">spectral.&lt;locals&gt;.&lt;lambda&gt;&gt;,</span> <span class="pre">&lt;function</span> <span class="pre">spectral.&lt;locals&gt;.&lt;lambda&gt;&gt;),</span> <span class="pre">(Unit(&quot;m&quot;),</span> <span class="pre">Unit(&quot;rad</span> <span class="pre">/</span> <span class="pre">m&quot;),</span> <span class="pre">&lt;function</span> <span class="pre">spectral.&lt;locals&gt;.&lt;lambda&gt;&gt;),</span> <span class="pre">(Unit(&quot;Hz&quot;),</span> <span class="pre">Unit(&quot;rad</span> <span class="pre">/</span> <span class="pre">m&quot;),</span> <span class="pre">&lt;function</span> <span class="pre">spectral.&lt;locals&gt;.&lt;lambda&gt;&gt;,</span> <span class="pre">&lt;function</span> <span class="pre">spectral.&lt;locals&gt;.&lt;lambda&gt;&gt;),</span> <span class="pre">(Unit(&quot;J&quot;),</span> <span class="pre">Unit(&quot;rad</span> <span class="pre">/</span> <span class="pre">m&quot;),</span> <span class="pre">&lt;function</span> <span class="pre">spectral.&lt;locals&gt;.&lt;lambda&gt;&gt;,</span> <span class="pre">&lt;function</span> <span class="pre">spectral.&lt;locals&gt;.&lt;lambda&gt;&gt;)]}</span></em><a class="headerlink" href="#tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.input_units_equivalencies" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.logger">
+<span class="sig-name descname"><span class="pre">logger</span></span><em class="property"> <span class="pre">=</span> <span class="pre">&lt;Logger</span> <span class="pre">LmtAtmosphereTxModel</span> <span class="pre">(DEBUG)&gt;</span></em><a class="headerlink" href="#tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.logger" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.n_inputs">
+<span class="sig-name descname"><span class="pre">n_inputs</span></span><em class="property"> <span class="pre">=</span> <span class="pre">2</span></em><a class="headerlink" href="#tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.n_inputs" title="Permalink to this definition">¶</a></dt>
+<dd><p>The number of inputs.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.n_outputs">
+<span class="sig-name descname"><span class="pre">n_outputs</span></span><em class="property"> <span class="pre">=</span> <span class="pre">1</span></em><a class="headerlink" href="#tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.n_outputs" title="Permalink to this definition">¶</a></dt>
+<dd><p>The number of outputs.</p>
+</dd></dl>
+
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.__call__">
+<span class="sig-name descname"><span class="pre">__call__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">inputs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_set_axis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">with_bounding_box</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">nan</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">equivalencies</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inputs_map</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">new_inputs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.__call__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluate this model using the given input(s) and the parameter values
+that were specified when the model was instantiated.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.evaluate">
+<span class="sig-name descname"><span class="pre">evaluate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">f</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alt</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/simu/toltec/lmt.html#LmtAtmosphereTxModel.evaluate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.evaluate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluate the model on some input variables.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">LmtAtmosphereTxModel</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/api/tolteca.simu.toltec.lmt.LmtAtmosphereTxModel.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2021, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
+    Last built 18 Jun 2021. <br/>
+  </p>
+</footer>
+  </body>
+</html>

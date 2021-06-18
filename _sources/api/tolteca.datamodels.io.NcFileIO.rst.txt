@@ -1,0 +1,7 @@
+NcFileIO
+========
+
+.. currentmodule:: tolteca.datamodels.io
+
+.. autoclass:: NcFileIO
+   :show-inheritance:

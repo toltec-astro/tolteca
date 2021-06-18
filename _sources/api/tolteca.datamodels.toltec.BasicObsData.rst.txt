@@ -1,0 +1,33 @@
+BasicObsData
+============
+
+.. currentmodule:: tolteca.datamodels.toltec
+
+.. autoclass:: BasicObsData
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~BasicObsData.logger
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~BasicObsData.open
+      ~BasicObsData.read
+      ~BasicObsData.update_meta_from_file_loc
+      ~BasicObsData.update_meta_from_file_obj
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: logger
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: open
+   .. automethod:: read
+   .. automethod:: update_meta_from_file_loc
+   .. automethod:: update_meta_from_file_obj

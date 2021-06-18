@@ -1,0 +1,6 @@
+PipelineRuntimeError
+====================
+
+.. currentmodule:: tolteca.reduce
+
+.. autoexception:: PipelineRuntimeError

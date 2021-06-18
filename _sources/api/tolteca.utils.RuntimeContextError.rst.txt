@@ -1,0 +1,6 @@
+RuntimeContextError
+===================
+
+.. currentmodule:: tolteca.utils
+
+.. autoexception:: RuntimeContextError

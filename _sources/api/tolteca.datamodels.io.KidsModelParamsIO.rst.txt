@@ -1,0 +1,27 @@
+KidsModelParamsIO
+=================
+
+.. currentmodule:: tolteca.datamodels.io
+
+.. autoclass:: KidsModelParamsIO
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~KidsModelParamsIO.io_registry_info
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~KidsModelParamsIO.read
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: io_registry_info
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: read

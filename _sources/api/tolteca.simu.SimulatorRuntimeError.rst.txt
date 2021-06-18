@@ -1,0 +1,6 @@
+SimulatorRuntimeError
+=====================
+
+.. currentmodule:: tolteca.simu
+
+.. autoexception:: SimulatorRuntimeError

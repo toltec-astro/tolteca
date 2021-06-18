@@ -1,0 +1,590 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tolteca.datamodels.toltec.basic_obs_data &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/plot_directive.css" />
+    
+    <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+    <script src="../../../../_static/jquery.js"></script>
+    <script src="../../../../_static/underscore.js"></script>
+    <script src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" accesskey="U">Module code</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tolteca.datamodels.toltec.basic_obs_data</h1><div class="highlight"><pre>
+<span></span><span class="ch">#! /usr/bin/env python</span>
+
+<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span>
+<span class="kn">from</span> <span class="nn">astropy.table</span> <span class="kn">import</span> <span class="n">Table</span><span class="p">,</span> <span class="n">MaskedColumn</span><span class="p">,</span> <span class="n">vstack</span><span class="p">,</span> <span class="n">unique</span><span class="p">,</span> <span class="n">join</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="c1"># from astropy.io import registry</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">logged_dict_update</span>
+<span class="kn">from</span> <span class="nn">astropy.utils.decorators</span> <span class="kn">import</span> <span class="n">sharedmethod</span>
+<span class="kn">from</span> <span class="nn">..io.registry</span> <span class="kn">import</span> <span class="n">open_file</span>
+<span class="kn">from</span> <span class="nn">..io.base</span> <span class="kn">import</span> <span class="n">DataFileIO</span>
+<span class="kn">from</span> <span class="nn">..fs.toltec</span> <span class="kn">import</span> <span class="n">meta_from_source</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">defaultdict</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_fancy_index</span>
+<span class="kn">import</span> <span class="nn">dill</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;BasicObsData&#39;</span><span class="p">,</span> <span class="s1">&#39;BasicObsDataset&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="BasicObsData"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsData.html#tolteca.datamodels.toltec.BasicObsData">[docs]</a><span class="k">class</span> <span class="nc">BasicObsData</span><span class="p">(</span><span class="n">DataFileIO</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A class that provides unified IO interface to TolTEC basic</span>
+<span class="sd">    obs data.</span>
+
+<span class="sd">    This class acts as a simple wrapper around the data file IO classes defined</span>
+<span class="sd">    in `~tolteca.datamodels.io.toltec` module, and provides an unified</span>
+<span class="sd">    interface to handle high level information of data items that are of</span>
+<span class="sd">    different types, or located on remote file systems.</span>
+
+<span class="sd">    If the source points to a local file, the</span>
+<span class="sd">    `file_obj` is available and can be used to access the data::</span>
+
+<span class="sd">        &gt;&gt;&gt; from tolteca.datamodels.toltec import BasicObsData</span>
+<span class="sd">        &gt;&gt;&gt; bod = BasicObsData(&#39;toltec0.nc&#39;)</span>
+<span class="sd">        &gt;&gt;&gt; with bod.open() as fo:</span>
+<span class="sd">        &gt;&gt;&gt;     # `fo` is a `~tolteca.datamodels.io.toltec.NcFileIO` instance.</span>
+<span class="sd">        &gt;&gt;&gt;     kidsdata = fo.read()</span>
+
+<span class="sd">        The above can also be done via the `open_file` shortcut as follows::</span>
+
+<span class="sd">        &gt;&gt;&gt; with BasicObsData.open(&#39;toltec0.nc&#39;) as fo:</span>
+<span class="sd">        &gt;&gt;&gt;     kidsdata = fo.read()</span>
+
+<span class="sd">        This can further be shortened as::</span>
+
+<span class="sd">        &gt;&gt;&gt; kidsdata = BasicObsData.read(&#39;toltec0.nc&#39;)</span>
+
+<span class="sd">    When :attr:`file_loc` is a remote file, `file_obj` is ``None``, and</span>
+<span class="sd">    (of course) attempting to open the file will raise `DataFileIOError`.</span>
+
+<span class="sd">    In both cases, various information of the data is pulled and stored in</span>
+<span class="sd">    :attr:`meta`. In particular, when :attr:`file_obj` is available (local</span>
+<span class="sd">    file),  the meta data includes those from the header of the opened data</span>
+<span class="sd">    file.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    source : str, `~pathlib.Path`, `~tollan.utils.FileLoc`.</span>
+<span class="sd">        The data file location. Remote locations can be specified in</span>
+<span class="sd">        either URL or SFTP format ``&lt;host&gt;:&lt;path&gt;`.</span>
+
+<span class="sd">    open_: bool</span>
+<span class="sd">        If True, attemp to open the file to load meta data.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">open_</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="n">file_loc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_file_loc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_normalize_file_loc</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">open_</span> <span class="ow">and</span> <span class="n">file_loc</span><span class="o">.</span><span class="n">is_local</span><span class="p">:</span>
+            <span class="n">file_obj</span> <span class="o">=</span> <span class="n">open_file</span><span class="p">(</span><span class="n">file_loc</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">file_obj</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_file_loc</span> <span class="o">=</span> <span class="n">file_loc</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_file_obj</span> <span class="o">=</span> <span class="n">file_obj</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_meta</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">file_obj</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># ensure that we automatically close the file</span>
+            <span class="c1"># after the meta is updated.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">file_obj</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+<div class="viewcode-block" id="BasicObsData.update_meta_from_file_obj"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsData.html#tolteca.datamodels.toltec.BasicObsData.update_meta_from_file_obj">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">update_meta_from_file_obj</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">meta</span><span class="p">,</span> <span class="n">file_obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Update `meta` with header of `file_obj`.</span>
+
+<span class="sd">        This modifies `meta` in-place.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">logged_dict_update</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">,</span> <span class="n">meta</span><span class="p">,</span> <span class="n">file_obj</span><span class="o">.</span><span class="n">meta</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">meta</span></div>
+
+<div class="viewcode-block" id="BasicObsData.update_meta_from_file_loc"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsData.html#tolteca.datamodels.toltec.BasicObsData.update_meta_from_file_loc">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">update_meta_from_file_loc</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">meta</span><span class="p">,</span> <span class="n">file_loc</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Update `meta` with info encoded in `file_loc`.</span>
+
+<span class="sd">        This modifies `meta` in-place.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">logged_dict_update</span><span class="p">(</span>
+                <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">,</span> <span class="n">meta</span><span class="p">,</span> <span class="n">meta_from_source</span><span class="p">(</span><span class="n">file_loc</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="s1">&#39;unable to parse meta from file loc.&#39;</span><span class="p">,</span>
+                    <span class="n">exc_info</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">meta</span></div>
+
+    <span class="k">def</span> <span class="nf">_update_meta</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Update :attr:`meta`.&quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_meta_from_file_loc</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">file_loc</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">file_obj</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">update_meta_from_file_obj</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">file_obj</span><span class="p">)</span>
+
+<div class="viewcode-block" id="BasicObsData.open"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsData.html#tolteca.datamodels.toltec.BasicObsData.open">[docs]</a>    <span class="nd">@sharedmethod</span>
+    <span class="k">def</span> <span class="nf">open</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Shortcut to open the file.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">BasicObsData</span><span class="p">):</span>
+            <span class="c1"># instance</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">obj</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="BasicObsData.read"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsData.html#tolteca.datamodels.toltec.BasicObsData.read">[docs]</a>    <span class="nd">@sharedmethod</span>
+    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Shortcut to read the file.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">BasicObsData</span><span class="p">):</span>
+            <span class="c1"># instance</span>
+            <span class="k">with</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">open</span><span class="p">()</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">fo</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+        <span class="k">with</span> <span class="n">obj</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">fo</span><span class="o">.</span><span class="n">read</span><span class="p">()</span></div></div>
+
+
+<div class="viewcode-block" id="BasicObsDataset"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsDataset.html#tolteca.datamodels.toltec.BasicObsDataset">[docs]</a><span class="k">class</span> <span class="nc">BasicObsDataset</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A helper class to access a set of TolTEC basic obs data items.</span>
+
+<span class="sd">    An instance of this class is typically created from one of its</span>
+<span class="sd">    ``from_*`` factory functions.</span>
+
+<span class="sd">    This class is implemented as a thin wrapper around an index table (a</span>
+<span class="sd">    `~astropy.table.Table` instance) that contains information to identify</span>
+<span class="sd">    BOD items.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    index_table : `~astropy.table.Table`</span>
+<span class="sd">        The table that identifies a set of BOD items.</span>
+
+<span class="sd">    bod_list : list</span>
+<span class="sd">        A list of `BasicObsData` instances.</span>
+
+<span class="sd">    include_meta_cols : str, list</span>
+<span class="sd">        The columns to include in the index table, extracted from the</span>
+<span class="sd">        loaded meta data.</span>
+
+<span class="sd">    **kwargs :</span>
+<span class="sd">        Passed to `BasicObsData` constructor.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">index_table</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">bod_list</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">include_meta_cols</span><span class="o">=</span><span class="s1">&#39;intersection&#39;</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">index_table</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">bod_list</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;need one of index_table or bod_list.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">index_table</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">index_table</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_index_table</span><span class="p">(</span><span class="n">bod_list</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">bod_list</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># when sliced, the tbl will contain the sliced bod list</span>
+            <span class="k">if</span> <span class="s1">&#39;_bod&#39;</span> <span class="ow">in</span> <span class="n">index_table</span><span class="o">.</span><span class="n">colnames</span><span class="p">:</span>
+                <span class="n">bod_list</span> <span class="o">=</span> <span class="n">index_table</span><span class="p">[</span><span class="s1">&#39;_bod&#39;</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_index_table</span> <span class="o">=</span> <span class="n">index_table</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_bod_list</span> <span class="o">=</span> <span class="n">bod_list</span>
+                <span class="k">return</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">bod_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_bod_list</span><span class="p">(</span><span class="n">index_table</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">index_table</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">bod_list</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_index_table</span> <span class="o">=</span> <span class="n">index_table</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bod_list</span> <span class="o">=</span> <span class="n">bod_list</span>
+        <span class="bp">self</span><span class="p">[</span><span class="s1">&#39;_bod&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bod_list</span>
+        <span class="k">if</span> <span class="n">include_meta_cols</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">add_meta_cols</span><span class="p">(</span><span class="n">include_meta_cols</span><span class="p">)</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="n">_cols_bod_info</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s1">&#39;interface&#39;</span><span class="p">,</span> <span class="s1">&#39;obsnum&#39;</span><span class="p">,</span> <span class="s1">&#39;subobsnum&#39;</span><span class="p">,</span> <span class="s1">&#39;scannum&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;master&#39;</span><span class="p">,</span> <span class="s1">&#39;repeat&#39;</span><span class="p">,</span> <span class="s1">&#39;source&#39;</span><span class="p">,</span>
+                <span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_validate_index_table</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">tbl</span><span class="p">):</span>
+        <span class="n">cols_required</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_cols_bod_info</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">set</span><span class="p">(</span><span class="n">tbl</span><span class="o">.</span><span class="n">colnames</span><span class="p">)</span><span class="o">.</span><span class="n">issuperset</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">cols_required</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;required columns missing in the input index_table.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">tbl</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_make_bod_list</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">tbl</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># this will update tbl in place.</span>
+        <span class="n">bods</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;source&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">MaskedColumn</span><span class="p">):</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">filled</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">source</span> <span class="ow">in</span> <span class="n">s</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">source</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">bods</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+                <span class="k">continue</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">bod</span> <span class="o">=</span> <span class="n">BasicObsData</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;unable to create bod: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">bod</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">bods</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bod</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">bods</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_make_index_table</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">bod_list</span><span class="p">):</span>
+        <span class="n">tbl</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">bod</span> <span class="ow">in</span> <span class="n">bod_list</span><span class="p">:</span>
+            <span class="c1"># with bod.open():</span>
+            <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_cols_bod_info</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">col</span> <span class="o">==</span> <span class="s1">&#39;source&#39;</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="n">bod</span><span class="o">.</span><span class="n">file_loc</span><span class="o">.</span><span class="n">rsync_path</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># default values for master and repeat</span>
+                    <span class="k">if</span> <span class="n">col</span> <span class="o">==</span> <span class="s1">&#39;master&#39;</span><span class="p">:</span>
+                        <span class="n">defval</span> <span class="o">=</span> <span class="s1">&#39;unknown&#39;</span>
+                    <span class="k">elif</span> <span class="n">col</span> <span class="o">==</span> <span class="s1">&#39;repeat&#39;</span><span class="p">:</span>
+                        <span class="n">defval</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">defval</span> <span class="o">=</span> <span class="kc">None</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="n">bod</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">defval</span><span class="p">)</span>
+                <span class="n">tbl</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="n">tbl</span> <span class="o">=</span> <span class="n">Table</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">tbl</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">tbl</span>
+
+    <span class="k">def</span> <span class="nf">_add_meta_cols</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keys</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add meta data info to the index table.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        keys : str</span>
+<span class="sd">            The keys to add.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">bod</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">bod</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">data</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bod</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+<div class="viewcode-block" id="BasicObsDataset.add_meta_cols"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsDataset.html#tolteca.datamodels.toltec.BasicObsDataset.add_meta_cols">[docs]</a>    <span class="k">def</span> <span class="nf">add_meta_cols</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keys</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add meta data info to the index table.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        keys : list, str</span>
+<span class="sd">            The keys to add. When string, this is passed as the option to</span>
+<span class="sd">            :meth:`get_meta_keys` to get the keys.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">keys</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_meta_keys</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">keys</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_add_meta_cols</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+<div class="viewcode-block" id="BasicObsDataset.get_meta_keys"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsDataset.html#tolteca.datamodels.toltec.BasicObsDataset.get_meta_keys">[docs]</a>    <span class="k">def</span> <span class="nf">get_meta_keys</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">option</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a set of meta keys.</span>
+
+<span class="sd">        `option` can be one of:</span>
+
+<span class="sd">        1. ``union``: The union of all meta keys in all BODs.</span>
+<span class="sd">        2. ``intersection``: The intersection of all meta keys in all BODs.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">bod</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">bod</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">bod</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">keys</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">keys</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">option</span> <span class="o">==</span> <span class="s1">&#39;union&#39;</span><span class="p">:</span>
+                    <span class="n">keys</span> <span class="o">=</span> <span class="n">keys</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">option</span> <span class="o">==</span> <span class="s1">&#39;intersection&#39;</span><span class="p">:</span>
+                    <span class="n">keys</span> <span class="o">=</span> <span class="n">keys</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;invalid option </span><span class="si">{</span><span class="n">option</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">keys</span></div>
+
+<div class="viewcode-block" id="BasicObsDataset.read"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsDataset.html#tolteca.datamodels.toltec.BasicObsDataset.read">[docs]</a>    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a generator of data items.&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">bod</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">bod</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="kc">None</span>
+            <span class="k">yield</span> <span class="n">bod</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="BasicObsDataset.read_all"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsDataset.html#tolteca.datamodels.toltec.BasicObsDataset.read_all">[docs]</a>    <span class="k">def</span> <span class="nf">read_all</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a list of data items.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span></div>
+
+    <span class="c1"># iter op on the bod list</span>
+    <span class="k">def</span> <span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bod_list</span><span class="o">.</span><span class="fm">__iter__</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bod_list</span><span class="o">.</span><span class="fm">__len__</span><span class="p">()</span>
+
+    <span class="c1"># the bracket operators are passed on to the index table</span>
+    <span class="k">def</span> <span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="c1"># here we can be smart in the return</span>
+        <span class="c1"># when arg is colname is will return the column</span>
+        <span class="c1"># otherwise it return an indextable</span>
+        <span class="k">if</span> <span class="n">arg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">index_table</span><span class="o">.</span><span class="n">colnames</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">index_table</span><span class="p">[</span><span class="n">arg</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">(</span>
+                <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">index_table</span><span class="o">.</span><span class="n">colnames</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">arg</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">index_table</span><span class="p">[</span><span class="n">arg</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">index_table</span><span class="p">[</span><span class="n">arg</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="fm">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">index_table</span><span class="p">[</span><span class="n">arg</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">bod_list</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bod_list</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">meta</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">index_table</span><span class="o">.</span><span class="n">meta</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">history</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s1">&#39;history&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;history&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;history&#39;</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">index_table</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The index table.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_index_table</span>
+
+<div class="viewcode-block" id="BasicObsDataset.write_index_table"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsDataset.html#tolteca.datamodels.toltec.BasicObsDataset.write_index_table">[docs]</a>    <span class="k">def</span> <span class="nf">write_index_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">tbl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">index_table</span>
+        <span class="n">use_cols</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">tbl</span><span class="o">.</span><span class="n">colnames</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span>
+                <span class="n">tbl</span><span class="o">.</span><span class="n">dtype</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">hasobject</span>
+                <span class="ow">or</span> <span class="n">tbl</span><span class="o">.</span><span class="n">dtype</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&gt;</span> <span class="mi">0</span>
+                <span class="p">)]</span>
+        <span class="k">return</span> <span class="n">tbl</span><span class="p">[</span><span class="n">use_cols</span><span class="p">]</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="BasicObsDataset.dump"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsDataset.html#tolteca.datamodels.toltec.BasicObsDataset.dump">[docs]</a>    <span class="k">def</span> <span class="nf">dump</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filepath</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
+            <span class="n">dill</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fo</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="BasicObsDataset.load"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsDataset.html#tolteca.datamodels.toltec.BasicObsDataset.load">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filepath</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">dill</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fo</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="BasicObsDataset.select"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsDataset.html#tolteca.datamodels.toltec.BasicObsDataset.select">[docs]</a>    <span class="k">def</span> <span class="nf">select</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cond</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a subset of the dataset specified by `cond`</span>
+
+<span class="sd">        When `cond` is a string, the index table is converted to</span>
+<span class="sd">        `~pandas.DataFrame` and the selection is done by</span>
+<span class="sd">        :meta:`~pandas.DataFrame.eval`.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        cond : str or `~numpy.ndarray`</span>
+<span class="sd">            The condition to create the subset.</span>
+
+<span class="sd">        desc : str</span>
+<span class="sd">            A description of this selection to include in the table meta.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        `BasicObsDataset`</span>
+<span class="sd">            The subset as a new dataset instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">tbl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">index_table</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cond</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">():</span>
+                <span class="c1"># this is to supress the ufunc size warning</span>
+                <span class="c1"># and the numexpr</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">)</span>
+                <span class="n">use_cols</span> <span class="o">=</span> <span class="p">[</span>
+                    <span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">tbl</span><span class="o">.</span><span class="n">colnames</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span>
+                        <span class="n">tbl</span><span class="o">.</span><span class="n">dtype</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&gt;</span> <span class="mi">0</span>
+                        <span class="p">)]</span>
+                <span class="n">df</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="n">use_cols</span><span class="p">]</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
+                <span class="n">m</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">eval</span><span class="p">(</span><span class="n">cond</span><span class="p">)</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+            <span class="n">cond_str</span> <span class="o">=</span> <span class="n">cond</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="n">cond</span>
+            <span class="n">cond_str</span> <span class="o">=</span> <span class="n">pformat_fancy_index</span><span class="p">(</span><span class="n">cond</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tbl</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;no entry meets the select cond </span><span class="si">{</span><span class="n">cond</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">history</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+                <span class="s1">&#39;bods_select&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;cond_str&#39;</span><span class="p">:</span> <span class="n">cond_str</span><span class="p">,</span>
+                    <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="n">desc</span> <span class="k">if</span> <span class="n">desc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span>
+                    <span class="p">}</span>
+                <span class="p">})</span>
+        <span class="n">inst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sliced_new</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;selected </span><span class="si">{</span><span class="n">inst</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">inst</span><span class="p">)</span><span class="si">}</span><span class="s2"> out of </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="si">}</span><span class="s2"> entries)&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">inst</span></div>
+
+    <span class="k">def</span> <span class="nf">_sliced_new</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span>
+                <span class="n">index_table</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_index_table</span><span class="p">[</span><span class="n">item</span><span class="p">],</span>
+                <span class="n">bod_list</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bod_list</span><span class="p">)[</span><span class="n">item</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">pformat_tbl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">index_table</span><span class="o">.</span><span class="n">pformat</span><span class="p">(</span><span class="n">max_width</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">pformat_tbl</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;Length&quot;</span><span class="p">):</span>
+            <span class="n">pformat_tbl</span> <span class="o">=</span> <span class="n">pformat_tbl</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">pformat_tbl</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">pformat_tbl</span><span class="p">)</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span> \
+               <span class="sa">f</span><span class="s2">&quot;:</span><span class="se">\n</span><span class="si">{</span><span class="n">pformat_tbl</span><span class="si">}</span><span class="s2">&quot;</span>
+
+<div class="viewcode-block" id="BasicObsDataset.from_files"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsDataset.html#tolteca.datamodels.toltec.BasicObsDataset.from_files">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">from_files</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">files</span><span class="p">,</span> <span class="n">open_</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">files</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;no file specified&quot;</span><span class="p">)</span>
+        <span class="n">bod_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">bod_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">BasicObsData</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">open_</span><span class="o">=</span><span class="n">open_</span><span class="p">))</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s1">&#39;ignored unknown file </span><span class="si">{</span><span class="n">f</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">exc_info</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">bod_list</span><span class="o">=</span><span class="n">bod_list</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="BasicObsDataset.from_index_table"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsDataset.html#tolteca.datamodels.toltec.BasicObsDataset.from_index_table">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">from_index_table</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">index_table</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a dataset from an index table.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        index_table : `astropy.table.Table`, str</span>
+<span class="sd">            The table or that path to the table that contains</span>
+<span class="sd">            the BOD identifiers.</span>
+
+<span class="sd">        copy : bool</span>
+<span class="sd">            If True, a copy of the `index_table` is made.</span>
+
+<span class="sd">        meta : dict</span>
+<span class="sd">            Additional meta get stored in the table.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index_table</span><span class="p">,</span> <span class="n">Table</span><span class="p">):</span>
+            <span class="n">index_table</span> <span class="o">=</span> <span class="n">Table</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">index_table</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;ascii&#39;</span><span class="p">)</span>
+            <span class="n">copy</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># we don&#39;t need to make the copy in this case</span>
+        <span class="k">if</span> <span class="n">copy</span><span class="p">:</span>
+            <span class="n">index_table</span> <span class="o">=</span> <span class="n">index_table</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">meta</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">index_table</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="o">**</span><span class="n">meta</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">index_table</span><span class="o">=</span><span class="n">index_table</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="BasicObsDataset.sort"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsDataset.html#tolteca.datamodels.toltec.BasicObsDataset.sort">[docs]</a>    <span class="k">def</span> <span class="nf">sort</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">index_table</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bod_list</span> <span class="o">=</span> <span class="bp">self</span><span class="p">[</span><span class="s1">&#39;_bod&#39;</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="BasicObsDataset.vstack"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsDataset.html#tolteca.datamodels.toltec.BasicObsDataset.vstack">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">vstack</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">instances</span><span class="p">):</span>
+        <span class="n">tbls</span> <span class="o">=</span> <span class="p">[</span><span class="n">inst</span><span class="o">.</span><span class="n">index_table</span> <span class="k">for</span> <span class="n">inst</span> <span class="ow">in</span> <span class="n">instances</span><span class="p">]</span>
+        <span class="n">tbl</span> <span class="o">=</span> <span class="n">vstack</span><span class="p">(</span><span class="n">tbls</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">index_table</span><span class="o">=</span><span class="n">tbl</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="BasicObsDataset.unique"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsDataset.html#tolteca.datamodels.toltec.BasicObsDataset.unique">[docs]</a>    <span class="k">def</span> <span class="nf">unique</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span>
+                <span class="n">index_table</span><span class="o">=</span><span class="n">unique</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">index_table</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="BasicObsDataset.join"><a class="viewcode-back" href="../../../../api/tolteca.datamodels.toltec.BasicObsDataset.html#tolteca.datamodels.toltec.BasicObsDataset.join">[docs]</a>    <span class="k">def</span> <span class="nf">join</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">):</span>
+            <span class="n">other_index_table</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">index_table</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">other_index_table</span> <span class="o">=</span> <span class="n">other</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span>
+                <span class="n">index_table</span><span class="o">=</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">index_table</span><span class="p">,</span> <span class="n">other_index_table</span><span class="p">),</span>
+                <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div></div>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2021, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
+    Last built 18 Jun 2021. <br/>
+  </p>
+</footer>
+  </body>
+</html>

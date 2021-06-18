@@ -1,0 +1,1244 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tolteca.datamodels.io.toltec.kidsdata &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/plot_directive.css" />
+    
+    <script data-url_root="../../../../../" id="documentation_options" src="../../../../../_static/documentation_options.js"></script>
+    <script src="../../../../../_static/jquery.js"></script>
+    <script src="../../../../../_static/underscore.js"></script>
+    <script src="../../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../../../../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
+	 &#187;
+      </li>
+      <li><a href="../../../../index.html" accesskey="U">Module code</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tolteca.datamodels.io.toltec.kidsdata</h1><div class="highlight"><pre>
+<span></span><span class="ch">#! /usr/bin/env python</span>
+
+<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.nc</span> <span class="kn">import</span> <span class="n">ncopen</span><span class="p">,</span> <span class="n">NcNodeMapper</span><span class="p">,</span> <span class="n">NcNodeMapperError</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.registry</span> <span class="kn">import</span> <span class="n">Registry</span><span class="p">,</span> <span class="n">register_to</span>
+<span class="kn">from</span> <span class="nn">astropy.utils.metadata</span> <span class="kn">import</span> <span class="n">MetaData</span>
+<span class="kn">from</span> <span class="nn">cached_property</span> <span class="kn">import</span> <span class="n">cached_property</span>
+<span class="kn">from</span> <span class="nn">..base</span> <span class="kn">import</span> <span class="n">DataFileIO</span><span class="p">,</span> <span class="n">DataFileIOError</span>
+<span class="kn">from</span> <span class="nn">enum</span> <span class="kn">import</span> <span class="n">Flag</span><span class="p">,</span> <span class="n">auto</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">astropy.table</span> <span class="kn">import</span> <span class="n">QTable</span>
+<span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">u</span>
+<span class="kn">import</span> <span class="nn">functools</span>
+<span class="kn">from</span> <span class="nn">abc</span> <span class="kn">import</span> <span class="n">ABCMeta</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">defaultdict</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_dict</span><span class="p">,</span> <span class="n">pformat_fancy_index</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">import</span> <span class="nn">kidsproc.kidsdata</span> <span class="k">as</span> <span class="nn">kd</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.np</span> <span class="kn">import</span> <span class="n">to_complex</span>
+<span class="kn">from</span> <span class="nn">astropy.nddata</span> <span class="kn">import</span> <span class="n">StdDevUncertainty</span>
+<span class="kn">from</span> <span class="nn">copy</span> <span class="kn">import</span> <span class="n">deepcopy</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;NcFileIO&#39;</span><span class="p">,</span> <span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">KidsDataKind</span><span class="p">(</span><span class="n">Flag</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The kids data kinds.&quot;&quot;&quot;</span>
+
+    <span class="c1"># raw</span>
+    <span class="n">VnaSweep</span> <span class="o">=</span> <span class="n">auto</span><span class="p">()</span>
+    <span class="n">TargetSweep</span> <span class="o">=</span> <span class="n">auto</span><span class="p">()</span>
+    <span class="c1"># tune is a sequence of target sweeps packed together</span>
+    <span class="n">Tune</span> <span class="o">=</span> <span class="n">auto</span><span class="p">()</span>
+    <span class="n">RawSweep</span> <span class="o">=</span> <span class="n">VnaSweep</span> <span class="o">|</span> <span class="n">TargetSweep</span> <span class="o">|</span> <span class="n">Tune</span>
+    <span class="n">RawTimeStream</span> <span class="o">=</span> <span class="n">auto</span><span class="p">()</span>
+    <span class="c1"># this is a sag to all unknown kids data types</span>
+    <span class="c1"># to allow the reader to at least load some meta data.</span>
+    <span class="n">RawUnknown</span> <span class="o">=</span> <span class="n">auto</span><span class="p">()</span>
+    <span class="n">RawKidsData</span> <span class="o">=</span> <span class="n">RawSweep</span> <span class="o">|</span> <span class="n">RawTimeStream</span> <span class="o">|</span> <span class="n">RawUnknown</span>
+
+    <span class="c1"># reduced</span>
+    <span class="n">D21</span> <span class="o">=</span> <span class="n">auto</span><span class="p">()</span>
+    <span class="n">ReducedVnaSweep</span> <span class="o">=</span> <span class="n">auto</span><span class="p">()</span>
+    <span class="n">ReducedTargetSweep</span> <span class="o">=</span> <span class="n">auto</span><span class="p">()</span>
+    <span class="c1"># reduced tune is just a reduced target sweep</span>
+    <span class="n">ReducedSweep</span> <span class="o">=</span> <span class="n">ReducedVnaSweep</span> <span class="o">|</span> <span class="n">ReducedTargetSweep</span>
+    <span class="n">SolvedTimeStream</span> <span class="o">=</span> <span class="n">auto</span><span class="p">()</span>
+    <span class="n">ReducedUnknown</span> <span class="o">=</span> <span class="n">auto</span><span class="p">()</span>
+    <span class="n">ReducedKidsData</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">D21</span> <span class="o">|</span> <span class="n">ReducedSweep</span> <span class="o">|</span> <span class="n">SolvedTimeStream</span> <span class="o">|</span> <span class="n">ReducedUnknown</span><span class="p">)</span>
+
+    <span class="c1"># all</span>
+    <span class="n">Sweep</span> <span class="o">=</span> <span class="n">RawSweep</span> <span class="o">|</span> <span class="n">ReducedSweep</span>
+    <span class="n">TimeStream</span> <span class="o">=</span> <span class="n">RawTimeStream</span> <span class="o">|</span> <span class="n">SolvedTimeStream</span>
+    <span class="n">KidsData</span> <span class="o">=</span> <span class="p">(</span><span class="n">RawKidsData</span> <span class="o">|</span> <span class="n">ReducedKidsData</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">_KidsDataAxisSlicerMeta</span><span class="p">(</span><span class="n">ABCMeta</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A mixin class to provide helpers to slice along axis.</span>
+
+<span class="sd">    This enables a set of properties ``*_loc`` to installed class.</span>
+<span class="sd">    These properties are of type `_slicer_cls` (if not provided,</span>
+<span class="sd">    the installed class is used as the slicer class). The slicer</span>
+<span class="sd">    class shall implement a property `_file_obj`, which is</span>
+<span class="sd">    the data IO object to be view. The file object&#39;s `data_kind`</span>
+<span class="sd">    is checked to ensure proper error is thrown when accessing</span>
+<span class="sd">    axis that is not defined for that data kind.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">attrs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">attrs</span><span class="p">)</span>
+
+        <span class="c1"># the below makes available the get_axis_types method based on</span>
+        <span class="c1"># the data kind</span>
+        <span class="n">axis_types</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">KidsData</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;block&#39;</span><span class="p">,</span> <span class="s1">&#39;tone&#39;</span><span class="p">,</span> <span class="s1">&#39;sample&#39;</span><span class="p">},</span>
+            <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">Sweep</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;sweep&#39;</span><span class="p">,</span> <span class="p">},</span>
+            <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">TimeStream</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="p">},</span>
+            <span class="p">}</span>
+
+        <span class="k">def</span> <span class="nf">_get_axis_types</span><span class="p">(</span><span class="n">inst</span><span class="p">):</span>
+            <span class="n">slicer_cls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">inst</span><span class="p">,</span> <span class="s1">&#39;_slicer_cls&#39;</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">inst</span><span class="p">,</span> <span class="n">slicer_cls</span><span class="p">):</span>
+                <span class="n">inst</span> <span class="o">=</span> <span class="n">slicer_cls</span><span class="p">(</span><span class="n">inst</span><span class="p">)</span>
+            <span class="n">data_kind</span> <span class="o">=</span> <span class="n">inst</span><span class="o">.</span><span class="n">_file_obj</span><span class="o">.</span><span class="n">data_kind</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">types</span> <span class="ow">in</span> <span class="n">axis_types</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">data_kind</span> <span class="o">&amp;</span> <span class="n">k</span><span class="p">:</span>
+                    <span class="n">result</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">types</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">result</span>
+
+        <span class="bp">cls</span><span class="o">.</span><span class="n">axis_types</span> <span class="o">=</span> <span class="n">cached_property</span><span class="p">(</span><span class="n">_get_axis_types</span><span class="p">)</span>
+
+        <span class="c1"># the below makes available the *_loc methods so</span>
+        <span class="c1"># that is returns an instance of slicer_cls</span>
+        <span class="k">def</span> <span class="nf">_axis_loc</span><span class="p">(</span><span class="n">inst</span><span class="p">,</span> <span class="n">axis_type</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+            <span class="n">slicer_cls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">inst</span><span class="p">,</span> <span class="s1">&#39;_slicer_cls&#39;</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">inst</span><span class="p">,</span> <span class="n">slicer_cls</span><span class="p">):</span>
+                <span class="n">slicer</span> <span class="o">=</span> <span class="n">inst</span>
+                <span class="n">file_obj</span> <span class="o">=</span> <span class="n">inst</span><span class="o">.</span><span class="n">_file_obj</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># inst is the underlying obj</span>
+                <span class="n">slicer</span> <span class="o">=</span> <span class="n">slicer_cls</span><span class="p">(</span><span class="n">inst</span><span class="p">)</span>
+                <span class="n">file_obj</span> <span class="o">=</span> <span class="n">inst</span>
+            <span class="k">if</span> <span class="n">axis_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">file_obj</span><span class="o">.</span><span class="n">axis_types</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">axis_type</span><span class="si">}</span><span class="s2"> axis is not available&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot; for data kind </span><span class="si">{</span><span class="n">file_obj</span><span class="o">.</span><span class="n">data_kind</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">slicer</span><span class="o">.</span><span class="n">_axis_type</span> <span class="o">=</span> <span class="n">axis_type</span>
+            <span class="k">return</span> <span class="n">slicer</span>
+
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">functools</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">a</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">b</span><span class="p">),</span> <span class="n">axis_types</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
+            <span class="n">func</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span>
+                            <span class="n">_axis_loc</span><span class="p">,</span> <span class="n">axis_type</span><span class="o">=</span><span class="n">t</span><span class="p">)</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">t</span><span class="si">}</span><span class="s1">_loc&#39;</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="nb">property</span><span class="p">(</span><span class="n">func</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">_KidsDataAxisSlicer</span><span class="p">(</span><span class="nb">object</span><span class="p">,</span> <span class="n">metaclass</span><span class="o">=</span><span class="n">_KidsDataAxisSlicerMeta</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A helper class to provide sliced view of `NcFileIO`.</span>
+
+<span class="sd">    The class follows the builder pattern to collect arguments</span>
+<span class="sd">    and keyword arguments that are later packed and send to</span>
+<span class="sd">    the :meth:`read` function to load the sliced data.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    file_obj : `NcFileIO`</span>
+<span class="sd">        The file IO object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">file_obj</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">file_obj</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_file_obj</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="n">_file_obj</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_file_obj</span> <span class="o">=</span> <span class="n">file_obj</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_args</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="p">[(),</span> <span class="p">{}])</span>
+
+    <span class="k">def</span> <span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_axis_type</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_axis_type</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_axis_type</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># call the data reader</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_file_obj</span><span class="o">.</span><span class="n">_read_sliced</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_slice_op</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">axis_type</span><span class="p">):</span>
+        <span class="c1"># this returns the actual slice operator to be applied to the data</span>
+        <span class="n">dispatch_validator</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;block&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_slicer_index_only</span><span class="p">,</span>
+                <span class="s1">&#39;time&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_slicer_slice_only</span><span class="p">,</span>
+                <span class="p">}</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">dispatch_validator</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                <span class="n">axis_type</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_slicer_args_only</span><span class="p">)(</span><span class="bp">self</span><span class="p">,</span> <span class="n">axis_type</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;resolved </span><span class="si">{</span><span class="n">axis_type</span><span class="si">}</span><span class="s2"> slice obj: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_validate_slicer_index_only</span><span class="p">(</span><span class="n">slicer</span><span class="p">,</span> <span class="n">axis_type</span><span class="p">):</span>
+        <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span> <span class="o">=</span> <span class="n">slicer</span><span class="o">.</span><span class="n">_args</span><span class="p">[</span><span class="n">axis_type</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">axis_type</span><span class="si">}</span><span class="s2"> loc does not accept keyword arguments.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">axis_type</span><span class="si">}</span><span class="s2"> loc expects one argument.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">s</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">axis_type</span><span class="si">}</span><span class="s2"> loc can only be integer or None.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">s</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_validate_slicer_slice_only</span><span class="p">(</span><span class="n">slicer</span><span class="p">,</span> <span class="n">axis_type</span><span class="p">):</span>
+        <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span> <span class="o">=</span> <span class="n">slicer</span><span class="o">.</span><span class="n">_args</span><span class="p">[</span><span class="n">axis_type</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">axis_type</span><span class="si">}</span><span class="s2"> loc does not accept keyword arguments.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">axis_type</span><span class="si">}</span><span class="s2"> loc expects one argument.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">s</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">axis_type</span><span class="si">}</span><span class="s2"> loc can only be slice.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">s</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_validate_slicer_args_only</span><span class="p">(</span><span class="n">slicer</span><span class="p">,</span> <span class="n">axis_type</span><span class="p">):</span>
+        <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span> <span class="o">=</span> <span class="n">slicer</span><span class="o">.</span><span class="n">_args</span><span class="p">[</span><span class="n">axis_type</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">axis_type</span><span class="si">}</span><span class="s2"> loc does not accept keyword arguments.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">axis_type</span><span class="si">}</span><span class="s2"> loc expects one argument.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">s</span>
+
+
+<span class="k">class</span> <span class="nc">_NcFileIOKidsDataAxisSlicerMixin</span><span class="p">(</span>
+        <span class="nb">object</span><span class="p">,</span> <span class="n">metaclass</span><span class="o">=</span><span class="n">_KidsDataAxisSlicerMeta</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A helper class to enable slicer interface to `NcFileIO`.&quot;&quot;&quot;</span>
+
+    <span class="c1"># this set the *_loc methods to return an instance</span>
+    <span class="c1"># of KidsDataAxisSlicer</span>
+    <span class="n">_slicer_cls</span> <span class="o">=</span> <span class="n">_KidsDataAxisSlicer</span>
+
+
+<span class="k">def</span> <span class="nf">identify_toltec_nc_file</span><span class="p">(</span><span class="n">filepath</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Check if `filepath` points to a TolTEC netCDF data file.&quot;&quot;&quot;</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+    <span class="n">attrs_to_check</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Header.Toltec.ToneFreq&#39;</span><span class="p">,</span> <span class="s1">&#39;Header.Toltec.ObsNum&#39;</span><span class="p">]</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">ncopen</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span> <span class="k">as</span> <span class="n">ds</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">a</span> <span class="ow">in</span> <span class="n">ds</span><span class="o">.</span><span class="n">variables</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">attrs_to_check</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;unable to open file </span><span class="si">{</span><span class="n">filepath</span><span class="si">}</span><span class="s2"> as netCDF dataset: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="kc">True</span>
+
+
+<div class="viewcode-block" id="NcFileIO"><a class="viewcode-back" href="../../../../../api/tolteca.datamodels.io.NcFileIO.html#tolteca.datamodels.io.NcFileIO">[docs]</a><span class="k">class</span> <span class="nc">NcFileIO</span><span class="p">(</span><span class="n">DataFileIO</span><span class="p">,</span> <span class="n">_NcFileIOKidsDataAxisSlicerMixin</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A class to read data from TolTEC netCDF files.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    source : str, `pathlib.Path`, `FileLoc`, `netCDF4.Dataset`</span>
+<span class="sd">        The data file location or netCDF dataset.</span>
+<span class="sd">        This is passed to `~tollan.utils.nc.NcNodeMapper`.</span>
+
+<span class="sd">    open_ : bool</span>
+<span class="sd">        If True and `source` is set, open the file.</span>
+<span class="sd">    load_meta_on_open : bool</span>
+<span class="sd">        If True, the meta data will be loaded upon opening of the file.</span>
+<span class="sd">    auto_close_on_pickle : bool</span>
+<span class="sd">        If True, the dataset is automatically closed when pickling.</span>
+<span class="sd">        This is ignored if `source` is None.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="c1"># maps of the data record for various types</span>
+    <span class="c1"># the first level maps to the method of this class,</span>
+    <span class="c1"># the second level maps to the data object class,</span>
+    <span class="c1"># the inner most level maps to the netcdf dataset.</span>
+    <span class="n">_node_maps</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="c1"># this is a dummy mapper to hold the actual opened dataset.</span>
+            <span class="c1"># this is not used for read the dataset.</span>
+            <span class="s1">&#39;ncopen&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;dummy_mapper_key&#39;</span><span class="p">:</span> <span class="s1">&#39;dummy_mapper_value&#39;</span>
+                <span class="p">},</span>
+            <span class="c1"># this is mapper to use when data_kind is called</span>
+            <span class="s1">&#39;identify&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">ReducedKidsData</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;kind_str&#39;</span><span class="p">:</span> <span class="s1">&#39;Header.Kids.kind&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;kind_str_deprecated&#39;</span><span class="p">:</span> <span class="s1">&#39;kind&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;obs_type&#39;</span><span class="p">:</span> <span class="s1">&#39;Header.Toltec.ObsType&#39;</span><span class="p">,</span>
+                    <span class="p">},</span>
+                <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">RawKidsData</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;kind_str&#39;</span><span class="p">:</span> <span class="s1">&#39;Header.Kids.kind&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;obs_type&#39;</span><span class="p">:</span> <span class="s1">&#39;Header.Toltec.ObsType&#39;</span><span class="p">,</span>
+                    <span class="p">},</span>
+                <span class="p">},</span>
+            <span class="c1"># this is mapper to use when meta is called</span>
+            <span class="s1">&#39;meta&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">KidsData</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;fsmp&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.SampleFreq&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;flo_center&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.LoCenterFreq&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;atten_drive&quot;</span><span class="p">:</span> <span class="p">[</span>
+                        <span class="c1"># the names in list will be queried in order</span>
+                        <span class="c1"># and the first one found in the file is used.</span>
+                        <span class="s2">&quot;Header.Toltec.DriveAtten&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;Header.Toltec.OutputAtten&quot;</span><span class="p">],</span>
+                    <span class="s2">&quot;atten_sense&quot;</span><span class="p">:</span> <span class="p">[</span>
+                        <span class="s2">&quot;Header.Toltec.SenseAtten&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;Header.Toltec.InputAtten&quot;</span><span class="p">],</span>
+                    <span class="s2">&quot;roachid&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.RoachIndex&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;obsnum&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.ObsNum&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;subobsnum&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.SubObsNum&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;scannum&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.ScanNum&quot;</span><span class="p">,</span>
+                    <span class="c1"># assoc</span>
+                    <span class="s2">&quot;cal_roachid&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.RoachIndex&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;cal_obsnum&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.TargSweepObsNum&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;cal_subobsnum&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.TargSweepSubObsNum&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;cal_scannum&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.TargSweepScanNum&quot;</span><span class="p">,</span>
+                    <span class="p">},</span>
+                <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">RawKidsData</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;n_tones_design&quot;</span><span class="p">:</span> <span class="s2">&quot;loclen&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;n_tones_max&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.MaxNumTones&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;filename_orig&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.Filename&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;mastervar&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.Master&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;repeatvar&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.RepeatLevel&quot;</span><span class="p">,</span>
+                    <span class="c1"># data shape</span>
+                    <span class="s2">&quot;n_times&quot;</span><span class="p">:</span> <span class="s2">&quot;time&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;n_tones&quot;</span><span class="p">:</span> <span class="s2">&quot;iqlen&quot;</span><span class="p">,</span>
+                    <span class="p">},</span>
+                <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">RawSweep</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;n_sweepreps&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.NumSamplesPerSweepStep&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;n_sweepsteps&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.NumSweepSteps&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;n_sweeps_max&quot;</span><span class="p">:</span> <span class="s2">&quot;numSweeps&quot;</span><span class="p">,</span>
+                    <span class="p">},</span>
+                <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">ReducedKidsData</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;n_tones&quot;</span><span class="p">:</span> <span class="s2">&quot;ntones&quot;</span><span class="p">,</span>
+                    <span class="p">},</span>
+                <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">ReducedSweep</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;n_sweepsteps&quot;</span><span class="p">:</span> <span class="s2">&quot;nsweeps&quot;</span><span class="p">,</span>
+                    <span class="p">},</span>
+                <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">SolvedTimeStream</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;n_times&quot;</span><span class="p">:</span> <span class="s2">&quot;ntimes&quot;</span><span class="p">,</span>
+                    <span class="p">},</span>
+                <span class="p">},</span>
+            <span class="s1">&#39;axis_data&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;tones&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Toltec.ToneFreq&quot;</span><span class="p">,</span>
+                <span class="s1">&#39;flos&#39;</span><span class="p">:</span> <span class="s2">&quot;Data.Toltec.LoFreq&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;tone_centers&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Kids.tones&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;sweeps&quot;</span><span class="p">:</span> <span class="s2">&quot;Header.Kids.sweeps&quot;</span><span class="p">,</span>
+                <span class="p">},</span>
+            <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">RawKidsData</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;I&quot;</span><span class="p">:</span> <span class="s1">&#39;Data.Toltec.Is&#39;</span><span class="p">,</span>
+                    <span class="s2">&quot;Q&quot;</span><span class="p">:</span> <span class="s1">&#39;Data.Toltec.Qs&#39;</span><span class="p">,</span>
+                    <span class="p">},</span>
+                <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">ReducedSweep</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;I&quot;</span><span class="p">:</span> <span class="s1">&#39;Data.Kids.Is&#39;</span><span class="p">,</span>
+                    <span class="s2">&quot;Q&quot;</span><span class="p">:</span> <span class="s1">&#39;Data.Kids.Qs&#39;</span><span class="p">,</span>
+                    <span class="c1"># &quot;unc_I&quot;: &#39;Data.Kids.unc_I&#39;,</span>
+                    <span class="c1"># &quot;unc_Q&quot;: &#39;Data.Kids.unc_Q&#39;,</span>
+                    <span class="p">},</span>
+                <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">SolvedTimeStream</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="s1">&#39;Data.Kids.rs&#39;</span><span class="p">,</span>
+                    <span class="s2">&quot;x&quot;</span><span class="p">:</span> <span class="s1">&#39;Data.Kids.xs&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;It&#39;</span><span class="p">:</span> <span class="s1">&#39;Data.Kids.its&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;Qt&#39;</span><span class="p">:</span> <span class="s1">&#39;Data.Kids.qts&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;phi&#39;</span><span class="p">:</span> <span class="s1">&#39;Data.Kids.phs&#39;</span><span class="p">,</span>
+                    <span class="p">},</span>
+                <span class="p">},</span>
+            <span class="c1"># these are ancillary data items</span>
+            <span class="s1">&#39;data_extra&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;d21&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;d21_f&quot;</span><span class="p">:</span> <span class="s1">&#39;Data.Kids.d21_fs&#39;</span><span class="p">,</span>
+                    <span class="s2">&quot;d21&quot;</span><span class="p">:</span> <span class="s1">&#39;Data.Kids.d21_adiqs&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;d21_cov&#39;</span><span class="p">:</span> <span class="s1">&#39;Data.Kids.d21_adiqscov&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;d21_mean&#39;</span><span class="p">:</span> <span class="s1">&#39;Data.Kids.d21_adiqsmean&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;d21_std&#39;</span><span class="p">:</span> <span class="s1">&#39;Data.Kids.d21_adiqsstd&#39;</span><span class="p">,</span>
+                    <span class="p">},</span>
+                <span class="s1">&#39;candidates&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;candidates&#39;</span><span class="p">:</span> <span class="s1">&#39;Header.Kids.candidates&#39;</span><span class="p">,</span>
+                    <span class="p">},</span>
+                <span class="s1">&#39;psd&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;f_psd&quot;</span><span class="p">:</span> <span class="s1">&#39;Header.Kids.PsdFreq&#39;</span><span class="p">,</span>
+                    <span class="s2">&quot;I_psd&quot;</span><span class="p">:</span> <span class="s1">&#39;Data.Kids.ispsd&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;Q_psd&#39;</span><span class="p">:</span> <span class="s1">&#39;Data.Kids.qspsd&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;phi_psd&#39;</span><span class="p">:</span> <span class="s1">&#39;Data.Kids.phspsd&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;r_psd&#39;</span><span class="p">:</span> <span class="s1">&#39;Data.Kids.rspsd&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;x_psd&#39;</span><span class="p">:</span> <span class="s1">&#39;Data.Kids.xspsd&#39;</span><span class="p">,</span>
+                    <span class="p">},</span>
+                <span class="p">},</span>
+            <span class="p">}</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">open_</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">load_meta_on_open</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">auto_close_on_pickle</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">):</span>
+        <span class="n">source</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_normalize_file_loc</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_source</span> <span class="o">=</span> <span class="n">source</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_load_meta_on_open</span> <span class="o">=</span> <span class="n">load_meta_on_open</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_auto_close_on_pickle</span> <span class="o">=</span> <span class="n">auto_close_on_pickle</span>
+        <span class="c1"># setup the mapper for read meta data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_node_mappers</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_node_mappers</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_node_maps</span><span class="p">)</span>
+        <span class="c1"># init the exit stack</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">DataFileIO</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="c1"># if source is given, we just open it right away</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_source</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">open_</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s1">(</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">filepath</span><span class="si">}</span><span class="s1">)&#39;</span>
+
+    <span class="k">def</span> <span class="nf">open</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a context to operate on `source`.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        source : str, `pathlib.Path`, `FileLoc`, `netCDF4.Dataset`, optional</span>
+<span class="sd">            The data file location or netCDF dataset. If None, the</span>
+<span class="sd">            source passed to constructor is used. Noe that source has to</span>
+<span class="sd">            be None if it has been specified in the constructor.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># ensure that we don&#39;t have source set twice.</span>
+        <span class="k">if</span> <span class="n">source</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_source</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s1">&#39;source needs to be None for &#39;</span>
+                    <span class="s1">&#39;object with source set at construction time.&#39;</span><span class="p">)</span>
+        <span class="c1"># use the constructor source</span>
+        <span class="k">if</span> <span class="n">source</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">source</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_source</span>
+        <span class="k">if</span> <span class="n">source</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;source is not specified&#39;</span><span class="p">)</span>
+        <span class="c1"># we just use one of the node_mapper to open the dataset, and</span>
+        <span class="c1"># set the rest via set_nc_node</span>
+        <span class="c1"># the node_mapper.open will handle the different types of source</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">file_obj</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># the file is already open</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="n">nc_node</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">def</span> <span class="nf">_open_sub_node</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="k">nonlocal</span> <span class="n">nc_node</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">n</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">NcNodeMapper</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">nc_node</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">v</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+                        <span class="n">nc_node</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">nc_node</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">v</span><span class="o">.</span><span class="n">set_nc_node</span><span class="p">(</span><span class="n">nc_node</span><span class="p">)</span>
+                    <span class="c1"># push to the exit stack</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">enter_context</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">_open_sub_node</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+
+        <span class="n">_open_sub_node</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">node_mappers</span><span class="p">)</span>
+        <span class="c1"># trigger loading the meta on open if requested</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_meta_on_open</span><span class="p">:</span>
+            <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span>  <span class="c1"># noqa: F841</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_create_node_mappers</span><span class="p">(</span><span class="n">node_maps</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create node mappers for the inner most level of dict of node_maps.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">def</span> <span class="nf">_get_sub_node</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">n</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
+                <span class="k">return</span> <span class="n">NcNodeMapper</span><span class="p">(</span><span class="n">nc_node_map</span><span class="o">=</span><span class="n">n</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">_get_sub_node</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">n</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="k">return</span> <span class="n">_get_sub_node</span><span class="p">(</span><span class="n">node_maps</span><span class="p">)</span>
+
+    <span class="n">_data_kind_identifiers</span> <span class="o">=</span> <span class="n">Registry</span><span class="o">.</span><span class="n">create</span><span class="p">()</span>
+    <span class="sd">&quot;&quot;&quot;A registry to store all data kind identifiers.&quot;&quot;&quot;</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="nd">@register_to</span><span class="p">(</span><span class="n">_data_kind_identifiers</span><span class="p">,</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">RawKidsData</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_identify_raw_kids_data</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">node_mapper</span><span class="p">):</span>
+        <span class="c1"># this returns a tuple of (valid, meta)</span>
+        <span class="n">nm</span> <span class="o">=</span> <span class="n">node_mapper</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">nm</span><span class="o">.</span><span class="n">hasvar</span><span class="p">(</span><span class="s1">&#39;obs_type&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">nm</span><span class="o">.</span><span class="n">hasvar</span><span class="p">(</span><span class="s1">&#39;kind_str&#39;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span><span class="p">,</span> <span class="nb">dict</span><span class="p">()</span>
+
+        <span class="n">obs_type</span> <span class="o">=</span> <span class="n">nm</span><span class="o">.</span><span class="n">getscalar</span><span class="p">(</span><span class="s1">&#39;obs_type&#39;</span><span class="p">)</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;found obs_type -&gt; </span><span class="si">{</span><span class="n">nm</span><span class="p">[</span><span class="s1">&#39;obs_type&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">obs_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="n">data_kind</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="mi">1</span><span class="p">:</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">RawTimeStream</span><span class="p">,</span>
+                    <span class="mi">2</span><span class="p">:</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">VnaSweep</span><span class="p">,</span>
+                    <span class="mi">3</span><span class="p">:</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">TargetSweep</span><span class="p">,</span>
+                    <span class="mi">4</span><span class="p">:</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">Tune</span><span class="p">,</span>
+                    <span class="p">}</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">obs_type</span><span class="p">,</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">RawUnknown</span><span class="p">)</span>
+        <span class="c1"># here we allow identification of unknown kids data</span>
+        <span class="c1"># but in this case only minimal meta data will be available</span>
+        <span class="k">return</span> <span class="kc">True</span><span class="p">,</span> <span class="p">{</span>
+                <span class="s1">&#39;obs_type&#39;</span><span class="p">:</span> <span class="n">obs_type</span><span class="p">,</span>
+                <span class="s1">&#39;data_kind&#39;</span><span class="p">:</span> <span class="n">data_kind</span><span class="p">,</span>
+                <span class="p">}</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="nd">@register_to</span><span class="p">(</span><span class="n">_data_kind_identifiers</span><span class="p">,</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">ReducedKidsData</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_identify_reduced_kids_data</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">node_mapper</span><span class="p">):</span>
+        <span class="n">nm</span> <span class="o">=</span> <span class="n">node_mapper</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">nm</span><span class="o">.</span><span class="n">hasvar</span><span class="p">(</span><span class="s1">&#39;kind_str&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">nm</span><span class="o">.</span><span class="n">hasvar</span><span class="p">(</span><span class="s1">&#39;kind_str_deprecated&#39;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span><span class="p">,</span> <span class="nb">dict</span><span class="p">()</span>
+
+        <span class="c1"># TODO fix kidsreduce to produce proper header</span>
+        <span class="k">if</span> <span class="n">nm</span><span class="o">.</span><span class="n">hasvar</span><span class="p">(</span><span class="s1">&#39;kind_str&#39;</span><span class="p">):</span>
+            <span class="n">kind_str</span> <span class="o">=</span> <span class="n">nm</span><span class="o">.</span><span class="n">getstr</span><span class="p">(</span><span class="s1">&#39;kind_str&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">nm</span><span class="o">.</span><span class="n">hasvar</span><span class="p">(</span><span class="s1">&#39;kind_str_deprecated&#39;</span><span class="p">):</span>
+            <span class="n">kind_str</span> <span class="o">=</span> <span class="n">nm</span><span class="o">.</span><span class="n">getstr</span><span class="p">(</span><span class="s1">&#39;kind_str_deprecated&#39;</span><span class="p">)</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;found kind_str=</span><span class="si">{</span><span class="n">kind_str</span><span class="si">}</span><span class="s2"> from </span><span class="si">{</span><span class="n">nm</span><span class="p">[</span><span class="s1">&#39;kind_str&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="n">data_kind</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s1">&#39;d21&#39;</span><span class="p">:</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">D21</span><span class="p">,</span>
+                    <span class="s1">&#39;processed_sweep&#39;</span><span class="p">:</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">ReducedSweep</span><span class="p">,</span>
+                    <span class="s1">&#39;processed_timestream&#39;</span><span class="p">:</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">SolvedTimeStream</span><span class="p">,</span>
+                    <span class="s1">&#39;SolvedTimeStream&#39;</span><span class="p">:</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">SolvedTimeStream</span><span class="p">,</span>
+                    <span class="p">}</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">kind_str</span><span class="p">,</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">ReducedUnknown</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">True</span><span class="p">,</span> <span class="p">{</span>
+                <span class="s1">&#39;kind_str&#39;</span><span class="p">:</span> <span class="n">kind_str</span><span class="p">,</span>
+                <span class="s1">&#39;data_kind&#39;</span><span class="p">:</span> <span class="n">data_kind</span>
+                <span class="p">}</span>
+
+    <span class="n">_meta_cached</span> <span class="o">=</span> <span class="n">MetaData</span><span class="p">()</span>
+    <span class="sd">&quot;&quot;&quot;This stores meta data read from the dataset.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_reset_instance_state</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Reset the instance state.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_meta_cached</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">data_kind</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The data kind.&quot;&quot;&quot;</span>
+        <span class="c1"># The below is called once and only once as the first step to read the</span>
+        <span class="c1"># netCDF dataset.</span>
+        <span class="c1"># here we reset various cache in order to have a clean start</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_reset_instance_state</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">m</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_mappers</span><span class="p">[</span><span class="s1">&#39;identify&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">valid</span><span class="p">,</span> <span class="n">meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_kind_identifiers</span><span class="p">[</span><span class="n">k</span><span class="p">](</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">,</span> <span class="n">m</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;check data kind as </span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">valid</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">meta</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">valid</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_meta_cached</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">meta</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;data_kind&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># none of the identify mappers work</span>
+            <span class="k">raise</span> <span class="n">DataFileIOError</span><span class="p">(</span><span class="s2">&quot;invalid file or data format.&quot;</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">meta</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">data_kind</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_kind</span>
+        <span class="c1"># load data kind specific meta</span>
+        <span class="n">_meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta_cached</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">m</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_mappers</span><span class="p">[</span><span class="s1">&#39;meta&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="o">&amp;</span> <span class="n">data_kind</span><span class="p">:</span>
+                <span class="c1"># read all entries in mapper</span>
+                <span class="k">for</span> <span class="n">kk</span> <span class="ow">in</span> <span class="n">m</span><span class="o">.</span><span class="n">nc_node_map</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="n">_meta</span><span class="p">[</span><span class="n">kk</span><span class="p">]</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">getany</span><span class="p">(</span><span class="n">kk</span><span class="p">)</span>
+
+        <span class="c1"># update meta using the per type registered updater.</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">_meta_updater</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta_updaters</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">data_kind</span> <span class="o">&amp;</span> <span class="n">k</span><span class="p">:</span>
+                <span class="n">_meta_updater</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_meta</span>
+
+    <span class="n">_meta_updaters</span> <span class="o">=</span> <span class="n">Registry</span><span class="o">.</span><span class="n">create</span><span class="p">()</span>
+
+    <span class="nd">@register_to</span><span class="p">(</span><span class="n">_meta_updaters</span><span class="p">,</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">KidsData</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_update_derived_info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta_cached</span>
+        <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;file_loc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_file_loc</span>
+        <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;instru&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;toltec&#39;</span>
+        <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;interface&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;toltec</span><span class="si">{</span><span class="n">meta</span><span class="p">[</span><span class="s2">&quot;roachid&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span>
+        <span class="c1"># TODO someday we may need to change the mapping between this</span>
+        <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;master&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;mastervar&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;repeat&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;repeatvar&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;nwid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;roachid&#39;</span><span class="p">]</span>
+
+    <span class="nd">@register_to</span><span class="p">(</span><span class="n">_meta_updaters</span><span class="p">,</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">ReducedSweep</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_update_reduced_sweep_block_info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta_cached</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_sweeps&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;sweep_slices&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;n_sweepsteps&#39;</span><span class="p">])]</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_blocks_max&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_timesperblock&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;n_sweepsteps&#39;</span><span class="p">]</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_blocks&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_sweeps&#39;</span><span class="p">]</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;block_slices&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;sweep_slices&#39;</span><span class="p">]</span>
+        <span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+
+    <span class="nd">@register_to</span><span class="p">(</span><span class="n">_meta_updaters</span><span class="p">,</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">RawSweep</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_update_raw_sweep_block_info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># This function is to populate raw sweep block info to meta</span>
+        <span class="c1"># The block info is a set of meta data that indicate</span>
+        <span class="c1"># logical unit of the dataset.</span>
+        <span class="c1"># For sweeps, each block is one monotonic frequency sweep;</span>
+        <span class="c1"># for timestreams, this could be arbitrary, and is default</span>
+        <span class="c1"># to one block as of 20200722.</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta_cached</span>
+
+        <span class="n">data_kind</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;data_kind&#39;</span><span class="p">]</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+
+        <span class="c1"># this is the theoretical number of samples per sweep block.</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_timespersweep&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s2">&quot;n_sweepsteps&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">meta</span><span class="p">[</span><span class="s2">&quot;n_sweepreps&quot;</span><span class="p">]</span>
+        <span class="c1"># we need to load flos to properly handle the sweeps with potentially</span>
+        <span class="c1"># missing samples</span>
+        <span class="n">nm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_mappers</span><span class="p">[</span><span class="s1">&#39;axis_data&#39;</span><span class="p">]</span>
+        <span class="n">flos_Hz</span> <span class="o">=</span> <span class="n">nm</span><span class="o">.</span><span class="n">getvar</span><span class="p">(</span><span class="s1">&#39;flos&#39;</span><span class="p">)[:]</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;flos&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">flos_Hz</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span>
+
+        <span class="c1"># for tune file, we expect multiple sweep blocks</span>
+        <span class="c1"># because there could be samples missing, the only</span>
+        <span class="c1"># reliable way to identify the blocks is to</span>
+        <span class="c1"># check the flos array looking for monotonically</span>
+        <span class="c1"># increasing blocks</span>
+        <span class="c1"># sometimes there could be corrupted data and the flo is set to 0.</span>
+        <span class="c1"># this assert detects such case because otherwise the break</span>
+        <span class="c1"># indices will be incorrect.</span>
+        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">flos_Hz</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="c1"># this gives the index of the first item after a decrease in flo</span>
+        <span class="n">break_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">flos_Hz</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+
+        <span class="k">if</span> <span class="n">break_indices</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># we have one (maybe incompleted) block</span>
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_sweeps&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;sweep_slices&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;n_times&#39;</span><span class="p">])]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># this can only happend to tune files</span>
+            <span class="k">assert</span> <span class="n">data_kind</span> <span class="o">==</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">Tune</span>
+            <span class="c1"># the blocks are partitioned by the break indices</span>
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_sweeps&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">break_indices</span><span class="o">.</span><span class="n">size</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">sweep_starts</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">]</span> <span class="o">+</span> <span class="n">break_indices</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="o">+</span> <span class="p">[</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;n_times&#39;</span><span class="p">]]</span>
+            <span class="n">sweep_sizes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">sweep_starts</span><span class="p">)</span>
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;sweep_slices&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+                    <span class="nb">slice</span><span class="p">(</span><span class="n">sweep_starts</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">sweep_starts</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_sweeps&#39;</span><span class="p">])</span>
+                    <span class="p">]</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">sweep_sizes</span> <span class="o">&lt;</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_timespersweep&#39;</span><span class="p">]):</span>
+                <span class="n">incompleted_sweeps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+                        <span class="n">sweep_sizes</span> <span class="o">&lt;</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_timespersweep&#39;</span><span class="p">]</span>
+                        <span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;missing data in sweep blocks </span><span class="si">{</span><span class="n">incompleted_sweeps</span><span class="si">}</span><span class="s2"> &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;sizes=</span><span class="si">{</span><span class="n">sweep_sizes</span><span class="p">[</span><span class="n">incompleted_sweeps</span><span class="p">]</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># populate block meta</span>
+        <span class="c1"># this is the maximum number of blocks, as indicated by the</span>
+        <span class="c1"># dimension of the tones</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_blocks_max&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;n_sweeps_max&#39;</span><span class="p">]</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_timesperblock&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_timespersweep&#39;</span><span class="p">]</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_blocks&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_sweeps&#39;</span><span class="p">]</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;block_slices&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;sweep_slices&#39;</span><span class="p">]</span>
+        <span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+
+    <span class="nd">@register_to</span><span class="p">(</span>
+            <span class="n">_meta_updaters</span><span class="p">,</span>
+            <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">ReducedKidsData</span> <span class="o">|</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">TimeStream</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_update_raw_timestream_block_info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_blocks_max&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_blocks&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_meta_cached</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_resolve_block_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">block_index</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the block info.</span>
+
+<span class="sd">        This returns a 3-tuple describe the blocks in the data file as</span>
+<span class="sd">        ``(iblock, n_blocks, n_blocks_max)``.</span>
+
+<span class="sd">        The special `block_index` value ``None`` will resolve to</span>
+<span class="sd">        the last block corresponding to n_blocks,</span>
+<span class="sd">        while any integer will be resolved with the range 0 to n_blocks_max.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span>
+        <span class="n">n_blocks</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;n_blocks&#39;</span><span class="p">]</span>
+        <span class="n">n_blocks_max</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;n_blocks_max&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">block_index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">iblock</span> <span class="o">=</span> <span class="n">n_blocks</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">iblock</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">n_blocks_max</span><span class="p">)[</span><span class="n">block_index</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;resolve block_index </span><span class="si">{</span><span class="n">block_index</span><span class="si">}</span><span class="s2"> -&gt; iblock=</span><span class="si">{</span><span class="n">iblock</span><span class="si">}</span><span class="s2"> &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;n_blocks=</span><span class="si">{</span><span class="n">n_blocks</span><span class="si">}</span><span class="s2"> (n_blocks_max=</span><span class="si">{</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;n_blocks_max&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">iblock</span><span class="p">,</span> <span class="n">n_blocks</span><span class="p">,</span> <span class="n">n_blocks_max</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_tone_axis_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns the tones data.</span>
+
+<span class="sd">        This is a list of tables.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">nm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_mappers</span><span class="p">[</span><span class="s1">&#39;axis_data&#39;</span><span class="p">]</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span>
+        <span class="n">n_blocks</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;n_blocks&#39;</span><span class="p">]</span>
+        <span class="n">n_tones</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;n_tones&#39;</span><span class="p">]</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">nm</span><span class="o">.</span><span class="n">getvar</span><span class="p">(</span><span class="s2">&quot;tones&quot;</span><span class="p">)</span>
+        <span class="c1"># for multi block data, v should be of 2-dimensional</span>
+        <span class="c1"># and for single block data, v could be of 2-dimensional or one</span>
+        <span class="k">if</span> <span class="n">n_blocks</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">v</span><span class="p">[:]</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="n">n_blocks</span><span class="p">,</span> <span class="n">n_tones</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">v</span><span class="p">[:</span><span class="n">n_blocks</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span>
+        <span class="k">assert</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="n">n_blocks</span><span class="p">,</span> <span class="n">n_tones</span><span class="p">)</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_blocks</span><span class="p">):</span>
+            <span class="n">tone_axis_data</span> <span class="o">=</span> <span class="n">QTable</span><span class="p">()</span>
+            <span class="n">tone_axis_data</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_tones</span><span class="p">)</span>
+            <span class="n">tone_axis_data</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> <span class="s1">&#39;The tone index.&#39;</span>
+            <span class="n">tone_axis_data</span><span class="p">[</span><span class="s1">&#39;f_tone&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">tone_axis_data</span><span class="p">[</span><span class="s1">&#39;f_tone&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> <span class="s1">&#39;The tone frequency.&#39;</span>
+            <span class="n">tone_axis_data</span><span class="p">[</span><span class="s1">&#39;f_center&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;flo_center&#39;</span><span class="p">]</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">)</span>
+            <span class="n">tone_axis_data</span><span class="p">[</span><span class="s1">&#39;f_center&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="s1">&#39;The center frequency of each channel.&#39;</span><span class="p">)</span>
+            <span class="n">tone_axis_data</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">meta</span><span class="p">)</span>
+            <span class="n">tone_axis_data</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;block_index&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tone_axis_data</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="k">def</span> <span class="nf">get_tone_axis_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">block_index</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the tones at `block_index`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">iblock</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_block_index</span><span class="p">(</span>
+                <span class="n">block_index</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tone_axis_data</span><span class="p">[</span><span class="n">iblock</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">_get_raw_sweep_sweep_axis_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the sweep steps.</span>
+
+<span class="sd">        This is a list of tables.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span>
+        <span class="n">flos_Hz</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;flos&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">)</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">iblock</span><span class="p">,</span> <span class="n">block_slice</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;block_slices&#39;</span><span class="p">]):</span>
+            <span class="n">sweep_axis_data</span> <span class="o">=</span> <span class="n">QTable</span><span class="p">()</span>
+            <span class="c1"># the raw sweep axis is constructed from checking the</span>
+            <span class="c1"># flo frequencies</span>
+            <span class="n">uflos</span><span class="p">,</span> <span class="n">uiflos</span><span class="p">,</span> <span class="n">urflos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span>
+                    <span class="n">flos_Hz</span><span class="p">[</span><span class="n">block_slice</span><span class="p">],</span>
+                    <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">return_counts</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="c1"># pad the index with block slice start</span>
+            <span class="n">uiflos</span> <span class="o">=</span> <span class="n">uiflos</span> <span class="o">+</span> <span class="n">block_slice</span><span class="o">.</span><span class="n">start</span>
+            <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">uflos</span><span class="p">))</span>
+            <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> <span class="s1">&#39;The sweep index.&#39;</span>
+            <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;f_sweep&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">uflos</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span>
+            <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;f_sweep&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> <span class="s1">&#39;The sweep frequency.&#39;</span>
+            <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;n_samples&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">urflos</span>
+            <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;n_samples&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> <span class="s1">&#39;The number of repeats.&#39;</span>
+            <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;sample_start&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">uiflos</span>
+            <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;sample_start&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> \
+                <span class="s1">&#39;The sample index at the start of this sweep step.&#39;</span>
+            <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;sample_end&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">uiflos</span> <span class="o">+</span> <span class="n">urflos</span>
+            <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;sample_end&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> \
+                <span class="s1">&#39;The sample index after the end of this sweep step.&#39;</span>
+            <span class="n">sweep_axis_data</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">meta</span><span class="p">)</span>
+            <span class="n">sweep_axis_data</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;block_index&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">iblock</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sweep_axis_data</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="k">def</span> <span class="nf">_get_reduced_sweep_sweep_axis_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the sweep steps for reduced sweeps.</span>
+
+<span class="sd">        This contains one table since the reduced sweep data</span>
+<span class="sd">        only have one block.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">nm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_mappers</span><span class="p">[</span><span class="s1">&#39;axis_data&#39;</span><span class="p">]</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span>
+
+        <span class="n">sweeps</span> <span class="o">=</span> <span class="n">nm</span><span class="o">.</span><span class="n">getvar</span><span class="p">(</span><span class="s2">&quot;sweeps&quot;</span><span class="p">)[:]</span> <span class="o">+</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;flo_center&#39;</span><span class="p">]</span>
+
+        <span class="n">sweep_axis_data</span> <span class="o">=</span> <span class="n">QTable</span><span class="p">()</span>
+        <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">sweeps</span><span class="p">))</span>
+        <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> <span class="s1">&#39;The sweep index.&#39;</span>
+        <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;f_sweep&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sweeps</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span>
+        <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;f_sweep&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> <span class="s1">&#39;The sweep frequency.&#39;</span>
+        <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;n_samples&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;n_samples&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> <span class="s1">&#39;The number of repeats.&#39;</span>
+        <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;sample_start&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span>
+        <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;sample_start&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> \
+            <span class="s1">&#39;The sample index at the start of this sweep step.&#39;</span>
+        <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;sample_end&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;sample_end&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> \
+            <span class="s1">&#39;The sample index after the end of this sweep step.&#39;</span>
+        <span class="n">sweep_axis_data</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">meta</span><span class="p">)</span>
+        <span class="n">sweep_axis_data</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;block_index&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">sweep_axis_data</span><span class="p">]</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_sweep_axis_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the sweep axis data.</span>
+
+<span class="sd">        This is a list containing ``n_blocks`` arrays, each of which</span>
+<span class="sd">        is of shape (n_sweepsteps, 2), specifying the start and</span>
+<span class="sd">        end sample indices.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="s1">&#39;sweep&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">axis_types</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_kind</span> <span class="o">&amp;</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">RawSweep</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_raw_sweep_sweep_axis_data</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_reduced_sweep_sweep_axis_data</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">get_sweep_axis_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">block_index</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the tones at `block_index`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sweep_axis_data</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;no sweep axis for data kind of </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">data_kind</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">iblock</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_block_index</span><span class="p">(</span>
+                <span class="n">block_index</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">data</span><span class="p">[</span><span class="n">iblock</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">slicer_args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Read the file and return a data object.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        slicer_args : dict</span>
+<span class="sd">            The arguments to specify the data to load.</span>
+<span class="sd">            The keys shall be one of the axis names</span>
+<span class="sd">            block, tone, sweep, time, or sample.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># create the slicer object</span>
+        <span class="n">slicer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_loc</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">slicer_args</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">slicer</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">slicer</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">t</span><span class="si">}</span><span class="s1">_loc&#39;</span><span class="p">)(</span><span class="n">arg</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_sliced</span><span class="p">(</span><span class="n">slicer</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_resolve_slice</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slicer</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Read the file for data specified by the `slicer`.&quot;&quot;&quot;</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="c1"># parse the slicer args and get the data.</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;ops&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ops</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">axis_types</span><span class="p">:</span>
+            <span class="n">ops</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">slicer</span><span class="o">.</span><span class="n">get_slice_op</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+
+        <span class="c1"># do some check</span>
+        <span class="k">if</span> <span class="n">ops</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;sample&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> \
+                <span class="ow">and</span> <span class="n">ops</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;sweep&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;can only slice on one of sample or sweep.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">ops</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;sample&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> \
+                <span class="ow">and</span> <span class="n">ops</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;can only slice on one of sample or time.&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;slicer_ops:</span><span class="se">\n</span><span class="si">{</span><span class="n">pformat_dict</span><span class="p">(</span><span class="n">ops</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># apply the slicer ops</span>
+        <span class="k">def</span> <span class="nf">slice_table</span><span class="p">(</span><span class="n">tbl</span><span class="p">,</span> <span class="n">op</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">op</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">tbl</span><span class="p">,</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">op</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="c1"># slice the table with pandas query</span>
+                <span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">():</span>
+                    <span class="c1"># this is to supress the ufunc size warning</span>
+                    <span class="c1"># and the numexpr</span>
+                    <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">)</span>
+                    <span class="n">df</span> <span class="o">=</span> <span class="n">tbl</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
+                    <span class="n">op</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">eval</span><span class="p">(</span><span class="n">op</span><span class="p">)</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+            <span class="n">tbl</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="n">op</span><span class="p">]</span>
+            <span class="n">tbl</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;_slice_op&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">op</span>
+            <span class="k">return</span> <span class="n">tbl</span><span class="p">,</span> <span class="n">op</span>
+
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;block_index&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">block_index</span> <span class="o">=</span> <span class="n">ops</span><span class="p">[</span><span class="s1">&#39;block&#39;</span><span class="p">]</span>
+        <span class="n">tone_axis_data</span><span class="p">,</span> <span class="n">tone_op</span> <span class="o">=</span> <span class="n">slice_table</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">get_tone_axis_data</span><span class="p">(</span><span class="n">block_index</span><span class="o">=</span><span class="n">block_index</span><span class="p">),</span>
+                <span class="n">ops</span><span class="p">[</span><span class="s1">&#39;tone&#39;</span><span class="p">])</span>
+        <span class="c1"># self.logger.debug(f&quot;sliced tone axis data:\n{tone_axis_data}&quot;)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;sliced </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">tone_axis_data</span><span class="p">)</span><span class="si">}</span><span class="s2"> &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;tones out of </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;n_tones&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;tone_axis_data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tone_axis_data</span>
+        <span class="c1"># this will be used to load the data</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;tone_slice&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tone_op</span>
+
+        <span class="k">if</span> <span class="s1">&#39;sweep&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">axis_types</span><span class="p">:</span>
+            <span class="c1"># in this case,</span>
+            <span class="c1"># we re-build the sample slice from the range of the sliced</span>
+            <span class="c1"># sweep table</span>
+            <span class="n">sweep_axis_data</span><span class="p">,</span> <span class="n">sweep_op</span> <span class="o">=</span> <span class="n">slice_table</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">get_sweep_axis_data</span><span class="p">(</span><span class="n">block_index</span><span class="o">=</span><span class="n">block_index</span><span class="p">),</span>
+                <span class="n">ops</span><span class="p">[</span><span class="s1">&#39;sweep&#39;</span><span class="p">])</span>
+            <span class="c1"># self.logger.debug(f&quot;sliced sweep axis data:\n{sweep_axis_data}&quot;)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;sliced </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">sweep_axis_data</span><span class="p">)</span><span class="si">}</span><span class="s2"> &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;tones out of </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;n_sweepsteps&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+            <span class="c1"># this will be used to load the data</span>
+            <span class="c1"># this data will be reduced for each sweep step later</span>
+            <span class="c1"># TODO this is less optimal for sweep_op being a mask.</span>
+            <span class="c1"># but for now the sweep is small and we can afford doing so</span>
+            <span class="n">sample_slice</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;sample_start&#39;</span><span class="p">]),</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">sweep_axis_data</span><span class="p">[</span><span class="s1">&#39;sample_end&#39;</span><span class="p">]))</span>
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;sweep_axis_data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sweep_axis_data</span>
+        <span class="k">elif</span> <span class="s1">&#39;time&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">axis_types</span><span class="p">:</span>
+            <span class="c1"># in this case,</span>
+            <span class="c1"># we build the sample slice from the range of time,</span>
+            <span class="n">fsmp_Hz</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;fsmp&#39;</span><span class="p">]</span>
+
+            <span class="k">def</span> <span class="nf">_t_to_sample</span><span class="p">(</span><span class="n">t</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">t</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">None</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">):</span>
+                    <span class="n">t</span> <span class="o">=</span> <span class="n">t</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span>
+                <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">unit</span><span class="o">.</span><span class="n">is_equivalent</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">):</span>
+                    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">)</span> <span class="o">*</span> <span class="n">fsmp_Hz</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;invalid time loc argument.&#39;</span><span class="p">)</span>
+            <span class="c1"># we have ensured the time_loc arg is always slice</span>
+            <span class="c1"># in _KidsDataAxisSlicer</span>
+            <span class="n">time_slice</span> <span class="o">=</span> <span class="n">ops</span><span class="p">[</span><span class="s1">&#39;time&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">time_slice</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">sample_slice</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span>
+                    <span class="n">_t_to_sample</span><span class="p">,</span>
+                    <span class="p">[</span>
+                        <span class="n">time_slice</span><span class="o">.</span><span class="n">start</span><span class="p">,</span>
+                        <span class="n">time_slice</span><span class="o">.</span><span class="n">stop</span><span class="p">,</span>
+                        <span class="n">time_slice</span><span class="o">.</span><span class="n">step</span><span class="p">,</span>
+                        <span class="p">],</span>
+                    <span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">sample_slice</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+            <span class="c1"># make sure the step at least 1</span>
+            <span class="k">if</span> <span class="n">sample_slice</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">sample_slice</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;invalid time slice step.&quot;</span><span class="p">)</span>
+            <span class="n">sample_slice</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="o">*</span><span class="n">sample_slice</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># read from the sample loc</span>
+            <span class="n">sample_slice</span> <span class="o">=</span> <span class="n">ops</span><span class="p">[</span><span class="s1">&#39;sample&#39;</span><span class="p">]</span> <span class="ow">or</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;sample_slice&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sample_slice</span>
+
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="k">def</span> <span class="nf">_read_sliced</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slicer</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Read the file for data specified by the `slicer`.&quot;&quot;&quot;</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_slice</span><span class="p">(</span><span class="n">slicer</span><span class="p">)</span>
+        <span class="c1"># now that we have the tone slice and sample slice</span>
+        <span class="c1"># we can read the data</span>
+        <span class="n">data_kind</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_kind</span>
+        <span class="c1"># we create a copy of meta data here to store the sliced</span>
+        <span class="c1"># info</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">)</span>
+        <span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">m</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_mappers</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">data_kind</span> <span class="o">&amp;</span> <span class="n">k</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;read data </span><span class="si">{</span><span class="n">m</span><span class="o">.</span><span class="n">nc_node_map</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="si">}</span><span class="s2"> sample_slice=&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">pformat_fancy_index</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="s1">&#39;sample_slice&#39;</span><span class="p">])</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot; tone_slice=&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">pformat_fancy_index</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="s1">&#39;tone_slice&#39;</span><span class="p">])</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">m</span><span class="o">.</span><span class="n">nc_node_map</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="c1"># we arrange the data so that the data</span>
+                    <span class="c1"># tone axis is first, as required by the</span>
+                    <span class="c1"># kidsproc.kidsdata containers</span>
+                    <span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">getvar</span><span class="p">(</span><span class="n">key</span><span class="p">)[</span>
+                            <span class="n">s</span><span class="p">[</span><span class="s1">&#39;sample_slice&#39;</span><span class="p">],</span>
+                            <span class="n">s</span><span class="p">[</span><span class="s1">&#39;tone_slice&#39;</span><span class="p">],</span>
+                            <span class="p">]</span><span class="o">.</span><span class="n">T</span>
+
+        <span class="c1"># for reduced sweep if may have d21 data</span>
+        <span class="k">if</span> <span class="n">data_kind</span> <span class="o">&amp;</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">ReducedSweep</span><span class="p">:</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_mappers</span><span class="p">[</span><span class="s1">&#39;data_extra&#39;</span><span class="p">][</span><span class="s1">&#39;d21&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;read extra data </span><span class="si">{</span><span class="n">m</span><span class="o">.</span><span class="n">nc_node_map</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">m</span><span class="o">.</span><span class="n">nc_node_map</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="c1"># we arrange the data so that the data</span>
+                <span class="c1"># tone axis is first, as required by the</span>
+                <span class="c1"># kidsproc.kidsdata containers</span>
+                <span class="k">if</span> <span class="n">m</span><span class="o">.</span><span class="n">hasvar</span><span class="p">(</span><span class="n">key</span><span class="p">):</span>
+                    <span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">getvar</span><span class="p">(</span><span class="n">key</span><span class="p">)[:]</span>
+        <span class="c1"># for vna sweep we can load the candidates list</span>
+        <span class="k">if</span> <span class="n">data_kind</span> <span class="o">&amp;</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">ReducedVnaSweep</span><span class="p">:</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_mappers</span><span class="p">[</span><span class="s1">&#39;data_extra&#39;</span><span class="p">][</span><span class="s1">&#39;candidates&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;read extra data </span><span class="si">{</span><span class="n">m</span><span class="o">.</span><span class="n">nc_node_map</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">m</span><span class="o">.</span><span class="n">nc_node_map</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="c1"># we arrange the data so that the data</span>
+                <span class="c1"># tone axis is first, as required by the</span>
+                <span class="c1"># kidsproc.kidsdata containers</span>
+                <span class="k">if</span> <span class="n">m</span><span class="o">.</span><span class="n">hasvar</span><span class="p">(</span><span class="n">key</span><span class="p">):</span>
+                    <span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">getvar</span><span class="p">(</span><span class="n">key</span><span class="p">)[:]</span>
+
+        <span class="c1"># for the solved timestreams we also load the psd info if they</span>
+        <span class="c1"># are available</span>
+        <span class="k">if</span> <span class="n">data_kind</span> <span class="o">&amp;</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">SolvedTimeStream</span><span class="p">:</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_mappers</span><span class="p">[</span><span class="s1">&#39;data_extra&#39;</span><span class="p">][</span><span class="s1">&#39;psd&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;read extra data </span><span class="si">{</span><span class="n">m</span><span class="o">.</span><span class="n">nc_node_map</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; tone_slice=&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">pformat_fancy_index</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="s1">&#39;tone_slice&#39;</span><span class="p">])</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">m</span><span class="o">.</span><span class="n">nc_node_map</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="c1"># we arrange the data so that the data</span>
+                <span class="c1"># tone axis is first, as required by the</span>
+                <span class="c1"># kidsproc.kidsdata containers</span>
+                <span class="k">if</span> <span class="n">m</span><span class="o">.</span><span class="n">hasvar</span><span class="p">(</span><span class="n">key</span><span class="p">):</span>
+                    <span class="n">v</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">getvar</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="c1"># the psd_fs is vector so skip the slice</span>
+                        <span class="n">v</span> <span class="o">=</span> <span class="n">v</span><span class="p">[:]</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">v</span> <span class="o">=</span> <span class="n">v</span><span class="p">[:,</span> <span class="n">s</span><span class="p">[</span><span class="s1">&#39;tone_slice&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">T</span>
+                    <span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+        <span class="c1"># for the raw sweeps we do the reduction for each step</span>
+        <span class="k">if</span> <span class="n">data_kind</span> <span class="o">&amp;</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">RawSweep</span><span class="p">:</span>
+            <span class="n">sweep_axis_data</span> <span class="o">=</span> <span class="n">s</span><span class="p">[</span><span class="s1">&#39;sweep_axis_data&#39;</span><span class="p">]</span>
+            <span class="n">b0</span> <span class="o">=</span> <span class="n">s</span><span class="p">[</span><span class="s1">&#39;sample_slice&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">start</span>  <span class="c1"># this is the ref index</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;I&#39;</span><span class="p">,</span> <span class="s1">&#39;Q&#39;</span><span class="p">):</span>
+                <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span>
+                        <span class="p">(</span>
+                            <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="s1">&#39;tone_axis_data&#39;</span><span class="p">]),</span>
+                            <span class="nb">len</span><span class="p">(</span><span class="n">sweep_axis_data</span><span class="p">)),</span>
+                        <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+                <span class="n">unc_a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">sweep_axis_data</span><span class="p">):</span>
+                    <span class="n">i0</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;sample_start&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">b0</span>
+                    <span class="n">i1</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;sample_end&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">b0</span>
+                    <span class="n">a</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">k</span><span class="p">][:,</span> <span class="n">i0</span><span class="p">:</span><span class="n">i1</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+                    <span class="n">unc_a</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">k</span><span class="p">][:,</span> <span class="n">i0</span><span class="p">:</span><span class="n">i1</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+                <span class="n">data</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">a</span>
+                <span class="n">data</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;unc_</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">unc_a</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">m</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kidsdata_obj_makers</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">data_kind</span> <span class="o">&amp;</span> <span class="n">k</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">m</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">,</span> <span class="n">data_kind</span><span class="p">,</span> <span class="n">meta</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># generic maker, this is just to return the things as a dict</span>
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="s1">&#39;data_kind&#39;</span><span class="p">:</span> <span class="n">data_kind</span><span class="p">,</span>
+                <span class="s1">&#39;meta&#39;</span><span class="p">:</span> <span class="n">meta</span><span class="p">,</span>
+                <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="n">data</span>
+                <span class="p">}</span>
+
+    <span class="n">_kidsdata_obj_makers</span> <span class="o">=</span> <span class="n">Registry</span><span class="o">.</span><span class="n">create</span><span class="p">()</span>
+    <span class="sd">&quot;&quot;&quot;A registry to store the data obj makers.&quot;&quot;&quot;</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="nd">@register_to</span><span class="p">(</span><span class="n">_kidsdata_obj_makers</span><span class="p">,</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">Sweep</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_make_kidsdata_sweep</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data_kind</span><span class="p">,</span> <span class="n">meta</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="n">tones</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;tone_axis_data&#39;</span><span class="p">][</span><span class="s1">&#39;f_tone&#39;</span><span class="p">]</span>
+        <span class="n">sweeps</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;sweep_axis_data&#39;</span><span class="p">][</span><span class="s1">&#39;f_sweep&#39;</span><span class="p">]</span>
+        <span class="c1"># we need to pack the I and Q</span>
+        <span class="n">S21</span> <span class="o">=</span> <span class="n">to_complex</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;I&#39;</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;Q&#39;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="s1">&#39;unc_I&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
+            <span class="n">unc_S21</span> <span class="o">=</span> <span class="n">StdDevUncertainty</span><span class="p">(</span>
+                    <span class="n">to_complex</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;unc_I&#39;</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;unc_Q&#39;</span><span class="p">]))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">unc_S21</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">kd</span><span class="o">.</span><span class="n">MultiSweep</span><span class="p">(</span>
+            <span class="n">meta</span><span class="o">=</span><span class="n">meta</span><span class="p">,</span>
+            <span class="n">tones</span><span class="o">=</span><span class="n">tones</span><span class="p">,</span>
+            <span class="n">sweeps</span><span class="o">=</span><span class="n">sweeps</span><span class="p">,</span>
+            <span class="n">S21</span><span class="o">=</span><span class="n">S21</span><span class="p">,</span>
+            <span class="n">uncertainty</span><span class="o">=</span><span class="n">unc_S21</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="s1">&#39;d21&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
+            <span class="n">d21_unit</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">adu</span> <span class="o">/</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span>
+            <span class="c1"># make a unified D21 sweep and set that as the unified</span>
+            <span class="c1"># data of this multisweep</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">set_unified</span><span class="p">(</span>
+                <span class="n">kd</span><span class="o">.</span><span class="n">Sweep</span><span class="p">(</span>
+                    <span class="n">S21</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                    <span class="n">D21</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;d21&#39;</span><span class="p">]</span> <span class="o">&lt;&lt;</span> <span class="n">d21_unit</span><span class="p">,</span>
+                    <span class="n">frequency</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;d21_f&#39;</span><span class="p">]</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">,</span>
+                    <span class="n">extra_attrs</span><span class="o">=</span><span class="p">{</span>
+                        <span class="s1">&#39;D21_cov&#39;</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;d21_cov&#39;</span><span class="p">],</span>
+                        <span class="s1">&#39;D21_mean&#39;</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;d21_mean&#39;</span><span class="p">]</span> <span class="o">&lt;&lt;</span> <span class="n">d21_unit</span><span class="p">,</span>
+                        <span class="s1">&#39;D21_std&#39;</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;d21_std&#39;</span><span class="p">]</span> <span class="o">&lt;&lt;</span> <span class="n">d21_unit</span><span class="p">,</span>
+                        <span class="p">},</span>
+                    <span class="n">meta</span><span class="o">=</span><span class="p">{</span>
+                        <span class="s1">&#39;candidates&#39;</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;candidates&#39;</span><span class="p">]</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span>
+                        <span class="p">}</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="nd">@register_to</span><span class="p">(</span><span class="n">_kidsdata_obj_makers</span><span class="p">,</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">RawTimeStream</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_make_kidsdata_rts</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data_kind</span><span class="p">,</span> <span class="n">meta</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="n">tones</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;tone_axis_data&#39;</span><span class="p">][</span><span class="s1">&#39;f_tone&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">kd</span><span class="o">.</span><span class="n">TimeStream</span><span class="p">(</span>
+                <span class="n">meta</span><span class="o">=</span><span class="n">meta</span><span class="p">,</span>
+                <span class="n">tones</span><span class="o">=</span><span class="n">tones</span><span class="p">,</span>
+                <span class="n">I</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;I&#39;</span><span class="p">],</span>  <span class="c1"># noqa: E741</span>
+                <span class="n">Q</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;Q&#39;</span><span class="p">],</span>
+                <span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="nd">@register_to</span><span class="p">(</span><span class="n">_kidsdata_obj_makers</span><span class="p">,</span> <span class="n">KidsDataKind</span><span class="o">.</span><span class="n">SolvedTimeStream</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_make_kidsdata_sts</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data_kind</span><span class="p">,</span> <span class="n">meta</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="n">tones</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;tone_axis_data&#39;</span><span class="p">][</span><span class="s1">&#39;f_tone&#39;</span><span class="p">]</span>
+        <span class="c1"># add the psd data to the meta</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">meta</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;_psd&quot;</span><span class="p">):</span>
+                <span class="n">meta</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+        <span class="k">return</span> <span class="n">kd</span><span class="o">.</span><span class="n">TimeStream</span><span class="p">(</span>
+                <span class="n">meta</span><span class="o">=</span><span class="n">meta</span><span class="p">,</span>
+                <span class="n">tones</span><span class="o">=</span><span class="n">tones</span><span class="p">,</span>
+                <span class="n">r</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;r&#39;</span><span class="p">],</span>
+                <span class="n">x</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">],</span>
+                <span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">node_mappers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The tree of low level netCDF dataset mappers.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_node_mappers</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">nc_node</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The underlying netCDF dataset.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_mappers</span><span class="p">[</span><span class="s1">&#39;ncopen&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">nc_node</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_file_obj</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># we expose the raw netcdf dataset as the low level file object.</span>
+        <span class="c1"># this returns None if no dataset is open.</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">nc_node</span>
+        <span class="k">except</span> <span class="n">NcNodeMapperError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_file_loc</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># here we return the _source if it is passed to the constructor</span>
+        <span class="c1"># we had ensured in open that if self._source is given,</span>
+        <span class="c1"># the source passed to open can only be None.</span>
+        <span class="c1"># so that source is always the same as self.nc_node.file_loc</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_source</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_source</span>
+        <span class="c1"># if no dataset is open, we just return None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_file_obj</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="c1"># the opened dataset file loc.</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_mappers</span><span class="p">[</span><span class="s1">&#39;ncopen&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">file_loc</span>
+
+    <span class="c1"># registry info to the DataFileIO.open interface</span>
+    <span class="n">io_registry_info</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;label&#39;</span><span class="p">:</span> <span class="s1">&#39;nc.toltec.kidsdata&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;identifier&#39;</span><span class="p">:</span> <span class="n">identify_toltec_nc_file</span>
+            <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># need to reset the object before pickling</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_auto_close_on_pickle</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_source</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">is_open</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">file_obj</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">return</span> <span class="p">{</span>
+                    <span class="s1">&#39;_auto_close_on_pickle_wrapped&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">,</span>
+                    <span class="s1">&#39;_auto_close_on_pickle_is_open&#39;</span><span class="p">:</span> <span class="n">is_open</span>
+                    <span class="p">}</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span>
+
+    <span class="k">def</span> <span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s1">&#39;_auto_close_on_pickle_wrapped&#39;</span> <span class="ow">in</span> <span class="n">state</span><span class="p">:</span>
+            <span class="n">state</span><span class="p">,</span> <span class="n">is_open</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">state</span><span class="p">[</span><span class="s1">&#39;_auto_close_on_pickle_wrapped&#39;</span><span class="p">],</span>
+                    <span class="n">state</span><span class="p">[</span><span class="s1">&#39;_auto_close_on_pickle_is_open&#39;</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">is_open</span><span class="p">:</span>
+                <span class="c1"># try open the object</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
+            <span class="k">return</span>
+        <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">state</span><span class="p">)</span></div>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2021, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
+    Last built 18 Jun 2021. <br/>
+  </p>
+</footer>
+  </body>
+</html>

@@ -1,6 +1,0 @@
-main
-====
-
-.. currentmodule:: tolteca.gui
-
-.. autofunction:: main
