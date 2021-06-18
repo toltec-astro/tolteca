@@ -747,6 +747,17 @@ class SimulatorResult(Namespace):
                     'Header.Source.SourceName',
                     cfg['jobkey'])
 
+            if isinstance(mapping, SkyLissajousModel):
+                nm_tel.setstr(
+                        'Header.Dcs.ObsPgm',
+                        'Lissajous')
+            elif isinstance(mapping, SkyRasterScanModel):
+                nm_tel.setstr(
+                        'Header.Dcs.ObsPgm',
+                        'Map')
+            else:
+                raise NotImplementedError
+
             # create data variables
             nc_tel = nm_tel.nc_node
             d_time = 'time'
