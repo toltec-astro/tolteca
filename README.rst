@@ -56,7 +56,11 @@ The `tolteca` package comes with a command-line interface, that can be used
 to run sub-package specific tasks including those defined as part of
 the `tolteca.simu` and `tolteca.reduce`.
 
-To run the simulator, see `the simulator tutorial<https://github.com/toltec-astro/tolteca/blob/master/docs/tolteca/toltec_simu_tutorial.md>`.
+To run the simulator and reduction pipeline via commandline interface, see
+instructions here:
+`the simulator tutorial<https://github.com/toltec-astro/tolteca/blob/main/docs/tolteca/toltec_simu_tutorial.md>`.
+
+To see the Jupyter notebook tutorials, visit: https://toltec-astro.github.io/tolteca_tutorials/
 
 Please see the `API documentation
 <https://toltec-astro.github.io/tolteca>`_ for details.

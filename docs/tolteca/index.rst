@@ -19,7 +19,9 @@ Reference/API
 
 .. automodapi:: tolteca.cli
 
-.. automodapi:: tolteca.gui
+.. automodapi:: tolteca.common.toltec
+
+.. automodapi:: tolteca.common.lmt
 
 .. automodapi:: tolteca.datamodels.toltec
 
@@ -29,9 +31,17 @@ Reference/API
 
 .. automodapi:: tolteca.datamodels.io
 
-.. automodapi:: tolteca.pipeline
+.. automodapi:: tolteca.reduce
+
+.. automodapi:: tolteca.reduce.toltec
+
+.. automodapi:: tolteca.simu
 
 .. automodapi:: tolteca.simu.toltec
+
+.. automodapi:: tolteca.simu.toltec.tel
+
+.. automodapi:: tolteca.simu.toltec.lmt
 
 .. automodapi:: tolteca.simu.toltec.wyatt
 

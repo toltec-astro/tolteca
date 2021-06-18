@@ -35,7 +35,7 @@ from .lmt import info as site_info
 from .lmt import get_lmt_atm_models
 
 __all__ = [
-        'toltec_info'
+        'toltec_info',
         'site_info',
         'get_default_passbands',
         'get_default_cosmology',

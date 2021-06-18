@@ -6,9 +6,14 @@ The `tolteca.simu` is available after the installation of the `tolteca`
 package.  The required toltec-produced packages are:
 
  - tolteca (this package)
- - toltec_calib - https://github.com/toltec-astro/toltec_calib
  - tollan - https://github.com/toltec-astro/tollan
  - kidsproc - https://github.com/toltec-astro/kidsproc
+
+
+Additionally, one may clone the toltec_calib repo to use the calibration
+objects:
+
+ - toltec_calib - https://github.com/toltec-astro/toltec_calib
 
 ## Usage
 
@@ -43,67 +48,22 @@ recognized as configuration files, that will be loaded as part of the runtime
 context for the actual simulator or pipeline reduction run at later times.
 
 To actually setup a simulator, as need to create a config file that contains
-the related settings. An example file `60_simu.yaml` can be:
+the related settings. An example file `60_simu.yaml` can be found here:
+
+https://github.com/toltec-astro/tolteca/tree/main/tolteca/data/examples
+
+
+To use the source catalog model, you'll need to create catalogs like this
+and specify the path in the YAML config file:
 
 ```
-# vim: et ts=2 sts=2 sw=2
----
-
-_:
-  # this demonstrates the use of yaml anchors to make the config
-  # modularized
-  example_mapping_tel_nc: &example_mapping_tel_nc
-    type: lmt_tcs
-    filepath: example_tel.nc
-  example_mapping_model_raster: &example_mapping_model_raster
-    type: tolteca.simu:SkyRasterScanModel
-    rot: 30. deg
-    length: 4. arcmin
-    space: 5. arcsec
-    n_scans: 24
-    speed: 30. arcsec/s
-    t_turnover: 5 s
-    target: 180d 0d
-    t0: 2020-04-12T00:00:00
-    # lst0: ...
-
-simu:
-  # this is the actual simulator
-  jobkey: example_simu
-  plot: true
-  instrument:
-    name: toltec
-    calobj: cal/calobj_default/index.yaml
-    select: 'array_name == "a1100"'
-  obs_params:
-    f_smp: 12.2 Hz  # the sample frequency
-    t_exp: 2 min    # the lenth of the exposure
-  sources:
-    - type: point_source_catalog
-      filepath: inputs/example_input.asc
-    # - type: image
-    #   filepath: example_input.fits
-    # - type: bkg
-    #   value: 1 pW
-  mapping: *example_mapping_model_raster
-  # mapping: *example_mapping_tel_nc
-```
-In addition, one must define an inputs directory and also populate the cal directory with the basic calibration objects.
-
-For the sources:
-```
-$ mkdir inputs && cd inputs
+# name ra dec flux_a1100 flux_a1400 flux_a2000
+  src0 180. 0. 50.  40. 30.
+  src1 180. 0.008333333333333333 5. 5. 5.
 ```
 
-inside the inputs directory create a source catalog 'example_input.asc':
-
-```
-# name ra dec flux_a1100 flux_a1400
-  src0 180. 0. 50.  40.
-  src1 180. 0.008333333333333333 5. 5.
-```
-
-Finally, for the calibration files, copy the appropriate directory to the cal directory.
+You can specify `calobj` as the index file of data products in the `toltec_calib`
+repo, or leave it blank. If now found, the built-in calibration object is used.
 
 ```
 $ cd ../cal
@@ -124,3 +84,14 @@ directory.
 
 The output files will be in a sub-dir named as the `jobkey` defined in the
 `60_simu.yaml` file.
+
+### Run reduce
+
+The reduce follows the same logic as running simulator. You'll need to do
+create YAML config file (e.g, 80_reduce.yaml in the example folder linked above).
+
+And to run the reduction:
+
+```
+$ tolteca reduce
+```
