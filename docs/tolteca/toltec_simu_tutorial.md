@@ -87,8 +87,14 @@ The output files will be in a sub-dir named as the `jobkey` defined in the
 
 ### Run reduce
 
-The reduce follows the same logic as running simulator. You'll need to do
-create YAML config file (e.g, 80_reduce.yaml in the example folder linked above).
+The reduce follows the same logic as running simulator.
+
+You'll need to do create YAML config file (e.g, 80_reduce.yaml in the example folder linked above).
+
+The actual data reduction is done by the pipeline engine, which is specified to be citlali in our case. To proceed, we need to make available the citlali executable to the tolteca, which can be done by symlinking the citlali executable to the `bin` dir:
+```
+$ ln -s /path/to/citlali/executable <workdir>/bin
+```
 
 And to run the reduction:
 
