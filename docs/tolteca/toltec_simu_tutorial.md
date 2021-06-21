@@ -54,12 +54,13 @@ https://github.com/toltec-astro/tolteca/tree/main/tolteca/data/examples
 
 
 To use the source catalog model, you'll need to create catalogs like this
-and specify the path in the YAML config file:
+and specify the path in the YAML config file (Make sure the source positions
+are within the range of the mapping pattern specified in the 60_simu.yaml):
 
 ```
 # name ra dec flux_a1100 flux_a1400 flux_a2000
-  src0 180. 0. 50.  40. 30.
-  src1 180. 0.008333333333333333 5. 5. 5.
+  src0 92. -7. 50.  40. 30.
+  src1 92. -7.008 100. 200. 300.
 ```
 
 You can specify `calobj` as the index file of data products in the `toltec_calib`
