@@ -92,10 +92,10 @@ class RuntimeContext(DirConfMixin):
         # we delay the validating of config to accessing time
         # in property ``config``
         self._config = config
-        if not self.is_persistent:
+        if not self.is_persistent and not self._config_has_setup(config):
             # when user provide config directly
             # it is likely that its not setup, therefore
-            # just do it here
+            # just do it here if not already
             self.setup()
 
     @property
@@ -268,6 +268,11 @@ class RuntimeContext(DirConfMixin):
         self.logger.debug(f"symlink {src} to {dst}")
         return dst
 
+    @staticmethod
+    def _config_has_setup(config):
+        """Return True if config has been setup."""
+        return isinstance(config, dict) and 'setup' in config
+
     def setup(self, config=None, overwrite=False):
         """Populate the setup file (50_setup.yaml).
 
@@ -288,13 +293,13 @@ class RuntimeContext(DirConfMixin):
             # use the unvalidated version here so we can setup for the
             # first time
             setup_cfg = self._config
-        if isinstance(setup_cfg, dict) and 'setup' in setup_cfg:
+        if self._config_has_setup(setup_cfg):
             if overwrite:
                 self.logger.debug(
                     "runtime context is already setup, overwrite")
             else:
                 raise RuntimeContextError(
-                        'runtime context is already setup'
+                        'runtime context is already setup, use overwrite=True to re-setup.'
                         )
         if config is None:
             config = dict()
