@@ -66,7 +66,7 @@ def _isf_toltec(cfg, cfg_rt):
 
     cfg = Schema({
         'name': 'toltec',
-        'calobj': Use(get_calobj),
+        Optional('calobj', default=get_calobj('')): Use(get_calobj),
         Optional('select', default=None): str
         }).validate(cfg)
 
@@ -296,7 +296,7 @@ class SimulatorRuntime(RuntimeContext):
                 'jobkey': str,
                 'instrument': {
                     'name': Or(*_instru_simu_factory.keys()),
-                    object: object
+                    Optional(object): object
                     },
                 'obs_params': {
                     'f_smp_mapping': Use(u.Quantity),
@@ -305,11 +305,11 @@ class SimulatorRuntime(RuntimeContext):
                     },
                 'sources': [{
                     'type': Or(*_simu_source_factory.keys()),
-                    object: object
+                    Optional(object): object
                     }],
                 'mapping': {
                     'type': Or(*_mapping_model_factory.keys()),
-                    object: object
+                    Optional(object): object
                     },
                 Optional('plot', default=False): bool,
                 Optional('save', default=False): bool,

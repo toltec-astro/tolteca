@@ -6,7 +6,7 @@ from pathlib import Path
 # import functools
 
 from astropy.wcs import WCS
-from astropy.coordinates import SkyCoord, ICRS, AltAz
+from astropy.coordinates import SkyCoord, ICRS, AltAz, Angle
 from astropy.coordinates.baseframe import frame_transform_graph
 from astropy.modeling import Model, Parameter
 import astropy.units as u
@@ -241,6 +241,16 @@ class SourceImageModel(SourceModel):
                     0)
             w_e, e_e = np.min(lon_e), np.max(lon_e)
             s_e, n_e = np.min(lat_e), np.max(lat_e)
+            # fix potential wrapping issue by check at 360 and 180 wrapping
+            w_e = Angle(w_e << u.deg).wrap_at(360. << u.deg).degree
+            e_e = Angle(e_e << u.deg).wrap_at(360. << u.deg).degree
+            w_e_180 = Angle(w_e << u.deg).wrap_at(180. << u.deg).degree
+            e_e_180 = Angle(e_e << u.deg).wrap_at(180. << u.deg).degree
+            # take the one with smaller size as the coordinte
+            if (e_e_180 - w_e_180) < (e_e - w_e):
+                w_e = w_e_180
+                e_e = e_e_180
+                self.logger.debug("re-wrapping coordinates at 180d")
             self.logger.debug(f"data bbox: w={w_e} e={e_e} s={s_e} n={n_e}")
 
             # mask to include in range lon lat
