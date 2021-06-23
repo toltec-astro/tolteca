@@ -241,15 +241,16 @@ class SourceImageModel(SourceModel):
                     np.array([0, 0, nx - 1, nx - 1]),
                     np.array([0, ny - 1, 0, ny - 1]),
                     0)
-            w_e, e_e = np.min(lon_e), np.max(lon_e)
-            s_e, n_e = np.min(lat_e), np.max(lat_e)
             # fix potential wrapping issue by check at 360 and 180 wrapping
-            w_e = Angle(w_e << u.deg).wrap_at(360. << u.deg).degree
-            e_e = Angle(e_e << u.deg).wrap_at(360. << u.deg).degree
-            w_e_180 = Angle(w_e << u.deg).wrap_at(180. << u.deg).degree
-            e_e_180 = Angle(e_e << u.deg).wrap_at(180. << u.deg).degree
+            lon_e = Angle(lon_e << u.deg).wrap_at(360. << u.deg).degree
+            lon_e_180 = Angle(lon_e << u.deg).wrap_at(180. << u.deg).degree
+
+            w_e, e_e = np.min(lon_e), np.max(lon_e)
+            w_e_180, e_e_180 = np.min(lon_e_180), np.max(lon_e_180)
+            s_e, n_e = np.min(lat_e), np.max(lat_e)
             # take the one with smaller size as the coordinte
             if (e_e_180 - w_e_180) < (e_e - w_e):
+                # use wrapping at 180.d
                 w_e = w_e_180
                 e_e = e_e_180
                 lon_m = Angle(lon_m << u.deg).wrap_at(180. << u.deg).degree
