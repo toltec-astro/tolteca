@@ -227,6 +227,8 @@ class SourceImageModel(SourceModel):
             wcsobj = WCS(d.header)
             s_out_unit = u.Unit(d.header.get('SIGUNIT', 'adu'))
             # check lon lat range
+            # because here we check longitude ranges
+            # we need to take into account wrapping issue
             lon_m = lon[m, :]
             lat_m = lat[m, :]
             # s_out_m = s_out[m, :]
@@ -250,6 +252,7 @@ class SourceImageModel(SourceModel):
             if (e_e_180 - w_e_180) < (e_e - w_e):
                 w_e = w_e_180
                 e_e = e_e_180
+                lon_m = Angle(lon_m << u.deg).wrap_at(180. << u.deg).degree
                 self.logger.debug("re-wrapping coordinates at 180d")
             self.logger.debug(f"data bbox: w={w_e} e={e_e} s={s_e} n={n_e}")
 
