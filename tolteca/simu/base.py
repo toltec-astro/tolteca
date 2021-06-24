@@ -281,8 +281,9 @@ class SourceImageModel(SourceModel):
             #         lon[m, :].ravel(), lat[m, :].ravel(), 0)
             # g = (x >= 0) & (y < imshape[0]) & (jj >=0) & (jj < imshape[1])
             # import matplotlib.pyplot as plt
-            # fig, ax = plt.subplots(1, 1)
+            # fig, ax = plt.subplots(1, 1, figsize=(10, 10))
             # ax.scatter(ii, jj, c=d.data[ii, jj])
+            # ax.set_aspect('equal')
             # plt.show()
             ig, jg = np.where(g)
             s_out[np.flatnonzero(m)[ig], jg] = d.data[ii, jj] << s_out_unit
