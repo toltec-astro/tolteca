@@ -1,21 +1,40 @@
 from astropy.wcs import WCS
 from astropy.io import fits
 from astropy import units as u
+from astropy.convolution import Gaussian2DKernel
+from astropy.convolution import convolve
+
 import numpy as np
 from datetime import datetime
 
-class sim_fits:
+class toltec_beams():
+    """
+    This class creates astropy kernels for the convolution of the images with
+    the TolTEC beams.  Inherited by sim_fits.
+    """
+    def __init__(self):
+        self.toltec_fwhm = np.array([5.0, 6.3, 9.5]) # arcsec
+        self.toltec_stddev = self.toltec_fwhm/(2.0*np.sqrt(2.*np.log(2)))
+        
+        self.kernels = []
+        
+        self.kernels.append(Gaussian2DKernel(x_stddev=self.toltec_stddev[0],
+                                            y_stddev=self.toltec_stddev[0]))
+        self.kernels.append(Gaussian2DKernel(x_stddev=self.toltec_stddev[1],
+                                            y_stddev=self.toltec_stddev[1]))
+        self.kernels.append(Gaussian2DKernel(x_stddev=self.toltec_stddev[2],
+                                             y_stddev=self.toltec_stddev[2]))
+
+
+class sim_fits(toltec_beams):
     def __init__(self):
         """
         This class creates an hdulist for the TolTEC Simulation pipeline from
         a set of input images and a WCS object, thereby allowing users to run
         their own images through the TolTEC simulator.
-
-
         Returns
         -------
         None.
-
         """
         self.arr_names = ['a1100', 'a1400', 'a2000']
         self.w = [1100.0, 1400.0, 2000.0] # micrometers
@@ -29,7 +48,6 @@ class sim_fits:
         """
         Checks if input images are in a list and if there are 9 images.
         Also checks if pixel scale is 1 arcsecond.
-
         """
         
         valid = True
@@ -53,28 +71,20 @@ class sim_fits:
             valid = False
 
         return valid
-
-    def generate_fits(self, imgs, wcs, **kwargs):
-
-        """
+    
+    def generate_fits(self, imgs, wcs, convolve_img=True, **kwargs):
+        '''
         This function will generate a PrimaryHDU with a header containing the
         input WCS information and other general meta data.
-
         The HDU list contains 9 ImageHDU extensions for each array and
         polarization.  It can be accessed from the method self.hdul.
-
         Users can add comments or additional fields to the headers though
         they will not be used in the simulation software.
-
         BANDPASSES SHOULD BE APPLIED PRIOR TO GENERATING THE FITS FILE.
-
-        CONVOLUTION WITH TOLTEC BEAMS WILL BE APPLIED IN SIMULATOR AND SHOULD
-        NOT BE APPLIED BEFORE.
         
         INPUT IMAGE ARRAYS SHOULD BE 10 ARCSECONDS LARGER ON EACH SIDE THAN
         THE FINAL INTENDED MAP TO BE OUTPUT FROM CITLALI DUE TO BEAM 
         CONVOLUTION.
-
         Parameters
         ----------
         imgs : list of 2D arrays
@@ -89,14 +99,27 @@ class sim_fits:
             Standard Astropy WCS object for coordinates.
             Pixel scale must be 1 arcsecond.
             Coordinates must be specified in the ICRS system.
-
+        convolve_img: Set to true to create second hdulist 
+                    (self.convolved_hdul) for images convolved with TolTEC
+                    beams.  Unconvolved hdu list is stored under self.raw_hdul
         **kwargs : Add an optional header keyword and value.
-
         Returns
         -------
         None.
+        '''
+        
+        print('Creating unconvolved Images (self.raw_hdul)')
+        self.raw_hdul = self.setup_hdul(imgs, wcs, **kwargs)
+        
+        # Check if convolved image is requested
+        if convolve_img == True:
+            print('Creating Convolved Images (self.convolved_hdul)')
+            convolved_imgs = self.convolve_with_beam(imgs)
+            self.convolved_hdul = self.setup_hdul(convolved_imgs, wcs,
+                                                 **kwargs)
+        
 
-        """
+    def setup_hdul(self, imgs, wcs, **kwargs):
 
         check = self.fits_validator(imgs, wcs)
 
@@ -153,14 +176,26 @@ class sim_fits:
                     elif imgs[layer-1] == None:
                         print('No image for ' + name + '...skipping...')
                         self.hdul[layer].data = imgs[layer-1]
-                        #self.hdul[layer].header['NAXIS'] = 0
-                        #self.hdul[layer].header['NAXIS1'] = 0
-                        #self.hdul[layer].header['NAXIS2'] = 0
 
                     layer += 1
                     pi += 1
                 wi += 1
-
+        return self.hdul
+    
+    def convolve_with_beam(self, imgs):
+        #T = toltec_beams()
+        convolved_imgs = []
+        w = 0
+        j = 0
+        for i in range(len(imgs)):
+            if imgs[i] is not None:
+                convolved_imgs.append(convolve(imgs[i], toltec_beams().kernels[j]))
+            if w == 2 :
+                j = j + 1
+                w = 0
+            else:
+                w = w +1
+        return convolved_imgs
 
 if __name__ == "__main__":
 
@@ -196,8 +231,10 @@ if __name__ == "__main__":
     header = wcs_dict.to_header(relax=True)
 
     sf = sim_fits()
-    sf.generate_fits(imgs=imgs, wcs=wcs_dict)
-
-    # sf.hdul.writeto('/Users/mmccrackan/toltec/temp/simu_input_example',
+    sf.generate_fits(imgs=imgs, wcs=wcs_dict, convolve_img=True)
+    
+    # sf.raw_hdul.writeto('/Users/mmccrackan/toltec/temp/simu_input_example',
                     # output_verify='exception', overwrite=True, checksum=False)
-    sf.hdul.close()
+
+    # sf.convolved_hdul.writeto('/Users/mmccrackan/toltec/temp/simu_input_example',
+                    # output_verify='exception', overwrite=True, checksum=False)
