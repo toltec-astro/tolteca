@@ -241,6 +241,8 @@ class SourceImageModel(SourceModel):
                     np.array([0, 0, nx - 1, nx - 1]),
                     np.array([0, ny - 1, 0, ny - 1]),
                     0)
+            xx, yy = wcsobj.wcs_world2pix(lon_e, lat_e, 0)
+            print(xx, yy)
             # fix potential wrapping issue by check at 360 and 180 wrapping
             lon_e = Angle(lon_e << u.deg).wrap_at(360. << u.deg).degree
             lon_e_180 = Angle(lon_e << u.deg).wrap_at(180. << u.deg).degree
@@ -256,11 +258,12 @@ class SourceImageModel(SourceModel):
                 lon_m = Angle(lon_m << u.deg).wrap_at(180. << u.deg).degree
                 self.logger.debug("re-wrapping coordinates at 180d")
             self.logger.debug(f"data bbox: w={w_e} e={e_e} s={s_e} n={n_e}")
+            self.logger.debug(f'data shape: {d.data.shape}')
 
             # mask to include in range lon lat
             g = (
-                    (lon_m >= w_e) & (lon_m <= e_e)
-                    & (lat_m >= s_e) & (lat_m <= n_e)
+                    (lon_m > w_e) & (lon_m < e_e)
+                    & (lat_m > s_e) & (lat_m < n_e)
                     )
             self.logger.debug(f"data mask {g.sum()}/{lon_m.size}")
             if g.sum() == 0:
@@ -271,6 +274,17 @@ class SourceImageModel(SourceModel):
             jj = np.rint(x_g).astype(int)
             self.logger.debug(
                     f"pixel range: [{ii.min()}, {ii.max()}] "
+                    f"[{jj.min()}, {jj.max()}]")
+            # check ii and jj for valid pixel range
+            gp = (ii >= 0) & (ii < ny) & (jj >= 0) & (jj < nx)
+            # update g to include only valid pixels
+            g[g] = gp
+            # convert all lon lat to x y
+            x_g, y_g = wcsobj.wcs_world2pix(lon_m[g], lat_m[g], 0)
+            ii = np.rint(y_g).astype(int)
+            jj = np.rint(x_g).astype(int)
+            self.logger.debug(
+                    f"pixel range updated: [{ii.min()}, {ii.max()}] "
                     f"[{jj.min()}, {jj.max()}]")
             # take values in data
             # ii, jj = np.meshgrid(
