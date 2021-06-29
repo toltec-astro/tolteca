@@ -7,6 +7,14 @@ A package for analyzing TolTEC data
 
 TolTECA is a package for analyzing TolTEC data.
 
+Following the development HEAD
+------------------------------
+
+TolTECA is in its alpha version and some of the APIs are not stable. Please see
+
+https://github.com/toltec-astro/tolteca/wiki/Following-the-Development-HEAD
+
+for more info.
 
 Install
 -------
