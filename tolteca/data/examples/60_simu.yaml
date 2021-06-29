@@ -66,9 +66,6 @@ simu:
         name: name
     - type: toltec_array_loading
       atm_model_name: 'am_q25'  # choose from ['am_q25', 'am_q50', 'am_q75']
-    # - type: atmosphere_psd
-    #   k: some string
-    #   m: 2
     # - type: image
     #   filepath: toltec_simfits_guter_test2.fits
     #   grouping: 'array_name'
@@ -76,8 +73,6 @@ simu:
     #       a1100: 'A1100_I'
     #       a1400: 'A1400_I'
     #       a2000: 'A2000_I'
-    # - type: bkg
-    #    value: 1 pW
   mapping: *example_mapping_model_raster
   # mapping: *example_mapping_model_lissajous
   # mapping: *example_mapping_tel_nc
