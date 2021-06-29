@@ -24,10 +24,11 @@ def _fix_apt(source):
     tbl_new = Table()
     tbl_new['nw'] = np.array(tbl['nw'], dtype='d')
     tbl_new['array'] = np.array(tbl['array'], dtype='d')
+    tbl_new['flxscale'] = np.array(tbl['flxscale'], dtype='d')
     tbl_new['x_t'] = tbl['x_t'].quantity.to_value(u.deg)
     tbl_new['y_t'] = tbl['y_t'].quantity.to_value(u.deg)
     source_new = source.replace('.ecsv', '_trimmed.ecsv')
-    tbl_new.write(source_new, format='ascii.ecsv')
+    tbl_new.write(source_new, format='ascii.ecsv', overwrite=True)
     return source_new
 
 
