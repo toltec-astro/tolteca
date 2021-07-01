@@ -312,7 +312,7 @@ class SimulatorRuntime(RuntimeContext):
                     Optional(object): object
                     },
                 Optional('plot', default=False): bool,
-                Optional('save', default=False): bool,
+                Optional('save', default=True): bool,
                 Optional('mapping_only', default=False): bool,
                 Optional('perf_params', default={
                         # TODO refactor here to not repeat
