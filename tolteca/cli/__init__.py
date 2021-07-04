@@ -50,7 +50,7 @@ def main(args=None):
             metavar='FILE',
             default=[config_default, ])
     parser.add_argument(
-            '--env_files', '-e',
+            '-e', '--env_files',
             metavar='ENV_FILE', nargs='*',
             help='Path to systemd env file.')
     parser.add_argument(

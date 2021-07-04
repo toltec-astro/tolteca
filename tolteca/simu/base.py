@@ -242,7 +242,6 @@ class SourceImageModel(SourceModel):
                     np.array([0, ny - 1, 0, ny - 1]),
                     0)
             xx, yy = wcsobj.wcs_world2pix(lon_e, lat_e, 0)
-            print(xx, yy)
             # fix potential wrapping issue by check at 360 and 180 wrapping
             lon_e = Angle(lon_e << u.deg).wrap_at(360. << u.deg).degree
             lon_e_180 = Angle(lon_e << u.deg).wrap_at(180. << u.deg).degree
