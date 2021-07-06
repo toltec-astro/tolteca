@@ -36,12 +36,12 @@ To setup working directory,
 
 ```
 $ mkdir test_simu && cd test_simu
-$ tolteca setup
+$ tolteca setup .
 ```
 
-This will populate the `test_simu` folder with sub-dirs like `bin`, `cal`,
-`log`, and most importantly, a YAML file named `50_setup.yaml` in the
-directory.
+This will populate the current dir `.`, i.e., the just created `test_simu`
+folder with sub-dirs like `bin`, `cal`, `log`, and most importantly, a
+YAML file named `50_setup.yaml` in the directory.
 
 All files match the pattern `[0-9]*.yaml` in the working directory are
 recognized as configuration files, that will be loaded as part of the runtime
