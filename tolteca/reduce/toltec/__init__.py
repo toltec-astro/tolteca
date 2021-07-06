@@ -74,6 +74,53 @@ class Citlali(PipelineEngine):
         return version
 
     @classmethod
+    def _get_citlali_remote_version(
+            cls, citlali_path, return_changelog_since=None):
+
+        def get_git_revision_short_hash(branch=None, cwd=None):
+            cmd = ['git', 'rev-parse', '--short']
+            if branch is not None:
+                cmd.append(branch)
+            short_hash = subprocess.check_output(cmd, cwd=cwd).decode().strip()
+            return short_hash
+
+        def get_git_changelog(v1, v2, cwd=None):
+            def norm_rev(v):
+                print(v)
+                return v.replace('-dirty', '')
+            v1, v2 = map(norm_rev, [v1, v2])
+            cmd = ['git', 'log', '--oneline', f'{v1}..{v2}']
+            changelog = subprocess.check_output(cmd, cwd=cwd).decode().strip()
+            if changelog == '':
+                # same revision
+                changelog = None
+            return changelog
+
+        # resolve git cwd
+        citlali_path = Path(citlali_path)
+        if citlali_path.name == 'citlali' and not citlali_path.is_dir():
+            # TODO this is just hack
+            # we need a exec mode that report the repo path
+            citlali_path = citlali_path.resolve().parent.parent
+        elif citlali_path.is_dir():
+            pass
+        else:
+            raise ValueError(f'invalid citlali path {citlali_path}')
+        remote_version = get_git_revision_short_hash(
+                branch='origin/sim_dev',
+                cwd=citlali_path
+                )
+
+        if return_changelog_since is None:
+            return remote_version
+        # get change log
+        changelog = get_git_changelog(
+                return_changelog_since, remote_version,
+                cwd=citlali_path,
+                ).strip()
+        return remote_version, changelog
+
+    @classmethod
     def _get_citlali_cmd(cls, binpath=None, version_specifiers=None):
         """Get the citlali executable."""
         logger = get_logger()
@@ -96,6 +143,23 @@ class Citlali(PipelineEngine):
                     f", found {version}")
         logger.debug(pformat_yaml(
             {'citlali': {'path': citlali_cmd, 'version': version}}))
+        # check citlali version on the github repo
+        try:
+            remote_version, changelog = cls._get_citlali_remote_version(
+                citlali_path=citlali_cmd, return_changelog_since=version)
+            # warning if there is new version
+            if changelog is not None:
+                logger.warning(
+                    f"you are using an outdated version of citlali {version}."
+                    f" Please update to the latest version {remote_version},"
+                    f" which has the following changes:\n"
+                    f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
+                    f"{changelog}\n"
+                    f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                    )
+        except Exception as e:
+            logger.info(f"unable to check latest citlali version: {e}")
+
         return citlali_cmd
 
     def __repr__(self):
