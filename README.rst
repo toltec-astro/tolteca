@@ -39,6 +39,10 @@ easily.
     $ cd ../tolteca
     $ pip install -e .
 
+Note that :code:`pip install` by default will install the packages to `/usr/local` which may
+not be writable for users without using `sudo` (which is not recommended). In this case,
+use :code:`pip install --user -e .` instead to install the packages.
+
 The packages `tollan`, `kidsproc`, and `tolteca` are under active development.
 It is recommended that you frequently do `git pull` in the repositories to
 update all of them.
