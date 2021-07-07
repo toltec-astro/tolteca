@@ -1302,7 +1302,7 @@ def getCelestialPlots(sim, obs, d, units,
     )
 
     cfig.update_xaxes(title_text="Ra [Deg]",
-                      automargin=True, range=range)
+                      automargin=True, autorange='reversed')
     cfig.update_yaxes(title_text="Dec [Deg]",
                       scaleanchor="x", scaleratio=1,
                       automargin=True)
@@ -1363,7 +1363,7 @@ def getCelestialPlots(sim, obs, d, units,
     )
     tfig.update_xaxes(title_text="Ra [deg]",
                       automargin=True,
-                      range=range)
+                      autorange='reversed')
     tfig.update_yaxes(title_text="Dec [deg]",
                       scaleanchor="x", scaleratio=1,
                       automargin=True)
