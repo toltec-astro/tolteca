@@ -1292,8 +1292,9 @@ class ToltecObsSimulator(object):
                         s_additive.append(s)
                 if len(s_additive) <= 0:
                     raise ValueError("no additive source found in source list")
-                s = functools.reduce(np.sum, s_additive)
-
+                s = s_additive[0]
+                for _s in s_additive[1:]:
+                    s += _s
                 return s, locals()
         yield evaluate
 
