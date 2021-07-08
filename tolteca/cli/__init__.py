@@ -2,7 +2,7 @@
 
 import sys
 
-from ..utils import get_pkg_data_path
+from ..utils import get_pkg_data_path, get_user_data_dir
 from .. import version
 from tollan.utils.log import init_log, get_logger
 from tollan.utils.cli.multi_action_argparser import \
@@ -10,12 +10,14 @@ from tollan.utils.cli.multi_action_argparser import \
 from tollan.utils.sys import parse_systemd_envfile
 from tollan.utils import rupdate
 from tollan.utils.fmt import pformat_yaml
-import yaml
+from astropy.io.misc import yaml
 import os
+import shlex
 from wrapt import ObjectProxy
+from pathlib import Path
 
 
-__all__ = ['main_parser', 'main']
+__all__ = ['main_parser', 'config', 'main']
 
 
 main_parser = ObjectProxy(None)
@@ -29,13 +31,76 @@ This can be used to register subcommands.
 
 """
 
+config = ObjectProxy(None)
+"""
+A proxy to the loaded config YAML dict when running in CLI mode.
+
+"""
+
+
+def _load_config_from_file(filepath, schema=None):
+    empty = dict()
+    if filepath.exists():
+        with open(filepath, 'r') as fo:
+            cfg = yaml.load(fo)
+        if cfg is None:
+            cfg = empty
+    else:
+        cfg = empty
+    if schema is None:
+        return cfg
+    return schema.validate(cfg)
+
+
+def load_config_from_files(
+        paths=None,
+        load_sys_config=True, load_user_config=True):
+    """Load config from files.
+
+    Parameters
+    ----------
+    filepaths : list, optional
+        The paths of the YAML config files to load.
+    load_sys_config : bool
+        If True, load the system wide tolteca.yaml in the package data.
+    load_app_config : bool
+        If True, load the tolteca.yaml in the user app directory.
+    """
+    _paths = list()
+    sys_config_path = get_pkg_data_path().joinpath("tolteca.yaml")
+    user_config_path = get_user_data_dir().joinpath("tolteca.yaml")
+    if load_sys_config:
+        _paths.append(sys_config_path)
+    if load_user_config:
+        _paths.append(user_config_path)
+    if paths is not None:
+        for p in paths:
+            _paths.append(Path(p))
+    cfg = dict()
+    for p in _paths:
+        rupdate(cfg, _load_config_from_file(p))
+    # add some runtime info
+    rupdate(cfg, {
+        'runtime': {
+            'config_info': {
+                'sources': _paths,
+                'sys_config_path': sys_config_path,
+                'user_config_path': user_config_path,
+                'sys_config_loaded': (
+                    load_sys_config and sys_config_path.exists()),
+                'user_config_loaded': (
+                    load_user_config and user_config_path.exists()),
+                }
+            }
+        })
+    return cfg
+
 
 def main(args=None):
     """The CLI entry point."""
 
     prog_name = 'TolTECA'
     prog_desc = 'TolTEC Data Analysis All-in-one!'
-    config_default = get_pkg_data_path().joinpath("tolteca.yaml")
 
     parser = main_parser.__wrapped__ = MultiActionArgumentParser(
             description=f"{prog_name} v{version.version}"
@@ -45,17 +110,24 @@ def main(args=None):
     parser.add_argument(
             "-c", "--config",
             nargs='+',
-            help="The path to the config file(s). "
-                 "Multiple config files are merged in order.",
+            help="The path to additional YAML config file(s) for tolteca. "
+                 "By default, the sys config and user config are loaded, "
+                 "which can be disabled by the switch -n",
             metavar='FILE',
-            default=[config_default, ])
+            )
+    parser.add_argument(
+            "-n", "--no_persistent_config",
+            help="If set, skip loading the sys config and user config.",
+            action='store_true',
+            )
     parser.add_argument(
             '-e', '--env_files',
             metavar='ENV_FILE', nargs='*',
-            help='Path to systemd env file.')
+            help='Path to systemd env file. '
+                 'Multiple files are merged in order')
     parser.add_argument(
             "-q", "--quiet",
-            help="Suppress debug logs.",
+            help="Suppress debug logging messages.",
             action='store_true')
     parser.add_argument(
             '-v', '--version', action='store_true',
@@ -63,6 +135,7 @@ def main(args=None):
             )
 
     # import subcommand modules:
+    from .check import cmd_check  # noqa: F401
     from .db import cmd_migrate  # noqa: F401
     from .run import cmd_run  # noqa: F401
     from .setup import cmd_setup  # noqa: F401
@@ -85,23 +158,33 @@ def main(args=None):
         sys.exit(0)
 
     # load config
-    _config = None
-    for c in option.config:
-        with open(c, 'r') as fo:
-            if _config is None:
-                _config = yaml.safe_load(fo)
-            else:
-                rupdate(_config, yaml.safe_load(fo))
-    option.config = _config
+    cfg_kwargs = dict(load_sys_config=True, load_user_config=True)
+    if option.no_persistent_config:
+        cfg_kwargs.update(load_sys_config=False, load_user_config=False)
+    cfg = option.config = config.__wrapped__ = load_config_from_files(
+            paths=option.config, **cfg_kwargs)
 
     # load env
-    envs = dict()
+    # this will combine the env defined with the config and those
+    # provided with the --env-files.
+    env = option.env = cfg.get('env', dict())
     for path in option.env_files or tuple():
-        envs.update(parse_systemd_envfile(path))
-    if len(envs) > 0:
-        logger.debug(f"loaded envs:\n{pformat_yaml(envs)}")
-    for k, v in envs.items():
+        env.update(parse_systemd_envfile(path))
+    if len(env) > 0:
+        logger.debug(f"loaded env:\n{pformat_yaml(env)}")
+    # add the env to the system env
+    for k, v in env.items():
         os.environ[k] = v or ''
+    # update the runtime with some more info
+    rupdate(
+            cfg, {
+                'runtime': {
+                    'env': env,
+                    'exec_path': sys.argv[0],
+                    'cmd': shlex.join(sys.argv),
+                    'version': version.version,
+                    }
+                })
 
     # handle subcommands
     parser.bootstrap_actions(option, unknown_args=unknown_args)
