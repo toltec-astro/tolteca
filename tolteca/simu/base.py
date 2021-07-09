@@ -722,6 +722,85 @@ class LissajousModelMeta(SkyMapModel.__class__):
         return inst
 
 
+class DoubleLissajousModelMeta(SkyMapModel.__class__):
+    """A meta class that defines a Double Lissajous scan pattern.
+
+    """
+
+    def __new__(meta, name, bases, attrs):
+        frame = attrs['frame']
+        frame_unit = frame.unit[0]
+
+        attrs.update(dict(
+            frame_unit=frame_unit,
+            x_length_0=Parameter(default=10., unit=frame_unit),
+            y_length_0=Parameter(default=10., unit=frame_unit),
+            x_omega_0=Parameter(default=1. * u.rad / u.s),
+            y_omega_0=Parameter(default=1. * u.rad / u.s),
+            delta_0=Parameter(default=0., unit=u.rad),
+            x_length_1=Parameter(default=5., unit=frame_unit),
+            y_length_1=Parameter(default=5., unit=frame_unit),
+            x_omega_1=Parameter(default=1. * u.rad / u.s),
+            y_omega_1=Parameter(default=1. * u.rad / u.s),
+            delta_1=Parameter(default=0., unit=u.rad),
+            delta=Parameter(default=0., unit=u.rad),
+            rot=Parameter(default=0., unit=u.deg),
+            pattern='double_lissajous',
+                ))
+
+        def get_total_time(self):
+            # make the total time the longer one among the two
+            def _get_total_time(x_omega, y_omega):
+                t_x = 2 * np.pi * u.rad / x_omega
+                t_y = 2 * np.pi * u.rad / y_omega
+                r = (t_y / t_x).to_value(u.dimensionless_unscaled)
+                s = 100
+                r = np.lcm(int(r * s), s) / s
+                return (t_x * r).to(u.s)
+            t0 = _get_total_time(self.x_omega_0, self.y_omega_0)
+            t1 = _get_total_time(self.x_omega_1, self.y_omega_1)
+            return t0 if t0 > t1 else t1
+
+        attrs['get_total_time'] = get_total_time
+
+        @timeit(name)
+        def evaluate(
+                self, t,
+                x_length_0, y_length_0, x_omega_0, y_omega_0, delta_0,
+                x_length_1, y_length_1, x_omega_1, y_omega_1, delta_1,
+                delta, rot):
+            """This computes a double lissajous pattern around the origin.
+
+            """
+            t = np.asarray(t) * t.unit
+
+            x_0 = x_length_0 * 0.5 * np.sin(x_omega_0 * t + delta + delta_0)
+            y_0 = y_length_0 * 0.5 * np.sin(y_omega_0 * t + delta)
+            x_1 = x_length_1 * 0.5 * np.sin(x_omega_1 * t + delta_1)
+            y_1 = y_length_1 * 0.5 * np.sin(y_omega_1 * t)
+
+            x = x_0 + x_1
+            y = y_0 + y_1
+
+            m_rot = models.AffineTransformation2D(
+                models.Rotation2D._compute_matrix(
+                    angle=rot.to_value('rad')) * self.frame_unit,
+                translation=(0., 0.) * self.frame_unit)
+            xx, yy = m_rot(x, y)
+            return xx, yy
+
+        attrs['evaluate'] = evaluate
+        attrs['evaluate_holdflag'] = \
+            lambda self, t: np.zeros(t.shape, dtype=bool)
+        return super().__new__(meta, name, bases, attrs)
+
+    def __call__(cls, *args, **kwargs):
+        inst = super().__call__(*args, **kwargs)
+        inst.inputs = ('t', )
+        inst.outputs = cls.frame.axes_names
+        return inst
+
+
 class TrajectoryModelMeta(SkyMapModel.__class__):
     """A meta class that defines a trajectory.
 
@@ -793,6 +872,12 @@ class SkyRasterScanModel(SkyMapModel, metaclass=RasterScanModelMeta):
 
 
 class SkyLissajousModel(SkyMapModel, metaclass=LissajousModelMeta):
+    frame = cf.Frame2D(
+            name='skyoffset', axes_names=('lon', 'lat'),
+            unit=(u.deg, u.deg))
+
+
+class SkyDoubleLissajousModel(SkyMapModel, metaclass=DoubleLissajousModelMeta):
     frame = cf.Frame2D(
             name='skyoffset', axes_names=('lon', 'lat'),
             unit=(u.deg, u.deg))

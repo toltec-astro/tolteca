@@ -32,6 +32,23 @@ _60_simu:
     target: 92d -7d
     t0: 2020-04-12T00:00:00
     ref_frame: altaz
+  example_mapping_model_double_lissajous: &example_mapping_model_double_lissajous
+    type: tolteca.simu:SkyDoubleLissajousModel
+    rot: 0. deg
+    delta: 45 deg  # the phase difference
+    x_length_0: 5. arcmin
+    y_length_0: 5. arcmin
+    x_omega_0: 0.25 cy/s  # or 0.157 rad/s
+    y_omega_0: 0.27 cy/s
+    delta_0: 60 deg
+    x_length_1: 2 arcmin
+    y_length_1: 2 arcmin
+    x_omega_1: 0.15 cy/s  # or 0.157 rad/s
+    y_omega_1: 0.17 cy/s
+    delta_1: 30 deg
+    target: 92d -7d
+    t0: 2020-04-12T00:00:00
+    ref_frame: altaz
 
 simu:
   jobkey: example_simu
@@ -75,4 +92,5 @@ simu:
     #       a2000: 'A2000_I'
   mapping: *example_mapping_model_raster
   # mapping: *example_mapping_model_lissajous
+  # mapping: *example_mapping_model_double_lissajous
   # mapping: *example_mapping_tel_nc
