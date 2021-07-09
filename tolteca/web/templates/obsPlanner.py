@@ -1183,7 +1183,7 @@ def getCelestialPlots(sim, obs, d, units,
     cimage, cra, cdec = fetchConvolved(wcs, bimage, aimage, pixSize,
                                        obs['t_exp'], d.fwhmArcsec)
 
-    # update the wcs with the new image informtaion
+    # update the wcs with the new image information
     wcs_dict = wcs_input_dict.copy()
     wcs_dict['NAXIS1'] = cimage.shape[0]
     wcs_dict['NAXIS2'] = cimage.shape[1]
