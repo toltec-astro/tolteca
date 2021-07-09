@@ -27,21 +27,7 @@ def _ipf_citlali(cfg, cfg_rt):
 
     logger = get_logger()
 
-    from ..cal import ToltecCalib
     from .toltec import Citlali
-
-    path_validator = create_relpath_validator(cfg_rt['rootpath'])
-
-    def get_calobj(p):
-        try:
-            return ToltecCalib.from_indexfile(path_validator(p))
-        except Exception:
-            logger.debug(
-                    'invalid calibration object index file path,'
-                    ' fallback to default')
-            default_cal_indexfile = get_pkg_data_path().joinpath(
-                    'cal/toltec_default/index.yaml')
-            return ToltecCalib.from_indexfile(default_cal_indexfile)
 
     cfg = Schema({
         'name': 'citlali',
@@ -80,7 +66,7 @@ class PipelineRuntime(RuntimeContext):
                     Optional(object): object
                     }],
                 # 'calobj': str,
-                Optional('select', default=None): str
+                # Optional('select', default=None): str
                 },
             }
 

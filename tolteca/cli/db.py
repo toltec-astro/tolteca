@@ -1,9 +1,50 @@
 #! /usr/bin/env python
 
 from tollan.utils.log import get_logger
-from . import main_parser
+from . import main_parser, config
+from .check import register_cli_checker
 from pathlib import Path
 from tollan.utils.db import SqlaDB
+from schema import Schema
+
+
+@register_cli_checker('db')
+def check_db(result):
+    logger = get_logger()
+    schema = Schema({
+            'db': {
+                str: {
+                    'uri': str
+                    }
+                },
+            },
+            ignore_extra_keys=True
+            )
+
+    add_db_instruction = False
+    try:
+        db_cfg = schema.validate(config.__wrapped__)['db']
+        n_dbs = len(db_cfg)
+        if n_dbs > 0:
+            result.add_line('ok', f' Loaded {len(db_cfg)} database entries')
+        else:
+            result.add_line('info', 'No database entry found in config')
+            add_db_instruction = True
+    except Exception as e:
+        logger.debug(f'{e}', exc_info=True)
+        result.add_line(
+            'error',
+            f'Invalid database config ({e}), please check the config files.')
+        add_db_instruction = True
+    if add_db_instruction:
+        result.add_line(
+            'note',
+            'Valid database is required to manage data products. '
+            'To setup, add in the config file with key "db" and '
+            'value like: {"<name>": {"uri": "<sqla_engine_url>"}} '
+            'where the engine URL follows the convention of '
+            'SQLAlchemy: https://docs.sqlalchemy.org/en/14/core/engines.html')
+    return result
 
 
 @main_parser.register_action_parser(

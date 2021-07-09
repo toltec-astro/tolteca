@@ -5,7 +5,7 @@ from tollan.utils import rupdate
 from tollan.utils.registry import Registry, register_to
 from tollan.utils.fmt import pformat_yaml
 from tollan.utils.schema import create_relpath_validator
-from tollan.utils.log import get_logger, logit, timeit
+from tollan.utils.log import get_logger, logit, timeit, log_to_file
 from tollan.utils.nc import ncopen, ncinfo
 from tollan.utils.namespace import Namespace
 
@@ -21,6 +21,8 @@ from astropy.table import Table
 from astropy.time import Time
 import astropy.units as u
 from astroquery.utils import parse_coordinates
+from astroquery.exceptions import InputWarning
+import warnings
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
@@ -32,6 +34,7 @@ from ..utils import RuntimeContext, RuntimeContextError, get_pkg_data_path
 from .base import (
         SkyRasterScanModel,
         SkyLissajousModel,
+        SkyDoubleLissajousModel,
         resolve_sky_map_ref_frame)  # noqa: F401
 
 
@@ -66,7 +69,7 @@ def _isf_toltec(cfg, cfg_rt):
 
     cfg = Schema({
         'name': 'toltec',
-        'calobj': Use(get_calobj),
+        Optional('calobj', default=get_calobj('')): Use(get_calobj),
         Optional('select', default=None): str
         }).validate(cfg)
 
@@ -253,13 +256,16 @@ def _register_mapping_model_factory(clspath):
 
         # TODO add inspect to the cls constructor to find out the necessary
         # conversion of values
-        cfg = Schema({
-            'type': Use(getobj),
-            'target': Use(parse_coordinates),
-            'ref_frame': Use(_get_frame_class),
-            't0': Use(Time),
-            object: object,
-            }).validate(cfg)
+        # ignore coordinte warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', InputWarning)
+            cfg = Schema({
+                'type': Use(getobj),
+                'target': Use(parse_coordinates),
+                'ref_frame': Use(_get_frame_class),
+                't0': Use(Time),
+                object: object,
+                }).validate(cfg)
 
         logger.debug(f"mapping model config: {cfg}")
 
@@ -278,6 +284,7 @@ def _register_mapping_model_factory(clspath):
 
 _register_mapping_model_factory('tolteca.simu:SkyRasterScanModel')
 _register_mapping_model_factory('tolteca.simu:SkyLissajousModel')
+_register_mapping_model_factory('tolteca.simu:SkyDoubleLissajousModel')
 
 
 class SimulatorRuntimeError(RuntimeContextError):
@@ -296,7 +303,7 @@ class SimulatorRuntime(RuntimeContext):
                 'jobkey': str,
                 'instrument': {
                     'name': Or(*_instru_simu_factory.keys()),
-                    object: object
+                    Optional(object): object
                     },
                 'obs_params': {
                     'f_smp_mapping': Use(u.Quantity),
@@ -305,14 +312,14 @@ class SimulatorRuntime(RuntimeContext):
                     },
                 'sources': [{
                     'type': Or(*_simu_source_factory.keys()),
-                    object: object
+                    Optional(object): object
                     }],
                 'mapping': {
                     'type': Or(*_mapping_model_factory.keys()),
-                    object: object
+                    Optional(object): object
                     },
                 Optional('plot', default=False): bool,
-                Optional('save', default=False): bool,
+                Optional('save', default=True): bool,
                 Optional('mapping_only', default=False): bool,
                 Optional('perf_params', default={
                         # TODO refactor here to not repeat
@@ -395,13 +402,14 @@ class SimulatorRuntime(RuntimeContext):
         `SimulatorResult` : The result context containing the simulated data.
         """
         cfg = self.config['simu']
+        self.logger.info(f'simulator config:\n{pformat_yaml(cfg)}')
         simobj = self.get_instrument_simulator()
         obs_params = self.get_obs_params()
 
         self.logger.debug(
                 pformat_yaml({
                     'simobj': simobj,
-                    'obsparams': obs_params,
+                    'obs_params': obs_params,
                     }))
 
         # resolve mapping
@@ -443,9 +451,9 @@ class SimulatorRuntime(RuntimeContext):
             n_times = len(t)
             n_chunks = n_times // n_times_per_chunk + bool(
                     n_times % n_times_per_chunk)
-            self.logger.debug(
-                    f"n_times_per_chunk={n_times_per_chunk} n_times={len(t)} "
-                    f"n_chunks={n_chunks}")
+            self.logger.info(
+                    f"simulate with n_times_per_chunk={n_times_per_chunk}"
+                    f" n_times={len(t)} n_chunks={n_chunks}")
 
             t_chunks = []
             for i in range(n_chunks):
@@ -459,11 +467,13 @@ class SimulatorRuntime(RuntimeContext):
                     ) as obs, simobj.probe_context(
                             fp=None, sources=sources,
                             f_smp=obs_params['f_smp_data']) as probe:
+                n_chunks = len(t_chunks)
                 for i, t in enumerate(t_chunks):
                     s, obs_info = obs(t)
-                    self.logger.debug(
-                            f'chunk #{i}: t=[{t.min()}, {t.max()}] '
-                            f's=[{s.min()} {s.max()}]')
+                    self.logger.info(
+                        f'simulate chunk {i} of {n_chunks}:'
+                        f' t=[{t.min()}, {t.max()}] '
+                        f's=[{s.min()} {s.max()}]')
                     rs, xs, iqs, probe_info = probe(
                             s, alt=obs_info['alt'].T)
                     data = {
@@ -527,16 +537,20 @@ class SimulatorRuntime(RuntimeContext):
         """Run the simulator and save the result.
         """
         cfg = self.config['simu']
-
-        mapping_only = cfg['mapping_only']
-        if mapping_only:
-            result = self.run_mapping_only()
-        else:
-            result = self.run()
-        if cfg['plot']:
-            result.plot_animation()
-        if cfg['save']:
-            result.save(
+        # configure the logging to log to file
+        logfile = self.logdir.joinpath('simu.log')
+        self.logger.info(f'setup logging to file {logfile}')
+        with log_to_file(
+                filepath=logfile, level='DEBUG', disable_other_handlers=False):
+            mapping_only = cfg['mapping_only']
+            if mapping_only:
+                result = self.run_mapping_only()
+            else:
+                result = self.run()
+            if cfg['plot']:
+                result.plot_animation()
+            if cfg['save']:
+                result.save(
                     self.get_or_create_output_dir(), mapping_only=mapping_only)
 
 
@@ -658,7 +672,7 @@ class SimulatorResult(Namespace):
         def __init__(self, filepath, init=None, update=None):
             if filepath.exists():
                 with open(filepath, 'r') as fo:
-                    state = yaml.load(fo)
+                    state = yaml.safe_load(fo)
                 if update is not None:
                     rupdate(state, update)
             elif init is not None:
@@ -728,7 +742,8 @@ class SimulatorResult(Namespace):
             state['ut'] = datetime.utcnow()
             state.sync()
             self.logger.debug(f"outdir state:\n{state}")
-            self._save_config(outdir)
+            output_config = make_output_filename('tolteca', state, '.yaml')
+            self._save_config(output_config)
             # save the data
             simctx = self.simctx
             obs_params = simctx.get_obs_params()
@@ -747,7 +762,9 @@ class SimulatorResult(Namespace):
                     'Header.Source.SourceName',
                     cfg['jobkey'])
 
-            if isinstance(mapping, SkyLissajousModel):
+            if isinstance(
+                    # TODO check what to do with multiple type of lissajous
+                    mapping, (SkyLissajousModel, SkyDoubleLissajousModel)):
                 nm_tel.setstr(
                         'Header.Dcs.ObsPgm',
                         'Lissajous')
@@ -963,8 +980,8 @@ class SimulatorResult(Namespace):
                 for nw, kd in kds.items():
                     kd['nc_toltec'].close()
 
-    def _save_config(self, outdir):
-        with open(outdir.joinpath('tolteca.yaml'), 'w') as fo:
+    def _save_config(self, filepath):
+        with open(filepath, 'w') as fo:
             yaml.dump(self.config, fo, Dumper=self.simctx.yaml_dumper)
 
     @timeit

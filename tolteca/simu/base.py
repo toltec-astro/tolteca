@@ -6,7 +6,7 @@ from pathlib import Path
 # import functools
 
 from astropy.wcs import WCS
-from astropy.coordinates import SkyCoord, ICRS, AltAz
+from astropy.coordinates import SkyCoord, ICRS, AltAz, Angle
 from astropy.coordinates.baseframe import frame_transform_graph
 from astropy.modeling import Model, Parameter
 import astropy.units as u
@@ -227,6 +227,8 @@ class SourceImageModel(SourceModel):
             wcsobj = WCS(d.header)
             s_out_unit = u.Unit(d.header.get('SIGUNIT', 'adu'))
             # check lon lat range
+            # because here we check longitude ranges
+            # we need to take into account wrapping issue
             lon_m = lon[m, :]
             lat_m = lat[m, :]
             # s_out_m = s_out[m, :]
@@ -239,14 +241,28 @@ class SourceImageModel(SourceModel):
                     np.array([0, 0, nx - 1, nx - 1]),
                     np.array([0, ny - 1, 0, ny - 1]),
                     0)
+            xx, yy = wcsobj.wcs_world2pix(lon_e, lat_e, 0)
+            # fix potential wrapping issue by check at 360 and 180 wrapping
+            lon_e = Angle(lon_e << u.deg).wrap_at(360. << u.deg).degree
+            lon_e_180 = Angle(lon_e << u.deg).wrap_at(180. << u.deg).degree
+
             w_e, e_e = np.min(lon_e), np.max(lon_e)
+            w_e_180, e_e_180 = np.min(lon_e_180), np.max(lon_e_180)
             s_e, n_e = np.min(lat_e), np.max(lat_e)
+            # take the one with smaller size as the coordinte
+            if (e_e_180 - w_e_180) < (e_e - w_e):
+                # use wrapping at 180.d
+                w_e = w_e_180
+                e_e = e_e_180
+                lon_m = Angle(lon_m << u.deg).wrap_at(180. << u.deg).degree
+                self.logger.debug("re-wrapping coordinates at 180d")
             self.logger.debug(f"data bbox: w={w_e} e={e_e} s={s_e} n={n_e}")
+            self.logger.debug(f'data shape: {d.data.shape}')
 
             # mask to include in range lon lat
             g = (
-                    (lon_m >= w_e) & (lon_m <= e_e)
-                    & (lat_m >= s_e) & (lat_m <= n_e)
+                    (lon_m > w_e) & (lon_m < e_e)
+                    & (lat_m > s_e) & (lat_m < n_e)
                     )
             self.logger.debug(f"data mask {g.sum()}/{lon_m.size}")
             if g.sum() == 0:
@@ -258,6 +274,17 @@ class SourceImageModel(SourceModel):
             self.logger.debug(
                     f"pixel range: [{ii.min()}, {ii.max()}] "
                     f"[{jj.min()}, {jj.max()}]")
+            # check ii and jj for valid pixel range
+            gp = (ii >= 0) & (ii < ny) & (jj >= 0) & (jj < nx)
+            # update g to include only valid pixels
+            g[g] = gp
+            # convert all lon lat to x y
+            x_g, y_g = wcsobj.wcs_world2pix(lon_m[g], lat_m[g], 0)
+            ii = np.rint(y_g).astype(int)
+            jj = np.rint(x_g).astype(int)
+            self.logger.debug(
+                    f"pixel range updated: [{ii.min()}, {ii.max()}] "
+                    f"[{jj.min()}, {jj.max()}]")
             # take values in data
             # ii, jj = np.meshgrid(
             #         np.rint(y_g).astype(int),
@@ -267,8 +294,9 @@ class SourceImageModel(SourceModel):
             #         lon[m, :].ravel(), lat[m, :].ravel(), 0)
             # g = (x >= 0) & (y < imshape[0]) & (jj >=0) & (jj < imshape[1])
             # import matplotlib.pyplot as plt
-            # fig, ax = plt.subplots(1, 1)
+            # fig, ax = plt.subplots(1, 1, figsize=(10, 10))
             # ax.scatter(ii, jj, c=d.data[ii, jj])
+            # ax.set_aspect('equal')
             # plt.show()
             ig, jg = np.where(g)
             s_out[np.flatnonzero(m)[ig], jg] = d.data[ii, jj] << s_out_unit
@@ -694,6 +722,85 @@ class LissajousModelMeta(SkyMapModel.__class__):
         return inst
 
 
+class DoubleLissajousModelMeta(SkyMapModel.__class__):
+    """A meta class that defines a Double Lissajous scan pattern.
+
+    """
+
+    def __new__(meta, name, bases, attrs):
+        frame = attrs['frame']
+        frame_unit = frame.unit[0]
+
+        attrs.update(dict(
+            frame_unit=frame_unit,
+            x_length_0=Parameter(default=10., unit=frame_unit),
+            y_length_0=Parameter(default=10., unit=frame_unit),
+            x_omega_0=Parameter(default=1. * u.rad / u.s),
+            y_omega_0=Parameter(default=1. * u.rad / u.s),
+            delta_0=Parameter(default=0., unit=u.rad),
+            x_length_1=Parameter(default=5., unit=frame_unit),
+            y_length_1=Parameter(default=5., unit=frame_unit),
+            x_omega_1=Parameter(default=1. * u.rad / u.s),
+            y_omega_1=Parameter(default=1. * u.rad / u.s),
+            delta_1=Parameter(default=0., unit=u.rad),
+            delta=Parameter(default=0., unit=u.rad),
+            rot=Parameter(default=0., unit=u.deg),
+            pattern='double_lissajous',
+                ))
+
+        def get_total_time(self):
+            # make the total time the longer one among the two
+            def _get_total_time(x_omega, y_omega):
+                t_x = 2 * np.pi * u.rad / x_omega
+                t_y = 2 * np.pi * u.rad / y_omega
+                r = (t_y / t_x).to_value(u.dimensionless_unscaled)
+                s = 100
+                r = np.lcm(int(r * s), s) / s
+                return (t_x * r).to(u.s)
+            t0 = _get_total_time(self.x_omega_0, self.y_omega_0)
+            t1 = _get_total_time(self.x_omega_1, self.y_omega_1)
+            return t0 if t0 > t1 else t1
+
+        attrs['get_total_time'] = get_total_time
+
+        @timeit(name)
+        def evaluate(
+                self, t,
+                x_length_0, y_length_0, x_omega_0, y_omega_0, delta_0,
+                x_length_1, y_length_1, x_omega_1, y_omega_1, delta_1,
+                delta, rot):
+            """This computes a double lissajous pattern around the origin.
+
+            """
+            t = np.asarray(t) * t.unit
+
+            x_0 = x_length_0 * 0.5 * np.sin(x_omega_0 * t + delta + delta_0)
+            y_0 = y_length_0 * 0.5 * np.sin(y_omega_0 * t + delta)
+            x_1 = x_length_1 * 0.5 * np.sin(x_omega_1 * t + delta_1)
+            y_1 = y_length_1 * 0.5 * np.sin(y_omega_1 * t)
+
+            x = x_0 + x_1
+            y = y_0 + y_1
+
+            m_rot = models.AffineTransformation2D(
+                models.Rotation2D._compute_matrix(
+                    angle=rot.to_value('rad')) * self.frame_unit,
+                translation=(0., 0.) * self.frame_unit)
+            xx, yy = m_rot(x, y)
+            return xx, yy
+
+        attrs['evaluate'] = evaluate
+        attrs['evaluate_holdflag'] = \
+            lambda self, t: np.zeros(t.shape, dtype=bool)
+        return super().__new__(meta, name, bases, attrs)
+
+    def __call__(cls, *args, **kwargs):
+        inst = super().__call__(*args, **kwargs)
+        inst.inputs = ('t', )
+        inst.outputs = cls.frame.axes_names
+        return inst
+
+
 class TrajectoryModelMeta(SkyMapModel.__class__):
     """A meta class that defines a trajectory.
 
@@ -765,6 +872,12 @@ class SkyRasterScanModel(SkyMapModel, metaclass=RasterScanModelMeta):
 
 
 class SkyLissajousModel(SkyMapModel, metaclass=LissajousModelMeta):
+    frame = cf.Frame2D(
+            name='skyoffset', axes_names=('lon', 'lat'),
+            unit=(u.deg, u.deg))
+
+
+class SkyDoubleLissajousModel(SkyMapModel, metaclass=DoubleLissajousModelMeta):
     frame = cf.Frame2D(
             name='skyoffset', axes_names=('lon', 'lat'),
             unit=(u.deg, u.deg))
