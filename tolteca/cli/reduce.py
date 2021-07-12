@@ -6,6 +6,12 @@ from tollan.utils.cli.path_type import PathType
 from pathlib import Path
 import argparse
 from . import main_parser
+from .check import register_cli_checker
+
+
+@register_cli_checker('reduce')
+def check_reduce(result):
+    return result
 
 
 @main_parser.register_action_parser(

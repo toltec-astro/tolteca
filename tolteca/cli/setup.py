@@ -6,9 +6,15 @@ from tollan.utils.cli.path_type import PathType
 
 from .. import version
 from . import main_parser
+from .check import register_cli_checker
 from ..utils import RuntimeContext
 
 import sys
+
+
+@register_cli_checker('setup')
+def check_setup(result):
+    return result
 
 
 @main_parser.register_action_parser(

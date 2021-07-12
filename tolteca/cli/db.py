@@ -23,7 +23,7 @@ def check_db(result):
 
     add_db_instruction = False
     try:
-        db_cfg = schema.validate(config.__wrapped__)['db']
+        db_cfg = schema.validate(config.__wrapped__)
         n_dbs = len(db_cfg)
         if n_dbs > 0:
             result.add_line('ok', f' Loaded {len(db_cfg)} database entries')

@@ -299,7 +299,8 @@ class RuntimeContext(DirConfMixin):
                     "runtime context is already setup, overwrite")
             else:
                 raise RuntimeContextError(
-                        'runtime context is already setup, use overwrite=True to re-setup.'
+                        'runtime context is already setup, '
+                        'use overwrite=True to re-setup.'
                         )
         if config is None:
             config = dict()
@@ -333,12 +334,12 @@ class RuntimeContext(DirConfMixin):
         ----------
         config : dict
             Config to add to `config_file`.
-        config : str, `pathlib.Path`, optional
+        config_file : str, `pathlib.Path`, optional
             Config to add to `config_file`. When self is not persistent
             this has to be set to None.
         overwrite : bool
             Set to True to force overwrite the existing
-            config info. Otherwise a `RuntimeContextError` is
+            config. Otherwise a `RuntimeContextError` is
             raised.
         """
         if self.is_persistent:
@@ -360,7 +361,7 @@ class RuntimeContext(DirConfMixin):
                         )
         rupdate(cfg, config)
         if self.is_persistent:
-            # write the setup context to the setup_file
+            # update the config file
             with open(config_file, 'w') as fo:
                 yaml.dump(cfg, fo)
         else:
