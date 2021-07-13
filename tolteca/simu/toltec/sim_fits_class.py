@@ -190,51 +190,64 @@ class sim_fits(toltec_beams):
         for i in range(len(imgs)):
             if imgs[i] is not None:
                 convolved_imgs.append(convolve(imgs[i], toltec_beams().kernels[j]))
-            if w == 2 :
+            else:
+                convolved_imgs.append(None)
+            if w == 2:
                 j = j + 1
                 w = 0
             else:
-                w = w +1
+                w = w + 1
         return convolved_imgs
 
 if __name__ == "__main__":
 
+    # 3 images for each array's I, Q, and U
     nlayers = 9
 
+    # Set up some fake map parameters
     CDELT = 1./3600  # deg
     NAXIS1 = 1024  # randomly chosen
     NAXIS2 = 1024
 
-    img = np.random.normal(0, 0.1, [NAXIS1, NAXIS2, nlayers])
+    # Here we'll generate images with a single pixel having a value of 1
+    # at the center to check the convolution
+    img = np.zeros([NAXIS1, NAXIS2, nlayers])
+    img[int(NAXIS1/2), int(NAXIS2/2), :] = np.ones(nlayers)
+    
+    # Make a list of the images in the desired order.  Here we make the Q and U
+    # maps empty
     imgs = []
     for i in range(nlayers):
         imgs.append(img[:, :, i])
-        
-    imgs[0] = np.zeros([NAXIS1, NAXIS2])
+        if i in [1,2,4,5,7,8]:
+            imgs[i] = None
 
+    # Some fake wcs information
     wcs_input_dict = {
         'CTYPE1': 'RA---TAN',
         'CUNIT1': 'deg',
         'CDELT1': -CDELT,
         'CRPIX1': 1,
-        'CRVAL1': 337.5202808,
-        'NAXIS1': 1024,
+        'CRVAL1': 0.0,
+        'NAXIS1': NAXIS1,
         'CTYPE2': 'DEC--TAN',
         'CUNIT2': 'deg',
         'CDELT2': CDELT,
         'CRPIX2': 1,
-        'CRVAL2': -20.833333059999998,
-        'NAXIS2': 1024
+        'CRVAL2': 0.0,
+        'NAXIS2': NAXIS2
     }
     wcs_dict = WCS(wcs_input_dict)
     #wcs_dict.wcs.cd = np.array([[-CDELT, 0],[0, CDELT]])
     header = wcs_dict.to_header(relax=True)
 
+    # Create the class and run the function
     sf = sim_fits()
     sf.generate_fits(imgs=imgs, wcs=wcs_dict, convolve_img=True)
     
-    # sf.raw_hdul.writeto('/Users/mmccrackan/toltec/temp/simu_input_example',
+    # Optionally save both the raw and convolved hdulists
+    # sf.raw_hdul.writeto('/Users/mmccrackan/toltec/temp/simu_input_example.fits',
                     # output_verify='exception', overwrite=True, checksum=False)
 
-    # sf.convolved_hdul.writeto('/Users/mmccrackan/toltec/temp/simu_input_example',
+    # sf.convolved_hdul.writeto('/Users/mmccrackan/toltec/temp/simu_input_example_convolved.fits',
                     # output_verify='exception', overwrite=True, checksum=False)
