@@ -35,6 +35,7 @@ from .base import (
         SkyRasterScanModel,
         SkyLissajousModel,
         SkyDoubleLissajousModel,
+        SkyRastajousModel,
         resolve_sky_map_ref_frame)  # noqa: F401
 
 
@@ -285,6 +286,7 @@ def _register_mapping_model_factory(clspath):
 _register_mapping_model_factory('tolteca.simu:SkyRasterScanModel')
 _register_mapping_model_factory('tolteca.simu:SkyLissajousModel')
 _register_mapping_model_factory('tolteca.simu:SkyDoubleLissajousModel')
+_register_mapping_model_factory('tolteca.simu:SkyRastajousModel')
 
 
 class SimulatorRuntimeError(RuntimeContextError):
@@ -768,7 +770,7 @@ class SimulatorResult(Namespace):
                 nm_tel.setstr(
                         'Header.Dcs.ObsPgm',
                         'Lissajous')
-            elif isinstance(mapping, SkyRasterScanModel):
+            elif isinstance(mapping, (SkyRasterScanModel, SkyRastajousModel)):
                 nm_tel.setstr(
                         'Header.Dcs.ObsPgm',
                         'Map')

@@ -150,10 +150,15 @@ def cmd_check(parser):
         # check if the items are valid
         items = set(items)
         results = list()
-        if items <= set(_checkers.keys()):
+        _checker_keys = set(_checkers.keys())
+        if items <= _checker_keys:
             for item in sorted(items):
                 results.append(_checkers[item]())
                 # summary.append(f'\n{item}\n{"-" * len(item)}')
                 # summary.append(f'{_checkers[item]()}')
+        else:
+            unknown_keys = items - _checker_keys
+            raise parser.error(
+                    f"unknown item to check: {unknown_keys}")
         logger.info('tolteca check summary:\n{}'.format('\n'.join(
             [r.pformat() for r in results])))

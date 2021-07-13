@@ -549,6 +549,79 @@ class RasterScanModelMeta(SkyMapModel.__class__):
     in any map model of any coordinate frame.
     """
 
+    @staticmethod
+    def _evaluate(
+            inst, t, length, space, n_scans, rot, speed, t_turnover,
+            return_holdflag_only=False):
+        """This computes a raster patten around the origin.
+
+        This assumes a circular turn over trajectory where the
+        speed of the turn over is implicitly controlled by `t_turnover`.
+        """
+        t_per_scan = length / speed
+
+        holdflag = np.zeros(t.shape, dtype=bool)
+        if n_scans == 1:
+            # TODO this is ugly, will revisit later
+            if return_holdflag_only:
+                return holdflag
+            # have to make a special case here
+            x = (t / t_per_scan - 0.5) * length
+            y = np.zeros(t.shape) << length.unit
+        else:
+            n_spaces = n_scans - 1
+
+            # bbox_width = length
+            # bbox_height = space * n_spaces
+            # # (x0, y0, w, h)
+            # bbox = (
+            #         -bbox_width / 2., -bbox_height / 2.,
+            #         bbox_width, bbox_height)
+            t_per_scan = length / speed
+            ratio_scan_to_si = (
+                    t_per_scan / (t_turnover + t_per_scan))
+            ratio_scan_to_turnover = (t_per_scan / t_turnover)
+
+            # scan index
+            _si = (t / (t_turnover + t_per_scan))
+            si = _si.astype(int)
+            si_frac = _si - si
+
+            # get scan and turnover part
+            scan_frac = np.empty_like(si_frac)
+            turnover_frac = np.empty_like(si_frac)
+
+            turnover = si_frac > ratio_scan_to_si
+            if return_holdflag_only:
+                holdflag[turnover] = True
+                return holdflag
+            scan_frac[turnover] = 1.
+            scan_frac[~turnover] = si_frac[~turnover] / ratio_scan_to_si
+            turnover_frac[turnover] = si_frac[turnover] - (
+                    1. - si_frac[turnover]) * ratio_scan_to_turnover
+            turnover_frac[~turnover] = 0.
+
+            x = (scan_frac - 0.5) * length
+            y = (si / n_spaces - 0.5) * n_spaces * space
+
+            # turnover part
+            radius_t = space / 2
+            theta_t = turnover_frac[turnover] * np.pi * u.rad
+            dy = radius_t * (1 - np.cos(theta_t))
+            dx = radius_t * np.sin(theta_t)
+            x[turnover] = x[turnover] + dx
+            y[turnover] = y[turnover] + dy
+            # make continuous
+            x = x * (-1) ** si
+
+        # apply rotation
+        m_rot = models.AffineTransformation2D(
+            models.Rotation2D._compute_matrix(
+                angle=rot.to_value('rad')) * inst.frame_unit,
+            translation=(0., 0.) * inst.frame_unit)
+        xx, yy = m_rot(x, y)
+        return xx, yy
+
     def __new__(meta, name, bases, attrs):
         frame = attrs['frame']
         frame_unit = frame.unit[0]
@@ -572,78 +645,9 @@ class RasterScanModelMeta(SkyMapModel.__class__):
         attrs['get_total_time'] = get_total_time
 
         @timeit(name)
-        def evaluate(
-                self, t, length, space, n_scans, rot, speed, t_turnover,
-                return_holdflag_only=False):
-            """This computes a raster patten around the origin.
-
-            This assumes a circular turn over trajectory where the
-            speed of the turn over is implicitly controlled by `t_turnover`.
-            """
+        def evaluate(self, t, *args, **kwargs):
             t = np.asarray(t) * t.unit
-            t_per_scan = length / speed
-
-            holdflag = np.zeros(t.shape, dtype=bool)
-            if n_scans == 1:
-                # TODO this is ugly, will revisit later
-                if return_holdflag_only:
-                    return holdflag
-                # have to make a special case here
-                x = (t / t_per_scan - 0.5) * length
-                y = np.zeros(t.shape) << length.unit
-            else:
-                n_spaces = n_scans - 1
-
-                # bbox_width = length
-                # bbox_height = space * n_spaces
-                # # (x0, y0, w, h)
-                # bbox = (
-                #         -bbox_width / 2., -bbox_height / 2.,
-                #         bbox_width, bbox_height)
-                t_per_scan = length / speed
-                ratio_scan_to_si = (
-                        t_per_scan / (t_turnover + t_per_scan))
-                ratio_scan_to_turnover = (t_per_scan / t_turnover)
-
-                # scan index
-                _si = (t / (t_turnover + t_per_scan))
-                si = _si.astype(int)
-                si_frac = _si - si
-
-                # get scan and turnover part
-                scan_frac = np.empty_like(si_frac)
-                turnover_frac = np.empty_like(si_frac)
-
-                turnover = si_frac > ratio_scan_to_si
-                if return_holdflag_only:
-                    holdflag[turnover] = True
-                    return holdflag
-                scan_frac[turnover] = 1.
-                scan_frac[~turnover] = si_frac[~turnover] / ratio_scan_to_si
-                turnover_frac[turnover] = si_frac[turnover] - (
-                        1. - si_frac[turnover]) * ratio_scan_to_turnover
-                turnover_frac[~turnover] = 0.
-
-                x = (scan_frac - 0.5) * length
-                y = (si / n_spaces - 0.5) * n_spaces * space
-
-                # turnover part
-                radius_t = space / 2
-                theta_t = turnover_frac[turnover] * np.pi * u.rad
-                dy = radius_t * (1 - np.cos(theta_t))
-                dx = radius_t * np.sin(theta_t)
-                x[turnover] = x[turnover] + dx
-                y[turnover] = y[turnover] + dy
-                # make continuous
-                x = x * (-1) ** si
-
-            # apply rotation
-            m_rot = models.AffineTransformation2D(
-                models.Rotation2D._compute_matrix(
-                    angle=rot.to_value('rad')) * self.frame_unit,
-                translation=(0., 0.) * self.frame_unit)
-            xx, yy = m_rot(x, y)
-            return xx, yy
+            return meta._evaluate(self, t, *args, **kwargs)
 
         attrs['evaluate'] = evaluate
         # TODO refactor this part
@@ -727,6 +731,30 @@ class DoubleLissajousModelMeta(SkyMapModel.__class__):
 
     """
 
+    @staticmethod
+    def _evaluate(
+            inst, t,
+            x_length_0, y_length_0, x_omega_0, y_omega_0, delta_0,
+            x_length_1, y_length_1, x_omega_1, y_omega_1, delta_1,
+            delta, rot):
+        """This computes a double lissajous pattern around the origin.
+
+        """
+        x_0 = x_length_0 * 0.5 * np.sin(x_omega_0 * t + delta + delta_0)
+        y_0 = y_length_0 * 0.5 * np.sin(y_omega_0 * t + delta)
+        x_1 = x_length_1 * 0.5 * np.sin(x_omega_1 * t + delta_1)
+        y_1 = y_length_1 * 0.5 * np.sin(y_omega_1 * t)
+
+        x = x_0 + x_1
+        y = y_0 + y_1
+
+        m_rot = models.AffineTransformation2D(
+            models.Rotation2D._compute_matrix(
+                angle=rot.to_value('rad')) * inst.frame_unit,
+            translation=(0., 0.) * inst.frame_unit)
+        xx, yy = m_rot(x, y)
+        return xx, yy
+
     def __new__(meta, name, bases, attrs):
         frame = attrs['frame']
         frame_unit = frame.unit[0]
@@ -764,24 +792,88 @@ class DoubleLissajousModelMeta(SkyMapModel.__class__):
         attrs['get_total_time'] = get_total_time
 
         @timeit(name)
+        def evaluate(self, t, *args, **kwargs):
+            t = np.asarray(t) * t.unit
+            return meta._evaluate(self, t, *args, **kwargs)
+
+        attrs['evaluate'] = evaluate
+        attrs['evaluate_holdflag'] = \
+            lambda self, t: np.zeros(t.shape, dtype=bool)
+        return super().__new__(meta, name, bases, attrs)
+
+    def __call__(cls, *args, **kwargs):
+        inst = super().__call__(*args, **kwargs)
+        inst.inputs = ('t', )
+        inst.outputs = cls.frame.axes_names
+        return inst
+
+
+class RastajousModelMeta(SkyMapModel.__class__):
+    """A meta class that defines a Rastajous scan pattern.
+
+    """
+
+    def __new__(meta, name, bases, attrs):
+        frame = attrs['frame']
+        frame_unit = frame.unit[0]
+
+        attrs.update(dict(
+            frame_unit=frame_unit,
+            length=Parameter(default=10., unit=frame_unit),
+            space=Parameter(default=1., unit=frame_unit),
+            n_scans=Parameter(default=10., unit=u.dimensionless_unscaled),
+            rot=Parameter(default=0., unit=u.deg),
+            speed=Parameter(default=1., unit=frame_unit / u.s),
+            t_turnover=Parameter(default=1., unit=u.s),
+            x_length_0=Parameter(default=10., unit=frame_unit),
+            y_length_0=Parameter(default=10., unit=frame_unit),
+            x_omega_0=Parameter(default=1. * u.rad / u.s),
+            y_omega_0=Parameter(default=1. * u.rad / u.s),
+            delta_0=Parameter(default=0., unit=u.rad),
+            x_length_1=Parameter(default=5., unit=frame_unit),
+            y_length_1=Parameter(default=5., unit=frame_unit),
+            x_omega_1=Parameter(default=1. * u.rad / u.s),
+            y_omega_1=Parameter(default=1. * u.rad / u.s),
+            delta_1=Parameter(default=0., unit=u.rad),
+            delta=Parameter(default=0., unit=u.rad),
+            pattern='rastajous',
+                ))
+
+        def get_total_time(self):
+            # make the total time based on the raster
+            return (self.length / self.speed * self.n_scans
+                    + self.t_turnover * (self.n_scans - 1.)).to(u.s)
+
+        attrs['get_total_time'] = get_total_time
+
+        @timeit(name)
         def evaluate(
                 self, t,
+                length, space, n_scans, rot, speed, t_turnover,
                 x_length_0, y_length_0, x_omega_0, y_omega_0, delta_0,
                 x_length_1, y_length_1, x_omega_1, y_omega_1, delta_1,
-                delta, rot):
-            """This computes a double lissajous pattern around the origin.
+                delta):
+            """This computes a rastajous pattern around the origin.
 
             """
             t = np.asarray(t) * t.unit
 
-            x_0 = x_length_0 * 0.5 * np.sin(x_omega_0 * t + delta + delta_0)
-            y_0 = y_length_0 * 0.5 * np.sin(y_omega_0 * t + delta)
-            x_1 = x_length_1 * 0.5 * np.sin(x_omega_1 * t + delta_1)
-            y_1 = y_length_1 * 0.5 * np.sin(y_omega_1 * t)
+            x_r, y_r = RasterScanModelMeta._evaluate(
+                    inst=self, t=t, length=length, space=space,
+                    n_scans=n_scans, rot=0. << u.deg,
+                    speed=speed, t_turnover=t_turnover,
+                    return_holdflag_only=False)
 
-            x = x_0 + x_1
-            y = y_0 + y_1
-
+            x_l, y_l = DoubleLissajousModelMeta._evaluate(
+                    inst=self, t=t,
+                    x_length_0=x_length_0, y_length_0=y_length_0,
+                    x_omega_0=x_omega_0, y_omega_0=y_omega_0, delta_0=delta_0,
+                    x_length_1=x_length_1, y_length_1=y_length_1,
+                    x_omega_1=x_omega_1, y_omega_1=y_omega_1, delta_1=delta_1,
+                    delta=delta, rot=0. << u.deg
+                    )
+            x = x_r + x_l
+            y = y_r + y_l
             m_rot = models.AffineTransformation2D(
                 models.Rotation2D._compute_matrix(
                     angle=rot.to_value('rad')) * self.frame_unit,
@@ -790,8 +882,12 @@ class DoubleLissajousModelMeta(SkyMapModel.__class__):
             return xx, yy
 
         attrs['evaluate'] = evaluate
+        # TODO use the raster hold flag
         attrs['evaluate_holdflag'] = \
-            lambda self, t: np.zeros(t.shape, dtype=bool)
+            lambda self, t: RasterScanModelMeta._evaluate(
+                self, t, self.length, self.space, self.n_scans, self.rot,
+                self.speed, self.t_turnover, return_holdflag_only=True
+                )
         return super().__new__(meta, name, bases, attrs)
 
     def __call__(cls, *args, **kwargs):
@@ -878,6 +974,12 @@ class SkyLissajousModel(SkyMapModel, metaclass=LissajousModelMeta):
 
 
 class SkyDoubleLissajousModel(SkyMapModel, metaclass=DoubleLissajousModelMeta):
+    frame = cf.Frame2D(
+            name='skyoffset', axes_names=('lon', 'lat'),
+            unit=(u.deg, u.deg))
+
+
+class SkyRastajousModel(SkyMapModel, metaclass=RastajousModelMeta):
     frame = cf.Frame2D(
             name='skyoffset', axes_names=('lon', 'lat'),
             unit=(u.deg, u.deg))
