@@ -2,7 +2,7 @@
 
 from contextlib import contextmanager
 import numpy as np
-import functools
+# import functools
 from scipy.interpolate import interp1d
 import astropy.units as u
 from astropy.modeling import models, Parameter, Model
@@ -396,19 +396,27 @@ class BeamModel(Model):
     n_inputs = 3
     n_outputs = 1
 
+    @classmethod
+    def get_fwhm(cls, axis, array_name):
+        beam_props = cls.beam_props
+        if axis in ['x', 'a']:
+            key = 'x_fwhm_a1100'
+        elif axis in ['y', 'b']:
+            key = 'y_fwhm_a1100'
+        else:
+            raise ValueError("invalid axis.")
+        return (
+                beam_props[key] *
+                beam_props[array_name]['wl_center'] /
+                beam_props['a1100']['wl_center'])
+
     def __init__(self, **kwargs):
         beam_props = self.beam_props
         m_beams = dict()
 
         for array_name in beam_props['array_names']:
-            x_fwhm = (
-                    beam_props['x_fwhm_a1100'] *
-                    beam_props[array_name]['wl_center'] /
-                    beam_props['a1100']['wl_center'])
-            y_fwhm = (
-                    beam_props['y_fwhm_a1100'] *
-                    beam_props[array_name]['wl_center'] /
-                    beam_props['a1100']['wl_center'])
+            x_fwhm = self.get_fwhm('a', array_name)
+            y_fwhm = self.get_fwhm('b', array_name)
             x_stddev = x_fwhm / GAUSSIAN_SIGMA_TO_FWHM
             y_stddev = y_fwhm / GAUSSIAN_SIGMA_TO_FWHM
             beam_area = 2 * np.pi * x_stddev * y_stddev
@@ -1398,6 +1406,14 @@ class ToltecObsSimulator(object):
                                 np.empty((len(tbl), ), dtype=float),
                                 name=c, unit=props[c].unit))
                 tbl[c][m] = props[c]
+            for k, c in [('a', 'a_fwhm'), ('b', 'b_fwhm')]:
+                if c not in tbl.colnames:
+                    tbl.add_column(Column(
+                                np.empty((len(tbl), ), dtype=float),
+                                name=c, unit=u.arcsec))
+                tbl[c][m] = cls.beam_model_cls.get_fwhm(
+                        k, array_name).to_value(u.arcsec)
+
         # kids props
         for c, v in cls.kids_props.items():
             if isinstance(v, str) and v in tbl.colnames:
