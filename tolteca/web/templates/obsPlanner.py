@@ -1,6 +1,5 @@
 from tollan.utils.log import timeit, get_logger
 from dasha.web.templates import ComponentTemplate
-from dasha.web.templates.collapsecontent import CollapseContent
 from dasha.web.extensions.cache import cache
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
@@ -30,6 +29,13 @@ import numpy as np
 from pathlib import Path
 from .. import env_registry, env_prefix
 import sys
+
+from .common.simuControls import getSettingsCard
+from .common.simuControls import getSourceCard
+from .common.simuControls import getLissajousControls
+from .common.simuControls import getDoubleLissajousControls
+from .common.simuControls import getRasterControls
+
 
 TOLTEC_SENSITIVITY_MODULE_PATH_ENV = (
         f"{env_prefix}_CUSTOM_TOLTEC_SENSITIVITY_MODULE_PATH")
@@ -83,339 +89,33 @@ class obsPlanner(ComponentTemplate):
         # ---------------------------
         # Settings Card
         # ---------------------------
-        settingsRow = controlBox.child(dbc.Row)
-        settingsCard = settingsRow.child(dbc.Col).child(dbc.Card)
-        t_header = settingsCard.child(dbc.CardHeader)
-        t_header.child(html.H5, "Global Settings", className='mb-2')
-        t_body = settingsCard.child(dbc.CardBody)
-
-        bandRow = t_body.child(dbc.Row, justify='begin')
-        bandRow.child(html.Label("TolTEC Band: "))
-        bandIn = bandRow.child(
-            dcc.RadioItems, options=[
-                {'label': '1.1', 'value': 1.1},
-                {'label': '1.4', 'value': 1.4},
-                {'label': '2.0', 'value': 2.0},
-            ],
-            value=1.1,
-            labelStyle={'display': 'inline-block'},
-            inputStyle={"margin-right": "10px",
-                        "margin-left": "10px"},
-        )
-
-        atmQRow = t_body.child(dbc.Row, justify='begin')
-        atmQRow.child(html.Label("Atmos. quartile: "))
-        atmQIn = atmQRow.child(
-            dcc.RadioItems, options=[
-                {'label': '25%', 'value': 25},
-                {'label': '50%', 'value': 50},
-                {'label': '75%', 'value': 75},
-            ],
-            value=50,
-            labelStyle={'display': 'inline-block'},
-            inputStyle={"margin-right": "5px",
-                        "margin-left": "20px"},)
-
-        telRow = t_body.child(dbc.Row, justify='begin')
-        telRow.child(html.Label("Telescope RMS [um]: "))
-        telRMSIn = telRow.child(dcc.Input, value=76.,
-                                min=50., max=110.,
-                                debounce=True, type='number',
-                                style={'width': '25%',
-                                       'margin-right': '20px',
-                                       'margin-left': '20px'})
-
-        unitsRow = t_body.child(dbc.Row, justify='begin')
-        unitsRow.child(html.Label("Coverage Units: "))
-        unitsIn = unitsRow.child(
-            dcc.RadioItems, options=[
-                {'label': 's/pixel', 'value': "time"},
-                {'label': 'mJy/beam', 'value': "sens"},
-            ],
-            value="sens",
-            labelStyle={'display': 'inline-block'},
-            inputStyle={"margin-right": "10px",
-                        "margin-left": "10px"},
-        )
-
-        showArrRow = t_body.child(dbc.Row, justify='begin')
-        showArray = showArrRow.child(
-            dcc.Checklist,
-            options=[{'label': 'Show array', 'value': 'array'}],
-            value=[],
-            inputStyle={"marginRight": "20px", "marginLeft": "5px"})
-
-        overlayRow = t_body.child(dbc.Row, justify='begin')
-        overlayDrop = overlayRow.child(
-            dcc.Dropdown,
-            options=[
-                {'label': 'No Overlay', 'value': 'None'},
-                {'label': 'DSS', 'value': 'DSS'},
-                {'label': 'Planck 217 I', 'value': 'Planck 217 I'},
-                {'label': 'Planck 353 I', 'value': 'Planck 353 I'},
-                {'label': 'WISE 12', 'value': 'WISE 12'},
-            ],
-            placeholder="Select Overlay Image",
-            searchable=False,
-            value='None',
-            style=dict(
-                width='100%',
-                verticalAlign="middle"
-            ))
-
-        settings = {'bandIn': bandIn,
-                    'atmQIn': atmQIn,
-                    'telRMSIn': telRMSIn,
-                    'unitsIn': unitsIn,
-                    'showArray': showArray,
-                    'overlayDrop': overlayDrop}
+        settings = getSettingsCard(controlBox)
 
         # ---------------------------
         # Source Card
         # ---------------------------
-        sourceBox = controlBox.child(dbc.Row, className='mt-3').child(dbc.Col)
-        sourceCard = sourceBox.child(dbc.Card, color='danger', inverse=False,
-                                     outline=True)
-        c_header = sourceCard.child(dbc.CardHeader)
-        c_body = sourceCard.child(dbc.CardBody)
-        c_header.child(html.H5, "Target Choice", className='mb-2')
-
-        targNameRow = c_body.child(dbc.Row, justify='end')
-        targNameRow.child(html.Label("Target Name or Coord String: "))
-        targName = targNameRow.child(dcc.Input, value="", debounce=True,
-                                     type='text',
-                                     style=dict(width='45%',))
-
-        targRaRow = c_body.child(dbc.Row, justify='end')
-        targRaRow.child(html.Label("Target Ra [deg]: "))
-        targRa = targRaRow.child(dcc.Input, debounce=True,
-                                 value=150.08620833, type='number',
-                                 style=dict(width='45%',))
-
-        targDecRow = c_body.child(dbc.Row, justify='end')
-        targDecRow.child(html.Label("Target Dec [deg]: "))
-        targDec = targDecRow.child(dcc.Input, debounce=True,
-                                   value=2.58899167, type='number',
-                                   style=dict(width='45%',))
-
-        obsTimeRow = c_body.child(dbc.Row, justify='end')
-        obsTimeRow.child(html.Label("Obs Start Time (UT): "))
-        obsTime = obsTimeRow.child(dcc.Input, debounce=True,
-                                   value="01:30:00", type='text',
-                                   style=dict(width='45%',))
-
-        obsDateRow = c_body.child(dbc.Row, justify='end')
-        obsDateRow.child(html.Label("Obs Date: "))
-        obsDate = obsDateRow.child(dcc.DatePickerSingle,
-                                   min_date_allowed=date(2000, 11, 19),
-                                   max_date_allowed=date(2030, 12, 31),
-                                   initial_visible_month=date(2021, 4, 4),
-                                   date=date(2021, 4, 4),
-                                   style=dict(width='45%',))
-
-        targetAlertRow = c_body.child(dbc.Row)
-        targetAlert = targetAlertRow.child(
-            dbc.Alert,
-            "Source elevation too high or too low for obsDate and obsTime.",
-            is_open=False,
-            color='danger',
-            duration=8000)
-
-        targetPopUp = c_body.child(dbc.Row).child(
-            dcc.ConfirmDialog,
-            message='Set obsTime and obsDate so that 20 < elevation < 80 deg.')
-
-        target = {'targName': targName,
-                  'targRa': targRa,
-                  'targDec': targDec,
-                  'obsTime': obsTime,
-                  'obsDate': obsDate,
-                  'targetAlert': targetAlert,
-                  'targetPopUp': targetPopUp}
+        target = getSourceCard(controlBox)
 
         # ---------------------------
         # Mapping Tabs
         # ---------------------------
         mappingBox = controlBox.child(
             dbc.Row, className='mt-3').child(dbc.Col).child(dbc.Tabs)
-        lissBox = mappingBox.child(dbc.Tab, label="Lissajous")
-        lissCard = lissBox.child(dbc.Card)
-        l_header = lissCard.child(dbc.CardHeader)
-        l_body = lissCard.child(dbc.CardBody)
-        l_header.child(html.H5, "Lissajous Controls", className='mb-2')
 
-        lisRotInRow = l_body.child(dbc.Row, justify='end')
-        lisRotInRow.child(html.Label("Rot [deg]: "))
-        lisRotIn = lisRotInRow.child(dcc.Input, value=0.,
-                                     min=0., max=180.,
-                                     debounce=True, type='number',
-                                     style={'width': '25%',
-                                            'margin-right': '20px'})
+        # Single Lissajous Parameter Set
+        lisControls = getLissajousControls(mappingBox)
 
-        lisxLenInRow = l_body.child(dbc.Row, justify='end')
-        lisxLenInRow.child(html.Label("x_length [arcmin]: "))
-        lisxLenIn = lisxLenInRow.child(dcc.Input, value=0.5,
-                                       min=0.001, max=10.,
-                                       debounce=True, type='number',
-                                       style={'width': '25%',
-                                              'margin-right': '20px'})
+        # Double Lissajous Parameter Set
+        doubleLisControls = getDoubleLissajousControls(mappingBox)
 
-        lisyLenInRow = l_body.child(dbc.Row, justify='end')
-        lisyLenInRow.child(html.Label("y_length [arcmin]: "))
-        lisyLenIn = lisyLenInRow.child(dcc.Input, value=0.5,
-                                       min=0.001, max=10.,
-                                       debounce=True, type='number',
-                                       style={'width': '25%',
-                                              'margin-right': '20px'})
+        # Raster Pattern Parameter Set
+        rasterControls = getRasterControls(mappingBox)
 
-        lisxOmegaInRow = l_body.child(dbc.Row, justify='end')
-        lisxOmegaInRow.child(html.Label("x_omega: "))
-        lisxOmegaIn = lisxOmegaInRow.child(dcc.Input, value=9.2,
-                                           min=1., max=20.,
-                                           debounce=True, type='number',
-                                           style={'width': '25%',
-                                                  'margin-right': '20px'})
-
-        lisyOmegaInRow = l_body.child(dbc.Row, justify='end')
-        lisyOmegaInRow.child(html.Label("y_omega: "))
-        lisyOmegaIn = lisyOmegaInRow.child(dcc.Input, value=8,
-                                           min=1., max=20.,
-                                           debounce=True, type='number',
-                                           style={'width': '25%',
-                                                  'margin-right': '20px'})
-
-        lisDeltaInRow = l_body.child(dbc.Row, justify='end')
-        lisDeltaInRow.child(html.Label("delta [deg]: "))
-        lisDeltaIn = lisDeltaInRow.child(dcc.Input, value=45.,
-                                         min=0.0, max=90.,
-                                         debounce=True, type='number',
-                                         style={'width': '25%',
-                                                'margin-right': '20px'})
-
-        listExpInRow = l_body.child(dbc.Row, justify='end')
-        listExpInRow.child(html.Label("t_exp [s]: "))
-        listExpIn = listExpInRow.child(dcc.Input, value=120.,
-                                       min=1., max=1800.,
-                                       debounce=True, type='number',
-                                       style={'width': '25%',
-                                              'margin-right': '20px'})
-
-        refFrameLissRow = l_body.child(dbc.Row, justify='begin')
-        refFrameLissRow.child(html.Label("Tel Frame: "))
-        refFrameLiss = refFrameLissRow.child(
-            dcc.RadioItems, options=[
-                {'label': 'Az/El', 'value': 'altaz'},
-                {'label': 'Ra/Dec', 'value': 'icrs'},
-            ],
-            value='altaz',
-            labelStyle={'display': 'inline-block'},
-            inputStyle={"margin-right": "5px",
-                        "margin-left": "20px"},
-        )
-
-        lissWriteRow = l_body.child(dbc.Row, justify='end')
-        lissWrite = lissWriteRow.child(
-            dbc.Button, "Execute Pattern", color="danger", size='sm',
-            style={'width': '45%', "margin-right": '10px'})
-
-        rasBox = mappingBox.child(dbc.Tab, label="Raster")
-        rasCard = rasBox.child(dbc.Card)
-        r_header = rasCard.child(dbc.CardHeader)
-        r_body = rasCard.child(dbc.CardBody)
-        r_header.child(html.H5, "Raster Controls", className='mb-2')
-
-        rasRotInRow = r_body.child(dbc.Row, justify='end')
-        rasRotInRow.child(html.Label("Rot [deg]: "))
-        rasRotIn = rasRotInRow.child(dcc.Input, value=0.,
-                                     min=0., max=90.,
-                                     debounce=True, type='number',
-                                     style={'width': '25%',
-                                            'margin-right': '20px'})
-
-        rasLenInRow = r_body.child(dbc.Row, justify='end')
-        rasLenInRow.child(html.Label("length [arcmin]: "))
-        rasLenIn = rasLenInRow.child(dcc.Input, value=15.,
-                                     min=0.0001, max=30.,
-                                     debounce=True, type='number',
-                                     style={'width': '25%',
-                                            'margin-right': '20px'})
-
-        rasStepInRow = r_body.child(dbc.Row, justify='end')
-        rasStepInRow.child(html.Label("step [arcmin]: "))
-        rasStepIn = rasStepInRow.child(dcc.Input, value=0.5,
-                                       min=0.1, max=4.,
-                                       debounce=True, type='number',
-                                       style={'width': '25%',
-                                              'margin-right': '20px'})
-
-        rasnScansInRow = r_body.child(dbc.Row, justify='end')
-        rasnScansInRow.child(html.Label("nScans: "))
-        rasnScansIn = rasnScansInRow.child(dcc.Input, value=15,
-                                           min=1, max=30,
-                                           debounce=True, type='number',
-                                           style={'width': '25%',
-                                                  'margin-right': '20px'})
-
-        rasSpeedInRow = r_body.child(dbc.Row, justify='end')
-        rasSpeedInRow.child(html.Label("speed [arcsec/s]: "))
-        rasSpeedIn = rasSpeedInRow.child(dcc.Input, value=50.,
-                                         min=0.0001, max=500,
-                                         debounce=True, type='number',
-                                         style={'width': '25%',
-                                                'margin-right': '20px'})
-
-        rastTurnInRow = r_body.child(dbc.Row, justify='end')
-        rastTurnInRow.child(html.Label("t_turnaround [s]: "))
-        rastTurnIn = rastTurnInRow.child(dcc.Input, value=5.,
-                                         min=0.1, max=10.,
-                                         debounce=True, type='number',
-                                         style={'width': '25%',
-                                                'margin-right': '20px'})
-
-        refFrameRastRow = r_body.child(dbc.Row, justify='begin')
-        refFrameRastRow.child(html.Label("Tel Frame: "))
-        refFrameRast = refFrameRastRow.child(
-            dcc.RadioItems, options=[
-                {'label': 'Az/El', 'value': 'altaz'},
-                {'label': 'Ra/Dec', 'value': 'icrs'},
-            ],
-            value='altaz',
-            labelStyle={'display': 'inline-block'},
-            inputStyle={"margin-right": "5px",
-                        "margin-left": "20px"},
-        )
-
-        rasWriteRow = r_body.child(dbc.Row, justify='end')
-        rasWrite = rasWriteRow.child(
-            dbc.Button, "Execute Pattern", color="danger", size='sm',
-            style={'width': '45%', "margin-right": '10px'})
-
-        lis_output_state = l_body.child(dbc.Row).child(
-            CollapseContent(
-                button_text='Details ...')).content
-        ras_output_state = r_body.child(dbc.Row).child(
-            CollapseContent(
-                button_text='Details ...')).content
-
-        mapping = {'lisRotIn': lisRotIn,
-                   'lisxLenIn': lisxLenIn,
-                   'lisyLenIn': lisyLenIn,
-                   'lisxOmegaIn': lisxOmegaIn,
-                   'lisyOmegaIn': lisyOmegaIn,
-                   'lisDeltaIn': lisDeltaIn,
-                   'listExpIn': listExpIn,
-                   'refFrameLiss': refFrameLiss,
-                   'lissWrite': lissWrite,
-                   'rasRotIn': rasRotIn,
-                   'rasLenIn': rasLenIn,
-                   'rasStepIn': rasStepIn,
-                   'rasnScansIn': rasnScansIn,
-                   'rasSpeedIn': rasSpeedIn,
-                   'rastTurnIn': rastTurnIn,
-                   'refFrameRast': refFrameRast,
-                   'rasWrite': rasWrite,
-                   'lis_output_state': lis_output_state,
-                   'ras_output_state': ras_output_state}
+        # Combine the mapping controls into a single dictionary
+        mapping = {}
+        mapping.update(lisControls)
+        mapping.update(doubleLisControls)
+        mapping.update(rasterControls)
 
         # This is just a hidden trigger to execute the mapmaking code
         exBox = controlBox.child(dbc.Row, justify='end')
@@ -584,11 +284,66 @@ class obsPlanner(ComponentTemplate):
                 'y_omega': yo,
                 'delta': (delta*u.deg).to_value(u.rad),
                 't_exp': tExp,
-                'length': 0.,
-                'step': 0.,
-                'nScans': 0,
-                'speed': 0.,
-                't_turnaround': 0.,
+                'target_ra': tra,
+                'target_dec': tdec,
+                't0': t0,
+                'ref_frame': refFrame,
+            }
+            return [json.dumps(d), ]
+
+        # update the Double Lissajous parameter set
+        @app.callback(
+            [
+                Output(mapping['dlis_output_state'].id, "children"),
+            ],
+            [
+                Input(mapping['dlissWrite'].id, "n_clicks"),
+            ],
+            [
+                State(mapping['dlisRotIn'].id, "value"),
+                State(mapping['dlisDeltaIn'].id, "value"),
+                State(mapping['dlisxLen0In'].id, "value"),
+                State(mapping['dlisyLen0In'].id, "value"),
+                State(mapping['dlisxOmega0In'].id, "value"),
+                State(mapping['dlisyOmega0In'].id, "value"),
+                State(mapping['dlisDelta0In'].id, "value"),
+                State(mapping['dlisxLen1In'].id, "value"),
+                State(mapping['dlisyLen1In'].id, "value"),
+                State(mapping['dlisxOmega1In'].id, "value"),
+                State(mapping['dlisyOmega1In'].id, "value"),
+                State(mapping['dlisDelta1In'].id, "value"),
+                State(mapping['listExpIn'].id, "value"),
+                State(target['targRa'].id, "value"),
+                State(target['targDec'].id, "value"),
+                State(target['obsTime'].id, "value"),
+                State(target['obsDate'].id, "date"),
+                State(mapping['refFrameLiss'].id, "value"),
+            ],
+            prevent_initial_call=True
+        )
+        def updateDoubleLissDict(n, r, delta,
+                                 xl0, yl0, xo0, yo0, delta0,
+                                 xl1, yl1, xo1, yo1, delta1,
+                                 tExp, tra, tdec,
+                                 obsTime, obsDate, refFrame):
+            # format date and time of start of observation
+            date_object = date.fromisoformat(obsDate)
+            date_string = date_object.strftime('%Y-%m-%d')
+            t0 = date_string+'T'+obsTime
+            d = {
+                'd_rot': (r*u.deg).to_value(u.rad),
+                'd_delta': (delta*u.deg).to_value(u.rad),
+                'd_x_length_0': (xl0*u.arcmin).to_value(u.rad),
+                'd_y_length_0': (yl0*u.arcmin).to_value(u.rad),
+                'd_x_omega_0': xo0,
+                'd_y_omega_0': yo0,
+                'd_delta_0': (delta0*u.deg).to_value(u.rad),
+                'd_x_length_1': (xl1*u.arcmin).to_value(u.rad),
+                'd_y_length_1': (yl1*u.arcmin).to_value(u.rad),
+                'd_x_omega_1': xo1,
+                'd_y_omega_1': yo1,
+                'd_delta_1': (delta1*u.deg).to_value(u.rad),
+                't_exp': tExp,
                 'target_ra': tra,
                 'target_dec': tdec,
                 't0': t0,
@@ -633,11 +388,6 @@ class obsPlanner(ComponentTemplate):
                 'speed': (speed*u.arcsec).to_value(u.rad),
                 't_turnaround': turn,
                 't_exp': (10*u.min).to_value(u.s),
-                'x_length': 0.,
-                'y_length': 0.,
-                'x_omega': 0.,
-                'y_omega': 0.,
-                'delta': 0.,
                 'target_ra': tra,
                 'target_dec': tdec,
                 't0': t0,
@@ -652,6 +402,7 @@ class obsPlanner(ComponentTemplate):
             ],
             [
                 Input(mapping['lis_output_state'].id, "children"),
+                Input(mapping['dlis_output_state'].id, "children"),
                 Input(mapping['ras_output_state'].id, "children"),
             ],
             [
@@ -659,18 +410,23 @@ class obsPlanner(ComponentTemplate):
             ],
             prevent_initial_call=True
         )
-        def updateContext(lis_output, ras_output, band):
+        def updateContext(lis_output, dlis_output, ras_output, band):
             print(lis_output)
+            print(dlis_output)
             print(ras_output)
             ctx = dash.callback_context
             print(ctx.triggered[0]['prop_id'])
             if (ctx.triggered[0]['prop_id'] == f"{mapping['lis_output_state'].id}.children"):
                 d = json.loads(lis_output)
-                c = writeSimuContext(d, band, lissajous=1)
+                c = writeSimuContext(d, band, mapType='lissajous')
+                print("lissajous context written")
+            elif (ctx.triggered[0]['prop_id'] == f"{mapping['dlis_output_state'].id}.children"):
+                d = json.loads(dlis_output)
+                c = writeSimuContext(d, band, mapType='doubleLissajous')
                 print("lissajous context written")
             else:
                 d = json.loads(ras_output)
-                c = writeSimuContext(d, band, lissajous=0)
+                c = writeSimuContext(d, band, mapType='raster')
                 print("raster context written")
             print(f'current_context: {c}')
             return [c, ""]
@@ -1428,7 +1184,7 @@ def getXYAxisLayouts():
 
 
 # create config to update to the sim rt
-def writeSimuContext(d, band, lissajous=0):
+def writeSimuContext(d, band, mapType='raster'):
     if(band == 1.1):
         bandName = '\"a1100\"'
     elif(band == 1.4):
@@ -1444,29 +1200,49 @@ def writeSimuContext(d, band, lissajous=0):
     oF.write("  example_mapping_tel_nc: &example_mapping_tel_nc\n")
     oF.write("    type: lmt_tcs\n")
     oF.write("    filepath: ./tel_toltec_2020-10-01_103371_00_0000.nc\n")
-    oF.write("  example_mapping_model_raster: &example_mapping_model_raster\n")
-    oF.write("    type: tolteca.simu:SkyRasterScanModel\n")
-    oF.write("    rot: {} rad\n".format(d['rot']))
-    oF.write("    length: {} rad\n".format(d['length']))
-    oF.write("    space: {} rad\n".format(d['step']))
-    oF.write("    n_scans: {}\n".format(d['nScans']))
-    oF.write("    speed: {} rad/s\n".format(d['speed']))
-    oF.write("    t_turnover: {} s\n".format(d['t_turnaround']))
-    oF.write("    target: {0:}d {1:}d\n".format(d['target_ra'], d['target_dec']))
-    oF.write("    ref_frame: {}\n".format(d['ref_frame']))
-    oF.write("    t0: {}\n".format(d['t0']))
-    oF.write("    # lst0: ...\n")
-    oF.write("  example_mapping_model_lissajous: &example_mapping_model_lissajous\n")
-    oF.write("    type: tolteca.simu:SkyLissajousModel\n")
-    oF.write("    rot: {} rad\n".format(d['rot']))
-    oF.write("    x_length: {} rad\n".format(d['x_length']))
-    oF.write("    y_length: {} rad\n".format(d['y_length']))
-    oF.write("    x_omega: {} rad/s\n".format(d['x_omega']))
-    oF.write("    y_omega: {} rad/s\n".format(d['y_omega']))
-    oF.write("    delta: {} rad\n".format(d['delta']))
-    oF.write("    target: {0:}d {1:}d\n".format(d['target_ra'], d['target_dec']))
-    oF.write("    ref_frame: {}\n".format(d['ref_frame']))
-    oF.write("    t0: {}\n".format(d['t0']))
+    if(mapType == 'raster'):
+        oF.write("  example_mapping_model_raster: &example_mapping_model_raster\n")
+        oF.write("    type: tolteca.simu:SkyRasterScanModel\n")
+        oF.write("    rot: {} rad\n".format(d['rot']))
+        oF.write("    length: {} rad\n".format(d['length']))
+        oF.write("    space: {} rad\n".format(d['step']))
+        oF.write("    n_scans: {}\n".format(d['nScans']))
+        oF.write("    speed: {} rad/s\n".format(d['speed']))
+        oF.write("    t_turnover: {} s\n".format(d['t_turnaround']))
+        oF.write("    target: {0:}d {1:}d\n".format(d['target_ra'], d['target_dec']))
+        oF.write("    ref_frame: {}\n".format(d['ref_frame']))
+        oF.write("    t0: {}\n".format(d['t0']))
+        oF.write("    # lst0: ...\n")
+    elif(mapType == 'lissajous'):
+        oF.write("  example_mapping_model_lissajous: &example_mapping_model_lissajous\n")
+        oF.write("    type: tolteca.simu:SkyLissajousModel\n")
+        oF.write("    rot: {} rad\n".format(d['rot']))
+        oF.write("    x_length: {} rad\n".format(d['x_length']))
+        oF.write("    y_length: {} rad\n".format(d['y_length']))
+        oF.write("    x_omega: {} rad/s\n".format(d['x_omega']))
+        oF.write("    y_omega: {} rad/s\n".format(d['y_omega']))
+        oF.write("    delta: {} rad\n".format(d['delta']))
+        oF.write("    target: {0:}d {1:}d\n".format(d['target_ra'], d['target_dec']))
+        oF.write("    ref_frame: {}\n".format(d['ref_frame']))
+        oF.write("    t0: {}\n".format(d['t0']))
+    elif(mapType == 'doubleLissajous'):
+        oF.write("  example_mapping_model_double_lissajous: &example_mapping_model_double_lissajous\n")
+        oF.write("    type: tolteca.simu:SkyDoubleLissajousModel\n")
+        oF.write("    rot: {} rad\n".format(d['d_rot']))
+        oF.write("    delta: {} rad\n".format(d['d_delta']))
+        oF.write("    x_length_0: {} rad\n".format(d['d_x_length_0']))
+        oF.write("    y_length_0: {} rad\n".format(d['d_y_length_0']))
+        oF.write("    x_omega_0: {} rad/s\n".format(d['d_x_omega_0']))
+        oF.write("    y_omega_0: {} rad/s\n".format(d['d_y_omega_0']))
+        oF.write("    delta_0: {} rad\n".format(d['d_delta_0']))
+        oF.write("    x_length_1: {} rad\n".format(d['d_x_length_1']))
+        oF.write("    y_length_1: {} rad\n".format(d['d_y_length_1']))
+        oF.write("    x_omega_1: {} rad/s\n".format(d['d_x_omega_1']))
+        oF.write("    y_omega_1: {} rad/s\n".format(d['d_y_omega_1']))
+        oF.write("    delta_1: {} rad\n".format(d['d_delta_1']))
+        oF.write("    target: {0:}d {1:}d\n".format(d['target_ra'], d['target_dec']))
+        oF.write("    ref_frame: {}\n".format(d['ref_frame']))
+        oF.write("    t0: {}\n".format(d['t0']))
     oF.write("\n")
     oF.write("simu:\n")
     oF.write("  # this is the actual simulator\n")
@@ -1479,13 +1255,15 @@ def writeSimuContext(d, band, lissajous=0):
     oF.write("    # select: 'pg == 1'\n")
     oF.write("  obs_params:\n")
     oF.write("    f_smp_data: 488 Hz  # the sample frequency for data\n")
-    oF.write("    f_smp_mapping: 12.2 Hz  # the sample frequency for mapping\n")
+    oF.write("    f_smp_mapping: 12.2 Hz  # the sample freq for mapping\n")
     oF.write("    t_exp: {} s\n".format(d['t_exp']))
     oF.write("  sources:\n")
     oF.write("    - type: point_source_catalog\n")
     oF.write("      filepath: inputs/example_input.asc\n")
-    if(lissajous):
+    if(mapType == 'lissajous'):
         oF.write("  mapping: *example_mapping_model_lissajous\n")
-    else:
+    elif(mapType == 'doubleLissajous'):
+        oF.write("  mapping: *example_mapping_model_double_lissajous\n")
+    elif(mapType == 'raster'):
         oF.write("  mapping: *example_mapping_model_raster\n")
     return yaml.safe_load(oF.getvalue())
