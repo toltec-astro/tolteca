@@ -22,6 +22,7 @@ from astropy.time import Time
 import astropy.units as u
 from astroquery.utils import parse_coordinates
 from astroquery.exceptions import InputWarning
+from astropy.coordinates import SkyCoord
 import warnings
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -135,14 +136,14 @@ def _ssf_toltec_array_loading(cfg, cfg_rt):
     return m
 
 
-@register_to(_simu_source_factory, 'toltec_readout_noise')
+@register_to(_simu_source_factory, 'toltec_detector_readout_noise')
 def _ssf_toltec_readout_noise(cfg, cfg_rt):
     """Handle simulator source for TolTEC readout noise."""
 
     logger = get_logger()
 
     cfg = Schema({
-        'type': 'toltec_readout_noise',
+        'type': 'toltec_detector_readout_noise',
         Optional('scale_factor', default=1.): float,
         }).validate(cfg)
 
@@ -262,18 +263,26 @@ def _register_mapping_model_factory(clspath):
             warnings.simplefilter('ignore', InputWarning)
             cfg = Schema({
                 'type': Use(getobj),
-                'target': Use(parse_coordinates),
+                'target': str,
                 'ref_frame': Use(_get_frame_class),
                 't0': Use(Time),
+                Optional(
+                    'target_frame', default='icrs'): Use(_get_frame_class),
                 object: object,
                 }).validate(cfg)
 
         logger.debug(f"mapping model config: {cfg}")
 
         cls = cfg.pop('type')
-        target = cfg.pop('target')
         t0 = cfg.pop('t0')
         ref_frame = cfg.pop('ref_frame')
+
+        target = cfg.pop('target')
+        target_frame = cfg.pop('target_frame')
+        if target_frame == 'icrs':
+            target = parse_coordinates(target)
+        else:
+            target = SkyCoord(target, frame=target_frame)
         kwargs = {
                 k: u.Quantity(v)
                 for k, v in cfg.items()

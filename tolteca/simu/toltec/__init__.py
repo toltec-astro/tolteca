@@ -11,7 +11,7 @@ from astropy import coordinates as coord
 from astropy.time import Time
 from astropy.table import Column, QTable, Table
 from astropy.wcs.utils import celestial_frame_to_wcs
-from astropy.coordinates import SkyCoord
+from astropy.coordinates import SkyCoord, AltAz
 from astropy.coordinates.erfa_astrom import (
         erfa_astrom, ErfaAstromInterpolator)
 from astropy.cosmology import default_cosmology
@@ -1188,6 +1188,14 @@ class ToltecObsSimulator(object):
         ref_coord = mapping.target
         ref_frame = mapping.ref_frame
         t0 = mapping.t0
+        # TODO maybe there are better ways
+        if isinstance(ref_coord.frame, AltAz):
+            ref_coord = SkyCoord(
+                    ref_coord.data, frame=self.resolve_sky_map_ref_frame(
+                            'altaz', time_obs=t0))
+        # TODO this is hacky. Need to do this within the mapping
+        # class
+        mapping._target_icrs = ref_coord.transform_to('icrs')
 
         def evaluate(t):
             with erfa_astrom.set(ErfaAstromInterpolator(self.erfa_interp_len)):
@@ -1299,10 +1307,11 @@ class ToltecObsSimulator(object):
                             s = np.sum(s * w[:, :, np.newaxis], axis=0)
                         s_additive.append(s)
                 if len(s_additive) <= 0:
-                    raise ValueError("no additive source found in source list")
-                s = s_additive[0]
-                for _s in s_additive[1:]:
-                    s += _s
+                    s = np.zeros(lon.T.shape) << u.MJy / u.sr
+                else:
+                    s = s_additive[0]
+                    for _s in s_additive[1:]:
+                        s += _s
                 return s, locals()
         yield evaluate
 
@@ -1441,4 +1450,23 @@ class KidsReadoutNoiseModel(_Model):
     A model of the TolTEC KIDs readout noise.
 
     """
-    pass
+    logger = get_logger()
+
+    n_inputs = 1
+    n_outputs = 2
+
+    @property
+    def input_units(self):
+        return {self.inputs[0]: u.s}
+
+    def __init__(self, scale_factor=1.0, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._inputs = ('t', )
+        self._outputs = ('I', 'Q')
+        self._scale_factor = scale_factor
+
+    def evaluate(self, t):
+        n = self._scale_factor
+        dI = np.random.normal(0, n, t.shape)
+        dQ = np.random.normal(0, n, t.shape)
+        return dI, dQ
