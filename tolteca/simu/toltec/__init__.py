@@ -1165,6 +1165,13 @@ class ToltecObsSimulator(object):
         return _resolve_sky_map_ref_frame(
                     ref_frame, observer=self.observer, time_obs=time_obs)
 
+    def resolve_target(self, target, time_obs):
+        if isinstance(target.frame, AltAz):
+            target = SkyCoord(
+                    target.data, frame=self.resolve_sky_map_ref_frame(
+                            'altaz', time_obs=time_obs))
+        return target
+
     @contextmanager
     def mapping_context(self, mapping, sources):
         """
@@ -1185,17 +1192,9 @@ class ToltecObsSimulator(object):
         x_t = tbl['x_t']
         y_t = tbl['y_t']
 
-        ref_coord = mapping.target
         ref_frame = mapping.ref_frame
         t0 = mapping.t0
-        # TODO maybe there are better ways
-        if isinstance(ref_coord.frame, AltAz):
-            ref_coord = SkyCoord(
-                    ref_coord.data, frame=self.resolve_sky_map_ref_frame(
-                            'altaz', time_obs=t0))
-        # TODO this is hacky. Need to do this within the mapping
-        # class
-        mapping._target_icrs = ref_coord.transform_to('icrs')
+        ref_coord = self.resolve_target(mapping.target, t0)
 
         def evaluate(t):
             with erfa_astrom.set(ErfaAstromInterpolator(self.erfa_interp_len)):

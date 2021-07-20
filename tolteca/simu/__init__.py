@@ -462,14 +462,19 @@ class SimulatorRuntime(RuntimeContext):
             n_times = len(t)
             n_chunks = n_times // n_times_per_chunk + bool(
                     n_times % n_times_per_chunk)
-            self.logger.info(
-                    f"simulate with n_times_per_chunk={n_times_per_chunk}"
-                    f" n_times={len(t)} n_chunks={n_chunks}")
-
             t_chunks = []
             for i in range(n_chunks):
                 t_chunks.append(
                         t[i * n_times_per_chunk:(i + 1) * n_times_per_chunk])
+            # merge the last chunk if it is too small
+            if n_chunks >= 2:
+                if len(t_chunks[-1]) * 10 < len(t_chunks[-2]):
+                    last_chunk = t_chunks.pop()
+                    t_chunks[-1] = np.hstack([t_chunks[-1], last_chunk])
+            n_chunks = len(t_chunks)
+            self.logger.info(
+                    f"simulate with n_times_per_chunk={n_times_per_chunk}"
+                    f" n_times={len(t)} n_chunks={n_chunks}")
 
         # construct the simulator payload
         def data_generator():
@@ -819,7 +824,10 @@ class SimulatorResult(Namespace):
             v_source_dec = nc_tel.createVariable(
                     'Header.Source.Dec', 'f8', (d_coord, ))
             v_source_dec.unit = 'rad'
-            ref_coord = mapping.target.transform_to('icrs')
+            ref_coord = simobj.resolve_target(
+                    mapping.target,
+                    mapping.t0,
+                    ).transform_to('icrs')
             v_source_ra[:] = ref_coord.ra.radian
             v_source_dec[:] = ref_coord.dec.radian
 
