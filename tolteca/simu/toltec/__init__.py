@@ -914,11 +914,12 @@ class ToltecObsSimulator(object):
                     },
                 )
         # get detector position on the sky in the toltec frame
-        x_a = tbl['x'].to(u.cm)
-        y_a = tbl['y'].to(u.cm)
-        x_t, y_t = ArrayProjModel()(tbl['array_name'], x_a, y_a)
-        tbl.add_column(Column(x_t, name='x_t', unit=x_t.unit))
-        tbl.add_column(Column(y_t, name='y_t', unit=y_t.unit))
+        if 'x_t' not in tbl.colnames:
+            x_a = tbl['x'].to(u.cm)
+            y_a = tbl['y'].to(u.cm)
+            x_t, y_t = ArrayProjModel()(tbl['array_name'], x_a, y_a)
+            tbl.add_column(Column(x_t, name='x_t', unit=x_t.unit))
+            tbl.add_column(Column(y_t, name='y_t', unit=y_t.unit))
 
     @property
     def table(self):
@@ -1398,6 +1399,7 @@ class ToltecObsSimulator(object):
 
     @classmethod
     def _prepare_table(cls, tbl):
+        logger = get_logger()
         # make columns for additional array properties to be used
         # for the kids simulator
         tbl = tbl.copy()
@@ -1424,6 +1426,9 @@ class ToltecObsSimulator(object):
 
         # kids props
         for c, v in cls.kids_props.items():
+            if c in tbl.colnames:
+                continue
+            logger.debug(f"create kids prop column {c}")
             if isinstance(v, str) and v in tbl.colnames:
                 tbl[c] = tbl[v]
                 continue

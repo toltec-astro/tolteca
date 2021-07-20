@@ -69,14 +69,29 @@ def _isf_toltec(cfg, cfg_rt):
                     'cal/toltec_default/index.yaml')
             return ToltecCalib.from_indexfile(default_cal_indexfile)
 
+    def get_array_prop_table(p):
+        try:
+            return Table.read(path_validator(p), format='ascii.ecsv')
+        except Exception:
+            logger.debug(
+                    'invalid array prop table file path,'
+                    ' fallback to default calobj')
+            return None
+
     cfg = Schema({
         'name': 'toltec',
         Optional('calobj', default=get_calobj('')): Use(get_calobj),
+        Optional('array_prop_table', default=None): Use(get_array_prop_table),
         Optional('select', default=None): str
         }).validate(cfg)
 
     logger.debug(f"simulator config: {cfg}")
-    apt = cfg['calobj'].get_array_prop_table()
+    apt = cfg['array_prop_table']
+    if cfg['array_prop_table'] is not None:
+        logger.info(f"use user input array prop table:\n{apt}")
+    else:
+        logger.info(f"use array prop table from calobj {cfg['calobj']}")
+        apt = cfg['calobj'].get_array_prop_table()
     if cfg['select'] is not None:
         n = len(apt)
         apt = apt[apt.to_pandas().eval(cfg['select']).to_numpy()]
