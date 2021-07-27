@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 import numpy as np
+import datetime
 # import functools
 from scipy.interpolate import interp1d
 import astropy.units as u
@@ -1262,6 +1263,92 @@ class ToltecObsSimulator(object):
                         x, y, eval_interp_len=0.1 << u.s)
                     az, alt = m_proj_native(x, y, eval_interp_len=0.1 << u.s)
 
+                # TODO: also put all of this stuff somewhere else?
+
+                # spam me even if (when) the c++ part doesnt fail
+                import toast
+                # from toast.utils import Environment
+                # env = Environment.get()
+                # env.set_log_level('VERBOSE')
+        
+                mpi_comm = None
+                # TODO: figure out from Ted what the expectations for tmin ---> tmax are
+                # we have python datetimes 
+                tmin = 0
+                tmax = len(time_obs) + 1
+                with timeit(f"instantiate tmin:{tmin} and tmax:{tmax}"):
+
+                    # TODO: expose relevant parameters through the configuration file 
+                    # there are sooooo mannnnnny
+                    toast_atmsim_model = toast.atm.AtmSim(
+                        # TODO: what are these units? Below they seem like they needed to be radians
+                        # these are in degrees (* u.degree)
+                        azmin=np.min(az), azmax=np.max(az),
+                        elmin=np.min(alt), elmax=np.max(alt),
+                        tmin=tmin, tmax=tmax,
+                        lmin_center=0.01 * u.meter,
+                        lmin_sigma=0.001*  u.meter,
+                        lmax_center=10 * u.meter,
+                        lmax_sigma=10* u.meter,
+                        w_center=10 * (u.km / u.second),
+                        w_sigma=10 * (u.km / u.second),
+                        wdir_center=10 * u.degree,
+                        wdir_sigma=10 * u.degree,
+                        z0_center=2000 * u.meter,
+                        z0_sigma=0 * u.meter,
+                        T0_center=100 * u.Kelvin,
+                        T0_sigma=0 * u.Kelvin,
+                        zatm=40000.0 * u.meter,
+                        zmax=2000.0 * u.meter,
+                        xstep=100.0 * u.meter,
+                        ystep=100.0 * u.meter,
+                        zstep=100.0 * u.meter,
+                        nelem_sim_max=10000,
+                        comm=mpi_comm,
+                        key1=0,
+                        key2=0,
+                        counterval1=0,
+                        counterval2=0,
+                        cachedir='./toast_cache',
+                        rmin=0.0 * u.meter,
+                        rmax=1000.0 * u.meter,
+                        write_debug=False
+                    )
+                with timeit("simulating toast atmosphere (for this time chunk)"):
+                    # TODO: seems slow / ensure that the chosen atmosphere params aren't messing with runtime
+                    err = toast_atmsim_model.simulate(use_cache=True)
+                    if err != 0:
+                        raise RuntimeError("toast atmosphere simulation failed")
+                    pass
+                
+                atm_result = []
+                with timeit("observe the toast atmosphere with detector (for this time chunk)"):
+                    
+                    # same for all the detectors in this time chunk
+                    atm_times = np.linspace(tmin, tmax, len(time_obs))
+                    
+                    # loop through each detector (it be fairly quick)
+                    # (compared with the atmosphere generation step)
+                    for az_single, alt_single in zip(az.T, alt.T): 
+                        # place to store the atmosphere data
+                        atmtod = np.zeros_like(az_single.value)
+                        err = toast_atmsim_model.observe(
+                            times=atm_times, az=az_single.to(u.radian).value, 
+                            el=alt_single.to(u.radian).value, tod=atmtod, fixed_r=0
+                        )
+                        # what are the units of atm pwr?
+                        if err != 0:
+                            raise RuntimeError("toast atmosphere detector observation failed")
+                        atm_result.append(atmtod)
+                    atm_result = np.array(atm_result)
+                    atm_result.dump(f'toast_atm_{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
+
+                    # format atm_result to something that can be used 
+                    # see 's_additive' and 's' 
+
+                    # plz stop
+                    raise RuntimeError("plz stop")
+
                 # combine the array projection with sky projection
                 # and evaluate with source frame
                 s_additive = []
@@ -1311,6 +1398,8 @@ class ToltecObsSimulator(object):
                     s = s_additive[0]
                     for _s in s_additive[1:]:
                         s += _s
+                print(s.shape)
+                print(tbl)
                 return s, locals()
         yield evaluate
 
