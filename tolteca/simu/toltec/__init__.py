@@ -915,11 +915,12 @@ class ToltecObsSimulator(object):
                     },
                 )
         # get detector position on the sky in the toltec frame
-        x_a = tbl['x'].to(u.cm)
-        y_a = tbl['y'].to(u.cm)
-        x_t, y_t = ArrayProjModel()(tbl['array_name'], x_a, y_a)
-        tbl.add_column(Column(x_t, name='x_t', unit=x_t.unit))
-        tbl.add_column(Column(y_t, name='y_t', unit=y_t.unit))
+        if 'x_t' not in tbl.colnames:
+            x_a = tbl['x'].to(u.cm)
+            y_a = tbl['y'].to(u.cm)
+            x_t, y_t = ArrayProjModel()(tbl['array_name'], x_a, y_a)
+            tbl.add_column(Column(x_t, name='x_t', unit=x_t.unit))
+            tbl.add_column(Column(y_t, name='y_t', unit=y_t.unit))
 
     @property
     def table(self):
@@ -1159,7 +1160,27 @@ class ToltecObsSimulator(object):
                 flxscale = 1. / np.squeeze(x_norm)
                 logger.debug(f"flxscale: {flxscale.mean()}")
                 return rs, xs, iqs, locals()
-        yield evaluate
+        # check the sources for kids noise model
+        if sources is not None:
+            for source in sources:
+                if isinstance(source, KidsReadoutNoiseModel):
+                    readout_noise_model = source
+                    break
+            else:
+                readout_noise_model = None
+        else:
+            readout_noise_model = None
+        if readout_noise_model is not None:
+            def evaluate_with_readout_noise(*args, **kwargs):
+                logger.debug(f"readout noise model {readout_noise_model}")
+                rs, xs, iqs, info = evaluate(*args, **kwargs)
+                diqs = readout_noise_model.evaluate_tod(tbl, iqs)
+                # info['diqs'] = diqs
+                iqs += diqs
+                return rs, xs, iqs, info
+            yield evaluate_with_readout_noise
+        else:
+            yield evaluate
 
     @timeit
     def resolve_sky_map_ref_frame(self, ref_frame, time_obs):
@@ -1487,6 +1508,7 @@ class ToltecObsSimulator(object):
 
     @classmethod
     def _prepare_table(cls, tbl):
+        logger = get_logger()
         # make columns for additional array properties to be used
         # for the kids simulator
         tbl = tbl.copy()
@@ -1513,6 +1535,9 @@ class ToltecObsSimulator(object):
 
         # kids props
         for c, v in cls.kids_props.items():
+            if c in tbl.colnames:
+                continue
+            logger.debug(f"create kids prop column {c}")
             if isinstance(v, str) and v in tbl.colnames:
                 tbl[c] = tbl[v]
                 continue
@@ -1529,7 +1554,10 @@ class ToltecObsSimulator(object):
                 raise ValueError('invalid kids prop')
         # calibration factor
         # TODO need to revisit these assumptions
-        tbl['flxscale'] = (1. / tbl['responsivity']).quantity.value
+        if 'flxscale' not in tbl.colnames:
+            tbl['flxscale'] = (1. / tbl['responsivity']).quantity.value
+        if 'sigma_readout' not in tbl.colnames:
+            tbl['sigma_readout'] = 10.
         return QTable(tbl)
 
 
@@ -1541,20 +1569,28 @@ class KidsReadoutNoiseModel(_Model):
     logger = get_logger()
 
     n_inputs = 1
-    n_outputs = 2
+    n_outputs = 1
 
-    @property
-    def input_units(self):
-        return {self.inputs[0]: u.s}
+    # @property
+    # def input_units(self):
+    #     return {self.inputs[0]: }
 
     def __init__(self, scale_factor=1.0, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._inputs = ('t', )
-        self._outputs = ('I', 'Q')
+        self._inputs = ('S21', )
+        self._outputs = ('dS21', )
         self._scale_factor = scale_factor
 
-    def evaluate(self, t):
+    def evaluate(self, S21):
         n = self._scale_factor
-        dI = np.random.normal(0, n, t.shape)
-        dQ = np.random.normal(0, n, t.shape)
-        return dI, dQ
+        shape = S21.shape
+        dI = np.random.normal(0, n, shape)
+        dQ = np.random.normal(0, n, shape)
+        return dI + 1.j * dQ
+
+    def evaluate_tod(self, tbl, S21):
+        """Make readout noise in ADU."""
+
+        dS21 = self(S21)
+        dS21 = dS21 * tbl['sigma_readout'][:, np.newaxis]
+        return dS21

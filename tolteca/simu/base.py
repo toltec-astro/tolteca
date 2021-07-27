@@ -8,7 +8,8 @@ from pathlib import Path
 from astropy.wcs import WCS
 from astropy.coordinates import SkyCoord, ICRS, AltAz, Angle
 from astropy.coordinates.baseframe import frame_transform_graph
-from astropy.modeling import Model, Parameter
+from kidsproc.kidsmodel import _Model as Model  # this allows complex inputs
+from astropy.modeling import Parameter
 import astropy.units as u
 from astropy.modeling import models
 # from astropy.table import Table
