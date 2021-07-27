@@ -1159,7 +1159,27 @@ class ToltecObsSimulator(object):
                 flxscale = 1. / np.squeeze(x_norm)
                 logger.debug(f"flxscale: {flxscale.mean()}")
                 return rs, xs, iqs, locals()
-        yield evaluate
+        # check the sources for kids noise model
+        if sources is not None:
+            for source in sources:
+                if isinstance(source, KidsReadoutNoiseModel):
+                    readout_noise_model = source
+                    break
+            else:
+                readout_noise_model = None
+        else:
+            readout_noise_model = None
+        if readout_noise_model is not None:
+            def evaluate_with_readout_noise(*args, **kwargs):
+                logger.debug(f"readout noise model {readout_noise_model}")
+                rs, xs, iqs, info = evaluate(*args, **kwargs)
+                diqs = readout_noise_model.evaluate_tod(tbl, iqs)
+                # info['diqs'] = diqs
+                iqs += diqs
+                return rs, xs, iqs, info
+            yield evaluate_with_readout_noise
+        else:
+            yield evaluate
 
     @timeit
     def resolve_sky_map_ref_frame(self, ref_frame, time_obs):
@@ -1445,7 +1465,10 @@ class ToltecObsSimulator(object):
                 raise ValueError('invalid kids prop')
         # calibration factor
         # TODO need to revisit these assumptions
-        tbl['flxscale'] = (1. / tbl['responsivity']).quantity.value
+        if 'flxscale' not in tbl.colnames:
+            tbl['flxscale'] = (1. / tbl['responsivity']).quantity.value
+        if 'sigma_readout' not in tbl.colnames:
+            tbl['sigma_readout'] = 10.
         return QTable(tbl)
 
 
@@ -1457,20 +1480,28 @@ class KidsReadoutNoiseModel(_Model):
     logger = get_logger()
 
     n_inputs = 1
-    n_outputs = 2
+    n_outputs = 1
 
-    @property
-    def input_units(self):
-        return {self.inputs[0]: u.s}
+    # @property
+    # def input_units(self):
+    #     return {self.inputs[0]: }
 
     def __init__(self, scale_factor=1.0, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._inputs = ('t', )
-        self._outputs = ('I', 'Q')
+        self._inputs = ('S21', )
+        self._outputs = ('dS21', )
         self._scale_factor = scale_factor
 
-    def evaluate(self, t):
+    def evaluate(self, S21):
         n = self._scale_factor
-        dI = np.random.normal(0, n, t.shape)
-        dQ = np.random.normal(0, n, t.shape)
-        return dI, dQ
+        shape = S21.shape
+        dI = np.random.normal(0, n, shape)
+        dQ = np.random.normal(0, n, shape)
+        return dI + 1.j * dQ
+
+    def evaluate_tod(self, tbl, S21):
+        """Make readout noise in ADU."""
+
+        dS21 = self(S21)
+        dS21 = dS21 * tbl['sigma_readout'][:, np.newaxis]
+        return dS21
