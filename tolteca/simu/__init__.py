@@ -896,9 +896,9 @@ class SimulatorResult(Namespace):
                 nm_toltec.setscalar(
                         'Header.Toltec.LoCenterFreq', 0.)
                 nm_toltec.setscalar(
-                        'Header.Toltec.InputAtten', 0.)
+                        'Header.Toltec.DriveAtten', 0.)
                 nm_toltec.setscalar(
-                        'Header.Toltec.OutputAtten', 0.)
+                        'Header.Toltec.SenseAtten', 0.)
                 nm_toltec.setscalar(
                         'Header.Toltec.AccumLen', 524288, dtype='i4')
                 nm_toltec.setscalar(
