@@ -40,6 +40,8 @@ from .base import (
         SkyLissajousModel,
         SkyDoubleLissajousModel,
         SkyRastajousModel,
+        SkyICRSTrajModel,
+        SkyAltAzTrajModel,
         resolve_sky_map_ref_frame)  # noqa: F401
 
 
@@ -383,7 +385,7 @@ class SimulatorRuntime(RuntimeContext):
                 Optional('anim_frame_rate', default=12 << u.Hz): Use(
                     u.Quantity),
                 },
-            }))
+            }, return_schema=False))
         return {'simu': simu_schema}
 
     def get_or_create_output_dir(self):
@@ -865,6 +867,12 @@ class SimulatorResult(Namespace):
                 nm_tel.setstr(
                         'Header.Dcs.ObsPgm',
                         'Map')
+            elif isinstance(mapping, (SkyICRSTrajModel, SkyAltAzTrajModel)):
+                self.logger.debug(
+                        f"mapping model meta:\n{pformat_yaml(mapping.meta)}")
+                nm_tel.setstr(
+                        'Header.Dcs.ObsPgm',
+                        mapping.meta['mapping_type'])
             else:
                 raise NotImplementedError
 
