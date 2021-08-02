@@ -4,11 +4,14 @@ from tollan.utils import getobj
 from tollan.utils import rupdate
 from tollan.utils.registry import Registry, register_to
 from tollan.utils.fmt import pformat_yaml
-from tollan.utils.schema import create_relpath_validator
+from tollan.utils.schema import (
+        create_relpath_validator, make_nested_optional_defaults)
 from tollan.utils.log import get_logger, logit, timeit, log_to_file
 from tollan.utils.nc import ncopen, ncinfo
 from tollan.utils.namespace import Namespace
 
+import re
+import argparse
 import yaml
 import netCDF4
 from tollan.utils.nc import NcNodeMapper
@@ -37,6 +40,8 @@ from .base import (
         SkyLissajousModel,
         SkyDoubleLissajousModel,
         SkyRastajousModel,
+        SkyICRSTrajModel,
+        SkyAltAzTrajModel,
         resolve_sky_map_ref_frame)  # noqa: F401
 
 
@@ -283,7 +288,7 @@ def _register_mapping_model_factory(clspath):
                 't0': Use(Time),
                 Optional(
                     'target_frame', default='icrs'): Use(_get_frame_class),
-                object: object,
+                Optional(str): object,
                 }).validate(cfg)
 
         logger.debug(f"mapping model config: {cfg}")
@@ -313,6 +318,24 @@ _register_mapping_model_factory('tolteca.simu:SkyDoubleLissajousModel')
 _register_mapping_model_factory('tolteca.simu:SkyRastajousModel')
 
 
+_simu_runtime_exporters = Registry.create()
+"""This holds the exporters for the simulation runtime context."""
+
+
+@register_to(_simu_runtime_exporters, 'lmtot')
+def _sre_lmtot(rt):
+    """Handle exporting of the simulator runtime to LMT observation tool."""
+
+    cfg = rt.config['simu']
+
+    mapping = rt.get_mapping_model()
+
+    ot_lines = []
+    ot_lines.append(f'ObsGoal Dcs; Dcs -ObsGoal "{cfg["jobkey"]}"')
+    ot_lines.append(mapping.to_lmtot())
+    return '\n'.join(ot_lines)
+
+
 class SimulatorRuntimeError(RuntimeContextError):
     """Raise when errors occur in `SimulatorRuntime`."""
     pass
@@ -324,46 +347,46 @@ class SimulatorRuntime(RuntimeContext):
     @classmethod
     def extend_config_schema(cls):
         # this defines the subschema relevant to the simulator.
-        return {
-            'simu': {
-                'jobkey': str,
-                'instrument': {
-                    'name': Or(*_instru_simu_factory.keys()),
-                    Optional(object): object
-                    },
-                'obs_params': {
-                    'f_smp_mapping': Use(u.Quantity),
-                    'f_smp_data': Use(u.Quantity),
-                    't_exp': Use(u.Quantity)
-                    },
-                'sources': [{
-                    'type': Or(*_simu_source_factory.keys()),
-                    Optional(object): object
-                    }],
-                'mapping': {
-                    'type': Or(*_mapping_model_factory.keys()),
-                    Optional(object): object
-                    },
-                Optional('plot', default=False): bool,
-                Optional('save', default=True): bool,
-                Optional('mapping_only', default=False): bool,
-                Optional('perf_params', default={
-                        # TODO refactor here to not repeat
-                        'chunk_size': 10 << u.s,
-                        'mapping_interp_len': 1 << u.s,
-                        'erfa_interp_len': 300 << u.s,
-                        'anim_frame_rate': 12 << u.Hz,
-                    }): {
-                    Optional('chunk_size', default=10 << u.s): Use(u.Quantity),
-                    Optional('mapping_interp_len', default=1 << u.s): Use(
-                        u.Quantity),
-                    Optional('erfa_interp_len', default=300 << u.s): Use(
-                        u.Quantity),
-                    Optional('anim_frame_rate', default=12 << u.Hz): Use(
-                        u.Quantity),
-                    },
+        simu_schema = {
+            'jobkey': str,
+            'instrument': Schema({
+                'name': Or(*_instru_simu_factory.keys()),
+                Optional(str): object
+                }),
+            'obs_params': {
+                't_exp': Use(u.Quantity),
+                Optional('f_smp_mapping', default=20 << u.Hz): Use(u.Quantity),
+                Optional('f_smp_data', default=488. << u.Hz): Use(u.Quantity),
                 },
+            'sources': [{
+                'type': Or(*_simu_source_factory.keys()),
+                Optional(str): object
+                }],
+            'mapping': {
+                'type': Or(*_mapping_model_factory.keys()),
+                Optional(str): object
+                },
+            Optional('mapping_only', default=False): bool,
+            Optional('exports', default=[{'format': 'lmtot'}]): [{
+                'format': Or(*_simu_runtime_exporters.keys()),
+                Optional(str): object
+                }, ],
+            Optional('exports_only', default=False): bool,
+            Optional('plot', default=False): bool,
+            Optional('save', default=True): bool,
             }
+        simu_schema.update(make_nested_optional_defaults({
+            Optional('perf_params'): {
+                Optional('chunk_size', default=10 << u.s): Use(u.Quantity),
+                Optional('mapping_interp_len', default=1 << u.s): Use(
+                    u.Quantity),
+                Optional('erfa_interp_len', default=300 << u.s): Use(
+                    u.Quantity),
+                Optional('anim_frame_rate', default=12 << u.Hz): Use(
+                    u.Quantity),
+                },
+            }, return_schema=False))
+        return {'simu': simu_schema}
 
     def get_or_create_output_dir(self):
         cfg = self.config['simu']
@@ -567,6 +590,26 @@ class SimulatorRuntime(RuntimeContext):
     def cli_run(self, args=None):
         """Run the simulator and save the result.
         """
+        if args is not None:
+            self.logger.debug(f"update config with command line args: {args}")
+            parser = argparse.ArgumentParser()
+            n_args = len(args)
+            re_arg = re.compile(r'^--(?P<key>[a-zA-Z_](\w|.|_)*)')
+            for i, arg in enumerate(args):
+                m = re_arg.match(arg)
+                if m is None:
+                    continue
+                # g = m.groupdict()
+                next_arg = args[i + 1] if i < n_args - 1 else None
+                arg_kwargs = dict()
+                if next_arg is None:
+                    arg_kwargs['action'] = 'store_true'
+                else:
+                    arg_kwargs['type'] = yaml.safe_load
+                parser.add_argument(arg, **arg_kwargs)
+            args = parser.parse_args(args)
+            self.logger.debug(f'parsed config: {pformat_yaml(args.__dict__)}')
+            self.update({'simu': args.__dict__})
         cfg = self.config['simu']
         # configure the logging to log to file
         logfile = self.logdir.joinpath('simu.log')
@@ -574,6 +617,15 @@ class SimulatorRuntime(RuntimeContext):
         with log_to_file(
                 filepath=logfile, level='DEBUG', disable_other_handlers=False):
             mapping_only = cfg['mapping_only']
+            exports_only = cfg['exports_only']
+            if exports_only:
+                exports = cfg['exports']
+                if not exports:
+                    raise ValueError("no export settings found.")
+                result = list()
+                for export_kwargs in exports:
+                    result.append(self.export(**export_kwargs))
+                return
             if mapping_only:
                 result = self.run_mapping_only()
             else:
@@ -583,6 +635,18 @@ class SimulatorRuntime(RuntimeContext):
             if cfg['save']:
                 result.save(
                     self.get_or_create_output_dir(), mapping_only=mapping_only)
+
+    def export(self, format, **kwargs):
+        """Export the simulator context as various external formats.
+
+        Supported `format`:
+
+            * "lmtot": The script used by the LMT observation tool.
+
+        """
+        if format not in _simu_runtime_exporters:
+            raise ValueError(f"invalid export format: {format}")
+        return _simu_runtime_exporters[format](self)
 
 
 class SimulatorResult(Namespace):
@@ -803,6 +867,12 @@ class SimulatorResult(Namespace):
                 nm_tel.setstr(
                         'Header.Dcs.ObsPgm',
                         'Map')
+            elif isinstance(mapping, (SkyICRSTrajModel, SkyAltAzTrajModel)):
+                self.logger.debug(
+                        f"mapping model meta:\n{pformat_yaml(mapping.meta)}")
+                nm_tel.setstr(
+                        'Header.Dcs.ObsPgm',
+                        mapping.meta['mapping_type'])
             else:
                 raise NotImplementedError
 
@@ -830,7 +900,7 @@ class SimulatorResult(Namespace):
             v_hold = nc_tel.createVariable(
                     'Data.TelescopeBackend.Hold', 'f8', (d_time, )
                     )
-            # not sure why d_coord is all 2 for the coords
+            # the len=2 is for mean and ref coordinates.
             d_coord = 'Header.Source.Ra_xlen'
             nc_tel.createDimension(d_coord, 2)
             v_source_ra = nc_tel.createVariable(
@@ -896,9 +966,9 @@ class SimulatorResult(Namespace):
                 nm_toltec.setscalar(
                         'Header.Toltec.LoCenterFreq', 0.)
                 nm_toltec.setscalar(
-                        'Header.Toltec.InputAtten', 0.)
+                        'Header.Toltec.DriveAtten', 0.)
                 nm_toltec.setscalar(
-                        'Header.Toltec.OutputAtten', 0.)
+                        'Header.Toltec.SenseAtten', 0.)
                 nm_toltec.setscalar(
                         'Header.Toltec.AccumLen', 524288, dtype='i4')
                 nm_toltec.setscalar(

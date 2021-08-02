@@ -943,22 +943,30 @@ class TrajectoryModelMeta(SkyMapModel.__class__):
             """This computes the position based on interpolation.
 
             """
-            return self._lon_interp(t), self._dec_interp(t)
+            t = t.to_value(u.s)
+            return self._lon_interp(t) << u.deg, self._lat_interp(t) << u.deg
 
         attrs['evaluate'] = evaluate
+        attrs['evaluate_holdflag'] = \
+            lambda self, t: self._holdflag_interp(t).astype(int)
+
         return super().__new__(meta, name, bases, attrs)
 
     def __call__(
             cls, *args, **kwargs):
         data = dict()
-        for attr in ('time', 'ra', 'dec', 'az', 'alt'):
+        for attr in ('time', 'ra', 'dec', 'az', 'alt', 'holdflag'):
             data[f'_{attr}'] = kwargs.pop(attr, None)
         inst = super().__call__(*args, **kwargs)
         inst.__dict__.update(data)
         inst.inputs = ('t', )
         inst.outputs = cls.frame.axes_names
-        inst._lon_interp = interpolate.interp1d(inst._time, inst._lon)
-        inst._lat_interp = interpolate.interp1d(inst._time, inst._lat)
+        inst._lon_interp = interpolate.interp1d(
+                inst._time.to_value(u.s), inst._lon.to_value(u.deg))
+        inst._lat_interp = interpolate.interp1d(
+                inst._time.to_value(u.s), inst._lat.to_value(u.deg))
+        inst._holdflag_interp = interpolate.interp1d(
+                inst._time, inst._holdflag, kind='previous')
         return inst
 
 
@@ -986,7 +994,17 @@ class SkyRastajousModel(SkyMapModel, metaclass=RastajousModelMeta):
             unit=(u.deg, u.deg))
 
 
-class SkyICRSTrajModel(SkyMapModel, metaclass=TrajectoryModelMeta):
+class SkyMapTrajModel(SkyMapModel):
+
+    @timeit
+    def evaluate_at(self, ref_coord, *args):
+        """Returns the mapping pattern as evaluated at given coordinates.
+        """
+        # ref_coord is ignored in this case
+        return SkyCoord(*self(*args), frame=self.ref_frame)
+
+
+class SkyICRSTrajModel(SkyMapTrajModel, metaclass=TrajectoryModelMeta):
     frame = cf.CelestialFrame(
             name='icrs',
             reference_frame=ICRS(),
@@ -994,7 +1012,7 @@ class SkyICRSTrajModel(SkyMapModel, metaclass=TrajectoryModelMeta):
             )
 
 
-class SkyAltAzTrajModel(SkyMapModel, metaclass=TrajectoryModelMeta):
+class SkyAltAzTrajModel(SkyMapTrajModel, metaclass=TrajectoryModelMeta):
     frame = cf.CelestialFrame(
             name='altaz',
             reference_frame=AltAz(),
