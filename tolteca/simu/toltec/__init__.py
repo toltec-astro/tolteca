@@ -1307,9 +1307,9 @@ class ToltecObsSimulator(object):
                         azmin=np.min(az), azmax=np.max(az),
                         elmin=np.min(alt), elmax=np.max(alt),
                         tmin=tmin, tmax=tmax,
-                        lmin_center=0.01 * u.meter,
+                        lmin_center=0.001 * u.meter,
                         lmin_sigma=0.001*  u.meter,
-                        lmax_center=10 * u.meter,
+                        lmax_center=1.0 * u.meter,
                         lmax_sigma=10* u.meter,
                         w_center=10 * (u.km / u.second),
                         w_sigma=10 * (u.km / u.second),
@@ -1318,12 +1318,12 @@ class ToltecObsSimulator(object):
                         z0_center=2000 * u.meter,
                         z0_sigma=0 * u.meter,
                         T0_center=100 * u.Kelvin,
-                        T0_sigma=0 * u.Kelvin,
+                        T0_sigma=1 * u.Kelvin,
                         zatm=40000.0 * u.meter,
-                        zmax=2000.0 * u.meter,
-                        xstep=100.0 * u.meter,
-                        ystep=100.0 * u.meter,
-                        zstep=100.0 * u.meter,
+                        zmax=200.0 * u.meter,
+                        xstep=105.0 * u.meter,
+                        ystep=105.0 * u.meter,
+                        zstep=105.0 * u.meter,
                         nelem_sim_max=10000,
                         comm=mpi_comm,
                         key1=0,
@@ -1367,7 +1367,12 @@ class ToltecObsSimulator(object):
                     # format atm_result to something that can be used 
                     # see 's_additive' and 's' 
 
-                    # plz stop
+                    import subprocess
+                    subprocess.check_output("mpiexec -n 4 python /Users/dennislee/Documents/repos/toltec_dr_scripts/atm_mpi.py",
+                        stderr=subprocess.STDOUT,
+                        shell=True
+                    )
+                    # plz stop (breakpoint)
                     raise RuntimeError("plz stop")
 
                 # combine the array projection with sky projection
@@ -1419,8 +1424,6 @@ class ToltecObsSimulator(object):
                     s = s_additive[0]
                     for _s in s_additive[1:]:
                         s += _s
-                print(s.shape)
-                print(tbl)
                 return s, locals()
         yield evaluate
 
