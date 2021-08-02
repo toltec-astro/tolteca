@@ -914,7 +914,7 @@ class TrajectoryModelMeta(SkyMapModel.__class__):
                 ))
 
         def get_total_time(self):
-            return self._time[-1] << u.s
+            return self._time[-1]
 
         attrs['get_total_time'] = get_total_time
 
@@ -948,7 +948,8 @@ class TrajectoryModelMeta(SkyMapModel.__class__):
 
         attrs['evaluate'] = evaluate
         attrs['evaluate_holdflag'] = \
-            lambda self, t: self._holdflag.astype(int)
+            lambda self, t: self._holdflag_interp(t).astype(int)
+
         return super().__new__(meta, name, bases, attrs)
 
     def __call__(
@@ -960,8 +961,10 @@ class TrajectoryModelMeta(SkyMapModel.__class__):
         inst.__dict__.update(data)
         inst.inputs = ('t', )
         inst.outputs = cls.frame.axes_names
-        inst._lon_interp = interpolate.interp1d(inst._time, inst._lon)
-        inst._lat_interp = interpolate.interp1d(inst._time, inst._lat)
+        inst._lon_interp = interpolate.interp1d(
+                inst._time.to_value(u.s), inst._lon.to_value(u.deg))
+        inst._lat_interp = interpolate.interp1d(
+                inst._time.to_value(u.s), inst._lat.to_value(u.deg))
         inst._holdflag_interp = interpolate.interp1d(
                 inst._time, inst._holdflag, kind='previous')
         return inst
@@ -991,7 +994,17 @@ class SkyRastajousModel(SkyMapModel, metaclass=RastajousModelMeta):
             unit=(u.deg, u.deg))
 
 
-class SkyICRSTrajModel(SkyMapModel, metaclass=TrajectoryModelMeta):
+class SkyMapTrajModel(SkyMapModel):
+
+    @timeit
+    def evaluate_at(self, ref_coord, *args):
+        """Returns the mapping pattern as evaluated at given coordinates.
+        """
+        # ref_coord is ignored in this case
+        return SkyCoord(*self(*args), frame=self.ref_frame)
+
+
+class SkyICRSTrajModel(SkyMapTrajModel, metaclass=TrajectoryModelMeta):
     frame = cf.CelestialFrame(
             name='icrs',
             reference_frame=ICRS(),
@@ -999,7 +1012,7 @@ class SkyICRSTrajModel(SkyMapModel, metaclass=TrajectoryModelMeta):
             )
 
 
-class SkyAltAzTrajModel(SkyMapModel, metaclass=TrajectoryModelMeta):
+class SkyAltAzTrajModel(SkyMapTrajModel, metaclass=TrajectoryModelMeta):
     frame = cf.CelestialFrame(
             name='altaz',
             reference_frame=AltAz(),

@@ -900,7 +900,7 @@ class SimulatorResult(Namespace):
             v_hold = nc_tel.createVariable(
                     'Data.TelescopeBackend.Hold', 'f8', (d_time, )
                     )
-            # not sure why d_coord is all 2 for the coords
+            # the len=2 is for mean and ref coordinates.
             d_coord = 'Header.Source.Ra_xlen'
             nc_tel.createDimension(d_coord, 2)
             v_source_ra = nc_tel.createVariable(

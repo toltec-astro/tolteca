@@ -65,10 +65,13 @@ class LmtTelFileIO(SimpleNcFileIO):
         t_az, t_az_off = self.getvar('target_az')[:]
         t_alt, t_alt_off = self.getvar('target_alt')[:]
 
+        t0 = Time(self.getvar('time')[0], format='unix')
+        t0.format = 'isot'
+        m['t0'] = t0
         m['target'] = SkyCoord(
-                t_ra << u.deg, t_dec << u.deg, frame='icrs')
+                t_ra << u.rad, t_dec << u.rad, frame='icrs')
         m['target_off'] = SkyCoord(
-                t_ra_off << u.deg, t_dec_off << u.deg, frame='icrs')
+                t_ra_off << u.rad, t_dec_off << u.rad, frame='icrs')
         m['target_frame'] = 'icrs'
         return m
 
@@ -81,12 +84,11 @@ class LmtTelFileIO(SimpleNcFileIO):
     def read(self):
         meta = self.meta
         t = self.getvar('time')[:]
-        t0 = Time([0], format='unix')
-        t = t - t[0]
-        ra = self.getvar('ra')[:]
-        dec = self.getvar('dec')[:]
-        az = self.getvar('az')[:]
-        alt = self.getvar('alt')[:]
+        t = (t - t[0]) << u.s
+        ra = self.getvar('ra')[:] << u.rad
+        dec = self.getvar('dec')[:] << u.rad
+        az = self.getvar('az')[:] << u.rad
+        alt = self.getvar('alt')[:] << u.rad
         holdflag = self.getvar('holdflag')[:].astype(int)
         m1 = SkyICRSTrajModel(
                 time=t,
@@ -94,7 +96,7 @@ class LmtTelFileIO(SimpleNcFileIO):
                 dec=dec,
                 az=az,
                 alt=alt,
-                t0=t0,
+                t0=meta['t0'],
                 meta=meta,
                 holdflag=holdflag,
                 target=meta['target'],
