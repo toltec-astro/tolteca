@@ -7,7 +7,7 @@ name_long: "Large Millimeter Telescope"
 
 site:
   location:
-    lon: -97d18m53s
-    lat: +18d59m06s
-    height: "4600 m"
+    lon: -97d18m52.6s
+    lat: +18d59m10s
+    height: "4640 m"
   timezone: 'America/Mexico_City'
