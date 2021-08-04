@@ -1209,6 +1209,8 @@ class ToltecObsSimulator(object):
 
             The list of models that define the input signal and noise.
         """
+        logger = get_logger()
+
         tbl = self.table
         x_t = tbl['x_t']
         y_t = tbl['y_t']
@@ -1227,8 +1229,27 @@ class ToltecObsSimulator(object):
                             ref_frame, time_obs=time_obs)
                     with timeit(
                             f'transform ref coords to {len(time_obs)} times'):
-                        _ref_coord = ref_coord.transform_to(_ref_frame)
+                        if isinstance(mapping.target.frame, AltAz):
+                            logger.debug(
+                                    "target in altaz, tracking is disabled")
+                            if not isinstance(_ref_frame, AltAz):
+                                raise ValueError(
+                                    "ref_frame has to be altaz"
+                                    " for altaz target")
+                            az_fixed = np.full(
+                                    time_obs.shape,
+                                    ref_coord.az.degree) << u.deg
+                            alt_fixed = np.full(
+                                    time_obs.shape,
+                                    ref_coord.alt.degree) << u.deg
+                            _ref_coord = SkyCoord(
+                                az_fixed, alt_fixed, frame=_ref_frame)
+                        else:
+                            _ref_coord = ref_coord.transform_to(_ref_frame)
                     obs_coords = mapping.evaluate_at(_ref_coord, t)
+                    import matplotlib.pyplot as plt
+                    plt.plot(obs_coords.az.degree, obs_coords.alt.degree)
+                    plt.show()
                     hold_flags = mapping.evaluate_holdflag(t)
                     m_proj_icrs = self.get_sky_projection_model(
                             ref_coord=obs_coords,

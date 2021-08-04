@@ -957,6 +957,18 @@ class SimulatorResult(Namespace):
             v_pa = nc_tel.createVariable(
                     'Data.TelescopeBackend.ActParAng', 'f8', (d_time, ))
             v_pa.unit = 'rad'
+            # the _sky az alt and pa are the corrected positions of telescope
+            # they are the same as the above when no pointing correction
+            # is applied.
+            v_alt_sky = nc_tel.createVariable(
+                    'Data.TelescopeBackend.TelElSky', 'f8', (d_time, ))
+            v_alt_sky.unit = 'rad'
+            v_az_sky = nc_tel.createVariable(
+                    'Data.TelescopeBackend.TelAzSky', 'f8', (d_time, ))
+            v_az_sky.unit = 'rad'
+            v_pa_sky = nc_tel.createVariable(
+                    'Data.TelescopeBackend.ParAng', 'f8', (d_time, ))
+            v_pa_sky.unit = 'rad'
             v_hold = nc_tel.createVariable(
                     'Data.TelescopeBackend.Hold', 'f8', (d_time, )
                     )
@@ -1116,6 +1128,12 @@ class SimulatorResult(Namespace):
                 v_az[idx:] = obs_coords_altaz.az.radian
                 v_alt[idx:] = obs_coords_altaz.alt.radian
                 v_pa[idx:] = obs_parallactic_angle.radian
+
+                # no pointing model
+                v_az_sky[idx:] = obs_coords_altaz.az.radian
+                v_alt_sky[idx:] = obs_coords_altaz.alt.radian
+                v_pa_sky[idx:] = obs_parallactic_angle.radian
+
                 v_hold[idx:] = data['obs_info']['hold_flags']
                 self.logger.info(
                         f'write [{idx}:{idx + len(time_obs)}] to'
