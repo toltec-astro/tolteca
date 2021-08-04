@@ -1247,9 +1247,6 @@ class ToltecObsSimulator(object):
                         else:
                             _ref_coord = ref_coord.transform_to(_ref_frame)
                     obs_coords = mapping.evaluate_at(_ref_coord, t)
-                    import matplotlib.pyplot as plt
-                    plt.plot(obs_coords.az.degree, obs_coords.alt.degree)
-                    plt.show()
                     hold_flags = mapping.evaluate_holdflag(t)
                     m_proj_icrs = self.get_sky_projection_model(
                             ref_coord=obs_coords,
