@@ -1319,6 +1319,7 @@ class ToltecObsSimulator(object):
 
                     # TODO: expose relevant parameters through the configuration file 
                     # there are sooooo mannnnnny
+                    gain = 1.0
                     toast_atmsim_model = toast.atm.AtmSim(
                         # TODO: what are these units? Below they seem like they needed to be radians
                         # these are in degrees (* u.degree)
@@ -1348,14 +1349,14 @@ class ToltecObsSimulator(object):
                         key2=0,
                         counterval1=0,
                         counterval2=0,
-                        cachedir='./toast_cache',
+                        cachedir=None,#'./toast_cache',
                         rmin=0.0 * u.meter,
                         rmax=1000.0 * u.meter,
                         write_debug=False
                     )
                 with timeit("simulating toast atmosphere (for this time chunk)"):
                     # TODO: seems slow / ensure that the chosen atmosphere params aren't messing with runtime
-                    err = toast_atmsim_model.simulate(use_cache=True)
+                    err = toast_atmsim_model.simulate(use_cache=False)
                     if err != 0:
                         raise RuntimeError("toast atmosphere simulation failed")
                     pass
@@ -1379,19 +1380,18 @@ class ToltecObsSimulator(object):
                         if err != 0:
                             raise RuntimeError("toast atmosphere detector observation failed")
                         atm_result.append(atmtod)
-                    atm_result = np.array(atm_result)
-                    atm_result.dump(f'toast_atm_{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
+                    atm_result  = np.array(atm_result)
+                    atm_result *= gain
+                    #atm_result.dump(f'toast_atm_{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
 
                     # format atm_result to something that can be used 
                     # see 's_additive' and 's' 
 
-                    import subprocess
-                    subprocess.check_output("mpiexec -n 4 python /Users/dennislee/Documents/repos/toltec_dr_scripts/atm_mpi.py",
-                        stderr=subprocess.STDOUT,
-                        shell=True
-                    )
-                    # plz stop (breakpoint)
-                    raise RuntimeError("plz stop")
+                    # import subprocess
+                    # subprocess.check_output("mpiexec -n 4 python /Users/dennislee/Documents/repos/toltec_dr_scripts/atm_mpi.py",
+                    #     stderr=subprocess.STDOUT,
+                    #     shell=True
+                    # )
 
                 # combine the array projection with sky projection
                 # and evaluate with source frame
@@ -1442,6 +1442,10 @@ class ToltecObsSimulator(object):
                     s = s_additive[0]
                     for _s in s_additive[1:]:
                         s += _s
+                assert s.shape == atm_result.shape
+                # plz stop (breakpoint)
+                # raise RuntimeError("plz stop")
+                s += atm_result << u.MJy / u.sr
                 return s, locals()
         yield evaluate
 
