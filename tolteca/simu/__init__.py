@@ -328,12 +328,72 @@ def _sre_lmtot(rt):
 
     cfg = rt.config['simu']
 
+    simobj = rt.get_instrument_simulator()
     mapping = rt.get_mapping_model()
 
     ot_lines = []
+    ot_lines.append(f"# LMT OT script created by tolteca.simu at {Time.now()}")
     ot_lines.append(f'ObsGoal Dcs; Dcs -ObsGoal "{cfg["jobkey"]}"')
-    ot_lines.append(mapping.to_lmtot())
-    return '\n'.join(ot_lines)
+
+    ref_coord = simobj.resolve_target(
+            mapping.target,
+            mapping.t0,
+            ).transform_to('icrs')
+    ot_lines.append("""
+Source Source;  Source  -BaselineList [] -CoordSys Eq -DecProperMotionCor 0 -Dec[0] {Dec} -Dec[1] {Dec} -El[0] 0.000000 -El[1] 0.000000 -EphemerisTrackOn 0 -Epoch 2000.0 -GoToZenith 0 -L[0] 0.0 -L[1] 0.0 -LineList [] -Planet None -RaProperMotionCor 0 -Ra[0] {RA} -Ra[1] {RA} -SourceName {Name} -VelSys Lsr -Velocity 0.000000 -Vmag 0.0
+""".format(
+        RA=ref_coord.ra.degree,
+        Dec=ref_coord.dec.degree,
+        Name=cfg['mapping']['target'],
+        ))
+    if isinstance(mapping, (SkyLissajousModel)):
+        m = mapping
+        v_x = m.x_length * m.x_omega.to(
+                u.Hz, equivalencies=[(u.cy/u.s, u.Hz)])
+        v_y = m.y_length * m.y_omega.to(
+                u.Hz, equivalencies=[(u.cy/u.s, u.Hz)])
+        params = dict(
+            XLength=m.x_length.to_value(u.arcmin),
+            YLength=m.y_length.to_value(u.arcmin),
+            XOmega=m.x_omega.to_value(u.rad/u.s),
+            YOmega=m.y_omega.to_value(u.rad/u.s),
+            XDelta=m.delta.to_value(u.rad),
+            TScan=m.get_total_time(),
+            ScanRate=np.hypot(v_x, v_y).to_value(u.arcsec / u.s),
+            )
+        ot_line = \
+"""Lissajous -ExecMode 0 -RotateWithElevation 0 -TunePeriod 0 -TScan {TScan} -ScanRate {ScanRate} -XLength {XLength} -YLength {YLength} -XOmega {XOmega} -YOmega {YOmega} -XDelta {XDelta} -XLengthMinor 0.0 -YLengthMinor 0.0 -XDeltaMinor 0.0
+""".format(**params)
+    elif isinstance(mapping, (SkyRasterScanModel)):
+        m = mapping
+        if m.ref_frame == 'icrs' or m.ref_frame.name == 'icrs':
+            MapCoord = 'Ra'
+        elif m.ref_frame == 'altaz' or m.ref_frame.name == 'altaz':
+            MapCoord = 'Az'
+        else:
+            raise NotImplementedError(f"invalid ref_frame {m.ref_frame}")
+        params = dict(
+            MapCoord=MapCoord,
+            ScanAngle=m.rot.quantity.to_value(u.deg),
+            XLength=m.length.quantity.to_value(u.arcsec),
+            XStep=m.speed.quantity.to_value(u.arcsec / u.s),
+            YLength=(m.n_scans * m.space.quantity).to_value(u.arcsec),
+            YStep=m.space.quantity.to_value(u.arcsec),
+            )
+        ot_line = \
+"""RasterMap Map; Map -ExecMode 0 -HPBW 1 -HoldDuringTurns 0 -MapMotion Continuous -NumPass 1 -NumRepeats 1 -NumScans 0 -RowsPerScan 1000000 -ScansPerCal 0 -ScansToSkip 0 -TCal 0 -TRef 0 -TSamp 1 -MapCoord {MapCoord} -ScanAngle {ScanAngle} -XLength {XLength} -XOffset 0 -XRamp 0 -XStep {XStep} -YLength {YLength} -YOffset 0 -YRamp 0 -YStep {YStep}
+""".format(**params)
+    else:
+        raise NotImplementedError
+    ot_lines.append(ot_line)
+    ot_content = '\n'.join(ot_lines)
+    print(ot_content)
+    output_dir = rt.get_or_create_output_dir()
+    with open(
+            output_dir.joinpath(
+                f'{output_dir.name}_exported.lmtot'), 'w') as fo:
+        fo.write(ot_content)
+    return ot_content
 
 
 class SimulatorRuntimeError(RuntimeContextError):
@@ -897,6 +957,18 @@ class SimulatorResult(Namespace):
             v_pa = nc_tel.createVariable(
                     'Data.TelescopeBackend.ActParAng', 'f8', (d_time, ))
             v_pa.unit = 'rad'
+            # the _sky az alt and pa are the corrected positions of telescope
+            # they are the same as the above when no pointing correction
+            # is applied.
+            v_alt_sky = nc_tel.createVariable(
+                    'Data.TelescopeBackend.TelElSky', 'f8', (d_time, ))
+            v_alt_sky.unit = 'rad'
+            v_az_sky = nc_tel.createVariable(
+                    'Data.TelescopeBackend.TelAzSky', 'f8', (d_time, ))
+            v_az_sky.unit = 'rad'
+            v_pa_sky = nc_tel.createVariable(
+                    'Data.TelescopeBackend.ParAng', 'f8', (d_time, ))
+            v_pa_sky.unit = 'rad'
             v_hold = nc_tel.createVariable(
                     'Data.TelescopeBackend.Hold', 'f8', (d_time, )
                     )
@@ -1056,6 +1128,12 @@ class SimulatorResult(Namespace):
                 v_az[idx:] = obs_coords_altaz.az.radian
                 v_alt[idx:] = obs_coords_altaz.alt.radian
                 v_pa[idx:] = obs_parallactic_angle.radian
+
+                # no pointing model
+                v_az_sky[idx:] = obs_coords_altaz.az.radian
+                v_alt_sky[idx:] = obs_coords_altaz.alt.radian
+                v_pa_sky[idx:] = obs_parallactic_angle.radian
+
                 v_hold[idx:] = data['obs_info']['hold_flags']
                 self.logger.info(
                         f'write [{idx}:{idx + len(time_obs)}] to'
