@@ -325,6 +325,7 @@ _simu_runtime_exporters = Registry.create()
 @register_to(_simu_runtime_exporters, 'lmtot')
 def _sre_lmtot(rt):
     """Handle exporting of the simulator runtime to LMT observation tool."""
+    logger = get_logger()
 
     cfg = rt.config['simu']
 
@@ -339,50 +340,177 @@ def _sre_lmtot(rt):
             mapping.target,
             mapping.t0,
             ).transform_to('icrs')
-    ot_lines.append("""
-Source Source;  Source  -BaselineList [] -CoordSys Eq -DecProperMotionCor 0 -Dec[0] {Dec} -Dec[1] {Dec} -El[0] 0.000000 -El[1] 0.000000 -EphemerisTrackOn 0 -Epoch 2000.0 -GoToZenith 0 -L[0] 0.0 -L[1] 0.0 -LineList [] -Planet None -RaProperMotionCor 0 -Ra[0] {RA} -Ra[1] {RA} -SourceName {Name} -VelSys Lsr -Velocity 0.000000 -Vmag 0.0
-""".format(
-        RA=ref_coord.ra.degree,
-        Dec=ref_coord.dec.degree,
-        Name=cfg['mapping']['target'],
-        ))
-    if isinstance(mapping, (SkyLissajousModel)):
-        m = mapping
-        v_x = m.x_length * m.x_omega.to(
+    ot_lines.append(
+        "Source Source;  Source  -BaselineList [] -CoordSys Eq"
+        " -DecProperMotionCor 0"
+        " -Dec[0] {Dec} -Dec[1] {Dec}"
+        " -El[0] 0.000000 -El[1] 0.000000 -EphemerisTrackOn 0 -Epoch 2000.0"
+        " -GoToZenith 0 -L[0] 0.0 -L[1] 0.0 -LineList [] -Planet None"
+        " -RaProperMotionCor 0 -Ra[0] {RA} -Ra[1] {RA}"
+        " -SourceName {Name} -VelSys Lsr -Velocity 0.000000 -Vmag 0.0".format(
+            RA=ref_coord.ra.to_string(
+                unit=u.hour, pad=True,
+                decimal=False, fields=3, sep=':'),
+            Dec=ref_coord.dec.to_string(
+                unit=u.degree, pad=True, alwayssign=True,
+                decimal=False, fields=3, sep=':'),
+            Name=cfg['mapping']['target'],
+            ))
+
+    def _sky_lissajous_params_to_lmtot_params(
+            x_length, y_length, x_omega, y_omega,
+            delta, total_time
+            ):
+        v_x = x_length * x_omega.quantity.to(
                 u.Hz, equivalencies=[(u.cy/u.s, u.Hz)])
-        v_y = m.y_length * m.y_omega.to(
+        v_y = y_length * y_omega.quantity.to(
                 u.Hz, equivalencies=[(u.cy/u.s, u.Hz)])
-        params = dict(
-            XLength=m.x_length.to_value(u.arcmin),
-            YLength=m.y_length.to_value(u.arcmin),
-            XOmega=m.x_omega.to_value(u.rad/u.s),
-            YOmega=m.y_omega.to_value(u.rad/u.s),
-            XDelta=m.delta.to_value(u.rad),
-            TScan=m.get_total_time(),
+        return dict(
+            XLength=x_length.quantity.to_value(u.arcmin),
+            YLength=y_length.quantity.to_value(u.arcmin),
+            XOmega=x_omega.quantity.to_value(u.rad/u.s),
+            YOmega=y_omega.quantity.to_value(u.rad/u.s),
+            XDelta=delta.quantity.to_value(u.rad),
+            TScan=total_time,
             ScanRate=np.hypot(v_x, v_y).to_value(u.arcsec / u.s),
             )
-        ot_line = \
-"""Lissajous -ExecMode 0 -RotateWithElevation 0 -TunePeriod 0 -TScan {TScan} -ScanRate {ScanRate} -XLength {XLength} -YLength {YLength} -XOmega {XOmega} -YOmega {YOmega} -XDelta {XDelta} -XLengthMinor 0.0 -YLengthMinor 0.0 -XDeltaMinor 0.0
-""".format(**params)
-    elif isinstance(mapping, (SkyRasterScanModel)):
-        m = mapping
-        if m.ref_frame == 'icrs' or m.ref_frame.name == 'icrs':
+
+    def _sky_raster_params_to_lmtot_params(
+            length, space, n_scans, rot, speed, ref_frame
+            ):
+        if ref_frame == 'icrs' or ref_frame.name == 'icrs':
             MapCoord = 'Ra'
-        elif m.ref_frame == 'altaz' or m.ref_frame.name == 'altaz':
+        elif ref_frame == 'altaz' or ref_frame.name == 'altaz':
             MapCoord = 'Az'
         else:
-            raise NotImplementedError(f"invalid ref_frame {m.ref_frame}")
-        params = dict(
+            raise NotImplementedError(f"invalid ref_frame {ref_frame}")
+        return dict(
             MapCoord=MapCoord,
-            ScanAngle=m.rot.quantity.to_value(u.deg),
-            XLength=m.length.quantity.to_value(u.arcsec),
-            XStep=m.speed.quantity.to_value(u.arcsec / u.s),
-            YLength=(m.n_scans * m.space.quantity).to_value(u.arcsec),
-            YStep=m.space.quantity.to_value(u.arcsec),
+            ScanAngle=rot.quantity.to_value(u.deg),
+            XLength=length.quantity.to_value(u.arcsec),
+            XStep=speed.quantity.to_value(u.arcsec / u.s),
+            YLength=(n_scans * space.quantity).to_value(u.arcsec),
+            YStep=space.quantity.to_value(u.arcsec),
             )
-        ot_line = \
-"""RasterMap Map; Map -ExecMode 0 -HPBW 1 -HoldDuringTurns 0 -MapMotion Continuous -NumPass 1 -NumRepeats 1 -NumScans 0 -RowsPerScan 1000000 -ScansPerCal 0 -ScansToSkip 0 -TCal 0 -TRef 0 -TSamp 1 -MapCoord {MapCoord} -ScanAngle {ScanAngle} -XLength {XLength} -XOffset 0 -XRamp 0 -XStep {XStep} -YLength {YLength} -YOffset 0 -YRamp 0 -YStep {YStep}
-""".format(**params)
+
+    if isinstance(mapping, (SkyLissajousModel)):
+        m = mapping
+        ot_line = (
+            "Lissajous -ExecMode 0 -RotateWithElevation 0 -TunePeriod 0"
+            " -TScan {TScan} -ScanRate {ScanRate}"
+            " -XLength {XLength} -YLength {YLength} -XOmega {XOmega}"
+            " -YOmega {YOmega} -XDelta {XDelta}"
+            " -XLengthMinor 0.0 -YLengthMinor 0.0 -XDeltaMinor 0.0"
+            ).format(**_sky_lissajous_params_to_lmtot_params(
+                x_length=m.x_length,
+                y_length=m.y_length,
+                x_omega=m.x_omega,
+                y_omega=m.y_omega,
+                delta=m.delta,
+                total_time=m.get_total_time()
+                ))
+    elif isinstance(mapping, (SkyDoubleLissajousModel)):
+        m = mapping
+        major_params = _sky_lissajous_params_to_lmtot_params(
+                x_length=m.x_length_0,
+                y_length=m.y_length_0,
+                x_omega=m.x_omega_0,
+                y_omega=m.y_omega_0,
+                delta=m.delta_0,
+                total_time=m.get_total_time()
+                )
+        minor_params = _sky_lissajous_params_to_lmtot_params(
+                x_length=m.x_length_1,
+                y_length=m.y_length_1,
+                x_omega=m.x_omega_1,
+                y_omega=m.y_omega_1,
+                delta=m.delta_1,
+                total_time=0 << u.s
+                )
+        logger.warning(
+                "some parameters will be ignored during the exporting "
+                "and the result will different.")
+        ot_line = (
+            "Lissajous -ExecMode 0 -RotateWithElevation 0 -TunePeriod 0"
+            " -TScan {TScan} -ScanRate {ScanRate}"
+            " -XLength {XLength} -YLength {YLength} -XOmega {XOmega}"
+            " -YOmega {YOmega} -XDelta {XDelta}"
+            " -XLengthMinor {XLengthMinor} -YLengthMinor {YLengthMinor}"
+            " -XDeltaMinor {XDeltaMinor}"
+            ).format(
+                XLengthMinor=minor_params['XLength'],
+                YLengthMinor=minor_params['YLength'],
+                XDeltaMinor=minor_params['XDelta'],
+                **major_params)
+    elif isinstance(mapping, (SkyRasterScanModel)):
+        m = mapping
+        ot_line = (
+            "RasterMap Map; Map -ExecMode 0 -HPBW 1 -HoldDuringTurns 0"
+            " -MapMotion Continuous -NumPass 1 -NumRepeats 1 -NumScans 0"
+            " -RowsPerScan 1000000 -ScansPerCal 0 -ScansToSkip 0"
+            " -TCal 0 -TRef 0 -TSamp 1"
+            " -MapCoord {MapCoord} -ScanAngle {ScanAngle}"
+            " -XLength {XLength} -XOffset 0 -XRamp 0 -XStep {XStep}"
+            " -YLength {YLength} -YOffset 0 -YRamp 0 -YStep {YStep}"
+            ).format(**_sky_raster_params_to_lmtot_params(
+                length=m.length,
+                space=m.space,
+                n_scans=m.n_scans,
+                rot=m.rot,
+                speed=m.speed,
+                ref_frame=m.ref_frame
+                ))
+    elif isinstance(mapping, (SkyRastajousModel)):
+        m = mapping
+        raster_params = _sky_raster_params_to_lmtot_params(
+                length=m.length,
+                space=m.space,
+                n_scans=m.n_scans,
+                rot=m.rot,
+                speed=m.speed,
+                ref_frame=m.ref_frame
+                )
+        major_params = _sky_lissajous_params_to_lmtot_params(
+                x_length=m.x_length_0,
+                y_length=m.y_length_0,
+                x_omega=m.x_omega_0,
+                y_omega=m.y_omega_0,
+                delta=m.delta_0,
+                total_time=m.get_total_time()
+                )
+        minor_params = _sky_lissajous_params_to_lmtot_params(
+                x_length=m.x_length_1,
+                y_length=m.y_length_1,
+                x_omega=m.x_omega_1,
+                y_omega=m.y_omega_1,
+                delta=m.delta_1,
+                total_time=0 << u.s
+                )
+        logger.warning(
+                "some parameters will be ignored during the exporting "
+                "and the result will different.")
+        ot_line_lissajous = (
+            "Lissajous -ExecMode 1 -RotateWithElevation 0 -TunePeriod 0"
+            " -TScan {TScan} -ScanRate {ScanRate}"
+            " -XLength {XLength} -YLength {YLength} -XOmega {XOmega}"
+            " -YOmega {YOmega} -XDelta {XDelta}"
+            " -XLengthMinor {XLengthMinor} -YLengthMinor {YLengthMinor}"
+            " -XDeltaMinor {XDeltaMinor}"
+            ).format(
+                XLengthMinor=minor_params['XLength'],
+                YLengthMinor=minor_params['YLength'],
+                XDeltaMinor=minor_params['XDelta'],
+                **major_params)
+        ot_line_raster = (
+            "RasterMap Map; Map -ExecMode 1 -HPBW 1 -HoldDuringTurns 0"
+            " -MapMotion Continuous -NumPass 1 -NumRepeats 1 -NumScans 0"
+            " -RowsPerScan 1000000 -ScansPerCal 0 -ScansToSkip 0"
+            " -TCal 0 -TRef 0 -TSamp 1"
+            " -MapCoord {MapCoord} -ScanAngle {ScanAngle}"
+            " -XLength {XLength} -XOffset 0 -XRamp 0 -XStep {XStep}"
+            " -YLength {YLength} -YOffset 0 -YRamp 0 -YStep {YStep}"
+            ).format(**raster_params)
+        ot_line = f"{ot_line_lissajous}\n{ot_line_raster}"
     else:
         raise NotImplementedError
     ot_lines.append(ot_line)
