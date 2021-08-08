@@ -1109,6 +1109,13 @@ class SimulatorResult(Namespace):
             v_source_dec = nc_tel.createVariable(
                     'Header.Source.Dec', 'f8', (d_coord, ))
             v_source_dec.unit = 'rad'
+            v_source_alt = nc_tel.createVariable(
+                    'Data.TelescopeBackend.SourceEl', 'f8', (d_time, ))
+            v_source_alt.unit = 'rad'
+            v_source_az = nc_tel.createVariable(
+                    'Data.TelescopeBackend.SourceAz', 'f8', (d_time, ))
+            v_source_az.unit = 'rad'
+
             ref_coord = simobj.resolve_target(
                     mapping.target,
                     mapping.t0,
@@ -1246,6 +1253,7 @@ class SimulatorResult(Namespace):
                             format='ascii.ecsv')
                 obs_coords_icrs = data['obs_info']['obs_coords_icrs']
                 obs_coords_altaz = data['obs_info']['obs_coords_altaz']
+                obs_coords_source_altaz = data['obs_info']['ref_coord_altaz']
                 obs_parallactic_angle = data['obs_info'][
                         'obs_parallactic_angle']
                 time_obs = data['obs_info']['time_obs']
@@ -1261,6 +1269,9 @@ class SimulatorResult(Namespace):
                 v_az_sky[idx:] = obs_coords_altaz.az.radian
                 v_alt_sky[idx:] = obs_coords_altaz.alt.radian
                 v_pa_sky[idx:] = obs_parallactic_angle.radian
+
+                v_source_az[idx:] = obs_coords_source_altaz.az.radian
+                v_source_alt[idx:] = obs_coords_source_altaz.alt.radian
 
                 v_hold[idx:] = data['obs_info']['hold_flags']
                 self.logger.info(
