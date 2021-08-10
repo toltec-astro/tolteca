@@ -25,7 +25,12 @@ from astropy.time import Time
 import astropy.units as u
 from astroquery.utils import parse_coordinates
 from astroquery.exceptions import InputWarning
-from astropy.coordinates import SkyCoord
+from astropy.coordinates import SkyCoord, AltAz, Angle
+from astropy.modeling.functional_models import GAUSSIAN_SIGMA_TO_FWHM
+from astropy.convolution import Gaussian2DKernel
+from astropy.convolution import convolve_fft
+from astropy.io import fits
+from astropy.wcs import WCS
 import warnings
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -555,6 +560,7 @@ class SimulatorRuntime(RuntimeContext):
                 Optional(str): object
                 },
             Optional('mapping_only', default=False): bool,
+            Optional('coverage_only', default=False): bool,
             Optional('exports', default=[{'format': 'lmtot'}]): [{
                 'format': Or(*_simu_runtime_exporters.keys()),
                 Optional(str): object
@@ -774,6 +780,236 @@ class SimulatorRuntime(RuntimeContext):
                 mapping=mapping,
                 )
 
+    def run_coverage_only(self):
+        """Run the simualtor to generate an approximate coverage map."""
+        simobj = self.get_instrument_simulator()
+        self.logger.debug(f"simobj: {simobj}")
+        mapping = self.get_mapping_model()
+        self.logger.debug(f"mapping: {mapping}")
+        obs_params = self.get_obs_params()
+
+        t0 = mapping.t0
+        target_icrs = simobj.resolve_target(
+                    mapping.target,
+                    mapping.t0,
+                    ).transform_to('icrs')
+
+        # make -t grid
+        f_smp = obs_params['f_smp_mapping']
+        dt_smp = (1 / f_smp).to(u.s)
+        t_exp = obs_params['t_exp']
+        t_pattern = mapping.get_total_time()
+        self.logger.debug(f"mapping pattern time: {t_pattern}")
+        if t_exp.unit.is_equivalent(u.ct):
+            ct_exp = t_exp.to_value(u.ct)
+            t_exp = t_pattern * ct_exp
+            self.logger.debug(f"resolve t_exp={t_exp} from count={ct_exp}")
+        t = np.arange(
+                0, t_exp.to_value(u.s),
+                dt_smp.to_value(u.s)) << u.s
+        time_obs = t0 + t
+
+        _ref_frame = simobj.resolve_sky_map_ref_frame(
+            ref_frame=mapping.ref_frame, time_obs=time_obs)
+        target_in_ref_frame = target_icrs.transform_to(_ref_frame)
+
+        obs_coords = mapping.evaluate_at(target_in_ref_frame, t)
+        obs_coords_icrs = obs_coords.transform_to('icrs')
+        if isinstance(_ref_frame, AltAz):
+            target_in_altaz = target_in_ref_frame
+        else:
+            target_in_altaz = target_icrs.transform_to(
+                 simobj.resolve_sky_map_ref_frame(
+                    ref_frame='altaz', time_obs=time_obs)
+                    )
+
+        apt = simobj.table
+
+        def get_detector_coords(array_name, approximate=True):
+            mapt = apt[apt['array_name'] == array_name]
+            if approximate:
+                m_proj = simobj.get_sky_projection_model(
+                    ref_coord=target_icrs,
+                    time_obs=np.mean(t) + t0)
+                a_ra, a_dec = m_proj(mapt['x_t'], mapt['y_t'], frame='icrs')
+            else:
+                m_proj = simobj.get_sky_projection_model(
+                    ref_coord=obs_coords,
+                    time_obs=time_obs)
+                n_samples = len(time_obs)
+                x_t = np.tile(mapt['x_t'], (n_samples, 1))
+                y_t = np.tile(mapt['y_t'], (n_samples, 1))
+                a_ra, a_dec = m_proj(x_t, y_t, frame='icrs')
+            return a_ra, a_dec
+
+        def get_sky_bbox(lon, lat):
+            lon = Angle(lon).wrap_at(360. << u.deg)
+            lon_180 = Angle(lon).wrap_at(180. << u.deg)
+            w, e = np.min(lon), np.max(lon)
+            w1, e1 = np.min(lon_180), np.max(lon_180)
+            if (e1 - w1) < (e - w):
+                # use wrapping at 180d
+                w = w1
+                e = e1
+                lon = lon_180
+                self.logger.debug("re-wrapping coordinates at 180d")
+            s, n = np.min(lat), np.max(lat)
+            self.logger.debug(
+                    f"data bbox: w={w} e={e} s={s} n={n} "
+                    f"size=[{(e-w).to(u.arcmin)}, {(n-s).to(u.arcmin)}]")
+            return w, e, s, n
+
+        def make_wcs(pixscale, bbox):
+
+            delta_pix = (1 << u.pix).to(u.arcsec, equivalencies=pixscale)
+            w, e, s, n = bbox
+            pad = 4 << u.arcmin
+            nx = ((e - w + pad) / delta_pix).to_value(u.dimensionless_unscaled)
+            ny = ((n - s + pad) / delta_pix).to_value(u.dimensionless_unscaled)
+            nx = int(np.ceil(nx))
+            ny = int(np.ceil(ny))
+            self.logger.debug(f"wcs pixel shape: {nx=} {ny=} {delta_pix=}")
+            # to avoid making too large map, we limit the output data
+            # size to 200MB, which is 5000x5000
+            # TODO add this to config
+            size_max = 25e6
+            if nx * ny > size_max:
+                scale = nx * ny / size_max
+                nx = nx * scale
+                ny = ny * scale
+                delta_pix = delta_pix * scale
+                self.logger.debug(
+                        f"wcs adjusted pixel shape: {nx=} {ny=} {delta_pix=}")
+            # base the wcs on these values
+            wcsobj = WCS(naxis=2)
+            wcsobj.pixel_shape = (nx, ny)
+            wcsobj.wcs.crpix = [nx / 2, ny / 2]
+            wcsobj.wcs.cdelt = np.array([
+                    -delta_pix.to_value(u.deg),
+                    delta_pix.to_value(u.deg),
+                    ])
+            wcsobj.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+            wcsobj.wcs.crval = [target_icrs.ra.degree, target_icrs.dec.degree]
+            return wcsobj
+
+        def make_cov_hdu(pixscale, array_name, approximate=True):
+            a_ra, a_dec = get_detector_coords(
+                    array_name, approximate=approximate)
+            # this is ugly...
+            # get the common bbox of the array and mapping pattern
+            w, e, s, n = get_sky_bbox(a_ra, a_dec)
+            w1, e1, s1, n1 = get_sky_bbox(
+                    obs_coords_icrs.ra,
+                    obs_coords_icrs.dec,
+                    )
+            bbox = get_sky_bbox(
+                    list(map(
+                        lambda v: v.to_value(u.deg),
+                        [w, w, e, e, w1, w1, e1, e1])) << u.deg,
+                    list(map(
+                        lambda v: v.to_value(u.deg),
+                        [s, n, s, n, s1, n1, s1, n1])) << u.deg)
+            wcsobj = make_wcs(pixscale, bbox)
+
+            xy_tel = wcsobj.world_to_pixel_values(
+                    obs_coords_icrs.ra.degree,
+                    obs_coords_icrs.dec.degree,
+                    )
+            xy_array = wcsobj.world_to_pixel_values(a_ra, a_dec)
+            xbins = np.arange(wcsobj.pixel_shape[0])
+            ybins = np.arange(wcsobj.pixel_shape[1])
+            xbins_array = np.arange(
+                    np.floor(xy_array[0].min()),
+                    np.ceil(xy_array[0].max()) + 1
+                    )
+            ybins_array = np.arange(
+                    np.floor(xy_array[1].min()),
+                    np.ceil(xy_array[1].max()) + 1
+                    )
+            im_tel, _, _ = np.histogram2d(
+                    xy_tel[1],
+                    xy_tel[0],
+                    bins=[ybins, xbins])
+            im_tel *= dt_smp.to_value(u.s)  # scale to coverage
+
+            im_array, _, _ = np.histogram2d(
+                    xy_array[1],
+                    xy_array[0],
+                    bins=[ybins_array, xbins_array]
+                    )
+            # convolve
+            with timeit("convolve with array layout"):
+                im_cov = convolve_fft(
+                    im_tel, im_array,
+                    normalize_kernel=False, allow_huge=True)
+            with timeit("convolve with beam"):
+                fwhm_x = simobj.beam_model_cls.get_fwhm('x', array_name)
+                fwhm_y = simobj.beam_model_cls.get_fwhm('y', array_name)
+                g = Gaussian2DKernel(
+                        (fwhm_x / GAUSSIAN_SIGMA_TO_FWHM).to_value(
+                            u.pix, equivalencies=pixscale),
+                        (fwhm_y / GAUSSIAN_SIGMA_TO_FWHM).to_value(
+                            u.pix, equivalencies=pixscale),
+                       )
+                im_cov = convolve_fft(im_cov, g, normalize_kernel=False)
+            # import matplotlib.pyplot as plt
+            # fig, axes = plt.subplots(1, 3)
+            # axes[0].imshow(im_tel)
+            # axes[1].imshow(im_array)
+            # axes[2].imshow(im_cov)
+            # plt.show()
+            self.logger.debug(
+                    f'total time from coverage map: {im_cov.sum()} s')
+            self.logger.debug(
+                    f'total time expected: {im_array.sum() * t_exp}')
+
+            imhdr = wcsobj.to_header()
+
+            return fits.ImageHDU(data=im_cov, header=imhdr)
+
+        # create output
+        phdr = fits.Header()
+        phdr.append((
+            'ORIGIN', 'The TolTEC Project',
+            'Organization generating this FITS file'
+            ))
+        phdr.append((
+            'CREATOR', 'tolteca.simu',
+            'The software used to create this FITS file'
+            ))
+        phdr.append((
+            'TELESCOP', 'LMT',
+            'Large Millimeter Telescope'
+            ))
+        phdr.append((
+            'INSTRUME', 'TolTEC',
+            'TolTEC Camera'
+            ))
+        phdr.append((
+            'EXPTIME', '{t_exp.to_value(u.s):.3g}',
+            'Exposure time (s)'
+            ))
+        phdr.append((
+            'OBSDUR', '{t_exp.to_value(u.s):g}',
+            'Observation duration (s)'
+            ))
+        phdr.append((
+            'MEANALT', '{0:f}'.format(
+                  target_in_altaz.alt.mean().to_value(u.deg)),
+            'Mean altitude of the observation (deg)'))
+        hdulist = [fits.PrimaryHDU(header=phdr)]
+
+        pixscale = u.pixel_scale(1. << u.arcsec / u.pix)
+
+        for array_name in apt.meta['array_names']:
+            hdu = make_cov_hdu(pixscale, array_name, approximate=True)
+            hdulist.append(hdu)
+        hdulist = fits.HDUList(hdulist)
+        output_dir = self.get_or_create_output_dir()
+        output_path = output_dir.joinpath(f'{output_dir.name}_coverage.fits')
+        hdulist.writeto(output_path, overwrite=True)
+        return hdulist
+
     @timeit
     def cli_run(self, args=None):
         """Run the simulator and save the result.
@@ -805,6 +1041,7 @@ class SimulatorRuntime(RuntimeContext):
         with log_to_file(
                 filepath=logfile, level='DEBUG', disable_other_handlers=False):
             mapping_only = cfg['mapping_only']
+            coverage_only = cfg['coverage_only']
             exports_only = cfg['exports_only']
             if exports_only:
                 exports = cfg['exports']
@@ -813,6 +1050,9 @@ class SimulatorRuntime(RuntimeContext):
                 result = list()
                 for export_kwargs in exports:
                     result.append(self.export(**export_kwargs))
+                return
+            if coverage_only:
+                result = self.run_coverage_only()
                 return
             if mapping_only:
                 result = self.run_mapping_only()
