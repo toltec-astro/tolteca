@@ -11,7 +11,7 @@ from astropy import coordinates as coord
 from astropy.time import Time
 from astropy.table import Column, QTable, Table
 from astropy.wcs.utils import celestial_frame_to_wcs
-from astropy.coordinates import SkyCoord
+from astropy.coordinates import SkyCoord, AltAz
 from astropy.coordinates.erfa_astrom import (
         erfa_astrom, ErfaAstromInterpolator)
 from astropy.cosmology import default_cosmology
@@ -914,11 +914,12 @@ class ToltecObsSimulator(object):
                     },
                 )
         # get detector position on the sky in the toltec frame
-        x_a = tbl['x'].to(u.cm)
-        y_a = tbl['y'].to(u.cm)
-        x_t, y_t = ArrayProjModel()(tbl['array_name'], x_a, y_a)
-        tbl.add_column(Column(x_t, name='x_t', unit=x_t.unit))
-        tbl.add_column(Column(y_t, name='y_t', unit=y_t.unit))
+        if 'x_t' not in tbl.colnames:
+            x_a = tbl['x'].to(u.cm)
+            y_a = tbl['y'].to(u.cm)
+            x_t, y_t = ArrayProjModel()(tbl['array_name'], x_a, y_a)
+            tbl.add_column(Column(x_t, name='x_t', unit=x_t.unit))
+            tbl.add_column(Column(y_t, name='y_t', unit=y_t.unit))
 
     @property
     def table(self):
@@ -1158,12 +1159,39 @@ class ToltecObsSimulator(object):
                 flxscale = 1. / np.squeeze(x_norm)
                 logger.debug(f"flxscale: {flxscale.mean()}")
                 return rs, xs, iqs, locals()
-        yield evaluate
+        # check the sources for kids noise model
+        if sources is not None:
+            for source in sources:
+                if isinstance(source, KidsReadoutNoiseModel):
+                    readout_noise_model = source
+                    break
+            else:
+                readout_noise_model = None
+        else:
+            readout_noise_model = None
+        if readout_noise_model is not None:
+            def evaluate_with_readout_noise(*args, **kwargs):
+                logger.debug(f"readout noise model {readout_noise_model}")
+                rs, xs, iqs, info = evaluate(*args, **kwargs)
+                diqs = readout_noise_model.evaluate_tod(tbl, iqs)
+                # info['diqs'] = diqs
+                iqs += diqs
+                return rs, xs, iqs, info
+            yield evaluate_with_readout_noise
+        else:
+            yield evaluate
 
     @timeit
     def resolve_sky_map_ref_frame(self, ref_frame, time_obs):
         return _resolve_sky_map_ref_frame(
                     ref_frame, observer=self.observer, time_obs=time_obs)
+
+    def resolve_target(self, target, time_obs):
+        if isinstance(target.frame, AltAz):
+            target = SkyCoord(
+                    target.data, frame=self.resolve_sky_map_ref_frame(
+                            'altaz', time_obs=time_obs))
+        return target
 
     @contextmanager
     def mapping_context(self, mapping, sources):
@@ -1181,13 +1209,15 @@ class ToltecObsSimulator(object):
 
             The list of models that define the input signal and noise.
         """
+        logger = get_logger()
+
         tbl = self.table
         x_t = tbl['x_t']
         y_t = tbl['y_t']
 
-        ref_coord = mapping.target
         ref_frame = mapping.ref_frame
         t0 = mapping.t0
+        ref_coord = self.resolve_target(mapping.target, t0)
 
         def evaluate(t):
             with erfa_astrom.set(ErfaAstromInterpolator(self.erfa_interp_len)):
@@ -1199,7 +1229,23 @@ class ToltecObsSimulator(object):
                             ref_frame, time_obs=time_obs)
                     with timeit(
                             f'transform ref coords to {len(time_obs)} times'):
-                        _ref_coord = ref_coord.transform_to(_ref_frame)
+                        if isinstance(mapping.target.frame, AltAz):
+                            logger.debug(
+                                    "target in altaz, tracking is disabled")
+                            if not isinstance(_ref_frame, AltAz):
+                                raise ValueError(
+                                    "ref_frame has to be altaz"
+                                    " for altaz target")
+                            az_fixed = np.full(
+                                    time_obs.shape,
+                                    ref_coord.az.degree) << u.deg
+                            alt_fixed = np.full(
+                                    time_obs.shape,
+                                    ref_coord.alt.degree) << u.deg
+                            _ref_coord = SkyCoord(
+                                az_fixed, alt_fixed, frame=_ref_frame)
+                        else:
+                            _ref_coord = ref_coord.transform_to(_ref_frame)
                     obs_coords = mapping.evaluate_at(_ref_coord, t)
                     hold_flags = mapping.evaluate_holdflag(t)
                     m_proj_icrs = self.get_sky_projection_model(
@@ -1227,9 +1273,12 @@ class ToltecObsSimulator(object):
                                 'altaz', time_obs=time_obs)
                         obs_coords_altaz = obs_coords_icrs.transform_to(
                                 _altaz_frame)
+                        ref_coord_altaz = _ref_coord.transform_to(_altaz_frame)
                     elif hasattr(obs_coords, 'alt'):  # altaz
                         obs_coords_icrs = obs_coords.transform_to('icrs')
                         obs_coords_altaz = obs_coords
+                        ref_coord_altaz = _ref_coord.transform_to(
+                                obs_coords.frame)
                     obs_parallactic_angle = \
                         self.observer.parallactic_angle(
                                 time_obs, obs_coords_icrs)
@@ -1299,10 +1348,11 @@ class ToltecObsSimulator(object):
                             s = np.sum(s * w[:, :, np.newaxis], axis=0)
                         s_additive.append(s)
                 if len(s_additive) <= 0:
-                    raise ValueError("no additive source found in source list")
-                s = s_additive[0]
-                for _s in s_additive[1:]:
-                    s += _s
+                    s = np.zeros(lon.T.shape) << u.MJy / u.sr
+                else:
+                    s = s_additive[0]
+                    for _s in s_additive[1:]:
+                        s += _s
                 return s, locals()
         yield evaluate
 
@@ -1390,6 +1440,7 @@ class ToltecObsSimulator(object):
 
     @classmethod
     def _prepare_table(cls, tbl):
+        logger = get_logger()
         # make columns for additional array properties to be used
         # for the kids simulator
         tbl = tbl.copy()
@@ -1416,6 +1467,9 @@ class ToltecObsSimulator(object):
 
         # kids props
         for c, v in cls.kids_props.items():
+            if c in tbl.colnames:
+                continue
+            logger.debug(f"create kids prop column {c}")
             if isinstance(v, str) and v in tbl.colnames:
                 tbl[c] = tbl[v]
                 continue
@@ -1432,7 +1486,10 @@ class ToltecObsSimulator(object):
                 raise ValueError('invalid kids prop')
         # calibration factor
         # TODO need to revisit these assumptions
-        tbl['flxscale'] = (1. / tbl['responsivity']).quantity.value
+        if 'flxscale' not in tbl.colnames:
+            tbl['flxscale'] = (1. / tbl['responsivity']).quantity.value
+        if 'sigma_readout' not in tbl.colnames:
+            tbl['sigma_readout'] = 10.
         return QTable(tbl)
 
 
@@ -1441,4 +1498,31 @@ class KidsReadoutNoiseModel(_Model):
     A model of the TolTEC KIDs readout noise.
 
     """
-    pass
+    logger = get_logger()
+
+    n_inputs = 1
+    n_outputs = 1
+
+    # @property
+    # def input_units(self):
+    #     return {self.inputs[0]: }
+
+    def __init__(self, scale_factor=1.0, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._inputs = ('S21', )
+        self._outputs = ('dS21', )
+        self._scale_factor = scale_factor
+
+    def evaluate(self, S21):
+        n = self._scale_factor
+        shape = S21.shape
+        dI = np.random.normal(0, n, shape)
+        dQ = np.random.normal(0, n, shape)
+        return dI + 1.j * dQ
+
+    def evaluate_tod(self, tbl, S21):
+        """Make readout noise in ADU."""
+
+        dS21 = self(S21)
+        dS21 = dS21 * tbl['sigma_readout'][:, np.newaxis]
+        return dS21

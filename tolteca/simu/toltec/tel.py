@@ -7,8 +7,9 @@ from ...datamodels.io.nc import SimpleNcFileIO
 from cached_property import cached_property
 from tollan.utils.nc import ncopen
 from tollan.utils.log import get_logger
-
+import astropy.units as u
 from astropy.time import Time
+from astropy.coordinates import SkyCoord
 # from astropy.modeling import models
 
 
@@ -44,12 +45,34 @@ class LmtTelFileIO(SimpleNcFileIO):
             'alt': 'Data.TelescopeBackend.TelElAct',
             'ra': 'Data.TelescopeBackend.SourceRaAct',
             'dec': 'Data.TelescopeBackend.SourceDecAct',
+            'holdflag': 'Data.TelescopeBackend.Hold',
+            'mapping_type': 'Header.Dcs.ObsPgm',
+            'target_ra': 'Header.Source.Ra',
+            'target_dec': 'Header.Source.Dec',
+            'target_az': 'Header.Source.Az',
+            'target_alt': 'Header.Source.El',
             }
 
     @cached_property
     def meta(self):
         m = dict()
         m['file_loc'] = self.file_loc
+        m['mapping_type'] = self.getstr('mapping_type')
+
+        # target info
+        t_ra, t_ra_off = self.getvar('target_ra')[:]
+        t_dec, t_dec_off = self.getvar('target_dec')[:]
+        t_az, t_az_off = self.getvar('target_az')[:]
+        t_alt, t_alt_off = self.getvar('target_alt')[:]
+
+        t0 = Time(self.getvar('time')[0], format='unix')
+        t0.format = 'isot'
+        m['t0'] = t0
+        m['target'] = SkyCoord(
+                t_ra << u.rad, t_dec << u.rad, frame='icrs')
+        m['target_off'] = SkyCoord(
+                t_ra_off << u.rad, t_dec_off << u.rad, frame='icrs')
+        m['target_frame'] = 'icrs'
         return m
 
     # registry info to the DataFileIO.open interface
@@ -59,24 +82,25 @@ class LmtTelFileIO(SimpleNcFileIO):
             }
 
     def read(self):
+        meta = self.meta
         t = self.getvar('time')[:]
-        t0 = Time([0], format='unix')
-        t = t - t[0]
-        # az = self.getvar('az')[:]
-        # el = self.getvar('el')[:]
-        ra = self.getvar('ra')[:]
-        dec = self.getvar('dec')[:]
-
-        az = self.getvar('az')[:]
-        alt = self.getvar('alt')[:]
-
+        t = (t - t[0]) << u.s
+        ra = self.getvar('ra')[:] << u.rad
+        dec = self.getvar('dec')[:] << u.rad
+        az = self.getvar('az')[:] << u.rad
+        alt = self.getvar('alt')[:] << u.rad
+        holdflag = self.getvar('holdflag')[:].astype(int)
         m1 = SkyICRSTrajModel(
                 time=t,
                 ra=ra,
                 dec=dec,
                 az=az,
                 alt=alt,
-                t0=t0,
+                t0=meta['t0'],
+                meta=meta,
+                holdflag=holdflag,
+                target=meta['target'],
+                ref_frame='icrs',
                 )
         # m2 = SkyAltAzTrajModel(
         #         time=t,

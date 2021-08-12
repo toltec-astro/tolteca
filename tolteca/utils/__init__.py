@@ -145,8 +145,13 @@ class RuntimeContext(DirConfMixin):
         """
         if self.is_persistent:
             cfg = self.collect_config_from_files(
-                    self.config_files, validate=True
+                    self.config_files, validate=False
                     )
+            # merge with the _config dict
+            if self._config is not None:
+                rupdate(cfg, self._config)
+            # validate
+            cfg = self.validate_config(cfg)
             # update runtime info
             cfg['runtime'] = self.to_dict()
         else:
@@ -335,16 +340,21 @@ class RuntimeContext(DirConfMixin):
         config : dict
             Config to add to `config_file`.
         config_file : str, `pathlib.Path`, optional
-            Config to add to `config_file`. When self is not persistent
-            this has to be set to None.
+            Config to add to `config_file`. When not set, the config
+            is non-persistent.
         overwrite : bool
             Set to True to force overwrite the existing
             config. Otherwise a `RuntimeContextError` is
             raised.
         """
         if self.is_persistent:
-            with open(config_file, 'r') as fo:
-                cfg = yaml.safe_load(fo)
+            if config_file is None:
+                cfg = self._config
+                if cfg is None:
+                    cfg = self._config = dict()
+            else:
+                with open(config_file, 'r') as fo:
+                    cfg = yaml.safe_load(fo)
         else:
             cfg = self._config
         if config is None:
@@ -361,9 +371,12 @@ class RuntimeContext(DirConfMixin):
                         )
         rupdate(cfg, config)
         if self.is_persistent:
-            # update the config file
-            with open(config_file, 'w') as fo:
-                yaml.dump(cfg, fo)
+            if config_file is None:
+                self._config = cfg
+            else:
+                # update the config file
+                with open(config_file, 'w') as fo:
+                    yaml.dump(cfg, fo)
         else:
             self._config = cfg
         # invalidate the config cache if needed

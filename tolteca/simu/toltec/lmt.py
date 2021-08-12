@@ -135,7 +135,7 @@ class LmtAtmosphereData(object):
                 }[name]
         url = base_url.format(id_=id_)
         # cls.logger.debug(f"download data {name} from url {url}")
-        return np.load(download_file(url, cache=True))
+        return dict(np.load(download_file(url, cache=True)))
 
 
 class LmtAtmosphereModel(_Model):
