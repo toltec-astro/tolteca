@@ -234,7 +234,7 @@ class RuntimeContext(DirConfMixin):
                 if cfg is None or not isinstance(cfg, dict):
                     cfg = dict()
                 rupdate(cfg, init_config)
-            cls.write_config_to_yaml(
+            cls.write_config_file(
                     cfg,
                     setup_file,
                     overwrite=True)
