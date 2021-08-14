@@ -12,6 +12,7 @@ from dasha.web.extensions.db import db, dataframe_from_db
 from dasha.web.extensions.dasha import resolve_url
 import cachetools.func
 from sqlalchemy import select
+from sqlalchemy.sql import func as sqla_func
 # from flask_sqlalchemy import BaseQuery
 import pandas as pd
 import dash_defer_js_import as dji
@@ -187,8 +188,9 @@ class ToltecDB(ComponentTemplate):
                     if n not in _t:
                         result.append(None)
                     else:
+                        stmt = select([sqla_func.count()]).select_from(_t[n])
                         result.append(
-                            session.execute(_t[n].count()).scalar())
+                            session.execute(stmt).scalar())
             return result
 
         radio_items = select_container.child(
@@ -367,7 +369,8 @@ document.getElementById('{dest}').appendChild(
                     ]
             data = info.to_dict('records')
             with _db.session_context as session:
-                size = session.execute(db_table.count()).scalar()
+                stmt = select([sqla_func.count()]).select_from(db_table)
+                size = session.execute(stmt).scalar()
             if size == 0:
                 n_pages = 1
             else:

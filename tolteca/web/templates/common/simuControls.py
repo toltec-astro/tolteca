@@ -513,3 +513,191 @@ def getRasterControls(mappingBox):
                       'rasWrite': rasWrite,
                       'ras_output_state': ras_output_state}
     return rasterControls
+
+
+def getRastajousControls(mappingBox):
+    rjBox = mappingBox.child(dbc.Tab, label="Rastajous")
+    rjCard = rjBox.child(dbc.Card)
+    rj_header = rjCard.child(dbc.CardHeader)
+    rj_body = rjCard.child(dbc.CardBody)
+    rj_header.child(html.H5, "Rastajous Controls", className='mb-2')
+
+    rotInRow = rj_body.child(dbc.Row, justify='end')
+    rotInRow.child(html.Label("Rot [deg]: "))
+    rjRotIn = rotInRow.child(dcc.Input, value=0.,
+                             min=0., max=90.,
+                             debounce=True, type='number',
+                             style={'width': '25%',
+                                    'margin-right': '20px'})
+
+    rjLenInRow = rj_body.child(dbc.Row, justify='end')
+    rjLenInRow.child(html.Label("length [arcmin]: "))
+    rjLenIn = rjLenInRow.child(dcc.Input, value=10.,
+                               min=0.0001, max=30.,
+                               debounce=True, type='number',
+                               style={'width': '25%',
+                                      'margin-right': '20px'})
+
+    rjStepInRow = rj_body.child(dbc.Row, justify='end')
+    rjStepInRow.child(html.Label("step [arcmin]: "))
+    rjStepIn = rjStepInRow.child(dcc.Input, value=1.,
+                                 min=0.1, max=4.,
+                                 debounce=True, type='number',
+                                 style={'width': '25%',
+                                        'margin-right': '20px'})
+
+    rjnScansInRow = rj_body.child(dbc.Row, justify='end')
+    rjnScansInRow.child(html.Label("nScans: "))
+    rjnScansIn = rjnScansInRow.child(dcc.Input, value=3,
+                                     min=1, max=30,
+                                     debounce=True, type='number',
+                                     style={'width': '25%',
+                                            'margin-right': '20px'})
+
+    rjSpeedInRow = rj_body.child(dbc.Row, justify='end')
+    rjSpeedInRow.child(html.Label("speed [arcsec/s]: "))
+    rjSpeedIn = rjSpeedInRow.child(dcc.Input, value=5.,
+                                   min=0.0001, max=500,
+                                   debounce=True, type='number',
+                                   style={'width': '25%',
+                                          'margin-right': '20px'})
+
+    rjtTurnInRow = rj_body.child(dbc.Row, justify='end')
+    rjtTurnInRow.child(html.Label("t_turnaround [s]: "))
+    rjtTurnIn = rjtTurnInRow.child(dcc.Input, value=0.1,
+                                   min=0.1, max=10.,
+                                   debounce=True, type='number',
+                                   style={'width': '25%',
+                                          'margin-right': '20px'})
+
+    rjDeltaInRow = rj_body.child(dbc.Row, justify='end')
+    rjDeltaInRow.child(html.Label("delta [deg]: "))
+    rjDeltaIn = rjDeltaInRow.child(dcc.Input, value=45.,
+                                   min=0.0, max=90.,
+                                   debounce=True, type='number',
+                                   style={'width': '25%',
+                                          'margin-right': '20px'})
+
+    rjxLen0InRow = rj_body.child(dbc.Row, justify='end')
+    rjxLen0InRow.child(html.Label("x_length_0 [arcmin]: "))
+    rjxLen0In = rjxLen0InRow.child(dcc.Input, value=2.,
+                                   min=0.001, max=10.,
+                                   debounce=True, type='number',
+                                   style={'width': '25%',
+                                          'margin-right': '20px'})
+
+    rjyLen0InRow = rj_body.child(dbc.Row, justify='end')
+    rjyLen0InRow.child(html.Label("y_length_0 [arcmin]: "))
+    rjyLen0In = rjyLen0InRow.child(dcc.Input, value=2.,
+                                   min=0.001, max=10.,
+                                   debounce=True, type='number',
+                                   style={'width': '25%',
+                                          'margin-right': '20px'})
+
+    rjxOmega0InRow = rj_body.child(dbc.Row, justify='end')
+    rjxOmega0InRow.child(html.Label("x_omega_0: "))
+    rjxOmega0In = rjxOmega0InRow.child(dcc.Input, value=9.2,
+                                       min=1., max=20.,
+                                       debounce=True, type='number',
+                                       style={'width': '25%',
+                                              'margin-right': '20px'})
+
+    rjyOmega0InRow = rj_body.child(dbc.Row, justify='end')
+    rjyOmega0InRow.child(html.Label("y_omega_0: "))
+    rjyOmega0In = rjyOmega0InRow.child(dcc.Input, value=8,
+                                       min=1., max=20.,
+                                       debounce=True, type='number',
+                                       style={'width': '25%',
+                                              'margin-right': '20px'})
+
+    rjDelta0InRow = rj_body.child(dbc.Row, justify='end')
+    rjDelta0InRow.child(html.Label("delta_0 [deg]: "))
+    rjDelta0In = rjDelta0InRow.child(dcc.Input, value=45.,
+                                     min=0.0, max=90.,
+                                     debounce=True, type='number',
+                                     style={'width': '25%',
+                                            'margin-right': '20px'})
+
+    rjxLen1InRow = rj_body.child(dbc.Row, justify='end')
+    rjxLen1InRow.child(html.Label("x_length_1 [arcmin]: "))
+    rjxLen1In = rjxLen1InRow.child(dcc.Input, value=0.5,
+                                   min=0.001, max=10.,
+                                   debounce=True, type='number',
+                                   style={'width': '25%',
+                                          'margin-right': '20px'})
+
+    rjyLen1InRow = rj_body.child(dbc.Row, justify='end')
+    rjyLen1InRow.child(html.Label("y_length_1 [arcmin]: "))
+    rjyLen1In = rjyLen1InRow.child(dcc.Input, value=0.5,
+                                   min=0.001, max=10.,
+                                   debounce=True, type='number',
+                                   style={'width': '25%',
+                                          'margin-right': '20px'})
+
+    rjxOmega1InRow = rj_body.child(dbc.Row, justify='end')
+    rjxOmega1InRow.child(html.Label("x_omega_1: "))
+    rjxOmega1In = rjxOmega1InRow.child(dcc.Input, value=9.2/20.,
+                                       min=1.e-4, max=20.,
+                                       debounce=True, type='number',
+                                       style={'width': '25%',
+                                              'margin-right': '20px'})
+
+    rjyOmega1InRow = rj_body.child(dbc.Row, justify='end')
+    rjyOmega1InRow.child(html.Label("y_omega_1: "))
+    rjyOmega1In = rjyOmega1InRow.child(dcc.Input, value=8/20.,
+                                       min=1.e-4, max=20.,
+                                       debounce=True, type='number',
+                                       style={'width': '25%',
+                                              'margin-right': '20px'})
+
+    rjDelta1InRow = rj_body.child(dbc.Row, justify='end')
+    rjDelta1InRow.child(html.Label("delta_1 [deg]: "))
+    rjDelta1In = rjDelta1InRow.child(dcc.Input, value=45.,
+                                     min=0.0, max=90.,
+                                     debounce=True, type='number',
+                                     style={'width': '25%',
+                                            'margin-right': '20px'})
+
+    refFrameRow = rj_body.child(dbc.Row, justify='begin')
+    refFrameRow.child(html.Label("Tel Frame: "))
+    rjRefFrame = refFrameRow.child(
+        dcc.RadioItems, options=[
+            {'label': 'Az/El', 'value': 'altaz'},
+            {'label': 'Ra/Dec', 'value': 'icrs'},
+        ],
+        value='altaz',
+        labelStyle={'display': 'inline-block'},
+        inputStyle={"margin-right": "5px",
+                    "margin-left": "20px"},
+    )
+
+    writeRow = rj_body.child(dbc.Row, justify='end')
+    rjWrite = writeRow.child(
+        dbc.Button, "Execute Pattern", color="danger", size='sm',
+        style={'width': '45%', "margin-right": '10px'})
+
+    rj_output_state = rj_body.child(dbc.Row).child(
+        CollapseContent(
+            button_text='Details ...')).content
+
+    rastajousControls = {'rjRotIn': rjRotIn,
+                         'rjLenIn': rjLenIn,
+                         'rjStepIn': rjStepIn,
+                         'rjnScansIn': rjnScansIn,
+                         'rjSpeedIn': rjSpeedIn,
+                         'rjtTurnIn': rjtTurnIn,
+                         'rjDeltaIn': rjDeltaIn,
+                         'rjxLen0In': rjxLen0In,
+                         'rjyLen0In': rjyLen0In,
+                         'rjxOmega0In': rjxOmega0In,
+                         'rjyOmega0In': rjyOmega0In,
+                         'rjDelta0In': rjDelta0In,
+                         'rjxLen1In': rjxLen1In,
+                         'rjyLen1In': rjyLen1In,
+                         'rjxOmega1In': rjxOmega1In,
+                         'rjyOmega1In': rjyOmega1In,
+                         'rjDelta1In': rjDelta1In,
+                         'rjRefFrame': rjRefFrame,
+                         'rjWrite': rjWrite,
+                         'rj_output_state': rj_output_state}
+    return rastajousControls

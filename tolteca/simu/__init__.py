@@ -25,7 +25,12 @@ from astropy.time import Time
 import astropy.units as u
 from astroquery.utils import parse_coordinates
 from astroquery.exceptions import InputWarning
-from astropy.coordinates import SkyCoord
+from astropy.coordinates import SkyCoord, AltAz, Angle
+from astropy.modeling.functional_models import GAUSSIAN_SIGMA_TO_FWHM
+from astropy.convolution import Gaussian2DKernel
+from astropy.convolution import convolve_fft
+from astropy.io import fits
+from astropy.wcs import WCS
 import warnings
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -325,6 +330,7 @@ _simu_runtime_exporters = Registry.create()
 @register_to(_simu_runtime_exporters, 'lmtot')
 def _sre_lmtot(rt):
     """Handle exporting of the simulator runtime to LMT observation tool."""
+    logger = get_logger()
 
     cfg = rt.config['simu']
 
@@ -339,50 +345,177 @@ def _sre_lmtot(rt):
             mapping.target,
             mapping.t0,
             ).transform_to('icrs')
-    ot_lines.append("""
-Source Source;  Source  -BaselineList [] -CoordSys Eq -DecProperMotionCor 0 -Dec[0] {Dec} -Dec[1] {Dec} -El[0] 0.000000 -El[1] 0.000000 -EphemerisTrackOn 0 -Epoch 2000.0 -GoToZenith 0 -L[0] 0.0 -L[1] 0.0 -LineList [] -Planet None -RaProperMotionCor 0 -Ra[0] {RA} -Ra[1] {RA} -SourceName {Name} -VelSys Lsr -Velocity 0.000000 -Vmag 0.0
-""".format(
-        RA=ref_coord.ra.degree,
-        Dec=ref_coord.dec.degree,
-        Name=cfg['mapping']['target'],
-        ))
-    if isinstance(mapping, (SkyLissajousModel)):
-        m = mapping
-        v_x = m.x_length * m.x_omega.to(
+    ot_lines.append(
+        "Source Source;  Source  -BaselineList [] -CoordSys Eq"
+        " -DecProperMotionCor 0"
+        " -Dec[0] {Dec} -Dec[1] {Dec}"
+        " -El[0] 0.000000 -El[1] 0.000000 -EphemerisTrackOn 0 -Epoch 2000.0"
+        " -GoToZenith 0 -L[0] 0.0 -L[1] 0.0 -LineList [] -Planet None"
+        " -RaProperMotionCor 0 -Ra[0] {RA} -Ra[1] {RA}"
+        " -SourceName {Name} -VelSys Lsr -Velocity 0.000000 -Vmag 0.0".format(
+            RA=ref_coord.ra.to_string(
+                unit=u.hour, pad=True,
+                decimal=False, fields=3, sep=':'),
+            Dec=ref_coord.dec.to_string(
+                unit=u.degree, pad=True, alwayssign=True,
+                decimal=False, fields=3, sep=':'),
+            Name=cfg['mapping']['target'],
+            ))
+
+    def _sky_lissajous_params_to_lmtot_params(
+            x_length, y_length, x_omega, y_omega,
+            delta, total_time
+            ):
+        v_x = x_length * x_omega.quantity.to(
                 u.Hz, equivalencies=[(u.cy/u.s, u.Hz)])
-        v_y = m.y_length * m.y_omega.to(
+        v_y = y_length * y_omega.quantity.to(
                 u.Hz, equivalencies=[(u.cy/u.s, u.Hz)])
-        params = dict(
-            XLength=m.x_length.to_value(u.arcmin),
-            YLength=m.y_length.to_value(u.arcmin),
-            XOmega=m.x_omega.to_value(u.rad/u.s),
-            YOmega=m.y_omega.to_value(u.rad/u.s),
-            XDelta=m.delta.to_value(u.rad),
-            TScan=m.get_total_time(),
+        return dict(
+            XLength=x_length.quantity.to_value(u.arcmin),
+            YLength=y_length.quantity.to_value(u.arcmin),
+            XOmega=x_omega.quantity.to_value(u.rad/u.s),
+            YOmega=y_omega.quantity.to_value(u.rad/u.s),
+            XDelta=delta.quantity.to_value(u.rad),
+            TScan=total_time,
             ScanRate=np.hypot(v_x, v_y).to_value(u.arcsec / u.s),
             )
-        ot_line = \
-"""Lissajous -ExecMode 0 -RotateWithElevation 0 -TunePeriod 0 -TScan {TScan} -ScanRate {ScanRate} -XLength {XLength} -YLength {YLength} -XOmega {XOmega} -YOmega {YOmega} -XDelta {XDelta} -XLengthMinor 0.0 -YLengthMinor 0.0 -XDeltaMinor 0.0
-""".format(**params)
-    elif isinstance(mapping, (SkyRasterScanModel)):
-        m = mapping
-        if m.ref_frame == 'icrs' or m.ref_frame.name == 'icrs':
+
+    def _sky_raster_params_to_lmtot_params(
+            length, space, n_scans, rot, speed, ref_frame
+            ):
+        if ref_frame == 'icrs' or ref_frame.name == 'icrs':
             MapCoord = 'Ra'
-        elif m.ref_frame == 'altaz' or m.ref_frame.name == 'altaz':
+        elif ref_frame == 'altaz' or ref_frame.name == 'altaz':
             MapCoord = 'Az'
         else:
-            raise NotImplementedError(f"invalid ref_frame {m.ref_frame}")
-        params = dict(
+            raise NotImplementedError(f"invalid ref_frame {ref_frame}")
+        return dict(
             MapCoord=MapCoord,
-            ScanAngle=m.rot.quantity.to_value(u.deg),
-            XLength=m.length.quantity.to_value(u.arcsec),
-            XStep=m.speed.quantity.to_value(u.arcsec / u.s),
-            YLength=(m.n_scans * m.space.quantity).to_value(u.arcsec),
-            YStep=m.space.quantity.to_value(u.arcsec),
+            ScanAngle=rot.quantity.to_value(u.deg),
+            XLength=length.quantity.to_value(u.arcsec),
+            XStep=speed.quantity.to_value(u.arcsec / u.s),
+            YLength=(n_scans * space.quantity).to_value(u.arcsec),
+            YStep=space.quantity.to_value(u.arcsec),
             )
-        ot_line = \
-"""RasterMap Map; Map -ExecMode 0 -HPBW 1 -HoldDuringTurns 0 -MapMotion Continuous -NumPass 1 -NumRepeats 1 -NumScans 0 -RowsPerScan 1000000 -ScansPerCal 0 -ScansToSkip 0 -TCal 0 -TRef 0 -TSamp 1 -MapCoord {MapCoord} -ScanAngle {ScanAngle} -XLength {XLength} -XOffset 0 -XRamp 0 -XStep {XStep} -YLength {YLength} -YOffset 0 -YRamp 0 -YStep {YStep}
-""".format(**params)
+
+    if isinstance(mapping, (SkyLissajousModel)):
+        m = mapping
+        ot_line = (
+            "Lissajous -ExecMode 0 -RotateWithElevation 0 -TunePeriod 0"
+            " -TScan {TScan} -ScanRate {ScanRate}"
+            " -XLength {XLength} -YLength {YLength} -XOmega {XOmega}"
+            " -YOmega {YOmega} -XDelta {XDelta}"
+            " -XLengthMinor 0.0 -YLengthMinor 0.0 -XDeltaMinor 0.0"
+            ).format(**_sky_lissajous_params_to_lmtot_params(
+                x_length=m.x_length,
+                y_length=m.y_length,
+                x_omega=m.x_omega,
+                y_omega=m.y_omega,
+                delta=m.delta,
+                total_time=m.get_total_time()
+                ))
+    elif isinstance(mapping, (SkyDoubleLissajousModel)):
+        m = mapping
+        major_params = _sky_lissajous_params_to_lmtot_params(
+                x_length=m.x_length_0,
+                y_length=m.y_length_0,
+                x_omega=m.x_omega_0,
+                y_omega=m.y_omega_0,
+                delta=m.delta_0,
+                total_time=m.get_total_time()
+                )
+        minor_params = _sky_lissajous_params_to_lmtot_params(
+                x_length=m.x_length_1,
+                y_length=m.y_length_1,
+                x_omega=m.x_omega_1,
+                y_omega=m.y_omega_1,
+                delta=m.delta_1,
+                total_time=0 << u.s
+                )
+        logger.warning(
+                "some parameters will be ignored during the exporting "
+                "and the result will different.")
+        ot_line = (
+            "Lissajous -ExecMode 0 -RotateWithElevation 0 -TunePeriod 0"
+            " -TScan {TScan} -ScanRate {ScanRate}"
+            " -XLength {XLength} -YLength {YLength} -XOmega {XOmega}"
+            " -YOmega {YOmega} -XDelta {XDelta}"
+            " -XLengthMinor {XLengthMinor} -YLengthMinor {YLengthMinor}"
+            " -XDeltaMinor {XDeltaMinor}"
+            ).format(
+                XLengthMinor=minor_params['XLength'],
+                YLengthMinor=minor_params['YLength'],
+                XDeltaMinor=minor_params['XDelta'],
+                **major_params)
+    elif isinstance(mapping, (SkyRasterScanModel)):
+        m = mapping
+        ot_line = (
+            "RasterMap Map; Map -ExecMode 0 -HPBW 1 -HoldDuringTurns 0"
+            " -MapMotion Continuous -NumPass 1 -NumRepeats 1 -NumScans 0"
+            " -RowsPerScan 1000000 -ScansPerCal 0 -ScansToSkip 0"
+            " -TCal 0 -TRef 0 -TSamp 1"
+            " -MapCoord {MapCoord} -ScanAngle {ScanAngle}"
+            " -XLength {XLength} -XOffset 0 -XRamp 0 -XStep {XStep}"
+            " -YLength {YLength} -YOffset 0 -YRamp 0 -YStep {YStep}"
+            ).format(**_sky_raster_params_to_lmtot_params(
+                length=m.length,
+                space=m.space,
+                n_scans=m.n_scans,
+                rot=m.rot,
+                speed=m.speed,
+                ref_frame=m.ref_frame
+                ))
+    elif isinstance(mapping, (SkyRastajousModel)):
+        m = mapping
+        raster_params = _sky_raster_params_to_lmtot_params(
+                length=m.length,
+                space=m.space,
+                n_scans=m.n_scans,
+                rot=m.rot,
+                speed=m.speed,
+                ref_frame=m.ref_frame
+                )
+        major_params = _sky_lissajous_params_to_lmtot_params(
+                x_length=m.x_length_0,
+                y_length=m.y_length_0,
+                x_omega=m.x_omega_0,
+                y_omega=m.y_omega_0,
+                delta=m.delta_0,
+                total_time=m.get_total_time()
+                )
+        minor_params = _sky_lissajous_params_to_lmtot_params(
+                x_length=m.x_length_1,
+                y_length=m.y_length_1,
+                x_omega=m.x_omega_1,
+                y_omega=m.y_omega_1,
+                delta=m.delta_1,
+                total_time=0 << u.s
+                )
+        logger.warning(
+                "some parameters will be ignored during the exporting "
+                "and the result will different.")
+        ot_line_lissajous = (
+            "Lissajous -ExecMode 1 -RotateWithElevation 0 -TunePeriod 0"
+            " -TScan {TScan} -ScanRate {ScanRate}"
+            " -XLength {XLength} -YLength {YLength} -XOmega {XOmega}"
+            " -YOmega {YOmega} -XDelta {XDelta}"
+            " -XLengthMinor {XLengthMinor} -YLengthMinor {YLengthMinor}"
+            " -XDeltaMinor {XDeltaMinor}"
+            ).format(
+                XLengthMinor=minor_params['XLength'],
+                YLengthMinor=minor_params['YLength'],
+                XDeltaMinor=minor_params['XDelta'],
+                **major_params)
+        ot_line_raster = (
+            "RasterMap Map; Map -ExecMode 1 -HPBW 1 -HoldDuringTurns 0"
+            " -MapMotion Continuous -NumPass 1 -NumRepeats 1 -NumScans 0"
+            " -RowsPerScan 1000000 -ScansPerCal 0 -ScansToSkip 0"
+            " -TCal 0 -TRef 0 -TSamp 1"
+            " -MapCoord {MapCoord} -ScanAngle {ScanAngle}"
+            " -XLength {XLength} -XOffset 0 -XRamp 0 -XStep {XStep}"
+            " -YLength {YLength} -YOffset 0 -YRamp 0 -YStep {YStep}"
+            ).format(**raster_params)
+        ot_line = f"{ot_line_lissajous}\n{ot_line_raster}"
     else:
         raise NotImplementedError
     ot_lines.append(ot_line)
@@ -427,6 +560,7 @@ class SimulatorRuntime(RuntimeContext):
                 Optional(str): object
                 },
             Optional('mapping_only', default=False): bool,
+            Optional('coverage_only', default=False): bool,
             Optional('exports', default=[{'format': 'lmtot'}]): [{
                 'format': Or(*_simu_runtime_exporters.keys()),
                 Optional(str): object
@@ -646,6 +780,236 @@ class SimulatorRuntime(RuntimeContext):
                 mapping=mapping,
                 )
 
+    def run_coverage_only(self):
+        """Run the simualtor to generate an approximate coverage map."""
+        simobj = self.get_instrument_simulator()
+        self.logger.debug(f"simobj: {simobj}")
+        mapping = self.get_mapping_model()
+        self.logger.debug(f"mapping: {mapping}")
+        obs_params = self.get_obs_params()
+
+        t0 = mapping.t0
+        target_icrs = simobj.resolve_target(
+                    mapping.target,
+                    mapping.t0,
+                    ).transform_to('icrs')
+
+        # make -t grid
+        f_smp = obs_params['f_smp_mapping']
+        dt_smp = (1 / f_smp).to(u.s)
+        t_exp = obs_params['t_exp']
+        t_pattern = mapping.get_total_time()
+        self.logger.debug(f"mapping pattern time: {t_pattern}")
+        if t_exp.unit.is_equivalent(u.ct):
+            ct_exp = t_exp.to_value(u.ct)
+            t_exp = t_pattern * ct_exp
+            self.logger.debug(f"resolve t_exp={t_exp} from count={ct_exp}")
+        t = np.arange(
+                0, t_exp.to_value(u.s),
+                dt_smp.to_value(u.s)) << u.s
+        time_obs = t0 + t
+
+        _ref_frame = simobj.resolve_sky_map_ref_frame(
+            ref_frame=mapping.ref_frame, time_obs=time_obs)
+        target_in_ref_frame = target_icrs.transform_to(_ref_frame)
+
+        obs_coords = mapping.evaluate_at(target_in_ref_frame, t)
+        obs_coords_icrs = obs_coords.transform_to('icrs')
+        if isinstance(_ref_frame, AltAz):
+            target_in_altaz = target_in_ref_frame
+        else:
+            target_in_altaz = target_icrs.transform_to(
+                 simobj.resolve_sky_map_ref_frame(
+                    ref_frame='altaz', time_obs=time_obs)
+                    )
+
+        apt = simobj.table
+
+        def get_detector_coords(array_name, approximate=True):
+            mapt = apt[apt['array_name'] == array_name]
+            if approximate:
+                m_proj = simobj.get_sky_projection_model(
+                    ref_coord=target_icrs,
+                    time_obs=np.mean(t) + t0)
+                a_ra, a_dec = m_proj(mapt['x_t'], mapt['y_t'], frame='icrs')
+            else:
+                m_proj = simobj.get_sky_projection_model(
+                    ref_coord=obs_coords,
+                    time_obs=time_obs)
+                n_samples = len(time_obs)
+                x_t = np.tile(mapt['x_t'], (n_samples, 1))
+                y_t = np.tile(mapt['y_t'], (n_samples, 1))
+                a_ra, a_dec = m_proj(x_t, y_t, frame='icrs')
+            return a_ra, a_dec
+
+        def get_sky_bbox(lon, lat):
+            lon = Angle(lon).wrap_at(360. << u.deg)
+            lon_180 = Angle(lon).wrap_at(180. << u.deg)
+            w, e = np.min(lon), np.max(lon)
+            w1, e1 = np.min(lon_180), np.max(lon_180)
+            if (e1 - w1) < (e - w):
+                # use wrapping at 180d
+                w = w1
+                e = e1
+                lon = lon_180
+                self.logger.debug("re-wrapping coordinates at 180d")
+            s, n = np.min(lat), np.max(lat)
+            self.logger.debug(
+                    f"data bbox: w={w} e={e} s={s} n={n} "
+                    f"size=[{(e-w).to(u.arcmin)}, {(n-s).to(u.arcmin)}]")
+            return w, e, s, n
+
+        def make_wcs(pixscale, bbox):
+
+            delta_pix = (1 << u.pix).to(u.arcsec, equivalencies=pixscale)
+            w, e, s, n = bbox
+            pad = 4 << u.arcmin
+            nx = ((e - w + pad) / delta_pix).to_value(u.dimensionless_unscaled)
+            ny = ((n - s + pad) / delta_pix).to_value(u.dimensionless_unscaled)
+            nx = int(np.ceil(nx))
+            ny = int(np.ceil(ny))
+            self.logger.debug(f"wcs pixel shape: {nx=} {ny=} {delta_pix=}")
+            # to avoid making too large map, we limit the output data
+            # size to 200MB, which is 5000x5000
+            # TODO add this to config
+            size_max = 25e6
+            if nx * ny > size_max:
+                scale = nx * ny / size_max
+                nx = nx * scale
+                ny = ny * scale
+                delta_pix = delta_pix * scale
+                self.logger.debug(
+                        f"wcs adjusted pixel shape: {nx=} {ny=} {delta_pix=}")
+            # base the wcs on these values
+            wcsobj = WCS(naxis=2)
+            wcsobj.pixel_shape = (nx, ny)
+            wcsobj.wcs.crpix = [nx / 2, ny / 2]
+            wcsobj.wcs.cdelt = np.array([
+                    -delta_pix.to_value(u.deg),
+                    delta_pix.to_value(u.deg),
+                    ])
+            wcsobj.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+            wcsobj.wcs.crval = [target_icrs.ra.degree, target_icrs.dec.degree]
+            return wcsobj
+
+        def make_cov_hdu(pixscale, array_name, approximate=True):
+            a_ra, a_dec = get_detector_coords(
+                    array_name, approximate=approximate)
+            # this is ugly...
+            # get the common bbox of the array and mapping pattern
+            w, e, s, n = get_sky_bbox(a_ra, a_dec)
+            w1, e1, s1, n1 = get_sky_bbox(
+                    obs_coords_icrs.ra,
+                    obs_coords_icrs.dec,
+                    )
+            bbox = get_sky_bbox(
+                    list(map(
+                        lambda v: v.to_value(u.deg),
+                        [w, w, e, e, w1, w1, e1, e1])) << u.deg,
+                    list(map(
+                        lambda v: v.to_value(u.deg),
+                        [s, n, s, n, s1, n1, s1, n1])) << u.deg)
+            wcsobj = make_wcs(pixscale, bbox)
+
+            xy_tel = wcsobj.world_to_pixel_values(
+                    obs_coords_icrs.ra.degree,
+                    obs_coords_icrs.dec.degree,
+                    )
+            xy_array = wcsobj.world_to_pixel_values(a_ra, a_dec)
+            xbins = np.arange(wcsobj.pixel_shape[0])
+            ybins = np.arange(wcsobj.pixel_shape[1])
+            xbins_array = np.arange(
+                    np.floor(xy_array[0].min()),
+                    np.ceil(xy_array[0].max()) + 1
+                    )
+            ybins_array = np.arange(
+                    np.floor(xy_array[1].min()),
+                    np.ceil(xy_array[1].max()) + 1
+                    )
+            im_tel, _, _ = np.histogram2d(
+                    xy_tel[1],
+                    xy_tel[0],
+                    bins=[ybins, xbins])
+            im_tel *= dt_smp.to_value(u.s)  # scale to coverage
+
+            im_array, _, _ = np.histogram2d(
+                    xy_array[1],
+                    xy_array[0],
+                    bins=[ybins_array, xbins_array]
+                    )
+            # convolve
+            with timeit("convolve with array layout"):
+                im_cov = convolve_fft(
+                    im_tel, im_array,
+                    normalize_kernel=False, allow_huge=True)
+            with timeit("convolve with beam"):
+                fwhm_x = simobj.beam_model_cls.get_fwhm('x', array_name)
+                fwhm_y = simobj.beam_model_cls.get_fwhm('y', array_name)
+                g = Gaussian2DKernel(
+                        (fwhm_x / GAUSSIAN_SIGMA_TO_FWHM).to_value(
+                            u.pix, equivalencies=pixscale),
+                        (fwhm_y / GAUSSIAN_SIGMA_TO_FWHM).to_value(
+                            u.pix, equivalencies=pixscale),
+                       )
+                im_cov = convolve_fft(im_cov, g, normalize_kernel=False)
+            # import matplotlib.pyplot as plt
+            # fig, axes = plt.subplots(1, 3)
+            # axes[0].imshow(im_tel)
+            # axes[1].imshow(im_array)
+            # axes[2].imshow(im_cov)
+            # plt.show()
+            self.logger.debug(
+                    f'total time from coverage map: {im_cov.sum()} s')
+            self.logger.debug(
+                    f'total time expected: {im_array.sum() * t_exp}')
+
+            imhdr = wcsobj.to_header()
+
+            return fits.ImageHDU(data=im_cov, header=imhdr)
+
+        # create output
+        phdr = fits.Header()
+        phdr.append((
+            'ORIGIN', 'The TolTEC Project',
+            'Organization generating this FITS file'
+            ))
+        phdr.append((
+            'CREATOR', 'tolteca.simu',
+            'The software used to create this FITS file'
+            ))
+        phdr.append((
+            'TELESCOP', 'LMT',
+            'Large Millimeter Telescope'
+            ))
+        phdr.append((
+            'INSTRUME', 'TolTEC',
+            'TolTEC Camera'
+            ))
+        phdr.append((
+            'EXPTIME', '{t_exp.to_value(u.s):.3g}',
+            'Exposure time (s)'
+            ))
+        phdr.append((
+            'OBSDUR', '{t_exp.to_value(u.s):g}',
+            'Observation duration (s)'
+            ))
+        phdr.append((
+            'MEANALT', '{0:f}'.format(
+                  target_in_altaz.alt.mean().to_value(u.deg)),
+            'Mean altitude of the observation (deg)'))
+        hdulist = [fits.PrimaryHDU(header=phdr)]
+
+        pixscale = u.pixel_scale(1. << u.arcsec / u.pix)
+
+        for array_name in apt.meta['array_names']:
+            hdu = make_cov_hdu(pixscale, array_name, approximate=True)
+            hdulist.append(hdu)
+        hdulist = fits.HDUList(hdulist)
+        output_dir = self.get_or_create_output_dir()
+        output_path = output_dir.joinpath(f'{output_dir.name}_coverage.fits')
+        hdulist.writeto(output_path, overwrite=True)
+        return hdulist
+
     @timeit
     def cli_run(self, args=None):
         """Run the simulator and save the result.
@@ -677,6 +1041,7 @@ class SimulatorRuntime(RuntimeContext):
         with log_to_file(
                 filepath=logfile, level='DEBUG', disable_other_handlers=False):
             mapping_only = cfg['mapping_only']
+            coverage_only = cfg['coverage_only']
             exports_only = cfg['exports_only']
             if exports_only:
                 exports = cfg['exports']
@@ -685,6 +1050,9 @@ class SimulatorRuntime(RuntimeContext):
                 result = list()
                 for export_kwargs in exports:
                     result.append(self.export(**export_kwargs))
+                return
+            if coverage_only:
+                result = self.run_coverage_only()
                 return
             if mapping_only:
                 result = self.run_mapping_only()
@@ -981,6 +1349,13 @@ class SimulatorResult(Namespace):
             v_source_dec = nc_tel.createVariable(
                     'Header.Source.Dec', 'f8', (d_coord, ))
             v_source_dec.unit = 'rad'
+            v_source_alt = nc_tel.createVariable(
+                    'Data.TelescopeBackend.SourceEl', 'f8', (d_time, ))
+            v_source_alt.unit = 'rad'
+            v_source_az = nc_tel.createVariable(
+                    'Data.TelescopeBackend.SourceAz', 'f8', (d_time, ))
+            v_source_az.unit = 'rad'
+
             ref_coord = simobj.resolve_target(
                     mapping.target,
                     mapping.t0,
@@ -1118,6 +1493,7 @@ class SimulatorResult(Namespace):
                             format='ascii.ecsv')
                 obs_coords_icrs = data['obs_info']['obs_coords_icrs']
                 obs_coords_altaz = data['obs_info']['obs_coords_altaz']
+                obs_coords_source_altaz = data['obs_info']['ref_coord_altaz']
                 obs_parallactic_angle = data['obs_info'][
                         'obs_parallactic_angle']
                 time_obs = data['obs_info']['time_obs']
@@ -1133,6 +1509,9 @@ class SimulatorResult(Namespace):
                 v_az_sky[idx:] = obs_coords_altaz.az.radian
                 v_alt_sky[idx:] = obs_coords_altaz.alt.radian
                 v_pa_sky[idx:] = obs_parallactic_angle.radian
+
+                v_source_az[idx:] = obs_coords_source_altaz.az.radian
+                v_source_alt[idx:] = obs_coords_source_altaz.alt.radian
 
                 v_hold[idx:] = data['obs_info']['hold_flags']
                 self.logger.info(

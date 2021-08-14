@@ -1274,9 +1274,12 @@ class ToltecObsSimulator(object):
                                 'altaz', time_obs=time_obs)
                         obs_coords_altaz = obs_coords_icrs.transform_to(
                                 _altaz_frame)
+                        ref_coord_altaz = _ref_coord.transform_to(_altaz_frame)
                     elif hasattr(obs_coords, 'alt'):  # altaz
                         obs_coords_icrs = obs_coords.transform_to('icrs')
                         obs_coords_altaz = obs_coords
+                        ref_coord_altaz = _ref_coord.transform_to(
+                                obs_coords.frame)
                     obs_parallactic_angle = \
                         self.observer.parallactic_angle(
                                 time_obs, obs_coords_icrs)

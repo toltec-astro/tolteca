@@ -35,6 +35,7 @@ from .common.simuControls import getSourceCard
 from .common.simuControls import getLissajousControls
 from .common.simuControls import getDoubleLissajousControls
 from .common.simuControls import getRasterControls
+from .common.simuControls import getRastajousControls
 
 
 TOLTEC_SENSITIVITY_MODULE_PATH_ENV = (
@@ -111,11 +112,15 @@ class obsPlanner(ComponentTemplate):
         # Raster Pattern Parameter Set
         rasterControls = getRasterControls(mappingBox)
 
+        # Rastajous Pattern Parameter Set
+        rastajousControls = getRastajousControls(mappingBox)
+
         # Combine the mapping controls into a single dictionary
         mapping = {}
         mapping.update(lisControls)
         mapping.update(doubleLisControls)
         mapping.update(rasterControls)
+        mapping.update(rastajousControls)
 
         # This is just a hidden trigger to execute the mapmaking code
         exBox = controlBox.child(dbc.Row, justify='end')
@@ -387,7 +392,77 @@ class obsPlanner(ComponentTemplate):
                 'nScans': ns,
                 'speed': (speed*u.arcsec).to_value(u.rad),
                 't_turnaround': turn,
-                't_exp': (10*u.min).to_value(u.s),
+                't_exp': "1 ct",
+                'target_ra': tra,
+                'target_dec': tdec,
+                't0': t0,
+                'ref_frame': refFrame,
+            }
+            return [json.dumps(d), ]
+
+        # update the Rastajous parameter set
+        @app.callback(
+            [
+                Output(mapping['rj_output_state'].id, "children"),
+            ],
+            [
+                Input(mapping['rjWrite'].id, "n_clicks"),
+            ],
+            [
+                State(mapping['rjRotIn'].id, "value"),
+                State(mapping['rjLenIn'].id, "value"),
+                State(mapping['rjStepIn'].id, "value"),
+                State(mapping['rjnScansIn'].id, "value"),
+                State(mapping['rjSpeedIn'].id, "value"),
+                State(mapping['rjtTurnIn'].id, "value"),
+                State(mapping['rjDeltaIn'].id, "value"),
+                State(mapping['rjxLen0In'].id, "value"),
+                State(mapping['rjyLen0In'].id, "value"),
+                State(mapping['rjxOmega0In'].id, "value"),
+                State(mapping['rjyOmega0In'].id, "value"),
+                State(mapping['rjDelta0In'].id, "value"),
+                State(mapping['rjxLen1In'].id, "value"),
+                State(mapping['rjyLen1In'].id, "value"),
+                State(mapping['rjxOmega1In'].id, "value"),
+                State(mapping['rjyOmega1In'].id, "value"),
+                State(mapping['rjDelta1In'].id, "value"),
+                State(target['targRa'].id, "value"),
+                State(target['targDec'].id, "value"),
+                State(target['obsTime'].id, "value"),
+                State(target['obsDate'].id, "date"),
+                State(mapping['rjRefFrame'].id, "value"),
+            ],
+            prevent_initial_call=True
+        )
+        def updateRastajousDict(n, r, l, s, ns, speed, turn,
+                                delta,
+                                xl0, yl0, xo0, yo0, delta0,
+                                xl1, yl1, xo1, yo1, delta1,
+                                tra, tdec,
+                                obsTime, obsDate, refFrame):
+            # format date and time of start of observation
+            date_object = date.fromisoformat(obsDate)
+            date_string = date_object.strftime('%Y-%m-%d')
+            t0 = date_string+'T'+obsTime
+            d = {
+                'rot': (r*u.deg).to_value(u.rad),
+                'length': (l*u.arcmin).to_value(u.rad),
+                'step': (s*u.arcmin).to_value(u.rad),
+                'nScans': ns,
+                'speed': (speed*u.arcsec).to_value(u.rad),
+                't_turnaround': turn,
+                'd_delta': (delta*u.deg).to_value(u.rad),
+                'd_x_length_0': (xl0*u.arcmin).to_value(u.rad),
+                'd_y_length_0': (yl0*u.arcmin).to_value(u.rad),
+                'd_x_omega_0': xo0,
+                'd_y_omega_0': yo0,
+                'd_delta_0': (delta0*u.deg).to_value(u.rad),
+                'd_x_length_1': (xl1*u.arcmin).to_value(u.rad),
+                'd_y_length_1': (yl1*u.arcmin).to_value(u.rad),
+                'd_x_omega_1': xo1,
+                'd_y_omega_1': yo1,
+                'd_delta_1': (delta1*u.deg).to_value(u.rad),
+                't_exp': "1 ct",
                 'target_ra': tra,
                 'target_dec': tdec,
                 't0': t0,
@@ -404,13 +479,14 @@ class obsPlanner(ComponentTemplate):
                 Input(mapping['lis_output_state'].id, "children"),
                 Input(mapping['dlis_output_state'].id, "children"),
                 Input(mapping['ras_output_state'].id, "children"),
+                Input(mapping['rj_output_state'].id, "children"),
             ],
             [
                 State(settings['bandIn'].id, "value"),
             ],
             prevent_initial_call=True
         )
-        def updateContext(lis_output, dlis_output, ras_output, band):
+        def updateContext(lis_output, dlis_output, ras_output, rj_output, band):
             print(lis_output)
             print(dlis_output)
             print(ras_output)
@@ -423,7 +499,11 @@ class obsPlanner(ComponentTemplate):
             elif (ctx.triggered[0]['prop_id'] == f"{mapping['dlis_output_state'].id}.children"):
                 d = json.loads(dlis_output)
                 c = writeSimuContext(d, band, mapType='doubleLissajous')
-                print("lissajous context written")
+                print("double lissajous context written")
+            elif (ctx.triggered[0]['prop_id'] == f"{mapping['rj_output_state'].id}.children"):
+                d = json.loads(rj_output)
+                c = writeSimuContext(d, band, mapType='rastajous')
+                print("rastajous context written")
             else:
                 d = json.loads(ras_output)
                 c = writeSimuContext(d, band, mapType='raster')
@@ -546,7 +626,7 @@ def generateMappings(sim, band):
 
     # construct the relative and absolute times
     t_pattern = m_obs.get_total_time()
-    if m_obs.pattern == 'raster':
+    if (m_obs.pattern == 'raster') | (m_obs.pattern == 'rastajous'):
         t_exp = t_pattern
     else:
         t_exp = p_obs['t_exp']
@@ -1243,6 +1323,29 @@ def writeSimuContext(d, band, mapType='raster'):
         oF.write("    target: {0:}d {1:}d\n".format(d['target_ra'], d['target_dec']))
         oF.write("    ref_frame: {}\n".format(d['ref_frame']))
         oF.write("    t0: {}\n".format(d['t0']))
+    elif(mapType == 'rastajous'):
+        oF.write("  example_mapping_model_rastajous: &example_mapping_model_rastajous\n")
+        oF.write("    type: tolteca.simu:SkyRastajousModel\n")
+        oF.write("    rot: {} rad\n".format(d['rot']))
+        oF.write("    length: {} rad\n".format(d['length']))
+        oF.write("    space: {} rad\n".format(d['step']))
+        oF.write("    n_scans: {}\n".format(d['nScans']))
+        oF.write("    speed: {} rad/s\n".format(d['speed']))
+        oF.write("    t_turnover: {} s\n".format(d['t_turnaround']))
+        oF.write("    delta: {} rad\n".format(d['d_delta']))
+        oF.write("    x_length_0: {} rad\n".format(d['d_x_length_0']))
+        oF.write("    y_length_0: {} rad\n".format(d['d_y_length_0']))
+        oF.write("    x_omega_0: {} rad/s\n".format(d['d_x_omega_0']))
+        oF.write("    y_omega_0: {} rad/s\n".format(d['d_y_omega_0']))
+        oF.write("    delta_0: {} rad\n".format(d['d_delta_0']))
+        oF.write("    x_length_1: {} rad\n".format(d['d_x_length_1']))
+        oF.write("    y_length_1: {} rad\n".format(d['d_y_length_1']))
+        oF.write("    x_omega_1: {} rad/s\n".format(d['d_x_omega_1']))
+        oF.write("    y_omega_1: {} rad/s\n".format(d['d_y_omega_1']))
+        oF.write("    delta_1: {} rad\n".format(d['d_delta_1']))
+        oF.write("    target: {0:}d {1:}d\n".format(d['target_ra'], d['target_dec']))
+        oF.write("    ref_frame: {}\n".format(d['ref_frame']))
+        oF.write("    t0: {}\n".format(d['t0']))
     oF.write("\n")
     oF.write("simu:\n")
     oF.write("  # this is the actual simulator\n")
@@ -1256,7 +1359,10 @@ def writeSimuContext(d, band, mapType='raster'):
     oF.write("  obs_params:\n")
     oF.write("    f_smp_data: 488 Hz  # the sample frequency for data\n")
     oF.write("    f_smp_mapping: 12.2 Hz  # the sample freq for mapping\n")
-    oF.write("    t_exp: {} s\n".format(d['t_exp']))
+    if((mapType == 'rastajous') | (mapType == 'raster')):
+        oF.write("    t_exp: 1 ct\n")
+    else:
+        oF.write("    t_exp: {} s\n".format(d['t_exp']))
     oF.write("  sources:\n")
     oF.write("    - type: point_source_catalog\n")
     oF.write("      filepath: inputs/example_input.asc\n")
@@ -1266,4 +1372,6 @@ def writeSimuContext(d, band, mapType='raster'):
         oF.write("  mapping: *example_mapping_model_double_lissajous\n")
     elif(mapType == 'raster'):
         oF.write("  mapping: *example_mapping_model_raster\n")
+    elif(mapType == 'rastajous'):
+        oF.write("  mapping: *example_mapping_model_rastajous\n")
     return yaml.safe_load(oF.getvalue())
