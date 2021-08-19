@@ -14,6 +14,7 @@ import json
 import yaml
 from io import StringIO
 
+from astropy.coordinates import EarthLocation
 from astropy.convolution import Gaussian2DKernel
 from astroquery.utils import parse_coordinates
 from astropy.convolution import convolve_fft
@@ -21,6 +22,7 @@ from tolteca.simu import SimulatorRuntime
 from astroquery.skyview import SkyView
 # from astropy.coordinates import SkyCoord
 from astropy import units as u
+from astroplan import Observer
 from astropy.time import Time
 from astropy.wcs import WCS
 from astropy.io import fits
@@ -916,6 +918,7 @@ def getHorizonPlots(obs, showArray=0):
     return tfig, cfig
 
 
+@timeit
 def makeUptimesFig(obs):
     # make a plot of the uptimes for this day for this target
     daytime = []
@@ -926,14 +929,59 @@ def makeUptimesFig(obs):
     for i in np.arange(0, len(obs['t_absolute']), 20):
         obstime.append(np.datetime64(obs['t_absolute'][i].to_datetime()))
         targel.append(obs['target_altaz'].alt[i].to_value(u.deg))
+
+
+    # Figure out the sun rise and set times at the telescope
+    LMT = EarthLocation.from_geodetic(-97.31481605209875,
+                                      18.98578175043638, 4500.)
+    lmt = Observer(location=LMT, name="LMT", timezone="US/Central")
+    sun_rise = lmt.sun_rise_time(obs['t_day'][0], which='next')
+    sun_set = lmt.sun_set_time(obs['t_day'][0], which='next')
+
+    # sun rise and set indices
+    def nearest(items, pivot):
+        return min(items, key=lambda x: abs(x - pivot))
+    obt = np.array(obs['t_day'].mjd)
+    sr = list(obt).index(nearest(obt, sun_rise.mjd))
+    ss = list(obt).index(nearest(obt, sun_set.mjd))
+    
+    c = ['blue']*len(daytime)
+    if (sun_rise.mjd < sun_set.mjd):
+        c[sr:ss] = ['orange']*(ss-sr+1)
+    else:
+        c[:ss] = ['orange']*(ss+1)
+        c[sr:-1] = ['orange']*len(c[sr:-1])
+     
     upfig = go.Figure()
     xaxis, yaxis = getXYAxisLayouts()
     upfig.add_trace(
         go.Scattergl(
             x=daytime,
             y=obs['target_day'].alt.to_value(u.deg),
+            mode='markers',
+            marker=dict(color=c,
+                        size=4),
+            showlegend=False,
+        )
+    )
+    upfig.add_trace(
+        go.Scattergl(
+            x=daytime[0:1],
+            y=obs['target_day'][0:1].alt.to_value(u.deg),
             mode='lines',
-            line=dict(color='green'),
+            line=dict(color='orange'),
+            name='Daytime',
+            visible='legendonly',
+        )
+    )
+    upfig.add_trace(
+        go.Scattergl(
+            x=daytime[0:1],
+            y=obs['target_day'][0:1].alt.to_value(u.deg),
+            mode='lines',
+            line=dict(color='blue'),
+            name='Night',
+            visible='legendonly',
         )
     )
     upfig.add_trace(
@@ -942,6 +990,7 @@ def makeUptimesFig(obs):
                      mode='lines',
                      line=dict(color='red',
                                width=10),
+                     showlegend=False,
         )
     )
     upfig.add_trace(
@@ -949,6 +998,7 @@ def makeUptimesFig(obs):
                    y=[20]*len(daytime),
                    mode='lines',
                    line=dict(color='gray'),
+                   showlegend=False,
         )
     )
     upfig.add_trace(
@@ -956,12 +1006,13 @@ def makeUptimesFig(obs):
                    y=[-10]*len(daytime),
                    mode='lines',
                    line=dict(color='gray'),
-                   fill='tonexty'
+                   fill='tonexty',
+                   showlegend=False,
         )
     )
     upfig.update_layout(
         uirevision=True,
-        showlegend=False,
+        showlegend=True,
         width=400,
         height=400,
         xaxis=xaxis,
@@ -975,11 +1026,22 @@ def makeUptimesFig(obs):
         ),
         plot_bgcolor='white'
     )
-    upfig.update_xaxes(title_text="Time",
+    upfig.update_xaxes(title_text="Time [UT]",
                        automargin=True)
     upfig.update_yaxes(title_text="Target Elevation [deg]",
                        automargin=True,
                        range=[-10, 90])
+    upfig.update_layout(
+        legend=dict(
+            orientation="h",
+            x=1,
+            y=1.02,
+            yanchor="bottom",
+            xanchor="right",
+            bordercolor="Black",
+            borderwidth=1,
+        )
+    )
     return upfig
 
 
