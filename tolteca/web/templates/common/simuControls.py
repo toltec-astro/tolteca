@@ -114,6 +114,13 @@ def getSettingsCard(controlBox):
 # Inputs:
 #   controlBox - a dasha work area
 def getSourceCard(controlBox):
+
+    tooltipStyle = {
+        'font-size': 20,
+        'maxWidth': 300,
+        'width': 300
+    }
+
     sourceBox = controlBox.child(dbc.Row, className='mt-3').child(dbc.Col)
     sourceCard = sourceBox.child(dbc.Card, color='danger', inverse=False,
                                  outline=True)
@@ -123,36 +130,48 @@ def getSourceCard(controlBox):
 
     targNameRow = c_body.child(dbc.Row, justify='end')
     targNameRow.child(html.Label("Target Name or Coord String: "))
-    targName = targNameRow.child(dcc.Input, value="", debounce=True,
-                                 type='text',
-                                 style=dict(width='45%',))
+    targName = targNameRow.child(
+        dcc.Input, value="", debounce=True,
+        type='text',
+        style=dict(width='45%',))
+    targNameRow.child(dbc.Tooltip, "Enter source coordinates in hh:mm:ss+dd:mm:ss or enter a target name.  If the name server doesn't recognize the name, the RA and Dec fields will both be set to zero.", target=targNameRow.id, style=tooltipStyle)
 
     targRaRow = c_body.child(dbc.Row, justify='end')
     targRaRow.child(html.Label("Target Ra [deg]: "))
     targRa = targRaRow.child(dcc.Input, debounce=True,
                              value=150.08620833, type='number',
                              style=dict(width='45%',))
-
+    targRaRow.child(dbc.Tooltip, "Target RA in degrees.  This will be set to zero if a target name is entered above that is not found in the target database.",
+                     target=targRaRow.id, style=tooltipStyle)
+    
     targDecRow = c_body.child(dbc.Row, justify='end')
     targDecRow.child(html.Label("Target Dec [deg]: "))
     targDec = targDecRow.child(dcc.Input, debounce=True,
                                value=2.58899167, type='number',
                                style=dict(width='45%',))
+    targDecRow.child(dbc.Tooltip, "Target Dec in degrees.  This will be set to zero if a target name is entered above that is not found in the target database.",
+                     target=targDecRow.id, style=tooltipStyle)
 
     obsTimeRow = c_body.child(dbc.Row, justify='end')
     obsTimeRow.child(html.Label("Obs Start Time (UT): "))
     obsTime = obsTimeRow.child(dcc.Input, debounce=True,
-                               value="01:30:00", type='text',
+                               value="11:30:00", type='text',
                                style=dict(width='45%',))
+    obsTimeRow.child(dbc.Tooltip, "Observation time in UT.  Select a UT time for your observation in hh:mm:ss format.  Note that if you select a date and time when the target is below the horizon, an error will be thrown and you will need to reselect the time based on the uptimes plot in the upper right.  The same plot will show if your time is during daytime or nighttime on that particular date.",
+                     target=obsTimeRow.id,
+                     style=tooltipStyle)
 
+    
     obsDateRow = c_body.child(dbc.Row, justify='end')
     obsDateRow.child(html.Label("Obs Date: "))
     obsDate = obsDateRow.child(dcc.DatePickerSingle,
                                min_date_allowed=date(2000, 11, 19),
                                max_date_allowed=date(2030, 12, 31),
-                               initial_visible_month=date(2021, 4, 4),
-                               date=date(2021, 4, 4),
+                               initial_visible_month=date(2021, 10, 25),
+                               date=date(2021, 10, 25),
                                style=dict(width='45%',))
+    obsDateRow.child(dbc.Tooltip, "Observation date.  Select a date for your observation.  If you select a date and time when the target is below the horizon, an error will be thrown and you will need to reselect the time based on the uptimes plot in the upper right.",
+                     target=obsDateRow.id, style=tooltipStyle)
 
     targetAlertRow = c_body.child(dbc.Row)
     targetAlert = targetAlertRow.child(
