@@ -11,6 +11,21 @@ from datetime import date
 # action at that page will be very helpful.
 # Each of these functions returns a dictionary of controls.
 
+def makeTooltip(row, text):
+    tooltipStyle = {
+        'font-size': 15,
+        'maxWidth': 300,
+        'width': 300
+    }
+    tip = row.child(
+        dbc.Tooltip,
+        text, 
+        target=row.id,
+        style=tooltipStyle)
+    return tip
+
+
+
 # The global settings card provides general settings for setting up
 # the simulation and telescope.  This should be extended and
 # generalized even further since it is somewhat TolTEC-specific at the
@@ -114,13 +129,7 @@ def getSettingsCard(controlBox):
 # Inputs:
 #   controlBox - a dasha work area
 def getSourceCard(controlBox):
-
-    tooltipStyle = {
-        'font-size': 20,
-        'maxWidth': 300,
-        'width': 300
-    }
-
+    
     sourceBox = controlBox.child(dbc.Row, className='mt-3').child(dbc.Col)
     sourceCard = sourceBox.child(dbc.Card, color='danger', inverse=False,
                                  outline=True)
@@ -134,33 +143,40 @@ def getSourceCard(controlBox):
         dcc.Input, value="", debounce=True,
         type='text',
         style=dict(width='45%',))
-    targNameRow.child(dbc.Tooltip, "Enter source coordinates in hh:mm:ss+dd:mm:ss or enter a target name.  If the name server doesn't recognize the name, the RA and Dec fields will both be set to zero.", target=targNameRow.id, style=tooltipStyle)
+    makeTooltip(targNameRow, "Enter source coordinates in hh:mm:ss+dd:mm:ss " \
+                "or enter a target name.  If the name server doesn't recognize " \
+                "the name, the RA and Dec fields will both be set to zero.")
 
     targRaRow = c_body.child(dbc.Row, justify='end')
     targRaRow.child(html.Label("Target Ra [deg]: "))
     targRa = targRaRow.child(dcc.Input, debounce=True,
                              value=150.08620833, type='number',
                              style=dict(width='45%',))
-    targRaRow.child(dbc.Tooltip, "Target RA in degrees.  This will be set to zero if a target name is entered above that is not found in the target database.",
-                     target=targRaRow.id, style=tooltipStyle)
+    makeTooltip(targRaRow, "Target RA in degrees.  This will be set to zero " \
+                "if a target name is entered above that is not found in the " \
+                "target database.")
     
     targDecRow = c_body.child(dbc.Row, justify='end')
     targDecRow.child(html.Label("Target Dec [deg]: "))
     targDec = targDecRow.child(dcc.Input, debounce=True,
                                value=2.58899167, type='number',
                                style=dict(width='45%',))
-    targDecRow.child(dbc.Tooltip, "Target Dec in degrees.  This will be set to zero if a target name is entered above that is not found in the target database.",
-                     target=targDecRow.id, style=tooltipStyle)
+    makeTooltip(targDecRow, "Target Dec in degrees.  This will be set to zero " \
+                "if a target name is entered above that is not found in the " \
+                "target database.")
 
     obsTimeRow = c_body.child(dbc.Row, justify='end')
     obsTimeRow.child(html.Label("Obs Start Time (UT): "))
     obsTime = obsTimeRow.child(dcc.Input, debounce=True,
                                value="11:30:00", type='text',
                                style=dict(width='45%',))
-    obsTimeRow.child(dbc.Tooltip, "Observation time in UT.  Select a UT time for your observation in hh:mm:ss format.  Note that if you select a date and time when the target is below the horizon, an error will be thrown and you will need to reselect the time based on the uptimes plot in the upper right.  The same plot will show if your time is during daytime or nighttime on that particular date.",
-                     target=obsTimeRow.id,
-                     style=tooltipStyle)
-
+    makeTooltip(obsTimeRow, "Select a UT time for " \
+                "your observation in hh:mm:ss format.  Note that if you select " \
+                "a date and time when the target is below the horizon, an " \
+                "error will be thrown and you will need to reselect the time " \
+                "based on the uptimes plot in the upper right.  The same plot " \
+                "will show if your time is during daytime or nighttime on that " \
+                "particular date.")
     
     obsDateRow = c_body.child(dbc.Row, justify='end')
     obsDateRow.child(html.Label("Obs Date: "))
@@ -170,8 +186,10 @@ def getSourceCard(controlBox):
                                initial_visible_month=date(2021, 10, 25),
                                date=date(2021, 10, 25),
                                style=dict(width='45%',))
-    obsDateRow.child(dbc.Tooltip, "Observation date.  Select a date for your observation.  If you select a date and time when the target is below the horizon, an error will be thrown and you will need to reselect the time based on the uptimes plot in the upper right.",
-                     target=obsDateRow.id, style=tooltipStyle)
+    makeTooltip(obsDateRow, "Select a date for your observation. " \
+                "If you select a date and time when the target is below the " \
+                "horizon, an error will be thrown and you will need to reselect " \
+                "the time based on the uptimes plot in the upper right.")
 
     targetAlertRow = c_body.child(dbc.Row)
     targetAlert = targetAlertRow.child(
@@ -198,9 +216,12 @@ def getSourceCard(controlBox):
 def getLissajousControls(mappingBox):
     lissBox = mappingBox.child(dbc.Tab, label="Lissajous")
     lissCard = lissBox.child(dbc.Card)
-    l_header = lissCard.child(dbc.CardHeader)
+    l_header = lissCard.child(dbc.CardHeader).child(dbc.Row)
     l_body = lissCard.child(dbc.CardBody)
-    l_header.child(html.H5, "Lissajous Controls", className='mb-2')
+    l_header.child(dbc.Col).child(html.H5, "Lissajous Controls", className='mb-2')
+    infoIcon = l_header.child(dbc.Col).child(dbc.Row, justify='end').child(
+        html.Img, src="http://toltec.astro.umass.edu/images/info.png", height=22,
+        title="This is the most basic lissajous pattern.  It is useful for photometry maps and other very compact maps.  Making the x and y lengths too large will result in very uneven coverage and so is discouraged.  Try the Double Lissajous in that case instead.")
 
     lisRotInRow = l_body.child(dbc.Row, justify='end')
     lisRotInRow.child(html.Label("Rot [deg]: "))
@@ -209,6 +230,8 @@ def getLissajousControls(mappingBox):
                                  debounce=True, type='number',
                                  style={'width': '25%',
                                         'margin-right': '20px'})
+    makeTooltip(lisRotInRow, "Overall rotation of the pattern in degrees " \
+                "with respect to the Az/Ra axis.")
 
     lisxLenInRow = l_body.child(dbc.Row, justify='end')
     lisxLenInRow.child(html.Label("x_length [arcmin]: "))
@@ -217,6 +240,8 @@ def getLissajousControls(mappingBox):
                                    debounce=True, type='number',
                                    style={'width': '25%',
                                           'margin-right': '20px'})
+    makeTooltip(lisxLenInRow, "Full width of the pattern along the " \
+                "x-direction: 0.001 < x_length < 0.5 arcminutes.")
 
     lisyLenInRow = l_body.child(dbc.Row, justify='end')
     lisyLenInRow.child(html.Label("y_length [arcmin]: "))
@@ -225,6 +250,8 @@ def getLissajousControls(mappingBox):
                                    debounce=True, type='number',
                                    style={'width': '25%',
                                           'margin-right': '20px'})
+    makeTooltip(lisyLenInRow, "Full width of the pattern along the " \
+                "y-direction: 0.001 < y_length < 0.5 arcminutes.")
 
     lisxOmegaInRow = l_body.child(dbc.Row, justify='end')
     lisxOmegaInRow.child(html.Label("x_omega: "))
@@ -233,6 +260,9 @@ def getLissajousControls(mappingBox):
                                        debounce=True, type='number',
                                        style={'width': '25%',
                                               'margin-right': '20px'})
+    makeTooltip(lisxOmegaInRow, "Pattern angular frequency [unitless].  This " \
+                "is normalized internally. The key value ends up being the " \
+                "ratio of x_omega and y_omega.")
 
     lisyOmegaInRow = l_body.child(dbc.Row, justify='end')
     lisyOmegaInRow.child(html.Label("y_omega: "))
@@ -241,6 +271,9 @@ def getLissajousControls(mappingBox):
                                        debounce=True, type='number',
                                        style={'width': '25%',
                                               'margin-right': '20px'})
+    makeTooltip(lisyOmegaInRow, "Pattern angular frequency [unitless].  This " \
+                "is normalized internally. The key value ends up being the " \
+                "ratio of x_omega and y_omega.")
 
     lisDeltaInRow = l_body.child(dbc.Row, justify='end')
     lisDeltaInRow.child(html.Label("delta [deg]: "))
@@ -249,6 +282,7 @@ def getLissajousControls(mappingBox):
                                      debounce=True, type='number',
                                      style={'width': '25%',
                                             'margin-right': '20px'})
+    makeTooltip(lisDeltaInRow, "Phase difference in degrees.")
 
     listExpInRow = l_body.child(dbc.Row, justify='end')
     listExpInRow.child(html.Label("t_exp [s]: "))
@@ -257,6 +291,7 @@ def getLissajousControls(mappingBox):
                                    debounce=True, type='number',
                                    style={'width': '25%',
                                           'margin-right': '20px'})
+    makeTooltip(listExpInRow, "Exposure time of observation in seconds. 1<t_exp<1800 s.")
 
     refFrameLissRow = l_body.child(dbc.Row, justify='begin')
     refFrameLissRow.child(html.Label("Tel Frame: "))
@@ -296,9 +331,12 @@ def getLissajousControls(mappingBox):
 def getDoubleLissajousControls(mappingBox):
     dlissBox = mappingBox.child(dbc.Tab, label="Double Lissajous")
     dlissCard = dlissBox.child(dbc.Card)
-    dl_header = dlissCard.child(dbc.CardHeader)
+    dl_header = dlissCard.child(dbc.CardHeader).child(dbc.Row)
     dl_body = dlissCard.child(dbc.CardBody)
-    dl_header.child(html.H5, "Double Lissajous Controls", className='mb-2')
+    dl_header.child(dbc.Col, width=8).child(html.H5, "Double Lissajous Controls", className='mb-2')
+    infoIcon = dl_header.child(dbc.Col).child(dbc.Row, justify='end').child(
+        html.Img, src="http://toltec.astro.umass.edu/images/info.png", height=22,
+        title="This is the advanced lissajous pattern which simply sums to other lissajous patterns.  The general idea is to have a small, slow lissajous run underneath a larger lissajous pattern.  We haven't optimized the parameters for these yet but eventually we will and then we'll set them as the defaults here.")
 
     dlisRotInRow = dl_body.child(dbc.Row, justify='end')
     dlisRotInRow.child(html.Label("Rot [deg]: "))
@@ -448,10 +486,14 @@ def getDoubleLissajousControls(mappingBox):
 def getRasterControls(mappingBox):
     rasBox = mappingBox.child(dbc.Tab, label="Raster")
     rasCard = rasBox.child(dbc.Card)
-    r_header = rasCard.child(dbc.CardHeader)
+    r_header = rasCard.child(dbc.CardHeader).child(dbc.Row)
     r_body = rasCard.child(dbc.CardBody)
-    r_header.child(html.H5, "Raster Controls", className='mb-2')
-
+    r_header.child(dbc.Col, width=8).child(html.H5, "Raster Controls", className='mb-2')
+    infoIcon = r_header.child(dbc.Col).child(dbc.Row, justify='end').child(
+        html.Img, src="http://toltec.astro.umass.edu/images/info.png", height=22,
+        title="The raster pattern is our go-to pattern for making large maps " \
+        "with high-speed scans.")
+    
     rasRotInRow = r_body.child(dbc.Row, justify='end')
     rasRotInRow.child(html.Label("Rot [deg]: "))
     rasRotIn = rasRotInRow.child(dcc.Input, value=0.,
@@ -459,6 +501,8 @@ def getRasterControls(mappingBox):
                                  debounce=True, type='number',
                                  style={'width': '25%',
                                         'margin-right': '20px'})
+    makeTooltip(rasRotInRow, "Rotation angle with respect to Az or " \
+                "Ra axis [degrees]. 0<Rot<90 deg.")
 
     rasLenInRow = r_body.child(dbc.Row, justify='end')
     rasLenInRow.child(html.Label("length [arcmin]: "))
@@ -467,6 +511,10 @@ def getRasterControls(mappingBox):
                                  debounce=True, type='number',
                                  style={'width': '25%',
                                         'margin-right': '20px'})
+    makeTooltip(rasLenInRow,
+                "Scan length of pattern [arcminuts]. For memory reasons, this " \
+                "tool restricts scan lengths to 30 arcmin.  Use tolteca.simu " \
+                "for simuations requiring larger maps.")
 
     rasStepInRow = r_body.child(dbc.Row, justify='end')
     rasStepInRow.child(html.Label("step [arcmin]: "))
@@ -475,6 +523,11 @@ def getRasterControls(mappingBox):
                                    debounce=True, type='number',
                                    style={'width': '25%',
                                           'margin-right': '20px'})
+    makeTooltip(rasStepInRow,
+                "Step size of pattern [arcminutes].  This is the step size " \
+                "between rows in the pattern.  To avoid big discontinuities in " \
+                "the pattern, this should be less than the field of view of " \
+                "4 arcminutes.")
 
     rasnScansInRow = r_body.child(dbc.Row, justify='end')
     rasnScansInRow.child(html.Label("nScans: "))
@@ -483,6 +536,10 @@ def getRasterControls(mappingBox):
                                        debounce=True, type='number',
                                        style={'width': '25%',
                                               'margin-right': '20px'})
+    makeTooltip(rasnScansInRow,
+                "The number of rows in the pattern. For memory reasons, this " \
+                "tool restricts the maximum number of rows to 30.  Use tolteca.simu " \
+                "for simuations requiring larger maps.")
 
     rasSpeedInRow = r_body.child(dbc.Row, justify='end')
     rasSpeedInRow.child(html.Label("speed [arcsec/s]: "))
@@ -491,14 +548,22 @@ def getRasterControls(mappingBox):
                                      debounce=True, type='number',
                                      style={'width': '25%',
                                             'margin-right': '20px'})
+    makeTooltip(rasSpeedInRow,
+                "Scan speed across a row [arcsec/s].  This should be balanced with " \
+                "the turn around time (typically 5s) to ensure good efficiency.  " \
+                "Otherwise, go as fast as possible to decouple the atmospheric " \
+                "signal from the astronomical signal.")
 
     rastTurnInRow = r_body.child(dbc.Row, justify='end')
     rastTurnInRow.child(html.Label("t_turnaround [s]: "))
     rastTurnIn = rastTurnInRow.child(dcc.Input, value=5.,
-                                     min=0.1, max=10.,
+                                     min=3, max=10.,
                                      debounce=True, type='number',
                                      style={'width': '25%',
                                             'margin-right': '20px'})
+    makeTooltip(rastTurnInRow,
+                "The turn-around time at the end of the row.  We don't have a " \
+                "solid measure of this so we recommend 5s.")
 
     refFrameRastRow = r_body.child(dbc.Row, justify='begin')
     refFrameRastRow.child(html.Label("Tel Frame: "))
@@ -537,10 +602,13 @@ def getRasterControls(mappingBox):
 def getRastajousControls(mappingBox):
     rjBox = mappingBox.child(dbc.Tab, label="Rastajous")
     rjCard = rjBox.child(dbc.Card)
-    rj_header = rjCard.child(dbc.CardHeader)
+    rj_header = rjCard.child(dbc.CardHeader).child(dbc.Row)
     rj_body = rjCard.child(dbc.CardBody)
-    rj_header.child(html.H5, "Rastajous Controls", className='mb-2')
-
+    rj_header.child(dbc.Col).child(html.H5, "Rastajous Controls", className='mb-2')
+    infoIcon = rj_header.child(dbc.Col).child(dbc.Row, justify='end').child(
+        html.Img, src="http://toltec.astro.umass.edu/images/info.png", height=22,
+        title="A Rastajous is a combination of a Double Lissajous and a Raster map.  The idea is that the lissajous pattern will be slowly swept over a larger field, akin to painting with a very fat brush.  The key is to get the relative timing of the two patterns right.  The raster part of the map should be pretty slow so that the turns at the ends of the scans can be preserved.")
+    
     rotInRow = rj_body.child(dbc.Row, justify='end')
     rotInRow.child(html.Label("Rot [deg]: "))
     rjRotIn = rotInRow.child(dcc.Input, value=0.,
