@@ -35,6 +35,8 @@ from ...common.toltec import info as toltec_info  # noqa: F401
 from .lmt import info as site_info
 from .lmt import get_lmt_atm_models
 
+import toast
+
 __all__ = [
         'toltec_info',
         'site_info',
@@ -1194,6 +1196,20 @@ class ToltecObsSimulator(object):
                             'altaz', time_obs=time_obs))
         return target
 
+
+    def generate_toast_weather(self, t0):
+
+        
+        weather = toast.weather.SimWeather(
+            time = t0.to_datetime(timezone=datetime.timezone.utc),
+            # time=datetime.datetime.fromtimestamp(
+            #     timestamps[0], 
+            #     tz=datetime.timezone.utc
+            # ),
+            name="LMT"
+        )
+        self.toast_weather = weather
+
     @contextmanager
     def mapping_context(self, mapping, sources):
         """
@@ -1219,6 +1235,7 @@ class ToltecObsSimulator(object):
         ref_frame = mapping.ref_frame
         t0 = mapping.t0
         ref_coord = self.resolve_target(mapping.target, t0)
+        self.generate_toast_weather(t0)
 
         def evaluate(t):
             with erfa_astrom.set(ErfaAstromInterpolator(self.erfa_interp_len)):
@@ -1308,93 +1325,143 @@ class ToltecObsSimulator(object):
                 # TODO: also put all of this stuff somewhere else?
 
                 # spam me even if (when) the c++ part doesnt fail
-                import toast
                 # from toast.utils import Environment
                 # env = Environment.get()
                 # env.set_log_level('VERBOSE')
-        
-                mpi_comm = None
-                # TODO: figure out from Ted what the expectations for tmin ---> tmax are
-                # we have python datetimes 
-                tmin = 0
-                tmax = len(time_obs) + 1
-                with timeit(f"instantiate tmin:{tmin} and tmax:{tmax}"):
 
-                    # TODO: expose relevant parameters through the configuration file 
-                    # there are sooooo mannnnnny
+                mpi_comm = None
+
+                with timeit(f"instantiate slabs"):
+                    atm_slabs_list = list()
+
+                    # Starting slab parameters (thank you Ted)
+                    rmin = 0 * u.meter
+                    rmax = 100 * u.meter
+                    scale = 10.0
+                    xstep = 5 * u.meter
+                    ystep = 5 * u.meter
+                    zstep = 5 * u.meter
+
+                    # RNG state
+                    key1 = 0
+                    key2 = 0
+                    counter1 = 0
+                    counter2 = 0
+
                     gain = 1.0
-                    toast_atmsim_model = toast.atm.AtmSim(
-                        # TODO: what are these units? Below they seem like they needed to be radians
-                        # these are in degrees (* u.degree)
-                        azmin=np.min(az), azmax=np.max(az),
-                        elmin=np.min(alt), elmax=np.max(alt),
-                        tmin=tmin, tmax=tmax,
-                        lmin_center=0.001 * u.meter,
-                        lmin_sigma=0.001*  u.meter,
-                        lmax_center=1.0 * u.meter,
-                        lmax_sigma=10* u.meter,
-                        w_center=10 * (u.km / u.second),
-                        w_sigma=10 * (u.km / u.second),
-                        wdir_center=10 * u.degree,
-                        wdir_sigma=10 * u.degree,
-                        z0_center=2000 * u.meter,
-                        z0_sigma=0 * u.meter,
-                        T0_center=100 * u.Kelvin,
-                        T0_sigma=1 * u.Kelvin,
-                        zatm=40000.0 * u.meter,
-                        zmax=200.0 * u.meter,
-                        xstep=105.0 * u.meter,
-                        ystep=105.0 * u.meter,
-                        zstep=105.0 * u.meter,
-                        nelem_sim_max=10000,
-                        comm=mpi_comm,
-                        key1=0,
-                        key2=0,
-                        counterval1=0,
-                        counterval2=0,
-                        cachedir=None,#'./toast_cache',
-                        rmin=0.0 * u.meter,
-                        rmax=1000.0 * u.meter,
-                        write_debug=False
-                    )
-                with timeit("simulating toast atmosphere (for this time chunk)"):
-                    # TODO: seems slow / ensure that the chosen atmosphere params aren't messing with runtime
-                    err = toast_atmsim_model.simulate(use_cache=False)
-                    if err != 0:
-                        raise RuntimeError("toast atmosphere simulation failed")
-                    pass
+
+                    T0_center = self.toast_weather.air_temperature
+                    wx = self.toast_weather.west_wind
+                    wy = self.toast_weather.south_wind
+                    w_center = np.sqrt(wx ** 2 + wy ** 2)
+                    wdir_center = np.arctan2(wy, wx)
+                    
+                    # build layers
+                    # print(time_obs[0], type(time_obs[0]))#, time_obs[0].timestamp())
+                    # print(time_obs[0].to_datetime(timezone=datetime.timezone.utc))
+                    tmin = time_obs[0].copy()
+                    tmin.format = 'unix'
+                    tmax = time_obs[-1].copy()
+                    tmax.format = 'unix'
+
+                    while rmax < 100000 * u.meter:
+                        with timeit(f"slab creation: {key1}{key2}{counter1}{counter2}"):
+                            toast_atmsim_model = toast.atm.AtmSim(
+                                azmin=np.min(az), azmax=np.max(az),
+                                elmin=np.min(alt), elmax=np.max(alt),
+                                tmin=time_obs[0].unix, tmax=time_obs[-1].unix,
+                                lmin_center=0.01 * u.meter,
+                                lmin_sigma=0.001 * u.meter,
+                                lmax_center=10.0 * u.meter,
+                                lmax_sigma=10.0 * u.meter,
+                                w_center=w_center,
+                                w_sigma=0 * (u.km / u.second),
+                                wdir_center=wdir_center,
+                                wdir_sigma=0 * u.radian,
+                                z0_center=2000 * u.meter,
+                                z0_sigma=0 * u.meter,
+                                T0_center=T0_center,
+                                T0_sigma=0 * u.Kelvin,
+                                zatm=40000.0 * u.meter,
+                                zmax=2000.0 * u.meter,
+                                xstep=xstep,
+                                ystep=ystep,
+                                zstep=zstep,
+                                nelem_sim_max=10000,
+                                comm=mpi_comm,
+                                key1=key1,
+                                key2=key2,
+                                counterval1=counter1,
+                                counterval2=counter2,
+                                cachedir=None,   #'./toast_cache',
+                                rmin=rmin,
+                                rmax=rmax,
+                            )
+                            
+                            # TODO: seems slow / ensure that the chosen atmosphere 
+                            # params aren't messing with runtime
+                            err = toast_atmsim_model.simulate(use_cache=False)
+                            if err != 0:
+                                raise RuntimeError("toast atmosphere simulation failed\nwe'll let them next time")
+                            atm_slabs_list.append(toast_atmsim_model)
+                            
+                            # Use a new RNG stream for each slab
+                            counter1 += 1
+
+                            # Decrease resolution as we increase altitude
+                            rmin = u.Quantity(rmax)
+                            rmax *= scale
+                            xstep *= np.sqrt(scale)
+                            ystep *= np.sqrt(scale)
+                            zstep *= np.sqrt(scale)
+                    # time_obs_dt = time_obs.copy()
+                    # for i in time_obs_dt:
+                    #     i.format = 'unix'
+
+                    # time_obs_dt = [i.value for i in time_obs_dt]
+                    # print(time_obs_dt)
+
+                    
                 
-                atm_result = []
+                
                 with timeit("observe the toast atmosphere with detector (for this time chunk)"):
                     
                     # same for all the detectors in this time chunk
-                    atm_times = np.linspace(tmin, tmax, len(time_obs))
-                    
+                    atm_times = time_obs.unix#np.linspace(tmin, tmax, len(time_obs))
+            
+                    """
+                    for atm in atm_slabs:
+                        err = atm.observe(
+                            timestamps, det_az, det_el, det_atm_data[det]
+                        )
+                    """
                     # loop through each detector (it be fairly quick)
                     # (compared with the atmosphere generation step)
-                    for az_single, alt_single in zip(az.T, alt.T): 
-                        # place to store the atmosphere data
-                        atmtod = np.zeros_like(az_single.value)
-                        err = toast_atmsim_model.observe(
-                            times=atm_times, az=az_single.to(u.radian).value, 
-                            el=alt_single.to(u.radian).value, tod=atmtod, fixed_r=0
-                        )
-                        # what are the units of atm pwr?
-                        if err != 0:
-                            raise RuntimeError("toast atmosphere detector observation failed")
-                        atm_result.append(atmtod)
-                    atm_result  = np.array(atm_result)
-                    atm_result *= gain
+                    obs_pack = list()
+                    for atm_slab in atm_slabs_list:
+                         with timeit(f"observing one slab..."):
+                            atm_result = []
+                            for az_single, alt_single in zip(az.T, alt.T): 
+                                # place to store the atmosphere data
+                                atmtod = np.zeros_like(az_single.value)
+                                err = atm_slab.observe(
+                                    times=atm_times, az=az_single.to(u.radian).value, 
+                                    el=alt_single.to(u.radian).value, tod=atmtod, fixed_r=0
+                                )
+                                if err != 0:
+                                    raise RuntimeError("toast atmosphere detector observation failed")
+                                atm_result.append(atmtod)
+                            atm_result  = np.array(atm_result)
+                            # apply gain
+                            atm_result *= gain
+                            obs_pack.append(atm_result)
+            
+                obs_pack = np.array(obs_pack)
+                all_obs_atm_slabs = np.sum(obs_pack, 0)
+                # # plz stop (breakpoint)
+                # raise RuntimeError("plz stop")
+
                     #atm_result.dump(f'toast_atm_{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
-
-                    # format atm_result to something that can be used 
-                    # see 's_additive' and 's' 
-
-                    # import subprocess
-                    # subprocess.check_output("mpiexec -n 4 python /Users/dennislee/Documents/repos/toltec_dr_scripts/atm_mpi.py",
-                    #     stderr=subprocess.STDOUT,
-                    #     shell=True
-                    # )
 
                 # combine the array projection with sky projection
                 # and evaluate with source frame
@@ -1445,10 +1512,10 @@ class ToltecObsSimulator(object):
                     s = s_additive[0]
                     for _s in s_additive[1:]:
                         s += _s
-                assert s.shape == atm_result.shape
+                assert s.shape == all_obs_atm_slabs.shape
                 # plz stop (breakpoint)
                 # raise RuntimeError("plz stop")
-                s += atm_result << u.MJy / u.sr
+                s += all_obs_atm_slabs << u.MJy / u.sr
                 return s, locals()
         yield evaluate
 
