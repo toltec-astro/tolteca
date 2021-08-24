@@ -14,12 +14,15 @@ import json
 import yaml
 from io import StringIO
 
+from astropy.coordinates import EarthLocation
 from astropy.convolution import Gaussian2DKernel
 from astroquery.utils import parse_coordinates
 from astropy.convolution import convolve_fft
 from tolteca.simu import SimulatorRuntime
 from astroquery.skyview import SkyView
+# from astropy.coordinates import SkyCoord
 from astropy import units as u
+from astroplan import Observer
 from astropy.time import Time
 from astropy.wcs import WCS
 from astropy.io import fits
@@ -126,6 +129,20 @@ class obsPlanner(ComponentTemplate):
         exBox = controlBox.child(dbc.Row, justify='end')
         Execute = exBox.child(html.Div)
 
+        # The text output controls
+        butRow = controlBox.child(dbc.Row)
+        yamlWrite = butRow.child(dbc.Col, width=4).child(
+            dbc.Button, "Download YAML", color="info", outline=True, size='sm')
+        mcWrite = butRow.child(dbc.Col, width=4).child(
+            dbc.Button, "Download M&C script", color="info", outline=True, size='sm')
+        outRow = controlBox.child(dbc.Row)
+        yamlOut = outRow.child(dbc.Col, width=1).child(dcc.Download)
+        mcOut = outRow.child(dbc.Col, width=1).child(dcc.Download)
+        outButtons = {'yaml': yamlWrite,
+                      'mc': mcWrite,
+                      'yamlOut': yamlOut,
+                      'mcOut': mcOut}
+        
         # plots
         plotsBox = bigBox.child(dbc.Col, width=9)
         horizRow = plotsBox.child(dbc.Row)
@@ -177,14 +194,65 @@ class obsPlanner(ComponentTemplate):
         self._registerCallbacks(app, settings, target, mapping,
                                 Execute, dazelPlot, tazelPlot, uptimePlot,
                                 oTable, ticrsPlot, cicrsPlot,
-                                updated_context, fitsOut, fitsWrite)
+                                updated_context, fitsOut, fitsWrite,
+                                outButtons)
 
     def _registerCallbacks(self, app, settings, target, mapping,
                            Execute, dazelPlot, tazelPlot, uptimePlot,
                            oTable, ticrsPlot, cicrsPlot, updated_context,
-                           fitsOut, fitsWrite):
+                           fitsOut, fitsWrite, outButtons):
         print("Registering Callbacks")
 
+        # download a yaml file with the simulation parameters
+        @app.callback(
+            [
+                Output(outButtons['yamlOut'].id, "data"),
+            ],
+            [
+                Input(outButtons['yaml'].id, "n_clicks")
+            ],
+            [
+                State(updated_context.id, 'data'),
+            ],
+            prevent_initial_call=True
+        )
+        def makeYamlOutput(n, updated_context):
+            if updated_context is None:
+                print('run the sim first')
+                raise PreventUpdate
+            sim = fetchSim(updated_context)
+            if sim is None:
+                print('no valid sim')
+                raise PreventUpdate
+            cfg = {'simu': sim.config['simu']}
+            ss = StringIO()
+            sim.write_config_to_yaml(cfg, ss)
+            return [dict(content=ss.getvalue(), filename="sim.txt")]
+
+        # download an M&C script with the simulation parameters
+        @app.callback(
+            [
+                Output(outButtons['mcOut'].id, "data"),
+            ],
+            [
+                Input(outButtons['mc'].id, "n_clicks")
+            ],
+            [
+                State(updated_context.id, 'data'),
+            ],
+            prevent_initial_call=True
+        )
+        def makeYamlOutput(n, updated_context):
+            if updated_context is None:
+                print('run the sim first')
+                raise PreventUpdate
+            sim = fetchSim(updated_context)
+            if sim is None:
+                print('no valid sim')
+                raise PreventUpdate
+            ot_content = sim.export(format='lmtot')
+            return [dict(content=ot_content, filename="mc.script.txt")]
+        
         # download a fits file of the coverage map
         @app.callback(
             [
@@ -282,12 +350,12 @@ class obsPlanner(ComponentTemplate):
             date_string = date_object.strftime('%Y-%m-%d')
             t0 = date_string+'T'+obsTime
             d = {
-                'rot': (r*u.deg).to_value(u.rad),
-                'x_length': (xl*u.arcmin).to_value(u.rad),
-                'y_length': (yl*u.arcmin).to_value(u.rad),
+                'rot': (r*u.deg).to_string(),
+                'x_length': (xl*u.arcmin).to_string(),
+                'y_length': (yl*u.arcmin).to_string(),
                 'x_omega': xo,
                 'y_omega': yo,
-                'delta': (delta*u.deg).to_value(u.rad),
+                'delta': (delta*u.deg).to_string(),
                 't_exp': tExp,
                 'target_ra': tra,
                 'target_dec': tdec,
@@ -336,18 +404,18 @@ class obsPlanner(ComponentTemplate):
             date_string = date_object.strftime('%Y-%m-%d')
             t0 = date_string+'T'+obsTime
             d = {
-                'd_rot': (r*u.deg).to_value(u.rad),
-                'd_delta': (delta*u.deg).to_value(u.rad),
-                'd_x_length_0': (xl0*u.arcmin).to_value(u.rad),
-                'd_y_length_0': (yl0*u.arcmin).to_value(u.rad),
+                'd_rot': (r*u.deg).to_string(),
+                'd_delta': (delta*u.deg).to_string(),
+                'd_x_length_0': (xl0*u.arcmin).to_string(),
+                'd_y_length_0': (yl0*u.arcmin).to_string(),
                 'd_x_omega_0': xo0,
                 'd_y_omega_0': yo0,
-                'd_delta_0': (delta0*u.deg).to_value(u.rad),
-                'd_x_length_1': (xl1*u.arcmin).to_value(u.rad),
-                'd_y_length_1': (yl1*u.arcmin).to_value(u.rad),
+                'd_delta_0': (delta0*u.deg).to_string(),
+                'd_x_length_1': (xl1*u.arcmin).to_string(),
+                'd_y_length_1': (yl1*u.arcmin).to_string(),
                 'd_x_omega_1': xo1,
                 'd_y_omega_1': yo1,
-                'd_delta_1': (delta1*u.deg).to_value(u.rad),
+                'd_delta_1': (delta1*u.deg).to_string(),
                 't_exp': tExp,
                 'target_ra': tra,
                 'target_dec': tdec,
@@ -386,11 +454,11 @@ class obsPlanner(ComponentTemplate):
             date_string = date_object.strftime('%Y-%m-%d')
             t0 = date_string+'T'+obsTime
             d = {
-                'rot': (r*u.deg).to_value(u.rad),
-                'length': (l*u.arcmin).to_value(u.rad),
-                'step': (s*u.arcmin).to_value(u.rad),
+                'rot': (r*u.deg).to_string(),
+                'length': (l*u.arcmin).to_string(),
+                'step': (s*u.arcmin).to_string(),
                 'nScans': ns,
-                'speed': (speed*u.arcsec).to_value(u.rad),
+                'speed': (speed*u.arcsec/u.s).to_string(),
                 't_turnaround': turn,
                 't_exp': "1 ct",
                 'target_ra': tra,
@@ -445,23 +513,23 @@ class obsPlanner(ComponentTemplate):
             date_string = date_object.strftime('%Y-%m-%d')
             t0 = date_string+'T'+obsTime
             d = {
-                'rot': (r*u.deg).to_value(u.rad),
-                'length': (l*u.arcmin).to_value(u.rad),
-                'step': (s*u.arcmin).to_value(u.rad),
+                'rot': (r*u.deg).to_string(),
+                'length': (l*u.arcmin).to_string(),
+                'step': (s*u.arcmin).to_string(),
                 'nScans': ns,
-                'speed': (speed*u.arcsec).to_value(u.rad),
+                'speed': (speed*u.arcsec/u.s).to_string(),
                 't_turnaround': turn,
-                'd_delta': (delta*u.deg).to_value(u.rad),
-                'd_x_length_0': (xl0*u.arcmin).to_value(u.rad),
-                'd_y_length_0': (yl0*u.arcmin).to_value(u.rad),
+                'd_delta': (delta*u.deg).to_string(),
+                'd_x_length_0': (xl0*u.arcmin).to_string(),
+                'd_y_length_0': (yl0*u.arcmin).to_string(),
                 'd_x_omega_0': xo0,
                 'd_y_omega_0': yo0,
-                'd_delta_0': (delta0*u.deg).to_value(u.rad),
-                'd_x_length_1': (xl1*u.arcmin).to_value(u.rad),
-                'd_y_length_1': (yl1*u.arcmin).to_value(u.rad),
+                'd_delta_0': (delta0*u.deg).to_string(),
+                'd_x_length_1': (xl1*u.arcmin).to_string(),
+                'd_y_length_1': (yl1*u.arcmin).to_string(),
                 'd_x_omega_1': xo1,
                 'd_y_omega_1': yo1,
-                'd_delta_1': (delta1*u.deg).to_value(u.rad),
+                'd_delta_1': (delta1*u.deg).to_string(),
                 't_exp': "1 ct",
                 'target_ra': tra,
                 'target_dec': tdec,
@@ -483,10 +551,11 @@ class obsPlanner(ComponentTemplate):
             ],
             [
                 State(settings['bandIn'].id, "value"),
+                State(settings['atmQIn'].id, "value"),
             ],
             prevent_initial_call=True
         )
-        def updateContext(lis_output, dlis_output, ras_output, rj_output, band):
+        def updateContext(lis_output, dlis_output, ras_output, rj_output, band, atmQ):
             print(lis_output)
             print(dlis_output)
             print(ras_output)
@@ -494,19 +563,19 @@ class obsPlanner(ComponentTemplate):
             print(ctx.triggered[0]['prop_id'])
             if (ctx.triggered[0]['prop_id'] == f"{mapping['lis_output_state'].id}.children"):
                 d = json.loads(lis_output)
-                c = writeSimuContext(d, band, mapType='lissajous')
+                c = writeSimuContext(d, band, mapType='lissajous', atmQ=atmQ)
                 print("lissajous context written")
             elif (ctx.triggered[0]['prop_id'] == f"{mapping['dlis_output_state'].id}.children"):
                 d = json.loads(dlis_output)
-                c = writeSimuContext(d, band, mapType='doubleLissajous')
+                c = writeSimuContext(d, band, mapType='doubleLissajous', atmQ=atmQ)
                 print("double lissajous context written")
             elif (ctx.triggered[0]['prop_id'] == f"{mapping['rj_output_state'].id}.children"):
                 d = json.loads(rj_output)
-                c = writeSimuContext(d, band, mapType='rastajous')
+                c = writeSimuContext(d, band, mapType='rastajous', atmQ=atmQ)
                 print("rastajous context written")
             else:
                 d = json.loads(ras_output)
-                c = writeSimuContext(d, band, mapType='raster')
+                c = writeSimuContext(d, band, mapType='raster', atmQ=atmQ)
                 print("raster context written")
             print(f'current_context: {c}')
             return [c, ""]
@@ -849,6 +918,7 @@ def getHorizonPlots(obs, showArray=0):
     return tfig, cfig
 
 
+@timeit
 def makeUptimesFig(obs):
     # make a plot of the uptimes for this day for this target
     daytime = []
@@ -859,14 +929,59 @@ def makeUptimesFig(obs):
     for i in np.arange(0, len(obs['t_absolute']), 20):
         obstime.append(np.datetime64(obs['t_absolute'][i].to_datetime()))
         targel.append(obs['target_altaz'].alt[i].to_value(u.deg))
+
+
+    # Figure out the sun rise and set times at the telescope
+    LMT = EarthLocation.from_geodetic(-97.31481605209875,
+                                      18.98578175043638, 4500.)
+    lmt = Observer(location=LMT, name="LMT", timezone="US/Central")
+    sun_rise = lmt.sun_rise_time(obs['t_day'][0], which='next')
+    sun_set = lmt.sun_set_time(obs['t_day'][0], which='next')
+
+    # sun rise and set indices
+    def nearest(items, pivot):
+        return min(items, key=lambda x: abs(x - pivot))
+    obt = np.array(obs['t_day'].mjd)
+    sr = list(obt).index(nearest(obt, sun_rise.mjd))
+    ss = list(obt).index(nearest(obt, sun_set.mjd))
+    
+    c = ['blue']*len(daytime)
+    if (sun_rise.mjd < sun_set.mjd):
+        c[sr:ss] = ['orange']*(ss-sr+1)
+    else:
+        c[:ss] = ['orange']*(ss+1)
+        c[sr:-1] = ['orange']*len(c[sr:-1])
+     
     upfig = go.Figure()
     xaxis, yaxis = getXYAxisLayouts()
     upfig.add_trace(
         go.Scattergl(
             x=daytime,
             y=obs['target_day'].alt.to_value(u.deg),
+            mode='markers',
+            marker=dict(color=c,
+                        size=4),
+            showlegend=False,
+        )
+    )
+    upfig.add_trace(
+        go.Scattergl(
+            x=daytime[0:1],
+            y=obs['target_day'][0:1].alt.to_value(u.deg),
             mode='lines',
-            line=dict(color='green'),
+            line=dict(color='orange'),
+            name='Daytime',
+            visible='legendonly',
+        )
+    )
+    upfig.add_trace(
+        go.Scattergl(
+            x=daytime[0:1],
+            y=obs['target_day'][0:1].alt.to_value(u.deg),
+            mode='lines',
+            line=dict(color='blue'),
+            name='Night',
+            visible='legendonly',
         )
     )
     upfig.add_trace(
@@ -875,6 +990,7 @@ def makeUptimesFig(obs):
                      mode='lines',
                      line=dict(color='red',
                                width=10),
+                     showlegend=False,
         )
     )
     upfig.add_trace(
@@ -882,6 +998,7 @@ def makeUptimesFig(obs):
                    y=[20]*len(daytime),
                    mode='lines',
                    line=dict(color='gray'),
+                   showlegend=False,
         )
     )
     upfig.add_trace(
@@ -889,12 +1006,13 @@ def makeUptimesFig(obs):
                    y=[-10]*len(daytime),
                    mode='lines',
                    line=dict(color='gray'),
-                   fill='tonexty'
+                   fill='tonexty',
+                   showlegend=False,
         )
     )
     upfig.update_layout(
         uirevision=True,
-        showlegend=False,
+        showlegend=True,
         width=400,
         height=400,
         xaxis=xaxis,
@@ -908,11 +1026,22 @@ def makeUptimesFig(obs):
         ),
         plot_bgcolor='white'
     )
-    upfig.update_xaxes(title_text="Time",
+    upfig.update_xaxes(title_text="Time [UT]",
                        automargin=True)
     upfig.update_yaxes(title_text="Target Elevation [deg]",
                        automargin=True,
                        range=[-10, 90])
+    upfig.update_layout(
+        legend=dict(
+            orientation="h",
+            x=1,
+            y=1.02,
+            yanchor="bottom",
+            xanchor="right",
+            bordercolor="Black",
+            borderwidth=1,
+        )
+    )
     return upfig
 
 
@@ -1264,13 +1393,22 @@ def getXYAxisLayouts():
 
 
 # create config to update to the sim rt
-def writeSimuContext(d, band, mapType='raster'):
+def writeSimuContext(d, band, mapType='raster', atmQ=25):
     if(band == 1.1):
         bandName = '\"a1100\"'
     elif(band == 1.4):
         bandName = '\"a1400\"'
     else:
         bandName = '\"a2000\"'
+    atm_model_name = f'am_q{atmQ:2d}'
+    # target_coord = SkyCoord(
+    #         ra=d['target_ra'] << u.deg,
+    #         dec=d['target_dec'] << u.deg, frame='icrs')
+    # target_str = (
+    #         f'{target_coord.ra.to_string(unit=u.hourangle, sep="hms", precision=5, pad=True)}'
+    #         f'{target_coord.dec.to_string(unit=u.deg, sep="dms", precision=5, pad=True, alwayssign=True)}'
+    #         )
+    target_str = "{0:}d {1:}d".format(d['target_ra'], d['target_dec'])
 
     oF = StringIO()
     oF.write("# vim: et ts=2 sts=2 sw=2\n")
@@ -1283,79 +1421,80 @@ def writeSimuContext(d, band, mapType='raster'):
     if(mapType == 'raster'):
         oF.write("  example_mapping_model_raster: &example_mapping_model_raster\n")
         oF.write("    type: tolteca.simu:SkyRasterScanModel\n")
-        oF.write("    rot: {} rad\n".format(d['rot']))
-        oF.write("    length: {} rad\n".format(d['length']))
-        oF.write("    space: {} rad\n".format(d['step']))
+        oF.write("    rot: {}\n".format(u.Quantity(d['rot'])))
+        oF.write("    length: {}\n".format(u.Quantity(d['length'])))
+        oF.write("    space: {}\n".format(u.Quantity(d['step'])))
         oF.write("    n_scans: {}\n".format(d['nScans']))
-        oF.write("    speed: {} rad/s\n".format(d['speed']))
+        oF.write("    speed: {}\n".format(u.Quantity(d['speed'])))
         oF.write("    t_turnover: {} s\n".format(d['t_turnaround']))
-        oF.write("    target: {0:}d {1:}d\n".format(d['target_ra'], d['target_dec']))
+        oF.write("    target: {}\n".format(target_str))
         oF.write("    ref_frame: {}\n".format(d['ref_frame']))
         oF.write("    t0: {}\n".format(d['t0']))
         oF.write("    # lst0: ...\n")
     elif(mapType == 'lissajous'):
         oF.write("  example_mapping_model_lissajous: &example_mapping_model_lissajous\n")
         oF.write("    type: tolteca.simu:SkyLissajousModel\n")
-        oF.write("    rot: {} rad\n".format(d['rot']))
-        oF.write("    x_length: {} rad\n".format(d['x_length']))
-        oF.write("    y_length: {} rad\n".format(d['y_length']))
+        oF.write("    rot: {}\n".format(u.Quantity(d['rot'])))
+        oF.write("    x_length: {}\n".format(u.Quantity(d['x_length'])))
+        oF.write("    y_length: {}\n".format(u.Quantity(d['y_length'])))
         oF.write("    x_omega: {} rad/s\n".format(d['x_omega']))
         oF.write("    y_omega: {} rad/s\n".format(d['y_omega']))
-        oF.write("    delta: {} rad\n".format(d['delta']))
-        oF.write("    target: {0:}d {1:}d\n".format(d['target_ra'], d['target_dec']))
+        oF.write("    delta: {}\n".format(u.Quantity(d['delta'])))
+        oF.write("    target: {}\n".format(target_str))
         oF.write("    ref_frame: {}\n".format(d['ref_frame']))
         oF.write("    t0: {}\n".format(d['t0']))
     elif(mapType == 'doubleLissajous'):
         oF.write("  example_mapping_model_double_lissajous: &example_mapping_model_double_lissajous\n")
         oF.write("    type: tolteca.simu:SkyDoubleLissajousModel\n")
-        oF.write("    rot: {} rad\n".format(d['d_rot']))
-        oF.write("    delta: {} rad\n".format(d['d_delta']))
-        oF.write("    x_length_0: {} rad\n".format(d['d_x_length_0']))
-        oF.write("    y_length_0: {} rad\n".format(d['d_y_length_0']))
+        oF.write("    rot: {}\n".format(u.Quantity(d['d_rot'])))
+        oF.write("    delta: {}\n".format(u.Quantity(d['d_delta'])))
+        oF.write("    x_length_0: {}\n".format(u.Quantity(d['d_x_length_0'])))
+        oF.write("    y_length_0: {}\n".format(u.Quantity(d['d_y_length_0'])))
         oF.write("    x_omega_0: {} rad/s\n".format(d['d_x_omega_0']))
         oF.write("    y_omega_0: {} rad/s\n".format(d['d_y_omega_0']))
-        oF.write("    delta_0: {} rad\n".format(d['d_delta_0']))
-        oF.write("    x_length_1: {} rad\n".format(d['d_x_length_1']))
-        oF.write("    y_length_1: {} rad\n".format(d['d_y_length_1']))
+        oF.write("    delta_0: {}\n".format(u.Quantity(d['d_delta_0'])))
+        oF.write("    x_length_1: {}\n".format(u.Quantity(d['d_x_length_1'])))
+        oF.write("    y_length_1: {}\n".format(u.Quantity(d['d_y_length_1'])))
         oF.write("    x_omega_1: {} rad/s\n".format(d['d_x_omega_1']))
         oF.write("    y_omega_1: {} rad/s\n".format(d['d_y_omega_1']))
-        oF.write("    delta_1: {} rad\n".format(d['d_delta_1']))
-        oF.write("    target: {0:}d {1:}d\n".format(d['target_ra'], d['target_dec']))
+        oF.write("    delta_1: {}\n".format(u.Quantity(d['d_delta_1'])))
+        # oF.write("    target: {0:}d {1:}d\n".format(d['target_ra'], d['target_dec']))
+        oF.write("    target: {}\n".format(target_str))
         oF.write("    ref_frame: {}\n".format(d['ref_frame']))
         oF.write("    t0: {}\n".format(d['t0']))
     elif(mapType == 'rastajous'):
         oF.write("  example_mapping_model_rastajous: &example_mapping_model_rastajous\n")
         oF.write("    type: tolteca.simu:SkyRastajousModel\n")
-        oF.write("    rot: {} rad\n".format(d['rot']))
-        oF.write("    length: {} rad\n".format(d['length']))
-        oF.write("    space: {} rad\n".format(d['step']))
+        oF.write("    rot: {}\n".format(u.Quantity(d['rot'])))
+        oF.write("    length: {}\n".format(u.Quantity(d['length'])))
+        oF.write("    space: {}\n".format(u.Quantity(d['step'])))
         oF.write("    n_scans: {}\n".format(d['nScans']))
-        oF.write("    speed: {} rad/s\n".format(d['speed']))
+        oF.write("    speed: {}\n".format(u.Quantity(d['speed'])))
         oF.write("    t_turnover: {} s\n".format(d['t_turnaround']))
-        oF.write("    delta: {} rad\n".format(d['d_delta']))
-        oF.write("    x_length_0: {} rad\n".format(d['d_x_length_0']))
-        oF.write("    y_length_0: {} rad\n".format(d['d_y_length_0']))
+        oF.write("    delta: {}\n".format(u.Quantity(d['d_delta'])))
+        oF.write("    x_length_0: {}\n".format(u.Quantity(d['d_x_length_0'])))
+        oF.write("    y_length_0: {}\n".format(u.Quantity(d['d_y_length_0'])))
         oF.write("    x_omega_0: {} rad/s\n".format(d['d_x_omega_0']))
         oF.write("    y_omega_0: {} rad/s\n".format(d['d_y_omega_0']))
-        oF.write("    delta_0: {} rad\n".format(d['d_delta_0']))
-        oF.write("    x_length_1: {} rad\n".format(d['d_x_length_1']))
-        oF.write("    y_length_1: {} rad\n".format(d['d_y_length_1']))
+        oF.write("    delta_0: {}\n".format(u.Quantity(d['d_delta_0'])))
+        oF.write("    x_length_1: {}\n".format(u.Quantity(d['d_x_length_1'])))
+        oF.write("    y_length_1: {}\n".format(u.Quantity(d['d_y_length_1'])))
         oF.write("    x_omega_1: {} rad/s\n".format(d['d_x_omega_1']))
         oF.write("    y_omega_1: {} rad/s\n".format(d['d_y_omega_1']))
-        oF.write("    delta_1: {} rad\n".format(d['d_delta_1']))
+        oF.write("    delta_1: {}\n".format(u.Quantity(d['d_delta_1'])))
         oF.write("    target: {0:}d {1:}d\n".format(d['target_ra'], d['target_dec']))
         oF.write("    ref_frame: {}\n".format(d['ref_frame']))
         oF.write("    t0: {}\n".format(d['t0']))
     oF.write("\n")
     oF.write("simu:\n")
-    oF.write("  # this is the actual simulator\n")
+    # oF.write("  # this is the actual simulator\n")
     oF.write("  jobkey: example_simu\n")
-    oF.write("  # plot: true\n")
+    # oF.write("  # plot: true\n")
     oF.write("  instrument:\n")
     oF.write("    name: toltec\n")
-    oF.write("    calobj: cal/calobj_default/index.yaml\n")
-    oF.write("    select: 'array_name == {}'\n".format(bandName))
-    oF.write("    # select: 'pg == 1'\n")
+    # oF.write("    calobj: cal/calobj_default/index.yaml\n")
+    # oF.write("    select: 'array_name == {}'\n".format(bandName))
+    # oF.write("    # select: 'pg == 1'\n")
     oF.write("  obs_params:\n")
     oF.write("    f_smp_data: 488 Hz  # the sample frequency for data\n")
     oF.write("    f_smp_mapping: 12.2 Hz  # the sample freq for mapping\n")
@@ -1366,6 +1505,8 @@ def writeSimuContext(d, band, mapType='raster'):
     oF.write("  sources:\n")
     oF.write("    - type: point_source_catalog\n")
     oF.write("      filepath: inputs/example_input.asc\n")
+    oF.write("    - type: toltec_array_loading\n")
+    oF.write("      atm_model_name: {}\n".format(atm_model_name))
     if(mapType == 'lissajous'):
         oF.write("  mapping: *example_mapping_model_lissajous\n")
     elif(mapType == 'doubleLissajous'):
