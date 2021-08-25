@@ -241,7 +241,7 @@ def getLissajousControls(mappingBox):
                                    style={'width': '25%',
                                           'margin-right': '20px'})
     makeTooltip(lisxLenInRow, "Full width of the pattern along the " \
-                "x-direction: 0.001 < x_length < 0.5 arcminutes.")
+                "x-direction: 0.001 < x_length < 10 arcminutes.")
 
     lisyLenInRow = l_body.child(dbc.Row, justify='end')
     lisyLenInRow.child(html.Label("y_length [arcmin]: "))
@@ -251,7 +251,7 @@ def getLissajousControls(mappingBox):
                                    style={'width': '25%',
                                           'margin-right': '20px'})
     makeTooltip(lisyLenInRow, "Full width of the pattern along the " \
-                "y-direction: 0.001 < y_length < 0.5 arcminutes.")
+                "y-direction: 0.001 < y_length < 10 arcminutes.")
 
     lisxOmegaInRow = l_body.child(dbc.Row, justify='end')
     lisxOmegaInRow.child(html.Label("x_omega: "))
