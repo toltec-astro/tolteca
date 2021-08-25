@@ -875,8 +875,8 @@ class SimulatorRuntime(RuntimeContext):
             size_max = 25e6
             if nx * ny > size_max:
                 scale = nx * ny / size_max
-                nx = nx * scale
-                ny = ny * scale
+                nx = nx / scale
+                ny = ny / scale
                 delta_pix = delta_pix * scale
                 self.logger.debug(
                         f"wcs adjusted pixel shape: {nx=} {ny=} {delta_pix=}")
