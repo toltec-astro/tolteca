@@ -2,6 +2,7 @@
 
 from tolteca.simu import SimulatorRuntime
 from reproject import reproject_interp
+import yaml
 
 
 lss_plan = {
@@ -19,14 +20,33 @@ lss_plan = {
             'type': 'tolteca.simu:SkyRasterScanModel',
             'length': '200 arcmin',
             'space': '2 arcmin',
-            'n_scans': '100',
+            'n_scans': 100,
             'speed': '500 arcsec/s',
-            't_turnover': '0s',
+            't_turnover': '5s',
             'target': '53.0d -28.1d',
             'ref_frame': 'altaz',
             }  # this mapping pattern is 48min
+        },
+    'XMM-LSS': {
+        't0': [
+            '2021-11-01T03:00:00',
+            '2021-11-01T04:00:00',
+            '2021-11-01T05:00:00',
+            '2021-11-01T06:00:00',
+            '2021-11-01T07:00:00',
+            '2021-11-01T08:00:00',
+            ],
+        'mapping': {
+            'type': 'tolteca.simu:SkyRasterScanModel',
+            'length': '200 arcmin',
+            'space': '2 arcmin',
+            'n_scans': 100,
+            'speed': '500 arcsec/s',
+            't_turnover': '5s',
+            'target': '35.39d -4.6d',
+            'ref_frame': 'altaz',
+            }  # this mapping pattern is 48min
         }
-
     }
 
 
@@ -40,6 +60,9 @@ def run_simu_grid(target_name):
 
     grid = lss_plan[target_name]
 
+    grid['target_name'] = target_name
+    with open(f'{target_name}_plan.yaml', 'w') as fo:
+        yaml.safe_dump(grid, fo)
     # update mapping pattern
     rt.update({
         'simu': {
@@ -85,4 +108,6 @@ if __name__ == "__main__":
 
     from tollan.utils.log import init_log
     init_log(level='DEBUG')
-    run_simu_grid('ECDFS')
+    import sys
+    field = sys.argv[1]
+    run_simu_grid(field)

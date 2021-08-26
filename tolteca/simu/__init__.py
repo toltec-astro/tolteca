@@ -994,11 +994,11 @@ class SimulatorRuntime(RuntimeContext):
             'TolTEC Camera'
             ))
         phdr.append((
-            'EXPTIME', '{t_exp.to_value(u.s):.3g}',
+            'EXPTIME', f'{t_exp.to_value(u.s):.3g}',
             'Exposure time (s)'
             ))
         phdr.append((
-            'OBSDUR', '{t_exp.to_value(u.s):g}',
+            'OBSDUR', f'{t_exp.to_value(u.s):g}',
             'Observation duration (s)'
             ))
         phdr.append((
