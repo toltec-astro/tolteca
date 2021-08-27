@@ -202,6 +202,7 @@ class Citlali(PipelineEngine):
                     instru = entry['instru']
                     interface = entry['interface']
                     source = entry['source']
+                    extra = dict()
                     if instru == 'toltec':
                         c = data_items
                     elif interface == 'lmt':
@@ -211,14 +212,16 @@ class Citlali(PipelineEngine):
                         # TODO implement in citlali the proper
                         # ecsv handling
                         source = _fix_apt(source)
+                        extra = {'type': 'array_prop_table'}
                     else:
                         continue
-                    c.append({
+                    c.append(dict({
                             'filepath': source,
                             'meta': {
                                 'interface': interface
                                 }
-                            })
+                            }, **extra)
+                            )
                 self.logger.debug(
                         f"collected {len(data_items)} data_items"
                         f" {len(cal_items)} cal_items")

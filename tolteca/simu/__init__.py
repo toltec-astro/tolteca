@@ -780,7 +780,7 @@ class SimulatorRuntime(RuntimeContext):
                 mapping=mapping,
                 )
 
-    def run_coverage_only(self):
+    def run_coverage_only(self, write_output=True, mask_with_holdflags=False):
         """Run the simualtor to generate an approximate coverage map."""
         simobj = self.get_instrument_simulator()
         self.logger.debug(f"simobj: {simobj}")
@@ -814,6 +814,7 @@ class SimulatorRuntime(RuntimeContext):
         target_in_ref_frame = target_icrs.transform_to(_ref_frame)
 
         obs_coords = mapping.evaluate_at(target_in_ref_frame, t)
+        hold_flags = mapping.evaluate_holdflag(t)
         obs_coords_icrs = obs_coords.transform_to('icrs')
         if isinstance(_ref_frame, AltAz):
             target_in_altaz = target_in_ref_frame
@@ -875,8 +876,8 @@ class SimulatorRuntime(RuntimeContext):
             size_max = 25e6
             if nx * ny > size_max:
                 scale = nx * ny / size_max
-                nx = nx * scale
-                ny = ny * scale
+                nx = nx / scale
+                ny = ny / scale
                 delta_pix = delta_pix * scale
                 self.logger.debug(
                         f"wcs adjusted pixel shape: {nx=} {ny=} {delta_pix=}")
@@ -911,7 +912,14 @@ class SimulatorRuntime(RuntimeContext):
                         [s, n, s, n, s1, n1, s1, n1])) << u.deg)
             wcsobj = make_wcs(pixscale, bbox)
 
-            xy_tel = wcsobj.world_to_pixel_values(
+            if mask_with_holdflags:
+                m = hold_flags
+                xy_tel = wcsobj.world_to_pixel_values(
+                    obs_coords_icrs.ra.degree[m == 0],
+                    obs_coords_icrs.dec.degree[m == 0],
+                    )
+            else:
+                xy_tel = wcsobj.world_to_pixel_values(
                     obs_coords_icrs.ra.degree,
                     obs_coords_icrs.dec.degree,
                     )
@@ -986,11 +994,11 @@ class SimulatorRuntime(RuntimeContext):
             'TolTEC Camera'
             ))
         phdr.append((
-            'EXPTIME', '{t_exp.to_value(u.s):.3g}',
+            'EXPTIME', f'{t_exp.to_value(u.s):.3g}',
             'Exposure time (s)'
             ))
         phdr.append((
-            'OBSDUR', '{t_exp.to_value(u.s):g}',
+            'OBSDUR', f'{t_exp.to_value(u.s):g}',
             'Observation duration (s)'
             ))
         phdr.append((
@@ -1005,9 +1013,11 @@ class SimulatorRuntime(RuntimeContext):
             hdu = make_cov_hdu(pixscale, array_name, approximate=True)
             hdulist.append(hdu)
         hdulist = fits.HDUList(hdulist)
-        output_dir = self.get_or_create_output_dir()
-        output_path = output_dir.joinpath(f'{output_dir.name}_coverage.fits')
-        hdulist.writeto(output_path, overwrite=True)
+        if write_output:
+            output_dir = self.get_or_create_output_dir()
+            output_path = output_dir.joinpath(
+                    f'{output_dir.name}_coverage.fits')
+            hdulist.writeto(output_path, overwrite=True)
         return hdulist
 
     @timeit
