@@ -1309,59 +1309,57 @@ class ToltecObsSimulator(object):
                     lon, lat = m_proj_icrs(
                         x, y, eval_interp_len=0.1 << u.s)
                     az, alt = m_proj_native(x, y, eval_interp_len=0.1 << u.s)
+                if 1 == 1:
+                    # observe the toast atmospheric simulation model 
+                    toast_atm_slabs = ToastAtmosphereSlabs(
+                            time_obs[0],
+                            time_obs[0].unix, time_obs[-1].unix, 
+                            np.min(az), np.max(az), np.min(alt), np.max(alt)
+                        )
+                    toast_atm_slabs.generate_slabs()
 
-                # observe the toast atmospheric simulation model 
-                toast_atm_slabs = ToastAtmosphereSlabs(
-                        time_obs[0],
-                        time_obs[0].unix, time_obs[-1].unix, 
-                        np.min(az), np.max(az), np.min(alt), np.max(alt)
-                    )
-                toast_atm_slabs.generate_slabs()
+                    gain = 0.001
+                    with timeit("observe the toast atmosphere with detector (for this time chunk)"):
+                        
+                        # same for all the detectors in this time chunk
+                        atm_times = time_obs.unix
 
-                gain = 1.0
-                with timeit("observe the toast atmosphere with detector (for this time chunk)"):
-                    
-                    # same for all the detectors in this time chunk
-                    atm_times = time_obs.unix
+                        # data per slab per detector per time
+                        obs_pack = list()
 
-                    # data per slab per detector per time
-                    obs_pack = list()
+                        # loop through each slab
+                        for slab_id, atm_slab in toast_atm_slabs.atm_slabs_dict.items():
+                            with timeit(f"observing slab id: {slab_id}"):
+                                atm_result = []
+                                # loop through each detector 
+                                for az_single, alt_single in zip(az.T, alt.T): 
 
-                    # loop through each slab
-                    for slab_id, atm_slab in toast_atm_slabs.atm_slabs_dict.items():
-                        with timeit(f"observing slab id: {slab_id}"):
-                            atm_result = []
-                            # loop through each detector 
-                            for az_single, alt_single in zip(az.T, alt.T): 
+                                    # place to store the atmosphere data
+                                    atmtod = np.zeros_like(az_single.value)
+                                    
+                                    # observe the slab with that detector
+                                    err = atm_slab.observe(
+                                        times=atm_times, az=az_single.to(u.radian).value, 
+                                        el=alt_single.to(u.radian).value, tod=atmtod, fixed_r=0
+                                    )
+                                    if err != 0:
+                                        raise RuntimeError("toast slab observation failed")
 
-                                # place to store the atmosphere data
-                                atmtod = np.zeros_like(az_single.value)
+                                    atm_result.append(atmtod)
+                                atm_result  = np.array(atm_result)
                                 
-                                # observe the slab with that detector
-                                err = atm_slab.observe(
-                                    times=atm_times, az=az_single.to(u.radian).value, 
-                                    el=alt_single.to(u.radian).value, tod=atmtod, fixed_r=0
-                                )
-                                if err != 0:
-                                    raise RuntimeError("toast slab observation failed")
-
-                                atm_result.append(atmtod)
-                            atm_result  = np.array(atm_result)
-                            
-                            # apply gain
-                            atm_result *= gain
-                            obs_pack.append(atm_result)
-            
-                # convert to numpy array 
-                # and combine per detector
-                obs_pack          = np.array(obs_pack)
-                all_obs_atm_slabs = np.sum(obs_pack, 0)
-                all_obs_atm_slabs.dump(f'toast_atm_{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
+                                # apply gain
+                                atm_result *= gain
+                                obs_pack.append(atm_result)
+                
+                    # convert to numpy array 
+                    # and combine per detector
+                    obs_pack          = np.array(obs_pack)
+                    all_obs_atm_slabs = np.sum(obs_pack, 0) + np.abs(np.min(obs_pack)) # floor at zero?
+                    all_obs_atm_slabs.dump(f'toast_atm_{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
                 
                 # plz stop (breakpoint)
-                raise RuntimeError("plz stop")
-
-                
+                # raise RuntimeError("plz stop")
 
                 # combine the array projection with sky projection
                 # and evaluate with source frame
@@ -1413,6 +1411,7 @@ class ToltecObsSimulator(object):
                     for _s in s_additive[1:]:
                         s += _s
                 assert s.shape == all_obs_atm_slabs.shape
+                
                 # plz stop (breakpoint)
                 # raise RuntimeError("plz stop")
                 s += all_obs_atm_slabs << u.MJy / u.sr

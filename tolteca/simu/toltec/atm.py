@@ -6,12 +6,11 @@ import astropy.units as u
 from tollan.utils.log import timeit, get_logger
 import toast
 
-
-__all__ = [
-        'ToastAtmosphereSlabs',
-        ]
+__all__ = ['ToastAtmosphereSlabs']
 
 class ToastAtmosphereSlabs(object):
+    """ toast Atmosphere Slabs 
+    """
     def __init__(self, t0, tmin, tmax, azmin, azmax, elmin, elmax):
         self.t0    = t0
         self.tmin  = tmin
@@ -34,15 +33,17 @@ class ToastAtmosphereSlabs(object):
     @staticmethod
     def _generate_toast_atm_slabs(t0, tmin, tmax, azmin, azmax, elmin, elmax, mpi_comm=None):
         """Creates the atmosphere models using multiple slabs
+        Currently, only the parameters that define the time ranges, azimuth ranges, 
+        elevation ranges are exposed (by necessity)
         """
 
         # Starting slab parameters (thank you Ted)
-        rmin  =   0 * u.meter
-        rmax  = 100 * u.meter
-        scale = 10.0
-        xstep =   5 * u.meter
-        ystep =   5 * u.meter
-        zstep =   5 * u.meter
+        rmin  =  0 * u.meter
+        rmax  =  100 * u.meter
+        scale =  10.0
+        xstep =  5 * u.meter
+        ystep =  5 * u.meter
+        zstep =  5 * u.meter
 
         # RNG state
         key1 = 0
@@ -61,13 +62,14 @@ class ToastAtmosphereSlabs(object):
         w_center    = np.sqrt(wx ** 2 + wy ** 2)
         wdir_center = np.arctan2(wy, wx)
 
-        # list of atmosphere slabs
-        #atm_slabs_list = list()
+        # dict of atmosphere slabs
         atm_slabs_dict = dict()
 
         # generate slabs until rmax > 100000 meters
         # TODO: eventually expose these
+        
         while rmax < 100000 * u.meter:
+            slab_id = f'{key1}{key2}{counter1}{counter2}'
             toast_atmsim_model = toast.atm.AtmSim(
                 azmin=azmin, azmax=azmax,
                 elmin=elmin, elmax=elmax,
@@ -100,25 +102,23 @@ class ToastAtmosphereSlabs(object):
                 rmax=rmax,
             )
             
-            slab_id = f'{key1}{key2}{counter1}{counter2}'
             # simulate the atmosphere
             err = toast_atmsim_model.simulate(use_cache=False)
             if err != 0:
                 raise RuntimeError("toast atmosphere simulation failed\nwe'll get them next time")
+            
             # include in stack
-            # atm_slabs_list.append(toast_atmsim_model)
             atm_slabs_dict[slab_id] = toast_atmsim_model
             
             # use a new RNG stream for each slab
             counter1 += 1
 
             # decrease resolution as we increase altitude
-            rmin  = u.Quantity(rmax)
+            rmin   = u.Quantity(rmax)
             rmax  *= scale
             xstep *= np.sqrt(scale)
             ystep *= np.sqrt(scale)
             zstep *= np.sqrt(scale)
 
-        
         # return atm_slabs_list
         return atm_slabs_dict
