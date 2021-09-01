@@ -36,8 +36,6 @@ from .lmt import info as site_info
 from .lmt import get_lmt_atm_models
 from .atm import ToastAtmosphereSlabs
 
-import toast
-
 __all__ = [
         'toltec_info',
         'site_info',
