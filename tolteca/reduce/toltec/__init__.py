@@ -71,8 +71,12 @@ class Citlali(PipelineEngine):
         r = re.compile(
                 r'^citlali\s(?P<version>.+)\s\((?P<timestamp>.+)\)$',
                 re.MULTILINE)
-        m = re.search(r, output).groupdict()
-        version = m['version']
+        m0=re.search(r, output)
+        if m0==None:
+         version='unknown'
+        else:    
+         m = m0.groupdict()
+         version = m['version'] 
         return version
 
     @classmethod
@@ -146,11 +150,13 @@ class Citlali(PipelineEngine):
         logger.debug(pformat_yaml(
             {'citlali': {'path': citlali_cmd, 'version': version}}))
         # check citlali version on the github repo
-        try:
-            remote_version, changelog = cls._get_citlali_remote_version(
+        if version != 'unknown':
+         try:
+            
+             remote_version, changelog = cls._get_citlali_remote_version(
                 citlali_path=citlali_cmd, return_changelog_since=version)
             # warning if there is new version
-            if changelog is not None:
+             if changelog is not None:
                 logger.warning(
                     f"you are using an outdated version of citlali {version}."
                     f" Please update to the latest version {remote_version},"
@@ -159,9 +165,10 @@ class Citlali(PipelineEngine):
                     f"{changelog}\n"
                     f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                     )
-        except Exception as e:
+         except Exception as e:
             logger.info(f"unable to check latest citlali version: {e}")
-
+        else:
+            logger.info(f"unable to check latest citlali version: unknown version")
         return citlali_cmd
 
     def __repr__(self):
