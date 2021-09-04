@@ -71,12 +71,12 @@ class Citlali(PipelineEngine):
         r = re.compile(
                 r'^citlali\s(?P<version>.+)\s\((?P<timestamp>.+)\)$',
                 re.MULTILINE)
-        m0=re.search(r, output)
-        if m0==None:
-         version='unknown'
-        else:    
-         m = m0.groupdict()
-         version = m['version'] 
+        m0 = re.search(r, output)
+        if m0 is None:
+            version = 'unknown'
+        else:
+            m = m0.groupdict()
+            version = m['version']
         return version
 
     @classmethod
@@ -151,24 +151,24 @@ class Citlali(PipelineEngine):
             {'citlali': {'path': citlali_cmd, 'version': version}}))
         # check citlali version on the github repo
         if version != 'unknown':
-         try:
-            
-             remote_version, changelog = cls._get_citlali_remote_version(
-                citlali_path=citlali_cmd, return_changelog_since=version)
-            # warning if there is new version
-             if changelog is not None:
-                logger.warning(
-                    f"you are using an outdated version of citlali {version}."
-                    f" Please update to the latest version {remote_version},"
-                    f" which has the following changes:\n"
-                    f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
-                    f"{changelog}\n"
-                    f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                    )
-         except Exception as e:
-            logger.info(f"unable to check latest citlali version: {e}")
+            try:
+                remote_version, changelog = cls._get_citlali_remote_version(
+                    citlali_path=citlali_cmd, return_changelog_since=version)
+                # warning if there is new version
+                if changelog is not None:
+                    logger.warning(
+                        f"you are using an outdated version of citlali "
+                        f"{version}. Please update to the latest version "
+                        f"{remote_version}, which has the following changes:\n"
+                        f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
+                        f"{changelog}\n"
+                        f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                        )
+            except Exception as e:
+                logger.info(f"unable to check latest citlali version: {e}")
         else:
-            logger.info(f"unable to check latest citlali version: unknown version")
+            logger.info(
+                    "unable to check latest citlali version: unknown version")
         return citlali_cmd
 
     def __repr__(self):
