@@ -10,6 +10,7 @@ __all__ = ['ToastAtmosphereSlabs']
 
 class ToastAtmosphereSlabs(object):
     """ toast Atmosphere Slabs 
+        TODO: kwargs the inputs to toast.atm.AtmSim
     """
     def __init__(self, t0, tmin, tmax, azmin, azmax, elmin, elmax):
         self.t0    = t0
@@ -105,7 +106,7 @@ class ToastAtmosphereSlabs(object):
             # simulate the atmosphere
             err = toast_atmsim_model.simulate(use_cache=False)
             if err != 0:
-                raise RuntimeError("toast atmosphere simulation failed\nwe'll get them next time")
+                raise RuntimeError("toast atmosphere generation failed")
             
             # include in stack
             atm_slabs_dict[slab_id] = toast_atmsim_model

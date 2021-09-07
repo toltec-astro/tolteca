@@ -39,6 +39,8 @@ from schema import Optional, Or, Use, Schema
 
 from ..utils import RuntimeContext, RuntimeContextError, get_pkg_data_path
 
+from .toltec.atm import ToastAtmosphereSlabs
+
 # import these models as toplevel
 from .base import (
         SkyRasterScanModel,
@@ -682,6 +684,44 @@ class SimulatorRuntime(RuntimeContext):
         t = np.arange(
                 0, t_exp.to_value(u.s),
                 (1 / obs_params['f_smp_data']).to_value(u.s)) * u.s
+
+        ### 
+        ### toast atmosphere calculation
+        ### 
+
+        # make t grid for atm (1 second intervals; hi resolution not required)
+        _t_atm = np.arange(0, t_exp.to_value(u.s), 1) * u.s
+        _atm_time_obs = mapping.t0 + _t_atm
+
+        _atm_ref_frame = resolve_sky_map_ref_frame(
+                AltAz, observer=simobj.observer, time_obs=_atm_time_obs)
+        _atm_ref_coord = mapping.target.transform_to(_atm_ref_frame)
+        _atm_obs_coords = mapping.evaluate_at(_atm_ref_coord, _t_atm)
+        
+        # _atm_obs_coords should represent the boresight coordinates 
+        # TODO: it doesn't?
+        # obtain the bounding and add ~2 arcmin to each angle side
+        bounding_padding = 10 * u.arcmin # TODO: THIS IS INAPPROPRIATE!!
+        min_az = np.min(_atm_obs_coords.az) - bounding_padding
+        max_az = np.max(_atm_obs_coords.az) + bounding_padding
+
+        # altitude/elevation
+        # TODO: handle the bounds (i.e. negative values or > 90 values)
+        min_alt = np.min(_atm_obs_coords.alt) - bounding_padding
+        max_alt = np.max(_atm_obs_coords.alt) + bounding_padding
+        
+        # generate the toast atmospheric simulation model 
+        toast_atm_slabs = ToastAtmosphereSlabs(
+                _atm_time_obs[0], 
+                _atm_time_obs[0].unix, _atm_time_obs[-1].unix, 
+                min_az, max_az, min_alt, max_alt
+            )
+        
+        toast_atm_slabs.generate_slabs()  
+
+        # stick it into the simobj for easy access
+        simobj.atm_slabs = toast_atm_slabs
+        #raise RuntimeError(f"{min_az.deg} {max_az.deg} {min_alt.deg} {max_alt.deg}")
 
         # make chunks
         chunk_size = cfg['perf_params']['chunk_size']

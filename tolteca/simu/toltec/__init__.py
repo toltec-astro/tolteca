@@ -1197,7 +1197,7 @@ class ToltecObsSimulator(object):
         return target
 
     @contextmanager
-    def mapping_context(self, mapping, sources):
+    def mapping_context(self, mapping, sources, **kwargs):
         """
         Return a function that can be used to get
         input flux at each detector for given time.
@@ -1221,8 +1221,7 @@ class ToltecObsSimulator(object):
         ref_frame = mapping.ref_frame
         t0 = mapping.t0
         ref_coord = self.resolve_target(mapping.target, t0)
-        #self.generate_toast_weather(t0)
-
+        
         def evaluate(t):
             with erfa_astrom.set(ErfaAstromInterpolator(self.erfa_interp_len)):
                 time_obs = t0 + t
@@ -1307,15 +1306,17 @@ class ToltecObsSimulator(object):
                     lon, lat = m_proj_icrs(
                         x, y, eval_interp_len=0.1 << u.s)
                     az, alt = m_proj_native(x, y, eval_interp_len=0.1 << u.s)
+  
+                
+                # toast_atm_slabs = ToastAtmosphereSlabs(
+                #         time_obs[0],
+                #         time_obs[0].unix, time_obs[-1].unix, 
+                #         np.min(az), np.max(az), np.min(alt), np.max(alt)
+                #     )
+                # toast_atm_slabs.generate_slabs()
+                # raise RuntimeError(f"{np.min(az)} {np.max(az)} {np.min(alt)} {np.max(alt)}")
                 
                 # observe the toast atmospheric simulation model 
-                toast_atm_slabs = ToastAtmosphereSlabs(
-                        time_obs[0],
-                        time_obs[0].unix, time_obs[-1].unix, 
-                        np.min(az), np.max(az), np.min(alt), np.max(alt)
-                    )
-                toast_atm_slabs.generate_slabs()
-
                 gain = 0.001
                 with timeit("observe the toast atmosphere with detector (for this time chunk)"):
                     
@@ -1326,7 +1327,7 @@ class ToltecObsSimulator(object):
                     obs_pack = list()
 
                     # loop through each slab
-                    for slab_id, atm_slab in toast_atm_slabs.atm_slabs_dict.items():
+                    for slab_id, atm_slab in self.atm_slabs.atm_slabs_dict.items():
                         with timeit(f"observing slab id: {slab_id}"):
                             atm_result = []
                             # loop through each detector 
@@ -1355,9 +1356,6 @@ class ToltecObsSimulator(object):
                 obs_pack          = np.array(obs_pack)
                 all_obs_atm_slabs = np.sum(obs_pack, 0) + np.abs(np.min(obs_pack)) # floor at zero?
                 all_obs_atm_slabs.dump(f'toast_atm_{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
-            
-                # plz stop (breakpoint)
-                # raise RuntimeError("plz stop")
 
                 # combine the array projection with sky projection
                 # and evaluate with source frame
