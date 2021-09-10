@@ -1197,7 +1197,7 @@ class ToltecObsSimulator(object):
         return target
 
     @contextmanager
-    def mapping_context(self, mapping, sources, **kwargs):
+    def mapping_context(self, mapping, sources):
         """
         Return a function that can be used to get
         input flux at each detector for given time.
