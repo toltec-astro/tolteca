@@ -157,11 +157,14 @@ class RuntimeContext(DirConfMixin):
         else:
             cfg = self.validate_config(self._config)
             # here we also add the runtime dict if it not already exists
-            if 'runtime' not in cfg:
-                cfg['runtime'] = {
+            rupdate(cfg, {
+                'runtime': {
                         attr: None
                         for attr in self._get_to_dict_attrs()
                         }
+                })
+        # update some more runtime info
+        rupdate(cfg, {'runtime': {'is_persistent': self.is_persistent}})
         self.logger.debug(f"loaded config: {pformat_yaml(cfg)}")
         return cfg
 
