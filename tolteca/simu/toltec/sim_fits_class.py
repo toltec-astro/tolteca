@@ -82,6 +82,11 @@ class sim_fits(toltec_beams):
         they will not be used in the simulation software.
         BANDPASSES SHOULD BE APPLIED PRIOR TO GENERATING THE FITS FILE.
         
+        An example of how to create and process simple FITS image through
+        the sim_fits class is included below.  It creates a 1 Jy/beam 
+        (using the FWHM of the the 1.1 mm array) single point soure at the 
+        center of each intensity map (no polarization).
+        
         INPUT IMAGE ARRAYS SHOULD BE 10 ARCSECONDS LARGER ON EACH SIDE THAN
         THE FINAL INTENDED MAP TO BE OUTPUT FROM CITLALI DUE TO BEAM 
         CONVOLUTION.
@@ -203,16 +208,21 @@ if __name__ == "__main__":
 
     # 3 images for each array's I, Q, and U
     nlayers = 9
+    
+    ra_center = 92.0
+    dec_center = -7.0
 
     # Set up some fake map parameters
     CDELT = 1./3600  # deg
-    NAXIS1 = 1024  # randomly chosen
-    NAXIS2 = 1024
+    NAXIS1 = 300 # 5 arcmin map
+    NAXIS2 = 300 # 5 arcmin map
+    
+    flux = 0.6 # MJy/sr
 
     # Here we'll generate images with a single pixel having a value of 1
     # at the center to check the convolution
     img = np.zeros([NAXIS1, NAXIS2, nlayers])
-    img[int(NAXIS1/2), int(NAXIS2/2), :] = np.ones(nlayers)
+    img[int(NAXIS1/2), int(NAXIS2/2), :] = np.ones(nlayers)*flux
     
     # Make a list of the images in the desired order.  Here we make the Q and U
     # maps empty
@@ -227,14 +237,14 @@ if __name__ == "__main__":
         'CTYPE1': 'RA---TAN',
         'CUNIT1': 'deg',
         'CDELT1': -CDELT,
-        'CRPIX1': 1,
-        'CRVAL1': 0.0,
+        'CRPIX1': NAXIS1/2,
+        'CRVAL1': ra_center,
         'NAXIS1': NAXIS1,
         'CTYPE2': 'DEC--TAN',
         'CUNIT2': 'deg',
         'CDELT2': CDELT,
-        'CRPIX2': 1,
-        'CRVAL2': 0.0,
+        'CRPIX2': NAXIS2/2,
+        'CRVAL2': dec_center,
         'NAXIS2': NAXIS2
     }
     wcs_dict = WCS(wcs_input_dict)
@@ -244,6 +254,17 @@ if __name__ == "__main__":
     # Create the class and run the function
     sf = sim_fits()
     sf.generate_fits(imgs=imgs, wcs=wcs_dict, convolve_img=True)
+    
+    # plot the convolved I map for the 1.1 mm array
+    import matplotlib.pyplot as plt
+    
+    ax = plt.subplot(projection=wcs_dict)
+    lon = ax.coords[0]
+    lat = ax.coords[1]
+    lon.set_major_formatter('d.dddd')
+    lat.set_major_formatter('d.dddd')
+    im = ax.imshow(sf.convolved_hdul[1].data)
+    plt.colorbar(im, label='flux (MJy/sr)')
     
     # Optionally save both the raw and convolved hdulists
     # sf.raw_hdul.writeto('/Users/mmccrackan/toltec/temp/simu_input_example.fits',
