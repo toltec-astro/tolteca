@@ -130,12 +130,12 @@ class Citlali(PipelineEngine):
     def _get_citlali_cmd(cls, binpath=None, version_specifiers=None):
         """Get the citlali executable."""
         logger = get_logger()
+        citlali_cmd = 'citlali'
         if binpath is not None:
             if binpath.is_dir():
                 binpath = binpath.joinpath('citlali')
-            citlali_cmd = Path(binpath).as_posix()
-        else:
-            citlali_cmd = 'citlali'
+            if binpath.exists():
+                citlali_cmd = Path(binpath).as_posix()
         try:
             version = cls._get_citlali_version(citlali_cmd)
         except Exception as e:
