@@ -688,40 +688,58 @@ class SimulatorRuntime(RuntimeContext):
         ### 
         ### toast atmosphere calculation
         ### 
+        make_atm_sim = False
+        if make_atm_sim:
+            # make t grid for atm (1 second intervals; high resolution not required)
+            _t_atm = np.arange(0, t_exp.to_value(u.s), 1) * u.s
+            _atm_time_obs = mapping.t0 + _t_atm
 
-        # make t grid for atm (1 second intervals; hi resolution not required)
-        _t_atm = np.arange(0, t_exp.to_value(u.s), 1) * u.s
-        _atm_time_obs = mapping.t0 + _t_atm
+            _atm_ref_frame = resolve_sky_map_ref_frame(
+                    AltAz, observer=simobj.observer, time_obs=_atm_time_obs)
+            _atm_ref_coord = mapping.target.transform_to(_atm_ref_frame)
+            _atm_obs_coords = mapping.evaluate_at(_atm_ref_coord, _t_atm)
+            
+            # _atm_obs_coords should represent the boresight coordinates 
+            # obtain the bounding box and add padding extremes
+            bounding_padding = 10 * u.arcmin 
 
-        _atm_ref_frame = resolve_sky_map_ref_frame(
-                AltAz, observer=simobj.observer, time_obs=_atm_time_obs)
-        _atm_ref_coord = mapping.target.transform_to(_atm_ref_frame)
-        _atm_obs_coords = mapping.evaluate_at(_atm_ref_coord, _t_atm)
-        
-        # _atm_obs_coords should represent the boresight coordinates 
-        # TODO: it doesn't?
-        # obtain the bounding and add ~2 arcmin to each angle side
-        bounding_padding = 10 * u.arcmin # TODO: THIS IS INAPPROPRIATE!!
-        min_az = np.min(_atm_obs_coords.az) - bounding_padding
-        max_az = np.max(_atm_obs_coords.az) + bounding_padding
+            # altitude/elevation
+            # TODO: handle the bounds (i.e. negative values or > 90 values)
+            self.logger.debug(f'generated: prepad min azimuth: {np.min(_atm_obs_coords.alt)}')
+            self.logger.debug(f'generated: prepad max azimuth: {np.max(_atm_obs_coords.alt)}')
 
-        # altitude/elevation
-        # TODO: handle the bounds (i.e. negative values or > 90 values)
-        min_alt = np.min(_atm_obs_coords.alt) - bounding_padding
-        max_alt = np.max(_atm_obs_coords.alt) + bounding_padding
-        
-        # generate the toast atmospheric simulation model 
-        toast_atm_slabs = ToastAtmosphereSlabs(
-                _atm_time_obs[0], 
-                _atm_time_obs[0].unix, _atm_time_obs[-1].unix, 
-                min_az, max_az, min_alt, max_alt
-            )
-        
-        toast_atm_slabs.generate_slabs()  
+            min_alt = np.min(_atm_obs_coords.alt) - bounding_padding
+            max_alt = np.max(_atm_obs_coords.alt) + bounding_padding
 
-        # stick it into the simobj for easy access
-        simobj.atm_slabs = toast_atm_slabs
-        #raise RuntimeError(f"{min_az.deg} {max_az.deg} {min_alt.deg} {max_alt.deg}")
+            if min_alt < (0 * u.degree):
+                min_alt = 0 * u.degree
+            if max_alt > (90 * u.degree):
+                max_alt = 0 * u.degree
+
+            self.logger.debug(f'generated: min elevation: {min_alt}')
+            self.logger.debug(f'generated: max elevation: {max_alt}')
+
+            self.logger.debug(f'generated: prepad min azimuth: {np.min(_atm_obs_coords.az)}')
+            self.logger.debug(f'generated: prepad max azimuth: {np.max(_atm_obs_coords.az)}')
+
+            min_az = np.min(_atm_obs_coords.az) - (bounding_padding) 
+            max_az = np.max(_atm_obs_coords.az) + (bounding_padding) 
+
+            self.logger.debug(f'generated: min azimuth: {min_az}')
+            self.logger.debug(f'generated: max azimuth: {max_az}')
+
+            # generate the toast atmospheric simulation model 
+            toast_atm_slabs = ToastAtmosphereSlabs(
+                    _atm_time_obs[0], 
+                    _atm_time_obs[0].unix, _atm_time_obs[-1].unix, 
+                    min_az, max_az, min_alt, max_alt
+                )
+            toast_atm_slabs.generate_slabs()  
+
+            # stick it into the simobj for easy access
+            simobj.atm_slabs = toast_atm_slabs
+        else:
+            simobj.atm_slabs = None
 
         # make chunks
         chunk_size = cfg['perf_params']['chunk_size']

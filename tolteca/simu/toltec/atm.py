@@ -78,7 +78,7 @@ class ToastAtmosphereSlabs(object):
                 lmin_center=0.01 * u.meter,
                 lmin_sigma=0.001 * u.meter,
                 lmax_center=10.0 * u.meter,
-                lmax_sigma=10.0 * u.meter,
+                lmax_sigma =10.0 * u.meter,
                 w_center=w_center,
                 w_sigma=0 * (u.km / u.second),
                 wdir_center=wdir_center,
