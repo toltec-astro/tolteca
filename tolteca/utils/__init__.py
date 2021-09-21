@@ -1,389 +1,185 @@
 #!/usr/bin/env python
 
-from tollan.utils.fmt import pformat_yaml
-from tollan.utils import rupdate
+
+from .misc import (get_pkg_data_path, get_user_data_dir)
+from .runtime_context import (
+    ConfigInfo, yaml_load, yaml_dump, RuntimeContext, RuntimeContextError)
+from tollan.utils import ensure_abspath, rupdate
+from tollan.utils.sys import parse_systemd_envfile
 from tollan.utils.log import get_logger
-from tollan.utils.dirconf import DirConfError, DirConfMixin
-
-from ..version import version
-from astropy.time import Time
-import appdirs
-from pathlib import Path
-from cached_property import cached_property
-from schema import Use, Optional
-from copy import deepcopy
-import yaml
+from tollan.utils.fmt import pformat_yaml
+from wrapt import ObjectProxy
 
 
-def get_pkg_data_path():
-    """Return the package data path."""
-    return Path(__file__).parent.parent.joinpath("data")
+__all__ = [
+    'get_user_data_dir', 'get_pkg_data_path',
+    'yaml_load', 'yaml_dump',
+    'RuntimeContext', 'RuntimeContextError',
+    'ConfigLoaderError', 'ConfigLoader'
+           ]
 
 
-def get_user_data_dir():
-    return Path(appdirs.user_data_dir('tolteca', 'toltec'))
-
-
-class RuntimeContextError(DirConfError):
-    """Raise when errors occur in `RuntimeContext`."""
+class ConfigLoaderError(RuntimeError):
+    """Raise when error in `ConfigLoader`."""
     pass
 
 
-class RuntimeContext(DirConfMixin):
-    """A class to manage runtime contexts.
+class ConfigLoader(ObjectProxy):
+    """A helper class to load config files for tolteca.
 
-    This class manages a set of configurations in a coherent way, providing
-    per-project persistence for user settings.
+    The config paths are loaded in the following order:
 
-    A runtime context can be constructed either from file system,
-    using the `tollan.utils.dirconf.DirConfMixin` under the hood, or
-    be constructed directly from a configuration dict composed
-    programatically. Property :attr:``is_persistent`` is set to True in the
-    former case.
+        system_config_path < user_config_path < standalone_config_files
 
+    Parameters
+    ----------
+
+    files : list
+        A list of YAML config file paths. The config dict get
+        merged in their order in the list.
+
+    load_sys_config : bool
+        If True, load the built-in config file (:attr:`sys_config_path`).
+
+    load_user_config : bool
+        If True, load the user config file (:attr:`user_config_path`).
+
+    runtime_context_dir : str, `pathlib.Path`, optional
+        If specified, load the runtime context from this path.
+
+    env_files : list
+        A list of systemd env file paths. The env dict get
+        merged in their order in the list.
     """
 
-    _contents = {
-        'bindir': {
-            'path': 'bin',
-            'type': 'dir',
-            'backup_enabled': False
-            },
-        'caldir': {
-            'path': 'cal',
-            'type': 'dir',
-            'backup_enabled': False
-            },
-        'logdir': {
-            'path': 'log',
-            'type': 'dir',
-            'backup_enabled': False
-            },
-        'setup_file': {
-            'path': '50_setup.yaml',
-            'type': 'file',
-            'backup_enabled': True
-            },
-        }
-
     logger = get_logger()
+    sys_config_path = get_pkg_data_path().joinpath("tolteca.yaml")
+    user_config_path = get_user_data_dir().joinpath("tolteca.yaml")
 
-    def __init__(self, rootpath=None, config=None):
-        if sum([rootpath is None, config is None]) != 1:
-            raise RuntimeContextError(
-                    "one and only one of rootpath and config has to be set")
-        if rootpath is not None:
-            # we expect that rootpath is already setup if constructed
-            # this way.
-            try:
-                rootpath = self.populate_dir(
-                        rootpath,
-                        create=False, force=True)
-            except DirConfError:
-                raise RuntimeContextError(
-                        f'missing runtime context contents in {rootpath}. '
-                        f'Use {self.__class__.__name__}.from_dir '
-                        f'with create=True instead.'
-                        )
-        elif config is not None:
-            # make our own copy because we may update it
-            config = deepcopy(config)
-        self._rootpath = rootpath
-        # we delay the validating of config to accessing time
-        # in property ``config``
-        self._config = config
-        if not self.is_persistent and not self._config_has_setup(config):
-            # when user provide config directly
-            # it is likely that its not setup, therefore
-            # just do it here if not already
-            self.setup()
-
-    @property
-    def is_persistent(self):
-        """True if this context is created from a valid rootpath."""
-        return self._rootpath is not None
-
-    @property
-    def rootpath(self):
-        if self.is_persistent:
-            return self._rootpath
-        # the config runtime should always be available,
-        # since we add that at the end of the config property getter
-        return self.config['runtime']['rootpath']
-
-    def __getattr__(self, name, *args):
-        # in case the config is not persistent,
-        # we return the content paths from the runtime dict
-        # make available the content attributes
-        if self.is_persistent:
-            return super().__getattr__(name, *args)
-        if name in self._contents.keys():
-            return self.config['runtime'][name]
-        return super().__getattribute__(name, *args)
-
-    def __repr__(self):
-        if self.is_persistent:
-            return f"{self.__class__.__name__}({self.rootpath})"
-        # an extra star to indication is not persistent
-        return f"{self.__class__.__name__}(*{self.rootpath})"
-
-    @property
-    def config_files(self):
-        """The list of config files present in the :attr:`config_files`.
-
-        Returns ``None`` if the runtime context is not persistent.
-
-        """
-        if self.is_persistent:
-            return self.collect_config_files()
-        return None
-
-    @cached_property
-    def config(self):
-        """The runtime context dict.
-
-        """
-        if self.is_persistent:
-            cfg = self.collect_config_from_files(
-                    self.config_files, validate=False
-                    )
-            # merge with the _config dict
-            if self._config is not None:
-                rupdate(cfg, self._config)
-            # validate
-            cfg = self.validate_config(cfg)
-            # update runtime info
-            cfg['runtime'] = self.to_dict()
-        else:
-            cfg = self.validate_config(self._config)
-            # here we also add the runtime dict if it not already exists
-            rupdate(cfg, {
-                'runtime': {
-                        attr: None
-                        for attr in self._get_to_dict_attrs()
-                        }
-                })
-        # update some more runtime info
-        rupdate(cfg, {'runtime': {'is_persistent': self.is_persistent}})
-        self.logger.debug(f"loaded config: {pformat_yaml(cfg)}")
-        return cfg
-
-    @classmethod
-    def _validate_setup(cls, cfg_setup):
-        # TODO implement more logic to verify the settings
-        if cfg_setup is None:
-            cfg_setup = {}
-
-        # check version
-        from ..version import version
-        # for now we just issue a warning but this will be replaced
-        # by actual version comparison.
-        if 'version' not in cfg_setup:
-            cls.logger.warning("no version info found.")
-            cfg_setup['version'] = version
-        if cfg_setup['version'] != version:
-            cls.logger.warning(
-                    f"mismatch of tolteca version "
-                    f"{cfg_setup['version']} -> {version}")
-        return cfg_setup
-
-    @classmethod
-    def extend_config_schema(cls):
-        # this defines a basic schema to validate the config
-        return {
-            'setup': Use(cls._validate_setup),
-            Optional(object): object
-            }
-
-    @classmethod
-    def from_dir(
-            cls, dirpath, init_config=None, **kwargs
+    def __init__(
+            self,
+            files=None,
+            load_sys_config=True,
+            load_user_config=True,
+            runtime_context_dir=None,
+            env_files=None,
             ):
+        # build the list of paths
+        load_sys_config = load_sys_config and self.sys_config_path.exists()
+        load_user_config = load_user_config and self.user_config_path.exists()
+
+        # build a config info object and initialize the proxy.
+        super().__init__(ConfigInfo.schema.load({
+            'standalone_config_files': files or list(),
+            'user_config_path': self.user_config_path,
+            'sys_config_path': self.sys_config_path,
+            'load_user_config': load_user_config,
+            'load_sys_config': load_sys_config,
+            'runtime_context_dir': runtime_context_dir,
+            'env_files': env_files or list(),
+            }))
+
+    def get_config(self):
+        """Return the merged config dict from all config file paths.
+
+        Note that this only compile the user supplied config files via
+        `filepaths` in the constructor and the sys/user config files.
+
+        It does not load the config from the runtime context dir.
         """
-        Create `RuntimeContext` instance from `dirpath`.
+        return self.load_config_from_files(self.get_config_paths())
 
-        This is the preferred method to construct `RuntimeContext`
-        from arbitrary path.
-
-        For paths that have already setup previous as runtime context,
-        use the constructor instead.
-
-        Parameters
-        ----------
-        dirpath : `pathlib.Path`, str
-            The path to the work directory.
-        init_config : dict, optional
-            The dict to add to setup_file.
-        **kwargs : dict, optional
-            Additional arguments passed to the underlying
-            :meth:`DirConfMixin.populate_dir`.
+    def get_config_paths(self):
+        """Return the merged config paths list from all config file paths.
         """
-        dirpath = cls.populate_dir(dirpath, **kwargs)
-        if kwargs.get('dry_run', False):
-            # when dry_run we just create a in-memory rc
-            cfg = {
-                    'runtime': {
-                        'rootpath': dirpath
-                        }
-                    }
-            if init_config is not None:
-                rupdate(cfg, init_config)
-            return cls(config=cfg)
-        # write init_config to setup_file
-        if init_config is not None:
-            setup_file = cls._resolve_content_path(dirpath, 'setup_file')
-            with open(setup_file, 'r') as fo:
-                cfg = yaml.safe_load(fo)
-                if cfg is None or not isinstance(cfg, dict):
-                    cfg = dict()
-                rupdate(cfg, init_config)
-            cls.write_config_file(
-                    cfg,
-                    setup_file,
-                    overwrite=True)
-        return cls(rootpath=dirpath)
+        paths = list()
+        if self.load_sys_config:
+            paths.append(self.sys_config_path)
+        if self.load_user_config:
+            paths.append(self.user_config_path)
+        for p in self.standalone_config_files:
+            paths.append(ensure_abspath(p))
+        return paths
+
+    def get_runtime_context(
+            self,
+            include_config_as_default=True,
+            include_config_as_override=False,
+            ):
+        """Return the runtime context.
+
+        Returns None when the ``runtime_context_dir`` is not set.
+
+        The `include_config_as_*` can be set to True to include the config dict
+        from the :meth:`get_config`. When as default, the config dict is made
+        available to the runtime context config through the
+        `ConfigBackend.set_default_config`, when as override, it is made
+        available to the runtime context config trough the
+        `ConfigBackend.set_override_config`.
+        """
+        # when include as override, include as default is ignored because
+        # it gets override anyway
+        if include_config_as_override:
+            include_config_as_default = False
+        dirpath = self.runtime_context_dir
+        if dirpath is None:
+            return None
+        if not dirpath.exists():
+            raise ConfigLoaderError(
+                f"runtime context dir {dirpath} does not exist.")
+        if not dirpath.is_dir():
+            raise ConfigLoaderError(
+                f"runtime context dir {dirpath} is not a directory.")
+        try:
+            rc = RuntimeContext(dirpath)
+        except RuntimeContextError as e:
+            raise ConfigLoaderError(
+                f"invalid runtime context dir {dirpath}: {e}")
+        if include_config_as_default:
+            rc.config_backend.set_default_config(self.get_config())
+        elif include_config_as_override:
+            rc.config_backend.set_override_config(self.get_config())
+        return rc
 
     @classmethod
-    def from_config(cls, *configs):
-        """
-        Create `RuntimeContext` instance from a set of configs.
-
-        This method allow constructing `RuntimeContext`
-        from multiple configuration dicts.
-
-        For a single config dict, use the constructor instead.
-
-        Parameters
-        ----------
-        *configs : tuple
-            The config dicts.
-        """
-        cfg = deepcopy(configs[0])
-        # TODO maybe we nned to make deepcopy of all?
-        for c in configs[1:]:
-            rupdate(cfg, c)
-        return cls(config=cfg)
-
-    def symlink_to_bindir(self, src, link_name=None):
-        """Create a symbolic link of of `src` in :attr:`bindir`.
-
-        """
-        src = Path(src)
-        if link_name is None:
-            link_name = src.name
-        dst = self.bindir.joinpath(link_name)
-        dst.symlink_to(src)  # note this may seem backward but it is the way
-        self.logger.debug(f"symlink {src} to {dst}")
-        return dst
+    def load_config_from_files(cls, filepaths, schema=None):
+        cfg = dict()
+        for p in filepaths:
+            rupdate(cfg, cls._load_config_from_file(p))
+        if schema is None:
+            return cfg
+        return schema.validate(cfg)
 
     @staticmethod
-    def _config_has_setup(config):
-        """Return True if config has been setup."""
-        return isinstance(config, dict) and 'setup' in config
-
-    def setup(self, config=None, overwrite=False):
-        """Populate the setup file (50_setup.yaml).
-
-        Parameters
-        ----------
-        config : dict, optional
-            Additional config to add to the setup file.
-        overwrite : bool
-            Set to True to force overwrite the existing
-            setup info. Otherwise a `RuntimeContextError` is
-            raised.
-        """
-        # check if already setup
-        if self.is_persistent:
-            with open(self.setup_file, 'r') as fo:
-                setup_cfg = yaml.safe_load(fo)
-        else:
-            # use the unvalidated version here so we can setup for the
-            # first time
-            setup_cfg = self._config
-        if self._config_has_setup(setup_cfg):
-            if overwrite:
-                self.logger.debug(
-                    "runtime context is already setup, overwrite")
-            else:
-                raise RuntimeContextError(
-                        'runtime context is already setup, '
-                        'use overwrite=True to re-setup.'
-                        )
-        if config is None:
-            config = dict()
-        else:
-            config = deepcopy(config)
-        rupdate(
-            config,
-            {
-                'setup': {
-                    'version': version,
-                    'created_at': Time.now().isot,
-                    }
-            })
-        if self.is_persistent:
-            # write the setup context to the setup_file
-            with open(self.setup_file, 'w') as fo:
-                yaml.dump(config, fo)
-        else:
-            # create setup key in the config
-            rupdate(self._config, config)
-        # invalidate the config cache if needed
-        # so later self.config will pick up the new setting
-        if 'config' in self.__dict__:
-            del self.__dict__['config']
-        return self
-
-    def update(self, config, config_file=None, overwrite=False):
-        """Populate the `config_file` with `config`.
-
-        Parameters
-        ----------
-        config : dict
-            Config to add to `config_file`.
-        config_file : str, `pathlib.Path`, optional
-            Config to add to `config_file`. When not set, the config
-            is non-persistent.
-        overwrite : bool
-            Set to True to force overwrite the existing
-            config. Otherwise a `RuntimeContextError` is
-            raised.
-        """
-        if self.is_persistent:
-            if config_file is None:
-                cfg = self._config
+    def _load_config_from_file(filepath):
+        filepath = ensure_abspath(filepath)
+        if filepath.exists():
+            try:
+                with open(filepath, 'r') as fo:
+                    cfg = yaml_load(fo)
                 if cfg is None:
-                    cfg = self._config = dict()
-            else:
-                with open(config_file, 'r') as fo:
-                    cfg = yaml.safe_load(fo)
+                    # empty file is fine
+                    cfg = dict()
+                elif not isinstance(cfg, dict):
+                    raise ConfigLoaderError(
+                        f"no valid config dict found in {filepath}.")
+            except Exception as e:
+                raise ConfigLoaderError(
+                    f"cannot load config from {filepath}: {e}")
         else:
-            cfg = self._config
-        if config is None:
-            config = dict()
-        if isinstance(cfg, dict):
-            common_keys = set(cfg.keys()).intersection(set(config.keys()))
-            if len(common_keys) > 0:
-                if overwrite:
-                    self.logger.debug(
-                        f"keys {common_keys} exists, overwrite")
-                else:
-                    raise RuntimeContextError(
-                        f'keys {common_keys} already exists'
-                        )
-        rupdate(cfg, config)
-        if self.is_persistent:
-            if config_file is None:
-                self._config = cfg
-            else:
-                # update the config file
-                with open(config_file, 'w') as fo:
-                    yaml.dump(cfg, fo)
-        else:
-            self._config = cfg
-        # invalidate the config cache if needed
-        # so later self.config will pick up the new setting
-        if 'config' in self.__dict__:
-            del self.__dict__['config']
-        return self
+            raise ConfigLoaderError(f"{filepath} does not exist.")
+        return cfg
+
+    def get_env(self):
+        """Return the merged env dict from all env file paths."""
+        env = dict()
+        # we use update here because env file is only one level.
+        for path in self.env_files or list():
+            env.update(parse_systemd_envfile(path))
+        if len(env) > 0:
+            self.logger.debug(f"loaded env:\n{pformat_yaml(env)}")
+        return env
+
+
+default_config_loader = ConfigLoader(runtime_context_dir='.')
+"""The tolteca config loader with default settings."""

@@ -1,0 +1,75 @@
+# vim: et ts=2 sts=2 sw=2
+---
+# An example config for simulating coverage and SNR of a blank field,
+# with raster mapping pattern.
+#
+# This config is used to prototyping the observation strategy of the
+# ECDFS field, one of the several TolTEC LSS fields.
+#
+# The field is about 10 deg^2 large, falling into the category of using
+# a raster scan pattern.
+#
+# We do not put any real astronomical sources in the `sources` list, but
+# we do enable the source of type `toltec_array_loading`, which simulates
+# the power loading from atmosphere (the smooth component) and various
+# components on the optical path. This introduces realistic photo noise
+# and the simulated data can be used to check the expected depth/SNR.
+
+# Dict under "simu" key defines the tolteca.simu config.
+simu:
+  # The identifier of this job.
+  # This jobkey is used to identify the simulator run.
+  # In particular, it is used as the output directory name for the simulated
+  # data files. It is also used by the DPDB to identify the source of
+  # the data products.
+  jobkey: ecdfs
+  # This invokes the TolTEC simulator without polarimetry
+  instrument:
+    name: toltec
+  # This list of sources to simulate
+  sources:
+    # this model provides the bulk of background loading.
+  - type: toltec_array_loading
+    # Choose from am_q25, am_q50 and am_q75
+    # See `totleca.simu.toltec.lmt.LmtAtmosphereData` for details.
+    atm_model_name: am_q25
+  # Parameters related to execution of the "observation"
+  obs_params:
+    # The sample frequency used for mapping related data.
+    f_smp_mapping: 12Hz
+    # The sample frequency used for detector data.
+    f_smp_probing: 122Hz
+    # The "exposure" time of the simulation.
+    # It can be in time unit like 1h or 40min, or in unit of "ct",
+    # shortcut for "count", where 1 ct equals to the time needed to
+    # finish the mapping pattern.
+    # Note that the mapping pattern length is less well-behaving for
+    # Lissajous pattern.
+    t_exp: 1 ct
+  mapping:
+    # This defines a raster patter covers about 10 deg^2
+    type: tolteca.simu:SkyRasterScanModel
+    # The scan length.
+    length: 200 arcmin
+    # The space between scans.
+    space: 2 arcmin
+    # The number of scans.
+    n_scans: 100
+    # The scan speed.
+    speed: 500 arcsec/s
+    # The time needed to turnaround for the telescope at the end
+    # of each scan. We don't have a good measurement of this.
+    # 5s should be fine.
+    t_turnaround: 5s
+    # The rotation of the pattern, with respect to the +lon direction
+    # of the ref_frame below.
+    rot: 0 deg
+    # The target at which to execute the pattern.
+    # the target can be specified in any form understood
+    # by the SIMBAD name lookup service.
+    target: 53.0d -28.1d
+    # The reference frame used to define the mapping pattern.
+    # Possible values are 'icrs' and 'altaz'.
+    ref_frame: altaz
+    # The time (UT) of the observation.
+    t0: 2022-01-01T02:30:00

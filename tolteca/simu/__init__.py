@@ -10,6 +10,7 @@ from tollan.utils.log import get_logger, logit, timeit, log_to_file
 from tollan.utils.nc import ncopen, ncinfo
 from tollan.utils.namespace import Namespace
 
+from cached_property import cached_property
 import re
 import argparse
 import yaml
@@ -538,7 +539,7 @@ class SimulatorRuntime(RuntimeContext):
     """A class that manages the runtime of the simulator."""
 
     @classmethod
-    def extend_config_schema(cls):
+    def config_schema(cls):
         # this defines the subschema relevant to the simulator.
         simu_schema = {
             'jobkey': str,
@@ -548,8 +549,9 @@ class SimulatorRuntime(RuntimeContext):
                 }),
             'obs_params': {
                 't_exp': Use(u.Quantity),
-                Optional('f_smp_mapping', default=20 << u.Hz): Use(u.Quantity),
-                Optional('f_smp_data', default=488. << u.Hz): Use(u.Quantity),
+                Optional('f_smp_mapping', default=12 << u.Hz): Use(u.Quantity),
+                Optional(
+                    'f_smp_probing', default=122. << u.Hz): Use(u.Quantity),
                 },
             'sources': [{
                 'type': Or(*_simu_source_factory.keys()),
@@ -580,7 +582,7 @@ class SimulatorRuntime(RuntimeContext):
                     u.Quantity),
                 },
             }, return_schema=False))
-        return {'simu': simu_schema}
+        return Schema({'simu': simu_schema, str: object})
 
     def get_or_create_output_dir(self):
         cfg = self.config['simu']
@@ -593,7 +595,7 @@ class SimulatorRuntime(RuntimeContext):
     def get_mapping_model(self):
         """Return the mapping model specified in the runtime config."""
         cfg = self.config['simu']
-        cfg_rt = self.config['runtime']
+        cfg_rt = self.config['runtime_info']
         mapping = _mapping_model_factory[cfg['mapping']['type']](
                 cfg['mapping'], cfg_rt)
         return mapping
@@ -601,7 +603,7 @@ class SimulatorRuntime(RuntimeContext):
     def get_source_model(self):
         """Return the source model specified in the runtime config."""
         cfg = self.config['simu']
-        cfg_rt = self.config['runtime']
+        cfg_rt = self.config['runtime_info']
 
         # resolve sources
         sources = []
@@ -624,7 +626,7 @@ class SimulatorRuntime(RuntimeContext):
         """Return the instrument simulator specified in the runtime config."""
 
         cfg = self.config['simu']
-        cfg_rt = self.config['runtime']
+        cfg_rt = self.config['runtime_info']
 
         simobj = _instru_simu_factory[cfg['instrument']['name']](
                 cfg['instrument'], cfg_rt)
@@ -658,12 +660,12 @@ class SimulatorRuntime(RuntimeContext):
         # resolve mapping
         mapping = self.get_mapping_model()
 
-        self.logger.debug(f"mapping:\n{mapping}")
+        self.logger.info(f"mapping:\n{mapping}")
 
         # resolve sources
         sources = self.get_source_model()
 
-        self.logger.debug("sources: n_sources={}\n{}".format(
+        self.logger.info("sources: n_sources={}\n{}".format(
             len(sources), '\n'.join(
                 f'-----\n{s}\n-----' for s in sources
                 )))
@@ -678,10 +680,10 @@ class SimulatorRuntime(RuntimeContext):
         if t_exp.unit.is_equivalent(u.ct):
             ct_exp = t_exp.to_value(u.ct)
             t_exp = mapping.get_total_time() * ct_exp
-            self.logger.debug(f"resolve t_exp={t_exp} from count={ct_exp}")
+            self.logger.info(f"resolve t_exp={t_exp} from count={ct_exp}")
         t = np.arange(
                 0, t_exp.to_value(u.s),
-                (1 / obs_params['f_smp_data']).to_value(u.s)) * u.s
+                (1 / obs_params['f_smp_probing']).to_value(u.s)) * u.s
 
         # make chunks
         chunk_size = cfg['perf_params']['chunk_size']
@@ -689,7 +691,7 @@ class SimulatorRuntime(RuntimeContext):
             t_chunks = [t]
         else:
             n_times_per_chunk = int((
-                    chunk_size * obs_params['f_smp_data']).to_value(
+                    chunk_size * obs_params['f_smp_probing']).to_value(
                             u.dimensionless_unscaled))
             n_times = len(t)
             n_chunks = n_times // n_times_per_chunk + bool(
@@ -714,7 +716,7 @@ class SimulatorRuntime(RuntimeContext):
                     mapping=mapping, sources=sources
                     ) as obs, simobj.probe_context(
                             fp=None, sources=sources,
-                            f_smp=obs_params['f_smp_data']) as probe:
+                            f_smp=obs_params['f_smp_probing']) as probe:
                 n_chunks = len(t_chunks)
                 for i, t in enumerate(t_chunks):
                     s, obs_info = obs(t)
@@ -750,7 +752,7 @@ class SimulatorRuntime(RuntimeContext):
         simobj = self.get_instrument_simulator()
 
         mapping = self.get_mapping_model()
-        self.logger.debug(f"mapping: {mapping}")
+        self.logger.info(f"mapping: {mapping}")
 
         obs_params = self.get_obs_params()
 
@@ -785,7 +787,7 @@ class SimulatorRuntime(RuntimeContext):
         simobj = self.get_instrument_simulator()
         self.logger.debug(f"simobj: {simobj}")
         mapping = self.get_mapping_model()
-        self.logger.debug(f"mapping: {mapping}")
+        self.logger.info(f"mapping: {mapping}")
         obs_params = self.get_obs_params()
 
         t0 = mapping.t0
@@ -803,7 +805,7 @@ class SimulatorRuntime(RuntimeContext):
         if t_exp.unit.is_equivalent(u.ct):
             ct_exp = t_exp.to_value(u.ct)
             t_exp = t_pattern * ct_exp
-            self.logger.debug(f"resolve t_exp={t_exp} from count={ct_exp}")
+            self.logger.info(f"resolve t_exp={t_exp} from count={ct_exp}")
         t = np.arange(
                 0, t_exp.to_value(u.s),
                 dt_smp.to_value(u.s)) << u.s
@@ -1019,6 +1021,16 @@ class SimulatorRuntime(RuntimeContext):
                     f'{output_dir.name}_coverage.fits')
             hdulist.writeto(output_path, overwrite=True)
         return hdulist
+
+    def update(self, config):
+        cfg = self.config_backend._override_config
+        rupdate(cfg, config)
+        self.config_backend.set_override_config(cfg)
+
+    @cached_property
+    def config(self):
+        cfg = super().config
+        return self.config_schema().validate(cfg)
 
     @timeit
     def cli_run(self, args=None):
@@ -1274,7 +1286,7 @@ class SimulatorResult(Namespace):
             state['cal_obsnum'] += 1
             state['ut'] = datetime.utcnow()
             state.sync()
-            self.logger.debug(f"outdir state:\n{state}")
+            self.logger.info(f"outdir state:\n{state}")
             output_config = make_output_filename('tolteca', state, '.yaml')
             self._save_config(output_config)
             # save the data
@@ -1419,7 +1431,7 @@ class SimulatorResult(Namespace):
                         state['cal_scannum'], dtype='i4')
                 nm_toltec.setscalar(
                         'Header.Toltec.SampleFreq',
-                        obs_params['f_smp_data'].to_value(u.Hz))
+                        obs_params['f_smp_probing'].to_value(u.Hz))
                 nm_toltec.setscalar(
                         'Header.Toltec.LoCenterFreq', 0.)
                 nm_toltec.setscalar(
@@ -1553,7 +1565,7 @@ class SimulatorResult(Namespace):
 
     def _save_config(self, filepath):
         with open(filepath, 'w') as fo:
-            yaml.dump(self.config, fo, Dumper=self.simctx.yaml_dumper)
+            self.simctx.yaml_dump(self.config, fo)
 
     @timeit
     def save_simple(self, outdir, mapping_only=False):
@@ -1599,9 +1611,9 @@ class SimulatorResult(Namespace):
         t_slice = slice(
                 None, None,
                 int(np.ceil(
-                    (obs_params['f_smp_data'] / fps).to_value(
+                    (obs_params['f_smp_probing'] / fps).to_value(
                         u.dimensionless_unscaled))))
-        fps = (obs_params['f_smp_data'] / t_slice.step).to_value(u.Hz)
+        fps = (obs_params['f_smp_probing'] / t_slice.step).to_value(u.Hz)
 
         t = data['time']
         s = data['flux']

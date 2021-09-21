@@ -1,0 +1,83 @@
+# vim: et ts=2 sts=2 sw=2
+---
+# An example config for running the reduction for simulated data
+reduce:
+  # The identifier of this job.
+  # This jobkey is used to identify the simulator run.
+  # In particular, it is used as the output directory name for the simulated
+  # data files. It is also used by the DPDB to identify the source of
+  # the data products.
+  jobkey: reduced
+  # The input list.
+  # This interface is quite flexible in its form. The tolteca will look into
+  # each entry and find out what kind of data it holds (with the help of
+  # the DPDB, if available), and automatically compose the raw_obs data product
+  # to be used as input to the reduction.
+  inputs:
+    # Here we only have one item in the input list, which is set to be a
+    # path which holds simulated data (see 60_simu_point_source_lissajous.yaml).
+    # the simulated data files are indexed by DPDB, and the simualted data
+    # with the latest obsnum will be used as the input.
+    - path: dsfg_simu
+
+  # Here we define the details of the pipeline engine.
+  pipeline:
+    # The pipeline engine name. For TolTEC data, this is citlali.
+    name: citlali
+    # The rest of the keys (in this case, only one key word "config") are
+    # related to the engine we choose. Each of the engine has its own
+    # interface class that consumes the dict. For citlali, this is
+    # `tolteca.reduce.toltec.Citlali`.
+    config:
+      runtime:
+        policy: "seq"
+        ncores: 1
+      mapmaking:
+        method: naive
+      # settings related to created map
+      map:
+        type: "RaDec"
+        mgrid0: 0.0
+        mgrid1: 0.0
+        pixelsize: 0.75
+        grouping: 'array_name'  # any column name in the apt.ecsv
+        offset: 0.
+        timechunk: 10.
+      beammap:
+        cutoff: 0.2
+        max_iterations: 1
+      coadd:
+        enabled: false
+        nnoise: 10
+      # settings related to tome-ordered data processing
+      tod:
+        despike:
+          enabled: true
+          sigma: 8.0
+          timeconstant: 0.015
+          despikewindow: 32
+        filter:
+          enabled: true
+          flow: 0.0
+          fhigh: 8.0
+          agibbs: 50.
+          nterms: 32
+        downsample:
+          enabled: true
+          downsamplefactor: 4
+        pcaclean:
+          enabled: true
+          neigToCut: 6
+          cutStd: 0.0
+          approximateWeights: false
+          grouping: 'array_name'
+        kernel:
+          enabled: true
+      # settings related to KIDs detector data modeling and solving.
+      kids:
+        fitter:
+          weight_window:
+            type: lorentz
+            fwhm_Hz: 1.5e4
+          modelspec: gainlintrend
+        solver:

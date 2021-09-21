@@ -1,11 +1,10 @@
 #! /usr/bin/env python
 
 from tollan.utils.log import get_logger
-from tollan.utils.cli.path_type import PathType
+from tollan.utils import ensure_abspath
 
-from pathlib import Path
 import argparse
-from . import main_parser
+from . import main_parser, config_loader
 from .check import register_cli_checker
 
 
@@ -20,32 +19,26 @@ def check_reduce(result):
         )
 def cmd_reduce(parser):
 
-    parser.add_argument(
-            '--dir', '-d',
-            type=PathType(exists=True, type_="dir"),
-            metavar="DIR",
-            help="The work dir to use",
-            )
-
     logger = get_logger()
 
     @parser.parser_action
     def action(option, unknown_args=None):
 
+        logger.debug(f"option: {option}")
+        logger.debug(f"unknown_args: {unknown_args}")
+
+        workdir = config_loader.runtime_context_dir
+
+        if workdir is None:
+            # in this special case we just use the current directory
+            workdir = ensure_abspath('.')
+
         from ..reduce import PipelineRuntime
         from ..utils import RuntimeContextError
 
-        workdir = option.dir or Path.cwd()
-
         try:
-            ctx = PipelineRuntime.from_dir(
-                workdir,
-                create=False,
-                force=True,
-                overwrite=False,
-                dry_run=False
-                )
+            rc = PipelineRuntime(workdir)
         except RuntimeContextError as e:
             raise argparse.ArgumentTypeError(f"invalid workdir {workdir}: {e}")
-        logger.debug(f"pipeline ctx: {ctx}")
-        ctx.run()
+        logger.debug(f"pipeline rc: {rc}")
+        rc.cli_run(args=unknown_args)

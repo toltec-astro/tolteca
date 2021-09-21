@@ -4,11 +4,14 @@
 from tollan.utils.log import get_logger
 from tollan.utils.fmt import pformat_yaml
 from tollan.utils.registry import Registry, register_to
-from . import main_parser, config, base_runtime_context
+from ..utils.runtime_context import RuntimeInfo
+from ..utils import RuntimeContext
+from . import main_parser, config_loader
 from astropy.utils.console import terminal_size
 import sys
 from textwrap import TextWrapper, indent
 from enum import Enum, auto
+
 
 __all__ = ['register_cli_checker', ]
 
@@ -96,111 +99,213 @@ def register_cli_checker(name):
     return decorator
 
 
+def _note_specify_runtime_context_dir(result):
+    result.add_item(
+        result.S.note,
+        'Use "-d" to specify a runtime context directory to load',
+        details="IMPORTANT: the `--` separator may be needed between the "
+                "options and the subcommand, e.g., "
+                "`$ tolteca -d -- check`"
+        )
+    return result
+
+
+def _error_invalid_config_files(result, exc):
+    result.add_item(
+        result.S.error,
+        'Failed to load config from files.',
+        details=f'Reason: {exc}.'
+        )
+    result.add_item(
+        result.S.note,
+        'The config files have to be YAML format and have a top-level dict.'
+        )
+    return result
+
+
+def _error_invalid_rcdir(result, exc):
+    result.add_item(
+        result.S.error,
+        f'Failed to load runtime context from '
+        f'{config_loader.runtime_context_dir}',
+        details=f'Reason: {exc}'
+        )
+    result.add_item(
+        result.S.note,
+        'Use `tolteca setup` to properly create tolteca workdir '
+        'for persisted runtime context.'
+        )
+    return result
+
+
+def _error_no_rc_setup(result, rc):
+    result.add_item(
+        result.S.error,
+        f'Runtime context {rc} is not setup.'
+        )
+    result.add_item(
+        result.S.note,
+        'Run `tolteca setup` to properly setup the tolteca workdir.'
+        )
+
+
+_MISSING = object()  # a marker to mark a failed loading object.
+
+
+def _check_load_config(result):
+    try:
+        config = config_loader.get_config()
+    except Exception as e:
+        config = _MISSING
+        _error_invalid_config_files(result, e)
+    return config
+
+
+def _check_load_rc(result):
+    try:
+        rc = config_loader.get_runtime_context(
+            include_config_as_default=False,
+            include_config_as_override=False,
+            )
+    except Exception as e:
+        rc = _MISSING
+        _error_invalid_rcdir(result, e)
+    return rc
+
+
 @register_cli_checker('runtime')
 def check_runtime(result):
-    rt = config['runtime']
-    for key in ['exec_path', 'cmd', 'version']:
+
+    runtime_info_keys = ['exec_path', 'cmd', 'version']
+
+    def _runtime_info_details(rc):
+        return pformat_yaml({
+            f'{key}': getattr(rc.runtime_info, key)
+            for key in runtime_info_keys
+            })
+
+    # check default runtime info
+    r = RuntimeInfo.schema.load({})
+    for k in runtime_info_keys:
         result.add_item(
-            result.S.info,
-            f'{key}: {rt[key]}'
+            result.S.ok,
+            f'{k}: {getattr(r, k)}'
             )
+
+    # try load config and check the runtime info
+    config = _check_load_config(result)
+    if config is not _MISSING:
+        # check runtime info in config
+        result.add_item(
+            result.S.ok,
+            'Runtime info found in loaded config files:',
+            # unwrap because deep copy is required on config
+            details=_runtime_info_details(RuntimeContext(config))
+            )
+    # try load rc
+    rc = _check_load_rc(result)
+    if rc is not _MISSING:
+        if rc is None:
+            # no rc specified in loader
+            result.add_item(
+                result.S.info,
+                'Skipped check runtime info in runtime context (not loaded).'
+                )
+            _note_specify_runtime_context_dir(result)
+        else:
+            result.add_item(
+                result.S.ok,
+                f'Runtime info found in {rc}:',
+                details=_runtime_info_details(rc)
+                )
+            # check setup rc.
+            setup_rc = rc.get_setup_rc()
+            if setup_rc is not None:
+                result.add_item(
+                    result.S.ok,
+                    f'Found setup info in {rc}:',
+                    details=_runtime_info_details(setup_rc)
+                    )
+            else:
+                _error_no_rc_setup(result, rc)
     return result
 
 
 @register_cli_checker('config')
 def check_config(result):
 
-    logger = get_logger()
-    logger.debug(f"loaded config:\n{pformat_yaml(config)}")
-
-    cfg_info = config['runtime']['config_info']
-
-    if cfg_info:
-        # report in the summary the loaded config files
-        for key in ['sys', 'user']:
-            result.add_item(
-                    result.S.ok if cfg_info[f'{key}_config_loaded']
-                    else result.S.info,
-                    '{} {} config {}{}'.format(
-                        'Loaded' if cfg_info[f'{key}_config_loaded']
-                        else 'Skipped',
-                        key,
-                        cfg_info[f'{key}_config_path'],
-                        "" if cfg_info[f'{key}_config_path'].exists()
-                        else " (non-exist)"
-                        )
+    for key in ['sys', 'user']:
+        loaded = getattr(config_loader, f'load_{key}_config')
+        path = getattr(config_loader, f'{key}_config_path')
+        result.add_item(
+                result.S.ok if loaded
+                else result.S.info,
+                '{} {} config {}{}'.format(
+                    'Loaded' if loaded else 'Skipped',
+                    key,
+                    path,
+                    "" if path.exists() else " (non-exist)"
                     )
-        cli_config_paths = set(cfg_info['sources']) - {
-                cfg_info['sys_config_path'], cfg_info['user_config_path']}
-        if cli_config_paths:
-            result.add_item(
-                    result.S.ok,
-                    f"Loaded {len(cli_config_paths)} config files from CLI\n",
-                    details=f"{pformat_yaml(cli_config_paths)}"
-                    )
-        else:
-            result.add_item(
-                    result.S.info,
-                    "No config file loaded from CLI")
-        if cfg_info['user_config_loaded'] or cfg_info['sys_config_loaded']:
-            result.add_item(
-                    result.S.note,
-                    'Use "-n" to skip loading sys/user config'
-                    )
-        else:
-            result.add_item(
-                    result.S.note,
-                    'Remove "-n" to load sys/user config'
-                    )
-        if base_runtime_context:
-            rc = base_runtime_context
+                )
+    scf = config_loader.standalone_config_files
+    if scf:
+        result.add_item(
+                result.S.ok,
+                f"Loaded {len(scf)} config files from CLI\n",
+                details=f"{pformat_yaml(scf)}"
+                )
+    else:
+        result.add_item(
+                result.S.info,
+                "No config file loaded from CLI")
+    if config_loader.load_user_config or config_loader.load_sys_config:
+        result.add_item(
+                result.S.note,
+                'Use "-n" to skip loading sys/user config'
+                )
+    else:
+        result.add_item(
+                result.S.note,
+                'Remove "-n" to load sys/user config'
+                )
+    rcdir = config_loader.runtime_context_dir
+    if rcdir is None:
+        result.add_item(
+            result.S.info,
+            'Skipped loading runtime context.'
+            )
+        _note_specify_runtime_context_dir(result)
+    else:
+        rc = _check_load_rc(result)
+        if rc is not _MISSING:
+            cb = rc.config_backend
             result.add_item(
                 result.S.ok,
                 f'Found runtime context in {rc.rootpath}',
-                details=f"config files:{pformat_yaml(rc.config_files)}"
+                details=f"config files:{pformat_yaml(cb.config_files)}"
+                )
+        result.add_item(
+            result.S.note,
+            'Remove "-d" to skip loading runtime context dir.'
             )
-            result.add_item(
-                result.S.note,
-                'Remove "-d" to skip loading runtime context dir.'
-                )
-        else:
-            if cfg_info['runtime_context_dir']:
-                result.add_item(
-                    result.S.info,
-                    f'No runtime context found in '
-                    f'{cfg_info["runtime_context_dir"]}',
-                    )
-            else:
-                result.add_item(
-                    result.S.info,
-                    'Skipped loading runtime context.'
-                    )
-            result.add_item(
-                result.S.note,
-                'Use "-d" to specify a runtime context directory'
-                ' to load'
-                    )
-            result.add_item(
-                    result.S.info,
-                    'Refer to "tolteca setup -h" for how to create a '
-                    'runtime context directory'
-                    )
-        if cfg_info['env_files'] is not None:
-            env_file_paths = cfg_info['env_files']
-            result.add_item(
-                result.S.ok,
-                f"Loaded {len(env_file_paths)} env files from CLI\n",
-                details=f"{pformat_yaml(env_file_paths)}"
-                )
-        else:
-            result.add_item(
-                result.S.info,
-                "No env files specified"
-                )
-            result.add_item(
-                result.S.note,
-                'Use "-e" to specify env files'
+
+    # env
+    env_files = config_loader.env_files
+    if env_files:
+        result.add_item(
+            result.S.ok,
+            f"Loaded {len(env_files)} env files from CLI\n",
+            details=f"{pformat_yaml(env_files)}"
             )
+    else:
+        result.add_item(
+            result.S.info,
+            "No env files specified"
+            )
+        result.add_item(
+            result.S.note,
+            'Use "-e" to specify env files'
+        )
     return result
 
 
@@ -248,12 +353,19 @@ def cmd_check(parser):
         if items <= _checker_keys:
             for item in sorted(items):
                 results.append(_checkers[item]())
-                # summary.append(f'\n{item}\n{"-" * len(item)}')
-                # summary.append(f'{_checkers[item]()}')
         else:
             unknown_keys = items - _checker_keys
             raise parser.error(
-                    f"unknown item to check: {unknown_keys}")
-        logger.info('tolteca check summary:\n{}'.format(
-            '\n'.join(
-                [r.pformat() for r in results])))
+                f"unknown item to check: {unknown_keys}."
+                f" Available items: {_checker_keys}")
+        summary = '\n'.join(r.pformat() for r in results)
+        print(summary)
+        # print(inspect.cleandoc(
+        #     f"""
+# =============
+# tolteca check
+# =============
+# {summary}
+        #     """))
+        # logger.info('tolteca check summary:\n{}'.format(
+        #     )))
