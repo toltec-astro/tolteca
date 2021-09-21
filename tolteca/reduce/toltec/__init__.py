@@ -263,7 +263,7 @@ class Citlali(PipelineEngine):
             # run the pipeline
             cmd = [
                     self._binpath,
-                    '-l', 'error',
+                    '-l', 'info',
                     cfg_filepath.as_posix(),
                     ]
             self.logger.debug("reduce with cmd: {}".format(' '.join(cmd)))

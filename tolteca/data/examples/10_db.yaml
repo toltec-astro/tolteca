@@ -1,0 +1,32 @@
+# vim: et ts=2 sts=2 sw=2
+---
+# The database config for tolteca.
+#
+# A section named "db" in the config shall be present to create a
+# `tolteca.cli.db.DatabaseRuntime` instance. The database runtime
+# handles the creation of connections to the entries defined in the
+# db config.
+#
+# The "db" shall be a dict of db entries, each of which has a valid
+# SQLAlchemy URI provided. For more information, visit
+# https://docs.sqlalchemy.org/en/14/core/engines.html
+#
+# The data product database (DPDB) is specified as the "tolteca" entry.
+# To create and initialize tables of the DPDB, use command
+# `tolteca migrate`.
+
+db:
+  # This is the DPDB URI. When present, The DPDB is used by tolteca
+  # to manage data products.
+  tolteca:
+    uri: mysql+mysqldb://tolteca:tolteca@127.0.0.1:3306/tolteca
+  # Optionally, more databases can be defined as required for
+  # some modules
+  toltec:
+    # this is the TolTEC database used by the data acquisition,
+    # containing the raw file paths and info. The recipe
+    # `tolteca.recipes.collect_data_prod` makes use of this table
+    # to populate the DPDB for "basic_raw_obs" data products.
+    uri: mysql+mysqldb://tolteca:tolteca@127.0.0.1:3306/toltec
+  some_other_db:
+    uri: mysql+mysqldb://user:pass@127.0.0.1:3306/some_db

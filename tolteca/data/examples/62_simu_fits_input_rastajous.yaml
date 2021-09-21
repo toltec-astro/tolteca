@@ -1,0 +1,108 @@
+# vim: et ts=2 sts=2 sw=2
+---
+# An example config for making simulation with FITS image as input.
+#
+# This config also demonstrate the use of the rastajous pattern.
+#
+# The field is about 12' by 12', falling into the category of using
+# a rastajous pattern.
+#
+ 
+# Dict under "simu" key defines the tolteca.simu config.
+simu:
+  # The identifier of this job.
+  # This jobkey is used to identify the simulator run.
+  # In particular, it is used as the output directory name for the simulated
+  # data files. It is also used by the DPDB to identify the source of
+  # the data products.
+  jobkey: simu_m74
+  # This invokes the TolTEC simulator without polarimetry
+  instrument:
+    name: toltec
+  # This list of sources to simulate
+  sources:
+    # this model provides the bulk of background loading.
+  - type: toltec_array_loading
+    # Choose from am_q25, am_q50 and am_q75
+    # See `totleca.simu.toltec.lmt.LmtAtmosphereData` for details.
+    atm_model_name: am_q25
+    # this source defines the fits input file path and how
+    # the fits data are interpreted by the simulator.
+    # The FITS image has to contain multiple HDUs, and the image data
+    # should already have been convolved with the beam shape.
+    # Refer to `tolteca.simu.toltec.sim_fits_class.py` for a recipe
+    # that create such input FITS file.
+  - type: image
+    # The path of the input FITS image. Has to be in the workdir.
+    filepath: NGC0628_simu_input.fits
+    # This makes available the extname_map keys ['a1100', 'a1400', and 'a2000']
+    grouping: 'array_name'
+    # The map that assign each HDU (by their name) to the group names
+    extname_map:
+        a1100: 'A1100_I'
+        a1400: 'A1400_I'
+        a2000: 'A2000_I'
+  # Parameters related to execution of the "observation"
+  obs_params:
+    # The sample frequency used for mapping related data.
+    f_smp_mapping: 12Hz
+    # The sample frequency used for detector data.
+    f_smp_probing: 122Hz
+    # The "exposure" time of the simulation.
+    # It can be in time unit like 1h or 40min, or in unit of "ct",
+    # shortcut for "count", where 1 ct equals to the time needed to
+    # finish the mapping pattern.
+    # Note that the mapping pattern length is less well-behaving for
+    # Lissajous pattern.
+    t_exp: 1 ct
+  mapping:
+    # This defines a rastajous pattern, composed of a raster map and
+    # a double lissajous.
+    type: tolteca.simu:SkyRastajousModel
+    # raster map params
+    # The scan length.
+    length: 10. arcmin
+    # The space between scans.
+    space: 1 arcmin
+    # The number of scans.
+    n_scans: 10
+    # The scan speed.
+    # The scan speed is typically slow for rasterjous, allowing the
+    # turnaround data to be used.
+    speed: 5 arcsec/s
+    # The time needed to turnaround for the telescope at the end
+    # of each scan. We don't have a good measurement of this.
+    # 5s should be fine.
+    t_turnaround: 0.1s
+    # Double lissajous patter.
+    # One of the lissajous should be larger than the other.
+    # The phase offset between the two lissajous.
+    delta: 45 deg
+    # The extent of the first lissajous
+    x_length_0: 2.0 arcmin
+    y_length_0: 2.0 arcmin
+    # The angular frequency of the first lissajous
+    x_omega_0: 9.2 rad/s
+    y_omega_0: 8 rad/s
+    # The phase offset between x and y of the first lissajous
+    delta_0: 45.0 deg
+    # The extent of the second lissajous
+    x_length_1: 0.5 arcmin
+    y_length_1: 0.5 arcmin
+    # The angular frequency of the second lissajous
+    x_omega_1: 0.46 rad/s
+    y_omega_1: 0.4 rad/s
+    # The phase offset between x and y of the second lissajous
+    delta_1: 45.0 deg
+    # The rotation of the pattern, with respect to the +lon direction
+    # of the ref_frame below.
+    rot: 0 deg
+    # The reference frame used to define the mapping pattern.
+    # Possible values are 'icrs' and 'altaz'.
+    ref_frame: altaz
+    # The target at which to execute the pattern.
+    # the target can be specified in any form understood
+    # by the SIMBAD name lookup service.
+    target: M74
+    # The time (UT) of the observation.
+    t0: 2022-05-01T18:00:00

@@ -5,6 +5,7 @@ from tollan.utils.log import get_logger, timeit, logit
 from tollan.utils.schema import create_relpath_validator
 from tollan.utils.registry import Registry, register_to
 from tollan.utils.namespace import Namespace
+from cached_property import cached_property
 
 import numpy as np
 import yaml
@@ -51,9 +52,9 @@ class PipelineRuntime(RuntimeContext):
     """A class that manages the runtime of the reduction pipeline."""
 
     @classmethod
-    def extend_config_schema(cls):
+    def config_schema(cls):
         # this defines the subschema relevant to the simulator.
-        return {
+        return Schema({
             'reduce': {
                 'jobkey': str,
                 'pipeline': {
@@ -68,13 +69,19 @@ class PipelineRuntime(RuntimeContext):
                 # 'calobj': str,
                 # Optional('select', default=None): str
                 },
-            }
+            str: object,
+            })
+
+    @cached_property
+    def config(self):
+        cfg = super().config
+        return self.config_schema().validate(cfg)
 
     def get_pipeline_params(self):
         """Return the data reduction pipeline object specified in the runtime
         config."""
         cfg = self.config['reduce']
-        cfg_rt = self.config['runtime']
+        cfg_rt = self.config['runtime_info']
         pl_params = _instru_pipeline_factory[cfg['pipeline']['name']](
                 cfg['pipeline'], cfg_rt)
         return pl_params
@@ -82,7 +89,7 @@ class PipelineRuntime(RuntimeContext):
     def get_input_dataset(self):
         """Return the input dataset."""
         cfg = self.config['reduce']
-        cfg_rt = self.config['runtime']
+        cfg_rt = self.config['runtime_info']
         path_validator = create_relpath_validator(cfg_rt['rootpath'])
 
         def resolve_input_item(cfg):

@@ -552,12 +552,12 @@ class RasterScanModelMeta(SkyMapModel.__class__):
 
     @staticmethod
     def _evaluate(
-            inst, t, length, space, n_scans, rot, speed, t_turnover,
+            inst, t, length, space, n_scans, rot, speed, t_turnaround,
             return_holdflag_only=False):
         """This computes a raster patten around the origin.
 
         This assumes a circular turn over trajectory where the
-        speed of the turn over is implicitly controlled by `t_turnover`.
+        speed of the turn over is implicitly controlled by `t_turnaround`.
         """
         t_per_scan = length / speed
 
@@ -580,11 +580,11 @@ class RasterScanModelMeta(SkyMapModel.__class__):
             #         bbox_width, bbox_height)
             t_per_scan = length / speed
             ratio_scan_to_si = (
-                    t_per_scan / (t_turnover + t_per_scan))
-            ratio_scan_to_turnover = (t_per_scan / t_turnover)
+                    t_per_scan / (t_turnaround + t_per_scan))
+            ratio_scan_to_turnover = (t_per_scan / t_turnaround)
 
             # scan index
-            _si = (t / (t_turnover + t_per_scan))
+            _si = (t / (t_turnaround + t_per_scan))
             si = _si.astype(int)
             si_frac = _si - si
 
@@ -635,13 +635,13 @@ class RasterScanModelMeta(SkyMapModel.__class__):
             rot=Parameter(default=0., unit=u.deg),
             speed=Parameter(default=1., unit=frame_unit / u.s),
             # accel=Parameter(default=1., unit=cls.frame_unit / u.s ** 2),
-            t_turnover=Parameter(default=1., unit=u.s),
+            t_turnaround=Parameter(default=1., unit=u.s),
             pattern='raster',
                 ))
 
         def get_total_time(self):
             return (self.length / self.speed * self.n_scans
-                    + self.t_turnover * (self.n_scans - 1.)).to(u.s)
+                    + self.t_turnaround * (self.n_scans - 1.)).to(u.s)
 
         attrs['get_total_time'] = get_total_time
 
@@ -654,7 +654,7 @@ class RasterScanModelMeta(SkyMapModel.__class__):
         # TODO refactor this part
         attrs['evaluate_holdflag'] = lambda self, t: evaluate(
                 self, t, self.length, self.space, self.n_scans, self.rot,
-                self.speed, self.t_turnover, return_holdflag_only=True
+                self.speed, self.t_turnaround, return_holdflag_only=True
                 )
         return super().__new__(meta, name, bases, attrs)
 
@@ -825,7 +825,7 @@ class RastajousModelMeta(SkyMapModel.__class__):
             n_scans=Parameter(default=10., unit=u.dimensionless_unscaled),
             rot=Parameter(default=0., unit=u.deg),
             speed=Parameter(default=1., unit=frame_unit / u.s),
-            t_turnover=Parameter(default=1., unit=u.s),
+            t_turnaround=Parameter(default=1., unit=u.s),
             x_length_0=Parameter(default=10., unit=frame_unit),
             y_length_0=Parameter(default=10., unit=frame_unit),
             x_omega_0=Parameter(default=1. * u.rad / u.s),
@@ -843,14 +843,14 @@ class RastajousModelMeta(SkyMapModel.__class__):
         def get_total_time(self):
             # make the total time based on the raster
             return (self.length / self.speed * self.n_scans
-                    + self.t_turnover * (self.n_scans - 1.)).to(u.s)
+                    + self.t_turnaround * (self.n_scans - 1.)).to(u.s)
 
         attrs['get_total_time'] = get_total_time
 
         @timeit(name)
         def evaluate(
                 self, t,
-                length, space, n_scans, rot, speed, t_turnover,
+                length, space, n_scans, rot, speed, t_turnaround,
                 x_length_0, y_length_0, x_omega_0, y_omega_0, delta_0,
                 x_length_1, y_length_1, x_omega_1, y_omega_1, delta_1,
                 delta):
@@ -862,7 +862,7 @@ class RastajousModelMeta(SkyMapModel.__class__):
             x_r, y_r = RasterScanModelMeta._evaluate(
                     inst=self, t=t, length=length, space=space,
                     n_scans=n_scans, rot=0. << u.deg,
-                    speed=speed, t_turnover=t_turnover,
+                    speed=speed, t_turnaround=t_turnaround,
                     return_holdflag_only=False)
 
             x_l, y_l = DoubleLissajousModelMeta._evaluate(
@@ -887,7 +887,7 @@ class RastajousModelMeta(SkyMapModel.__class__):
         attrs['evaluate_holdflag'] = \
             lambda self, t: RasterScanModelMeta._evaluate(
                 self, t, self.length, self.space, self.n_scans, self.rot,
-                self.speed, self.t_turnover, return_holdflag_only=True
+                self.speed, self.t_turnaround, return_holdflag_only=True
                 )
         return super().__new__(meta, name, bases, attrs)
 
