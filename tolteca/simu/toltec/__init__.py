@@ -1332,19 +1332,19 @@ class ToltecObsSimulator(object):
                         obs_pack = list()
                     
 
-                        from multiprocessing import Pool
-                        def single_obs(atm_times, az_single, alt_single, info_single, slab):
-                            atmtod = np.zeros_like(az_single.value)
-                            err = slab.observe(
-                                times=atm_times, az=az_single.to(u.radian).value, 
-                                el=alt_single.to(u.radian).value, tod=atmtod, fixed_r=0
-                            )
-                            if err != 0:
-                                raise RuntimeError("toast slab observation failed")
-                            return {'id': info_single['uid'], 'result': atmtod}
+                        # from multiprocessing import Pool
+                        # def single_obs(atm_times, az_single, alt_single, info_single, slab):
+                        #     atmtod = np.zeros_like(az_single.value)
+                        #     err = slab.observe(
+                        #         times=atm_times, az=az_single.to(u.radian).value, 
+                        #         el=alt_single.to(u.radian).value, tod=atmtod, fixed_r=0
+                        #     )
+                        #     if err != 0:
+                        #         raise RuntimeError("toast slab observation failed")
+                        #     return {'id': info_single['uid'], 'result': atmtod}
 
-                        with Pool(4) as p:
-                            print(p.map(f, [1, 2, 3]))
+                        # with Pool(4) as p:
+                        #     print(p.map(f, [1, 2, 3]))
                         # loop through each slab
                         for slab_id, atm_slab in self.atm_slabs.atm_slabs_dict.items():
                             with timeit(f"observing slab id: {slab_id} (all detectors)"):
