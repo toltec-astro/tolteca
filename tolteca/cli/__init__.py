@@ -2,17 +2,9 @@
 
 import sys
 
-from ..utils import ConfigLoader
-from ..utils.misc import make_ascii_banner
 from .. import version
-import argparse
-from tollan.utils.log import init_log, get_logger
-from tollan.utils.cli.multi_action_argparser import \
-        MultiActionArgumentParser
-from tollan.utils.cli.path_type import PathType
-from tollan.utils.fmt import pformat_yaml
 from wrapt import ObjectProxy
-from pathlib import Path
+import argparse
 
 
 __all__ = ['main_parser', 'config_loader', 'main']
@@ -34,35 +26,67 @@ config_loader = ObjectProxy(None)
 A proxy to the `ConfigLoader` instance created via CLI.
 """
 
-# config = ObjectProxy(None)
-# """
-# A proxy to the config dict loaded.
-# """
-
-# base_runtime_context = ObjectProxy(None)
-# """
-# A proxy to the runtime_context loaded.
-
-# Note that this does not include the config dict.
-# """
-
-# env = ObjectProxy(None)
-# """
-# A proxy to the env dict loaded.
-# """
-
 
 def main(args=None):
     """The CLI entry point."""
 
     prog_name = 'TolTECA'
     prog_desc = 'TolTEC Data Analysis All-in-one!'
-    prog_url = 'http://toltecdr.astro.umass.edu'
+    # prog_url = 'http://toltecdr.astro.umass.edu'
+    description = f"{prog_name} v{version.version} - {prog_desc}"
+    banner = r"""
+.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~
+     _____  ____  _     _____  _____ ____  ____
+    /__ __\/  _ \/ \   /__ __\/  __//   _\/  _ \
+      / \  | / \|| |     / \  |  \  |  /  | / \|
+      | |  | \_/|| |_/\  | |  |  /_ |  \_ | |-||
+      \_/  \____/\____/  \_/  \____\\____/\_/ \|
 
-    parser = main_parser.__wrapped__ = MultiActionArgumentParser(
-            description=f"{prog_name} v{version.version}"
-                        f" - {prog_desc}"
-            )
+
+          http://toltecdr.astro.umass.edu
+~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.
+"""
+
+    # make a "pre-parser" without loading subcommands.
+    # this is useful to speed things up for something like `tolteca -v`
+    def _add_pre_parser_arguments(parser):
+        parser.add_argument(
+                "--no_banner",
+                help="If set, the banner will not be shown.",
+                action='store_true',
+                )
+        parser.add_argument(
+                '-v', '--version', action='store_true',
+                help='Print the version info and exit.'
+                )
+        return parser
+    parser = _add_pre_parser_arguments(
+        argparse.ArgumentParser(
+            description=description, add_help=False))
+    option, unknown_args = parser.parse_known_args(args or sys.argv[1:])
+    if not option.no_banner:
+        # generating the ascii art is too slow.
+        # since it is static we just created that inline.
+        # from ..utils.misc import make_ascii_banner
+        print(banner)
+
+    if option.version:
+        print(version.version)
+        sys.exit(0)
+
+    # now we create the actual parser with subcommands loaded
+
+    from tollan.utils.cli.multi_action_argparser import \
+        MultiActionArgumentParser
+    from tollan.utils.cli.path_type import PathType
+    from pathlib import Path
+
+    from tollan.utils.log import init_log, get_logger
+    from ..utils import ConfigLoader
+    from tollan.utils.fmt import pformat_yaml
+
+    parser = main_parser.__wrapped__ = _add_pre_parser_arguments(
+        MultiActionArgumentParser(description=description))
 
     parser.add_argument(
             "-c", "--config",
@@ -81,15 +105,9 @@ def main(args=None):
             metavar='DIR',
             type=PathType(exists=True, type_='dir'),
             )
-
     parser.add_argument(
             "-n", "--no_persistent_config",
             help="If set, skip loading the sys config and user config.",
-            action='store_true',
-            )
-    parser.add_argument(
-            "--no_banner",
-            help="If set, the banner will not be shown.",
             action='store_true',
             )
     parser.add_argument(
@@ -103,38 +121,26 @@ def main(args=None):
             "-g", "--debug",
             help="Show debug logging messages.",
             action='store_true')
-    parser.add_argument(
-            '-v', '--version', action='store_true',
-            help='Print the version info and exit.'
-            )
 
     # import subcommand modules
     # these has to go here because they rely on the main_parser object
     # defined above.
     from .check import cmd_check  # noqa: F401
     from .setup import cmd_setup  # noqa: F401
-    # from .db import cmd_migrate  # noqa: F401
+    from .db import cmd_migrate  # noqa: F401
     # from .run import cmd_run  # noqa: F401
     from .simu import cmd_simu  # noqa: F401
     from .reduce import cmd_reduce  # noqa: F401
 
-    # parse and handle global args:
     option, unknown_args = parser.parse_known_args(args or sys.argv[1:])
 
     if option.debug:
         loglevel = 'DEBUG'
     else:
         loglevel = 'INFO'
+
     init_log(level=loglevel)
-
     logger = get_logger()
-
-    if not option.no_banner:
-        print(make_ascii_banner(prog_name, prog_url))
-
-    if option.version:
-        print(version.version)
-        sys.exit(0)
 
     # create config loader
     cl_kwargs = dict(
