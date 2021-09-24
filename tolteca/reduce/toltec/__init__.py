@@ -191,7 +191,7 @@ class Citlali(PipelineEngine):
         cfg = deepcopy(cfg)
 
         @timeit
-        def proc(dataset, outdir):
+        def proc(dataset, outdir, logger_func=None):
             # resolve the dataset to input items
             tbl = dataset.index_table
             grouped = tbl.group_by(
@@ -267,6 +267,6 @@ class Citlali(PipelineEngine):
                     cfg_filepath.as_posix(),
                     ]
             self.logger.debug("reduce with cmd: {}".format(' '.join(cmd)))
-            call_subprocess_with_live_output(cmd)
+            call_subprocess_with_live_output(cmd, logger_func=logger_func)
             return locals()
         yield proc
