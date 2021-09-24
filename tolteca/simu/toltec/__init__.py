@@ -1322,7 +1322,7 @@ class ToltecObsSimulator(object):
                     logger.debug(f'observing min elevation: {np.min(alt)}')
                     logger.debug(f'observing max elevation: {np.max(alt)}')
                     # observe the toast atmospheric simulation model 
-                    gain = 0.005
+                    gain = 0.001
                     with timeit("observe the toast atmosphere with detector (for this time chunk)"):
                         
                         # same for all the detectors in this time chunk
