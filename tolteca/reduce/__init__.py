@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 from tollan.utils.fmt import pformat_yaml
-from tollan.utils.log import get_logger, timeit, logit
+from tollan.utils.log import get_logger, timeit, logit, log_to_file
 from tollan.utils.schema import create_relpath_validator
 from tollan.utils.registry import Registry, register_to
 from tollan.utils.namespace import Namespace
@@ -124,11 +124,16 @@ class PipelineRuntime(RuntimeContext):
         engine = pl_params['engine']
         input_dataset = self.get_input_dataset()
         self.logger.debug(f'{input_dataset}')
-        with engine.proc_context(pl_params['config']) as proc:
-            pl_info = proc(
-                    input_dataset.select('obsnum_r == 0'),
-                    self.get_or_create_output_dir()
-                    )
+        logfile = self.logdir.joinpath('reduce.log')
+        self.logger.info(f'setup logging to file {logfile}')
+        with log_to_file(
+                filepath=logfile, level='DEBUG', disable_other_handlers=False):
+            with engine.proc_context(pl_params['config']) as proc:
+                pl_info = proc(
+                        input_dataset.select('obsnum_r == 0'),
+                        self.get_or_create_output_dir(),
+                        self.logger.debug
+                        )
         return pl_info
 
     @timeit
