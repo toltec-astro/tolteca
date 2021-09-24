@@ -376,12 +376,28 @@ class ConfigBackend(object):
         self.load()
 
     def set_override_config(self, cfg):
-        """Set the default config dict.
+        """Set the override config dict.
 
         This will invalidate the cache.
         """
 
         self._override_config = cfg
+        self.load()
+
+    def update_default_config(self, cfg):
+        """Update the default config dict.
+
+        This will invalidate the cache.
+        """
+        rupdate(self._default_config, cfg)
+        self.load()
+
+    def update_override_config(self, cfg):
+        """Update the override config dict.
+
+        This will invalidate the cache.
+        """
+        rupdate(self._override_config, cfg)
         self.load()
 
     @property
@@ -787,6 +803,31 @@ class RuntimeContext(object):
         # an extra star to indication is not persistent
         return f"{self.__class__.__name__}(*{self.rootpath})"
 
+    # @classmethod
+    # def config_schema(cls):
+    #     """The schema of the config.
+
+    #     The :attr:`config` is validated against this schema.
+    #     """
+    #     return Schema(
+    #         {str: object},
+    #         description='The base schema that validates any config dict.')
+
+    @property
+    def bindir(self):
+        """The bin directory."""
+        return self.runtime_info.bindir
+
+    @property
+    def logdir(self):
+        """The log directory."""
+        return self.runtime_info.logdir
+
+    @property
+    def caldir(self):
+        """The cal directory."""
+        return self.runtime_info.caldir
+
     @property
     def config_backend(self):
         """The config backend of this runtime context."""
@@ -970,27 +1011,8 @@ and can be used as input to later runs for checking version compatibilities.
             with open(setup_filepath, 'w') as fo:
                 yaml_dump(cfg_copy, fo)
         # then update the setup info config via the override dict.
-        rupdate(config_backend._override_config, cfg)
-        config_backend.load()
+        config_backend.update_override_config(cfg)
         return self
-
-    def check(self):
-        """Perform a health check of the loaded config and runtime info.
-
-        """
-        return False
-
-    @property
-    def bindir(self):
-        return self.runtime_info.bindir
-
-    @property
-    def logdir(self):
-        return self.runtime_info.logdir
-
-    @property
-    def caldir(self):
-        return self.runtime_info.caldir
 
     @classmethod
     def from_dir(cls, dirpath, init_config=None, **kwargs):
