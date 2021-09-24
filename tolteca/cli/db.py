@@ -9,19 +9,17 @@ from .check import (
     _check_load_config, _check_load_rc, _MISSING)
 from pathlib import Path
 from tollan.utils.db import SqlaDB
-from tollan.utils.dataclass import add_schema
-from tollan.utils.schema import NestedSchemaHelperMixin
+from tollan.utils.dataclass_schema import (add_schema, DataclassNamespace)
 # from tollan.utils.fmt import pformat_yaml
 from schema import Schema, Regex, Optional, Literal, Use
 from ..utils import RuntimeContext, RuntimeContextError
 from dataclasses import dataclass, field
-from ..utils.config_mapper import ConfigMapperMixin
-from tollan.utils.namespace import Namespace
+from ..utils.config_schema import add_config_schema
 
 
 @add_schema
 @dataclass
-class DBConfigEntry(NestedSchemaHelperMixin):
+class DBConfigEntry(object):
     """The config of a database."""
     uri: str = field(
         metadata={
@@ -36,7 +34,8 @@ class DBConfigEntry(NestedSchemaHelperMixin):
             }
 
 
-class DBConfig(Namespace, ConfigMapperMixin, NestedSchemaHelperMixin):
+@add_config_schema
+class DBConfig(DataclassNamespace):
     """The class mapped to the database config."""
 
     _dpdb_name = 'tolteca'
@@ -44,14 +43,13 @@ class DBConfig(Namespace, ConfigMapperMixin, NestedSchemaHelperMixin):
     _namespace_from_dict_schema = Schema({
         Literal(
             _dpdb_name, description='The data product database config.'):
-        DBConfigEntry,
+        DBConfigEntry.schema,
         Optional(str, description='Any other databases.'):
-        DBConfigEntry,
+        DBConfigEntry.schema,
         })
     _namespace_to_dict_schema = Schema(Use(
         lambda d: {k: v for k, v in d.items() if isinstance(v, DBConfigEntry)}
         ))
-    schema = _namespace_from_dict_schema  # consumed by ConfigMapperMixin
 
     @property
     def dpdb(self):
@@ -86,9 +84,9 @@ def check_db(result):
     def _check_db_config(result, config, source):
         add_db_instruction = True
         add_dpdb_instruction = True
-        if DBConfig._config_key in config:
+        if DBConfig.config_key in config:
             add_db_instruction = False
-            db_config_dict = config[DBConfig._config_key]
+            db_config_dict = config[DBConfig.config_key]
             n_dbs = len(db_config_dict)
             result.add_item(
                 result.S.info,
@@ -96,18 +94,15 @@ def check_db(result):
                 details=pformat_yaml(db_config_dict)
                 )
             try:
-                import pdb
-                pdb.set_trace()
-                db_config = DBConfig.from_dict(config)
+                db_config = DBConfig.from_config(config)
                 add_dpdb_instruction = False
                 # report the db_config info
                 result.add_item(
                     result.S.ok,
                     f'Found dpdb (tolteca) entry in {source}',
-                    details=pformat_yaml(db_config.dpdb)
+                    details=pformat_yaml(db_config.dpdb.to_dict())
                     )
             except Exception as e:
-                raise
                 result.add_item(
                     result.S.error,
                     'Unable to create DBConfig object',
@@ -115,6 +110,10 @@ def check_db(result):
                     )
 
                 pass
+        else:
+            result.add_item(
+                result.S.error,
+                f'No db config found in {source}')
         return add_db_instruction, add_dpdb_instruction
 
     add_db_instruction = True
@@ -123,10 +122,18 @@ def check_db(result):
     if config is not _MISSING:
         add_db_instruction, add_dpdb_instruction = \
             _check_db_config(result, config, source='config files')
+    else:
+        result.add_item(
+            result.S.info,
+            'Skipped checking db config in config files (not loaded).')
     rc = _check_load_rc(result)
     if rc is not _MISSING and rc is not None:
         add_db_instruction, add_dpdb_instruction = \
             _check_db_config(result, rc.config, source=f'{rc}')
+    else:
+        result.add_item(
+            result.S.info,
+            'Skipped checking db config in runtime context (not loaded).')
     if add_db_instruction:
         result.add_item(
             result.S.note,

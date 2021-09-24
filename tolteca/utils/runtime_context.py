@@ -3,7 +3,7 @@
 from tollan.utils import odict_from_list, ensure_abspath, rupdate
 from tollan.utils.dirconf import (
     DirConfMixin, DirConfPath, DirConfPathType)
-from tollan.utils.dataclass import add_schema
+from tollan.utils.dataclass_schema import add_schema
 from dataclasses import dataclass, field, replace
 from cached_property import cached_property
 from copy import deepcopy
@@ -201,14 +201,12 @@ class RuntimeInfo(object):
         default_factory=ConfigInfo,
         metadata={
             'description': 'The dict contains the config info.',
-            'schema': Use(ConfigInfo.schema.load)
             }
         )
     setup_info: SetupInfo = field(
         default_factory=SetupInfo,
         metadata={
             'description': 'The dict contains the setup info.',
-            'schema': Use(SetupInfo.schema.load)
             }
         )
 
