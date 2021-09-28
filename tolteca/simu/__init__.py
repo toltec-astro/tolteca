@@ -690,8 +690,9 @@ class SimulatorRuntime(RuntimeContext):
         ### 
         ### toast atmosphere calculation
         ### 
-        make_atm_sim = False
+        make_atm_sim = True
         if make_atm_sim:
+            self.logger.info("generating the atmosphere/simulation")
             # make t grid for atm (1 second intervals; high resolution not required)
             _t_atm = np.arange(0, t_exp.to_value(u.s), 1) * u.s
             _atm_time_obs = mapping.t0 + _t_atm
@@ -703,7 +704,7 @@ class SimulatorRuntime(RuntimeContext):
             
             # _atm_obs_coords should represent the boresight coordinates 
             # obtain the bounding box and add padding extremes
-            bounding_padding = 10 * u.arcmin 
+            bounding_padding = 10 * u.arcmin
 
             # altitude/elevation
             # TODO: handle the bounds (i.e. negative values or > 90 values)
@@ -741,6 +742,7 @@ class SimulatorRuntime(RuntimeContext):
             # stick it into the simobj for easy access
             simobj.atm_slabs = toast_atm_slabs
         else:
+            self.logger.info("skipping generation of the atmosphere/simulation")
             simobj.atm_slabs = None
 
         # make chunks
