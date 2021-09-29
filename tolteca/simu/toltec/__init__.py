@@ -827,7 +827,20 @@ def single_obs(package_):
     )
     if err != 0:
         raise RuntimeError("toast slab observation failed")
+    
+    # TODO: Figure out what how to calculate absorption/loading
+    # https://github.com/hpc4cmb/toast/blob/d4dbebd649980b025c5a9e6b19709180c5979fb3/src/toast/ops/sim_tod_atm_utils.py#L317
+    # TODO: absoprtion_det / loading_det
+    # Calibrate the atmospheric fluctuations to appropriate bandpass
+    # atmdata *= self.gain * absorption[det]
+    # TODO: atmtod *= absoprtion_det
+
+    # Add the elevation-dependent atmospheric loading
+    # atmdata += loading[det] / np.sin(el)
+    # TODO: atmtod += loading_det / np.sin(alt_single.to(u.radian).value)
+
     return {'id': info_single['uid'], 'result': atmtod}
+
 class ToltecObsSimulator(object):
     """A class that make simulated observations for TolTEC.
 
@@ -1339,7 +1352,6 @@ class ToltecObsSimulator(object):
                     # observe the toast atmospheric simulation model 
                     gain = 0.001
                     with timeit("observe the toast atmosphere with detector (for this time chunk)"):
-                        logger.info("observing the toast atmosphere with detector (for this time chunk)")
                         # same for all the detectors in this time chunk
                         atm_times = time_obs.unix
 
@@ -1347,14 +1359,10 @@ class ToltecObsSimulator(object):
                         obs_pack = list()
                         from multiprocessing import Pool
                         
-
-                        
                         # loop through each slab
-                        # print(i['result']) # id, result
-                        # raise RuntimeError(f"{i['result'].shape}")
                         for slab_id, atm_slab in self.atm_slabs.atm_slabs_dict.items():
 
-                            with timeit(f"fast: observing slab id: {slab_id} (all detectors)"):
+                            with timeit(f"observing slab id: {slab_id} (all detectors)"):
                                 with Pool(4) as atm_obs_pool:
                                     mapped_return = atm_obs_pool.map(single_obs, [{'atm_times': atm_times, 'az_single': az_single, 'alt_single': alt_single, 'info_single': info_single, 'slab': atm_slab} for az_single, alt_single, info_single in zip(az.T, alt.T, self.table)])
                                 
@@ -1362,27 +1370,7 @@ class ToltecObsSimulator(object):
                                 for returned in mapped_return:
                                     atm_par_result.append(returned['result'])
                                 atm_par_result  = np.array(atm_par_result)
-                                
-                            with timeit(f"slow: observing slab id: {slab_id} (all detectors)"):
-                                pass
-                                atm_result = []
-                                # loop through each detector 
-                                for az_single, alt_single, info_single in zip(az.T, alt.T, self.table): 
-                                    # place to store the atmosphere data
-                                    atmtod = np.zeros_like(az_single.value)
-                                    
-                                    # observe the slab with that detector
-                                    # TODO: add the passband information here
-                                    # print(f"\nuid:{info_single['uid']}\npassband:{info_single['passband']}\nwl_center:{info_single['wl_center']}\nresponsivity:{info_single['responsivity']}")
-                                    err = atm_slab.observe(
-                                        times=atm_times, az=az_single.to(u.radian).value, 
-                                        el=alt_single.to(u.radian).value, tod=atmtod, fixed_r=0
-                                    )
-                                    if err != 0:
-                                        raise RuntimeError("toast slab observation failed")
 
-                                    atm_result.append(atmtod)
-                                atm_result  = np.array(atm_result)
                             atm_result = atm_par_result
                             # assert np.allclose(atm_result, atm_par_result)
                             # apply gain and add the sl
