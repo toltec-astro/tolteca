@@ -813,6 +813,9 @@ class ArrayLoadingModel(_Model):
         return P, nep
 
 def single_obs(package_):
+    """Given timestream, az, el, detector info
+    and an atmospheric slab, return tod.
+    """
     
     atm_times   = package_['atm_times']
     az_single   = package_['az_single']
@@ -1357,15 +1360,20 @@ class ToltecObsSimulator(object):
 
                         # data per slab per detector per time
                         obs_pack = list()
-                        from multiprocessing import Pool
+                        
                         
                         # loop through each slab
                         for slab_id, atm_slab in self.atm_slabs.atm_slabs_dict.items():
-
+                            detector_info = [{'atm_times': atm_times, 'az_single': az_single, 'alt_single': alt_single, 'info_single': info_single, 'slab': atm_slab} for az_single, alt_single, info_single in zip(az.T, alt.T, self.table)]
+                            import multiprocessing
                             with timeit(f"observing slab id: {slab_id} (all detectors)"):
-                                with Pool(4) as atm_obs_pool:
-                                    mapped_return = atm_obs_pool.map(single_obs, [{'atm_times': atm_times, 'az_single': az_single, 'alt_single': alt_single, 'info_single': info_single, 'slab': atm_slab} for az_single, alt_single, info_single in zip(az.T, alt.T, self.table)])
-                                
+                                with timeit(f"multiprocessing map"):
+                                    with multiprocessing.Pool(multiprocessing.cpu_count()) as atm_obs_pool:
+                                        mapped_return = atm_obs_pool.map(single_obs, detector_info)
+
+                                # with timeit(f"normal map"):
+                                #     mapped_return = list(map(single_obs, detector_info))
+                                # raise RuntimeError("STOP")
                                 atm_par_result = []
                                 for returned in mapped_return:
                                     atm_par_result.append(returned['result'])

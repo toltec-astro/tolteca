@@ -563,6 +563,7 @@ class SimulatorRuntime(RuntimeContext):
                 'type': Or(*_mapping_model_factory.keys()),
                 Optional(str): object
                 },
+            Optional('atm', default=False): bool,
             Optional('mapping_only', default=False): bool,
             Optional('coverage_only', default=False): bool,
             Optional('exports', default=[{'format': 'lmtot'}]): [{
@@ -690,8 +691,7 @@ class SimulatorRuntime(RuntimeContext):
         ### 
         ### toast atmosphere calculation
         ### 
-        make_atm_sim = True
-        if make_atm_sim:
+        if cfg['atm']:
             self.logger.info("generating the atmosphere/simulation")
             # make t grid for atm (1 second intervals; high resolution not required)
             _t_atm = np.arange(0, t_exp.to_value(u.s), 1) * u.s
