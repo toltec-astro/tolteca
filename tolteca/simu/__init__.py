@@ -1026,6 +1026,8 @@ class SimulatorRuntime(RuntimeContext):
         cfg = self.config_backend._override_config
         rupdate(cfg, config)
         self.config_backend.set_override_config(cfg)
+        if 'config' in self.__dict__:
+            del self.__dict__['config']
 
     @cached_property
     def config(self):

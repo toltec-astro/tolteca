@@ -36,7 +36,7 @@ if __name__ == '__main__':
             AtNightConstraint.twilight_civil()
             ]
 
-    t0 = Time("2022-02-01 00:00:00")
+    t0 = Time("2022-05-01 00:00:00")
     time_grid = t0 + (np.arange(0, 24, 0.5) << u.h)
 
     summary = observability_table(
