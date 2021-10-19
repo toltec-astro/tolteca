@@ -10,6 +10,7 @@ from . import main_parser, config_loader
 from astropy.utils.console import terminal_size
 import sys
 from textwrap import TextWrapper, indent
+import pathlib
 from enum import Enum, auto
 
 
@@ -130,10 +131,12 @@ def _error_invalid_rcdir(result, exc):
         f'{config_loader.runtime_context_dir}',
         details=f'Reason: {exc}'
         )
+    rcd = config_loader.runtime_context_dir.relative_to(
+        pathlib.Path.cwd()).as_posix()
     result.add_item(
         result.S.note,
-        'Use `tolteca setup` to properly create tolteca workdir '
-        'for persisted runtime context.'
+        f'Use `tolteca -d "{rcd}" setup` to properly create tolteca workdir '
+        f'for persisted runtime context.'
         )
     return result
 

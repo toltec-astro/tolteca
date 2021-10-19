@@ -103,7 +103,7 @@ def main(args=None):
             default=argparse.SUPPRESS,
             help="The path to look for runtime context directory.",
             metavar='DIR',
-            type=PathType(exists=True, type_='dir'),
+            type=PathType(exists=False, type_='dir'),
             )
     parser.add_argument(
             "-n", "--no_persistent_config",
