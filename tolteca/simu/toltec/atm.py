@@ -6,6 +6,15 @@ import astropy.units as u
 from tollan.utils.log import timeit, get_logger
 import toast
 
+# load the optional (not for us) atmosphere tools
+have_atm_utils = None
+if have_atm_utils is None:
+    try:
+        from toast.atm import atm_absorption_coefficient_vec, atm_atmospheric_loading_vec
+        have_atm_utils = True
+    except ImportError:
+        have_atm_utils = False
+
 __all__ = ['ToastAtmosphereSlabs']
 
 class ToastAtmosphereSlabs(object):
@@ -31,8 +40,53 @@ class ToastAtmosphereSlabs(object):
             self.elmin, self.elmax
         )
 
-    @staticmethod
-    def _generate_toast_atm_slabs(t0, tmin, tmax, azmin, azmax, elmin, elmax, mpi_comm=None):
+    @timeit
+    def absload_calc(self):
+        pass
+        # self.bandpass = {
+        #     'a1100':{
+        #         'absorption': ,
+        #         'loading': ,
+        #         'bandpass': ,
+        #     }, 
+        #     'a1400':{
+        #         'absorption': ,
+        #         'loading':  ,
+        #         'bandpass':              
+        #     }, 
+        #     'a2000':{
+        #         'absorption': ,
+        #         'loading':  ,    
+        #         'bandpass':           
+        #     }
+        # }
+        # self.bandpass_absorption = 
+        # self.bandpass_loading = 
+
+        # # TODO: I think this is already somwhere else that I can just import
+        # lmt_height = 4640.0 * u.m
+        # for band in ['a1100', 'a1400', 'a2000']:
+        #     absorption = atm_absorption_coefficient_vec(
+        #         lmt_height.to_value(u.meter),
+        #         self.sim_weather.air_temperature.to_value(u.Kelvin),
+        #         self.sim_weather.surface_pressure.to_value(u.Pa),
+        #         self.sim_weather.pwv.to_value(u.mm),
+        #         bandpass.freqs[0].to_value(u.GHz),
+        #         bandpass.freqs[-1].to_value(u.GHz),
+        #         len(bandpass.freqs),
+        #     )
+
+        #     loading = atm_atmospheric_loading_vec(
+        #         lmt_height.to_value(u.meter),
+        #         self.sim_weather.air_temperature.to_value(u.Kelvin),
+        #         self.sim_weather.surface_pressure.to_value(u.Pa),
+        #         self.sim_weather.pwv.to_value(u.mm),
+        #         bandpass.freqs[0].to_value(u.GHz),
+        #         bandpass.freqs[-1].to_value(u.GHz),
+        #         len(bandpass.freqs),
+        #     )
+
+    def _generate_toast_atm_slabs(self, t0, tmin, tmax, azmin, azmax, elmin, elmax, mpi_comm=None):
         """Creates the atmosphere models using multiple slabs
         Currently, only the parameters that define the time ranges, azimuth ranges, 
         elevation ranges are exposed (by necessity)
@@ -47,19 +101,19 @@ class ToastAtmosphereSlabs(object):
         zstep =  5 * u.meter
 
         # RNG state
-        key1 = 0
-        key2 = 0
+        key1     = 0
+        key2     = 0
         counter1 = 0
         counter2 = 0
 
         # obtain the weather information
-        sim_weather = toast.weather.SimWeather(
+        self.sim_weather = toast.weather.SimWeather(
             time = t0.to_datetime(timezone=datetime.timezone.utc),
             name="LMT"
         )
-        T0_center   = sim_weather.air_temperature
-        wx          = sim_weather.west_wind
-        wy          = sim_weather.south_wind
+        T0_center   = self.sim_weather.air_temperature
+        wx          = self.sim_weather.west_wind
+        wy          = self.sim_weather.south_wind
         w_center    = np.sqrt(wx ** 2 + wy ** 2)
         wdir_center = np.arctan2(wy, wx)
 
@@ -68,9 +122,8 @@ class ToastAtmosphereSlabs(object):
 
         # generate slabs until rmax > 100000 meters
         # TODO: eventually expose these
-        
         while rmax < 100000 * u.meter:
-            slab_id = f'{key1}{key2}{counter1}{counter2}'
+            slab_id = f'{key1}_{key2}_{counter1}_{counter2}'
             toast_atmsim_model = toast.atm.AtmSim(
                 azmin=azmin, azmax=azmax,
                 elmin=elmin, elmax=elmax,
@@ -101,6 +154,8 @@ class ToastAtmosphereSlabs(object):
                 cachedir=None,
                 rmin=rmin,
                 rmax=rmax,
+                node_comm=None,
+                node_rank_comm=None
             )
             
             # simulate the atmosphere
