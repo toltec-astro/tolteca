@@ -44,7 +44,7 @@ lss_plan = {
             'space': '2 arcmin',
             'n_scans': 100,
             'speed': '500 arcsec/s',
-            't_turnover': '5s',
+            't_turnaround': '5s',
             'target': '53.0d -28.1d',
             'ref_frame': 'altaz',
             }  # this mapping pattern is 48min
@@ -85,7 +85,7 @@ lss_plan = {
             'space': '2 arcmin',
             'n_scans': 100,
             'speed': '500 arcsec/s',
-            't_turnover': '5s',
+            't_turnaround': '5s',
             'target': '35.39d -4.6d',
             'ref_frame': 'altaz',
             }  # this mapping pattern is 48min
@@ -130,7 +130,7 @@ lss_plan = {
             'space': '2 arcmin',
             'n_scans': 75,
             'speed': '300 arcsec/s',
-            't_turnover': '5s',
+            't_turnaround': '5s',
             'target': '150.1d 2.2d',
             'ref_frame': 'altaz',
             }  # this mapping pattern is 48min
@@ -175,11 +175,94 @@ lss_plan = {
             'space': '2 arcmin',
             'n_scans': 75,
             'speed': '200 arcsec/s',
-            't_turnover': '5s',
+            't_turnaround': '5s',
             'target': '150.1d 2.2d',
             'ref_frame': 'altaz',
             }  # this mapping pattern is 48min
-        }
+        },
+    'Bootes': {
+        't0': [
+            '2022-04-01T05:00:00',
+            '2022-04-01T06:00:00',
+            '2022-04-01T07:00:00',
+            '2022-04-01T08:00:00',
+            '2022-04-01T09:00:00',
+            '2022-04-01T10:00:00',
+
+            '2022-04-02T05:00:00',
+            '2022-04-02T06:00:00',
+            '2022-04-02T07:00:00',
+            '2022-04-02T08:00:00',
+            '2022-04-02T09:00:00',
+            '2022-04-02T10:00:00',
+
+            '2022-04-03T05:00:00',
+            '2022-04-03T06:00:00',
+            '2022-04-03T07:00:00',
+            '2022-04-03T08:00:00',
+            '2022-04-03T09:00:00',
+            '2022-04-03T10:00:00',
+
+            '2022-04-04T05:00:00',
+            '2022-04-04T06:00:00',
+            '2022-04-04T07:00:00',
+            '2022-04-04T08:00:00',
+            '2022-04-04T09:00:00',
+            '2022-04-04T10:00:00',
+            ],
+        'mapping': {
+            'type': 'tolteca.simu:SkyRasterScanModel',
+            'length': '200 arcmin',
+            'space': '2 arcmin',
+            'n_scans': 100,
+            'speed': '500 arcsec/s',
+            't_turnaround': '5s',
+            'target': '217.9d 34.1d',
+            'ref_frame': 'altaz',
+            }  # this mapping pattern is 48min
+        },
+    'NEP': {
+        't0': [
+            '2022-05-01T05:00:00',
+            '2022-05-01T06:00:00',
+            '2022-05-01T07:00:00',
+            '2022-05-01T08:00:00',
+            '2022-05-01T09:00:00',
+            '2022-05-01T10:00:00',
+
+            '2022-05-02T05:00:00',
+            '2022-05-02T06:00:00',
+            '2022-05-02T07:00:00',
+            '2022-05-02T08:00:00',
+            '2022-05-02T09:00:00',
+            '2022-05-02T10:00:00',
+
+            '2022-05-03T05:00:00',
+            '2022-05-03T06:00:00',
+            '2022-05-03T07:00:00',
+            '2022-05-03T08:00:00',
+            '2022-05-03T09:00:00',
+            '2022-05-03T10:00:00',
+
+            '2022-05-04T05:00:00',
+            '2022-05-04T06:00:00',
+            '2022-05-04T07:00:00',
+            '2022-05-04T08:00:00',
+            '2022-05-04T09:00:00',
+            '2022-05-04T10:00:00',
+            ],
+        'mapping': {
+            'type': 'tolteca.simu:SkyRasterScanModel',
+            'length': '200 arcmin',
+            'space': '2 arcmin',
+            'n_scans': 100,
+            'speed': '500 arcsec/s',
+            't_turnaround': '5s',
+            'target': '269.7d 66.0d',
+            'ref_frame': 'altaz',
+            }  # this mapping pattern is 48min
+        },
+
     }
 
 
@@ -201,7 +284,7 @@ def run_simu_grid(target_name):
         'simu': {
             'mapping': grid['mapping']
             }
-        }, overwrite=True)
+        })
 
     hls = []
     for t0 in grid['t0']:
@@ -211,7 +294,7 @@ def run_simu_grid(target_name):
                     't0': t0
                     }
                 }
-            }, overwrite=True)
+            })
         hl = rt.run_coverage_only(
                 write_output=False, mask_with_holdflags=True)
         mapping = rt.get_mapping_model()
