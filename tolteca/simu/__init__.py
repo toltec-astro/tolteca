@@ -40,7 +40,7 @@ from schema import Optional, Or, Use, Schema
 
 from ..utils import RuntimeContext, RuntimeContextError, get_pkg_data_path
 
-from .toltec.atm import ToastAtmosphereSlabs
+from .toltec.atm import ToastAtmosphereSimulation
 
 # import these models as toplevel
 from .base import (
@@ -732,18 +732,18 @@ class SimulatorRuntime(RuntimeContext):
             self.logger.debug(f'generated: max azimuth: {max_az}')
 
             # generate the toast atmospheric simulation model 
-            toast_atm_slabs = ToastAtmosphereSlabs(
+            toast_atm_simulation = ToastAtmosphereSimulation(
                     _atm_time_obs[0], 
                     _atm_time_obs[0].unix, _atm_time_obs[-1].unix, 
                     min_az, max_az, min_alt, max_alt
                 )
-            toast_atm_slabs.generate_slabs()  
+            toast_atm_simulation.generate_simulation()  
 
             # stick it into the simobj for easy access
-            simobj.atm_slabs = toast_atm_slabs
+            simobj.atm_simulation = toast_atm_simulation
         else:
             self.logger.info("skipping generation of the atmosphere/simulation")
-            simobj.atm_slabs = None
+            simobj.atm_simulation = None
 
         # make chunks
         chunk_size = cfg['perf_params']['chunk_size']

@@ -2,22 +2,27 @@
 import numpy as np
 import datetime
 import astropy.units as u
+import astropy.constants as const
 
 from tollan.utils.log import timeit, get_logger
 import toast
 
+from . import get_default_passbands
+from .lmt import info as site_info
+
 # load the optional (not for us) atmosphere tools
-have_atm_utils = None
-if have_atm_utils is None:
-    try:
-        from toast.atm import atm_absorption_coefficient_vec, atm_atmospheric_loading_vec
-        have_atm_utils = True
-    except ImportError:
-        have_atm_utils = False
+try:
+    from toast.atm import (
+        atm_absorption_coefficient_vec, 
+        atm_atmospheric_loading_vec
+    )
+    have_atm_utils = True
+except ImportError:
+    have_atm_utils = False
 
-__all__ = ['ToastAtmosphereSlabs']
+__all__ = ['ToastAtmosphereSimulation']
 
-class ToastAtmosphereSlabs(object):
+class ToastAtmosphereSimulation(object):
     """ toast Atmosphere Slabs 
         TODO: kwargs the inputs to toast.atm.AtmSim
     """
@@ -30,61 +35,98 @@ class ToastAtmosphereSlabs(object):
         self.elmin = elmin
         self.elmax = elmax
 
+        self.site_height = u.Quantity(site_info['site']['location']['height'])
+
     @timeit
-    def generate_slabs(self):
+    def generate_simulation(self):
         """ Generates with parameters
         """
-        self.atm_slabs_dict = self._generate_toast_atm_slabs(
+    
+        self.atm_slabs = self._generate_toast_atm_slabs(
             self.t0, self.tmin, self.tmax, 
             self.azmin, self.azmax, 
             self.elmin, self.elmax
         )
 
+        self._bandpass_calculations()
+
+    @staticmethod
+    def spectrum_convolution(freqs, spectrum, throughput, rj):
+        """ Convolve the provided spectrum with the detector bandpass
+        Args:
+            freqs(array of floats):  Spectral bin locations
+            spectrum(array of floats):  Spectral bin values
+            rj(bool):  Input spectrum is in Rayleigh-Jeans units and
+                should be converted into thermal units for convolution
+        Returns:
+            (array):  The bandpass-convolved spectrum
+        """
+        # interpolation not needed since we use the same array
+        freqs = freqs.to_value(u.GHz)
+        # spectrum_det = np.interp(freq_ghz, freqs.to_value(u.GHz), spectrum)
+
+        # TOOD: this is always true
+        if rj: 
+            # From brightness to thermodynamic units
+            TCMB = 2.72548
+            x = const.h.value * freqs * 1e9 / const.k_B.value / TCMB
+            rj2cmb = (x / (np.exp(x / 2) - np.exp(-x / 2))) ** -2
+            spectrum *= rj2cmb
+
+        convolved = toast._libtoast.integrate_simpson(
+            freqs, spectrum * throughput
+        )
+        return convolved
+
+    def _absorption_coefficient(self, bandpass):
+        absorption = atm_absorption_coefficient_vec(
+            self.site_height.to_value(u.meter),
+            self.sim_weather.air_temperature.to_value(u.Kelvin),
+            self.sim_weather.surface_pressure.to_value(u.Pa),
+            self.sim_weather.pwv.to_value(u.mm),
+            bandpass[0].to_value(u.GHz),
+            bandpass[-1].to_value(u.GHz),
+            len(bandpass),
+        )    
+        return absorption
+
+    def _atmospheric_loading(self, bandpass):
+        loading = atm_atmospheric_loading_vec(
+            self.site_height.to_value(u.meter),
+            self.sim_weather.air_temperature.to_value(u.Kelvin),
+            self.sim_weather.surface_pressure.to_value(u.Pa),
+            self.sim_weather.pwv.to_value(u.mm),
+            bandpass[0].to_value(u.GHz),
+            bandpass[-1].to_value(u.GHz),
+            len(bandpass),
+        )
+        return loading
+
     @timeit
-    def absload_calc(self):
-        pass
-        # self.bandpass = {
-        #     'a1100':{
-        #         'absorption': ,
-        #         'loading': ,
-        #         'bandpass': ,
-        #     }, 
-        #     'a1400':{
-        #         'absorption': ,
-        #         'loading':  ,
-        #         'bandpass':              
-        #     }, 
-        #     'a2000':{
-        #         'absorption': ,
-        #         'loading':  ,    
-        #         'bandpass':           
-        #     }
-        # }
-        # self.bandpass_absorption = 
-        # self.bandpass_loading = 
+    def _bandpass_calculations(self):
+        
+        self.absorption = dict()
+        self.loading = dict()
 
-        # # TODO: I think this is already somwhere else that I can just import
-        # lmt_height = 4640.0 * u.m
-        # for band in ['a1100', 'a1400', 'a2000']:
-        #     absorption = atm_absorption_coefficient_vec(
-        #         lmt_height.to_value(u.meter),
-        #         self.sim_weather.air_temperature.to_value(u.Kelvin),
-        #         self.sim_weather.surface_pressure.to_value(u.Pa),
-        #         self.sim_weather.pwv.to_value(u.mm),
-        #         bandpass.freqs[0].to_value(u.GHz),
-        #         bandpass.freqs[-1].to_value(u.GHz),
-        #         len(bandpass.freqs),
-        #     )
+        pb = get_default_passbands()
+        for band in ['a1100', 'a1400', 'a2000']:
 
-        #     loading = atm_atmospheric_loading_vec(
-        #         lmt_height.to_value(u.meter),
-        #         self.sim_weather.air_temperature.to_value(u.Kelvin),
-        #         self.sim_weather.surface_pressure.to_value(u.Pa),
-        #         self.sim_weather.pwv.to_value(u.mm),
-        #         bandpass.freqs[0].to_value(u.GHz),
-        #         bandpass.freqs[-1].to_value(u.GHz),
-        #         len(bandpass.freqs),
-        #     )
+            # get the bandpass/throughput
+            self.bandpass_freqs = np.array(pb[band]['f'][:]) * u.GHz
+            self.bandpass_throughput = np.array(pb[band]['throughput'])
+
+            # calculate the absorption/loading
+            absorption = self._absorption_coefficient(self.bandpass_freqs)
+            loading= self._atmospheric_loading(self.bandpass_freqs)
+
+            # calculate the convolution
+            absorption_det = self.spectrum_convolution(self.bandpass_freqs, absorption, self.bandpass_throughput, rj=True)
+            loading_det = self.spectrum_convolution(self.bandpass_freqs, loading, self.bandpass_throughput, rj=True)
+
+            # store it for later use
+            self.absorption[band] = absorption_det
+            self.loading[band]= loading_det
+
 
     def _generate_toast_atm_slabs(self, t0, tmin, tmax, azmin, azmax, elmin, elmax, mpi_comm=None):
         """Creates the atmosphere models using multiple slabs
@@ -107,6 +149,7 @@ class ToastAtmosphereSlabs(object):
         counter2 = 0
 
         # obtain the weather information
+        # TODO: separate out the weather to its own method
         self.sim_weather = toast.weather.SimWeather(
             time = t0.to_datetime(timezone=datetime.timezone.utc),
             name="LMT"
@@ -118,7 +161,7 @@ class ToastAtmosphereSlabs(object):
         wdir_center = np.arctan2(wy, wx)
 
         # dict of atmosphere slabs
-        atm_slabs_dict = dict()
+        atm_slabs = dict()
 
         # generate slabs until rmax > 100000 meters
         # TODO: eventually expose these
@@ -164,7 +207,7 @@ class ToastAtmosphereSlabs(object):
                 raise RuntimeError("toast atmosphere generation failed")
             
             # include in stack
-            atm_slabs_dict[slab_id] = toast_atmsim_model
+            atm_slabs[slab_id] = toast_atmsim_model
             
             # use a new RNG stream for each slab
             counter1 += 1
@@ -176,5 +219,4 @@ class ToastAtmosphereSlabs(object):
             ystep *= np.sqrt(scale)
             zstep *= np.sqrt(scale)
 
-        # return atm_slabs_list
-        return atm_slabs_dict
+        return atm_slabs

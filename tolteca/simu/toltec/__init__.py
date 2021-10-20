@@ -830,7 +830,7 @@ def single_obs(package_):
     alt_single  = package_['alt_single']
     info_single = package_['info_single']
     slab        = package_['slab']
-    sim_weather = package_['weather']
+    toast_simulation = package_['toast_sim']
 
     atmtod = np.zeros_like(az_single.value)
     err = slab.observe(
@@ -839,53 +839,9 @@ def single_obs(package_):
     )
     if err != 0:
         raise RuntimeError("toast slab observation failed")
-    
-    pb = get_default_passbands()
-    bandpass = np.array(pb[info_single['array_name']]['f'][:]) * u.GHz
-    throughput = np.array(pb[info_single['array_name']]['throughput'])
-
-    height = u.Quantity(site_info['site']['location']['height'])
-
-    absorption = atm_absorption_coefficient_vec(
-        height.to_value(u.meter),
-        sim_weather.air_temperature.to_value(u.Kelvin),
-        sim_weather.surface_pressure.to_value(u.Pa),
-        sim_weather.pwv.to_value(u.mm),
-        bandpass[0].to_value(u.GHz),
-        bandpass[-1].to_value(u.GHz),
-        len(bandpass),
-    )
-
-    loading = atm_atmospheric_loading_vec(
-        height.to_value(u.meter),
-        sim_weather.air_temperature.to_value(u.Kelvin),
-        sim_weather.surface_pressure.to_value(u.Pa),
-        sim_weather.pwv.to_value(u.mm),
-        bandpass[0].to_value(u.GHz),
-        bandpass[-1].to_value(u.GHz),
-        len(bandpass),
-    )
-    # TODO: above two quantities do not need to be calculated everytime
-    # since the assumed detector bandpass is the same for each wavelength
-    def bp_convolve(det, freqs, spectrum, rj):
-        freq_ghz = freqs.to_value(u.GHz)
-        spectrum_det = np.interp(freq_ghz, freqs.to_value(u.GHz), spectrum)
-
-        if rj: # this is always true
-            # From brightness to thermodynamic units
-            TCMB = 2.72548
-            x = const.h.value * freq_ghz * 1e9 / const.k_B.value / TCMB
-            rj2cmb = (x / (np.exp(x / 2) - np.exp(-x / 2))) ** -2
-            spectrum_det *= rj2cmb
-
-        convolved = toast._libtoast.integrate_simpson(
-            freq_ghz, spectrum_det * throughput
-        )
-
-        return convolved
-
-    absorption_det = bp_convolve('det', bandpass, absorption, rj=True)
-    loading_det = bp_convolve('det', bandpass, loading, rj=True)
+ 
+    absorption_det = toast_simulation.absorption[info_single['array_name']]
+    loading_det = toast_simulation.loading[info_single['array_name']]
 
     # Calibrate the atmopsheric fluctuations to appropriate bandpass
     atm_gain = 1.0e-4
@@ -895,6 +851,33 @@ def single_obs(package_):
     atmtod += loading_det / np.sin(alt_single.to_value(u.radian))
 
     return {'id': info_single['uid'], 'result': atmtod}
+   
+    # pb = get_default_passbands()
+    # bandpass = np.array(pb[info_single['array_name']]['f'][:]) * u.GHz
+    # throughput = np.array(pb[info_single['array_name']]['throughput'])
+
+    # height = u.Quantity(site_info['site']['location']['height'])
+
+    # absorption = atm_absorption_coefficient_vec(
+    #     height.to_value(u.meter),
+    #     sim_weather.air_temperature.to_value(u.Kelvin),
+    #     sim_weather.surface_pressure.to_value(u.Pa),
+    #     sim_weather.pwv.to_value(u.mm),
+    #     bandpass[0].to_value(u.GHz),
+    #     bandpass[-1].to_value(u.GHz),
+    #     len(bandpass),
+    # )
+
+    # loading = atm_atmospheric_loading_vec(
+    #     height.to_value(u.meter),
+    #     sim_weather.air_temperature.to_value(u.Kelvin),
+    #     sim_weather.surface_pressure.to_value(u.Pa),
+    #     sim_weather.pwv.to_value(u.mm),
+    #     bandpass[0].to_value(u.GHz),
+    #     bandpass[-1].to_value(u.GHz),
+    #     len(bandpass),
+    # )
+
 
 class ToltecObsSimulator(object):
     """A class that make simulated observations for TolTEC.
@@ -1389,17 +1372,10 @@ class ToltecObsSimulator(object):
                         x, y, eval_interp_len=0.1 << u.s)
                     az, alt = m_proj_native(x, y, eval_interp_len=0.1 << u.s)
   
-                # from .atm import ToastAtmosphereSlabs
-                # toast_atm_slabs = ToastAtmosphereSlabs(
-                #         time_obs[0],
-                #         time_obs[0].unix, time_obs[-1].unix, 
-                #         np.min(az), np.max(az), np.min(alt), np.max(alt)
-                #     )
-                # toast_atm_slabs.generate_slabs()
                 logger = get_logger()
                 
                 
-                if self.atm_slabs is not None:
+                if self.atm_simulation is not None:
                     logger.debug(f'observing min azimuth: {np.min(az)}')
                     logger.debug(f'observing max azimuth: {np.max(az)}')
                     logger.debug(f'observing min elevation: {np.min(alt)}')
@@ -1414,7 +1390,7 @@ class ToltecObsSimulator(object):
                         obs_pack = list()
                         
                         # loop through each slab
-                        for slab_id, atm_slab in self.atm_slabs.atm_slabs_dict.items():
+                        for slab_id, atm_slab in self.atm_simulation.atm_slabs.items():
 
                             detector_info = []
                             for az_single, alt_single, info_single in zip(az.T, alt.T, self.table):
@@ -1424,7 +1400,7 @@ class ToltecObsSimulator(object):
                                     'alt_single': alt_single, 
                                     'info_single': info_single, 
                                     'slab': atm_slab,
-                                    'weather': self.atm_slabs.sim_weather
+                                    'toast_sim': self.atm_simulation
                                 }
                                 detector_info.append(package_)
 
@@ -1437,14 +1413,14 @@ class ToltecObsSimulator(object):
 
                                 with timeit(f"normal map"):
                                     mapped_return = list(map(single_obs, detector_info))
-                                raise RuntimeError("STOP")
+                                
                                 atm_par_result = []
                                 for returned in mapped_return:
                                     atm_par_result.append(returned['result'])
                                 atm_par_result  = np.array(atm_par_result)
 
                             atm_result = atm_par_result
-                            # assert np.allclose(atm_result, atm_par_result)
+                            
                             # apply gain and add the sl
                             atm_result *= gain
                             obs_pack.append(atm_result)
@@ -1453,11 +1429,9 @@ class ToltecObsSimulator(object):
                     # and combine detector tod for each slab
                     obs_pack          = np.array(obs_pack)
                     if np.nanmin(obs_pack) < 0.0:
-                        #raise RuntimeError(f'SOMETHING IS ZERO! {np.nanmin(obs_pack)}')
-                        logger.warning(f'SOMETHING IS ZERO! {np.nanmin(obs_pack)}')
+                        logger.warning(f'Atmosphere value < 0! {np.nanmin(obs_pack)}')
                     all_obs_atm_slabs = np.sum(obs_pack, 0) + np.abs(np.min(obs_pack)) # floor at zero??
                     
-                    # all_obs_atm_slabs.dump(f'toast_atm_{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
                 else:
                     logger.info('no atm slabs simulated, skipping observation of slabs...')
                     all_obs_atm_slabs = None
