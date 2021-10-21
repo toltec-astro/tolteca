@@ -1,0 +1,107 @@
+#!/usr/bin/env python
+
+from tollan.utils.registry import Registry
+from schema import Or, Literal
+from tollan.utils.fmt import pformat_list
+import textwrap
+from tollan.utils.dataclass_schema import DataclassSchema
+
+
+__all__ = ['ConfigRegistry']
+
+
+class ConfigRegistry(Registry):
+    """A helper class to register handler class for config items.
+    """
+
+    _register_info = dict()
+
+    @classmethod
+    def create(cls, name, dispatcher_key, dispatcher_description=None):
+        inst = super().create()
+        inst.name = name
+        inst.dispatcher_key = dispatcher_key
+        inst.dispatcher_description = dispatcher_description
+        return inst
+
+    def register(
+            self, key, aliases=None,
+            dispatcher_key=None,
+            dispatcher_description=None):
+        """Register(or return decorator to register) item with `key` with
+        optional aliases."""
+        if aliases is None:
+            dispatcher_value_schema = key
+        else:
+            dispatcher_value_schema = Or(*([key] + list(aliases)))
+        dispatcher_key = self.dispatcher_key
+        if dispatcher_key is None:
+            dispatcher_key = self.dispatcher_key
+        if dispatcher_description is None:
+            dispatcher_description = self.dispatcher_description
+        self._register_info[key] = dict(aliases=aliases)
+
+        def decorator(item):
+            super(Registry, self).register(key, item)
+            # add dispatch entry to schema
+            # this update the schema in-place
+
+            self._add_dispather_entry_to_schema(
+                item, dispatcher_key,
+                dispatcher_description, dispatcher_value_schema)
+            if aliases is not None:
+                # register the config item under the aliases
+                for a in aliases:
+                    super(Registry, self).register(a, item)
+            return item
+        return decorator
+
+    @property
+    def item_schemas(self):
+        """The generator for all item schemas."""
+        # build an or-schema for all factories
+        return (v.schema for v in self.values())
+
+    @property
+    def schema(self):
+        """The ``Or`` schema of all item schemas."""
+        # build an or-schema for all factories
+        return Or(*(self.item_schemas))
+
+    def pformat_schema(self):
+        """The pretty-formatted schema of registered factories."""
+        # here we only show the original schema
+
+        name = self.name
+        desc = 'The sub-schemas for registered config items.'
+        header = (
+            f'{name}:\n  description:\n    {desc}'
+            f'\n  {self.dispatcher_key}s:')
+        toc_hdr = (f'{self.dispatcher_key}', 'choices', 'config class')
+        toc_hdr = [toc_hdr, tuple('-' * len(h) for h in toc_hdr)]
+
+        toc = pformat_list(
+            toc_hdr + list(
+                (k, self._register_info[k]['aliases'], v.__name__)
+                for k, v in self.items()
+                ),
+            indent=4)
+        body = textwrap.indent('\n'.join(
+            [
+                # recreate dataclass schema without the dispatcher entry
+                DataclassSchema(s._schema_orig, dataclass_cls=s.dataclass_cls
+                                ).pformat()
+                for s in self.item_schemas]), prefix='  ')
+        return f"{header}{toc}\n{body}"
+
+    @staticmethod
+    def _add_dispather_entry_to_schema(
+            item, dispatcher_key, description, value_schema):
+        # this will update the dict in-place
+        # which may not be safe...
+        # this juggling is to make the dispatcher key the first
+        d = item.schema._schema
+        d1 = item.schema._schema_orig = d.copy()
+        d.clear()
+        d[Literal(dispatcher_key, description=description)] = value_schema
+        d.update(d1)

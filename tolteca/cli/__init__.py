@@ -111,6 +111,11 @@ def main(args=None):
             action='store_true',
             )
     parser.add_argument(
+            "-w", "--no_cwd",
+            help="If set, skip automatically set -d to cwd when applicable.",
+            action='store_true',
+            )
+    parser.add_argument(
             '-e', '--env_files',
             metavar='ENV_FILE', nargs='*',
             help='Path to systemd env file. '
@@ -130,6 +135,7 @@ def main(args=None):
     from .db import cmd_migrate  # noqa: F401
     # from .run import cmd_run  # noqa: F401
     from .simu import cmd_simu  # noqa: F401
+    from .simu2 import cmd_simu2  # noqa: F401
     from .reduce import cmd_reduce  # noqa: F401
 
     option, unknown_args = parser.parse_known_args(args or sys.argv[1:])

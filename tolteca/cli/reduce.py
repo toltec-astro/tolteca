@@ -9,7 +9,7 @@ from .check import register_cli_checker
 
 
 @register_cli_checker('reduce')
-def check_reduce(result):
+def check_reduce(result, option):
     return result
 
 

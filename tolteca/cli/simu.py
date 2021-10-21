@@ -9,7 +9,7 @@ from .check import register_cli_checker
 
 
 @register_cli_checker('simu')
-def check_simu(result):
+def check_simu(result, option):
     return result
 
 

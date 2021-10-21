@@ -79,7 +79,7 @@ class DatabaseRuntime(RuntimeContext):
 
 
 @register_cli_checker('db')
-def check_db(result):
+def check_db(result, option):
 
     def _check_db_config(result, config, source):
         add_db_instruction = True
@@ -144,98 +144,6 @@ def check_db(result):
             'SQLAlchemy: https://docs.sqlalchemy.org/en/14/core/engines.html'
             )
     return result
-#     add_db_instruction = False
-#     add_dpdb_instruction = False
-
-#     def _check_db_cfg(db_cfg, source):
-#         nonlocal add_db_instruction
-#         nonlocal add_dpdb_instruction
-#         if db_cfg is None:
-#             add_db_instruction = True
-#             return
-#         db_cfg_schema = Schema(
-#             {Optional(str): DatabaseRuntime._db_entry_schema})
-#         try:
-#             db_cfg = db_cfg_schema.validate(db_cfg)
-#             n_dbs = len(db_cfg)
-#             if n_dbs > 0:
-#                 result.add_item(
-#                     result.S.info,
-#                     f'Found {n_dbs} database entries in {source}',
-#                     details=pformat_yaml(db_cfg)
-#                     )
-#             else:
-#                 result.add_item(
-#                     result.S.error,
-#                     f'No database entry found in {source}')
-#                 add_db_instruction = True
-#             if DatabaseRuntime._dpdb_name in db_cfg:
-#                 result.add_item(
-#                     result.S.ok,
-#                     f'Found dpdb (tolteca) entry in {source}')
-#             else:
-#                 result.add_item(
-#                     result.S.error,
-#                     f'No dpdb (tolteca) entry in {source}')
-#                 add_dpdb_instruction = True
-#         except Exception as e:
-#             logger.debug(f'{e}', exc_info=True)
-#             result.add_item(
-#                 result.S.error,
-#                 f'Invalid database config ({e}), please check the {source}')
-#             add_db_instruction = True
-#     if base_runtime_context:
-#         db_cfg = base_runtime_context.config.get(
-#             DatabaseRuntime._config_key, None)
-#         if db_cfg is not None:
-#             flag = result.S.info
-#             verb = 'Found'
-#         else:
-#             flag = result.S.error
-#             verb = 'No'
-#         result.add_item(
-#             flag,
-#             f'{verb} db config in {base_runtime_context}',
-#             details=pformat_yaml(base_runtime_context.config_files)
-#             )
-#         _check_db_cfg(db_cfg, f'{base_runtime_context}')
-#     else:
-#         result.add_item(
-#             result.S.info,
-#             'Base runtime context is not loaded for checking db config'
-#             )
-
-#     db_cfg = config.get(DatabaseRuntime._config_key, None)
-#     config_files = config['runtime']['config_info']['sources']
-#     if db_cfg is not None:
-#         flag = result.S.info
-#         verb = 'Found'
-#     else:
-#         flag = result.S.error
-#         verb = 'No'
-#     result.add_item(
-#         flag,
-#         f'{verb} db config in config files',
-#         details=pformat_yaml(config_files)
-#         )
-#     _check_db_cfg(db_cfg, 'config files')
-
-#     if add_db_instruction:
-#         result.add_item(
-#             result.S.note,
-#             'Valid database is required to manage data products. '
-#             'To setup, add in the config file with key "db" and '
-#             'value like: {"<name>": {"uri": "<sqla_engine_url>"}} '
-#             'where the engine URL follows the convention of '
-#             'SQLAlchemy: https://docs.sqlalchemy.org/en/14/cngines.html')
-#     if add_db_instruction or add_dpdb_instruction:
-#         result.add_item(
-#             result.S.note,
-#             'A database entry named "tolteca" is required to manage data '
-#             'products. After the entry is added, use "tolteca migrate" to '
-#             'initialize the data product database.')
-
-#     return result
 
 
 @main_parser.register_action_parser(
