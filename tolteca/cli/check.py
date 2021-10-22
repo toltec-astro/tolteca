@@ -93,8 +93,8 @@ def register_cli_checker(name):
     def decorator(func):
 
         @register_to(_checkers, name)
-        def wrapped():
-            return func(result)
+        def wrapped(option):
+            return func(result, option)
 
         return wrapped
     return decorator
@@ -164,11 +164,15 @@ def _check_load_config(result):
     return config
 
 
-def _check_load_rc(result):
+def _check_load_rc(
+        result,
+        include_config_as_default=False,
+        include_config_as_override=False
+        ):
     try:
         rc = config_loader.get_runtime_context(
-            include_config_as_default=False,
-            include_config_as_override=False,
+            include_config_as_default=include_config_as_default,
+            include_config_as_override=include_config_as_override,
             )
     except Exception as e:
         rc = _MISSING
@@ -177,7 +181,7 @@ def _check_load_rc(result):
 
 
 @register_cli_checker('runtime')
-def check_runtime(result):
+def check_runtime(result, option):
 
     runtime_info_keys = ['exec_path', 'cmd', 'version']
 
@@ -235,7 +239,7 @@ def check_runtime(result):
 
 
 @register_cli_checker('config')
-def check_config(result):
+def check_config(result, option):
 
     for key in ['sys', 'user']:
         loaded = getattr(config_loader, f'load_{key}_config')
@@ -355,7 +359,7 @@ def cmd_check(parser):
         _checker_keys = set(_checkers.keys())
         if items <= _checker_keys:
             for item in sorted(items):
-                results.append(_checkers[item]())
+                results.append(_checkers[item](option))
         else:
             unknown_keys = items - _checker_keys
             raise parser.error(

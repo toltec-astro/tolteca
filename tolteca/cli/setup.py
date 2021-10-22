@@ -14,7 +14,7 @@ from ..utils import RuntimeContext, RuntimeContextError
 
 
 @register_cli_checker('setup')
-def check_setup(result):
+def check_setup(result, option):
 
     runtime_info_keys = ['exec_path', 'cmd', 'version']
 

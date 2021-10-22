@@ -3,7 +3,7 @@
 
 # from tollan.utils.registry import Registry, register_to
 import schema
-from dataclasses import is_dataclass
+from tollan.utils.dataclass_schema import get_meta_attr
 from functools import lru_cache
 
 
@@ -14,17 +14,7 @@ MAX_CLASS_SCHEMA_CACHE_SIZE = 1024
 def config_schema(cls):
     """Create schema suitable to validate config dict.
     """
-    # get the config_key attribute
-    config_key = None
-    if is_dataclass(cls):
-        # retrieve the config key from the Meta class
-        Meta = getattr(cls, 'Meta', None)
-        if Meta is not None:
-            config_key = getattr(Meta, 'config_key', None)
-    else:
-        config_key = getattr(cls, '_config_key', None)
-    if config_key is None:
-        raise TypeError("config key not found")
+    config_key = get_meta_attr(cls, 'config_key')
     return _config_schema(cls, config_key)
 
 
@@ -32,8 +22,7 @@ def config_schema(cls):
 def _config_schema(cls, config_key):
     return ConfigSchema.from_dataclass(
         dataclass_cls=cls,
-        config_key=config_key
-        )
+        config_key=config_key)
 
 
 class ConfigSchema(schema.Schema):
@@ -55,8 +44,7 @@ class ConfigSchema(schema.Schema):
         return cls(
             {config_key: dataclass_cls.schema},
             dataclass_cls=dataclass_cls,
-            config_key=config_key,
-            )
+            config_key=config_key,)
 
     @property
     def dataclass_cls(self):
@@ -93,7 +81,7 @@ class ConfigSchema(schema.Schema):
         """Return the config dict for `instance`."""
         if not isinstance(instance, self.dataclass_cls):
             raise TypeError("invalid type for dump")
-        return {self.config_key, instance.to_dict()}
+        return {self.config_key: instance.to_dict()}
 
 
 def add_config_schema(cls):
@@ -105,75 +93,7 @@ def add_config_schema(cls):
     cls.config_schema = config_schema(cls)
     cls.config_key = cls.config_schema.config_key
     cls.from_config = cls.config_schema.load
-    cls.to_config = cls.config_schema.dump
+    # this has to be done this way as the cls.config_schema itself is a
+    # mound method
+    cls.to_config = lambda a: cls.config_schema.dump(a)
     return cls
-
-
-# class ConfigMapperMixin(object):
-#     """A helper base class to map config dict to its subclasses.
-
-#     """
-
-#     def __init_subclass__(cls, *args, **kwargs):
-
-#         # ensure the cls as _config_key attribute
-#         if is_dataclass(cls):
-#             # retrieve the config key from the Meta class
-#             Meta = getattr(cls, 'Meta', None)
-#             found_config_key = False
-#             if Meta is not None:
-#                 config_key = getattr(Meta, 'config_key', None)
-#                 if config_key:
-#                     found_config_key = True
-#             if found_config_key:
-#                 cls._config_key = config_key
-#             else:
-#                 raise TypeError("config key not found")
-#         elif not hasattr(cls, '_config_key'):
-#             raise TypeError("config key not found")
-#         if not hasattr(cls, 'schema'):
-#             raise TypeError("schema not found")
-
-#     @classmethod
-#     def config_schema(cls):
-#         """Return a schema that can validate a config dict
-
-#         """
-#         key = cls._config_key
-#         return Schema(
-#             {
-#                 Literal(key, description=cls.__doc__):
-#                 cls.schema
-#                 Use(cls.from_dict,
-#                     error=f'{cls.schema} does not match {{}}')
-#                 },
-#             description='The schema to validate config dict for {cls}',
-#             ignore_extra_keys=True)
-
-#     @classmethod
-#     def from_config(cls, config):
-#         """Create instance from config dict.
-#         """
-#         s = cls.make_config_schema()
-#         cfg = s.validate(config)
-#         return cfg[cls._config_key]
-
-
-# _config_mapper_dict = Registry.create()
-# """This holds the map from top-level config dict keys to the respective
-# handling classes.
-
-# """
-
-
-# def register_config_branch(key, dataclass_cls=None):
-#     """Register a `dataclasses.dataclass` class to the config mapper
-#     registry.
-
-#     It can be used as either decorator or directly.
-#     """
-#     if dataclass_cls is None:
-#         return register_to(_config_mapper_dict, key)
-#     elif is_dataclass(dataclass_cls):
-#         return _config_mapper_dict.register(key, dataclass_cls)
-#     raise TypeError("{dataclass_cls} is not a dataclass.")
