@@ -19,12 +19,14 @@ from astropy.cosmology import default_cosmology
 from astropy import constants as const
 from astropy.utils.decorators import classproperty
 
+# TODO: remove this (just import toast)
 try:
     import toast
     from toast.atm import atm_absorption_coefficient_vec, atm_atmospheric_loading_vec
     have_atm_utils = True
-except ImportError:
+except ImportError as err:
     have_atm_utils = False
+    raise err
 
 from gwcs import coordinate_frames as cf
 
@@ -820,11 +822,11 @@ class ArrayLoadingModel(_Model):
         return P, nep
 
 @timeit
-def single_obs(package_):
+def integrate_detector_slab(package_):
     """Given timestream, az, el, detector info
     and an atmospheric slab, return tod.
     """
-    
+
     atm_times   = package_['atm_times']
     az_single   = package_['az_single']
     alt_single  = package_['alt_single']
@@ -832,6 +834,7 @@ def single_obs(package_):
     slab        = package_['slab']
     toast_simulation = package_['toast_sim']
 
+    # returns atmospheric brightness temperature (Kelvin)
     atmtod = np.zeros_like(az_single.value)
     err = slab.observe(
         times=atm_times, az=az_single.to(u.radian).value, 
@@ -839,45 +842,34 @@ def single_obs(package_):
     )
     if err != 0:
         raise RuntimeError("toast slab observation failed")
+
+    # with open(f"log/{info_single['uid']}_atmtod_arr.npy", 'wb') as outfile:
+    #     np.save(outfile, atmtod)
  
     absorption_det = toast_simulation.absorption[info_single['array_name']]
     loading_det = toast_simulation.loading[info_single['array_name']]
 
-    # Calibrate the atmopsheric fluctuations to appropriate bandpass
-    atm_gain = 1.0e-4
-    atmtod *= atm_gain * absorption_det
+    # with open(f"log/{info_single['uid']}_absorption_det.npy", 'wb') as outfile:
+    #     np.save(outfile, absorption_det)
 
+    # with open(f"log/{info_single['uid']}_loading_det.npy", 'wb') as outfile:
+    #     np.save(outfile, loading_det)
+
+    # Calibrate the atmopsheric fluctuations to appropriate bandpass
+    atm_gain = 1e-4 # this value is used to bring down the bandpass for some reason
+    atmtod *= atm_gain * absorption_det
+    
     # Add the elevation-dependent atmospheric loading
     atmtod += loading_det / np.sin(alt_single.to_value(u.radian))
 
-    return {'id': info_single['uid'], 'result': atmtod}
-   
-    # pb = get_default_passbands()
-    # bandpass = np.array(pb[info_single['array_name']]['f'][:]) * u.GHz
-    # throughput = np.array(pb[info_single['array_name']]['throughput'])
+    # with open(f"log/{info_single['uid']}_elevation_dep.npy", 'wb') as outfile:
+    #     np.save(outfile, loading_det / np.sin(alt_single.to_value(u.radian)))
 
-    # height = u.Quantity(site_info['site']['location']['height'])
-
-    # absorption = atm_absorption_coefficient_vec(
-    #     height.to_value(u.meter),
-    #     sim_weather.air_temperature.to_value(u.Kelvin),
-    #     sim_weather.surface_pressure.to_value(u.Pa),
-    #     sim_weather.pwv.to_value(u.mm),
-    #     bandpass[0].to_value(u.GHz),
-    #     bandpass[-1].to_value(u.GHz),
-    #     len(bandpass),
-    # )
-
-    # loading = atm_atmospheric_loading_vec(
-    #     height.to_value(u.meter),
-    #     sim_weather.air_temperature.to_value(u.Kelvin),
-    #     sim_weather.surface_pressure.to_value(u.Pa),
-    #     sim_weather.pwv.to_value(u.mm),
-    #     bandpass[0].to_value(u.GHz),
-    #     bandpass[-1].to_value(u.GHz),
-    #     len(bandpass),
-    # )
-
+    # with open(f"log/{info_single['uid']}_final_atmtod.npy", 'wb') as outfile:
+    #     np.save(outfile, atmtod)
+    
+    # raise RuntimeError('👀')
+    return {'id': info_single['uid'], 'result': atmtod, 'array_name': info_single['array_name']}
 
 class ToltecObsSimulator(object):
     """A class that make simulated observations for TolTEC.
@@ -1381,7 +1373,7 @@ class ToltecObsSimulator(object):
                     logger.debug(f'observing min elevation: {np.min(alt)}')
                     logger.debug(f'observing max elevation: {np.max(alt)}')
                     # observe the toast atmospheric simulation model 
-                    gain = 0.0001
+                    gain = 1#0.0001
                     with timeit("observe the toast atmosphere with detector (for this time chunk)"):
                         # same for all the detectors in this time chunk
                         atm_times = time_obs.unix
@@ -1404,15 +1396,15 @@ class ToltecObsSimulator(object):
                                 }
                                 detector_info.append(package_)
 
-                            #detector_info = [{'atm_times': atm_times, 'az_single': az_single, 'alt_single': alt_single, 'info_single': info_single, 'slab': atm_slab} for az_single, alt_single, info_single in zip(az.T, alt.T, self.table)]
                             import multiprocessing
                             with timeit(f"observing slab id: {slab_id} (all detectors)"):
-                                # with timeit(f"multiprocessing map"):
-                                #     with multiprocessing.Pool(multiprocessing.cpu_count()) as atm_obs_pool:
-                                #         mapped_return = atm_obs_pool.map(single_obs, detector_info)
+                                with timeit(f"multiprocessing map"):
+                                    logger.info(f'using multiprocessing with {multiprocessing.cpu_count()}')
+                                    with multiprocessing.Pool(multiprocessing.cpu_count()) as atm_obs_pool:
+                                        mapped_return = atm_obs_pool.map(integrate_detector_slab, detector_info)
 
-                                with timeit(f"normal map"):
-                                    mapped_return = list(map(single_obs, detector_info))
+                                # with timeit(f"normal map"):
+                                #     mapped_return = list(map(integrate_detector_slab, detector_info))
                                 
                                 atm_par_result = []
                                 for returned in mapped_return:
@@ -1424,13 +1416,33 @@ class ToltecObsSimulator(object):
                             # apply gain and add the sl
                             atm_result *= gain
                             obs_pack.append(atm_result)
-                
+
+
                     # convert to numpy array 
                     # and combine detector tod for each slab
                     obs_pack          = np.array(obs_pack)
-                    if np.nanmin(obs_pack) < 0.0:
-                        logger.warning(f'Atmosphere value < 0! {np.nanmin(obs_pack)}')
+
+                    # summary for each array
+                    atm_summary = dict()
+                    atm_summary['a1100'] = []
+                    atm_summary['a1400'] = []
+                    atm_summary['a2000'] = []
+                    
                     all_obs_atm_slabs = np.sum(obs_pack, 0) + np.abs(np.min(obs_pack)) # floor at zero??
+                    arr_names = []
+                    for atm_per_detector, detector_info in zip(all_obs_atm_slabs, self.table):
+                        arr_names.append(detector_info['array_name'])
+                        atm_summary[detector_info['array_name']].extend(atm_per_detector)
+
+                    for array_name, atm_mean in atm_summary.items():
+                        logger.info(f'{array_name} ({np.array(atm_mean).size}) (Kelvin): {np.mean(atm_mean)} +/- {np.std(atm_mean)}')
+                        #logger.info(f'{array_name} ({np.array(atm_mean).size}): {np.nanmean(atm_mean)} +/- {np.nanstd(atm_mean)}')
+    
+                    if np.nanmin(all_obs_atm_slabs) < 0.0:
+                        logger.error(f'at least one atmosphere value < 0! {np.nanmin(all_obs_atm_slabs)}')
+                        raise RuntimeError(f'at least one atmosphere value < 0! {np.nanmin(all_obs_atm_slabs)}')
+                    if np.isnan(np.sum(all_obs_atm_slabs)):
+                        raise ValueError(f'NaNs in the atmosphere array')
                     
                 else:
                     logger.info('no atm slabs simulated, skipping observation of slabs...')

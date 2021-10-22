@@ -10,15 +10,16 @@ import toast
 from . import get_default_passbands
 from .lmt import info as site_info
 
-# load the optional (not for us) atmosphere tools
+# load the atmosphere tools
 try:
     from toast.atm import (
         atm_absorption_coefficient_vec, 
         atm_atmospheric_loading_vec
     )
     have_atm_utils = True
-except ImportError:
+except ImportError as err:
     have_atm_utils = False
+    raise err
 
 __all__ = ['ToastAtmosphereSimulation']
 
@@ -56,6 +57,7 @@ class ToastAtmosphereSimulation(object):
         Args:
             freqs(array of floats):  Spectral bin locations
             spectrum(array of floats):  Spectral bin values
+            throughput(array of floats): throughput of the bandpass
             rj(bool):  Input spectrum is in Rayleigh-Jeans units and
                 should be converted into thermal units for convolution
         Returns:
@@ -65,7 +67,7 @@ class ToastAtmosphereSimulation(object):
         freqs = freqs.to_value(u.GHz)
         # spectrum_det = np.interp(freq_ghz, freqs.to_value(u.GHz), spectrum)
 
-        # TOOD: this is always true
+        # TODO: this is always true
         if rj: 
             # From brightness to thermodynamic units
             TCMB = 2.72548
@@ -76,7 +78,13 @@ class ToastAtmosphereSimulation(object):
         convolved = toast._libtoast.integrate_simpson(
             freqs, spectrum * throughput
         )
-        return convolved
+
+        # convert back to brightness units after so it will 
+        # multiply correctly with the observe result.
+        cmb_equiv = u.thermodynamic_temperature(np.mean(freqs) * u.GHz, (2.72548 * u.Kelvin))
+        rj_equiv = u.brightness_temperature(np.mean(freqs) * u.GHz)
+
+        return (convolved * u.mK).to(u.MJy / u.sr, equivalencies=cmb_equiv).to(u.K, equivalencies=rj_equiv).value
 
     def _absorption_coefficient(self, bandpass):
         absorption = atm_absorption_coefficient_vec(
@@ -126,7 +134,6 @@ class ToastAtmosphereSimulation(object):
             # store it for later use
             self.absorption[band] = absorption_det
             self.loading[band]= loading_det
-
 
     def _generate_toast_atm_slabs(self, t0, tmin, tmax, azmin, azmax, elmin, elmax, mpi_comm=None):
         """Creates the atmosphere models using multiple slabs
