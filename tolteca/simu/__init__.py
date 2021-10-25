@@ -703,11 +703,11 @@ class SimulatorRuntime(RuntimeContext):
             _atm_obs_coords = mapping.evaluate_at(_atm_ref_coord, _t_atm)
             
             # _atm_obs_coords should represent the boresight coordinates 
-            # obtain the bounding box and add padding extremes
+            # now obtain the bounding box and add padding extremes
+            # TODO: revisit this value
             bounding_padding = 10 * u.arcmin
 
             # altitude/elevation
-            # TODO: handle the bounds (i.e. negative values or > 90 values)
             self.logger.debug(f'generated: prepad min azimuth: {np.min(_atm_obs_coords.alt)}')
             self.logger.debug(f'generated: prepad max azimuth: {np.max(_atm_obs_coords.alt)}')
 
@@ -722,6 +722,7 @@ class SimulatorRuntime(RuntimeContext):
             self.logger.debug(f'generated: min elevation: {min_alt}')
             self.logger.debug(f'generated: max elevation: {max_alt}')
 
+            # azimuth (revise this procedure)
             self.logger.debug(f'generated: prepad min azimuth: {np.min(_atm_obs_coords.az)}')
             self.logger.debug(f'generated: prepad max azimuth: {np.max(_atm_obs_coords.az)}')
 
