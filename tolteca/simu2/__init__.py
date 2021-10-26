@@ -2,6 +2,7 @@
 
 import astropy.units as u
 from dataclasses import dataclass, field
+from cached_property import cached_property
 
 from tollan.utils.dataclass_schema import add_schema
 from tollan.utils.log import get_logger
@@ -11,7 +12,7 @@ from ..utils.common_schema import PhysicalTypeSchema
 from ..utils.config_registry import ConfigRegistry
 from ..utils.config_schema import add_config_schema
 from ..utils.runtime_context import RuntimeContext, RuntimeContextError
-
+from ..utils import config_from_cli_args
 
 __all__ = ['SimulatorRuntime', 'SimulatorRuntimeError']
 
@@ -199,6 +200,11 @@ class SimuConfig(object):
             'schema': list(exports_registry.item_schemas),
             'pformat_schema_type': f"[<{exports_registry.name}>, ...]"
             })
+    plot_only: bool = field(
+        default=False,
+        metadata={
+            'description': 'Make plots of those defined in `plots`.'
+            })
 
     class Meta:
         schema = {
@@ -209,7 +215,7 @@ class SimuConfig(object):
 
 
 class SimulatorRuntimeError(RuntimeContextError):
-    """Raise when errors occur in `DatabaseRuntime`."""
+    """Raise when errors occur in `SimulatorRuntime`."""
     pass
 
 
@@ -219,15 +225,76 @@ class SimulatorRuntime(RuntimeContext):
     This class drives the execution of the simulator.
     """
 
+    config_cls = SimuConfig
+
     logger = get_logger()
 
-    @property
+    @cached_property
     def simu_config(self):
-        return SimuConfig.from_config(self.config)
+        """Validate and return the simulator config object..
+
+        The validated config is cached. :meth:`SimulatorRuntime.update`
+        should be used to update the underlying config and re-validate.
+        """
+        return self.config_cls.from_config(self.config)
+
+    def update(self, config):
+        self.config_backend.update_override_config(config)
+        if 'simu_config' in self.__dict__:
+            del self.__dict__['simu_config']
 
     def cli_run(self, args=None):
         """Run the simulator with CLI as save the result.
         """
-        self.logger.debug(
-            f"run simu with config: "
-            f"{pformat_yaml(self.simu_config.to_config())}")
+        if args is not None:
+            cli_cfg = {self.config_cls.config_key: config_from_cli_args(args)}
+            # note the cli_cfg is under the namespace simu
+            self.update(cli_cfg)
+            cfg = self.simu_config.to_config()
+            # here we recursively check the cli_cfg and report
+            # if any of the key is ignored by the schema and
+            # throw an error
+
+            def _check_ignored(key_prefix, d, c):
+                if isinstance(d, dict) and isinstance(c, dict):
+                    ignored = set(d.keys()) - set(c.keys())
+                    ignored = [f'{key_prefix}.{k}' for k in ignored]
+                    if len(ignored) > 0:
+                        raise SimulatorRuntimeError(
+                            f"Invalid config items specified in "
+                            f"the commandline: {ignored}")
+                    for k in set(d.keys()).intersection(c.keys()):
+                        _check_ignored(f'{key_prefix}{k}', d[k], c[k])
+            _check_ignored('', cli_cfg, cfg)
+            self.logger.info(
+                f"config specified with commandline arguments:\n"
+                f"{pformat_yaml(cli_cfg)}")
+        return self.run()
+
+    def run(self):
+        """Run the simulator."""
+
+        cfg = self.simu_config
+
+        self.logger.info(
+            f"run simu with config dict: "
+            f"{pformat_yaml(cfg.to_config())}")
+
+        if cfg.plot_only:
+            results = []
+            for plotter in cfg.plots:
+                result = plotter(cfg)
+                results.append(result)
+                if plotter.save:
+                    # TODO handle save here
+                    pass
+            return results
+
+    def plot(self, type, **kwargs):
+        """Make plot of type `type`."""
+        if type not in plots_registry:
+            raise ValueError(
+                f"Invalid plot type {type}. "
+                f"Available types: {plots_registry.keys()}")
+        plotter = plots_registry[type].from_dict(kwargs)
+        return plotter(self.simu_config)

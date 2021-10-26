@@ -4,6 +4,10 @@
 from schema import Schema, Optional
 from tollan.utils.dataclass_schema import DataclassNamespace
 from .. import instrument_registry
+from .lmt import info as site_info
+
+
+__all__ = ['site_info', 'ToltecObsSimulatorConfig']
 
 
 @instrument_registry.register('toltec')

@@ -9,13 +9,17 @@ from tollan.utils.sys import parse_systemd_envfile
 from tollan.utils.log import get_logger
 from tollan.utils.fmt import pformat_yaml
 from wrapt import ObjectProxy
+import re
+import scalpl
+import argparse
 
 
 __all__ = [
     'get_user_data_dir', 'get_pkg_data_path',
     'yaml_load', 'yaml_dump',
     'RuntimeContext', 'RuntimeContextError',
-    'ConfigLoaderError', 'ConfigLoader'
+    'ConfigLoaderError', 'ConfigLoader',
+    'config_from_cli_args',
            ]
 
 
@@ -183,3 +187,50 @@ class ConfigLoader(ObjectProxy):
 
 default_config_loader = ConfigLoader(runtime_context_dir='.')
 """The tolteca config loader with default settings."""
+
+
+def config_from_cli_args(args):
+    """Return a nested dict composed from CLI arguments."""
+
+    logger = get_logger()
+
+    logger.debug(f"update config with command line args: {args}")
+
+    parser = argparse.ArgumentParser()
+    re_arg = re.compile(r'^--(?P<key>[a-zA-Z_](\w|.|_)*)')
+    n_args = len(args)
+    for i, arg in enumerate(args):
+        # collect all items that are argument keys.
+        m = re_arg.match(arg)
+        if m is None:
+            continue
+        if i + 1 < n_args:
+            val = args[i + 1]
+        else:
+            # the last item
+            val = None
+        arg_kwargs = dict()
+        if val is None or re_arg.match(val) is not None:
+            # the next item is a validate arg, this is a flag
+            arg_kwargs['action'] = 'store_true'
+        else:
+            # parse the item with config yaml loader
+            arg_kwargs['type'] = yaml_load
+        parser.add_argument(arg, **arg_kwargs)
+    args = parser.parse_args(args)
+    # create the nested dict
+    d = scalpl.Cut(dict())
+    _missing = object()
+    for k, v in args.__dict__.items():
+        v0 = d.get(k, _missing)
+        if v0 is _missing:
+            d.setdefault(k, v)
+            continue
+        # update v to v0 if dict
+        if isinstance(v0, dict):
+            rupdate(v0, v)
+        else:
+            d[k] = v
+    d = d.data
+    logger.debug(f'parsed config: {pformat_yaml(d)}')
+    return d
