@@ -20,13 +20,7 @@ from astropy import constants as const
 from astropy.utils.decorators import classproperty
 
 # TODO: remove this (just import toast)
-try:
-    import toast
-    from toast.atm import atm_absorption_coefficient_vec, atm_atmospheric_loading_vec
-    have_atm_utils = True
-except ImportError as err:
-    have_atm_utils = False
-    raise err
+import toast
 
 from gwcs import coordinate_frames as cf
 
@@ -1391,16 +1385,19 @@ class ToltecObsSimulator(object):
                                 }
                                 detector_info.append(package_)
 
-                            import multiprocessing
+                            
                             with timeit(f"observing slab id: {slab_id} (all detectors)"):
-                                with timeit(f'using multiprocessing with {multiprocessing.cpu_count()} processes...'):
-                                    logger.info(f'using multiprocessing with {multiprocessing.cpu_count()} processes...')
-                                    with multiprocessing.Pool(multiprocessing.cpu_count()) as atm_obs_pool:
-                                        mapped_return = atm_obs_pool.map(integrate_detector_slab, detector_info)
-
-                                # with timeit(f"normal map"):
-                                #     mapped_return = list(map(integrate_detector_slab, detector_info))
-                                
+                                if run_multiprocess:
+                                    import multiprocessing
+                                    with timeit(f'using multiprocessing with {multiprocessing.cpu_count()} processes...'):
+                                        logger.info(f'using multiprocessing with {multiprocessing.cpu_count()} processes...')
+                                        with multiprocessing.Pool(multiprocessing.cpu_count()) as atm_obs_pool:
+                                            mapped_return = atm_obs_pool.map(integrate_detector_slab, detector_info)
+                                else:
+                                    with timeit(f"sequential map"):
+                                        logger.info(f'using sequential mapping...')
+                                        mapped_return = list(map(integrate_detector_slab, detector_info))
+                                    
                                 atm_par_result = []
                                 for returned in mapped_return:
                                     atm_par_result.append(returned['result'])
@@ -1440,13 +1437,13 @@ class ToltecObsSimulator(object):
                         arr_names.append(detector_info['array_name'])
                         atm_summary[detector_info['array_name']].extend(atm_per_detector)
                     for array_name, atm_mean in atm_summary.items():
-                        logger.info(f'{array_name} ({np.array(atm_mean).size}): {np.mean(atm_mean):0.3f} MJy/sr +/- {np.std(atm_mean):0.3f} MJy/sr')
+                        logger.info(f'toast_atm: {array_name} ({np.array(atm_mean).size}): {np.mean(atm_mean):0.3f} MJy/sr +/- {np.std(atm_mean):0.3f} MJy/sr')
                         # this is extremely not cool
                         temp = (atm_mean * u.MJy / u.sr).to(
                             u.Kelvin,
                             equivalencies=u.brightness_temperature((float(array_name[1:]) * u.um).to(u.mm)),
                         )
-                        logger.info(f'{array_name} ({np.array(temp).size}): {np.mean(temp):0.3f} +/- {np.std(temp):0.3f}')    
+                        logger.info(f'toast_atm: {array_name} ({np.array(temp).size}): {np.mean(temp):0.3f} +/- {np.std(temp):0.3f}')    
                     
                 else:
                     logger.info('no atm slabs simulated, skipping observation of slabs...')
