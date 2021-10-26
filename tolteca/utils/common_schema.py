@@ -4,6 +4,7 @@
 import astropy.units as u
 import schema
 from tollan.utils import ensure_abspath
+from schema import Or
 
 
 class PhysicalTypeSchema(schema.Schema):
@@ -11,8 +12,9 @@ class PhysicalTypeSchema(schema.Schema):
     def __init__(self, physical_type):
         self._physical_type = physical_type
         super().__init__(
-            str, description=f"Quantity with physical_type="
-                             f"\"{self._physical_type}\".")
+            Or(int, float, str),
+            description=f"Quantity with physical_type="
+                        f"\"{self._physical_type}\".")
 
     def validate(self, data, **kwargs):
         data = u.Quantity(super().validate(data, **kwargs))
