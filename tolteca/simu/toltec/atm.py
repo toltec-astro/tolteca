@@ -84,8 +84,13 @@ class ToastAtmosphereSimulation(object):
         cmb_equiv = u.thermodynamic_temperature(np.mean(freqs) * u.GHz, (2.72548 * u.Kelvin))
         rj_equiv = u.brightness_temperature(np.mean(freqs) * u.GHz)
 
-        return (convolved * u.mK).to(u.MJy / u.sr, equivalencies=cmb_equiv).to(u.K, equivalencies=rj_equiv).value
-
+        return (
+            (convolved * u.mK)
+            .to(u.MJy / u.sr, equivalencies=cmb_equiv)
+            .to(u.K, equivalencies=rj_equiv)
+            .value
+        )
+        
     def _absorption_coefficient(self, bandpass):
         absorption = atm_absorption_coefficient_vec(
             self.site_height.to_value(u.meter),
@@ -201,7 +206,7 @@ class ToastAtmosphereSimulation(object):
                 key2=key2,
                 counterval1=counter1,
                 counterval2=counter2,
-                cachedir=None,
+                cachedir=None, # TODO: add a cachedir in the working folder
                 rmin=rmin,
                 rmax=rmax,
                 node_comm=None,
