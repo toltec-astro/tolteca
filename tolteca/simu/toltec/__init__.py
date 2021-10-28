@@ -1385,7 +1385,7 @@ class ToltecObsSimulator(object):
                                 }
                                 detector_info.append(package_)
 
-                            
+                            run_multiprocess = None
                             with timeit(f"observing slab id: {slab_id} (all detectors)"):
                                 if run_multiprocess:
                                     import multiprocessing

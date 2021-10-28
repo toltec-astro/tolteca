@@ -27,7 +27,7 @@ class ToastAtmosphereSimulation(object):
     """ toast Atmosphere Slabs 
         TODO: kwargs the inputs to toast.atm.AtmSim
     """
-    def __init__(self, t0, tmin, tmax, azmin, azmax, elmin, elmax):
+    def __init__(self, t0, tmin, tmax, azmin, azmax, elmin, elmax, cachedir=None):
         self.t0    = t0
         self.tmin  = tmin
         self.tmax  = tmax
@@ -35,6 +35,7 @@ class ToastAtmosphereSimulation(object):
         self.azmax = azmax
         self.elmin = elmin
         self.elmax = elmax
+        self.cachedir = cachedir
 
         self.site_height = u.Quantity(site_info['site']['location']['height'])
 
@@ -206,7 +207,7 @@ class ToastAtmosphereSimulation(object):
                 key2=key2,
                 counterval1=counter1,
                 counterval2=counter2,
-                cachedir=None, # TODO: add a cachedir in the working folder
+                cachedir=self.cachedir, # TODO: add a cachedir in the working folder
                 rmin=rmin,
                 rmax=rmax,
                 node_comm=None,
@@ -214,7 +215,10 @@ class ToastAtmosphereSimulation(object):
             )
             
             # simulate the atmosphere
-            err = toast_atmsim_model.simulate(use_cache=False)
+            use_cache = False
+            if self.cachedir is not None:
+                use_cache = True
+            err = toast_atmsim_model.simulate(use_cache=use_cache)
             if err != 0:
                 raise RuntimeError("toast atmosphere generation failed")
             
