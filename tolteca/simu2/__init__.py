@@ -247,8 +247,13 @@ class SimulatorRuntime(RuntimeContext):
         """Run the simulator with CLI as save the result.
         """
         if args is not None:
-            cli_cfg = {self.config_cls.config_key: config_from_cli_args(args)}
+            _cli_cfg = config_from_cli_args(args)
             # note the cli_cfg is under the namespace simu
+            cli_cfg = {self.config_cls.config_key: _cli_cfg}
+            if _cli_cfg:
+                self.logger.info(
+                    f"config specified with commandline arguments:\n"
+                    f"{pformat_yaml(cli_cfg)}")
             self.update(cli_cfg)
             cfg = self.simu_config.to_config()
             # here we recursively check the cli_cfg and report
@@ -266,9 +271,6 @@ class SimulatorRuntime(RuntimeContext):
                     for k in set(d.keys()).intersection(c.keys()):
                         _check_ignored(f'{key_prefix}{k}', d[k], c[k])
             _check_ignored('', cli_cfg, cfg)
-            self.logger.info(
-                f"config specified with commandline arguments:\n"
-                f"{pformat_yaml(cli_cfg)}")
         return self.run()
 
     def run(self):
@@ -276,7 +278,7 @@ class SimulatorRuntime(RuntimeContext):
 
         cfg = self.simu_config
 
-        self.logger.info(
+        self.logger.debug(
             f"run simu with config dict: "
             f"{pformat_yaml(cfg.to_config())}")
 
@@ -289,6 +291,14 @@ class SimulatorRuntime(RuntimeContext):
                     # TODO handle save here
                     pass
             return results
+        # run simulator
+        sim = cfg.instrument(cfg)
+        obs_params = cfg.obs_params
+        self.logger.debug(
+            f'run {sim} with:{{}}\n'.format(
+                pformat_yaml({
+                    'obs_params': obs_params.to_dict(),
+                    })))
 
     def plot(self, type, **kwargs):
         """Make plot of type `type`."""

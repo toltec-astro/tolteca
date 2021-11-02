@@ -4,6 +4,7 @@ from tollan.utils.dataclass_schema import DataclassNamespace
 from schema import Schema, Optional
 from .. import plots_registry
 from .visibility import plot_visibility
+from .mapping import plot_mapping
 
 
 _common_plotter_schema = {
@@ -34,3 +35,14 @@ class MappingPlotConfig(DataclassNamespace):
     """The config class for mapping trajectory plot."""
 
     _namespace_from_dict_schema = Schema(dict(_common_plotter_schema))
+
+    def __call__(self, cfg):
+        """Make mapping plot for simulation config `cfg`."""
+        target_name = str(cfg.mapping.target)
+
+        return plot_mapping(
+            simulator=cfg.instrument(cfg),
+            mapping=cfg.mapping(cfg),
+            target_name=target_name,
+            show=not self.save  # we handle the save later in the run() method
+            )

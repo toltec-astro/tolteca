@@ -6,12 +6,11 @@ from gwcs import coordinate_frames as cf
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 from tollan.utils.log import timeit
-from cached_property import cached_property
 from astropy.table import Table
 from astropy.utils import indent
 
 
-from .utils import _get_skyoffset_frame
+from .utils import _get_skyoffset_frame, resolve_sky_coords_frame
 
 
 __all__ = ['OffsetMappingModel', 'TargetedOffsetMappingModel']
@@ -52,7 +51,14 @@ class TargetedOffsetMappingModel(TrajMappingModel):
     around a target.
 
     """
-    def __init__(self, offset_mapping_model, target, ref_frame=None, t0=None):
+    def __init__(
+            self,
+            offset_mapping_model,
+            target,
+            ref_frame=None,
+            t0=None,
+            observer=None
+            ):
         if ref_frame is None:
             ref_frame = target.frame
         # TODO maybe we need not hard-code the units here.
@@ -66,6 +72,7 @@ class TargetedOffsetMappingModel(TrajMappingModel):
         self._ref_frame = ref_frame
         self._frame = frame
         self._t0 = t0
+        self._observer = observer
         super().__init__(name=f'targeted_{offset_mapping_model.name}')
         self.outputs = self.frame.axes_names
 
@@ -96,22 +103,27 @@ class TargetedOffsetMappingModel(TrajMappingModel):
         return self._t0
 
     @property
+    def observer(self):
+        """The observer of the mapping."""
+        return self._observer
+
+    @property
     def t_pattern(self):
         return self.offset_mapping_model.t_pattern
-
-    @cached_property
-    def target_in_ref_frame(self):
-        """The target coordinates in `ref_frame`."""
-        return self._target.transform_to(self.ref_frame)
 
     @timeit
     def evaluate_coords(self, t):
         """Return the mapping pattern coordinates as evaluated at target.
         """
-        frame = _get_skyoffset_frame(self.target_in_ref_frame)
+        time_obs = self.t0 + t
+        ref_frame = resolve_sky_coords_frame(
+                self.ref_frame,
+                observer=self.observer,
+                time_obs=time_obs)
+        target_in_ref_frame = self.target.transform_to(ref_frame)
+        frame = _get_skyoffset_frame(target_in_ref_frame)
         lon, lat = self.offset_mapping_model(t)
-        return SkyCoord(lon, lat, frame=frame).transform_to(
-               self.ref_frame)
+        return SkyCoord(lon, lat, frame=frame).transform_to(ref_frame)
 
     @timeit
     def evaluate(self, t):

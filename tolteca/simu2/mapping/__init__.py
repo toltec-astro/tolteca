@@ -74,17 +74,20 @@ def make_offset_mapping_model_config_cls(key, offset_mapping_model_cls):
     def _init(self, **kwargs):
         super(DataclassNamespace, self).__init__(**kwargs)
         # resolve target coord
-        target = self.target_coord = _resolve_target(
+        self.target_coord = _resolve_target(
             self.target, self.target_frame)
 
         # collect the model parameters and create the target model
         params = {k: getattr(self, k) for k in self.model_cls.param_names}
+        self._m_cls = mcls
+        self._m_params = params
 
-        self.model = mcls(**params).get_traj_model(
-            target=target, ref_frame=self.ref_frame, t0=self.t0)
-
-    def _call(self, *args, **kwargs):
-        return self.model
+    def _call(self, cfg):
+        return self._m_cls(**self._m_params).get_traj_model(
+            target=self.target_coord,
+            ref_frame=self.ref_frame, t0=self.t0,
+            observer=cfg.instrument.observer
+            )
 
     config_cls = type(
         f"{key.capitalize()}MappingConfig",
