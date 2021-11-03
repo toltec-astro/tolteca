@@ -842,17 +842,20 @@ def integrate_detector_slab(package_):
 
     absorption_det = toast_simulation.absorption[info_single["array_name"]]
     loading_det = toast_simulation.loading[info_single["array_name"]]
+    atm_gain = 1e-3  # this value is used to bring down the bandpass 
+    
+    # calibrate the atmopsheric fluctuations to appropriate bandpass
+    atmtod *= atm_gain * absorption_det 
 
-    # Calibrate the atmopsheric fluctuations to appropriate bandpass
-    atm_gain = 1e-4  # this value is used to bring down the bandpass for some reason
-    atmtod *= atm_gain * absorption_det
-
-    # Add the elevation-dependent atmospheric loading
+    # add the elevation-dependent atmospheric loading
     atmtod += loading_det / np.sin(alt_single.to_value(u.radian))
+
+    atmtod *= 5e-2 # bring it down again
 
     # convert from antenna temperature (Kelvin) to MJy/sr
     conversion_equiv = u.brightness_temperature(info_single['wl_center'])
-
+    
+    # raise RuntimeError(f'atmtod:', np.mean(atmtod), np.max(atmtod), np.min(atmtod))
     return {
         "id": info_single["uid"],
         "result": (atmtod * u.Kelvin).to_value(u.MJy / u.sr, equivalencies=conversion_equiv),
@@ -1395,7 +1398,7 @@ class ToltecObsSimulator(object):
                                             mapped_return = atm_obs_pool.map(integrate_detector_slab, detector_info)
                                 else:
                                     with timeit(f"sequential map"):
-                                        logger.info(f'using sequential mapping...')
+                                        logger.info(f'using sequential integration mapping (slab {slab_id})...')
                                         mapped_return = list(map(integrate_detector_slab, detector_info))
                                     
                                 atm_par_result = []

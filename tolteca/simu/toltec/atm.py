@@ -53,45 +53,28 @@ class ToastAtmosphereSimulation(object):
         self._bandpass_calculations()
 
     @staticmethod
-    def spectrum_convolution(freqs, spectrum, throughput, rj):
+    def spectrum_convolution(freqs, spectrum, throughput):
         """ Convolve the provided spectrum with the detector bandpass
         Args:
             freqs(array of floats):  Spectral bin locations
             spectrum(array of floats):  Spectral bin values
             throughput(array of floats): throughput of the bandpass
-            rj(bool):  Input spectrum is in Rayleigh-Jeans units and
-                should be converted into thermal units for convolution
         Returns:
             (array):  The bandpass-convolved spectrum
         """
         # interpolation not needed since we use the same array
         freqs = freqs.to_value(u.GHz)
-        # spectrum_det = np.interp(freq_ghz, freqs.to_value(u.GHz), spectrum)
 
-        # TODO: this is always true
-        if rj: 
-            # From brightness to thermodynamic units
-            TCMB = 2.72548
-            x = const.h.value * freqs * 1e9 / const.k_B.value / TCMB
-            rj2cmb = (x / (np.exp(x / 2) - np.exp(-x / 2))) ** -2
-            spectrum *= rj2cmb
+        # norm the bandpass
+        norm = toast._libtoast.integrate_simpson(freqs, throughput)
+        throughput /= norm
 
+        # convolved the data
         convolved = toast._libtoast.integrate_simpson(
             freqs, spectrum * throughput
         )
+        return convolvedå
 
-        # convert back to brightness units after so it will 
-        # multiply correctly with the observe result.
-        cmb_equiv = u.thermodynamic_temperature(np.mean(freqs) * u.GHz, (2.72548 * u.Kelvin))
-        rj_equiv = u.brightness_temperature(np.mean(freqs) * u.GHz)
-
-        return (
-            (convolved * u.mK)
-            .to(u.MJy / u.sr, equivalencies=cmb_equiv)
-            .to(u.K, equivalencies=rj_equiv)
-            .value
-        )
-        
     def _absorption_coefficient(self, bandpass):
         absorption = atm_absorption_coefficient_vec(
             self.site_height.to_value(u.meter),
@@ -126,16 +109,16 @@ class ToastAtmosphereSimulation(object):
         for band in ['a1100', 'a1400', 'a2000']:
 
             # get the bandpass/throughput
-            self.bandpass_freqs = np.array(pb[band]['f'][:]) * u.GHz
-            self.bandpass_throughput = np.array(pb[band]['throughput'])
-
+            bandpass_freqs = np.array(pb[band]['f'][:]) * u.GHz
+            bandpass_throughput = np.array(pb[band]['throughput'])
+            
             # calculate the absorption/loading
-            absorption = self._absorption_coefficient(self.bandpass_freqs)
-            loading= self._atmospheric_loading(self.bandpass_freqs)
+            absorption = self._absorption_coefficient(bandpass_freqs)
+            loading= self._atmospheric_loading(bandpass_freqs)
 
             # calculate the convolution
-            absorption_det = self.spectrum_convolution(self.bandpass_freqs, absorption, self.bandpass_throughput, rj=True)
-            loading_det = self.spectrum_convolution(self.bandpass_freqs, loading, self.bandpass_throughput, rj=True)
+            absorption_det = self.spectrum_convolution(bandpass_freqs, absorption, bandpass_throughput)
+            loading_det = self.spectrum_convolution(bandpass_freqs, loading, bandpass_throughput)
 
             # store it for later use
             self.absorption[band] = absorption_det
@@ -165,20 +148,20 @@ class ToastAtmosphereSimulation(object):
         # TODO: separate out the weather to its own method
         self.sim_weather = toast.weather.SimWeather(
             time = t0.to_datetime(timezone=datetime.timezone.utc),
-            name="LMT"
+            name="LMT", median_weather=True
         )
-        T0_center   = self.sim_weather.air_temperature
-        wx          = self.sim_weather.west_wind
-        wy          = self.sim_weather.south_wind
-        w_center    = np.sqrt(wx ** 2 + wy ** 2)
-        wdir_center = np.arctan2(wy, wx)
+        self.T0_center   = self.sim_weather.air_temperature
+        self.wx          = self.sim_weather.west_wind
+        self.wy          = self.sim_weather.south_wind
+        w_center    = np.sqrt(self.wx ** 2 + self.wy ** 2)
+        wdir_center = np.arctan2(self.wy, self.wx)
 
         # dict of atmosphere slabs
         atm_slabs = dict()
 
         # generate slabs until rmax > 100000 meters
         # TODO: eventually expose these
-        while rmax < 100000 * u.meter:
+        while rmax < (100000 * u.meter):
             slab_id = f'{key1}_{key2}_{counter1}_{counter2}'
             toast_atmsim_model = toast.atm.AtmSim(
                 azmin=azmin, azmax=azmax,
@@ -189,19 +172,19 @@ class ToastAtmosphereSimulation(object):
                 lmax_center=10.0 * u.meter,
                 lmax_sigma =10.0 * u.meter,
                 w_center=w_center,
-                w_sigma=0.0001 * (u.km / u.second),
+                w_sigma=0 * (u.km / u.second),
                 wdir_center=wdir_center,
                 wdir_sigma=0 * u.radian,
                 z0_center=2000 * u.meter,
-                z0_sigma=10 * u.meter,
-                T0_center=T0_center,
+                z0_sigma=0 * u.meter,
+                T0_center=self.T0_center,
                 T0_sigma=10 * u.Kelvin,
                 zatm=40000.0 * u.meter,
                 zmax=2000.0 * u.meter,
                 xstep=xstep,
                 ystep=ystep,
                 zstep=zstep,
-                nelem_sim_max=10000,
+                nelem_sim_max=20000,
                 comm=mpi_comm,
                 key1=key1,
                 key2=key2,
