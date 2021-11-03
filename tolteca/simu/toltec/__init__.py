@@ -842,7 +842,7 @@ def integrate_detector_slab(package_):
 
     absorption_det = toast_simulation.absorption[info_single["array_name"]]
     loading_det = toast_simulation.loading[info_single["array_name"]]
-    atm_gain = 1e-3  # this value is used to bring down the bandpass 
+    atm_gain = 1e-4  # this value is used to bring down the bandpass 
     
     # calibrate the atmopsheric fluctuations to appropriate bandpass
     atmtod *= atm_gain * absorption_det 
