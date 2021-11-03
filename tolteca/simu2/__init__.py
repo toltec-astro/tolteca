@@ -294,11 +294,20 @@ class SimulatorRuntime(RuntimeContext):
         # run simulator
         sim = cfg.instrument(cfg)
         obs_params = cfg.obs_params
+        m_mapping = cfg.mapping(cfg)
+        m_sources = [s(cfg) for s in cfg.sources]
+
         self.logger.debug(
             f'run {sim} with:{{}}\n'.format(
                 pformat_yaml({
                     'obs_params': obs_params.to_dict(),
                     })))
+        self.logger.debug(
+            'mapping:\n{}\nsources:\n{}\n'.format(
+                m_mapping,
+                '\n'.join(str(s) for s in m_sources)
+                )
+            )
 
     def plot(self, type, **kwargs):
         """Make plot of type `type`."""
