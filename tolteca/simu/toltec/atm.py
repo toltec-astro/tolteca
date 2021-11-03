@@ -73,7 +73,7 @@ class ToastAtmosphereSimulation(object):
         convolved = toast._libtoast.integrate_simpson(
             freqs, spectrum * throughput
         )
-        return convolvedå
+        return convolved
 
     def _absorption_coefficient(self, bandpass):
         absorption = atm_absorption_coefficient_vec(
