@@ -71,7 +71,7 @@ class DatabaseRuntime(RuntimeContext):
 
     @property
     def db_config(self):
-        return DBConfig.from_config(self.config)
+        return DBConfig.from_config(self.config, rootpath=self.rootpath)
 
     @property
     def dpdb_uri(self):

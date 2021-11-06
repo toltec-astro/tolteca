@@ -236,7 +236,7 @@ class SimulatorRuntime(RuntimeContext):
         The validated config is cached. :meth:`SimulatorRuntime.update`
         should be used to update the underlying config and re-validate.
         """
-        return self.config_cls.from_config(self.config)
+        return self.config_cls.from_config(self.config, rootpath=self.rootpath)
 
     def update(self, config):
         self.config_backend.update_override_config(config)

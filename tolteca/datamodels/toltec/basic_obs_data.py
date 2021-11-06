@@ -431,6 +431,9 @@ class BasicObsDataset(object):
                 bod_list=np.asanyarray(self._bod_list)[item])
 
     def __repr__(self):
+        return f"{self.__class__.__name__}(n_bods={len(self.index_table)})"
+
+    def __str__(self):
         pformat_tbl = self.index_table.pformat(max_width=-1)
         if pformat_tbl[-1].startswith("Length"):
             pformat_tbl = pformat_tbl[:-1]
