@@ -9,11 +9,11 @@ from tollan.utils.log import get_logger, log_to_file
 import os
 import functools
 from schema import Optional, Schema
-from .citlali import Citlali
+from .citlali import Citlali, CitlaliConfig
 
 
 @steps_registry.register('citlali')
-class CitlaliConfig(DataclassNamespace):
+class CitlaliStepConfig(DataclassNamespace):
     """The config class for reduction with Citlali."""
 
     _namespace_from_dict_schema = Schema({
@@ -30,10 +30,10 @@ class CitlaliConfig(DataclassNamespace):
         str,
         Optional(
             'config',
-            default=dict,
+            default=CitlaliConfig,
             description='The config dict passed to Citlali.'
             ):
-        dict
+        CitlaliConfig.schema
         })
 
     logger = get_logger()
@@ -87,12 +87,13 @@ class CitlaliConfig(DataclassNamespace):
         bods = bods[0]
         output_dir = cfg.get_or_create_output_dir()
         log_file = cfg.get_log_file()
+        logger = get_logger("citlali")
         engine = self(cfg)
         self.logger.info(f'setup logging to file {log_file}')
         with log_to_file(
                 filepath=log_file,
                 level='DEBUG',
-                disable_other_handlers=False
+                disable_other_handlers=True
                 ), engine.proc_context(
                     self.config
                     ) as proc:
@@ -100,4 +101,4 @@ class CitlaliConfig(DataclassNamespace):
                 dataset=bods,
                 output_dir=output_dir,
                 log_level='INFO',  # this is the citlali log level.
-                logger_func=self.logger.debug)
+                logger_func=logger.info)

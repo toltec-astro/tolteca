@@ -15,6 +15,11 @@ from packaging.specifiers import SpecifierSet
 from astropy.table import Table
 import numpy as np
 import astropy.units as u
+from pathlib import Path
+from schema import Or
+from dataclasses import dataclass, field, replace
+from typing import Union
+from tollan.utils.dataclass_schema import add_schema
 from tollan.utils import rupdate
 from tollan.utils import call_subprocess_with_live_output
 from tollan.utils.log import get_logger, timeit
@@ -23,7 +28,8 @@ from tollan.utils.fmt import pformat_yaml
 
 from .base import PipelineEngine, PipelineEngineError
 from ...utils import get_user_data_dir
-# from ...utils.runtime_context import yaml_dump
+from ...utils.common_schema import RelPathSchema, PhysicalTypeSchema
+from ...utils.runtime_context import yaml_load
 
 
 REMOTE_CITLALI_REPO_URL = 'https://github.com/toltec-astro/citlali.git'
@@ -122,6 +128,16 @@ class CitlaliExec(object):
             version = m['version']
         return cls._norm_ver(version)
 
+    def get_default_config(self):
+        """Get the default config of the Citlali."""
+        path = self.path
+        output = subprocess.check_output(
+                (path, '--dump_config'),
+                stderr=subprocess.STDOUT,
+                ).decode()
+        self.logger.debug(f'dump config of {path}:\n{output}')
+        return yaml_load(output)
+
     @staticmethod
     def _norm_ver(ver):
         # removes any non-standard suffix
@@ -187,17 +203,24 @@ class CitlaliExec(object):
             f'{changelog_section}'
             )
 
+    @staticmethod
+    @functools.lru_cache(maxsize=1)
+    def _get_line_buf_cmd():
+        stdbuf = shutil.which('stdbuf')
+        if stdbuf is not None:
+            return [stdbuf, '-oL']
+        return list()
+
     def run(self, config_file, log_level="INFO", **kwargs):
         exec_path = self.path
-        cmd = [
+        cmd = self._get_line_buf_cmd() + [
                 exec_path.as_posix(),
                 '-l', log_level.lower(),
                 config_file.as_posix(),
                 ]
         self.logger.debug(
             "run {} with cmd: {}".format(exec_path.as_posix(), ' '.join(cmd)))
-        call_subprocess_with_live_output(cmd, **kwargs)
-        return locals()
+        return call_subprocess_with_live_output(cmd, **kwargs)
 
 
 @functools.lru_cache(maxsize=None)
@@ -249,6 +272,9 @@ class Citlali(PipelineEngine):
         citlali_exec = self._citlali_exec = citlali_executables[0]
         self.logger.debug(f"use citlali executable: {citlali_exec}")
 
+    def __repr__(self):
+        return f'{self.__class__.__name__}(version={self.version})'
+
     @property
     def exec_path(self):
         return self._citlali_exec.path
@@ -256,6 +282,9 @@ class Citlali(PipelineEngine):
     @property
     def version(self):
         return self._citlali_exec.version
+
+    def get_default_config(self):
+        return self._citlali_exec.get_default_config()
 
     def check_for_update(self):
         return self._citlali_exec.check_for_update()
@@ -332,7 +361,18 @@ class CitlaliProc(object):
 
     def __init__(self, citlali, config):
         self._citlali = citlali
-        self._config = config
+        self._config = replace(
+            config,
+            low_level=self._resolve_low_level_config(config.low_level)
+            )
+
+    @property
+    def citlali(self):
+        return self._citlali
+
+    @property
+    def config(self):
+        return self._config
 
     def __enter__(self):
         return self
@@ -355,8 +395,9 @@ class CitlaliProc(object):
             self.logger.debug(f'{group}\n')
         input_items = [
             self._resolve_input_item(d) for d in grouped.groups]
-        # update low level config
-        cfg = deepcopy(self._config)
+        # create low level config object and dump to file
+        # the low level has been resolved to a dict when __init__ is called
+        cfg = deepcopy(self.config.low_level)
         rupdate(cfg, {
             'inputs': input_items,
             'runtime': {
@@ -367,16 +408,29 @@ class CitlaliProc(object):
         self.logger.debug(
                 f'resolved low level config:\n{pformat_yaml(cfg)}')
         name = input_items[0]['meta']['name']
-        output_name = f'tolteca_{name}.yaml'
+        output_name = f'citlali_o{name}_c{len(input_items)}.yaml'
         cfg_filepath = output_dir.joinpath(output_name)
         with open(cfg_filepath, 'w') as fo:
             fo.write(pformat_yaml(cfg))
             # yaml_dump(cfg, fo)
-        self._citlali.run(
+        success = self._citlali.run(
             cfg_filepath, log_level=log_level, logger_func=logger_func)
         # TODO implement the logic to locate the generated output files
         # which will be used to create data prod object.
-        return output_dir
+        if success:
+            return output_dir
+        raise RuntimeError(
+            f"failed to run {self.citlali} with config file {cfg_filepath}")
+
+    def _resolve_low_level_config(self, low_level):
+        """Return a low-level config dict from low_level config entry."""
+        if low_level is None:
+            return self.citlali.get_default_config()
+        if isinstance(low_level, Path):
+            with open(low_level, 'r') as fo:
+                return yaml_load(fo)
+        # a dict already
+        return low_level
 
     @classmethod
     def _resolve_input_item(cls, index_table):
@@ -446,3 +500,48 @@ def _fix_apt(source):
     source_new = source.replace('.ecsv', '_trimmed.ecsv')
     tbl_new.write(source_new, format='ascii.ecsv', overwrite=True)
     return source_new
+
+
+# High level config classes
+# TODO some of these config can be made more generic and does not needs to
+# be citlali specific.
+
+
+@add_schema
+@dataclass
+class ImageFrameParams(object):
+    """Params related to 2D image data shape and WCS."""
+    pixel_size: u.Quantity = field(
+        default=1. << u.arcsec,
+        metadata={
+            'description': 'The pixel size of image.',
+            'schema': PhysicalTypeSchema('angle')
+            }
+        )
+
+
+@add_schema
+@dataclass
+class CitlaliConfig(object):
+    """The high-level config for Citlali."""
+
+    low_level: Union[None, Path, dict] = field(
+        default=None,
+        metadata={
+            'description': 'The low level config used as the base.',
+            'schema': Or(RelPathSchema(), dict)
+            }
+        )
+    image_frame_params: ImageFrameParams = field(
+        default_factory=ImageFrameParams,
+        metadata={
+            'description':
+            'The params related to the output image data shape and WCS.'
+            }
+        )
+
+    class Meta:
+        schema = {
+            'ignore_extra_keys': False,
+            'description': 'The high level config for Citlali.'
+            }
