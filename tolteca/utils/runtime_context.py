@@ -650,10 +650,17 @@ in multiple such files, the one with larger leading number takes precedence
         # reference of all dataclasses.
         with open(
                 docdir.joinpath('00_config_dict_references.txt'), 'w') as fo:
+            # collect all config types from submodules
+            from ..simu2 import simu_config_item_types
+            from ..reduce import redu_config_item_types
             for dcls in [
                     ConfigInfo, SetupInfo, RuntimeInfo
-                    ]:
-                fo.write(f"\n{dcls.schema.pformat()}\n")
+                    ] + simu_config_item_types + redu_config_item_types:
+                if hasattr(dcls, 'pformat_schema'):
+                    doc = dcls.pformat_schema()
+                else:
+                    doc = dcls.schema.pformat()
+                fo.write(f"\n{doc}\n")
         # example config files
         example_dir = get_pkg_data_path().joinpath('examples')
         for file in [
@@ -661,7 +668,7 @@ in multiple such files, the one with larger leading number takes precedence
                 '60_simu_point_source_lissajous.yaml',
                 '61_simu_blank_field_raster.yaml',
                 '62_simu_fits_input_rastajous.yaml',
-                '70_redu_basic.yaml'
+                '70_redu_simulated_data.yaml'
                 ]:
             shutil.copyfile(example_dir.joinpath(file), docdir.joinpath(file))
         # readme file in the rootpath

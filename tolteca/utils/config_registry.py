@@ -14,8 +14,6 @@ class ConfigRegistry(Registry):
     """A helper class to register handler class for config items.
     """
 
-    _register_info = dict()
-
     @classmethod
     def create(
             cls, name, dispatcher_key,
@@ -27,6 +25,7 @@ class ConfigRegistry(Registry):
         inst.dispatcher_key = dispatcher_key
         inst.dispatcher_description = dispatcher_description
         inst.dispatcher_key_is_optional = dispatcher_key_is_optional
+        inst._register_info = dict()
         return inst
 
     def register(
@@ -68,7 +67,7 @@ class ConfigRegistry(Registry):
     def item_schemas(self):
         """The generator for all item schemas."""
         # build an or-schema for all factories
-        return (v.schema for v in self.values())
+        return (self[k].schema for k in self._register_info.keys())
 
     @property
     def schema(self):
@@ -90,8 +89,8 @@ class ConfigRegistry(Registry):
 
         toc = pformat_list(
             toc_hdr + list(
-                (k, self._register_info[k]['aliases'], v.__name__)
-                for k, v in self.items()
+                (k, aliases, self[k].__name__)
+                for k, aliases in self._register_info.items()
                 ),
             indent=4)
         body = textwrap.indent('\n'.join(

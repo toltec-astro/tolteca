@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, is_dataclass
 from cached_property import cached_property
 from tollan.utils.dataclass_schema import add_schema
 from tollan.utils.log import get_logger, timeit, logit
@@ -186,3 +186,13 @@ class PipelineRuntime(RuntimeContext):
                 self.logger.debug(f"output data {tmp_data!r}")
         self.logger.info("work's done!")
         return tmp_data
+
+
+# make a list of all reduce config item types
+_locals = list(locals().values())
+redu_config_item_types = list()
+for v in _locals:
+    if is_dataclass(v) and hasattr(v, 'schema'):
+        redu_config_item_types.append(v)
+    elif isinstance(v, ConfigRegistry):
+        redu_config_item_types.extend(list(v.values()))

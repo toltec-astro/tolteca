@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import astropy.units as u
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, is_dataclass
 from cached_property import cached_property
 
 from tollan.utils.dataclass_schema import add_schema
@@ -317,3 +317,13 @@ class SimulatorRuntime(RuntimeContext):
                 f"Available types: {plots_registry.keys()}")
         plotter = plots_registry[type].from_dict(kwargs)
         return plotter(self.simu_config)
+
+
+# make a list of all simu config item types
+_locals = list(locals().values())
+simu_config_item_types = list()
+for v in _locals:
+    if is_dataclass(v) and hasattr(v, 'schema'):
+        simu_config_item_types.append(v)
+    elif isinstance(v, ConfigRegistry):
+        simu_config_item_types.append(v)
