@@ -8,8 +8,8 @@ from astropy.utils.decorators import classproperty
 from tollan.utils.registry import Registry
 
 from ..base import CalibStack, CalibBase
-from ...common.toltec import info as toltec_info
-from ...common.toltec import info as lmt_info
+from ...common.toltec import toltec_info
+from ...common.lmt import lmt_info
 
 
 __all__ = ['ToltecCalibBase']

@@ -30,7 +30,7 @@ from ..base import (
         SourceImageModel, SourceCatalogModel)
 from ..base import resolve_sky_map_ref_frame as _resolve_sky_map_ref_frame
 from ...utils import get_pkg_data_path
-from ...common.toltec import info as toltec_info  # noqa: F401
+from ...common.toltec import toltec_info  # noqa: F401
 from .lmt import info as site_info
 from .lmt import get_lmt_atm_models
 

@@ -7,15 +7,28 @@ import shutil
 import os
 import git
 import pathlib
-from tollan.utils.log import get_logger
+
+from copy import deepcopy
+from cached_property import cached_property
+from packaging.version import Version, InvalidVersion
+from packaging.specifiers import SpecifierSet
+from astropy.table import Table
+import numpy as np
+import astropy.units as u
+from tollan.utils import rupdate
+from tollan.utils import call_subprocess_with_live_output
+from tollan.utils.log import get_logger, timeit
 from tollan.utils import ensure_abspath
 from tollan.utils.fmt import pformat_yaml
+
 from .base import PipelineEngine, PipelineEngineError
 from ...utils import get_user_data_dir
+# from ...utils.runtime_context import yaml_dump
 
 
 REMOTE_CITLALI_REPO_URL = 'https://github.com/toltec-astro/citlali.git'
 LOCAL_CITLALI_REPO_PATH = get_user_data_dir().joinpath("engines/citlali")
+GIT_REMOTE_TIMEOUT = 10.
 
 
 @functools.lru_cache(maxsize=1)
@@ -30,7 +43,8 @@ def _get_local_citlali_repo():
     if LOCAL_CITLALI_REPO_PATH.exists():
         repo = git.Repo(LOCAL_CITLALI_REPO_PATH)
         try:
-            repo.remote(name='origin').fetch()
+            repo.remote(name='origin').fetch(
+                kill_after_timeout=GIT_REMOTE_TIMEOUT)
             return repo
         except Exception:
             logger.debug(
@@ -80,15 +94,19 @@ class CitlaliExec(object):
         """The version of the Citlali executable."""
         return self._version
 
-    @staticmethod
-    def get_version(path):
+    @cached_property
+    def semver(self):
+        """The semantic version of the Citlali executable."""
+        return self._ver_to_semver(self._version)
+
+    @classmethod
+    def get_version(cls, path):
         """Get the version of the Citlali."""
-        logger = get_logger()
         output = subprocess.check_output(
                 (path, '--version'),
                 stderr=subprocess.STDOUT,
                 ).decode()
-        logger.debug(f'check version of {path}:\n{output}')
+        cls.logger.debug(f'check version of {path}:\n{output}')
         r = re.compile(
             r'^(?P<name>citlali\s)?(?P<version>.+)\s\((?P<timestamp>.+)\)$',
             re.MULTILINE)
@@ -96,20 +114,39 @@ class CitlaliExec(object):
         # import pdb
         # pdb.set_trace()
         if m0 is None:
-            logger.warning(
+            cls.logger.warning(
                 f"unable to parse citlali version: \n{output}")
             version = UNKNOWN_VERSION
         else:
             m = m0.groupdict()
             version = m['version']
-        return version
+        return cls._norm_ver(version)
+
+    @staticmethod
+    def _norm_ver(ver):
+        # removes any non-standard suffix
+        return re.sub(r'(-dirty|~\d+)$', '', ver)
+
+    @classmethod
+    def _ver_to_semver(cls, ver):
+        """Convert version string (tag, rev hash, etc.) to SemVer.
+
+        This is done by querying the local Citlali repo history.
+        """
+        try:
+            return Version(ver)
+        except InvalidVersion:
+            pass
+        # try find the latest version tag in the history
+        repo = _get_local_citlali_repo()
+        _ver = cls._norm_ver(repo.git.describe(ver, contains=True))
+        cls.logger.debug(f"commit {ver} -> version {_ver}")
+        return Version(_ver)
 
     def check_version(self, version):
-        repo = _get_local_citlali_repo()
-        short_hash = repo.git.rev_parse(short=True)
-        print(repo)
-        print(short_hash)
-        return
+        verspec = SpecifierSet(version)
+        self.logger.debug(f"check {self.semver} against {verspec}")
+        return self.semver in verspec
 
     def check_for_update(self):
         """Check the current Citlali version agains the Github remote head.
@@ -120,10 +157,6 @@ class CitlaliExec(object):
 
         def get_git_changelog(v1, v2):
 
-            def norm_rev(v):
-                return v.replace('-dirty', '')
-
-            v1, v2 = map(norm_rev, [v1, v2])
             changelog = repo.git.log(f'{v1}..{v2}', oneline=True)
             if changelog == '':
                 # same revision
@@ -147,11 +180,24 @@ class CitlaliExec(object):
         else:
             changelog_section = ''
         logger.info(
-            f"\n"
+            f"\n\n"
+            f"* Executable path: {self.path}"
             f"* Remote Citlali version: {remote_version}\n"
             f"* Local Citlali version: {self.version}\n"
             f'{changelog_section}'
             )
+
+    def run(self, config_file, log_level="INFO", **kwargs):
+        exec_path = self.path
+        cmd = [
+                exec_path.as_posix(),
+                '-l', log_level.lower(),
+                config_file.as_posix(),
+                ]
+        self.logger.debug(
+            "run {} with cmd: {}".format(exec_path.as_posix(), ' '.join(cmd)))
+        call_subprocess_with_live_output(cmd, **kwargs)
+        return locals()
 
 
 @functools.lru_cache(maxsize=None)
@@ -161,7 +207,8 @@ def _get_citlali_exec(path):
 
 
 class Citlali(PipelineEngine):
-    """A class to run Citlali, the TolTEC data reduction pipeline engine.
+    """A wrapper class of Citlali, the TolTEC data reduction pipeline
+    engine.
 
     It searches for instances of ``citlali`` executables and check their
     versions against the required version. The latest one is adopted if
@@ -199,7 +246,8 @@ class Citlali(PipelineEngine):
                 )
         else:
             pass
-        self._citlali_exec = citlali_executables[0]
+        citlali_exec = self._citlali_exec = citlali_executables[0]
+        self.logger.debug(f"use citlali executable: {citlali_exec}")
 
     @property
     def exec_path(self):
@@ -211,6 +259,9 @@ class Citlali(PipelineEngine):
 
     def check_for_update(self):
         return self._citlali_exec.check_for_update()
+
+    def run(self, *args, **kwargs):
+        return self._citlali_exec.run(*args, **kwargs)
 
     @classmethod
     def find_citlali_executables(
@@ -253,4 +304,145 @@ class Citlali(PipelineEngine):
                 cls.logger.debug(f'skip invalid path {p}')
         cls.logger.debug(
             f"found {len(paths)} citlali executables:\n{pformat_yaml(paths)}")
-        return list(paths.values())
+        # now check each executable with version
+        if version is None:
+            cls.logger.debug("skip checking executable versions")
+            return list(paths.values())
+        valid_execs = list()
+        cls.logger.debug("check executable versions")
+        for e in paths.values():
+            if e.check_version(version):
+                valid_execs.append(e)
+                cls.logger.debug(f"{e} version satisfies {version}")
+            else:
+                cls.logger.debug(f"{e} version does not satisfies {version}")
+        return valid_execs
+
+    @timeit
+    def proc_context(self, config):
+        """Return a `CitlaliProc` that run reduction for given input dataset.
+        """
+        return CitlaliProc(citlali=self, config=config)
+
+
+class CitlaliProc(object):
+    """A context class for running Citlali."""
+
+    logger = get_logger()
+
+    def __init__(self, citlali, config):
+        self._citlali = citlali
+        self._config = config
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+    def __call__(
+            self, dataset, output_dir,
+            log_level='INFO', logger_func=None):
+        # resolve the dataset to input items
+        tbl = dataset.index_table
+        grouped = tbl.group_by(
+            ['obsnum', 'subobsnum', 'scannum', 'master', 'repeat'])
+        self.logger.debug(f"collected {len(grouped)} raw obs")
+        for key, group in zip(grouped.groups.keys, grouped.groups):
+            self.logger.debug(
+                    '****** obs name={obsnum}_{subobsnum}_{scannum} '
+                    '*******'.format(**key))
+            self.logger.debug(f'{group}\n')
+        input_items = [
+            self._resolve_input_item(d) for d in grouped.groups]
+        # update low level config
+        cfg = deepcopy(self._config)
+        rupdate(cfg, {
+            'inputs': input_items,
+            'runtime': {
+                # TODO get rid of the trailing slash
+                'output_dir': output_dir.as_posix() + '/'
+                }
+            })
+        self.logger.debug(
+                f'resolved low level config:\n{pformat_yaml(cfg)}')
+        name = input_items[0]['meta']['name']
+        output_name = f'tolteca_{name}.yaml'
+        cfg_filepath = output_dir.joinpath(output_name)
+        with open(cfg_filepath, 'w') as fo:
+            fo.write(pformat_yaml(cfg))
+            # yaml_dump(cfg, fo)
+        self._citlali.run(
+            cfg_filepath, log_level=log_level, logger_func=logger_func)
+        # TODO implement the logic to locate the generated output files
+        # which will be used to create data prod object.
+        return output_dir
+
+    @classmethod
+    def _resolve_input_item(cls, index_table):
+        """Return an citlali input list entry from index table."""
+        tbl = index_table
+        d0 = tbl[0]
+        meta = {
+            'name': f'{d0["obsnum"]}_{d0["subobsnum"]}_{d0["scannum"]}'
+            }
+        data_items = list()
+        cal_items = list()
+        for entry in tbl:
+            instru = entry['instru']
+            interface = entry['interface']
+            source = entry['source']
+            extra = dict()
+            if instru == 'toltec':
+                c = data_items
+            elif interface == 'lmt':
+                c = data_items
+            elif interface == 'apt':
+                c = cal_items
+                # TODO implement in citlali the proper
+                # ecsv handling
+                source = _fix_apt(source)
+                extra = {'type': 'array_prop_table'}
+            else:
+                continue
+            c.append(dict({
+                    'filepath': source,
+                    'meta': {
+                        'interface': interface
+                        }
+                    }, **extra)
+                    )
+        cls.logger.debug(
+                f"collected input item name={meta['name']} "
+                f"n_data_items={len(data_items)} "
+                f"n_cal_items={len(cal_items)}")
+        # this is a hack. TODO fix the proper ordering of data items
+        data_items = sorted(
+                data_items,
+                key=lambda d: (
+                    int(d['meta']['interface'][6:])
+                    if d['meta']['interface'].startswith('toltec')
+                    else -1)
+                )
+        return {
+                'meta': meta,
+                'data_items': data_items,
+                'cal_items': cal_items,
+                }
+
+
+def _fix_apt(source):
+    # this is a temporary fix to make citlali work with the
+    # apt
+    tbl = Table.read(source, format='ascii.ecsv')
+    tbl_new = Table()
+    tbl_new['nw'] = np.array(tbl['nw'], dtype='d')
+    tbl_new['array'] = np.array(tbl['array'], dtype='d')
+    tbl_new['flxscale'] = np.array(tbl['flxscale'], dtype='d')
+    tbl_new['x_t'] = tbl['x_t'].quantity.to_value(u.deg)
+    tbl_new['y_t'] = tbl['y_t'].quantity.to_value(u.deg)
+    tbl_new['a_fwhm'] = tbl['a_fwhm'].quantity.to_value(u.deg)
+    tbl_new['b_fwhm'] = tbl['b_fwhm'].quantity.to_value(u.deg)
+    source_new = source.replace('.ecsv', '_trimmed.ecsv')
+    tbl_new.write(source_new, format='ascii.ecsv', overwrite=True)
+    return source_new

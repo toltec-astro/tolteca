@@ -69,17 +69,17 @@ def load_pipeline_runtime(config_loader, no_cwd=False):
         # in this special case we just use the current directory
         workdir = ensure_abspath('.')
 
-    from ..utils import RuntimeContextError
     from ..reduce import PipelineRuntime
     try:
         rc = PipelineRuntime(workdir)
-    except RuntimeContextError as e:
+    except Exception as e:
         if config_loader.runtime_context_dir is not None:
             # raise when user explicitly specified the workdir
             raise argparse.ArgumentTypeError(
                 f"invalid workdir {workdir}: {e}")
         else:
-            logger.debug("no valid runtime context in current directory")
+            logger.debug(
+                "no valid runtime context in current directory", exc_info=True)
             # create rc from config
             rc = PipelineRuntime(config_loader.get_config())
     logger.debug(f"pipeline rc: {rc}")

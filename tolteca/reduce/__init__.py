@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from cached_property import cached_property
 from tollan.utils.dataclass_schema import add_schema
-from tollan.utils.log import get_logger, timeit
+from tollan.utils.log import get_logger, timeit, logit
 from tollan.utils.fmt import pformat_yaml
 from ..utils.config_registry import ConfigRegistry
 from ..utils.config_schema import add_config_schema
@@ -85,6 +85,17 @@ class ReduConfig(object):
                 data_loader.aggregate(data_collection))
         return aggregated_data_collection
 
+    def get_or_create_output_dir(self):
+        rootpath = self.runtime_info.config_info.runtime_context_dir
+        output_dir = rootpath.joinpath(self.jobkey)
+        if not output_dir.exists():
+            with logit(self.logger.debug, 'create output dir'):
+                output_dir.mkdir(parents=True, exist_ok=True)
+        return output_dir
+
+    def get_log_file(self):
+        return self.runtime_info.logdir.joinpath('reduce.log')
+
 
 class PipelineRuntimeError(RuntimeContextError):
     """Raise when errors occur in `PipelineRuntime`."""
@@ -162,11 +173,14 @@ class PipelineRuntime(RuntimeContext):
         # sequentially.
         n_steps = len(cfg.steps)
         tmp_data = cfg.load_input_data()
-        self.logger.debug(f"collected data from inputs: {tmp_data!r}")
+        self.logger.info(f"collected data from inputs: {tmp_data!r}")
         if len(cfg.steps) == 0:
             self.logger.warning("no pipeline steps found, nothing to do.")
         for i, step in enumerate(cfg.steps):
-            with timeit(f"run pipeline step [{i + 1}/{n_steps}] {step}"):
+            with timeit(
+                    f"run pipeline step [{i + 1}/{n_steps}] {step.name}",
+                    level='INFO',
+                    ):
                 self.logger.debug(f"input data {tmp_data!r}")
                 tmp_data = step.run(cfg, inputs=tmp_data)
                 self.logger.debug(f"output data {tmp_data!r}")

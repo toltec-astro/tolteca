@@ -3,8 +3,9 @@
 
 from .. import steps_registry
 from ...utils.common_schema import RelPathSchema
+from ...datamodels.toltec import BasicObsDataset
 from tollan.utils.dataclass_schema import DataclassNamespace
-from tollan.utils.log import get_logger
+from tollan.utils.log import get_logger, log_to_file
 import os
 import functools
 from schema import Optional, Schema
@@ -63,15 +64,40 @@ class CitlaliConfig(DataclassNamespace):
             paths = []
         paths.extend(self._get_bindir_citlali_paths(runtime_info.bindir))
         engine = Citlali(path=paths, version=self.version)
-        if path is None and len(
-                {'>', '<'}.intersection(set(self.version or ''))) == 0:
+        if path is None or len(
+                {'>', '<', '~'}.intersection(set(self.version or ''))) == 0:
             # we only check for update when the engine executable is requested
             # or a specific version is used
             engine.check_for_update()
+        return engine
 
     def run(self, cfg, inputs=None):
         """Run this reduction step."""
         if inputs is None:
             inputs = cfg.load_input_data()
+        # get bods
+        bods = [
+            input for input in inputs
+            if isinstance(input, BasicObsDataset)
+            ]
+        if len(bods) == 0:
+            self.logger.debug("no valid input for this step, skip")
+            return None
+        assert len(bods) == 1
+        bods = bods[0]
+        output_dir = cfg.get_or_create_output_dir()
+        log_file = cfg.get_log_file()
         engine = self(cfg)
-        return engine.run(inputs)
+        self.logger.info(f'setup logging to file {log_file}')
+        with log_to_file(
+                filepath=log_file,
+                level='DEBUG',
+                disable_other_handlers=False
+                ), engine.proc_context(
+                    self.config
+                    ) as proc:
+            return proc(
+                dataset=bods,
+                output_dir=output_dir,
+                log_level='INFO',  # this is the citlali log level.
+                logger_func=self.logger.debug)
