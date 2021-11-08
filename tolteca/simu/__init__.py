@@ -619,7 +619,7 @@ class SimulatorRuntime(RuntimeContext):
                         f"{e}")
             sources.append(s)
 
-        if not sources:
+        if not sources and not cfg['toast_atm']:
             raise SimulatorRuntimeError("no valid simulation sources found.")
         return sources
 
@@ -690,6 +690,22 @@ class SimulatorRuntime(RuntimeContext):
         ### toast atmosphere calculation
         ### 
         if cfg['toast_atm']:
+            # check if the toltec array loading model is specified
+            # and remove it from the source list
+            # check the sources for array loading model
+            from .toltec import ArrayLoadingModel
+            if sources is not None:
+                for source in sources:
+                    if isinstance(source, dict) and isinstance(
+                            next(iter(source.values())), ArrayLoadingModel):
+                        array_loading_model = source
+                        break
+                else:
+                    array_loading_model = None
+            else:
+                array_loading_model = None
+            if array_loading_model is not None:
+                raise ValueError("toltec_array_loading has to be disabled with toast_atm enabled")
             from .toltec.atm import ToastAtmosphereSimulation
             self.logger.info("generating the atmosphere/simulation")
             # make t grid for atm (1 second intervals; high resolution not required)
