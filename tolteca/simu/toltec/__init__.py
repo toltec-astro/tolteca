@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 import numpy as np
+import datetime
 # import functools
 from scipy.interpolate import interp1d
 import astropy.units as u
@@ -17,6 +18,9 @@ from astropy.coordinates.erfa_astrom import (
 from astropy.cosmology import default_cosmology
 from astropy import constants as const
 from astropy.utils.decorators import classproperty
+
+# TODO: remove this (just import toast)
+import toast
 
 from gwcs import coordinate_frames as cf
 
@@ -811,6 +815,52 @@ class ArrayLoadingModel(_Model):
         nep = self._get_noise(alt, return_avg=True)['nep']
         return P, nep
 
+@timeit
+def integrate_detector_slab(package_):
+    """Given timestream, az, el, detector info
+    and an atmospheric slab, return tod.
+    """
+
+    atm_times = package_["atm_times"]
+    az_single = package_["az_single"]
+    alt_single = package_["alt_single"]
+    info_single = package_["info_single"]
+    slab = package_["slab"]
+    toast_simulation = package_["toast_sim"]
+
+    # returns atmospheric brightness temperature (Kelvin)
+    atmtod = np.zeros_like(az_single.value)
+    err = slab.observe(
+        times=atm_times,
+        az=az_single.to(u.radian).value,
+        el=alt_single.to(u.radian).value,
+        tod=atmtod,
+        fixed_r=0,
+    )
+    if err != 0:
+        raise RuntimeError("toast slab observation failed")
+
+    absorption_det = toast_simulation.absorption[info_single["array_name"]]
+    loading_det = toast_simulation.loading[info_single["array_name"]]
+    atm_gain = 1e-3  # this value is used to bring down the bandpass 
+    
+    # calibrate the atmopsheric fluctuations to appropriate bandpass
+    atmtod *= atm_gain * absorption_det 
+
+    # add the elevation-dependent atmospheric loading
+    atmtod += loading_det / np.sin(alt_single.to_value(u.radian))
+
+    atmtod *= 5e-2 # bring it down again
+
+    # convert from antenna temperature (Kelvin) to MJy/sr
+    conversion_equiv = u.brightness_temperature(info_single['wl_center'])
+    
+    # raise RuntimeError(f'atmtod:', np.mean(atmtod), np.max(atmtod), np.min(atmtod))
+    return {
+        "id": info_single["uid"],
+        "result": (atmtod * u.Kelvin).to_value(u.MJy / u.sr, equivalencies=conversion_equiv),
+        "array_name": info_single["array_name"],
+    }
 
 class ToltecObsSimulator(object):
     """A class that make simulated observations for TolTEC.
@@ -920,6 +970,7 @@ class ToltecObsSimulator(object):
             x_t, y_t = ArrayProjModel()(tbl['array_name'], x_a, y_a)
             tbl.add_column(Column(x_t, name='x_t', unit=x_t.unit))
             tbl.add_column(Column(y_t, name='y_t', unit=y_t.unit))
+  
 
     @property
     def table(self):
@@ -1218,7 +1269,7 @@ class ToltecObsSimulator(object):
         ref_frame = mapping.ref_frame
         t0 = mapping.t0
         ref_coord = self.resolve_target(mapping.target, t0)
-
+        
         def evaluate(t):
             with erfa_astrom.set(ErfaAstromInterpolator(self.erfa_interp_len)):
                 time_obs = t0 + t
@@ -1303,6 +1354,103 @@ class ToltecObsSimulator(object):
                     lon, lat = m_proj_icrs(
                         x, y, eval_interp_len=0.1 << u.s)
                     az, alt = m_proj_native(x, y, eval_interp_len=0.1 << u.s)
+  
+                logger = get_logger()
+                
+                
+                if self.atm_simulation is not None:
+                    logger.debug(f'observing min azimuth: {np.min(az)}')
+                    logger.debug(f'observing max azimuth: {np.max(az)}')
+                    logger.debug(f'observing min elevation: {np.min(alt)}')
+                    logger.debug(f'observing max elevation: {np.max(alt)}')
+
+                    # observe the toast atmospheric simulation model 
+                    gain = 1
+                    with timeit("observe the toast atmosphere with detector (for this time chunk)"):
+                        # same for all the detectors in this time chunk
+                        atm_times = time_obs.unix
+
+                        # data per slab per detector per time
+                        obs_pack = list()
+                        
+                        # loop through each slab
+                        for slab_id, atm_slab in self.atm_simulation.atm_slabs.items():
+
+                            detector_info = []
+                            for az_single, alt_single, info_single in zip(az.T, alt.T, self.table):
+                                package_ = {
+                                    'atm_times': atm_times, 
+                                    'az_single': az_single, 
+                                    'alt_single': alt_single, 
+                                    'info_single': info_single, 
+                                    'slab': atm_slab,
+                                    'toast_sim': self.atm_simulation
+                                }
+                                detector_info.append(package_)
+
+                            run_multiprocess = None
+                            with timeit(f"observing slab id: {slab_id} (all detectors)"):
+                                if run_multiprocess:
+                                    import multiprocessing
+                                    with timeit(f'using multiprocessing with {multiprocessing.cpu_count()} processes...'):
+                                        logger.info(f'using multiprocessing with {multiprocessing.cpu_count()} processes...')
+                                        with multiprocessing.Pool(multiprocessing.cpu_count()) as atm_obs_pool:
+                                            mapped_return = atm_obs_pool.map(integrate_detector_slab, detector_info)
+                                else:
+                                    with timeit(f"sequential map"):
+                                        logger.info(f'using sequential integration mapping (slab {slab_id})...')
+                                        mapped_return = list(map(integrate_detector_slab, detector_info))
+                                    
+                                atm_par_result = []
+                                for returned in mapped_return:
+                                    atm_par_result.append(returned['result'])
+                                atm_par_result  = np.array(atm_par_result)
+
+                            atm_result = atm_par_result
+                            
+                            # apply gain and add the sl
+                            atm_result *= gain
+                            obs_pack.append(atm_result)
+
+                    # convert to numpy array 
+                    # and combine detector tod for each slab
+                    obs_pack          = np.array(obs_pack)
+
+                    # summary for each array
+                    atm_summary = dict()
+                    atm_summary['a1100'] = []
+                    atm_summary['a1400'] = []
+                    atm_summary['a2000'] = []
+                    
+                    all_obs_atm_slabs = np.sum(obs_pack, 0)
+
+                    # check for inconsistencies
+                    if np.nanmin(all_obs_atm_slabs) < 0.0:
+                        err_msg = f'at least one atmosphere value < 0! {np.nanmin(all_obs_atm_slabs)}'
+                        logger.error(err_msg)
+                        raise RuntimeError(err_msg)
+                    if np.isnan(np.sum(all_obs_atm_slabs)):
+                        err_msg = f'NaNs detected in the atm timestream'
+                        logger.error(err_msg)
+                        raise ValueError(err_msg)
+
+                    # Calculate quick summary of atmospheric timestream additions
+                    arr_names = []
+                    for atm_per_detector, detector_info in zip(all_obs_atm_slabs, self.table):
+                        arr_names.append(detector_info['array_name'])
+                        atm_summary[detector_info['array_name']].extend(atm_per_detector)
+                    for array_name, atm_mean in atm_summary.items():
+                        logger.info(f'toast_atm: {array_name} ({np.array(atm_mean).size}): {np.mean(atm_mean):0.3f} MJy/sr +/- {np.std(atm_mean):0.3f} MJy/sr')
+                        # this is extremely not cool
+                        temp = (atm_mean * u.MJy / u.sr).to(
+                            u.Kelvin,
+                            equivalencies=u.brightness_temperature((float(array_name[1:]) * u.um).to(u.mm)),
+                        )
+                        logger.info(f'toast_atm: {array_name} ({np.array(temp).size}): {np.mean(temp):0.3f} +/- {np.std(temp):0.3f}')    
+                    
+                else:
+                    logger.info('no atm slabs simulated, skipping observation of slabs...')
+                    all_obs_atm_slabs = None
 
                 # combine the array projection with sky projection
                 # and evaluate with source frame
@@ -1353,6 +1501,13 @@ class ToltecObsSimulator(object):
                     s = s_additive[0]
                     for _s in s_additive[1:]:
                         s += _s
+
+                 # add the atmosphere into the source timestram
+                if all_obs_atm_slabs is None:
+                    all_obs_atm_slabs = np.zeros_like(s)
+                assert s.shape == all_obs_atm_slabs.shape
+                s += all_obs_atm_slabs << u.MJy / u.sr
+
                 return s, locals()
         yield evaluate
 

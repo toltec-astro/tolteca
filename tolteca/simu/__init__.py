@@ -40,6 +40,8 @@ from schema import Optional, Or, Use, Schema
 
 from ..utils import RuntimeContext, RuntimeContextError, get_pkg_data_path
 
+from .toltec.atm import ToastAtmosphereSimulation
+
 # import these models as toplevel
 from .base import (
         SkyRasterScanModel,
@@ -561,6 +563,7 @@ class SimulatorRuntime(RuntimeContext):
                 'type': Or(*_mapping_model_factory.keys()),
                 Optional(str): object
                 },
+            Optional('atm', default=False): bool,
             Optional('mapping_only', default=False): bool,
             Optional('coverage_only', default=False): bool,
             Optional('exports', default=[{'format': 'lmtot'}]): [{
@@ -684,6 +687,64 @@ class SimulatorRuntime(RuntimeContext):
         t = np.arange(
                 0, t_exp.to_value(u.s),
                 (1 / obs_params['f_smp_probing']).to_value(u.s)) * u.s
+
+        ### 
+        ### toast atmosphere calculation
+        ### 
+        if cfg['atm']:
+            self.logger.info("generating the atmosphere/simulation")
+            # make t grid for atm (1 second intervals; high resolution not required)
+            _t_atm = np.arange(0, t_exp.to_value(u.s), 1) * u.s
+            _atm_time_obs = mapping.t0 + _t_atm
+
+            _atm_ref_frame = resolve_sky_map_ref_frame(
+                    AltAz, observer=simobj.observer, time_obs=_atm_time_obs)
+            _atm_ref_coord = mapping.target.transform_to(_atm_ref_frame)
+            _atm_obs_coords = mapping.evaluate_at(_atm_ref_coord, _t_atm)
+            
+            # _atm_obs_coords should represent the boresight coordinates 
+            # now obtain the bounding box and add padding extremes
+            # TODO: revisit this value
+            bounding_padding = 10 * u.arcmin
+
+            # altitude/elevation
+            self.logger.debug(f'generated: prepad min azimuth: {np.min(_atm_obs_coords.alt)}')
+            self.logger.debug(f'generated: prepad max azimuth: {np.max(_atm_obs_coords.alt)}')
+
+            min_alt = np.min(_atm_obs_coords.alt) - bounding_padding
+            max_alt = np.max(_atm_obs_coords.alt) + bounding_padding
+
+            if min_alt < (0 * u.degree):
+                min_alt = 0 * u.degree
+            if max_alt > (90 * u.degree):
+                max_alt = 0 * u.degree
+
+            self.logger.debug(f'generated: min elevation: {min_alt}')
+            self.logger.debug(f'generated: max elevation: {max_alt}')
+
+            # azimuth (revise this procedure)
+            self.logger.debug(f'generated: prepad min azimuth: {np.min(_atm_obs_coords.az)}')
+            self.logger.debug(f'generated: prepad max azimuth: {np.max(_atm_obs_coords.az)}')
+
+            min_az = np.min(_atm_obs_coords.az) - (bounding_padding) 
+            max_az = np.max(_atm_obs_coords.az) + (bounding_padding) 
+
+            self.logger.debug(f'generated: min azimuth: {min_az}')
+            self.logger.debug(f'generated: max azimuth: {max_az}')
+
+            # generate the toast atmospheric simulation model 
+            toast_atm_simulation = ToastAtmosphereSimulation(
+                    _atm_time_obs[0], 
+                    _atm_time_obs[0].unix, _atm_time_obs[-1].unix, 
+                    min_az, max_az, min_alt, max_alt
+                )
+            toast_atm_simulation.generate_simulation()  
+
+            # stick it into the simobj for easy access
+            simobj.atm_simulation = toast_atm_simulation
+        else:
+            self.logger.info("skipping generation of the atmosphere/simulation")
+            simobj.atm_simulation = None
 
         # make chunks
         chunk_size = cfg['perf_params']['chunk_size']
