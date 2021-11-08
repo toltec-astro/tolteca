@@ -40,8 +40,6 @@ from schema import Optional, Or, Use, Schema
 
 from ..utils import RuntimeContext, RuntimeContextError, get_pkg_data_path
 
-from .toltec.atm import ToastAtmosphereSimulation
-
 # import these models as toplevel
 from .base import (
         SkyRasterScanModel,
@@ -563,7 +561,7 @@ class SimulatorRuntime(RuntimeContext):
                 'type': Or(*_mapping_model_factory.keys()),
                 Optional(str): object
                 },
-            Optional('atm', default=False): bool,
+            Optional('toast_atm', default=False): bool,
             Optional('mapping_only', default=False): bool,
             Optional('coverage_only', default=False): bool,
             Optional('exports', default=[{'format': 'lmtot'}]): [{
@@ -691,7 +689,8 @@ class SimulatorRuntime(RuntimeContext):
         ### 
         ### toast atmosphere calculation
         ### 
-        if cfg['atm']:
+        if cfg['toast_atm']:
+            from .toltec.atm import ToastAtmosphereSimulation
             self.logger.info("generating the atmosphere/simulation")
             # make t grid for atm (1 second intervals; high resolution not required)
             _t_atm = np.arange(0, t_exp.to_value(u.s), 1) * u.s

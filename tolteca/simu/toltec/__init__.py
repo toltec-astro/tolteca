@@ -20,7 +20,7 @@ from astropy import constants as const
 from astropy.utils.decorators import classproperty
 
 # TODO: remove this (just import toast)
-import toast
+# import toast
 
 from gwcs import coordinate_frames as cf
 
