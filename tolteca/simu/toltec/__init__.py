@@ -498,8 +498,18 @@ class ArrayLoadingModel(_Model):
                 "invalid passband format, frequency grid has to be uniform")
         self._df = self._f[1] - self._f[0]
         self._throughput = self._passband['throughput']
-        self._atm_model, self._atm_tx_model = get_lmt_atm_models(
+        if atm_model_name is not None:
+            self._atm_model, self._atm_tx_model = get_lmt_atm_models(
                 name=atm_model_name)
+        else:
+            self._atm_model = None
+            # TODO revisit this
+            _, self._atm_tx_model = get_lmt_atm_models(
+                name='am_q50')
+
+    @property
+    def has_atm_model(self):
+        return self._atm_model is not None
 
     @classproperty
     def _internal_params(cls):
@@ -594,6 +604,8 @@ class ArrayLoadingModel(_Model):
             If True, return the weighted sum over the passband instead.
         """
         atm_model = self._atm_model
+        if atm_model is None:
+            return 0.
         # here we put the alt on the first axis for easier reduction on f.
         T_atm = atm_model(*np.meshgrid(self._f, alt, indexing='ij')).T
         if return_avg:

@@ -36,7 +36,7 @@ import warnings
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-from schema import Optional, Or, Use, Schema
+from schema import Optional, Or, Use, Schema, Hook
 
 from ..utils import RuntimeContext, RuntimeContextError, get_pkg_data_path
 
@@ -147,16 +147,23 @@ def _ssf_toltec_array_loading(cfg, cfg_rt):
 
     cfg = Schema({
         'type': 'toltec_array_loading',
-        Optional('atm_model_name', default='am_q50'): str,
+        Optional('atm_model_name', default='am_q50'): Or(
+            'am_q25', 'am_q50', 'am_q75', 'toast'),
         }).validate(cfg)
-
     logger.debug(f"source config: {cfg}")
+
+    atm_model_name = cfg['atm_model_name']
+    if atm_model_name == 'toast':
+        # the toast model will be generated outside the context of
+        # this model
+        atm_model_name = None
+        logger.info("atm model set to None to use TOAST3 atm model.")
 
     from .toltec import ArrayLoadingModel
     from .toltec import toltec_info
     m = {
             array_name: ArrayLoadingModel(
-                atm_model_name=cfg['atm_model_name'], array_name=array_name)
+                atm_model_name=atm_model_name, array_name=array_name)
             for array_name in toltec_info['array_names']}
     logger.debug(f"toltec array loading models: {m}")
     return m
@@ -535,6 +542,13 @@ class SimulatorRuntimeError(RuntimeContextError):
     pass
 
 
+def _invalid_key_error(message):
+    def wrapped(nkey, data, error):
+        error = "Forbidden key encountered: %r in %r\n%r" % (nkey, data, message)
+        raise RuntimeError(error)
+    return wrapped
+
+
 class SimulatorRuntime(RuntimeContext):
     """A class that manages the runtime of the simulator."""
 
@@ -553,6 +567,12 @@ class SimulatorRuntime(RuntimeContext):
                 Optional(
                     'f_smp_probing', default=122. << u.Hz): Use(u.Quantity),
                 },
+            Hook(
+                'toast_atm',
+                handler=_invalid_key_error('set in tolteca_array_loading, atm_model_name to "toast" to enable toast atm.')): object,
+            Hook(
+                'toast3_atm',
+                handler=_invalid_key_error('set in tolteca_array_loading, atm_model_name to "toast" to enable toast atm.')): object,
             'sources': [{
                 'type': Or(*_simu_source_factory.keys()),
                 Optional(str): object
@@ -561,7 +581,7 @@ class SimulatorRuntime(RuntimeContext):
                 'type': Or(*_mapping_model_factory.keys()),
                 Optional(str): object
                 },
-            Optional('toast_atm', default=False): bool,
+            # Optional('toast_atm', default=False): bool,
             Optional('mapping_only', default=False): bool,
             Optional('coverage_only', default=False): bool,
             Optional('exports', default=[{'format': 'lmtot'}]): [{
@@ -686,26 +706,33 @@ class SimulatorRuntime(RuntimeContext):
                 0, t_exp.to_value(u.s),
                 (1 / obs_params['f_smp_probing']).to_value(u.s)) * u.s
 
+        # check if the toltec array loading model is specified
+        # and if the atm model is None, which means to use toast
+        from .toltec import ArrayLoadingModel
+        if sources is not None:
+            for source in sources:
+                if isinstance(source, dict) and isinstance(
+                        next(iter(source.values())), ArrayLoadingModel):
+                    array_loading_model = source
+                    break
+            else:
+                array_loading_model = None
+        else:
+            array_loading_model = None
+        if array_loading_model is None:
+            use_toast = False
+        elif next(iter(array_loading_model.values())).has_atm_model:
+            use_toast = False
+        else:
+            use_toast = True
+            # raise ValueError("tolteca_array_loading atm_model_name has to be set to toast")
+        # generic an instruction for older config with toast_atm
+        if 'toast_atm' in cfg or 'toast3_atm' in cfg:
+            raise ValueError("Invalid config. To enable toast, add in `tolteca_array_loading` source `atm_model_name: toast`")
         ### 
         ### toast atmosphere calculation
         ### 
-        if cfg['toast_atm']:
-            # check if the toltec array loading model is specified
-            # and remove it from the source list
-            # check the sources for array loading model
-            from .toltec import ArrayLoadingModel
-            if sources is not None:
-                for source in sources:
-                    if isinstance(source, dict) and isinstance(
-                            next(iter(source.values())), ArrayLoadingModel):
-                        array_loading_model = source
-                        break
-                else:
-                    array_loading_model = None
-            else:
-                array_loading_model = None
-            if array_loading_model is not None:
-                raise ValueError("toltec_array_loading has to be disabled with toast_atm enabled")
+        if use_toast:
             from .toltec.atm import ToastAtmosphereSimulation
             self.logger.info("generating the atmosphere/simulation")
             # make t grid for atm (1 second intervals; high resolution not required)
