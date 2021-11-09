@@ -89,7 +89,7 @@ reduce:
           parallel_policy: seq # seq, omp, tbb
           n_threads: 1 # number of threads to parallelize over
           output_dir: null
-          reduction_type: pointing #beammap, pointing, etc
+          reduction_type: science #beammap, pointing, etc
           meta:
             version: tolteca...
             #high level config settings
@@ -151,14 +151,14 @@ reduce:
           iter_tolerance: 0.2
           iter_max: 1
         source_fitting:
-          enabled: true
+          enabled: false
           model: gaussian
           bounding_box_arcsec: 10
           initial_guess: brightest_pixel #table
         coadd:
-          enabled: true
+          enabled: false
           noise_maps:
-            enabled: true
+            enabled: false
             n_noise_maps: 100
           filtering:
             enabled: true
