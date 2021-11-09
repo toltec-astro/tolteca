@@ -13,6 +13,7 @@ from cached_property import cached_property
 from packaging.version import Version, InvalidVersion
 from packaging.specifiers import SpecifierSet
 from astropy.table import Table
+from scalpl import Cut
 import numpy as np
 import astropy.units as u
 from pathlib import Path
@@ -408,6 +409,7 @@ class CitlaliProc(object):
                 'output_dir': output_dir.as_posix() + '/'
                 }
             })
+        rupdate(cfg, self._resolve_high_level_config(self.config))
         self.logger.debug(
                 f'resolved low level config:\n{pformat_yaml(cfg)}')
         name = input_items[0]['meta']['name']
@@ -434,6 +436,16 @@ class CitlaliProc(object):
                 return yaml_load(fo)
         # a dict already
         return low_level
+
+    def _resolve_high_level_config(self, high_level):
+        """Return a low level config dict from high level dict."""
+        # image_frame_params
+        cfg = Cut(dict())
+        pixel_size = high_level.image_frame_params.pixel_size
+        if pixel_size is not None:
+            cfg.setdefault(
+                'mapmaking.pixel_size_arcsec', pixel_size.to_value(u.arcsec))
+        return cfg.data
 
     @classmethod
     def _resolve_input_item(cls, index_table):
@@ -515,7 +527,7 @@ def _fix_apt(source):
 class ImageFrameParams(object):
     """Params related to 2D image data shape and WCS."""
     pixel_size: u.Quantity = field(
-        default=1. << u.arcsec,
+        default=None,
         metadata={
             'description': 'The pixel size of image.',
             'schema': PhysicalTypeSchema('angle')
