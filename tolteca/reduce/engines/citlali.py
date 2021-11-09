@@ -141,7 +141,7 @@ class CitlaliExec(object):
     @staticmethod
     def _norm_ver(ver):
         # removes any non-standard suffix
-        return re.sub(r'(-dirty|~\d+)$', '', ver)
+        return re.sub(r'(-dirty|~\d+|-\d+-.+)$', '', ver)
 
     @classmethod
     def _ver_to_semver(cls, ver):
@@ -155,7 +155,10 @@ class CitlaliExec(object):
             pass
         # try find the latest version tag in the history
         repo = _get_local_citlali_repo()
-        _ver = cls._norm_ver(repo.git.describe(ver, contains=True))
+        try:
+            _ver = cls._norm_ver(repo.git.describe(ver, contains=True))
+        except Exception:
+            _ver = cls._norm_ver(repo.git.describe(ver, contains=False))
         cls.logger.debug(f"commit {ver} -> version {_ver}")
         return Version(_ver)
 
@@ -265,7 +268,7 @@ class Citlali(PipelineEngine):
             self.logger.warning(
                 f"Found multiple Citlali executables for "
                 f"version={version}\n"
-                f"{citlali_executables['path', 'version', 'timestamp']}"
+                # f"{citlali_executables['path', 'version', 'timestamp']}"
                 )
         else:
             pass

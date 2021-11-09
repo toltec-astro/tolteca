@@ -45,7 +45,7 @@ class CitlaliStepConfig(DataclassNamespace):
     @functools.lru_cache(maxsize=None)
     def _get_bindir_citlali_paths(bindir):
         paths = list()
-        for p in bindir.glob("citlali_*"):
+        for p in [bindir.joinpath('citlali')] + list(bindir.glob("citlali_*")):
             if os.access(p, os.X_OK):
                 paths.append(p)
         return paths
@@ -63,6 +63,7 @@ class CitlaliStepConfig(DataclassNamespace):
         else:
             paths = []
         paths.extend(self._get_bindir_citlali_paths(runtime_info.bindir))
+        self.logger.debug(f"create Citlali with paths={paths}")
         engine = Citlali(path=paths, version=self.version)
         if path is None or len(
                 {'>', '<', '~'}.intersection(set(self.version or ''))) == 0:
