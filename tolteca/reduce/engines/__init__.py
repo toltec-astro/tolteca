@@ -8,7 +8,7 @@ from tollan.utils.dataclass_schema import DataclassNamespace
 from tollan.utils.log import get_logger, log_to_file
 import os
 import functools
-from schema import Optional, Schema
+from schema import Optional, Schema, Or
 from .citlali import Citlali, CitlaliConfig
 
 
@@ -28,6 +28,11 @@ class CitlaliStepConfig(DataclassNamespace):
             description='A version string or version predicate to specify the '
                         'version of citlali.'):
         str,
+        Optional(
+            'log_level',
+            default='INFO',
+            description='The log level for the Citlali call.'):
+        Or("TRACE", "DEBUG", 'INFO'),
         Optional(
             'config',
             default=CitlaliConfig,
@@ -101,5 +106,5 @@ class CitlaliStepConfig(DataclassNamespace):
             return proc(
                 dataset=bods,
                 output_dir=output_dir,
-                log_level='INFO',  # this is the citlali log level.
+                log_level=self.log_level,
                 logger_func=logger.info)
