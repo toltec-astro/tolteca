@@ -329,6 +329,7 @@ class Citlali(PipelineEngine):
         cls.logger.debug(
             f"find citali executables in paths:\n{pformat_yaml(path)}")
         for p in path:
+            p = ensure_abspath(p)
             if p.is_dir():
                 _check_and_add_path(shutil.which('citlali', path=p))
             elif p.is_file() and os.access(p, os.X_OK):

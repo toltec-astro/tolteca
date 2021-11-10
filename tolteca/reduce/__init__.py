@@ -86,10 +86,11 @@ class ReduConfig(object):
         return aggregated_data_collection
 
     def get_or_create_output_dir(self):
+        logger = get_logger()
         rootpath = self.runtime_info.config_info.runtime_context_dir
         output_dir = rootpath.joinpath(self.jobkey)
         if not output_dir.exists():
-            with logit(self.logger.debug, 'create output dir'):
+            with logit(logger.debug, 'create output dir'):
                 output_dir.mkdir(parents=True, exist_ok=True)
         return output_dir
 
