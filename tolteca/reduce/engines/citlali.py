@@ -29,6 +29,7 @@ from tollan.utils.fmt import pformat_yaml
 
 from .base import PipelineEngine, PipelineEngineError
 from ...utils import get_user_data_dir
+from ...utils.misc import get_nested_keys
 from ...utils.common_schema import RelPathSchema, PhysicalTypeSchema
 from ...utils.runtime_context import yaml_load
 
@@ -217,13 +218,14 @@ class CitlaliExec(object):
 
     def run(self, config_file, log_level="INFO", **kwargs):
         exec_path = self.path
-        cmd = self._get_line_buf_cmd() + [
+        citlali_cmd = [
                 exec_path.as_posix(),
                 '-l', log_level.lower(),
                 config_file.as_posix(),
                 ]
-        self.logger.debug(
-            "run {} with cmd: {}".format(exec_path.as_posix(), ' '.join(cmd)))
+        cmd = self._get_line_buf_cmd() + citlali_cmd
+        self.logger.info(
+            "run {} cmd: {}".format(self, ' '.join(citlali_cmd)))
         return call_subprocess_with_live_output(cmd, **kwargs)
 
 
@@ -410,9 +412,29 @@ class CitlaliProc(object):
                 'output_dir': output_dir.as_posix() + '/'
                 }
             })
-        rupdate(cfg, self._resolve_high_level_config(self.config))
+        cfg_hl = self._resolve_high_level_config(self.config)
+        rupdate(cfg, cfg_hl)
         self.logger.debug(
                 f'resolved low level config:\n{pformat_yaml(cfg)}')
+        # show the high level config entries that over writes the low level
+        # values
+        chl = Cut(cfg_hl)
+        cll = Cut(self.config.low_level)
+        updated_entries = []
+        for key in get_nested_keys(cfg_hl):
+            if key not in cll:
+                continue
+            new = chl[key]
+            old = cll[key]
+            if new == old:
+                continue
+            updated_entries.append((key, old, new))
+        updated_entries = Table(
+            rows=updated_entries,
+            names=['low_level_config_key', 'default', 'updated'])
+        self.logger.info(
+            f"low level config entries overwitten by high level config:\n\n"
+            f"{updated_entries}\n")
         name = input_items[0]['meta']['name']
         output_name = f'citlali_o{name}_c{len(input_items)}.yaml'
         cfg_filepath = output_dir.joinpath(output_name)

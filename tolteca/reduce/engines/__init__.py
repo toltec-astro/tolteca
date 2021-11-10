@@ -99,10 +99,12 @@ class CitlaliStepConfig(DataclassNamespace):
         with log_to_file(
                 filepath=log_file,
                 level='DEBUG',
-                disable_other_handlers=True
-                ), engine.proc_context(
+                disable_other_handlers=False
+                ) as handler, engine.proc_context(
                     self.config
                     ) as proc:
+            logger.propagate = False
+            logger.addHandler(handler)
             return proc(
                 dataset=bods,
                 output_dir=output_dir,
