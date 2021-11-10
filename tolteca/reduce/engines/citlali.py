@@ -429,12 +429,13 @@ class CitlaliProc(object):
             if new == old:
                 continue
             updated_entries.append((key, old, new))
-        updated_entries = Table(
-            rows=updated_entries,
-            names=['low_level_config_key', 'default', 'updated'])
-        self.logger.info(
-            f"low level config entries overwitten by high level config:\n\n"
-            f"{updated_entries}\n")
+        if updated_entries:
+            updated_entries = Table(
+                rows=updated_entries,
+                names=['low_level_config_key', 'default', 'updated'])
+            self.logger.info(
+                f"low level config entries overwitten by high level config:\n\n"
+                f"{updated_entries}\n")
         name = input_items[0]['meta']['name']
         output_name = f'citlali_o{name}_c{len(input_items)}.yaml'
         cfg_filepath = output_dir.joinpath(output_name)
