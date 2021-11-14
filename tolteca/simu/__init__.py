@@ -797,7 +797,7 @@ class SimulatorRuntime(RuntimeContext):
             # plt.axhline(max_az.to_value(u.degree))
             # plt.show()
 
-            generate the toast atmospheric simulation model 
+            # generate the toast atmospheric simulation model 
             toast_atm_simulation = ToastAtmosphereSimulation(
                     _atm_time_obs[0], 
                     _atm_time_obs[0].unix, _atm_time_obs[-1].unix, 
