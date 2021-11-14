@@ -734,47 +734,70 @@ class SimulatorRuntime(RuntimeContext):
         ### 
         if use_toast:
             from .toltec.atm import ToastAtmosphereSimulation
-            self.logger.info("generating the atmosphere/simulation")
+            self.logger.info("generating the atmosphere/simulation using toast")
             # make t grid for atm (1 second intervals; high resolution not required)
             _t_atm = np.arange(0, t_exp.to_value(u.s), 1) * u.s
             _atm_time_obs = mapping.t0 + _t_atm
-
+            
             _atm_ref_frame = resolve_sky_map_ref_frame(
                     AltAz, observer=simobj.observer, time_obs=_atm_time_obs)
-            _atm_ref_coord = mapping.target.transform_to(_atm_ref_frame)
+            hold_flags = mapping.evaluate_holdflag(_t_atm)
+            _atm_ref_coord = simobj.resolve_target(mapping.target, mapping.t0)
             _atm_obs_coords = mapping.evaluate_at(_atm_ref_coord, _t_atm)
-            
+            _atm_obs_coords = _atm_obs_coords.transform_to(_atm_ref_frame)
+
+            m_proj_native = simobj.get_sky_projection_model(
+                ref_coord=_atm_obs_coords,
+                time_obs=_atm_time_obs,
+                evaluate_frame=AltAz,
+            )
+
+            array_padding = 5 * u.arcmin
+            a = _atm_obs_coords.alt.radian
+            m_rot_m3 = np.array([
+                [np.cos(a), -np.sin(a)],
+                [np.sin(a),  np.cos(a)]
+            ])
+            x_t = u.Quantity(np.linspace(-1.0 * array_padding.value, array_padding.value, 10)) * array_padding.unit
+            y_t = x_t
+            x = m_rot_m3[0, 0][:, np.newaxis] * x_t[np.newaxis, :] + m_rot_m3[0, 1][:, np.newaxis] * y_t[np.newaxis, :]
+            y = m_rot_m3[1, 0][:, np.newaxis] * x_t[np.newaxis, :] + m_rot_m3[1, 1][:, np.newaxis] * y_t[np.newaxis, :]
+            az, alt = m_proj_native(x, y)
+            self.logger.debug(f'generated: prepad min azimuth: {np.min(az)}')
+            self.logger.debug(f'generated: prepad max azimuth: {np.max(az)}')
+
+            self.logger.info("calculated the boresight coordinates")
             # _atm_obs_coords should represent the boresight coordinates 
             # now obtain the bounding box and add padding extremes
-            # TODO: revisit this value
-            bounding_padding = 10 * u.arcmin
-
+            
             # altitude/elevation
-            self.logger.debug(f'generated: prepad min azimuth: {np.min(_atm_obs_coords.alt)}')
-            self.logger.debug(f'generated: prepad max azimuth: {np.max(_atm_obs_coords.alt)}')
-
-            min_alt = np.min(_atm_obs_coords.alt) - bounding_padding
-            max_alt = np.max(_atm_obs_coords.alt) + bounding_padding
+            min_alt = np.min(alt) 
+            max_alt = np.max(alt) 
 
             if min_alt < (0 * u.degree):
-                min_alt = 0 * u.degree
+                min_alt = 0. * u.degree
             if max_alt > (90 * u.degree):
-                max_alt = 0 * u.degree
+                max_alt = 90. * u.degree
+
+            # azimuth (revise this procedure)
+            min_az = np.min(az) 
+            max_az = np.max(az)
 
             self.logger.debug(f'generated: min elevation: {min_alt}')
             self.logger.debug(f'generated: max elevation: {max_alt}')
-
-            # azimuth (revise this procedure)
-            self.logger.debug(f'generated: prepad min azimuth: {np.min(_atm_obs_coords.az)}')
-            self.logger.debug(f'generated: prepad max azimuth: {np.max(_atm_obs_coords.az)}')
-
-            min_az = np.min(_atm_obs_coords.az) - (bounding_padding) 
-            max_az = np.max(_atm_obs_coords.az) + (bounding_padding) 
-
             self.logger.debug(f'generated: min azimuth: {min_az}')
             self.logger.debug(f'generated: max azimuth: {max_az}')
 
-            # generate the toast atmospheric simulation model 
+            # import matplotlib.pyplot as plt
+            # plt.figure()
+            # plt.plot(_atm_obs_coords.alt.to_value(u.degree), _atm_obs_coords.az.to_value(u.degree))
+            # plt.axvline(min_alt.to_value(u.degree))
+            # plt.axvline(max_alt.to_value(u.degree))
+            # plt.axhline(min_az.to_value(u.degree))
+            # plt.axhline(max_az.to_value(u.degree))
+            # plt.show()
+
+            generate the toast atmospheric simulation model 
             toast_atm_simulation = ToastAtmosphereSimulation(
                     _atm_time_obs[0], 
                     _atm_time_obs[0].unix, _atm_time_obs[-1].unix, 

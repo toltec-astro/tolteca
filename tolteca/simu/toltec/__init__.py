@@ -851,7 +851,7 @@ def integrate_detector_slab(package_):
     )
     if err != 0:
         raise RuntimeError("toast slab observation failed")
-
+    
     absorption_det = toast_simulation.absorption[info_single["array_name"]]
     loading_det = toast_simulation.loading[info_single["array_name"]]
     atm_gain = 1e-4  # this value is used to bring down the bandpass 
@@ -1288,6 +1288,7 @@ class ToltecObsSimulator(object):
                 # transform ref_coord to ref_frame
                 # need to re-set altaz frame with frame attrs
                 with timeit("transform bore sight coords to projected frame"):
+                    logger = get_logger()
                     _ref_frame = self.resolve_sky_map_ref_frame(
                             ref_frame, time_obs=time_obs)
                     with timeit(
@@ -1324,7 +1325,6 @@ class ToltecObsSimulator(object):
                     projected_frame, native_frame = \
                         m_proj_icrs.get_projected_frame(
                             also_return_native_frame=True)
-
                     # there is weird cache issue so we cannot
                     # just do the transform easily
                     if hasattr(obs_coords, 'ra'):  # icrs
@@ -1348,7 +1348,6 @@ class ToltecObsSimulator(object):
 
                 # get detector positions, which requires absolute time
                 # to get the altaz to equatorial transformation
-
                 with timeit("transform det coords to projected frame"):
                     # this has to take into account
                     # the rotation of det coord by alt due to M3
@@ -1365,11 +1364,7 @@ class ToltecObsSimulator(object):
                         + m_rot_m3[1, 1][:, np.newaxis] * y_t[np.newaxis, :]
                     lon, lat = m_proj_icrs(
                         x, y, eval_interp_len=0.1 << u.s)
-                    az, alt = m_proj_native(x, y, eval_interp_len=0.1 << u.s)
-  
-                logger = get_logger()
-                
-                
+                    az, alt = m_proj_native(x, y, eval_interp_len=1 << u.s)     
                 if self.atm_simulation is not None:
                     logger.debug(f'observing min azimuth: {np.min(az)}')
                     logger.debug(f'observing max azimuth: {np.max(az)}')
