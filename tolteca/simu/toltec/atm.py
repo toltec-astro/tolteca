@@ -8,7 +8,7 @@ from tollan.utils.log import timeit, get_logger
 import toast
 
 from . import get_default_passbands
-from .lmt import info as site_info
+from .lmt import lmt_info
 
 # load the atmosphere tools
 try:
@@ -37,7 +37,8 @@ class ToastAtmosphereSimulation(object):
         self.elmax = elmax
         self.cachedir = cachedir
 
-        self.site_height = u.Quantity(site_info['site']['location']['height'])
+        self.site_height = u.Quantity(lmt_info['location']['height'])
+
 
     @timeit
     def generate_simulation(self):

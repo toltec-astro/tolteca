@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import astropy.units as u
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, is_dataclass
 from cached_property import cached_property
 
 from tollan.utils.dataclass_schema import add_schema
@@ -236,7 +236,7 @@ class SimulatorRuntime(RuntimeContext):
         The validated config is cached. :meth:`SimulatorRuntime.update`
         should be used to update the underlying config and re-validate.
         """
-        return self.config_cls.from_config(self.config)
+        return self.config_cls.from_config(self.config, rootpath=self.rootpath)
 
     def update(self, config):
         self.config_backend.update_override_config(config)
@@ -247,8 +247,13 @@ class SimulatorRuntime(RuntimeContext):
         """Run the simulator with CLI as save the result.
         """
         if args is not None:
-            cli_cfg = {self.config_cls.config_key: config_from_cli_args(args)}
+            _cli_cfg = config_from_cli_args(args)
             # note the cli_cfg is under the namespace simu
+            cli_cfg = {self.config_cls.config_key: _cli_cfg}
+            if _cli_cfg:
+                self.logger.info(
+                    f"config specified with commandline arguments:\n"
+                    f"{pformat_yaml(cli_cfg)}")
             self.update(cli_cfg)
             cfg = self.simu_config.to_config()
             # here we recursively check the cli_cfg and report
@@ -266,9 +271,6 @@ class SimulatorRuntime(RuntimeContext):
                     for k in set(d.keys()).intersection(c.keys()):
                         _check_ignored(f'{key_prefix}{k}', d[k], c[k])
             _check_ignored('', cli_cfg, cfg)
-            self.logger.info(
-                f"config specified with commandline arguments:\n"
-                f"{pformat_yaml(cli_cfg)}")
         return self.run()
 
     def run(self):
@@ -276,7 +278,7 @@ class SimulatorRuntime(RuntimeContext):
 
         cfg = self.simu_config
 
-        self.logger.info(
+        self.logger.debug(
             f"run simu with config dict: "
             f"{pformat_yaml(cfg.to_config())}")
 
@@ -289,6 +291,23 @@ class SimulatorRuntime(RuntimeContext):
                     # TODO handle save here
                     pass
             return results
+        # run simulator
+        sim = cfg.instrument(cfg)
+        obs_params = cfg.obs_params
+        m_mapping = cfg.mapping(cfg)
+        m_sources = [s(cfg) for s in cfg.sources]
+
+        self.logger.debug(
+            f'run {sim} with:{{}}\n'.format(
+                pformat_yaml({
+                    'obs_params': obs_params.to_dict(),
+                    })))
+        self.logger.debug(
+            'mapping:\n{}\nsources:\n{}\n'.format(
+                m_mapping,
+                '\n'.join(str(s) for s in m_sources)
+                )
+            )
 
     def plot(self, type, **kwargs):
         """Make plot of type `type`."""
@@ -298,3 +317,13 @@ class SimulatorRuntime(RuntimeContext):
                 f"Available types: {plots_registry.keys()}")
         plotter = plots_registry[type].from_dict(kwargs)
         return plotter(self.simu_config)
+
+
+# make a list of all simu config item types
+_locals = list(locals().values())
+simu_config_item_types = list()
+for v in _locals:
+    if is_dataclass(v) and hasattr(v, 'schema'):
+        simu_config_item_types.append(v)
+    elif isinstance(v, ConfigRegistry):
+        simu_config_item_types.append(v)

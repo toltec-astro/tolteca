@@ -1,46 +1,101 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
 
-from tollan.utils.fmt import pformat_yaml
-from tollan.utils.log import get_logger, timeit, logit, log_to_file
-from tollan.utils.schema import create_relpath_validator
-from tollan.utils.registry import Registry, register_to
-from tollan.utils.namespace import Namespace
+from dataclasses import dataclass, field, is_dataclass
 from cached_property import cached_property
-
-import numpy as np
-import yaml
-from schema import Optional, Use, Schema
-
-from ..utils import RuntimeContext, RuntimeContextError, get_pkg_data_path
-from ..datamodels.toltec import BasicObsDataset
-
-
-__all__ = ['PipelineRuntimeError', 'PipelineRuntime']
+from tollan.utils.dataclass_schema import add_schema
+from tollan.utils.log import get_logger, timeit, logit
+from tollan.utils.fmt import pformat_yaml
+from ..utils.config_registry import ConfigRegistry
+from ..utils.config_schema import add_config_schema
+from ..utils.runtime_context import RuntimeContext, RuntimeContextError
+from ..utils import config_from_cli_args
 
 
-_instru_pipeline_factory = Registry.create()
-"""This holds the handler of the instrument pipeline config."""
+__all__ = ['ReduConfig', 'PipelineRuntime', 'PipelineRuntimeError']
 
 
-@register_to(_instru_pipeline_factory, 'citlali')
-def _ipf_citlali(cfg, cfg_rt):
-    """Create and return `ToltecPipeline` from the config."""
+inputs_registry = ConfigRegistry.create(
+    name='InputsConfig',
+    dispatcher_key='type',
+    dispatcher_description='The input type.',
+    dispatcher_key_is_optional=True
+    )
+"""The registry for ``reduce.inputs``."""
 
-    logger = get_logger()
 
-    from .toltec import Citlali
+steps_registry = ConfigRegistry.create(
+    name='StepsConfig',
+    dispatcher_key='name',
+    dispatcher_description='The reduction step name.'
+    )
+"""The registry for ``reduce.steps``."""
 
-    cfg = Schema({
-        'name': 'citlali',
-        Optional('config', default=None): dict,
-        }).validate(cfg)
 
-    cfg['engine'] = Citlali(
-            binpath=cfg_rt['bindir'],
-            version_specifiers=None,
-            )
-    logger.debug(f"pipeline config: {pformat_yaml(cfg)}")
-    return cfg
+# Load submodules here to populate the registries
+from . import engines as _  # noqa: F401, E402, F811
+from . import toltec as _  # noqa: F401, E402, F811
+
+
+@add_config_schema
+@add_schema
+@dataclass
+class ReduConfig(object):
+    """The config for `tolteca.reduce`."""
+
+    jobkey: str = field(
+        metadata={
+            'description': 'The unique identifier the job.'
+            }
+        )
+    inputs: list = field(
+        default_factory=list,
+        metadata={
+            'description': 'The list contains input data for reduction.',
+            'schema': list(inputs_registry.item_schemas),
+            'pformat_schema_type': f"[<{inputs_registry.name}>, ...]"
+            })
+    steps: list = field(
+        default_factory=list,
+        metadata={
+            'description': 'The list contains the defs of pipeline steps.',
+            'schema': list(steps_registry.item_schemas),
+            'pformat_schema_type': f"[<{steps_registry.name}>, ...]"
+            })
+
+    class Meta:
+        schema = {
+            'ignore_extra_keys': True,
+            'description': 'The config dict for running reduction.'
+            }
+        config_key = 'reduce'
+
+    def load_input_data(self):
+        """Return loaded data objects from reduction config."""
+        # This go through all registered data loaders and load the all the
+        # input items. The loaded input items get aggregated on a per loader
+        # basis
+        data_collection = list()
+        data_loaders = set()
+        for input in self.inputs:
+            data_collection.extend(input.load_all_data())
+            data_loaders.update(input.get_data_loaders())
+        aggregated_data_collection = list()
+        for data_loader in data_loaders:
+            aggregated_data_collection.extend(
+                data_loader.aggregate(data_collection))
+        return aggregated_data_collection
+
+    def get_or_create_output_dir(self):
+        logger = get_logger()
+        rootpath = self.runtime_info.config_info.runtime_context_dir
+        output_dir = rootpath.joinpath(self.jobkey)
+        if not output_dir.exists():
+            with logit(logger.debug, 'create output dir'):
+                output_dir.mkdir(parents=True, exist_ok=True)
+        return output_dir
+
+    def get_log_file(self):
+        return self.runtime_info.logdir.joinpath('reduce.log')
 
 
 class PipelineRuntimeError(RuntimeContextError):
@@ -49,128 +104,96 @@ class PipelineRuntimeError(RuntimeContextError):
 
 
 class PipelineRuntime(RuntimeContext):
-    """A class that manages the runtime of the reduction pipeline."""
+    """A class that manages the runtime context of the data reduction pipeline.
 
-    @classmethod
-    def config_schema(cls):
-        # this defines the subschema relevant to the simulator.
-        return Schema({
-            'reduce': {
-                'jobkey': str,
-                'pipeline': {
-                    'name': str,
-                    'config': dict,
-                    },
-                'inputs': [{
-                    'path': str,
-                    # 'select': str,
-                    Optional(object): object
-                    }],
-                # 'calobj': str,
-                # Optional('select', default=None): str
-                },
-            str: object,
-            })
+    This class drives the execution of the data reduction.
+    """
+
+    config_cls = ReduConfig
+
+    logger = get_logger()
 
     @cached_property
-    def config(self):
-        cfg = super().config
-        return self.config_schema().validate(cfg)
+    def redu_config(self):
+        """Validate and return the reduction config object..
 
-    def get_pipeline_params(self):
-        """Return the data reduction pipeline object specified in the runtime
-        config."""
-        cfg = self.config['reduce']
-        cfg_rt = self.config['runtime_info']
-        pl_params = _instru_pipeline_factory[cfg['pipeline']['name']](
-                cfg['pipeline'], cfg_rt)
-        return pl_params
+        The validated reduction config is cached.
+        :meth:`PipelineRuntime.update`
+        should be used to update the underlying config and re-validate.
+        """
+        return self.config_cls.from_config(
+            self.config, rootpath=self.rootpath,
+            runtime_info=self.runtime_info)
 
-    def get_input_dataset(self):
-        """Return the input dataset."""
-        cfg = self.config['reduce']
-        cfg_rt = self.config['runtime_info']
-        path_validator = create_relpath_validator(cfg_rt['rootpath'])
+    def update(self, config):
+        self.config_backend.update_override_config(config)
+        if 'redu_config' in self.__dict__:
+            del self.__dict__['redu_config']
 
-        def resolve_input_item(cfg):
-            # index_table_filename='tolteca_index_table.ecsv'
-            # index_table_path = datadir.joinpath(index_table_filename)
-            cfg = Schema({
-                'path': Use(path_validator),
-                Optional('select', default=None): str
-                }).validate(cfg)
-            dataset = BasicObsDataset.from_files(
-                    cfg['path'].glob('*'), open_=False)
-            dataset = dataset.select(~np.equal(dataset['interface'], None))
-            return dataset
+    def cli_run(self, args=None):
+        """Run the reduction with CLI and save the result.
+        """
+        if args is not None:
+            _cli_cfg = config_from_cli_args(args)
+            # note the cli_cfg is under the namespace redu
+            cli_cfg = {self.config_cls.config_key: _cli_cfg}
+            if _cli_cfg:
+                self.logger.info(
+                    f"config specified with commandline arguments:\n"
+                    f"{pformat_yaml(cli_cfg)}")
+            self.update(cli_cfg)
+            cfg = self.redu_config.to_config()
+            # here we recursively check the cli_cfg and report
+            # if any of the key is ignored by the schema and
+            # throw an error
 
-        dataset = BasicObsDataset.vstack(
-                map(resolve_input_item, cfg['inputs']))
-        dataset.sort(['obsnum', 'interface'])
-        # add special index columns for obsnums for backward selection
-        for k in ['obsnum', 'subobsnum', 'scannum']:
-            dataset[f'{k}_r'] = dataset[k].max() - dataset[k]
-        self.logger.debug(f"collected {len(dataset)} data items")
-        return dataset
+            def _check_ignored(key_prefix, d, c):
+                if isinstance(d, dict) and isinstance(c, dict):
+                    ignored = set(d.keys()) - set(c.keys())
+                    ignored = [f'{key_prefix}.{k}' for k in ignored]
+                    if len(ignored) > 0:
+                        raise PipelineRuntimeError(
+                            f"Invalid config items specified in "
+                            f"the commandline: {ignored}")
+                    for k in set(d.keys()).intersection(c.keys()):
+                        _check_ignored(f'{key_prefix}{k}', d[k], c[k])
+            _check_ignored('', cli_cfg, cfg)
+        return self.run()
 
     def run(self):
-        """Run the pipeline.
+        """Run the reduction."""
 
-        Returns
-        -------
-        `PipelineResult` : The result context containing the reduced data.
-        """
-        pl_params = self.get_pipeline_params()
-        engine = pl_params['engine']
-        input_dataset = self.get_input_dataset()
-        self.logger.debug(f'{input_dataset}')
-        logfile = self.logdir.joinpath('reduce.log')
-        self.logger.info(f'setup logging to file {logfile}')
-        with log_to_file(
-                filepath=logfile, level='DEBUG', disable_other_handlers=False):
-            with engine.proc_context(pl_params['config']) as proc:
-                pl_info = proc(
-                        input_dataset.select('obsnum_r == 0'),
-                        self.get_or_create_output_dir(),
-                        self.logger.debug
-                        )
-        return pl_info
+        cfg = self.redu_config
 
-    @timeit
-    def cli_run(self, args=None):
-        """Run the pipeline and save the result.
-        """
-        self.run()
-        # result = self.run()
-        # result.save(self.get_or_create_output_dir())
-
-    def get_or_create_output_dir(self):
-        cfg = self.config['reduce']
-        outdir = self.rootpath.joinpath(cfg['jobkey'])
-        if not outdir.exists():
-            with logit(self.logger.debug, 'create output dir'):
-                outdir.mkdir(parents=True, exist_ok=True)
-        return outdir
+        self.logger.debug(
+            f"run reduction with config dict: "
+            f"{pformat_yaml(cfg.to_config())}")
+        # TODO
+        # later on we'll enable the DAG like pipeline step
+        # management facility but for now we'll just run each step
+        # sequentially.
+        n_steps = len(cfg.steps)
+        tmp_data = cfg.load_input_data()
+        self.logger.info(f"collected data from inputs: {tmp_data!r}")
+        if len(cfg.steps) == 0:
+            self.logger.warning("no pipeline steps found, nothing to do.")
+        for i, step in enumerate(cfg.steps):
+            with timeit(
+                    f"run pipeline step [{i + 1}/{n_steps}] {step.name}",
+                    level='INFO',
+                    ):
+                self.logger.debug(f"input data {tmp_data!r}")
+                tmp_data = step.run(cfg, inputs=tmp_data)
+                self.logger.debug(f"output data {tmp_data!r}")
+        self.logger.info("work's done!")
+        return tmp_data
 
 
-class PipelineResult(Namespace):
-    """A class to hold the results of a pipeline run."""
-    pass
-
-
-def load_example_configs():
-
-    example_dir = get_pkg_data_path().joinpath('examples')
-    files = ['toltec_citlali_simple.yaml']
-
-    def load_yaml(f):
-        with open(f, 'r') as fo:
-            return yaml.safe_load(fo)
-
-    configs = {
-            f'{f.stem}': load_yaml(f)
-            for f in map(example_dir.joinpath, files)}
-    return configs
-
-
-example_configs = load_example_configs()
+# make a list of all reduce config item types
+_locals = list(locals().values())
+redu_config_item_types = list()
+for v in _locals:
+    if is_dataclass(v) and hasattr(v, 'schema'):
+        redu_config_item_types.append(v)
+    elif isinstance(v, ConfigRegistry):
+        redu_config_item_types.extend(list(v.values()))

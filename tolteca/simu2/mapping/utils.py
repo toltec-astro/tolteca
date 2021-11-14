@@ -7,9 +7,10 @@ from astroquery.utils import parse_coordinates
 # this is not public API so be careful for future changes.
 from astropy.coordinates.sky_coordinate_parsers import _get_frame_class \
     as _astropy_get_frame_class
+from astropy.coordinates import AltAz, BaseCoordinateFrame
 
 
-__all__ = ['rotation_matrix_2d', ]
+__all__ = ['rotation_matrix_2d', 'resolve_sky_coords_frame']
 
 
 def rotation_matrix_2d(angle):
@@ -39,3 +40,20 @@ def _resolve_target(target, target_frame='icrs'):
 
 def _get_frame_class(frame_name):
     return _astropy_get_frame_class(frame_name)
+
+
+def resolve_sky_coords_frame(frame, observer=None, time_obs=None):
+    """
+    Return frame with appropriate attributes set for `observer` at `time_obs`.
+    """
+    if isinstance(frame, str):
+        frame_cls = _get_frame_class(frame)
+    elif isinstance(frame, BaseCoordinateFrame):
+        frame_cls = frame.__class__
+    elif issubclass(frame, BaseCoordinateFrame):
+        frame_cls = frame
+    else:
+        raise ValueError(f"unknown frame {frame}")
+    if frame_cls is AltAz:
+        return observer.altaz(time=time_obs)
+    return frame_cls()

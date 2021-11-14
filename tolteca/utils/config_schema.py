@@ -26,7 +26,7 @@ def _config_schema(cls, config_key):
 
 
 class ConfigSchema(schema.Schema):
-    """A subclass of schema that knows about config_key"""
+    """A subclass of schema that maps data class to config dict."""
 
     # note that the subclass's __init__ signature has to be
     # compatible with the base Schema class for recursive
@@ -56,7 +56,7 @@ class ConfigSchema(schema.Schema):
         """Return the config key this schema is associated with."""
         return self._config_key
 
-    def validate(self, config, create_instance=False):
+    def validate(self, config, create_instance=False, **kwargs):
         """Validate `config`, optionally create the dataclass instance.
 
         Parameters
@@ -70,12 +70,16 @@ class ConfigSchema(schema.Schema):
         """
         # validate the data. Note that the create_instance is propagated
         # down to any nested DataclassSchema instance's validate method.
-        return super().validate(config, create_instance=create_instance)
+        return super().validate(
+            config, create_instance=create_instance, **kwargs)
 
-    def load(self, config):
+    def load(self, config, runtime_info=None, **kwargs):
         """Return the instance of :attr:`dataclass_cls` created from `data`
         after validation."""
-        return self.validate(config, create_instance=True)[self.config_key]
+        inst = self.validate(config, create_instance=True, **kwargs)[
+            self.config_key]
+        inst.runtime_info = runtime_info
+        return inst
 
     def dump(self, instance):
         """Return the config dict for `instance`."""

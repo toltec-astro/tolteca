@@ -13,7 +13,7 @@ from astropy import coordinates as coord
 from tollan.utils.log import get_logger
 
 from ..base import _Model
-from ...common.lmt import info as _info
+from ...common.lmt import lmt_info
 
 
 __all__ = [
@@ -22,14 +22,14 @@ __all__ = [
         'get_lmt_atm_models']
 
 
-info = deepcopy(_info)
+info = deepcopy(lmt_info)
 """The LMT site info used by the simulator.
 
 """
 
 info['location'] = coord.EarthLocation.from_geodetic(
-        **info['site']['location'])
-info['timezone'] = timezone(info['site']['timezone'])
+        **info['location'])
+info['timezone'] = timezone(info['timezone_local'])
 info['observer'] = Observer(
         name=info['name_long'],
         location=info['location'],

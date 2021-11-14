@@ -1,13 +1,20 @@
 #!/usr/bin/env python
 
 
-from tolteca.utils import get_pkg_data_path
-from astropy.io.misc import yaml
+import astropy.units as u
 
 
-__all__ = ['info', ]
+__all__ = ['lmt_info', ]
 
-_info_yaml = get_pkg_data_path().joinpath('common/lmt.yaml')
 
-with open(_info_yaml, 'r') as fo:
-    info = yaml.load(fo)
+lmt_info = {
+    'instru': 'lmt',
+    'name': 'LMT',
+    'name_long': "Large Millimeter Telescope",
+    'location': {
+        'lon': '-97d18m52.6s',
+        'lat': '+18d59m10s',
+        'height': 4640 << u.m,
+        },
+    'timezone_local': 'America/Mexico_City'
+    }

@@ -47,13 +47,13 @@ def check_simu(result, option):
     else:
         result.add_item(
             result.S.info,
-            'Skipped checking db config in runtime context (not loaded).')
+            'Skipped checking simu config in runtime context (not loaded).')
     if add_simu_instruction:
         result.add_item(
             result.S.note,
             'Valid simulator config is required to run ``tolteca simu``.'
             'To setup, add in the config file with key "simu" and '
-            'value being a dict following one of The examples in the'
+            'value being a dict following one of The examples in the '
             'workdir/doc folder.'
             )
     return result

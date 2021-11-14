@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from tollan.utils.registry import Registry
-from schema import Or, Literal
+from schema import Or, Literal, Optional
 from tollan.utils.fmt import pformat_list
 import textwrap
 from tollan.utils.dataclass_schema import DataclassSchema
@@ -14,20 +14,25 @@ class ConfigRegistry(Registry):
     """A helper class to register handler class for config items.
     """
 
-    _register_info = dict()
-
     @classmethod
-    def create(cls, name, dispatcher_key, dispatcher_description=None):
+    def create(
+            cls, name, dispatcher_key,
+            dispatcher_description=None,
+            dispatcher_key_is_optional=False
+            ):
         inst = super().create()
         inst.name = name
         inst.dispatcher_key = dispatcher_key
         inst.dispatcher_description = dispatcher_description
+        inst.dispatcher_key_is_optional = dispatcher_key_is_optional
+        inst._register_info = dict()
         return inst
 
     def register(
             self, key, aliases=None,
             dispatcher_key=None,
-            dispatcher_description=None):
+            dispatcher_description=None,
+            ):
         """Register(or return decorator to register) item with `key` with
         optional aliases."""
         if aliases is None:
@@ -48,7 +53,9 @@ class ConfigRegistry(Registry):
 
             self._add_dispather_entry_to_schema(
                 item, dispatcher_key,
-                dispatcher_description, dispatcher_value_schema)
+                dispatcher_description, dispatcher_value_schema,
+                dispatcher_key_is_optional=self.dispatcher_key_is_optional,
+                dispatcher_key_optional_default=key)
             if aliases is not None:
                 # register the config item under the aliases
                 for a in aliases:
@@ -60,7 +67,7 @@ class ConfigRegistry(Registry):
     def item_schemas(self):
         """The generator for all item schemas."""
         # build an or-schema for all factories
-        return (v.schema for v in self.values())
+        return (self[k].schema for k in self._register_info.keys())
 
     @property
     def schema(self):
@@ -82,8 +89,8 @@ class ConfigRegistry(Registry):
 
         toc = pformat_list(
             toc_hdr + list(
-                (k, self._register_info[k]['aliases'], v.__name__)
-                for k, v in self.items()
+                (k, aliases, self[k].__name__)
+                for k, aliases in self._register_info.items()
                 ),
             indent=4)
         body = textwrap.indent('\n'.join(
@@ -96,12 +103,20 @@ class ConfigRegistry(Registry):
 
     @staticmethod
     def _add_dispather_entry_to_schema(
-            item, dispatcher_key, description, value_schema):
+            item, dispatcher_key, description, value_schema,
+            dispatcher_key_is_optional=False,
+            dispatcher_key_optional_default=None):
         # this will update the dict in-place
         # which may not be safe...
         # this juggling is to make the dispatcher key the first
         d = item.schema._schema
         d1 = item.schema._schema_orig = d.copy()
         d.clear()
-        d[Literal(dispatcher_key, description=description)] = value_schema
+        key_schema_kwargs = {'description': description}
+        if dispatcher_key_is_optional:
+            key_schema_cls = Optional
+            key_schema_kwargs['default'] = dispatcher_key_optional_default
+        else:
+            key_schema_cls = Literal
+        d[key_schema_cls(dispatcher_key, **key_schema_kwargs)] = value_schema
         d.update(d1)

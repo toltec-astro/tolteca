@@ -6,6 +6,7 @@ from tollan.utils.dataclass_schema import DataclassNamespace
 
 from ...utils.common_schema import RelPathSchema
 from .. import sources_registry
+from .models import ImageSourceModel, CatalogSourceModel
 
 
 @sources_registry.register('image')
@@ -23,6 +24,11 @@ class ImageSourceConfig(DataclassNamespace):
             description="The assignment of extension to each group item."):
         dict,
         })
+
+    def __call__(self, cfg):
+        return ImageSourceModel.from_fits(
+            self.filepath, extname_map=self.extname_map, grouping=self.grouping
+            )
 
 
 @sources_registry.register('point_source_catalog')
@@ -56,3 +62,9 @@ class PointSourceCatalogSourceConfig(DataclassNamespace):
             str: object
             },
         })
+
+    def __call__(self, cfg):
+        return CatalogSourceModel.from_file(
+            self.filepath, colname_map=self.colname_map,
+            grouping=self.grouping
+            )

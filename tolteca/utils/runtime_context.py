@@ -301,12 +301,20 @@ class ConfigBackend(object):
         """
         return self.load()
 
-    def _invalidate_config_cache(self):
+    def _invalidate_config_cache(self, include_config_impl_cache=True):
         """This has to be called to allow re-build of the config dict."""
         logger = get_logger()
         if 'config' in self.__dict__:
             del self.__dict__['config']
             logger.debug("config cache invalidated")
+        if include_config_impl_cache and \
+                '_config_impl_cached' in self.__dict__:
+            del self.__dict__['_config_impl_cached']
+            logger.debug("config impl cache invalidated")
+
+    @cached_property
+    def _config_impl(self):
+        return self._config
 
     def _make_config_from_configs(self):
         """
@@ -315,33 +323,31 @@ class ConfigBackend(object):
 
         """
         cfg = dict()
-        if self._default_config:
-            rupdate(cfg, self._default_config)
-        if self._config:
-            rupdate(cfg, self._config)
-        if self._override_config:
-            rupdate(cfg, self._override_config)
+        rupdate(cfg, self._default_config or dict())
+        rupdate(cfg, self._config_impl or dict())
+        rupdate(cfg, self._override_config or dict())
         return cfg
 
-    def load(self):
+    def load(self, update_runtime_info=True, reload_config=True):
         """Build the config dict and the runtime info.
 
         This invalidate the config cache and update the runtime info
         object accordingly.
         """
-        self._invalidate_config_cache()
+        self._invalidate_config_cache(include_config_impl_cache=reload_config)
         # this is to just compile the config without dumping the runtimeinfo
         # because we do not know it yet.
         cfg = self._make_config_from_configs()
         # create and update the runtime info
-        runtime_info = self._runtime_info = RuntimeInfo.schema.load(
-            self._make_runtime_info_dict(cfg))
-        # dump the runtime info back to the cfg
-        rupdate(
-            cfg, {
-                self._runtime_info_key: runtime_info.to_dict()
-                }
-            )
+        if update_runtime_info:
+            runtime_info = self._runtime_info = RuntimeInfo.schema.load(
+                self._make_runtime_info_dict(cfg))
+            # dump the runtime info back to the cfg
+            rupdate(
+                cfg, {
+                    self._runtime_info_key: runtime_info.to_dict()
+                    }
+                )
         return cfg
 
     def _make_config_for_setup(self, runtime_info_only=False):
@@ -371,7 +377,7 @@ class ConfigBackend(object):
         This will invalidate the cache.
         """
         self._default_config = cfg
-        self.load()
+        self.load(reload_config=False, update_runtime_info=False)
 
     def set_override_config(self, cfg):
         """Set the override config dict.
@@ -380,7 +386,7 @@ class ConfigBackend(object):
         """
 
         self._override_config = cfg
-        self.load()
+        self.load(reload_config=False, update_runtime_info=False)
 
     def update_default_config(self, cfg):
         """Update the default config dict.
@@ -432,6 +438,8 @@ class DirConf(ConfigBackend, DirConfMixin):
     rootpath : str, `pathlib.Path`
         The path to the config dir.
     """
+
+    logger = get_logger()
 
     _contents = odict_from_list([
         DirConfPath(
@@ -642,10 +650,17 @@ in multiple such files, the one with larger leading number takes precedence
         # reference of all dataclasses.
         with open(
                 docdir.joinpath('00_config_dict_references.txt'), 'w') as fo:
+            # collect all config types from submodules
+            from ..simu2 import simu_config_item_types
+            from ..reduce import redu_config_item_types
             for dcls in [
                     ConfigInfo, SetupInfo, RuntimeInfo
-                    ]:
-                fo.write(f"\n{dcls.schema.pformat()}\n")
+                    ] + simu_config_item_types + redu_config_item_types:
+                if hasattr(dcls, 'pformat_schema'):
+                    doc = dcls.pformat_schema()
+                else:
+                    doc = dcls.schema.pformat()
+                fo.write(f"\n{doc}\n")
         # example config files
         example_dir = get_pkg_data_path().joinpath('examples')
         for file in [
@@ -653,7 +668,7 @@ in multiple such files, the one with larger leading number takes precedence
                 '60_simu_point_source_lissajous.yaml',
                 '61_simu_blank_field_raster.yaml',
                 '62_simu_fits_input_rastajous.yaml',
-                '70_redu_basic.yaml'
+                '70_redu_simulated_data.yaml'
                 ]:
             shutil.copyfile(example_dir.joinpath(file), docdir.joinpath(file))
         # readme file in the rootpath
@@ -773,22 +788,18 @@ class RuntimeContext(object):
             config_path = ensure_abspath(config)
             config_dict = None
             if config_path.is_file():
-                try:
-                    config_backend = FileConf(config_path)
-                except ConfigBackendError as e:
-                    raise RuntimeContextError(
-                        f"unable to load config from file {config_path}: {e}"
-                        )
+                self.logger.debug(f"load config from file {config_path}")
+                config_backend = FileConf(config_path)
             else:
-                try:
-                    config_backend = DirConf(rootpath=config_path)
-                except Exception as e:
-                    raise RuntimeContextError(
-                        f'unable to load config from workdir'
-                        f' {config_path}: {e}. '
-                        f'To create a workdir, use `RuntimeContext.from_dir`'
-                        f'with `create=True` instead'
-                        )
+                self.logger.debug(f"load config from workdir {config_path}")
+                config_backend = DirConf(rootpath=config_path)
+                # except Exception as e:
+                #     raise RuntimeContextError(
+                #         f'unable to load config from workdir'
+                #         f' {config_path}: {e}. '
+                #         f'To create a workdir, use `RuntimeContext.from_dir`'
+                #         f'with `create=True` instead'
+                #         )
         else:
             raise RuntimeContext(f'invalid config source {config}')
         self._config_path = config_path

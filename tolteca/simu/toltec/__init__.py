@@ -20,7 +20,7 @@ from astropy import constants as const
 from astropy.utils.decorators import classproperty
 
 # TODO: remove this (just import toast)
-import toast
+# import toast
 
 from gwcs import coordinate_frames as cf
 
@@ -34,7 +34,7 @@ from ..base import (
         SourceImageModel, SourceCatalogModel)
 from ..base import resolve_sky_map_ref_frame as _resolve_sky_map_ref_frame
 from ...utils import get_pkg_data_path
-from ...common.toltec import info as toltec_info  # noqa: F401
+from ...common.toltec import toltec_info  # noqa: F401
 from .lmt import info as site_info
 from .lmt import get_lmt_atm_models
 
@@ -498,8 +498,18 @@ class ArrayLoadingModel(_Model):
                 "invalid passband format, frequency grid has to be uniform")
         self._df = self._f[1] - self._f[0]
         self._throughput = self._passband['throughput']
-        self._atm_model, self._atm_tx_model = get_lmt_atm_models(
+        if atm_model_name is not None:
+            self._atm_model, self._atm_tx_model = get_lmt_atm_models(
                 name=atm_model_name)
+        else:
+            self._atm_model = None
+            # TODO revisit this
+            _, self._atm_tx_model = get_lmt_atm_models(
+                name='am_q50')
+
+    @property
+    def has_atm_model(self):
+        return self._atm_model is not None
 
     @classproperty
     def _internal_params(cls):
@@ -594,6 +604,8 @@ class ArrayLoadingModel(_Model):
             If True, return the weighted sum over the passband instead.
         """
         atm_model = self._atm_model
+        if atm_model is None:
+            return np.squeeze(np.zeros((alt.size, self._f.size)) << u.K)
         # here we put the alt on the first axis for easier reduction on f.
         T_atm = atm_model(*np.meshgrid(self._f, alt, indexing='ij')).T
         if return_avg:
@@ -815,7 +827,7 @@ class ArrayLoadingModel(_Model):
         nep = self._get_noise(alt, return_avg=True)['nep']
         return P, nep
 
-@timeit
+# @timeit
 def integrate_detector_slab(package_):
     """Given timestream, az, el, detector info
     and an atmospheric slab, return tod.
@@ -1390,16 +1402,19 @@ class ToltecObsSimulator(object):
 
                             run_multiprocess = None
                             with timeit(f"observing slab id: {slab_id} (all detectors)"):
+                                import  tqdm
                                 if run_multiprocess:
                                     import multiprocessing
                                     with timeit(f'using multiprocessing with {multiprocessing.cpu_count()} processes...'):
                                         logger.info(f'using multiprocessing with {multiprocessing.cpu_count()} processes...')
                                         with multiprocessing.Pool(multiprocessing.cpu_count()) as atm_obs_pool:
-                                            mapped_return = atm_obs_pool.map(integrate_detector_slab, detector_info)
+                                            mapped_return = list(tqdm.tqdm(atm_obs_pool.imap(integrate_detector_slab, detector_info), total=len(detector_info)))
+                                            # mapped_return = atm_obs_pool.map(integrate_detector_slab, detector_info)
                                 else:
                                     with timeit(f"sequential map"):
                                         logger.info(f'using sequential integration mapping (slab {slab_id})...')
-                                        mapped_return = list(map(integrate_detector_slab, detector_info))
+                                        # mapped_return = list(map(integrate_detector_slab, detector_info))
+                                        mapped_return = list(tqdm.tqdm(map(integrate_detector_slab, detector_info), total=len(detector_info)))
                                     
                                 atm_par_result = []
                                 for returned in mapped_return:

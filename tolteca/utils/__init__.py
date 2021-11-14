@@ -197,7 +197,7 @@ def config_from_cli_args(args):
     logger.debug(f"update config with command line args: {args}")
 
     parser = argparse.ArgumentParser()
-    re_arg = re.compile(r'^--(?P<key>[a-zA-Z_](\w|.|_)*)')
+    re_arg = re.compile(r'^--(?P<key>[a-zA-Z_]([a-zA-z0-9_.\[\]])*)')
     n_args = len(args)
     for i, arg in enumerate(args):
         # collect all items that are argument keys.
