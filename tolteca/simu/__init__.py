@@ -763,8 +763,6 @@ class SimulatorRuntime(RuntimeContext):
             x = m_rot_m3[0, 0][:, np.newaxis] * x_t[np.newaxis, :] + m_rot_m3[0, 1][:, np.newaxis] * y_t[np.newaxis, :]
             y = m_rot_m3[1, 0][:, np.newaxis] * x_t[np.newaxis, :] + m_rot_m3[1, 1][:, np.newaxis] * y_t[np.newaxis, :]
             az, alt = m_proj_native(x, y)
-            self.logger.debug(f'generated: prepad min azimuth: {np.min(az)}')
-            self.logger.debug(f'generated: prepad max azimuth: {np.max(az)}')
 
             self.logger.info("calculated the boresight coordinates")
             # _atm_obs_coords should represent the boresight coordinates 
