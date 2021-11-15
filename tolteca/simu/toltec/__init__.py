@@ -1287,8 +1287,8 @@ class ToltecObsSimulator(object):
                 time_obs = t0 + t
                 # transform ref_coord to ref_frame
                 # need to re-set altaz frame with frame attrs
+                logger = get_logger()
                 with timeit("transform bore sight coords to projected frame"):
-                    logger = get_logger()
                     _ref_frame = self.resolve_sky_map_ref_frame(
                             ref_frame, time_obs=time_obs)
                     with timeit(
