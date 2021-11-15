@@ -1364,7 +1364,7 @@ class ToltecObsSimulator(object):
                         + m_rot_m3[1, 1][:, np.newaxis] * y_t[np.newaxis, :]
                     lon, lat = m_proj_icrs(
                         x, y, eval_interp_len=0.1 << u.s)
-                    az, alt = m_proj_native(x, y, eval_interp_len=1 << u.s)     
+                    az, alt = m_proj_native(x, y, eval_interp_len=0.1 << u.s)     
                 if self.atm_simulation is not None:
                     logger.debug(f'observing min azimuth: {np.min(az)}')
                     logger.debug(f'observing max azimuth: {np.max(az)}')
