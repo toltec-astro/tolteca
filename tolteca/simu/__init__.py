@@ -738,7 +738,8 @@ class SimulatorRuntime(RuntimeContext):
             # make t grid for atm (1 second intervals; high resolution not required)
             _t_atm = np.arange(0, t_exp.to_value(u.s), 1) * u.s
             _atm_time_obs = mapping.t0 + _t_atm
-            
+            self.logger.debug(f'atm generation from {_atm_time_obs[0]} to {_atm_time_obs[-1]}')
+
             _atm_ref_frame = resolve_sky_map_ref_frame(
                     AltAz, observer=simobj.observer, time_obs=_atm_time_obs)
             hold_flags = mapping.evaluate_holdflag(_t_atm)
@@ -795,12 +796,21 @@ class SimulatorRuntime(RuntimeContext):
             # plt.axhline(max_az.to_value(u.degree))
             # plt.show()
 
+            # create the toast cache directory to cache files 
+            # TODO: add option to specify a folder?
+            toast_atm_cache_dir = self.rootpath.joinpath('toast_atm')
+            if not toast_atm_cache_dir.exists():
+                with logit(self.logger.debug, 'create cache output dir'):
+                    toast_atm_cache_dir.mkdir(parents=True, exist_ok=True)
+
             # generate the toast atmospheric simulation model 
             toast_atm_simulation = ToastAtmosphereSimulation(
                     _atm_time_obs[0], 
                     _atm_time_obs[0].unix, _atm_time_obs[-1].unix, 
-                    min_az, max_az, min_alt, max_alt
+                    min_az, max_az, min_alt, max_alt,
+                    cachedir=toast_atm_cache_dir
                 )
+
             toast_atm_simulation.generate_simulation()  
 
             # stick it into the simobj for easy access
