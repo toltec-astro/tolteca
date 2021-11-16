@@ -802,6 +802,13 @@ class SimulatorRuntime(RuntimeContext):
             if not toast_atm_cache_dir.exists():
                 with logit(self.logger.debug, 'create cache output dir'):
                     toast_atm_cache_dir.mkdir(parents=True, exist_ok=True)
+                    
+            # propagate debug flag to toast so it also logs
+            if self.logger.level < 20:
+                self.logger.debug('setting toast to debug logging')
+                import toast.utils
+                toast_env = toast.utils.Environment.get()
+                toast_env.set_log_level('DEBUG')
 
             # generate the toast atmospheric simulation model 
             toast_atm_simulation = ToastAtmosphereSimulation(
