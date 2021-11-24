@@ -1366,10 +1366,16 @@ class ToltecObsSimulator(object):
                         x, y, eval_interp_len=0.1 << u.s)
                     az, alt = m_proj_native(x, y, eval_interp_len=0.1 << u.s)     
                 if self.atm_simulation is not None:
+                    logger.debug(f'simulated min azimuth: {self.atm_simulation.azmin}')
                     logger.debug(f'observing min azimuth: {np.min(az)}')
+                    logger.debug(f'simulated max azimuth: {self.atm_simulation.azmax}')
                     logger.debug(f'observing max azimuth: {np.max(az)}')
+                    logger.debug(f'simulated min elevation: {self.atm_simulation.elmin}')
                     logger.debug(f'observing min elevation: {np.min(alt)}')
+                    logger.debug(f'simulated max elevation: {self.atm_simulation.elmax}')
                     logger.debug(f'observing max elevation: {np.max(alt)}')
+
+                    #np.savez(f'{self.debug_dir}/{str(int(time_obs[0].unix))}_chunk.npz', alt=alt.to_value(u.degree), az=az.to_value(u.degree))
 
                     # observe the toast atmospheric simulation model 
                     gain = 1
