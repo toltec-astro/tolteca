@@ -581,7 +581,7 @@ class SimulatorRuntime(RuntimeContext):
                 'type': Or(*_mapping_model_factory.keys()),
                 Optional(str): object
                 },
-            # Optional('toast_atm', default=False): bool,
+            Optional('toast_array_padding', default=(1 * u.degree)): Use(u.Quantity),
             Optional('mapping_only', default=False): bool,
             Optional('coverage_only', default=False): bool,
             Optional('exports', default=[{'format': 'lmtot'}]): [{
@@ -737,8 +737,9 @@ class SimulatorRuntime(RuntimeContext):
             self.logger.info("generating the atmosphere/simulation using toast")
             # make t grid for atm (1 second intervals; high resolution not required)
             _t_atm = np.arange(0, t_exp.to_value(u.s), 1) * u.s
+
             _atm_time_obs = mapping.t0 + _t_atm
-            
+
             _atm_ref_frame = resolve_sky_map_ref_frame(
                     AltAz, observer=simobj.observer, time_obs=_atm_time_obs)
             hold_flags = mapping.evaluate_holdflag(_t_atm)
@@ -751,14 +752,15 @@ class SimulatorRuntime(RuntimeContext):
                 time_obs=_atm_time_obs,
                 evaluate_frame=AltAz,
             )
-
-            array_padding = 5 * u.arcmin
+            
+            # get the array padding default 1 * u.deg
+            array_size = 4 * u.arcmin
             a = _atm_obs_coords.alt.radian
             m_rot_m3 = np.array([
                 [np.cos(a), -np.sin(a)],
                 [np.sin(a),  np.cos(a)]
             ])
-            x_t = u.Quantity(np.linspace(-1.0 * array_padding.value, array_padding.value, 10)) * array_padding.unit
+            x_t = u.Quantity(np.linspace(-1.0 * array_size.value, array_size.value, 10)) * array_size.unit
             y_t = x_t
             x = m_rot_m3[0, 0][:, np.newaxis] * x_t[np.newaxis, :] + m_rot_m3[0, 1][:, np.newaxis] * y_t[np.newaxis, :]
             y = m_rot_m3[1, 0][:, np.newaxis] * x_t[np.newaxis, :] + m_rot_m3[1, 1][:, np.newaxis] * y_t[np.newaxis, :]
@@ -767,19 +769,22 @@ class SimulatorRuntime(RuntimeContext):
             self.logger.info("calculated the boresight coordinates")
             # _atm_obs_coords should represent the boresight coordinates 
             # now obtain the bounding box and add padding extremes
+            additional_padding = cfg['toast_array_padding']
+            self.logger.debug(f"padding used: {additional_padding}")
             
             # altitude/elevation
-            min_alt = np.min(alt) 
-            max_alt = np.max(alt) 
+            min_alt = np.min(alt) - additional_padding
+            max_alt = np.max(alt) + additional_padding
 
             if min_alt < (0 * u.degree):
                 min_alt = 0. * u.degree
             if max_alt > (90 * u.degree):
                 max_alt = 90. * u.degree
 
-            # azimuth (revise this procedure)
-            min_az = np.min(az) 
-            max_az = np.max(az)
+            # azimuth (revise this procedure to account for wrapping)
+            min_az = np.min(az) - additional_padding
+            max_az = np.max(az) + additional_padding
+
 
             self.logger.debug(f'generated: min elevation: {min_alt}')
             self.logger.debug(f'generated: max elevation: {max_alt}')
@@ -788,19 +793,58 @@ class SimulatorRuntime(RuntimeContext):
 
             # import matplotlib.pyplot as plt
             # plt.figure()
-            # plt.plot(_atm_obs_coords.alt.to_value(u.degree), _atm_obs_coords.az.to_value(u.degree))
-            # plt.axvline(min_alt.to_value(u.degree))
-            # plt.axvline(max_alt.to_value(u.degree))
-            # plt.axhline(min_az.to_value(u.degree))
-            # plt.axhline(max_az.to_value(u.degree))
+            # plt.plot(_atm_obs_coords.az.to_value(u.degree), _atm_obs_coords.alt.to_value(u.degree), linewidth=0.5)
+            # plt.axhline(min_alt.to_value(u.degree), color='red')
+            # plt.axhline(max_alt.to_value(u.degree), color='red')
+            # plt.axvline(min_az.to_value(u.degree), color='red')
+            # plt.axvline(max_az.to_value(u.degree), color='red')
+            # plt.xlabel('azimuth (deg)')
+            # plt.ylabel('altitude/elevation (deg)')
             # plt.show()
+
+            # import matplotlib.pyplot as plt
+            # azel_fig, azel_subplots = plt.subplots(1, 1, dpi=100, subplot_kw={'projection': 'polar'})
+            # azel_subplots.plot(_atm_obs_coords.az.to_value(u.radian), _atm_obs_coords.alt.to_value(u.radian), ',')
+            # azel_subplots.set_rmax(np.pi / 2)
+            # azel_subplots.set_rticks([])  # radial ticks
+            # azel_subplots.set_rlabel_position(-22.5)  # get radial labels away from plotted line
+            # azel_subplots.grid(True)
+            # azel_subplots.set_theta_zero_location("N")  # theta = 0 at the top
+            # #hwp_subfig.set_theta_direction(1)        # theta increasing clockwise
+            # angle = np.deg2rad(67.5)
+            # #azel_subplots.legend(fancybox=False, handletextpad=0.7, frameon=False, loc="lower left", bbox_to_anchor=(.5 + np.cos(angle)/2, .5 + np.sin(angle)/2))
+            # azel_subplots.plot(np.linspace(0,2 * np.pi, 100), min_alt.to_value(u.radian)* np.ones_like(np.linspace(0,2 * np.pi, 100)), '-', linewidth=1, color='red')
+            # azel_subplots.plot(np.linspace(0,2 * np.pi, 100), max_alt.to_value(u.radian)* np.ones_like(np.linspace(0,2 * np.pi, 100)), '-', linewidth=1, color='red')
+            # azel_subplots.plot(min_az.to_value(u.radian) * np.ones_like(np.linspace(0, np.pi/2, 5)), np.linspace(0, np.pi/2, 5), '--', linewidth=1, color='red')
+            # azel_subplots.plot(max_az.to_value(u.radian) * np.ones_like(np.linspace(0, np.pi/2, 5)), np.linspace(0, np.pi/2, 5), '--', linewidth=1, color='red')
+            # plt.show()
+
+            # debug_dir = self.rootpath.joinpath('debug_folder')
+            # debug_dir.mkdir(parents=True, exist_ok=True)
+            # simobj.debug_dir = debug_dir
+            # np.savez(f'{debug_dir}/boresight.npz', alt=alt.to_value(u.degree), az=az.to_value(u.degree))
+        
+            # create the toast cache directory to cache files 
+            # TODO: add option to specify a folder?
+            toast_atm_cache_dir = self.rootpath.joinpath('toast_atm')
+            if not toast_atm_cache_dir.exists():
+                with logit(self.logger.debug, 'create cache output dir'):
+                    toast_atm_cache_dir.mkdir(parents=True, exist_ok=True)
+                    
+            # propagate debug flag to toast so it also logs 
+            # if self.logger.getEffectiveLevel() == 10:
+            #     import toast.utils
+            #     toast_env = toast.utils.Environment.get()
+            #     toast_env.set_log_level('DEBUG')
 
             # generate the toast atmospheric simulation model 
             toast_atm_simulation = ToastAtmosphereSimulation(
                     _atm_time_obs[0], 
                     _atm_time_obs[0].unix, _atm_time_obs[-1].unix, 
-                    min_az, max_az, min_alt, max_alt
+                    min_az, max_az, min_alt, max_alt,
+                    cachedir=toast_atm_cache_dir
                 )
+
             toast_atm_simulation.generate_simulation()  
 
             # stick it into the simobj for easy access
