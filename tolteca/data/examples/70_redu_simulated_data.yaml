@@ -141,12 +141,12 @@ reduce:
           method: naive #jinc, maximum_likelihood (toast)?
           pixel_axes: icrs #icrs, lb
           pixel_size_arcsec: 0.75
-          crval1_J2000: null #absolute pointing_x
-          crval2_J2000: null #absolute pointing_y
-          crpix1: null
-          crpix2: null
-          x_size_pix: null #null or value
-          y_size_pix: null #null or value
+          crval1_J2000: 0 #absolute pointing_x
+          crval2_J2000: 0 #absolute pointing_y
+          crpix1: 0
+          crpix2: 0
+          x_size_pix: 0 #null or value
+          y_size_pix: 0 #null or value
         beammap:
           iter_tolerance: 0.2
           iter_max: 1
