@@ -157,6 +157,7 @@ reduce:
           initial_guess: brightest_pixel #table
         coadd:
           enabled: false
+          cov_cut: 0.9
           noise_maps:
             enabled: false
             n_noise_maps: 100
