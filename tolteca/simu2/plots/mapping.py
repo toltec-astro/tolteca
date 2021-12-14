@@ -32,13 +32,14 @@ def plot_mapping(
     dlon, dlat = mapping_offset(t)
 
     # then evaluate the mapping model in mapping.ref_frame
-    obs_coords = mapping.evaluate_coords(t)
+    # to get the bore sight coords
+    bs_coords = mapping.evaluate_coords(t)
 
-    # and we can convert the obs_coords to other frames if needed
-    obs_coords_icrs = obs_coords.transform_to('icrs')
+    # and we can convert the bs_coords to other frames if needed
+    bs_coords_icrs = bs_coords.transform_to('icrs')
 
-    # and we can convert the obs_coords to other frames if needed
-    obs_coords_altaz = obs_coords.transform_to('altaz')
+    # and we can convert the bs_coords to other frames if needed
+    bs_coords_altaz = bs_coords.transform_to('altaz')
 
     # now we can plot all these information
 
@@ -78,7 +79,7 @@ def plot_mapping(
     # ax.set_aspect(np.cos(target_altaz.alt.radian))
     # ax.set_aspect(1. / np.cos(target_altaz.alt.radian))
     ax.plot(
-        obs_coords_altaz.az.degree, obs_coords_altaz.alt.degree,
+        bs_coords_altaz.az.degree, bs_coords_altaz.alt.degree,
         color='red',
         )
     ax.set_xlabel('Az')
@@ -92,7 +93,7 @@ def plot_mapping(
     ax = fig.add_subplot(gs[2], projection=w)
     ax.set_aspect('equal')
     ax.plot(
-        obs_coords_icrs.ra, obs_coords_icrs.dec,
+        bs_coords_icrs.ra, bs_coords_icrs.dec,
         transform=ax.get_transform('icrs'),
         color='red',
         )

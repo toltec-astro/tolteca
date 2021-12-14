@@ -1,18 +1,23 @@
 #!/usr/bin/env python
 
+import numpy as np
 import astropy.units as u
+from typing import Union
 from dataclasses import dataclass, field, is_dataclass
 from cached_property import cached_property
+import copy
 
 from tollan.utils.dataclass_schema import add_schema
-from tollan.utils.log import get_logger
+from tollan.utils.log import get_logger, logit, log_to_file
 from tollan.utils.fmt import pformat_yaml
+from tollan.utils import rupdate
 
 from ..utils.common_schema import PhysicalTypeSchema
 from ..utils.config_registry import ConfigRegistry
 from ..utils.config_schema import add_config_schema
 from ..utils.runtime_context import RuntimeContext, RuntimeContextError
 from ..utils import config_from_cli_args
+
 
 __all__ = ['SimulatorRuntime', 'SimulatorRuntimeError']
 
@@ -22,11 +27,11 @@ __all__ = ['SimulatorRuntime', 'SimulatorRuntimeError']
 class ObsParamsConfig(object):
     """The config class for ``simu.obs_params``."""
 
-    t_exp: u.Quantity = field(
-        default=10 << u.s,
+    t_exp: Union[u.Quantity, None] = field(
+        default=None,
         metadata={
             'description': 'The duration of the observation to simulate.',
-            'schema': PhysicalTypeSchema("time"),
+            'schema': PhysicalTypeSchema('time'),
             }
         )
 
@@ -213,6 +218,18 @@ class SimuConfig(object):
             }
         config_key = 'simu'
 
+    def get_or_create_output_dir(self):
+        logger = get_logger()
+        rootpath = self.runtime_info.config_info.runtime_context_dir
+        output_dir = rootpath.joinpath(self.jobkey)
+        if not output_dir.exists():
+            with logit(logger.debug, 'create output dir'):
+                output_dir.mkdir(parents=True, exist_ok=True)
+        return output_dir
+
+    def get_log_file(self):
+        return self.runtime_info.logdir.joinpath('simu.log')
+
 
 class SimulatorRuntimeError(RuntimeContextError):
     """Raise when errors occur in `SimulatorRuntime`."""
@@ -236,7 +253,9 @@ class SimulatorRuntime(RuntimeContext):
         The validated config is cached. :meth:`SimulatorRuntime.update`
         should be used to update the underlying config and re-validate.
         """
-        return self.config_cls.from_config(self.config, rootpath=self.rootpath)
+        return self.config_cls.from_config(
+            self.config, rootpath=self.rootpath,
+            runtime_info=self.runtime_info)
 
     def update(self, config):
         self.config_backend.update_override_config(config)
@@ -294,6 +313,7 @@ class SimulatorRuntime(RuntimeContext):
         # run simulator
         sim = cfg.instrument(cfg)
         obs_params = cfg.obs_params
+        perf_params = cfg.perf_params
         m_mapping = cfg.mapping(cfg)
         m_sources = [s(cfg) for s in cfg.sources]
 
@@ -301,13 +321,64 @@ class SimulatorRuntime(RuntimeContext):
             f'run {sim} with:{{}}\n'.format(
                 pformat_yaml({
                     'obs_params': obs_params.to_dict(),
+                    'perf_params': perf_params.to_dict(),
                     })))
         self.logger.debug(
-            'mapping:\n{}\nsources:\n{}\n'.format(
+            'mapping:\n{}\n\nsources:\n{}\n'.format(
                 m_mapping,
                 '\n'.join(str(s) for s in m_sources)
                 )
             )
+
+        # create the time grid and run the simulation
+        # here we use t_pattern when t_exp is not set
+        t_exp = obs_params.t_exp
+        if t_exp is None:
+            t_pattern = m_mapping.t_pattern
+            self.logger.debug(f"mapping pattern time: {t_pattern}")
+            t_exp = t_pattern
+            self.logger.info(f"use t_exp={t_exp} from mapping pattern")
+        else:
+            self.logger.info(f"use t_exp={t_exp} from obs_params")
+
+        t_chunks = self._make_time_chunks(
+            t_exp=t_exp,
+            f_smp=obs_params.f_smp_probing,
+            chunk_len=perf_params.chunk_len)
+
+        output_dir = cfg.get_or_create_output_dir()
+        log_file = cfg.get_log_file()
+        self.logger.info(f'setup logging to file {log_file}')
+        with log_to_file(
+                filepath=log_file,
+                level='DEBUG',
+                disable_other_handlers=False
+                ):
+            output_ctx = sim.output_context(dirpath=output_dir)
+            with output_ctx.open():
+                self.logger.info(
+                    f"write output to {output_ctx.rootpath}")
+                # save the config file as YAML
+                config_filepath = output_ctx.make_output_filename(
+                    'tolteca', '.yaml')
+                with open(config_filepath, 'w') as fo:
+                    config = copy.deepcopy(self.config)
+                    rupdate(config, self.simu_config.to_config())
+                    self.yaml_dump(config, fo)
+                # save mapping model meta
+                output_ctx.write_mapping_meta(
+                    mapping=m_mapping, simu_config=cfg)
+                # save simulator meta
+                output_ctx.write_sim_meta(simu_config=cfg)
+
+                # run simulator for each chunk and save the data
+                tod_eval = sim.tod_evaluator(
+                    mapping=m_mapping, sources=m_sources, simu_config=cfg)
+                n_chunks = len(t_chunks)
+                for ci, t in enumerate(t_chunks):
+                    self.logger.info(f"working on chunk {ci} of {n_chunks}")
+                    output_ctx.write_sim_data(tod_eval(t))
+        return output_dir
 
     def plot(self, type, **kwargs):
         """Make plot of type `type`."""
@@ -317,6 +388,33 @@ class SimulatorRuntime(RuntimeContext):
                 f"Available types: {plots_registry.keys()}")
         plotter = plots_registry[type].from_dict(kwargs)
         return plotter(self.simu_config)
+
+    @classmethod
+    def _make_time_chunks(cls, t_exp, f_smp, chunk_len):
+        t = np.arange(
+                0, t_exp.to_value(u.s),
+                (1 / f_smp).to_value(u.s)) * u.s
+        chunk_len = chunk_len
+        n_times_per_chunk = int((
+                chunk_len * f_smp).to_value(
+                        u.dimensionless_unscaled))
+        n_times = len(t)
+        n_chunks = n_times // n_times_per_chunk + bool(
+                n_times % n_times_per_chunk)
+        t_chunks = []
+        for i in range(n_chunks):
+            t_chunks.append(
+                    t[i * n_times_per_chunk:(i + 1) * n_times_per_chunk])
+        # merge the last chunk if it is too small
+        if n_chunks >= 2:
+            if len(t_chunks[-1]) * 10 < len(t_chunks[-2]):
+                last_chunk = t_chunks.pop()
+                t_chunks[-1] = np.hstack([t_chunks[-1], last_chunk])
+        n_chunks = len(t_chunks)
+        cls.logger.info(
+                f"simulate with n_times_per_chunk={n_times_per_chunk}"
+                f" n_times={len(t)} n_chunks={n_chunks}")
+        return t_chunks
 
 
 # make a list of all simu config item types

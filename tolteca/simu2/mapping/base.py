@@ -8,12 +8,27 @@ from astropy.coordinates import SkyCoord
 from tollan.utils.log import timeit
 from astropy.table import Table
 from astropy.utils import indent
-
+from enum import Flag, auto
 
 from .utils import _get_skyoffset_frame, resolve_sky_coords_frame
 
 
 __all__ = ['OffsetMappingModel', 'TargetedOffsetMappingModel']
+
+
+class PatternKind(Flag):
+    """The available pattern kinds."""
+    raster = auto()
+    lissajous = auto()
+    rastajous = auto()
+    raster_like = raster | rastajous
+
+
+class MappingModelBase(Model):
+    """The base class for all mapping models."""
+
+    def pattern_kind(self):
+        return self._pattern_kind
 
 
 class OffsetMappingModel(Model):
@@ -94,7 +109,7 @@ class TargetedOffsetMappingModel(TrajMappingModel):
 
     @property
     def frame(self):
-        """The coordinate frame for `ref_frame`."""
+        """The WCS coordinate frame for `ref_frame`."""
         return self._frame
 
     @property
@@ -110,6 +125,10 @@ class TargetedOffsetMappingModel(TrajMappingModel):
     @property
     def t_pattern(self):
         return self.offset_mapping_model.t_pattern
+
+    @property
+    def pattern_kind(self):
+        return self.offset_mapping_model.pattern_kind
 
     @timeit
     def evaluate_coords(self, t):
@@ -129,6 +148,10 @@ class TargetedOffsetMappingModel(TrajMappingModel):
     def evaluate(self, t):
         coords = self.evaluate_coords(t)
         return coords.data.lon.to(u.deg), coords.data.lat.to(u.deg)
+
+    @timeit
+    def evaluate_holdflag(self, t):
+        return self.offset_mapping_model.evaluate_holdflag(t)
 
     def __repr__(self):
         return (

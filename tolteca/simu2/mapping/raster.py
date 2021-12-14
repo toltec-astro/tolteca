@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 
-from .base import OffsetMappingModel
+from .base import OffsetMappingModel, PatternKind
 from .utils import rotation_matrix_2d
 
 from tollan.utils.log import timeit
@@ -49,6 +49,7 @@ class RasterScanModelMeta(OffsetMappingModel.__class__):
                 description='The time for turning around after each scan.'),
             )
         attrs['pattern_name'] = meta.pattern_name
+        attrs['pattern_kind'] = meta.pattern_kind
         attrs['evaluate'] = functools.partial(
             meta._evaluate, return_holdflag_only=False)
         attrs['evaluate_holdflag'] = functools.partial(
@@ -57,6 +58,7 @@ class RasterScanModelMeta(OffsetMappingModel.__class__):
         return attrs
 
     pattern_name = 'raster'
+    pattern_kind = PatternKind.raster
 
     @staticmethod
     @timeit

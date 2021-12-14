@@ -2,16 +2,67 @@
 
 from .models import (ToltecArrayProjModel, ToltecSkyProjModel)
 from .toltec_info import toltec_info
-from tollan.utils.log import get_logger
+from ..utils import PersistentState
+from ..mapping import (PatternKind, LmtTcsTrajMappingModel)
+# from ..mapping.utils import resolve_sky_coords_frame
+from ..sources.base import (SurfaceBrightnessModel, PowerLoadingModel)
+from ..sources.models import (ImageSourceModel, CatalogSourceModel)
+from ...utils.common_schema import PhysicalTypeSchema
+from tollan.utils.nc import NcNodeMapper
+from tollan.utils.log import get_logger, timeit
+from tollan.utils.fmt import pformat_yaml
+from tollan.utils.dataclass_schema import add_schema
 from kidsproc.kidsmodel.simulator import KidsSimulator
 from kidsproc.kidsmodel import ReadoutGainWithLinTrend
 
+import netCDF4
 import astropy.units as u
 from astropy.table import Column, QTable
 import numpy as np
+from contextlib import ExitStack, contextmanager
+from datetime import datetime
+import shutil
+from dataclasses import dataclass, field
+from astropy.coordinates.erfa_astrom import (
+        erfa_astrom, ErfaAstromInterpolator)
+# from astropy.coordinates import AltAz, SkyCoord
 
 
-__all__ = ['ToltecObsSimulator']
+__all__ = ['ToltecObsSimulator', 'ToltecHwpConfig']
+
+
+@add_schema
+@dataclass
+class ToltecHwpConfig(object):
+    """The config class for TolTEC half-wave plate and the rotator."""
+
+    f_rot: u.Quantity = field(
+        default=4. << u.Hz,
+        metadata={
+            'description': 'The rotator frequency',
+            'schema': PhysicalTypeSchema("frequency"),
+            }
+        )
+    f_smp: u.Quantity = field(
+        default=20. << u.Hz,
+        metadata={
+            'description': 'The sampling frequency '
+                           'of the position angle.',
+            'schema': PhysicalTypeSchema("frequency"),
+            }
+        )
+    rotator_enabled: bool = field(
+        default=False,
+        metadata={
+            'description': 'True if use HWPR.'
+            }
+        )
+
+    class Meta:
+        schema = {
+            'ignore_extra_keys': False,
+            'description': 'The parameters related to HWP.'
+            }
 
 
 class ToltecObsSimulator(object):
@@ -25,12 +76,14 @@ class ToltecObsSimulator(object):
     _m_sky_proj_cls = ToltecSkyProjModel
     _kids_readout_model_cls = ReadoutGainWithLinTrend
 
-    def __init__(self, array_prop_table, polarized=False):
+    def __init__(self, array_prop_table, polarized=False, hwp_config=None):
 
         apt = self._array_prop_table = self._prepare_array_prop_table(
             array_prop_table)
         self._polarized = polarized
-
+        if hwp_config is None:
+            hwp_config = ToltecHwpConfig()
+        self._hwp_config = hwp_config
         # create low level models
         self._kids_simulator = KidsSimulator(
             fr=apt['fr'],
@@ -54,9 +107,17 @@ class ToltecObsSimulator(object):
         return self._array_prop_table
 
     @property
+    def array_names(self):
+        return self.array_prop_table.meta['array_names']
+
+    @property
     def polarized(self):
         """True if to simulate polarized signal."""
         return self._polarized
+
+    @property
+    def hwp_config(self):
+        return self._hwp_config
 
     @property
     def kids_simulator(self):
@@ -93,8 +154,10 @@ class ToltecObsSimulator(object):
         tbl = array_prop_table.copy()
         # note that the apt passed to the function maybe a small portion
         # (both of row-wise and column-wise) of the full array_prop_table
-        # of the TolTEC instrument. We rely on the meta dict to loop over
-        # the groups
+        # of the TolTEC instrument. We check the column for the available
+        # group names
+        array_names = tbl.meta['array_names'] = np.unique(
+            tbl['array_name']).tolist()
         # array props
         ap_to_cn_map = {
             'wl_center': 'wl_center',
@@ -105,7 +168,7 @@ class ToltecObsSimulator(object):
             'responsivity': 'responsivity',
             'passband': 'passband',
             }
-        for array_name in tbl.meta['array_names']:
+        for array_name in array_names:
             m = tbl['array_name'] == array_name
             props = {
                 c: toltec_info[array_name][k]
@@ -167,3 +230,570 @@ class ToltecObsSimulator(object):
             f'n_detectors={len(self.array_prop_table)}, '
             f'polarized={self.polarized})'
             )
+
+    def output_context(self, dirpath):
+        return ToltecSimuOutputContext(simulator=self, rootpath=dirpath)
+
+    def mapping_evaluator(
+            self, mapping, sources=None,
+            erfa_interp_len=300. << u.s,
+            eval_interp_len=0.1 << u.s,
+            catalog_model_render_pixel_size=0.5 << u.arcsec):
+        if sources is None:
+            sources = list()
+        apt = self.array_prop_table
+        x_t = apt['x_t']
+        y_t = apt['y_t']
+
+        def evaluate(t):
+            with erfa_astrom.set(ErfaAstromInterpolator(erfa_interp_len)):
+                time_obs = t0 + t
+
+                with timeit("transform bore sight coords"):
+                    # get bore sight trajectory and the hold flags
+                    bs_coords = mapping.evaluate_coords(t)
+                    hold_flags = mapping.evaluate_holdflag(t)
+                    bs_coords_icrs = bs_coords.transform_to('icrs')
+                    bs_coords_altaz = bs_coords.transform_to('altaz')
+
+                    # if hasattr(bs_coords, 'ra'):  # icrs
+                    #     # there is weird cache issue so we cannot
+                    #     # just do the transform easily without
+                    #     # re-building the skycoord obj
+                    #     # TODO fix this
+                    #     bs_coords_icrs = SkyCoord(
+                    #             bs_coords.ra, bs_coords.dec,
+                    #             frame='icrs'
+                    #             )
+                    #     _altaz_frame = resolve_sky_coords_frame(
+                    #             'altaz',
+                    #             observer=mapping.observer,
+                    #             time_obs=time_obs)
+                    #     bs_coords_altaz = bs_coords_icrs.transform_to(
+                    #         _altaz_frame)
+                    # elif hasattr(bs_coords, 'alt'):  # altaz
+                    #     bs_coords_icrs = bs_coords.transform_to('icrs')
+                    #     bs_coords_altaz = bs_coords
+                    #     target_coord_altaz = mapping.target.transform_to(
+                    #             bs_coords.frame)
+                    # since we have both the icrs and altaz we can calculate
+                    # parallactic angle with this eq:
+                    bs_parallactic_angle = np.arcsin(
+                        np.sin(bs_coords_altaz.az)
+                        * np.cos(mapping.observer.latitude)
+                        / np.cos(bs_coords_icrs.dec))
+                    bs_parallactic_angle_check = \
+                        mapping.observer.parallactic_angle(
+                                time_obs, bs_coords_icrs)
+                    print(bs_parallactic_angle_check - bs_parallactic_angle)
+
+                    # make the model to project detector positions
+                    m_sky_proj = self._m_sky_proj_cls(
+                        origin_coords_icrs=bs_coords_icrs,
+                        origin_coords_altaz=bs_coords_altaz)
+                    det_ra, det_dec = m_sky_proj(
+                        x_t, y_t,
+                        evaluate_frame='altaz',
+                        use_evaluate_icrs_fast=False,
+                        eval_interp_len=eval_interp_len,
+                        )
+                    det_az, det_alt = m_sky_proj(
+                        x_t, y_t,
+                        evaluate_frame='altaz',
+                        use_evaluate_icrs_fast=False,
+                        eval_interp_len=eval_interp_len,
+                        )
+                # get source flux from models
+                s_additive = list()
+                for m_source in sources:
+                    # TODO maybe there is a better way of handling the
+                    # catalog source model. This just convert it to a
+                    # image model
+                    if isinstance(m_source, CatalogSourceModel):
+                        # get fwhms from toltec_info
+                        fwhms = dict()
+                        for array_name in self.array_names:
+                            fwhms[array_name] = toltec_info[
+                                array_name]['a_fwhm']
+                        m_source = m_source.make_image_model(
+                            pixscale=catalog_model_render_pixel_size / u.pix
+                            )
+                    if isinstance(m_source, ImageSourceModel):
+                        pass
+                        # TODO support more types of wcs. For now
+                        # only ICRS is supported
+                        # the projected lon lat
+                        # extract the flux
+                        # detector is required to be the first dimension
+                        # for the evaluate_tod
+                        # with timeit("extract flux from source image"):
+                        #     label = apt['array_names']
+                        #     s = m_source.evaluate(
+                        #         label, lon.T, lat.T)
+                        # s_additive.append(s)
+                    # # TODO revisit the performance issue here
+                    # elif False and isinstance(m_source, SourceCatalogModel):
+                        # with timeit("transform src coords to projected frame"):
+                        #     src_pos = m_source.pos[:, np.newaxis].transform_to(
+                        #                 native_frame).transform_to(
+                        #                     projected_frame)
+                        # # evaluate with beam_model and reduce on sources axes
+                        # with timeit("convolve with beam"):
+                        #     dx = x_t[np.newaxis, :, np.newaxis] - \
+                        #         src_pos.lon[:, np.newaxis, :]
+                        #     dy = y_t[np.newaxis, :, np.newaxis] - \
+                        #         src_pos.lat[:, np.newaxis, :]
+                        #     an = np.moveaxis(
+                        #             np.tile(
+                        #                 tbl['array_name'],
+                        #                 src_pos.shape + (1, )),
+                        #             1, 2)
+                        #     s = self._m_beam(an, dx, dy)
+                        #     # weighted sum with flux at each detector
+                        #     # assume no polarization
+                        #     w = np.vstack([
+                        #         m_source.data[a] for a in tbl['array_name']]).T
+                        #     s = np.sum(s * w[:, :, np.newaxis], axis=0)
+                        # s_additive.append(s)
+                # if len(s_additive) <= 0:
+                    # s = np.zeros(lon.T.shape) << u.MJy / u.sr
+                # else:
+                    # s = s_additive[0]
+                    # for _s in s_additive[1:]:
+                        # s += _s
+
+                 # # add the atmosphere into the source timestram
+                # if all_obs_atm_slabs is None:
+                    # all_obs_atm_slabs = np.zeros_like(s)
+                # assert s.shape == all_obs_atm_slabs.shape
+                # s += all_obs_atm_slabs << u.MJy / u.sr
+
+                # return s, locals()
+        return evaluate
+
+    def tod_evaluator(self, mapping, sources, simu_config):
+        """Return a callable that runs the simulator.
+
+        """
+        # split the sources based on their base class
+        sources_sb = list()
+        sources_pwr = list()
+        for s in sources:
+            if isinstance(s, SurfaceBrightnessModel):
+                sources_sb.append(s)
+            elif isinstance(s, PowerLoadingModel):
+                sources_pwr.append(s)
+        self.logger.debug(f"sources_sb:\n{sources_sb}")
+        self.logger.debug(f"sources_pwr:\n{sources_pwr}")
+
+        # run the mapping evaluator to get fluxes
+        # tbl = self.table
+        # x_t = tbl['x_t']
+        # y_t = tbl['y_t']
+
+        # ref_frame = mapping.ref_frame
+        # t0 = mapping.t0
+        # ref_coord = self.resolve_target(mapping.target, t0)
+ 
+        def evaluate(t):
+            return t
+
+        return evaluate
+
+
+class ToltecSimuOutputContext(ExitStack):
+    """A context class to manage TolTEC simulator output files.
+
+    """
+
+    logger = get_logger()
+    _lockfile = 'simu.lock'
+    _statefile = 'simustate.yaml'
+
+    def __init__(self, simulator, rootpath):
+        super().__init__()
+        self._simulator = simulator
+        self._rootpath = rootpath
+        self._state = None
+        self._nms = dict()
+
+    @property
+    def simulator(self):
+        return self._simulator
+
+    @property
+    def rootpath(self):
+        return self._rootpath
+
+    @property
+    def state(self):
+        return self._state
+
+    @property
+    def nms(self):
+        """The dict of nc file mappers."""
+        return self._nms
+
+    def _create_nm(self, interface, suffix):
+        if interface in self.nms:
+            raise ValueError(f"NcNodeMapper already exists for {interface}")
+        output_filepath = self.make_output_filename(interface, suffix)
+        nm = self.nms[interface] = NcNodeMapper(
+            source=output_filepath, mode='w')
+        return nm
+
+    def _get_tel_interface(self):
+        return 'tel'
+
+    def write_mapping_meta(self, mapping, simu_config):
+        """Save the mapping model to tel.nc."""
+        # create tel.nc
+        nm_tel = self._create_nm(self._get_tel_interface(), '.nc')
+        self.logger.debug(
+            f"save mapping model {mapping} to {nm_tel}")
+        nc_tel = nm_tel.nc_node
+        # populate the headers
+        # add some common settings to the nc tel header
+        rootpath = simu_config.runtime_info.config_info.runtime_context_dir
+        nm_tel.setstr(
+                'Header.File.Name',
+                nm_tel.file_loc.path.relative_to(rootpath).as_posix())
+        nm_tel.setstr(
+                'Header.Source.SourceName',
+                simu_config.jobkey)
+        if isinstance(mapping, (LmtTcsTrajMappingModel, )):
+            self.logger.debug(
+                    f"mapping model meta:\n{pformat_yaml(mapping.meta)}")
+            nm_tel.setstr(
+                    'Header.Dcs.ObsPgm',
+                    mapping.meta['mapping_type'])
+        elif mapping.pattern_kind & PatternKind.lissajous:
+            # TODO handle lissajous
+            nm_tel.setstr(
+                    'Header.Dcs.ObsPgm',
+                    'Lissajous')
+        elif mapping.pattern_kind & PatternKind.raster_like:
+            nm_tel.setstr(
+                    'Header.Dcs.ObsPgm',
+                    'Map')
+        else:
+            raise NotImplementedError
+        # the len=2 is for mean and ref coordinates.
+        d_coord = 'Header.Source.Ra_xlen'
+        nc_tel.createDimension(d_coord, 2)
+        v_source_ra = nc_tel.createVariable(
+                'Header.Source.Ra', 'f8', (d_coord, ))
+        v_source_ra.unit = 'rad'
+        v_source_dec = nc_tel.createVariable(
+                'Header.Source.Dec', 'f8', (d_coord, ))
+        v_source_dec.unit = 'rad'
+
+        ref_coord = mapping.target.transform_to('icrs')
+        v_source_ra[:] = ref_coord.ra.radian
+        v_source_dec[:] = ref_coord.dec.radian
+
+        # setup data variables for write_data
+        d_time = 'time'
+        nc_tel.createDimension(d_time, None)
+        m = dict()  # this get added to the node mapper
+        m['time'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.TelTime', 'f8', (d_time, ))
+        v_ra = m['ra'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.TelRaAct', 'f8', (d_time, ))
+        v_ra.unit = 'rad'
+        v_dec = m['dec'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.TelDecAct', 'f8', (d_time, ))
+        v_dec.unit = 'rad'
+        v_alt = m['alt'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.TelElAct', 'f8', (d_time, ))
+        v_alt.unit = 'rad'
+        v_az = m['az'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.TelAzAct', 'f8', (d_time, ))
+        v_az.unit = 'rad'
+        v_pa = m['pa'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.ActParAng', 'f8', (d_time, ))
+        v_pa.unit = 'rad'
+        # the _sky az alt and pa are the corrected positions of telescope
+        # they are the same as the above when no pointing correction
+        # is applied.
+        v_alt_sky = m['alt_sky'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.TelElSky', 'f8', (d_time, ))
+        v_alt_sky.unit = 'rad'
+        v_az_sky = m['az_sky'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.TelAzSky', 'f8', (d_time, ))
+        v_az_sky.unit = 'rad'
+        v_pa_sky = m['pa_sky'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.ParAng', 'f8', (d_time, ))
+        v_pa_sky.unit = 'rad'
+        m['hold'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.Hold', 'f8', (d_time, )
+                )
+        v_source_alt = m['source_alt'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.SourceEl', 'f8', (d_time, ))
+        v_source_alt.unit = 'rad'
+        v_source_az = m['source_az'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.SourceAz', 'f8', (d_time, ))
+        v_source_az.unit = 'rad'
+        nm_tel.update(m)
+        return nm_tel
+
+    def _get_kidsdata_interface(self, nw):
+        return f'toltec{nw}'
+
+    def _make_kidsdata_nc(self, nw, simu_config):
+        sim = self._simulator
+        state = self.state
+        apt = sim.array_prop_table
+        mapt = apt[apt['nw'] == nw]
+        interface = self._get_kidsdata_interface(nw)
+        nm_toltec = self._create_nm(interface, '_timestream.nc')
+        nc_toltec = nm_toltec.nc_node
+        # add meta data
+        rootpath = simu_config.runtime_info.config_info.runtime_context_dir
+        obs_params = simu_config.obs_params
+        nm_toltec.setstr(
+                'Header.Toltec.Filename',
+                nm_toltec.file_loc.path.relative_to(rootpath).as_posix())
+        nm_toltec.setscalar(
+                'Header.Toltec.ObsType', 1, dtype='i4')  # Timestream
+        nm_toltec.setscalar(
+                'Header.Toltec.Master', 0, dtype='i4')
+        nm_toltec.setscalar(
+                'Header.Toltec.RepeatLevel', 0, dtype='i4')
+        nm_toltec.setscalar(
+                'Header.Toltec.RoachIndex', nw, dtype='i4')
+        nm_toltec.setscalar(
+                'Header.Toltec.ObsNum', state['obsnum'], dtype='i4')
+        nm_toltec.setscalar(
+                'Header.Toltec.SubObsNum',
+                state['subobsnum'], dtype='i4')
+        nm_toltec.setscalar(
+                'Header.Toltec.ScanNum',
+                state['scannum'], dtype='i4')
+        nm_toltec.setscalar(
+                'Header.Toltec.TargSweepObsNum',
+                state['cal_obsnum'], dtype='i4')
+        nm_toltec.setscalar(
+                'Header.Toltec.TargSweepSubObsNum',
+                state['cal_subobsnum'], dtype='i4')
+        nm_toltec.setscalar(
+                'Header.Toltec.TargSweepScanNum',
+                state['cal_scannum'], dtype='i4')
+        nm_toltec.setscalar(
+                'Header.Toltec.SampleFreq',
+                obs_params.f_smp_probing.to_value(u.Hz))
+        nm_toltec.setscalar(
+                'Header.Toltec.LoCenterFreq', 0.)
+        nm_toltec.setscalar(
+                'Header.Toltec.DriveAtten', 0.)
+        nm_toltec.setscalar(
+                'Header.Toltec.SenseAtten', 0.)
+        nm_toltec.setscalar(
+                'Header.Toltec.AccumLen', 524288, dtype='i4')
+        nm_toltec.setscalar(
+                'Header.Toltec.MaxNumTones', 1000, dtype='i4')
+
+        nc_toltec.createDimension('numSweeps', 1)
+        nc_toltec.createDimension('toneFreqLen', len(mapt))
+        v_tones = nc_toltec.createVariable(
+                'Header.Toltec.ToneFreq',
+                'f8', ('numSweeps', 'toneFreqLen')
+                )
+        v_tones[0, :] = mapt['fp']
+        nc_toltec.createDimension('modelParamsNum', 15)
+        nc_toltec.createDimension('modelParamsHeaderItemSize', 32)
+        v_mph = nc_toltec.createVariable(
+                'Header.Toltec.ModelParamsHeader',
+                '|S1', ('modelParamsNum', 'modelParamsHeaderItemSize')
+                )
+        v_mp = nc_toltec.createVariable(
+                'Header.Toltec.ModelParams',
+                'f8', ('numSweeps', 'modelParamsNum', 'toneFreqLen')
+                )
+        mp_map = {
+                'f_centered': 'fp',
+                'f_out': 'fr',
+                'f_in': 'fp',
+                'flag': None,
+                'fp': 'fp',
+                'Qr': 'Qr',
+                'Qc': 1.,
+                'fr': 'fr',
+                'A': 0.,
+                'normI': 'g0',
+                'normQ': 'g1',
+                'slopeI': 'k0',
+                'slopeQ': 'k1',
+                'interceptI': 'm0',
+                'interceptQ': 'm1',
+                }
+        for i, (k, v) in enumerate(mp_map.items()):
+            v_mph[i, :] = netCDF4.stringtochar(np.array(k, '|S32'))
+            if v is not None:
+                if isinstance(v, str):
+                    v = mapt[v]
+                v_mp[0, i, :] = v
+
+        # data variables
+        m = dict()
+        nc_toltec.createDimension('loclen', len(mapt))
+        nc_toltec.createDimension('iqlen', len(mapt))
+        nc_toltec.createDimension('tlen', 6)
+        nc_toltec.createDimension('time', None)
+        m['flo'] = nc_toltec.createVariable(
+                'Data.Toltec.LoFreq', 'i4', ('time', ))
+        m['time'] = nc_toltec.createVariable(
+                'Data.Toltec.Ts', 'i4', ('time', 'tlen'))
+        m['I'] = nc_toltec.createVariable(
+                'Data.Toltec.Is', 'i4', ('time', 'iqlen'))
+        m['Q'] = nc_toltec.createVariable(
+                'Data.Toltec.Qs', 'i4', ('time', 'iqlen'))
+        nm_toltec.update(m)
+        return nm_toltec
+
+    def _get_hwp_interface(self):
+        return 'hwp'
+
+    def _make_hwp_nc(self, simu_config):
+        sim = self._simulator
+        hwp_cfg = sim.hwp_config
+        if not hwp_cfg.rotator_enabled:
+            return None
+        state = self.state
+        interface = self._get_hwp_interface()
+        nm_hwp = self._create_nm(interface, '.nc')
+        nc_hwp = nm_hwp.nc_node
+        # add meta data
+        rootpath = simu_config.runtime_info.config_info.runtime_context_dir
+        nm_hwp.setstr(
+                'Header.Toltec.Filename',
+                nm_hwp.file_loc.path.relative_to(rootpath).as_posix())
+        nm_hwp.setscalar(
+                'Header.Toltec.ObsType', 1, dtype='i4')  # Timestream
+        nm_hwp.setscalar(
+                'Header.Toltec.Master', 0, dtype='i4')
+        nm_hwp.setscalar(
+                'Header.Toltec.RepeatLevel', 0, dtype='i4')
+        nm_hwp.setscalar(
+                'Header.Toltec.ObsNum', state['obsnum'], dtype='i4')
+        nm_hwp.setscalar(
+                'Header.Toltec.SubObsNum',
+                state['subobsnum'], dtype='i4')
+        nm_hwp.setscalar(
+                'Header.Toltec.ScanNum',
+                state['scannum'], dtype='i4')
+        nm_hwp.setscalar(
+                'Header.Toltec.TargSweepObsNum',
+                state['cal_obsnum'], dtype='i4')
+        nm_hwp.setscalar(
+                'Header.Toltec.TargSweepSubObsNum',
+                state['cal_subobsnum'], dtype='i4')
+        nm_hwp.setscalar(
+                'Header.Toltec.TargSweepScanNum',
+                state['cal_scannum'], dtype='i4')
+        nm_hwp.setscalar(
+                'Header.Hwp.SampleFreq',
+                hwp_cfg.f_smp.to_value(u.Hz))
+        # data variables
+        m = dict()
+        nc_hwp.createDimension('tlen', 6)
+        nc_hwp.createDimension('time', None)
+        m['pa'] = nc_hwp.createVariable(
+                'Data.Hwp.', 'f8', ('time', ))
+        m['time'] = nc_hwp.createVariable(
+                'Data.Toltec.Ts', 'i4', ('time', 'tlen'))
+        nm_hwp.update(m)
+        return nm_hwp
+
+    def write_sim_meta(self, simu_config):
+        # apt.ecsv
+        apt = self._simulator.array_prop_table
+        apt.write(self.make_output_filename('apt', '.ecsv'),
+                  format='ascii.ecsv', overwrite=True)
+        # toltec*.nc
+        for nw in np.unique(apt['nw']):
+            self._make_kidsdata_nc(nw, simu_config)
+        # hwp.nc
+        self._make_hwp_nc(simu_config)
+
+    def write_sim_data(self, data):
+        pass
+
+    def open(self, overwrite=False):
+        """Open files to save data.
+
+        This increments the obsnum state and makes available a set of opened
+        file handlers in :attr:`nms`.
+
+        Parameters
+        ----------
+        overwrite : bool, optional
+            If True, the obsnum is not incremented.
+        """
+        state = self._state = self.enter_context(self.writelock())
+        # check if the previous data is valid
+        valid = state.get('valid', False)
+        if not valid:
+            self.logger.warning(f"overwrite invalid state entry:\n{state}")
+            overwrite = True
+        if not overwrite:
+            state['obsnum'] += 1
+            state['cal_obsnum'] += 1
+        state['ut'] = datetime.utcnow()
+        state['valid'] = False
+        state.sync()
+        self.logger.info(f"simulator output state:\n{state}")
+        return self
+
+    def __exit__(self, *args):
+        self.state['valid'] = True
+        self.state.sync()
+        super().__exit__(*args)
+        # make a copy of the state file for this obsnum
+        shutil.copy(self.state.filepath, self.make_output_filename(
+            'simustate', '.yaml'))
+        # clean up the contexts
+        self._state = None
+        # close all files and clear the mapper
+        for nm in self.nms.values():
+            nm.close()
+        self.nms.clear()
+
+    @contextmanager
+    def writelock(self):
+        outdir = self.rootpath
+        lockfile = outdir.joinpath(self._lockfile)
+        if lockfile.exists():
+            raise RuntimeError(f"cannot acquire write lock for {outdir}")
+        state = PersistentState(
+                outdir.joinpath(self._statefile),
+                init={
+                    'obsnum': 0,
+                    'subobsnum': 0,
+                    'scannum': 0,
+                    'cal_obsnum': 0,
+                    'cal_subobsnum': 0,
+                    'cal_scannum': 0,
+                    })
+        try:
+            with open(lockfile, 'w'):
+                self.logger.debug(f'create lock file: {lockfile}')
+                pass
+            yield state.sync()
+        finally:
+            try:
+                lockfile.unlink()
+                self.logger.debug(f'unlink lock file: {lockfile}')
+            except Exception:
+                self.logger.debug("failed release write lock", exc_info=True)
+
+    def make_output_filename(self, interface, suffix):
+        state = self.state
+        filename = (
+                f'{interface}_{state["obsnum"]:06d}_'
+                f'{state["subobsnum"]:03d}_'
+                f'{state["scannum"]:04d}_'
+                f'{state["ut"].strftime("%Y_%m_%d_%H_%M_%S")}'
+                f'{suffix}'
+                )
+        return self.rootpath.joinpath(filename)

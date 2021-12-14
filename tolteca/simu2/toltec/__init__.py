@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 
-from schema import Schema, Optional
+from schema import Schema, Optional, Use
 from tollan.utils.dataclass_schema import DataclassNamespace
 from tollan.utils.log import get_logger
 from astropy.table import Table
@@ -10,10 +10,10 @@ from ...utils.common_schema import RelPathSchema
 from .lmt import lmt_info as site_info
 from ...cal import ToltecCalib
 from ...utils import get_pkg_data_path
-from .simulator import ToltecObsSimulator
+from .simulator import ToltecObsSimulator, ToltecHwpConfig
 
 
-__all__ = ['site_info', 'ToltecObsSimulatorConfig']
+__all__ = ['site_info', 'ToltecObsSimulatorConfig', 'ToltecHwpConfig']
 
 
 def _load_calobj(index_filepath, allow_fallback=True):
@@ -50,6 +50,11 @@ class ToltecObsSimulatorConfig(DataclassNamespace):
             default=False,
             description='The toggle of whether to simulate polarized signal.'):
         bool,
+        Optional(
+            'hwp',
+            default=ToltecHwpConfig,
+            description='The dict contains the HWP config.',
+            ): ToltecHwpConfig.schema,
         # TODO make this explicit, not fallback
         Optional(
             'calobj_index',
@@ -62,6 +67,11 @@ class ToltecObsSimulatorConfig(DataclassNamespace):
             description='The array prop table to use instead of the one '
                         'provided in the calobj_index.'):
         RelPathSchema(),
+        })
+
+    _namespace_to_dict_schema = Schema({
+        'hwp': Use(lambda c: c.to_dict()),
+        str: object
         })
 
     logger = get_logger()
@@ -81,7 +91,8 @@ class ToltecObsSimulatorConfig(DataclassNamespace):
             self.logger.info(f"use array prop table from calobj {calobj}")
         self.observer = simu_cls.observer
         self.simulator = simu_cls(
-            array_prop_table=apt, polarized=self.polarized)
+            array_prop_table=apt,
+            polarized=self.polarized, hwp_config=self.hwp)
 
     def __call__(self, cfg):
         return self.simulator

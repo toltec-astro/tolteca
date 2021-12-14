@@ -3,16 +3,30 @@
 from astropy.modeling import Model
 
 
-__all__ = ['SourceModel', ]
+__all__ = ['SurfaceBrightnessModel', 'PowerLoadingModel']
 
 
-class SourceModel(Model):
-    """The base class for simulator source models.
+class SourceModelBase(Model):
+    pass
+
+
+class SurfaceBrightnessModel(SourceModelBase):
+    """The base class for simulator source specified as surface brightness.
     """
 
     fittable = False
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.inputs = self.input_frame.axes_names
         self.outputs = ("S", )
+
+
+class PowerLoadingModel(SourceModelBase):
+    """The base class for simulator source specified as power loading.
+    """
+
+    fittable = False
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.outputs = ("P", )

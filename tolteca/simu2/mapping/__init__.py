@@ -11,6 +11,10 @@ from ...utils.common_schema import PhysicalTypeSchema, RelPathSchema
 from .utils import _resolve_target, _get_frame_class
 from .lmt_tcs import LmtTcsTrajMappingModel
 from .raster import SkyRasterScanModel
+from .base import PatternKind
+
+
+__all__ = ['PatternKind', 'LmtTcsTrajMappingModel']
 
 
 @mapping_registry.register('lmt_tcs')
