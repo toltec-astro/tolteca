@@ -1479,11 +1479,11 @@ class SimulatorResult(Namespace):
 
             if isinstance(
                     # TODO check what to do with multiple type of lissajous
-                    mapping, (SkyLissajousModel, SkyDoubleLissajousModel)):
+                    mapping, (SkyLissajousModel, SkyDoubleLissajousModel, SkyRastajousModel)):
                 nm_tel.setstr(
                         'Header.Dcs.ObsPgm',
                         'Lissajous')
-            elif isinstance(mapping, (SkyRasterScanModel, SkyRastajousModel)):
+            elif isinstance(mapping, (SkyRasterScanModel, )):
                 nm_tel.setstr(
                         'Header.Dcs.ObsPgm',
                         'Map')
