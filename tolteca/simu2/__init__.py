@@ -72,14 +72,21 @@ class PerfParamsConfig(object):
             'schema': PhysicalTypeSchema("time"),
             }
         )
-    mapping_interp_len: u.Quantity = field(
-        default=1 << u.s,
+    catalog_model_render_pixel_size: u.Quantity = field(
+        default=0.5 << u.arcsec,
+        metadata={
+            'description': 'Pixel size to render catalog source model.',
+            'schema': PhysicalTypeSchema("angle"),
+            }
+        )
+    mapping_eval_interp_len: Union[u.Quantity, None] = field(
+        default=None,
         metadata={
             'description': 'Interp length to speed-up mapping evaluation.',
             'schema': PhysicalTypeSchema("time"),
             }
         )
-    erfa_interp_len: u.Quantity = field(
+    mapping_erfa_interp_len: u.Quantity = field(
         default=300 << u.s,
         metadata={
             'description': 'Interp length to speed-up AltAZ to '

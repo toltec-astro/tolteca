@@ -378,13 +378,17 @@ class ToltecObsSimulator(object):
         # split the sources based on their base class
         sources_sb = list()
         sources_pwr = list()
+        sources_unknown = list()
         for s in sources:
             if isinstance(s, SurfaceBrightnessModel):
                 sources_sb.append(s)
             elif isinstance(s, PowerLoadingModel):
                 sources_pwr.append(s)
-        self.logger.debug(f"sources_sb:\n{sources_sb}")
-        self.logger.debug(f"sources_pwr:\n{sources_pwr}")
+            else:
+                sources_unknown.append(s)
+        self.logger.debug(f"surface brightness sources:\n{sources_sb}")
+        self.logger.debug(f"power loading sources:\n{sources_pwr}")
+        self.logger.warning(f"ignored sources:\n{sources_unknown}")
 
         # run the mapping evaluator to get fluxes
         # tbl = self.table
@@ -394,9 +398,17 @@ class ToltecObsSimulator(object):
         # ref_frame = mapping.ref_frame
         # t0 = mapping.t0
         # ref_coord = self.resolve_target(mapping.target, t0)
- 
+        perf_params = simu_config.perf_params
+        mapping_evaluator = self.mapping_evaluator(
+            mapping=mapping, sources=sources_sb,
+            erfa_interp_len=perf_params.mapping_erfa_interp_len,
+            eval_interp_len=perf_params.mapping_eval_interp_len,
+            catalog_model_render_pixel_size=(
+                perf_params.catalog_model_render_pixel_size),
+            )
+
         def evaluate(t):
-            return t
+            return mapping_evaluator(t)
 
         return evaluate
 
