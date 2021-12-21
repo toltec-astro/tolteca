@@ -52,8 +52,14 @@ class RasterScanModelMeta(OffsetMappingModel.__class__):
         attrs['pattern_kind'] = meta.pattern_kind
         attrs['evaluate'] = functools.partial(
             meta._evaluate, return_holdflag_only=False)
-        attrs['evaluate_holdflag'] = functools.partial(
-            meta._evaluate, return_holdflag_only=True)
+
+        def evaluate_holdflag(self, t):
+            return meta._evaluate(
+                t,
+                length=self.length, space=self.space, n_scans=self.n_scans,
+                rot=self.rot, speed=self.speed, t_turnaround=self.t_turnaround,
+                return_holdflag_only=True)
+        attrs['evaluate_holdflag'] = evaluate_holdflag
         attrs['t_pattern'] = property(meta.calc_t_pattern)
         return attrs
 

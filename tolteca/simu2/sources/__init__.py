@@ -53,17 +53,17 @@ class ImageSourceConfig(DataclassNamespace):
         Literal('filepath', description='The path to the FITS image file.'):
         RelPathSchema(),
         Literal(
-            'data_items',
+            'data_exts',
             description=(
-                "The assignments of extensions to data item labels."
+                "The assignments of FITS extensions to data item labels."
                 )): _make_data_item_schema(
                     "extname", "The FITS extension name")
         })
 
     def __call__(self, cfg):
-        return ImageSourceModel.from_fits(
+        return ImageSourceModel.from_file(
             self.filepath,
-            data_items=self.data_items,
+            data_exts=self.data_exts,
             )
 
 

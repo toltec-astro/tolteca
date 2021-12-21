@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-from pathlib import Path
-
 from astropy.io import fits
 import astropy.units as u
 import numpy as np
@@ -11,8 +9,9 @@ from astropy.table import Table, QTable
 from astropy.modeling import models
 from astropy.modeling.functional_models import GAUSSIAN_SIGMA_TO_FWHM
 
-from tollan.utils.fmt import pformat_yaml
+# from tollan.utils.fmt import pformat_yaml
 from tollan.utils.log import get_logger
+from tollan.utils import ensure_abspath
 
 from .base import SurfaceBrightnessModel
 
@@ -37,10 +36,59 @@ class ImageSourceModel(SurfaceBrightnessModel):
     n_inputs = 4
     n_outputs = 1
 
-    def __init__(self, data, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, hdulist, data_exts=None, **kwargs):
+        super().__init__(**kwargs)
         self.inputs = ('label', 'lon', 'lat', 'pa')
-        self._data = data
+        self._hdulist = hdulist
+
+        # resolve data exts by replacing ext names with the fits extensions
+        data_items = list()
+
+        # a dict view of hdus keyed by extname
+        extname_hdu = dict()
+        for i, hdu in enumerate(hdulist):
+            self.logger.debug('HDU {}: {}'.format(
+                i, hdu.header.tostring(sep='\n')
+                ))
+            label = hdu.header.get('EXTNAME', i)
+            # TODO handling stokes WCS here to generate I Q U map
+            extname_hdu[label] = hdu
+        for item in data_exts:
+            extname = item['extname']
+            if extname not in extname_hdu.keys():
+                raise ValueError(f"missing ext {extname} in FITS data.")
+            data_items.append(dict(**item, hdu=extname_hdu[extname]))
+        # store the data item as table for masked access
+        self._data = Table(rows=data_items)
+        self.logger.debug(f"FITS image data:\n{self.data}")
+
+        # if extname_map is None:
+        #     extname_map = {
+        #             k: k for k in extname_hdu.keys()
+        #             }
+        # cls.logger.debug(f"use extname_map: {pformat_yaml(extname_map)}")
+
+        # data = dict()
+
+        # def resolve_extname(d):
+        #     result = dict()
+        #     for k, v in d.items():
+        #         if isinstance(v, dict):
+        #             result[k] = resolve_extname(v)
+        #         elif v in extname_hdu:
+        #             result[k] = extname_hdu[v]
+        #         else:
+        #             cls.logger.warning(f"ignore invalid extname {v}")
+        #             continue
+        #     return result
+
+        # data = resolve_extname(extname_map)
+        # cls.logger.debug(f'source data items: {pformat_yaml(data)}')
+        # return cls(data=data, name=filepath.as_posix(), **kwargs)
+
+    @property
+    def data(self):
+        return self._data
 
     @staticmethod
     def _get_data_sky_bbox(wcsobj, data_shape):
@@ -119,6 +167,52 @@ class ImageSourceModel(SurfaceBrightnessModel):
         logger.debug(
             f'signal range: [{s_out[m].min()}, {s_out[m].max()}]')
 
+    def evaluate_tod_icrs(
+            self, array_name, det_ra, det_dec,
+            det_pa_icrs, hwp_pa_icrs=None):
+        data_tbl = self.data
+        sp = self.data
+        s_outs = {
+            'I': None,
+            'Q': None,
+            'U': None
+            }
+        for g in group_names:
+            if g not in data:
+                self.logger.debug(f"group {g} not found in data")
+                continue
+            data_g = self._data[g]
+            m = (label == g)
+            data_groups.append([data_g, m])
+            self.logger.debug(f"group {g}: {m.sum()}/{len(m)}")
+            for sk in s_outs.keys():
+                if sk in data_g and s_outs[sk] is None:
+                    # create this s_out data
+                    s_outs[sk] = np.zeros(lon.shape) << u.MJy / u.sr
+        used_stokes_keys = set(
+            sk for sk, arr in s_outs.items() if arr is not None)
+        self.logger.debug(
+            f"evaluate {len(data_groups)} groups "
+            f"for Stokes {used_stokes_keys}")
+
+        lon = lon.to_value(u.deg)
+        lat = lat.to_value(u.deg)
+
+        for data_g, m in data_groups:
+            for sk, hdu in data_g.items():
+                self._set_data_for_group(hdu, m, lon[m], lat[m], s_outs[sk])
+        # now we do the polarimetry handling
+        if used_stokes_keys == {'I', }:
+            # this is un-polarized
+            return s_outs['I']
+        # mix i, Q, and U
+        I = s_outs['I']  # noqa: E741
+        Q = s_outs['Q']
+        U = s_outs['U']
+        return 0.5 * (I + np.cos(2. * pa) * Q + np.sin(2. * pa) * U)
+
+
+
     def evaluate(self, label, lon, lat, pa):
         # make group_masks for each label value
         data = self._data
@@ -168,61 +262,27 @@ class ImageSourceModel(SurfaceBrightnessModel):
         return 0.5 * (I + np.cos(2. * pa) * Q + np.sin(2. * pa) * U)
 
     @classmethod
-    def from_fits(
-            cls, filepath, extname_map=None, **kwargs):
+    def from_file(
+            cls, filepath, **kwargs):
         """
-        Return simulator source model from FITS image file.
+        Return source model from FITS image file.
 
         Parameters
         ----------
         filepath : str, `pathlib.Path`
             The path to the FITS file.
 
-        extname_map : dict, optional
-            Specify the FITS extensions to use.
-            If None, an educated guess will be made.
-
         **kwargs :
-            Extra arguments to pass to the model class.
+            Arguments passed to constructor.
         """
-        filepath = Path(filepath)
+
         # we may be working with large files so let's just keep this
         # open during the program.
         # TODO use an exit stack to manage the resource.
+        filepath = ensure_abspath(filepath)
         hdulist = fits.open(filepath)
-
-        extname_hdu = dict()
-        for i, hdu in enumerate(hdulist):
-            cls.logger.debug('HDU {}: {}'.format(
-                i, hdu.header.tostring(sep='\n')
-                ))
-            label = hdu.header.get('EXTNAME', i)
-            # TODO handling stokes WCS here to generate I Q U map
-            extname_hdu[label] = hdu
-
-        if extname_map is None:
-            extname_map = {
-                    k: k for k in extname_hdu.keys()
-                    }
-        cls.logger.debug(f"use extname_map: {pformat_yaml(extname_map)}")
-
-        data = dict()
-
-        def resolve_extname(d):
-            result = dict()
-            for k, v in d.items():
-                if isinstance(v, dict):
-                    result[k] = resolve_extname(v)
-                elif v in extname_hdu:
-                    result[k] = extname_hdu[v]
-                else:
-                    cls.logger.warning(f"ignore invalid extname {v}")
-                    continue
-            return result
-
-        data = resolve_extname(extname_map)
-        cls.logger.debug(f'source data items: {pformat_yaml(data)}')
-        return cls(data=data, name=filepath.as_posix(), **kwargs)
+        kwargs.setdefault('name', filepath.as_posix())
+        return cls(hdulist=hdulist, **kwargs)
 
 
 class CatalogSourceModel(SurfaceBrightnessModel):
@@ -265,7 +325,7 @@ class CatalogSourceModel(SurfaceBrightnessModel):
         # extract and normalize some useful props from the catalog
         prop_tbl = self._prop_tbl = self._get_prop_table(
             catalog, pos_cols, name_col)
-        self.logger.debug(f"catalog sources:\n{prop_tbl}")
+        self.logger.debug(f"catalog source props:\n{prop_tbl}")
         # TODO: add handling of different coordinate system in input
         pos = SkyCoord(
                 prop_tbl['ra'], prop_tbl['dec'], frame='icrs')
@@ -276,9 +336,11 @@ class CatalogSourceModel(SurfaceBrightnessModel):
             colname = item['colname']
             if colname not in catalog.colnames:
                 raise ValueError("missing column {colname} in catalog.")
-            data_items.append(dict(**item, flux=catalog[colname]))
+            data_items.append(dict(
+                **item,
+                flux=self._get_col_quantity(catalog, colname, u.mJy)))
         # store the data item as table for masked access
-        self._data = Table(rows=data_items)
+        self._data = QTable(rows=data_items)
         self.logger.debug(f"catalog data:\n{self.data}")
 
     @classmethod
@@ -327,6 +389,7 @@ class CatalogSourceModel(SurfaceBrightnessModel):
         **kwargs
             Arguments passed to constructor.
         """
+        filepath = ensure_abspath(filepath)
         catalog = Table.read(filepath, format='ascii')
         kwargs.setdefault('name', filepath.as_posix())
         return cls(catalog, **kwargs)
@@ -337,11 +400,13 @@ class CatalogSourceModel(SurfaceBrightnessModel):
         return NotImplemented
 
     def make_image_model(self, fwhms, pixscale):
+        # fwhms is a dict keyed by the array_names
         pixscale = u.pixel_scale(pixscale)
         delta_pix = (1. << u.pix).to(u.arcsec, equivalencies=pixscale)
+        data_tbl = self.data
 
-        # fwhms is a dict that follows the structure of self._data
         # we convert all fwhms to pixels and create a gaussian PSF model
+        # for each data table entry
 
         def make_gauss_psf_model(a_fwhm, b_fwhm):
             # here we keep the flux in unit of surface brightness but
@@ -362,24 +427,20 @@ class CatalogSourceModel(SurfaceBrightnessModel):
                     )
 
         # keep a record of max fwhm in pix so we can use it as the padding
-        fwhm_max = 0 << u.arcsec
+        fwhm_max = np.max(u.Quantity(list(fwhms.values())))
 
-        def resolve_fwhm(d):
-            nonlocal fwhm_max
-            result = dict()
-            for k, v in d.items():
-                if isinstance(v, dict):
-                    result[k] = resolve_fwhm(v)
-                else:
-                    v = v.to(u.arcsec, equivalencies=pixscale)
-                    result[k] = make_gauss_psf_model(v, v)
-                    if v > fwhm_max:
-                        fwhm_max = v
-            return result
+        d_psf_models = {
+            array_name: make_gauss_psf_model(fwhm, fwhm)
+            for array_name, fwhm in fwhms.items()
+            }
 
-        beam_models = resolve_fwhm(fwhms)
+        # make a list of models that matches with the data table
+        psf_models = list()
+        for entry in data_tbl:
+            psf_models.append(d_psf_models[entry['array_name']])
 
-        # for simplicity we use a common wcs object for all the hdus
+        # Here we create the fits image with the same WCS for all extensions
+        # TODO: maybe it is more efficient to use different WCS per ext?
         # use the first pos as the reference to build the image wcs
         ref_coord = self.pos[0]
         wcsobj = WCS(naxis=2)
@@ -391,60 +452,70 @@ class CatalogSourceModel(SurfaceBrightnessModel):
         wcsobj.wcs.ctype = ["RA---TAN", "DEC--TAN"]
         wcsobj.wcs.crval = [ref_coord.ra.degree, ref_coord.dec.degree]
 
-        # compute the pixel range
+        # compute the pixel range of the catalog for this wcs
         x, y = wcsobj.wcs_world2pix(self.pos.ra, self.pos.dec, 0)
         l, r = np.min(x), np.max(x)
         b, t = np.min(y), np.max(y)
         w, h = r - l, t - b
         # size of the square bbox, with added padding on the edge
-        # from the beam model
+        # from the psf model
         padding = 10 * fwhm_max.to_value(u.pix, equivalencies=pixscale)
         s = int(np.ceil(np.max([w, h]) + padding))
         self.logger.debug(f'source image size: {s}')
-        # figure out center coord
-        c_ra, c_dec = wcsobj.wcs_pix2world((l + r) / 2, (b + t) / 2, 0)
-        # re-center the wcs to pixel center
+        # figure out center coord on sky and re-center the wcs
+        c_x = (l + r) / 2
+        c_y = (b + t) / 2
+        c_ra, c_dec = wcsobj.wcs_pix2world(c_x, c_y, 0)
         wcsobj.wcs.crpix = [s / 2 + 1, s / 2 + 1]
         wcsobj.wcs.crval = c_ra, c_dec
         header = wcsobj.to_header()
-        # compute the pixel positions
+        # compute the pixel positions with the new wcs
         x, y = wcsobj.wcs_world2pix(self.pos.ra, self.pos.dec, 0)
+        # just a sanity check of the pixel values of all catalog sources
+        # are within the footprint
         assert ((x < 0) | (x > s)).sum() == 0
         assert ((y < 0) | (y > s)).sum() == 0
-        # render the image
-        hdus = dict()
 
-        def make_hdus(d, data, extname_prefix=''):
-            result = dict()
-            for k, v in d.items():
-                if isinstance(v, dict):
-                    result[k] = make_hdus(
-                        v, data[k], extname_prefix=f'{extname_prefix}{k}_')
-                    continue
-                # make hdu for model v with flux in data[k]
-                m = v
-                flux = data[k]
-                amp = (flux * m.amplitude).to(u.MJy / u.sr)
-                img = np.zeros((s, s), dtype=float) << u.MJy / u.sr
-                m = m.copy()
-                for xx, yy, aa in zip(x, y, amp):
-                    m.amplitude = aa
-                    m.x_mean = xx
-                    m.y_mean = yy
-                    m.render(img)
-                hdu = fits.ImageHDU(
-                    img.to_value(u.MJy / u.sr), header=header)
-                hdu.header['SIGUNIT'] = 'MJy / sr'
-                hdu.header['EXTNAME'] = f'{extname_prefix}{k}'
-                result[k] = hdu
-                self.logger.debug('HDU {}: {}'.format(
-                    k, hdu.header.tostring(sep='\n')
-                    ))
-            return result
+        # render the image for each data table entry
 
-        hdus = make_hdus(beam_models, self._data)
+        hdus = list()
+        data_exts = list()
 
+        for i, (entry, psf_model) in enumerate(zip(data_tbl, psf_models)):
+            # make hdu for model psf_model with flux in entry['flux']
+            # note flux is a vector
+            data_ext = {
+                c: entry[c]
+                for c in data_tbl.colnames
+                }
+            flux = data_ext.pop('flux')
+            extname = data_ext['extname'] = f'{i}_{data_ext["colname"]}'
+            amp = (flux * psf_model.amplitude).to(u.MJy / u.sr)
+            img = np.zeros((s, s), dtype=float) << u.MJy / u.sr
+            # make a copy of the model so we update the info
+            m = psf_model.copy()
+            for xx, yy, aa in zip(x, y, amp):
+                m.amplitude = aa
+                m.x_mean = xx
+                m.y_mean = yy
+                m.render(img)
+            # create the hdu with wcs and data
+            hdu = fits.ImageHDU(
+                img.to_value(u.MJy / u.sr), header=header)
+            hdu.header['SIGUNIT'] = 'MJy / sr'
+            hdu.header['EXTNAME'] = extname
+            hdus.append(hdu)
+            data_exts.append(data_ext)
+
+        # import matplotlib.pyplot as plt
+        # fig, axes = plt.subplots(3, 3)
+        # for i, hdu in enumerate(hdus):
+        #     ax = axes.ravel()[i]
+        #     ax.imshow(hdu.data)
+        #     ax.set_title(hdu.header['EXTNAME'])
+        # plt.show()
         return ImageSourceModel(
-                data=hdus,
+                hdulist=hdus,
+                data_exts=data_exts,
                 name=self.name,
                 )

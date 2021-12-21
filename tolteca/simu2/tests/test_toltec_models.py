@@ -44,3 +44,57 @@ def test_toltec_sky_proj():
     with pytest.raises(
             ValueError, match='Invalid .* in input'):
         m(0, 0, 0, 4)
+
+
+def test_toltec_sky_proj_multi():
+
+    logger = get_logger()
+
+    t = np.arange(0, 3, 1) << u.min
+    t0 = Time('2022-01-01T00:00:00')
+    target = SkyCoord(180. << u.deg, 60. << u.deg, frame='icrs')
+    time_obs = t0 + t
+    observer = ToltecSkyProjModel.observer
+    bs_coords_altaz = target.transform_to(
+        observer.altaz(time=time_obs))
+
+    print(bs_coords_altaz)
+
+    m = ToltecSkyProjModel(
+            origin_coords_icrs=target,
+            origin_coords_altaz=bs_coords_altaz,
+            time_obs=time_obs)
+
+    logger.debug(f"m: {m}")
+
+    x_t, y_t = np.meshgrid(
+        np.arange(0, 10, 1) - 5, np.arange(0, 10, 1) - 5, indexing='ij')
+    x_t = x_t.ravel()[np.newaxis, :] << u.arcsec
+    y_t = y_t.ravel()[np.newaxis, :] << u.arcsec
+    pa_t = np.zeros_like(x_t)
+
+    (ra, dec, pa_icrs), eval_ctx_icrs = m(
+        x_t, y_t, pa_t, evaluate_frame='icrs', return_eval_context=True)
+    # import pdb
+    # pdb.set_trace()
+
+    (az, alt, pa_altaz), eval_ctx_altaz = m(
+        x_t, y_t, pa_t, evaluate_frame='altaz', return_eval_context=True)
+
+    assert np.allclose(
+        eval_ctx_icrs['coords_altaz'].alt,
+        eval_ctx_altaz['coords_altaz'].alt)
+    assert np.allclose(
+        eval_ctx_icrs['coords_altaz'].az,
+        eval_ctx_altaz['coords_altaz'].az)
+
+    import matplotlib.pyplot as plt
+    fig, (ax, bx) = plt.subplots(1, 2)
+    for i, tt in enumerate(t):
+        ax.plot(
+            ra[i].arcsec, dec[i].arcsec,
+            color=f'C{i % 6}', marker='.', linestyle='none')
+        bx.plot(
+            az[i].arcsec, alt[i].arcsec,
+            color=f'C{i % 6}', marker='.', linestyle='none')
+    plt.show()

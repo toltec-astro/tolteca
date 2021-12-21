@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from .models import (ToltecArrayProjModel, ToltecSkyProjModel)
+from .models import (ToltecArrayProjModel, ToltecSkyProjModel, pa_from_coords)
 from .toltec_info import toltec_info
 from ..utils import PersistentState
 from ..mapping import (PatternKind, LmtTcsTrajMappingModel)
@@ -15,6 +15,7 @@ from tollan.utils.dataclass_schema import add_schema
 from kidsproc.kidsmodel.simulator import KidsSimulator
 from kidsproc.kidsmodel import ReadoutGainWithLinTrend
 
+from scipy.interpolate import interp1d
 import netCDF4
 import astropy.units as u
 from astropy.table import Column, QTable
@@ -25,7 +26,7 @@ import shutil
 from dataclasses import dataclass, field
 from astropy.coordinates.erfa_astrom import (
         erfa_astrom, ErfaAstromInterpolator)
-# from astropy.coordinates import AltAz, SkyCoord
+from astropy.coordinates import Angle, Longitude, Latitude  # , AltAz, SkyCoord
 
 
 __all__ = ['ToltecObsSimulator', 'ToltecHwpConfig']
@@ -234,6 +235,111 @@ class ToltecObsSimulator(object):
     def output_context(self, dirpath):
         return ToltecSimuOutputContext(simulator=self, rootpath=dirpath)
 
+    @timeit
+    def _get_detector_sky_traj(
+            self,
+            time_obs,
+            bs_coords_altaz,
+            bs_coords_icrs,
+            evaluate_interp_len=None):
+        logger = get_logger()
+        if evaluate_interp_len is None:
+            apt = self.array_prop_table
+            x_t = apt['x_t']
+            y_t = apt['y_t']
+            pa_t = apt['pa_t']
+
+            logger.debug(
+                f'get {len(apt)} detector sky trajectories for '
+                f'{len(time_obs)} time steps')
+
+            m_sky_proj = self._m_sky_proj_cls(
+                origin_coords_icrs=bs_coords_icrs,
+                origin_coords_altaz=bs_coords_altaz)
+            # this will do the altaz and icrs eval and save all
+            # intermediate objects in the eval_ctx dict
+            _, eval_ctx = m_sky_proj(
+                x_t[np.newaxis, :],
+                y_t[np.newaxis, :],
+                pa_t[np.newaxis, :],
+                evaluate_frame='icrs',
+                use_evaluate_icrs_fast=False,
+                return_eval_context=True
+                )
+            # unpack the eval_ctx
+            # note that the detector id is dim0 and time_obs is dim1
+            # so we do the transpose here
+            det_sky_traj = dict()
+            det_sky_traj['az'] = eval_ctx['coords_altaz'].az.T
+            det_sky_traj['alt'] = eval_ctx['coords_altaz'].alt.T
+            det_sky_traj['pa_altaz'] = eval_ctx['pa_altaz'].T
+            det_sky_traj['ra'] = eval_ctx['coords_icrs'].ra.T
+            det_sky_traj['dec'] = eval_ctx['coords_icrs'].dec.T
+            det_sky_traj['pa_icrs'] = eval_ctx['pa_icrs'].T
+            # dpa_altaz_icrs = eval_ctx['dpa_altaz_icrs']
+            return det_sky_traj
+
+        # make a subset of parameters for faster evaluate
+        # we need to make sure mjd_obs is sorted before hand
+        logger.debug(
+            f"evaluate sky_proj_model with "
+            f"evaluate_interp_len={evaluate_interp_len}")
+        mjd = time_obs.mjd << u.day
+        if not np.all(np.diff(mjd) >= 0):
+            raise ValueError('time_obs has to be sorted ascending.')
+        # collect the subsample index
+        s = [0]
+        for i, t in enumerate(mjd):
+            if t - mjd[s[-1]] < evaluate_interp_len:
+                continue
+            s.append(i)
+        # ensure the last index is in the subsample
+        if s[-1] != len(mjd) - 1:
+            s.append(-1)
+        logger.debug(
+            f"prepare sky_proj_model for {len(s)}/{len(mjd)} time steps")
+        time_obs_s = time_obs[s]
+        bs_coords_altaz_s = bs_coords_altaz[s]
+        bs_coords_icrs_s = bs_coords_icrs[s]
+        # evaluate with the subsample data
+        det_sky_traj_s = self._get_detector_sky_traj(
+            time_obs=time_obs_s,
+            bs_coords_altaz=bs_coords_altaz_s,
+            bs_coords_icrs=bs_coords_icrs_s,
+            evaluate_interp_len=None
+            )
+        # now build the spline interp
+        mjd_day_s = mjd[s].to_value(u.day)
+        az_deg_interp = interp1d(
+                mjd_day_s,
+                det_sky_traj_s['az'].degree, axis=0, kind='cubic')
+        alt_deg_interp = interp1d(
+                mjd_day_s,
+                det_sky_traj_s['alt'].degree, axis=0, kind='cubic')
+        pa_altaz_deg_interp = interp1d(
+            mjd_day_s,
+            det_sky_traj_s['pa_altaz'].to_value(u.deg), axis=0, kind='cubic')
+
+        ra_deg_interp = interp1d(
+                mjd_day_s,
+                det_sky_traj_s['ra'].degree, axis=0, kind='cubic')
+        dec_deg_interp = interp1d(
+                mjd_day_s,
+                det_sky_traj_s['dec'].degree, axis=0, kind='cubic')
+        pa_icrs_deg_interp = interp1d(
+            mjd_day_s,
+            det_sky_traj_s['pa_icrs'].to_value(u.deg), axis=0, kind='cubic')
+        # interp for full time steps
+        mjd_day = mjd.to_value(u.day)
+        det_sky_traj = dict()
+        det_sky_traj['az'] = Longitude(az_deg_interp(mjd_day) << u.deg)
+        det_sky_traj['alt'] = Latitude(alt_deg_interp(mjd_day) << u.deg)
+        det_sky_traj['pa_altaz'] = Angle(pa_altaz_deg_interp(mjd_day) << u.deg)
+        det_sky_traj['ra'] = Longitude(ra_deg_interp(mjd_day) << u.deg)
+        det_sky_traj['dec'] = Latitude(dec_deg_interp(mjd_day) << u.deg)
+        det_sky_traj['pa_icrs'] = Angle(pa_icrs_deg_interp(mjd_day) << u.deg)
+        return det_sky_traj
+
     def mapping_evaluator(
             self, mapping, sources=None,
             erfa_interp_len=300. << u.s,
@@ -241,74 +347,67 @@ class ToltecObsSimulator(object):
             catalog_model_render_pixel_size=0.5 << u.arcsec):
         if sources is None:
             sources = list()
-        apt = self.array_prop_table
-        x_t = apt['x_t']
-        y_t = apt['y_t']
+        t0 = mapping.t0
+
+        hwp_cfg = self.hwp_config
+        if hwp_cfg.rotator_enabled:
+            def get_hwp_pa_t(t):
+                # return the hwp position angle at time t
+                return Angle(((hwp_cfg.f_rot * t).to_value(
+                    u.dimensionless_unscaled) * 2. * np.pi) << u.rad)
+        else:
+            get_hwp_pa_t = None
 
         def evaluate(t):
+            time_obs = t0 + t
+            n_times = len(time_obs)
+            self.logger.debug(
+                f"evalute time_obs from {time_obs[0]} to "
+                f"{time_obs[-1]} n_times={n_times}")
+            if get_hwp_pa_t is None:
+                hwp_pa_t = None
+            else:
+                hwp_pa_t = get_hwp_pa_t(t)
+            # if True:
             with erfa_astrom.set(ErfaAstromInterpolator(erfa_interp_len)):
-                time_obs = t0 + t
-
                 with timeit("transform bore sight coords"):
                     # get bore sight trajectory and the hold flags
+                    holdflag = mapping.evaluate_holdflag(t)
                     bs_coords = mapping.evaluate_coords(t)
-                    hold_flags = mapping.evaluate_holdflag(t)
                     bs_coords_icrs = bs_coords.transform_to('icrs')
                     bs_coords_altaz = bs_coords.transform_to('altaz')
+                    bs_parallactic_angle = pa_from_coords(
+                        observer=mapping.observer,
+                        coords_altaz=bs_coords_altaz,
+                        coords_icrs=bs_coords_icrs)
+                    hwp_pa_altaz = hwp_pa_t + bs_coords_altaz.alt
+                    hwp_pa_icrs = hwp_pa_altaz + bs_parallactic_angle
+                # make the model to project detector positions
+                det_sky_traj = self._get_detector_sky_traj(
+                    time_obs=time_obs,
+                    bs_coords_altaz=bs_coords_altaz,
+                    bs_coords_icrs=bs_coords_icrs,
+                    evaluate_interp_len=eval_interp_len)
+                det_ra = det_sky_traj['ra']
+                det_dec = det_sky_traj['dec']
+                det_pa_icrs = det_sky_traj['pa_icrs']
+                # import matplotlib.pyplot as plt
+                # fig, ax = plt.subplots(1, 1)
+                # for i in range(0, det_ra.shape[0], 10):
+                #     for j in range(400):
+                #         plt.plot(
+                #             [det_ra.degree[i, j]],
+                #             [det_dec.degree[i, j]],
+                #             marker=(2, 0, det_pa_icrs.degree[i, j]),
+                #             markersize=5, linestyle=None)
+                # plt.show()
 
-                    # if hasattr(bs_coords, 'ra'):  # icrs
-                    #     # there is weird cache issue so we cannot
-                    #     # just do the transform easily without
-                    #     # re-building the skycoord obj
-                    #     # TODO fix this
-                    #     bs_coords_icrs = SkyCoord(
-                    #             bs_coords.ra, bs_coords.dec,
-                    #             frame='icrs'
-                    #             )
-                    #     _altaz_frame = resolve_sky_coords_frame(
-                    #             'altaz',
-                    #             observer=mapping.observer,
-                    #             time_obs=time_obs)
-                    #     bs_coords_altaz = bs_coords_icrs.transform_to(
-                    #         _altaz_frame)
-                    # elif hasattr(bs_coords, 'alt'):  # altaz
-                    #     bs_coords_icrs = bs_coords.transform_to('icrs')
-                    #     bs_coords_altaz = bs_coords
-                    #     target_coord_altaz = mapping.target.transform_to(
-                    #             bs_coords.frame)
-                    # since we have both the icrs and altaz we can calculate
-                    # parallactic angle with this eq:
-                    bs_parallactic_angle = np.arcsin(
-                        np.sin(bs_coords_altaz.az)
-                        * np.cos(mapping.observer.latitude)
-                        / np.cos(bs_coords_icrs.dec))
-                    bs_parallactic_angle_check = \
-                        mapping.observer.parallactic_angle(
-                                time_obs, bs_coords_icrs)
-                    print(bs_parallactic_angle_check - bs_parallactic_angle)
-
-                    # make the model to project detector positions
-                    m_sky_proj = self._m_sky_proj_cls(
-                        origin_coords_icrs=bs_coords_icrs,
-                        origin_coords_altaz=bs_coords_altaz)
-                    det_ra, det_dec = m_sky_proj(
-                        x_t, y_t,
-                        evaluate_frame='altaz',
-                        use_evaluate_icrs_fast=False,
-                        eval_interp_len=eval_interp_len,
-                        )
-                    det_az, det_alt = m_sky_proj(
-                        x_t, y_t,
-                        evaluate_frame='altaz',
-                        use_evaluate_icrs_fast=False,
-                        eval_interp_len=eval_interp_len,
-                        )
                 # get source flux from models
                 s_additive = list()
                 for m_source in sources:
-                    # TODO maybe there is a better way of handling the
-                    # catalog source model. This just convert it to a
-                    # image model
+                    # TODO maybe there is a faster way of handling the
+                    # catalog source model directly. For now
+                    # we just convert it to image model
                     if isinstance(m_source, CatalogSourceModel):
                         # get fwhms from toltec_info
                         fwhms = dict()
@@ -316,59 +415,30 @@ class ToltecObsSimulator(object):
                             fwhms[array_name] = toltec_info[
                                 array_name]['a_fwhm']
                         m_source = m_source.make_image_model(
+                            fwhms=fwhms,
                             pixscale=catalog_model_render_pixel_size / u.pix
                             )
                     if isinstance(m_source, ImageSourceModel):
-                        pass
                         # TODO support more types of wcs. For now
                         # only ICRS is supported
-                        # the projected lon lat
-                        # extract the flux
-                        # detector is required to be the first dimension
-                        # for the evaluate_tod
-                        # with timeit("extract flux from source image"):
-                        #     label = apt['array_names']
-                        #     s = m_source.evaluate(
-                        #         label, lon.T, lat.T)
+                        pass
+                        # with timeit(
+                        #         "extract flux from source image model"):
+                        #     s = m_source.evaluate_tod_icrs(
+                        #         self.array_prop_table['array_name'],
+                        #         det_ra,
+                        #         det_dec,
+                        #         det_pa_icrs,
+                        #         hwp_pa_icrs=hwp_pa_icrs
+                        #         )
                         # s_additive.append(s)
-                    # # TODO revisit the performance issue here
-                    # elif False and isinstance(m_source, SourceCatalogModel):
-                        # with timeit("transform src coords to projected frame"):
-                        #     src_pos = m_source.pos[:, np.newaxis].transform_to(
-                        #                 native_frame).transform_to(
-                        #                     projected_frame)
-                        # # evaluate with beam_model and reduce on sources axes
-                        # with timeit("convolve with beam"):
-                        #     dx = x_t[np.newaxis, :, np.newaxis] - \
-                        #         src_pos.lon[:, np.newaxis, :]
-                        #     dy = y_t[np.newaxis, :, np.newaxis] - \
-                        #         src_pos.lat[:, np.newaxis, :]
-                        #     an = np.moveaxis(
-                        #             np.tile(
-                        #                 tbl['array_name'],
-                        #                 src_pos.shape + (1, )),
-                        #             1, 2)
-                        #     s = self._m_beam(an, dx, dy)
-                        #     # weighted sum with flux at each detector
-                        #     # assume no polarization
-                        #     w = np.vstack([
-                        #         m_source.data[a] for a in tbl['array_name']]).T
-                        #     s = np.sum(s * w[:, :, np.newaxis], axis=0)
-                        # s_additive.append(s)
-                # if len(s_additive) <= 0:
-                    # s = np.zeros(lon.T.shape) << u.MJy / u.sr
-                # else:
-                    # s = s_additive[0]
-                    # for _s in s_additive[1:]:
-                        # s += _s
-
-                 # # add the atmosphere into the source timestram
-                # if all_obs_atm_slabs is None:
-                    # all_obs_atm_slabs = np.zeros_like(s)
-                # assert s.shape == all_obs_atm_slabs.shape
-                # s += all_obs_atm_slabs << u.MJy / u.sr
-
-                # return s, locals()
+                if len(s_additive) <= 0:
+                    s = np.zeros(det_ra.shape) << u.MJy / u.sr
+                else:
+                    s = s_additive[0]
+                    for _s in s_additive[1:]:
+                        s += _s
+                return s, locals()
         return evaluate
 
     def tod_evaluator(self, mapping, sources, simu_config):
@@ -408,7 +478,7 @@ class ToltecObsSimulator(object):
             )
 
         def evaluate(t):
-            return mapping_evaluator(t)
+            print(mapping_evaluator(t))
 
         return evaluate
 
