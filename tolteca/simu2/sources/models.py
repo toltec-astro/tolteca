@@ -168,10 +168,51 @@ class ImageSourceModel(SurfaceBrightnessModel):
             f'signal range: [{s_out[m].min()}, {s_out[m].max()}]')
 
     def evaluate_tod_icrs(
-            self, array_name, det_ra, det_dec,
-            det_pa_icrs, hwp_pa_icrs=None):
+            self, det_array_name, det_ra, det_dec,
+            det_pa_icrs=None,
+            hwp_pa_icrs=None):
+        """Return signal data."""
         data_tbl = self.data
-        sp = self.data
+        if 'stokes_param' not in data_tbl.colnames:
+            stokes_params = None
+        else:
+            stokes_params = np.unique(data_tbl['stokes_param'])
+        if det_pa_icrs is None and stokes_params is not None:
+            self.logger.warning(
+                "stokes_param ignored because no position angles are provided"
+                )
+        elif det_pa_icrs is not None and stokes_params is None:
+            raise ValueError(
+                "stokes_param is required for polarized evaluation")
+        else:
+            pass
+        # a special value used to indicate data array for non polarized
+        # evaluation
+        UNPOLARIZED = object()
+        if stokes_params is None:
+            data_keys = [UNPOLARIZED]
+        else:
+            data_keys = stokes_params
+        data_by_array_name = data_tbl.group_by('array_name')
+        s_outs = {
+            k: np.zeros(det_ra.shape) << u.MJy / u.sr
+            for k in data_keys
+            }
+        for array_name, group in zip(
+                data_by_array_name.groups.keys,
+                data_by_array_name.groups):
+            m = (det_array_name == array_name)
+            self.logger.debug(f"evaluate {array_name}: {m.sum()}/{len(m)}")
+            for entry in group:
+                # populate the 
+            self._set_data_for_group(hdu, m, lon[m], lat[m], s_outs[sk])
+            f'****** {key["name"]} *******')
+            print(group)
+            print('')
+        for g in 
+
+            data_groups = data_tbl.group_by('array_name')
+        data = []
         s_outs = {
             'I': None,
             'Q': None,

@@ -310,25 +310,26 @@ class ToltecObsSimulator(object):
             )
         # now build the spline interp
         mjd_day_s = mjd[s].to_value(u.day)
+        kind = 'linear'
         az_deg_interp = interp1d(
                 mjd_day_s,
-                det_sky_traj_s['az'].degree, axis=0, kind='cubic')
+                det_sky_traj_s['az'].degree, axis=0, kind=kind)
         alt_deg_interp = interp1d(
                 mjd_day_s,
-                det_sky_traj_s['alt'].degree, axis=0, kind='cubic')
+                det_sky_traj_s['alt'].degree, axis=0, kind=kind)
         pa_altaz_deg_interp = interp1d(
             mjd_day_s,
-            det_sky_traj_s['pa_altaz'].to_value(u.deg), axis=0, kind='cubic')
+            det_sky_traj_s['pa_altaz'].to_value(u.deg), axis=0, kind=kind)
 
         ra_deg_interp = interp1d(
                 mjd_day_s,
-                det_sky_traj_s['ra'].degree, axis=0, kind='cubic')
+                det_sky_traj_s['ra'].degree, axis=0, kind=kind)
         dec_deg_interp = interp1d(
                 mjd_day_s,
-                det_sky_traj_s['dec'].degree, axis=0, kind='cubic')
+                det_sky_traj_s['dec'].degree, axis=0, kind=kind)
         pa_icrs_deg_interp = interp1d(
             mjd_day_s,
-            det_sky_traj_s['pa_icrs'].to_value(u.deg), axis=0, kind='cubic')
+            det_sky_traj_s['pa_icrs'].to_value(u.deg), axis=0, kind=kind)
         # interp for full time steps
         mjd_day = mjd.to_value(u.day)
         det_sky_traj = dict()
@@ -421,17 +422,16 @@ class ToltecObsSimulator(object):
                     if isinstance(m_source, ImageSourceModel):
                         # TODO support more types of wcs. For now
                         # only ICRS is supported
-                        pass
-                        # with timeit(
-                        #         "extract flux from source image model"):
-                        #     s = m_source.evaluate_tod_icrs(
-                        #         self.array_prop_table['array_name'],
-                        #         det_ra,
-                        #         det_dec,
-                        #         det_pa_icrs,
-                        #         hwp_pa_icrs=hwp_pa_icrs
-                        #         )
-                        # s_additive.append(s)
+                        with timeit(
+                                "extract flux from source image model"):
+                            s = m_source.evaluate_tod_icrs(
+                                self.array_prop_table['array_name'],
+                                det_ra,
+                                det_dec,
+                                det_pa_icrs,
+                                hwp_pa_icrs=hwp_pa_icrs
+                                )
+                        s_additive.append(s)
                 if len(s_additive) <= 0:
                     s = np.zeros(det_ra.shape) << u.MJy / u.sr
                 else:
