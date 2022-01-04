@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 
-from .models import (ToltecArrayProjModel, ToltecSkyProjModel, pa_from_coords)
+from .models import (
+    ToltecArrayProjModel, ToltecSkyProjModel, pa_from_coords,
+    ToltecPowerLoadingModel)
 from .toltec_info import toltec_info
-from ..utils import PersistentState
+from ..utils import PersistentState, SkyBoundingBox
 from ..mapping import (PatternKind, LmtTcsTrajMappingModel)
 # from ..mapping.utils import resolve_sky_coords_frame
-from ..sources.base import (SurfaceBrightnessModel, PowerLoadingModel)
+from ..sources.base import (SurfaceBrightnessModel, )
 from ..sources.models import (ImageSourceModel, CatalogSourceModel)
+
 from ...utils.common_schema import PhysicalTypeSchema
 from tollan.utils.nc import NcNodeMapper
 from tollan.utils.log import get_logger, timeit
@@ -242,6 +245,9 @@ class ToltecObsSimulator(object):
             bs_coords_altaz,
             bs_coords_icrs,
             evaluate_interp_len=None):
+        """Return the detector positions of shape [n_detectors, n_times]
+        on sky.
+        """
         logger = get_logger()
         if evaluate_interp_len is None:
             apt = self.array_prop_table
@@ -268,14 +274,13 @@ class ToltecObsSimulator(object):
                 )
             # unpack the eval_ctx
             # note that the detector id is dim0 and time_obs is dim1
-            # so we do the transpose here
             det_sky_traj = dict()
-            det_sky_traj['az'] = eval_ctx['coords_altaz'].az.T
-            det_sky_traj['alt'] = eval_ctx['coords_altaz'].alt.T
-            det_sky_traj['pa_altaz'] = eval_ctx['pa_altaz'].T
-            det_sky_traj['ra'] = eval_ctx['coords_icrs'].ra.T
-            det_sky_traj['dec'] = eval_ctx['coords_icrs'].dec.T
-            det_sky_traj['pa_icrs'] = eval_ctx['pa_icrs'].T
+            det_sky_traj['az'] = eval_ctx['coords_altaz'].az
+            det_sky_traj['alt'] = eval_ctx['coords_altaz'].alt
+            det_sky_traj['pa_altaz'] = eval_ctx['pa_altaz']
+            det_sky_traj['ra'] = eval_ctx['coords_icrs'].ra
+            det_sky_traj['dec'] = eval_ctx['coords_icrs'].dec
+            det_sky_traj['pa_icrs'] = eval_ctx['pa_icrs']
             # dpa_altaz_icrs = eval_ctx['dpa_altaz_icrs']
             return det_sky_traj
 
@@ -308,28 +313,28 @@ class ToltecObsSimulator(object):
             bs_coords_icrs=bs_coords_icrs_s,
             evaluate_interp_len=None
             )
-        # now build the spline interp
+        # now build the interp along the time dim.
         mjd_day_s = mjd[s].to_value(u.day)
-        kind = 'linear'
+        interp_kwargs = dict(kind='linear', axis=1)
         az_deg_interp = interp1d(
                 mjd_day_s,
-                det_sky_traj_s['az'].degree, axis=0, kind=kind)
+                det_sky_traj_s['az'].degree, **interp_kwargs)
         alt_deg_interp = interp1d(
                 mjd_day_s,
-                det_sky_traj_s['alt'].degree, axis=0, kind=kind)
+                det_sky_traj_s['alt'].degree, **interp_kwargs)
         pa_altaz_deg_interp = interp1d(
             mjd_day_s,
-            det_sky_traj_s['pa_altaz'].to_value(u.deg), axis=0, kind=kind)
+            det_sky_traj_s['pa_altaz'].to_value(u.deg), **interp_kwargs)
 
         ra_deg_interp = interp1d(
                 mjd_day_s,
-                det_sky_traj_s['ra'].degree, axis=0, kind=kind)
+                det_sky_traj_s['ra'].degree, **interp_kwargs)
         dec_deg_interp = interp1d(
                 mjd_day_s,
-                det_sky_traj_s['dec'].degree, axis=0, kind=kind)
+                det_sky_traj_s['dec'].degree, **interp_kwargs)
         pa_icrs_deg_interp = interp1d(
             mjd_day_s,
-            det_sky_traj_s['pa_icrs'].to_value(u.deg), axis=0, kind=kind)
+            det_sky_traj_s['pa_icrs'].to_value(u.deg), **interp_kwargs)
         # interp for full time steps
         mjd_day = mjd.to_value(u.day)
         det_sky_traj = dict()
@@ -341,6 +346,86 @@ class ToltecObsSimulator(object):
         det_sky_traj['pa_icrs'] = Angle(pa_icrs_deg_interp(mjd_day) << u.deg)
         return det_sky_traj
 
+    def probing_evaluator(
+            self, f_smp, kids_fp=None,
+            power_loading_model=None):
+        """Return a function that can be used to get detector readout.
+
+        When `power_loading_model` is given, the generated power loading
+        will be the sum of the contribution from the astronomical source
+        and the telescope and atmosphere:
+
+            P_tot = P_src + P_bkg_fixture + P_atm(alt)
+
+        We set the tune of the KidsSimulator,
+        such that x=0 at P=P_bkg_fixture + P_atm(alt_of_tune_obs).
+
+        Thus the measured detuning parameters is proportional to
+
+            P_src + (P_atm(alt) - P_atm(alt_of_tune_obs))
+        """
+        apt = self.array_prop_table
+        det_array_name = apt['array_name']
+        kids_sim = self.kids_simulator
+        kids_readout_model = self.kids_readout_model
+        if kids_fp is None:
+            kids_fp = kids_sim.fr
+        if power_loading_model is not None:
+            # make sure this is an instance of the toltec power loading model
+            if not isinstance(power_loading_model, ToltecPowerLoadingModel):
+                raise ValueError("invalid power loading model.")
+
+        def evaluate(det_s=None, det_sky_traj=None):
+            # make sure we have at least some input to the models
+            if det_s is None and det_sky_traj is None:
+                raise ValueError("one of det_s and det_sky_traj is required")
+            if det_s is not None and det_sky_traj is not None:
+                if det_s.shape != det_sky_traj['alt'].shape:
+                    raise ValueError(
+                        "mismatch shape in det_s and det_sky_traj")
+            if det_s is not None:
+                data_shape = det_s.shape
+            else:
+                data_shape = det_sky_traj['alt'].shape
+            # make sure the data shape matches with apt shape
+            if data_shape[0] != len(det_array_name):
+                raise ValueError(
+                    "mismatch shape in data shape and apt length.")
+            if det_s is None:
+                det_s = np.zeros(data_shape, dtype='d') << u.MJy / u.sr
+            if power_loading_model is None:
+                # in this case we just convert the detector surface brightness
+                # to power with simple square passband.
+                # convert det sb to pwr loading
+                self.logger.debug(
+                    "calculate power loading without loading model")
+                det_pwr = np.zeroes(data_shape, dtype='d') << u.pW
+                for array_name in self.array_names:
+                    m = (det_array_name == array_name)
+                    det_pwr[m] = self._sky_sb_to_pwr(
+                        array_name=array_name,
+                        det_s=det_s[m],
+                        )
+            else:
+                if det_sky_traj is None:
+                    raise ValueError(
+                        "Power loading model requires det_sky_traj")
+                with timeit(
+                        f"calculate power loading with loading model "
+                        f"{power_loading_model}"):
+                    det_pwr = power_loading_model.evaluate_tod(
+                        det_array_name=apt['array_name'],
+                        det_s=det_s,
+                        det_alt=det_sky_traj['alt'],
+                        f_smp=f_smp,
+                        noise_seed=None,
+                        )
+            self.logger.debug(
+                f"power loading at detector: "
+                f"min={det_pwr.min()} max={det_pwr.max()}")
+            return det_pwr, locals()
+        return evaluate
+
     def mapping_evaluator(
             self, mapping, sources=None,
             erfa_interp_len=300. << u.s,
@@ -349,6 +434,7 @@ class ToltecObsSimulator(object):
         if sources is None:
             sources = list()
         t0 = mapping.t0
+        apt = self.array_prop_table
 
         hwp_cfg = self.hwp_config
         if hwp_cfg.rotator_enabled:
@@ -383,6 +469,13 @@ class ToltecObsSimulator(object):
                         coords_icrs=bs_coords_icrs)
                     hwp_pa_altaz = hwp_pa_t + bs_coords_altaz.alt
                     hwp_pa_icrs = hwp_pa_altaz + bs_parallactic_angle
+                    bs_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
+                        bs_coords_icrs.ra, bs_coords_icrs.dec)
+                    bs_sky_bbox_altaz = SkyBoundingBox.from_lonlat(
+                        bs_coords_altaz.az, bs_coords_altaz.alt)
+                    self.logger.debug(
+                        f"sky_bbox icrs={bs_sky_bbox_icrs} "
+                        f"altaz={bs_sky_bbox_altaz}")
                 # make the model to project detector positions
                 det_sky_traj = self._get_detector_sky_traj(
                     time_obs=time_obs,
@@ -394,8 +487,8 @@ class ToltecObsSimulator(object):
                 det_pa_icrs = det_sky_traj['pa_icrs']
                 # import matplotlib.pyplot as plt
                 # fig, ax = plt.subplots(1, 1)
-                # for i in range(0, det_ra.shape[0], 10):
-                #     for j in range(400):
+                # for i in range(400):
+                #     for j in range(0, det_ra.shape[1], 10):
                 #         plt.plot(
                 #             [det_ra.degree[i, j]],
                 #             [det_dec.degree[i, j]],
@@ -425,7 +518,7 @@ class ToltecObsSimulator(object):
                         with timeit(
                                 "extract flux from source image model"):
                             s = m_source.evaluate_tod_icrs(
-                                self.array_prop_table['array_name'],
+                                apt['array_name'],
                                 det_ra,
                                 det_dec,
                                 det_pa_icrs,
@@ -433,31 +526,37 @@ class ToltecObsSimulator(object):
                                 )
                         s_additive.append(s)
                 if len(s_additive) <= 0:
+                    self.logger.debug("no surface brightness model available")
                     s = np.zeros(det_ra.shape) << u.MJy / u.sr
                 else:
                     s = s_additive[0]
                     for _s in s_additive[1:]:
                         s += _s
+                self.logger.debug(
+                    f"surface brightness at detector: "
+                    f"min={s.min()} max={s.max()}")
                 return s, locals()
         return evaluate
 
-    def tod_evaluator(self, mapping, sources, simu_config):
+    def tod_evaluator(
+            self, mapping, sources, simu_config,
+            pre_run_setup_time_grid):
         """Return a callable that runs the simulator.
 
         """
         # split the sources based on their base class
         sources_sb = list()
-        sources_pwr = list()
+        power_loading_model = None
         sources_unknown = list()
         for s in sources:
             if isinstance(s, SurfaceBrightnessModel):
                 sources_sb.append(s)
-            elif isinstance(s, PowerLoadingModel):
-                sources_pwr.append(s)
+            elif isinstance(s, ToltecPowerLoadingModel):
+                power_loading_model = s
             else:
                 sources_unknown.append(s)
         self.logger.debug(f"surface brightness sources:\n{sources_sb}")
-        self.logger.debug(f"power loading sources:\n{sources_pwr}")
+        self.logger.debug(f"power loading model:\n{power_loading_model}")
         self.logger.warning(f"ignored sources:\n{sources_unknown}")
 
         # run the mapping evaluator to get fluxes
@@ -476,9 +575,70 @@ class ToltecObsSimulator(object):
             catalog_model_render_pixel_size=(
                 perf_params.catalog_model_render_pixel_size),
             )
+        probing_evaluator = self.probing_evaluator(
+            kids_fp=None,
+            f_smp=simu_config.obs_params.f_smp_probing,
+            power_loading_model=power_loading_model,
+            )
+        #
+        # before we start the chunked eval, we do some global setup
+        # of the models
+        # we use an exit stack to manage the contexts until the next run
+        # of this function
+        if not hasattr(self, '_tod_evaluater_es'):
+            self._tod_evaluator_es = ExitStack()
+        es = self._tod_evaluator_es
+        # close the previous es if any
+        es.close()
+        # start of global setup
+        _, mapping_info = mapping_evaluator(pre_run_setup_time_grid)
+        # compute the extent for detectors
+        bbox_padding = (1 << u.arcmin, 1 << u.arcmin)
+        # here we add some padding to the bbox
+        det_sky_traj = mapping_info['det_sky_traj']
+        det_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
+            det_sky_traj['ra'], det_sky_traj['dec']).pad_with(
+                *bbox_padding)
+        det_sky_bbox_altaz = SkyBoundingBox.from_lonlat(
+            det_sky_traj['az'], det_sky_traj['alt']).pad_with(
+                *bbox_padding)
+        self.logger.debug(
+            f"det sky bbox: icrs={det_sky_bbox_icrs} "
+            f"altaz={det_sky_bbox_altaz}")
+        # setup interp for power loading model
+        if power_loading_model is not None:
+            interp_alt_grid = np.arange(
+                det_sky_bbox_altaz.s.degree,
+                det_sky_bbox_altaz.n.degree,
+                perf_params.atm_eval_interp_alt_step.to_value(u.deg)
+                ) << u.deg
+            if len(interp_alt_grid) < 5:
+                raise ValueError('atm_eval_interp_alt_step too small.')
+            es.enter_context(
+                power_loading_model.atm_eval_interp_context(
+                    alt_grid=interp_alt_grid))
+        # import matplotlib.pyplot as plt
+        # import matplotlib.patches as patches
+        # fig, ax = plt.subplots(1, 1)
+        # ax.plot(
+        #     det_sky_traj['az'].degree, det_sky_traj['alt'].degree,
+        #     linestyle='none', marker='o')
+        # p = patches.Rectangle(
+        #     (
+        #         det_sky_bbox_altaz.w.to_value(u.deg),
+        #         det_sky_bbox_altaz.s.to_value(u.deg),
+        #         ),
+        #     det_sky_bbox_altaz.width.to_value(u.deg),
+        #     det_sky_bbox_altaz.height.to_value(u.deg),
+        #     linewidth=1, edgecolor='r', facecolor='none')
+        # ax.add_patch(p)
+        # plt.show()
 
         def evaluate(t):
-            print(mapping_evaluator(t))
+            det_s, mapping_info = mapping_evaluator(t)
+            det_sky_traj = mapping_info['det_sky_traj']
+            det_p = probing_evaluator(det_s=det_s, det_sky_traj=det_sky_traj)
+            return locals()
 
         return evaluate
 

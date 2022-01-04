@@ -1,19 +1,22 @@
 #!/usr/bin/env python
 
 
-from schema import Schema, Optional, Use
+from schema import Schema, Optional, Use, Literal, Or
 from tollan.utils.dataclass_schema import DataclassNamespace
 from tollan.utils.log import get_logger
 from astropy.table import Table
-from .. import instrument_registry
+from .. import instrument_registry, sources_registry
 from ...utils.common_schema import RelPathSchema
 from .lmt import lmt_info as site_info
 from ...cal import ToltecCalib
 from ...utils import get_pkg_data_path
 from .simulator import ToltecObsSimulator, ToltecHwpConfig
+from .models import ToltecPowerLoadingModel
 
 
-__all__ = ['site_info', 'ToltecObsSimulatorConfig', 'ToltecHwpConfig']
+__all__ = [
+    'site_info', 'ToltecObsSimulatorConfig', 'ToltecHwpConfig',
+    'ToltecPowerLoadingModelConfig']
 
 
 def _load_calobj(index_filepath, allow_fallback=True):
@@ -96,3 +99,18 @@ class ToltecObsSimulatorConfig(DataclassNamespace):
 
     def __call__(self, cfg):
         return self.simulator
+
+
+@sources_registry.register('toltec_power_loading')
+class ToltecPowerLoadingModelConfig(DataclassNamespace):
+    """The config class to compute the TolTEC detector power loading.
+    """
+
+    _namespace_from_dict_schema = Schema({
+        Literal('atm_model_name', description='The atmosphere model to use.'):
+        Or(None, 'am_q25', 'am_q50', 'am_q75', 'toast')
+        })
+
+    def __call__(self, cfg):
+        return ToltecPowerLoadingModel(
+            atm_model_name=self.atm_model_name)

@@ -4,7 +4,7 @@ from astropy.io import fits
 import astropy.units as u
 import numpy as np
 from astropy.wcs import WCS
-from astropy.coordinates import Angle, SkyCoord
+from astropy.coordinates import SkyCoord
 from astropy.table import Table, QTable
 from astropy.modeling import models
 from astropy.modeling.functional_models import GAUSSIAN_SIGMA_TO_FWHM
@@ -14,6 +14,7 @@ from tollan.utils.log import get_logger
 from tollan.utils import ensure_abspath
 
 from .base import SurfaceBrightnessModel
+from ..utils import SkyBoundingBox
 
 
 __all__ = ['ImageSourceModel', 'CatalogSourceModel']
@@ -90,60 +91,38 @@ class ImageSourceModel(SurfaceBrightnessModel):
     def data(self):
         return self._data
 
-    @staticmethod
-    def _get_data_sky_bbox(wcsobj, data_shape):
-        logger = get_logger()
-        # check lon lat range
-        # because here we check longitude ranges
-        # we need to take into account wrapping issue
-        # check pixel range
-        ny, nx = data_shape
-        # lon lat edge of pixel edges
-        lon_e, lat_e = wcsobj.wcs_pix2world(
-                np.array([0, 0, nx - 1, nx - 1]),
-                np.array([0, ny - 1, 0, ny - 1]),
-                0)
-        # fix potential wrapping issue by check at 360 and 180 wrapping
-        lon_e = Angle(lon_e << u.deg).wrap_at(360. << u.deg).degree
-        lon_e_180 = Angle(lon_e << u.deg).wrap_at(180. << u.deg).degree
-        # this is done by taking the one with smaller span
-        w_e, e_e = np.min(lon_e), np.max(lon_e)
-        w_e_180, e_e_180 = np.min(lon_e_180), np.max(lon_e_180)
-        s_e, n_e = np.min(lat_e), np.max(lat_e)
-        if (e_e_180 - w_e_180) < (e_e - w_e):
-            # use wrapping at 180.d
-            w_e = w_e_180
-            e_e = e_e_180
-            lon_wrap_at = 180. << u.deg
-            logger.debug(f"re-wrapping data bbox coords at {lon_wrap_at}")
-        else:
-            lon_wrap_at = 360. << u.deg
-        logger.debug(f"data bbox: w={w_e} e={e_e} s={s_e} n={n_e}")
-        logger.debug(f'data shape: {data_shape}')
-        return [(w_e, e_e), (s_e, n_e)], lon_wrap_at
-
     @classmethod
-    def _set_data_for_group(cls, hdu, group_mask, lon, lat, s_out):
-        """Populate `s_out` for `group_mask` from `hdu`."""
+    def _set_data_for_hdu(
+            cls, hdu, det_ra, det_dec, s_out_mask, s_out):
+        """Populate `s_out` using data from `hdu`."""
         logger = get_logger()
         # check lon lat range of hdu and re-wrap longitude for proper
         # range check
         s_out_unit = u.Unit(hdu.header.get('SIGUNIT', 'adu'))
         wcsobj = WCS(hdu.header)
         ny, nx = data_shape = hdu.data.shape
-        (w_e, e_e), (s_e, n_e), lon_wrap_at = cls._get_data_sky_bbox(
-            wcsobj, data_shape)
-        lon = Angle(lon << u.deg).wrap_at(lon_wrap_at).degree
+        sky_bbox = SkyBoundingBox.from_wcs(wcsobj, data_shape)
+        logger.debug(
+            f"data bbox: w={sky_bbox.w} e={sky_bbox.e} "
+            f"s={sky_bbox.s} n={sky_bbox.n}")
+        logger.debug(f'data shape: {data_shape}')
+        # to make it simple we work in deg explicitly
+        # here we also re-wrap the ra to be consistent with the sky bbox.
+        det_ra_deg = det_ra.wrap_at(sky_bbox.lon_wrap_angle).degree
+        det_dec_deg = det_dec.degree
+        # compute the detector pos mask within the foot print
         g = (
-                (lon > w_e) & (lon < e_e)
-                & (lat > s_e) & (lat < n_e)
+                (det_ra_deg > sky_bbox.w.degree)
+                & (det_ra_deg < sky_bbox.e.degree)
+                & (det_dec_deg > sky_bbox.s.degree)
+                & (det_dec_deg < sky_bbox.n.degree)
                 )
-        logger.debug(f"data group mask {g.sum()}/{lon.size}")
+        logger.debug(f"data group mask {g.sum()}/{det_dec.size}")
         if g.sum() == 0:
-            # skip because no overlap
+            # skip because no overlap between detectors and sky bbox
             return
-        # convert all lon lat to x y
-        x_g, y_g = wcsobj.wcs_world2pix(lon[g], lat[g], 0)
+        # convert all detector posistions to x y
+        x_g, y_g = wcsobj.wcs_world2pix(det_ra_deg[g], det_dec_deg[g], 0)
         ii = np.rint(y_g).astype(int)
         jj = np.rint(x_g).astype(int)
         logger.debug(
@@ -154,18 +133,19 @@ class ImageSourceModel(SurfaceBrightnessModel):
         # update g to include only valid pixels
         g[g] = gp
         # TODO this seems to be unnecessary
-        # convert all lon lat to x y
-        x_g, y_g = wcsobj.wcs_world2pix(lon[g], lat[g], 0)
+        # convert all lon lat to x y with update mask g
+        x_g, y_g = wcsobj.wcs_world2pix(det_ra_deg[g], det_dec_deg[g], 0)
         ii = np.rint(y_g).astype(int)
         jj = np.rint(x_g).astype(int)
         logger.debug(
                 f"pixel range updated: [{ii.min()}, {ii.max()}] "
                 f"[{jj.min()}, {jj.max()}]")
         ig = np.where(g)
-        m = np.flatnonzero(group_mask)[ig]
-        s_out[m] = hdu.data[ii, jj] << s_out_unit
+        m = np.flatnonzero(s_out_mask)[ig]
+        s = hdu.data[ii, jj] << s_out_unit
         logger.debug(
-            f'signal range: [{s_out[m].min()}, {s_out[m].max()}]')
+            f'detector signal range: [{s.min()}, {s.max()}]')
+        s_out[m] = s
 
     def evaluate_tod_icrs(
             self, det_array_name, det_ra, det_dec,
@@ -179,8 +159,10 @@ class ImageSourceModel(SurfaceBrightnessModel):
             stokes_params = np.unique(data_tbl['stokes_param'])
         if det_pa_icrs is None and stokes_params is not None:
             self.logger.warning(
-                "stokes_param ignored because no position angles are provided"
+                "stokes_param Q and U are ignored because "
+                "no position angles are provided"
                 )
+            data_tbl = data_tbl[data_tbl['stokes_param'] == 'I']
         elif det_pa_icrs is not None and stokes_params is None:
             raise ValueError(
                 "stokes_param is required for polarized evaluation")
@@ -198,109 +180,177 @@ class ImageSourceModel(SurfaceBrightnessModel):
             k: np.zeros(det_ra.shape) << u.MJy / u.sr
             for k in data_keys
             }
-        for array_name, group in zip(
+        for key, group in zip(
                 data_by_array_name.groups.keys,
                 data_by_array_name.groups):
+            array_name = key['array_name']
+            # the size of group should match with the size of data keys
+            assert len(group) == len(data_keys)
             m = (det_array_name == array_name)
-            self.logger.debug(f"evaluate {array_name}: {m.sum()}/{len(m)}")
-            for entry in group:
-                # populate the 
-            self._set_data_for_group(hdu, m, lon[m], lat[m], s_outs[sk])
-            f'****** {key["name"]} *******')
-            print(group)
-            print('')
-        for g in 
-
-            data_groups = data_tbl.group_by('array_name')
-        data = []
-        s_outs = {
-            'I': None,
-            'Q': None,
-            'U': None
-            }
-        for g in group_names:
-            if g not in data:
-                self.logger.debug(f"group {g} not found in data")
-                continue
-            data_g = self._data[g]
-            m = (label == g)
-            data_groups.append([data_g, m])
-            self.logger.debug(f"group {g}: {m.sum()}/{len(m)}")
-            for sk in s_outs.keys():
-                if sk in data_g and s_outs[sk] is None:
-                    # create this s_out data
-                    s_outs[sk] = np.zeros(lon.shape) << u.MJy / u.sr
-        used_stokes_keys = set(
-            sk for sk, arr in s_outs.items() if arr is not None)
-        self.logger.debug(
-            f"evaluate {len(data_groups)} groups "
-            f"for Stokes {used_stokes_keys}")
-
-        lon = lon.to_value(u.deg)
-        lat = lat.to_value(u.deg)
-
-        for data_g, m in data_groups:
-            for sk, hdu in data_g.items():
-                self._set_data_for_group(hdu, m, lon[m], lat[m], s_outs[sk])
-        # now we do the polarimetry handling
-        if used_stokes_keys == {'I', }:
-            # this is un-polarized
-            return s_outs['I']
-        # mix i, Q, and U
+            self.logger.debug(
+                f"evaluate {m.sum()}/{len(m)} "
+                f"detector signals for array_name={array_name}")
+            for data_key in data_keys:
+                if data_key is UNPOLARIZED:
+                    # just use the only entry here for as input
+                    entry = group[0]
+                else:
+                    # evaluate for the entry with matching stokes_param
+                    entry = group[group['stokes_param'] == data_key]
+                    assert len(entry) == 1
+                    entry = entry[0]
+                # get data into the s_out array
+                hdu = entry['hdu']
+                self._set_data_for_hdu(
+                    hdu=hdu,
+                    det_ra=det_ra[m],
+                    det_dec=det_dec[m],
+                    s_out_mask=m,
+                    s_out=s_outs[data_key])
+        if UNPOLARIZED in data_keys:
+            # non polarized case
+            return s_outs[data_key]
+        # mix the I Q and U
         I = s_outs['I']  # noqa: E741
         Q = s_outs['Q']
         U = s_outs['U']
-        return 0.5 * (I + np.cos(2. * pa) * Q + np.sin(2. * pa) * U)
+        if hwp_pa_icrs is None:
+            return 0.5 * (
+                I
+                + Q * np.cos(2. * det_pa_icrs)
+                + U * np.sin(2. * det_pa_icrs)
+                )
+        return 0.5 * (
+            I
+            + Q * np.cos(4. * hwp_pa_icrs - 2. * det_pa_icrs)
+            + U * np.sin(4. * hwp_pa_icrs - 2. * det_pa_icrs)
+            )
 
+    # @staticmethod
+    # def _get_data_sky_bbox(wcsobj, data_shape):
+    #     logger = get_logger()
+    #     # check lon lat range
+    #     # because here we check longitude ranges
+    #     # we need to take into account wrapping issue
+    #     # check pixel range
+    #     ny, nx = data_shape
+    #     # lon lat edge of pixel edges
+    #     lon_e, lat_e = wcsobj.wcs_pix2world(
+    #             np.array([0, 0, nx - 1, nx - 1]),
+    #             np.array([0, ny - 1, 0, ny - 1]),
+    #             0)
+    #     # fix potential wrapping issue by check at 360 and 180 wrapping
+    #     lon_e = Angle(lon_e << u.deg).wrap_at(360. << u.deg).degree
+    #     lon_e_180 = Angle(lon_e << u.deg).wrap_at(180. << u.deg).degree
+    #     # this is done by taking the one with smaller span
+    #     w_e, e_e = np.min(lon_e), np.max(lon_e)
+    #     w_e_180, e_e_180 = np.min(lon_e_180), np.max(lon_e_180)
+    #     s_e, n_e = np.min(lat_e), np.max(lat_e)
+    #     if (e_e_180 - w_e_180) < (e_e - w_e):
+    #         # use wrapping at 180.d
+    #         w_e = w_e_180
+    #         e_e = e_e_180
+    #         lon_wrap_at = 180. << u.deg
+    #         logger.debug(f"re-wrapping data bbox coords at {lon_wrap_at}")
+    #     else:
+    #         lon_wrap_at = 360. << u.deg
+    #     logger.debug(f"data bbox: w={w_e} e={e_e} s={s_e} n={n_e}")
+    #     logger.debug(f'data shape: {data_shape}')
+    #     return [(w_e, e_e), (s_e, n_e)], lon_wrap_at
 
+    # @classmethod
+    # def _set_data_for_group(cls, hdu, group_mask, lon, lat, s_out):
+    #     """Populate `s_out` for `group_mask` from `hdu`."""
+    #     logger = get_logger()
+    #     # check lon lat range of hdu and re-wrap longitude for proper
+    #     # range check
+    #     s_out_unit = u.Unit(hdu.header.get('SIGUNIT', 'adu'))
+    #     wcsobj = WCS(hdu.header)
+    #     ny, nx = data_shape = hdu.data.shape
+    #     (w_e, e_e), (s_e, n_e), lon_wrap_at = cls._get_data_sky_bbox(
+    #         wcsobj, data_shape)
+    #     lon = Angle(lon << u.deg).wrap_at(lon_wrap_at).degree
+    #     g = (
+    #             (lon > w_e) & (lon < e_e)
+    #             & (lat > s_e) & (lat < n_e)
+    #             )
+    #     logger.debug(f"data group mask {g.sum()}/{lon.size}")
+    #     if g.sum() == 0:
+    #         # skip because no overlap
+    #         return
+    #     # convert all lon lat to x y
+    #     x_g, y_g = wcsobj.wcs_world2pix(lon[g], lat[g], 0)
+    #     ii = np.rint(y_g).astype(int)
+    #     jj = np.rint(x_g).astype(int)
+    #     logger.debug(
+    #             f"pixel range: [{ii.min()}, {ii.max()}] "
+    #             f"[{jj.min()}, {jj.max()}]")
+    #     # check ii and jj for valid pixel range
+    #     gp = (ii >= 0) & (ii < ny) & (jj >= 0) & (jj < nx)
+    #     # update g to include only valid pixels
+    #     g[g] = gp
+    #     # TODO this seems to be unnecessary
+    #     # convert all lon lat to x y
+    #     x_g, y_g = wcsobj.wcs_world2pix(lon[g], lat[g], 0)
+    #     ii = np.rint(y_g).astype(int)
+    #     jj = np.rint(x_g).astype(int)
+    #     logger.debug(
+    #             f"pixel range updated: [{ii.min()}, {ii.max()}] "
+    #             f"[{jj.min()}, {jj.max()}]")
+    #     ig = np.where(g)
+    #     m = np.flatnonzero(group_mask)[ig]
+    #     s_out[m] = hdu.data[ii, jj] << s_out_unit
+    #     logger.debug(
+    #         f'signal range: [{s_out[m].min()}, {s_out[m].max()}]')
 
     def evaluate(self, label, lon, lat, pa):
-        # make group_masks for each label value
-        data = self._data
-        data_groups = []
-        group_names = np.unique(label)
+        return NotImplemented
+        # # make group_masks for each label value
+        # data = self._data
+        # data_groups = []
+        # group_names = np.unique(label)
 
-        # note the data_g is a dict of hdus keyed off with stokes I Q U
-        # and they may not be present so we can save some memory here
-        # by only create those that are needed
-        s_outs = {
-            'I': None,
-            'Q': None,
-            'U': None
-            }
-        for g in group_names:
-            if g not in data:
-                self.logger.debug(f"group {g} not found in data")
-                continue
-            data_g = self._data[g]
-            m = (label == g)
-            data_groups.append([data_g, m])
-            self.logger.debug(f"group {g}: {m.sum()}/{len(m)}")
-            for sk in s_outs.keys():
-                if sk in data_g and s_outs[sk] is None:
-                    # create this s_out data
-                    s_outs[sk] = np.zeros(lon.shape) << u.MJy / u.sr
-        used_stokes_keys = set(
-            sk for sk, arr in s_outs.items() if arr is not None)
-        self.logger.debug(
-            f"evaluate {len(data_groups)} groups "
-            f"for Stokes {used_stokes_keys}")
+        # # note the data_g is a dict of hdus keyed off with stokes I Q U
+        # # and they may not be present so we can save some memory here
+        # # by only create those that are needed
+        # s_outs = {
+        #     'I': None,
+        #     'Q': None,
+        #     'U': None
+        #     }
+        # for g in group_names:
+        #     if g not in data:
+        #         self.logger.debug(f"group {g} not found in data")
+        #         continue
+        #     data_g = self._data[g]
+        #     m = (label == g)
+        #     data_groups.append([data_g, m])
+        #     self.logger.debug(f"group {g}: {m.sum()}/{len(m)}")
+        #     for sk in s_outs.keys():
+        #         if sk in data_g and s_outs[sk] is None:
+        #             # create this s_out data
+        #             s_outs[sk] = np.zeros(lon.shape) << u.MJy / u.sr
+        # used_stokes_keys = set(
+        #     sk for sk, arr in s_outs.items() if arr is not None)
+        # self.logger.debug(
+        #     f"evaluate {len(data_groups)} groups "
+        #     f"for Stokes {used_stokes_keys}")
 
-        lon = lon.to_value(u.deg)
-        lat = lat.to_value(u.deg)
+        # lon = lon.to_value(u.deg)
+        # lat = lat.to_value(u.deg)
 
-        for data_g, m in data_groups:
-            for sk, hdu in data_g.items():
-                self._set_data_for_group(hdu, m, lon[m], lat[m], s_outs[sk])
-        # now we do the polarimetry handling
-        if used_stokes_keys == {'I', }:
-            # this is un-polarized
-            return s_outs['I']
-        # mix i, Q, and U
-        I = s_outs['I']  # noqa: E741
-        Q = s_outs['Q']
-        U = s_outs['U']
-        return 0.5 * (I + np.cos(2. * pa) * Q + np.sin(2. * pa) * U)
+        # for data_g, m in data_groups:
+        #     for sk, hdu in data_g.items():
+        #         self._set_data_for_group(hdu, m, lon[m], lat[m], s_outs[sk])
+        # # now we do the polarimetry handling
+        # if used_stokes_keys == {'I', }:
+        #     # this is un-polarized
+        #     return s_outs['I']
+        # # mix i, Q, and U
+        # I = s_outs['I']  # noqa: E741
+        # Q = s_outs['Q']
+        # U = s_outs['U']
+        # return 0.5 * (I + np.cos(2. * pa) * Q + np.sin(2. * pa) * U)
 
     @classmethod
     def from_file(

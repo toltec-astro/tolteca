@@ -94,6 +94,21 @@ class PerfParamsConfig(object):
             'schema': PhysicalTypeSchema("time"),
             }
         )
+    atm_eval_interp_alt_step: u.Quantity = field(
+        default=0.5 << u.deg,
+        metadata={
+            'description': 'Interp altitude step to speed-up atm eval.',
+            'schema': PhysicalTypeSchema("angle"),
+            }
+        )
+    pre_run_setup_time_grid_size: int = field(
+        default=100,
+        metadata={
+            'description': 'Size of time grid used for pre-run setup.',
+            'schema': PhysicalTypeSchema("angle"),
+            }
+        )
+
     anim_frame_rate: u.Quantity = field(
         default=300 << u.s,
         metadata={
@@ -380,7 +395,13 @@ class SimulatorRuntime(RuntimeContext):
 
                 # run simulator for each chunk and save the data
                 tod_eval = sim.tod_evaluator(
-                    mapping=m_mapping, sources=m_sources, simu_config=cfg)
+                    mapping=m_mapping, sources=m_sources,
+                    simu_config=cfg,
+                    pre_run_setup_time_grid=np.linspace(
+                        0, t_exp.to_value(u.s),
+                        cfg.perf_params.pre_run_setup_time_grid_size
+                        ) << u.s
+                    )
                 n_chunks = len(t_chunks)
                 for ci, t in enumerate(t_chunks):
                     self.logger.info(f"working on chunk {ci} of {n_chunks}")

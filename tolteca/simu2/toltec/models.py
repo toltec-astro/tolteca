@@ -6,17 +6,34 @@ import astropy.units as u
 from astropy.time import Time
 from astropy.modeling import models, Parameter, Model
 from astropy.coordinates import SkyCoord, Angle
+from astropy.table import Table
+from astropy.cosmology import default_cosmology
+from astropy import constants as const
+from astropy.utils.decorators import classproperty
+from scipy.interpolate import interp1d
+
 import numpy as np
+
 from tollan.utils.log import timeit, get_logger
 from kidsproc.kidsmodel import _Model as ComplexModel
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
+
+from ...utils import get_pkg_data_path
 from .toltec_info import toltec_info
+from .lmt import get_lmt_atm_models
 
 from ..base import ProjModel, LabelFrame
+from ..sources.base import PowerLoadingModel
 from ..mapping.utils import rotation_matrix_2d, _get_skyoffset_frame
 
 
-__all__ = ['ToltecArrayProjModel', 'ToltecSkyProjModel', 'pa_from_coords']
+__all__ = [
+    'pa_from_coords',
+    'ToltecArrayProjModel', 'ToltecSkyProjModel',
+    'KidsReadoutNoiseModel',
+    'ToltecArrayPowerLoadingModel',
+    'ToltecPowerLoadingModel'
+    ]
 
 
 def pa_from_coords(observer, coords_altaz, coords_icrs):
@@ -559,16 +576,543 @@ class KidsReadoutNoiseModel(ComplexModel):
         return dS21
 
 
-class ToltecProbingModel(Model):
-    """A model that takes detector power loading and produces KIDs timstream.
+def _get_default_passbands():
+    """Return the default TolTEC passband tables as a dict.
+    """
+    from ...cal.toltec import ToltecPassband
+    calobj = ToltecPassband.from_indexfile(get_pkg_data_path().joinpath(
+        'cal/toltec_passband/index.yaml'
+        ))
+    result = dict()
+    for array_name in calobj.array_names:
+        result[array_name] = calobj.get(array_name=array_name)
+    return result
+
+
+class ToltecArrayPowerLoadingModel(Model):
+    """
+    A model of the LMT optical loading at the TolTEC arrays.
+
+    This is based on the Mapping-speed-calculator
     """
 
-    def __init__(self, kids_simulator):
-        pass
+    # TODO allow overwriting these per instance.
+    _toltec_passbands = _get_default_passbands()
+    _cosmo = default_cosmology.get()
+
+    logger = get_logger()
+
+    n_inputs = 1
+    n_outputs = 2
+
+    @property
+    def input_units(self):
+        return {self.inputs[0]: u.deg}
+
+    def __init__(self, array_name, atm_model_name='am_q50', *args, **kwargs):
+        super().__init__(name=f'{array_name}_loading', *args, **kwargs)
+        self._inputs = ('alt', )
+        self._outputs = ('P', 'nep')
+        self._array_name = array_name
+        self._array_info = toltec_info[array_name]
+        self._passband = self._toltec_passbands[array_name]
+        self._f = self._passband['f'].quantity
+        # check the f step, they shall be uniform
+        df = np.diff(self._f).value
+        if np.std(df) / df[0] > 1e-7:
+            raise ValueError(
+                "invalid passband format, frequency grid has to be uniform")
+        self._df = self._f[1] - self._f[0]
+        self._throughput = self._passband['throughput']
+        if atm_model_name is not None:
+            self._atm_model, self._atm_tx_model = get_lmt_atm_models(
+                name=atm_model_name)
+        else:
+            self._atm_model = None
+            # TODO revisit this
+            _, self._atm_tx_model = get_lmt_atm_models(
+                name='am_q50')
+
+    @property
+    def has_atm_model(self):
+        return self._atm_model is not None
+
+    @classproperty
+    def _internal_params(cls):
+        """Lower level instrument parameters for LMT/TolTEC.
+
+        Note that all these values does not take into account the
+        passbands, and are frequency independent.
+        """
+        # TODO merge this to the instrument fact yaml file?
+        p = {
+                'det_optical_efficiency': 0.8,
+                'det_noise_factor': 0.334,
+                'horn_aperture_efficiency': 0.35,
+                'tel_diameter': 48. << u.m,
+                'tel_surface_rms': 76. << u.um,
+                'tel_emissivity': 0.06,
+                'T_coldbox': 5.75 << u.K,
+                'T_tel': 273. << u.K,  # telescope ambient temperature
+                'T_coupling_optics': 290. << u.K,  # coupling optics
+                }
+        # derived values
+        p['tel_area'] = np.pi * (p['tel_diameter'] / 2.) ** 2
+        # effective optics temperature due to telescope and the coupling
+        p['T_warm'] = (
+                p['tel_emissivity'] * p['T_tel']
+                # TODO add documents for the numbers here
+                + 3. * p['T_coupling_optics'] * 0.01
+                )
+        # cold efficiency is the efficiency inside the cold box.
+        p['cold_efficiency'] = (
+                p['det_optical_efficiency'] * p['horn_aperture_efficiency'])
+        # effetive temperature at detectors for warm components through
+        # the cold box
+        p['T_det_warm'] = (p['T_warm'] * p['cold_efficiency'])
+        # effetive temperature at detectors for cold box
+        # note that the "horn aperture efficiency" is actually the
+        # internal system aperture efficiency since it includes the
+        # truncation of the lyot stop and the loss to the cold optics
+        p['T_det_coldbox'] = (
+                p['T_coldbox'] * p['det_optical_efficiency']
+                * (1. - p['horn_aperture_efficiency'])
+                )
+        return p
+
+    @property
+    def _tel_primary_surface_optical_efficiency(self):
+        """The telescope optical efficiency due to RMS of the
+        primary surface over the passband.
+
+        This is just the Ruze formula.
+        """
+        tel_surface_rms = self._internal_params['tel_surface_rms']
+        f = self._f
+        return np.exp(-((4.0 * np.pi * tel_surface_rms)/(const.c / f)) ** 2)
+
+    @property
+    def _system_efficiency(self):
+        """The overall system efficiency over the passband."""
+        return (
+                self._tel_primary_surface_optical_efficiency
+                * self._internal_params['cold_efficiency']
+                * self._throughput
+                )
+
+    @staticmethod
+    def _wsum(q, w):
+        """Return weighted sum of some quantity.
+
+        q : `astropy.units.Quantity`
+            The quantity.
+
+        w : float
+            The wegith.
+        """
+        if w.ndim > 1:
+            raise ValueError("weight has to be 1d")
+        return np.nansum(q * w, axis=-1) / np.nansum(w)
+
+    def _get_T_atm(
+            self, alt,
+            return_avg=False):
+        """Return the atmosphere temperature.
+
+        This is the "true" temperature without taking into account the system
+        efficiency.
+
+        Parameters
+        ----------
+        alt : `astropy.units.Quantity`
+            The altitude.
+        return_avg : bool, optional
+            If True, return the weighted sum over the passband instead.
+        """
+        atm_model = self._atm_model
+        if atm_model is None:
+            return np.squeeze(np.zeros((alt.size, self._f.size)) << u.K)
+        # here we put the alt on the first axis for easier reduction on f.
+        T_atm = atm_model(*np.meshgrid(self._f, alt, indexing='ij')).T
+        if return_avg:
+            T_atm = self._wsum(T_atm, self._throughput)
+        T_atm = np.squeeze(T_atm)
+        return T_atm
+
+    def _get_tx_atm(self, alt):
+        """Return the atmosphere transmission.
+
+        Parameters
+        ----------
+        alt : `astropy.units.Quantity`
+            The altitude.
+        """
+        atm_tx_model = self._atm_tx_model
+        # here we put the alt on the first axis for easier reduction on f.
+        tx_atm = atm_tx_model(*np.meshgrid(self._f, alt, indexing='ij')).T
+        tx_atm = np.squeeze(tx_atm)
+        return tx_atm
+
+    def _get_T(
+            self, alt,
+            return_avg=False
+            ):
+        """Return the effective temperature at altitude `alt`, as seen
+        by the cryostat.
+
+        Parameters
+        ----------
+        alt : `astropy.units.Quantity`
+            The altitude.
+        return_avg : bool, optional
+            If True, return the weighted sum over the passband instead.
+        """
+        T_atm = self._get_T_atm(alt, return_avg=False)
+        # add the telescope warm component temps
+        T_tot = T_atm + self._internal_params['T_warm']
+        if return_avg:
+            T_tot = self._wsum(T_tot, self._system_efficiency)
+        return T_tot
+
+    def _get_T_det(
+            self, alt,
+            return_avg=True):
+        """Return the effective temperature seen by the detectors
+        at altitude `alt`.
+
+        Parameters
+        ----------
+        alt : `astropy.units.Quantity`
+            The altitude.
+        return_avg : bool, optional
+            If True, return the weighted sum over the passband instead.
+        """
+        T_atm = self._get_T_atm(alt, return_avg=False)
+        # TODO why no telescope efficiency term?
+        T_det = (
+                T_atm * self._internal_params['cold_efficiency']
+                + self._internal_params['T_det_warm']
+                + self._internal_params['T_det_coldbox']
+                ) * self._throughput
+        if return_avg:
+            # note this is different from the Detector.py in that
+            # does not mistakenly (?) average over the passband again
+            T_det = np.mean(T_det)
+        return T_det
+
+    def _T_to_dP(self, T):
+        """Return the Rayleigh-Jeans power for the passband frequency bins.
+
+        Parameters
+        ----------
+        T : `astropy.units.Quantity`
+            The temperature.
+        """
+        # power from RJ source in frequency bin df
+        # TODO this can be done this way because we ensured df is contant
+        # over the passband.
+        # we may change this to trapz to allow arbitrary grid?
+        return const.k_B * T * self._df
+
+    def _T_to_dnep(self, T):
+        """Return the photon noise equivalent power in W / sqrt(Hz) for
+        the passband frequency bins.
+        """
+        f = self._f
+        df = self._df
+        dP = self._T_to_dP(T)
+
+        shot = 2. * const.k_B * T * const.h * f * df
+        wave = 2. * dP ** 2 / df
+        return np.sqrt(shot + wave)
+
+    def _T_to_dnet_cmb(self, T, tx_atm):
+        """Return the noise equivalent CMB temperature in K / sqrt(Hz) for
+        the passband frequency bins.
+
+        Parameters
+        ----------
+        T : `astropy.units.Quantity`
+            The temperature.
+        tx_atm : array
+            The atmosphere transmission.
+        """
+        f = self._f
+        df = self._df
+        Tcmb = self._cosmo.Tcmb(0)
+
+        dnep = self._T_to_dnep(T)
+        x = const.h * f / (const.k_B * Tcmb)
+        net_integrand = (
+                (const.k_B * x) ** 2.
+                * (1. / const.k_B)
+                * np.exp(x) / (np.expm1(x)) ** 2.
+                )
+        dnet = dnep / (
+                np.sqrt(2.0)
+                * self._system_efficiency
+                * net_integrand
+                * df)
+        # scale by the atmosphere transmission so this is comparable
+        # to astronomical sources.
+        return dnet / tx_atm
+
+    def _dnep_to_dnefd(self, dnep, tx_atm):
+        """Return the noise equivalent flux density in Jy / sqrt(Hz) for
+        the passband frequency bins.
+
+        Parameters
+        ----------
+        T : `astropy.units.Quantity`
+            The temperature.
+        tx_atm : array
+            The atmosphere transmission.
+        """
+        df = self._df
+        A = self._internal_params['tel_area']
+        # TODO Z. Ma: I combined the sqrt(2) term. need to check the eqn here.
+        dnefd = (
+                dnep
+                / (A * df)
+                / self._system_efficiency
+                * np.sqrt(2.))
+        # scale by the atmosphere transmission so this is comparable
+        # to astronomical sources.
+        return dnefd / tx_atm  # Jy / sqrt(Hz)
+
+    def _get_P(self, alt):
+        """Return the detector power loading at altitude `alt`.
+
+        """
+        T_det = self._get_T_det(alt=alt, return_avg=False)
+        return np.nansum(self._T_to_dP(T_det), axis=-1).to(u.pW)
+
+    def _get_dP(self, alt, f_smp):
+        """Return the detector power loading uncertainty according to the nep
+        """
+        return (
+            self._get_noise(alt)['nep']
+            * np.sqrt(f_smp / 2.)).to(u.pW)
+
+    def _get_noise(self, alt, return_avg=True):
+        """Return the noise at altitude `alt`.
+
+        Parameters
+        ----------
+        alt : `astropy.units.Quantity`
+            The altitude.
+        return_avg : bool, optional
+            If True, return the value integrated for the passband.
+        """
+        # noise calculations
+        # strategy is to do this for each frequency bin and then do a
+        # weighted average across the band.  This is copied directly from
+        # Sean's python code.
+        T_det = self._get_T_det(alt=alt, return_avg=False)
+        dnep_phot = self._T_to_dnep(T_det)
+
+        # detector noise factor coefficient
+        det_noise_coeff = np.sqrt(
+                1. + self._internal_params['det_noise_factor'])
+
+        dnep = dnep_phot * det_noise_coeff
+
+        # atm transmission
+        tx_atm = self._get_tx_atm(alt)
+        # the equivalent noise in astronomical units
+        dnet_cmb = (
+                self._T_to_dnet_cmb(T_det, tx_atm=tx_atm)
+                * det_noise_coeff
+                )
+        dnefd = self._dnep_to_dnefd(dnep, tx_atm=tx_atm)
+
+        if return_avg:
+            # integrate these up
+            net_cmb = np.sqrt(1.0 / np.nansum(dnet_cmb ** (-2.0), axis=-1))
+            nefd = np.sqrt(1.0 / np.nansum(dnefd ** (-2.0), axis=-1))
+            # nep is sum of squares
+            nep = np.sqrt(np.nansum(dnep ** 2.0, axis=-1))
+            # power just adds
+            return {
+                    'net_cmb': net_cmb.to(u.mK * u.Hz ** -0.5),
+                    'nefd': nefd.to(u.mJy * u.Hz ** -0.5),
+                    'nep': nep.to(u.aW * u.Hz ** -0.5)
+                    }
+        return {
+                    'dnet_cmb': net_cmb.to(u.mK * u.Hz ** -0.5),
+                    'dnefd': nefd.to(u.mJy * u.Hz ** -0.5),
+                    'dnep': nep.to(u.aW * u.Hz ** -0.5)
+                    }
+
+    def make_summary_table(self, alt=None):
+        """Return a summary for a list of altitudes.
+
+        """
+        if alt is None:
+            alt = [50., 60., 70.] << u.deg
+        result = dict()
+        result['P'] = self._get_P(alt)
+        result.update(self._get_noise(alt, return_avg=True))
+        return Table(result)
+
+    def evaluate(self, alt):
+        P = self._get_P(alt)
+        nep = self._get_noise(alt, return_avg=True)['nep']
+        return P, nep
+
+    def sky_sb_to_pwr(self, det_s):
+        """Return detector power loading for given on-sky surface brightness.
+        """
+        # note that this is approximate using a square passband.
+        wl_center = self._array_info['wl_center']
+        pb_width = self._array_info['passband']
+        tb = det_s.to(
+                    u.K,
+                    equivalencies=u.brightness_temperature(
+                        wl_center))
+        p = (
+            tb.to(
+                u.J,
+                equivalencies=u.temperature_energy())
+            * pb_width
+            ).to(u.pW)
+        # the sys eff is also approximate
+        sys_eff = self._wsum(
+                self._system_efficiency, self._throughput
+                )
+        return p * sys_eff
+
+    @contextmanager
+    def atm_eval_interp_context(self, alt_grid):
+        self.logger.debug(
+            f"setup atm eval interp context with alt_grid={alt_grid} "
+            f"size={len(alt_grid)}")
+        interp_kwargs = dict(kind='cubic')
+        self._p_pW_interp = interp1d(
+                alt_grid.to_value(u.deg),
+                self._get_P(alt_grid).to_value(u.pW),
+                **interp_kwargs
+                )
+        one_Hz = 1 << u.Hz
+        self._dp_pW_interp_unity_f_smp = interp1d(
+                alt_grid.to_value(u.deg),
+                self._get_dP(alt_grid, one_Hz).to_value(u.pW),
+                **interp_kwargs
+                )
+        yield self
+        self._p_pW_interp = None
+        self._dp_pW_interp_unity_f_smp = None
+
+    def evaluate_tod(
+            self,
+            det_alt,
+            f_smp,
+            random_seed=None,
+            ):
+        """Return the atmosphere power loading along with the noise."""
+
+        if self._p_pW_interp is None:
+            # no interp, direct eval
+            alt = np.ravel(det_alt)
+            det_pwr_atm = self._get_P(alt).to(u.pW).reshape(det_alt.shape),
+            det_delta_pwr_atm_pW = self._get_dP(alt, f_smp).reshape(
+                det_alt.shape),
+        else:
+            det_pwr_atm = self._p_pW_interp(det_alt.degree) << u.pW
+            one_Hz = 1. << u.Hz
+            det_delta_pwr_atm_pW = self._dp_pW_interp_unity_f_smp(
+                det_alt.degree) * np.sqrt(f_smp / one_Hz)
+        rng = np.random.default_rng(seed=random_seed)
+        det_dp_atm = rng.normal(0., det_delta_pwr_atm_pW) << u.pW
+        # calc the median P and dP for logging purpose
+        med_alt = np.median(det_alt)
+        med_P = self._get_P(med_alt).to(u.pW)
+        med_dP = self._get_dP(med_alt, f_smp).to(u.aW)
+        self.logger.debug(f"atm at med_alt={med_alt} P={med_P} dp={med_dP}")
+        return det_pwr_atm + det_dp_atm
 
 
-class ToltecMappingModel(Model):
-    """A model that tasks surface brightness and produces power loading."""
+class ToltecPowerLoadingModel(PowerLoadingModel):
+    """
+    A wrapper model to calculate power loading for all the TolTEC arrays.
 
-    def __init__(self, kids_simulator):
-        pass
+    This model in-corporates both the "static" am_qxx models and the toast
+    model.
+    """
+
+    logger = get_logger()
+    array_names = toltec_info['array_names']
+
+    n_inputs = 3
+    n_outputs = 1
+
+    def __init__(self, atm_model_name):
+        if atm_model_name is None or atm_model_name == 'toast':
+            _atm_model_name = 'am_q50'
+        else:
+            _atm_model_name = atm_model_name
+        # we need the ToltecArrayPowerLoadingModel for converting sb to
+        # pwr, so we need it anyway.
+        self._array_power_loading_models = {
+            array_name: ToltecArrayPowerLoadingModel(
+                array_name=array_name,
+                atm_model_name=_atm_model_name)
+            for array_name in self.array_names
+            }
+        super().__init__(name='toltec_power_loading')
+        self.inputs = ('array_name', 'S', 'alt')
+        self.outputs = ('P', )
+        self._atm_model_name = atm_model_name
+
+    @property
+    def atm_model_name(self):
+        return self._atm_model_name
+
+    def evaluate(self):
+        # TODO
+        # implement the default behavior for the model
+        return NotImplemented
+
+    def atm_eval_interp_context(self, alt_grid):
+        es = ExitStack()
+        for m in self._array_power_loading_models.values():
+            es.enter_context(m.atm_eval_interp_context(alt_grid))
+        return es
+
+    def evaluate_tod(
+            self, det_array_name, det_s, det_alt,
+            f_smp,
+            noise_seed=None,
+            ):
+        p_out = np.zeros(det_s.shape) << u.pW
+        for array_name in self.array_names:
+            mask = (det_array_name == array_name)
+            aplm = self._array_power_loading_models[array_name]
+            # compute the power loading from on-sky surface brightness
+            p = aplm.sky_sb_to_pwr(det_s=det_s[mask])
+            if self.atm_model_name is None:
+                # atm is disabled
+                pass
+            elif self.atm_model_name == 'toast':
+                p_atm = calc_toast_atm_pwr(det_alt=det_alt[mask])
+                p += p_atm
+            else:
+                # use the ToltecArrayPowerLoadingModel atm
+                p_atm = aplm.evaluate_tod(
+                    det_alt=det_alt[mask],
+                    f_smp=f_smp,
+                    random_seed=noise_seed,
+                    )
+                p += p_atm
+            p_out[mask] = p
+        return p_out
+
+    def __str__(self):
+        return (
+            f'{self.__class__.__name__}(atm_model_name={self.atm_model_name})')
+
+
+def calc_toast_atm_pwr(det_alt):
+    # TODO
+    # implement this
+    raise NotImplementedError("toast atm is not implemented yet")
