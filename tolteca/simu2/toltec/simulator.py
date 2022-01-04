@@ -607,10 +607,12 @@ class ToltecObsSimulator(object):
             f"altaz={det_sky_bbox_altaz}")
         # setup interp for power loading model
         if power_loading_model is not None:
+            alt_deg_step = perf_params.atm_eval_interp_alt_step.to_value(
+                u.deg)
             interp_alt_grid = np.arange(
                 det_sky_bbox_altaz.s.degree,
-                det_sky_bbox_altaz.n.degree,
-                perf_params.atm_eval_interp_alt_step.to_value(u.deg)
+                det_sky_bbox_altaz.n.degree + alt_deg_step,
+                alt_deg_step,
                 ) << u.deg
             if len(interp_alt_grid) < 5:
                 raise ValueError('atm_eval_interp_alt_step too small.')

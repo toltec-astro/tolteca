@@ -95,7 +95,7 @@ class PerfParamsConfig(object):
             }
         )
     atm_eval_interp_alt_step: u.Quantity = field(
-        default=0.5 << u.deg,
+        default=4 << u.arcmin,
         metadata={
             'description': 'Interp altitude step to speed-up atm eval.',
             'schema': PhysicalTypeSchema("angle"),

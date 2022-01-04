@@ -984,21 +984,22 @@ class ToltecArrayPowerLoadingModel(Model):
 
     @contextmanager
     def atm_eval_interp_context(self, alt_grid):
-        self.logger.debug(
-            f"setup atm eval interp context with alt_grid={alt_grid} "
-            f"size={len(alt_grid)}")
-        interp_kwargs = dict(kind='cubic')
-        self._p_pW_interp = interp1d(
-                alt_grid.to_value(u.deg),
-                self._get_P(alt_grid).to_value(u.pW),
-                **interp_kwargs
-                )
-        one_Hz = 1 << u.Hz
-        self._dp_pW_interp_unity_f_smp = interp1d(
-                alt_grid.to_value(u.deg),
-                self._get_dP(alt_grid, one_Hz).to_value(u.pW),
-                **interp_kwargs
-                )
+        interp_kwargs = dict(kind='linear')
+        with timeit(
+            f"setup atm eval interp context with "
+            f"alt_grid=[{alt_grid.min()}:{alt_grid.max()}] "
+                f"size={len(alt_grid)}"):
+            self._p_pW_interp = interp1d(
+                    alt_grid.to_value(u.deg),
+                    self._get_P(alt_grid).to_value(u.pW),
+                    **interp_kwargs
+                    )
+            one_Hz = 1 << u.Hz
+            self._dp_pW_interp_unity_f_smp = interp1d(
+                    alt_grid.to_value(u.deg),
+                    self._get_dP(alt_grid, one_Hz).to_value(u.pW),
+                    **interp_kwargs
+                    )
         yield self
         self._p_pW_interp = None
         self._dp_pW_interp_unity_f_smp = None
