@@ -4,7 +4,7 @@ from .models import (
     ToltecArrayProjModel, ToltecSkyProjModel, pa_from_coords,
     ToltecPowerLoadingModel)
 from .toltec_info import toltec_info
-from ..utils import PersistentState, SkyBoundingBox
+from ..utils import PersistentState, SkyBoundingBox, make_time_grid
 from ..mapping import (PatternKind, LmtTcsTrajMappingModel)
 # from ..mapping.utils import resolve_sky_coords_frame
 from ..sources.base import (SurfaceBrightnessModel, )
@@ -445,7 +445,7 @@ class ToltecObsSimulator(object):
         else:
             get_hwp_pa_t = None
 
-        def evaluate(t):
+        def evaluate(t, mapping_only=False):
             time_obs = t0 + t
             n_times = len(time_obs)
             self.logger.debug(
@@ -495,7 +495,8 @@ class ToltecObsSimulator(object):
                 #             marker=(2, 0, det_pa_icrs.degree[i, j]),
                 #             markersize=5, linestyle=None)
                 # plt.show()
-
+                if mapping_only:
+                    return locals()
                 # get source flux from models
                 s_additive = list()
                 for m_source in sources:
@@ -538,20 +539,28 @@ class ToltecObsSimulator(object):
                 return s, locals()
         return evaluate
 
-    def tod_evaluator(
-            self, mapping, sources, simu_config,
-            pre_run_setup_time_grid):
-        """Return a callable that runs the simulator.
+    @contextmanager
+    def iter_eval_context(self, simu_config):
+        """Run the simuation defined by `simu_config`."""
+        mapping_model = simu_config.mapping_model
+        source_models = simu_config.source_models
+        obs_params = simu_config.obs_params
+        perf_params = simu_config.perf_params
+        t_simu = simu_config.t_simu
 
-        """
         # split the sources based on their base class
+        # we need to make sure the TolTEC power loading source is only
+        # specified once
         sources_sb = list()
         power_loading_model = None
         sources_unknown = list()
-        for s in sources:
+        for s in source_models:
             if isinstance(s, SurfaceBrightnessModel):
                 sources_sb.append(s)
             elif isinstance(s, ToltecPowerLoadingModel):
+                if power_loading_model is not None:
+                    raise ValueError(
+                        "multiple TolTEC power loading model found.")
                 power_loading_model = s
             else:
                 sources_unknown.append(s)
@@ -559,17 +568,21 @@ class ToltecObsSimulator(object):
         self.logger.debug(f"power loading model:\n{power_loading_model}")
         self.logger.warning(f"ignored sources:\n{sources_unknown}")
 
-        # run the mapping evaluator to get fluxes
-        # tbl = self.table
-        # x_t = tbl['x_t']
-        # y_t = tbl['y_t']
+        # create the time grids
+        # this is the iterative eval time grids
+        t_chunks = make_time_grid(
+            t=t_simu,
+            f_smp=obs_params.f_smp_probing,
+            chunk_len=perf_params.chunk_len)
+        # this is used for doing pre-eval calcuation.
+        t_grid_pre_eval = np.linspace(
+                        0, t_simu.to_value(u.s),
+                        perf_params.pre_eval_t_grid_size
+                        ) << u.s
 
-        # ref_frame = mapping.ref_frame
-        # t0 = mapping.t0
-        # ref_coord = self.resolve_target(mapping.target, t0)
-        perf_params = simu_config.perf_params
+        # create the evaluators
         mapping_evaluator = self.mapping_evaluator(
-            mapping=mapping, sources=sources_sb,
+            mapping=mapping_model, sources=sources_sb,
             erfa_interp_len=perf_params.mapping_erfa_interp_len,
             eval_interp_len=perf_params.mapping_eval_interp_len,
             catalog_model_render_pixel_size=(
@@ -577,21 +590,17 @@ class ToltecObsSimulator(object):
             )
         probing_evaluator = self.probing_evaluator(
             kids_fp=None,
-            f_smp=simu_config.obs_params.f_smp_probing,
+            f_smp=obs_params.f_smp_probing,
             power_loading_model=power_loading_model,
             )
-        #
-        # before we start the chunked eval, we do some global setup
-        # of the models
-        # we use an exit stack to manage the contexts until the next run
-        # of this function
-        if not hasattr(self, '_tod_evaluater_es'):
-            self._tod_evaluator_es = ExitStack()
-        es = self._tod_evaluator_es
-        # close the previous es if any
-        es.close()
-        # start of global setup
-        _, mapping_info = mapping_evaluator(pre_run_setup_time_grid)
+
+        # this context es is to hold any contexts during the iterative
+        # eval
+        es = ExitStack()
+        # we run the mapping eval to get the det_sky_traj for the entire
+        # simu
+        mapping_info = mapping_evaluator(
+            t_grid_pre_eval, mapping_only=True)
         # compute the extent for detectors
         bbox_padding = (1 << u.arcmin, 1 << u.arcmin)
         # here we add some padding to the bbox
@@ -619,6 +628,14 @@ class ToltecObsSimulator(object):
             es.enter_context(
                 power_loading_model.atm_eval_interp_context(
                     alt_grid=interp_alt_grid))
+            # also we setup the toast slabs if atm_model_name is set to
+            # toast
+            if power_loading_model.atm_model_name == 'toast':
+                es.enter_context(
+                    power_loading_model.toast_atm_eval_context(
+                        sky_bbox_altaz=det_sky_bbox_altaz
+                        )
+                    )
         # import matplotlib.pyplot as plt
         # import matplotlib.patches as patches
         # fig, ax = plt.subplots(1, 1)
@@ -636,13 +653,16 @@ class ToltecObsSimulator(object):
         # ax.add_patch(p)
         # plt.show()
 
+        # now we are ready to return the iterative evaluator
         def evaluate(t):
             det_s, mapping_info = mapping_evaluator(t)
             det_sky_traj = mapping_info['det_sky_traj']
             det_p = probing_evaluator(det_s=det_s, det_sky_traj=det_sky_traj)
             return locals()
 
-        return evaluate
+        yield evaluate, t_chunks
+        # release the contexts
+        es.close()
 
 
 class ToltecSimuOutputContext(ExitStack):

@@ -14,7 +14,7 @@ from tollan.utils.fmt import pformat_yaml
 from tollan.utils.log import get_logger
 
 
-__all__ = ['PersistentState', 'SkyBoundingBox']
+__all__ = ['PersistentState', 'SkyBoundingBox', 'make_time_grid']
 
 
 class PersistentState(UserDict):
@@ -136,3 +136,37 @@ class SkyBoundingBox:
         lon_c = Longitude(lon_c << u.deg)
         lat_c = Latitude(lat_c << u.deg)
         return cls.from_lonlat(lon_c, lat_c)
+
+
+def make_time_grid(t, f_smp, chunk_len=None):
+    """Return equal-bin time grid from 0 to `t` with `f_smp`.
+
+    When `chunk_len` is set, the time grid is divided to multiple chunks.
+    """
+    logger = get_logger()
+    t_grid = np.arange(
+            0, t.to_value(u.s),
+            (1 / f_smp).to_value(u.s)) * u.s
+    if chunk_len is None:
+        return t_grid
+    # make chunked grid
+    n_times_per_chunk = int((
+            chunk_len * f_smp).to_value(
+                    u.dimensionless_unscaled))
+    n_times = len(t_grid)
+    n_chunks = n_times // n_times_per_chunk + bool(
+            n_times % n_times_per_chunk)
+    t_chunks = []
+    for i in range(n_chunks):
+        t_chunks.append(
+                t_grid[i * n_times_per_chunk:(i + 1) * n_times_per_chunk])
+    # merge the last chunk if it is too small
+    if n_chunks >= 2:
+        if len(t_chunks[-1]) * 10 < len(t_chunks[-2]):
+            last_chunk = t_chunks.pop()
+            t_chunks[-1] = np.hstack([t_chunks[-1], last_chunk])
+    n_chunks = len(t_chunks)
+    logger.info(
+            f"make time chunks with n_times_per_chunk={n_times_per_chunk}"
+            f" n_times={n_times} n_chunks={n_chunks}")
+    return t_chunks

@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
-import numpy as np
 import astropy.units as u
 from typing import Union
 from dataclasses import dataclass, field, is_dataclass
 from cached_property import cached_property
 import copy
+from typing import ClassVar
 
 from tollan.utils.dataclass_schema import add_schema
 from tollan.utils.log import get_logger, logit, log_to_file
@@ -95,16 +95,16 @@ class PerfParamsConfig(object):
             }
         )
     atm_eval_interp_alt_step: u.Quantity = field(
-        default=4 << u.arcmin,
+        default=6 << u.arcmin,
         metadata={
             'description': 'Interp altitude step to speed-up atm eval.',
             'schema': PhysicalTypeSchema("angle"),
             }
         )
-    pre_run_setup_time_grid_size: int = field(
+    pre_eval_t_grid_size: int = field(
         default=100,
         metadata={
-            'description': 'Size of time grid used for pre-run setup.',
+            'description': 'Size of time grid used for pre-eval calculations.',
             'schema': PhysicalTypeSchema("angle"),
             }
         )
@@ -240,6 +240,8 @@ class SimuConfig(object):
             }
         config_key = 'simu'
 
+    logger: ClassVar = get_logger()
+
     def get_or_create_output_dir(self):
         logger = get_logger()
         rootpath = self.runtime_info.config_info.runtime_context_dir
@@ -251,6 +253,35 @@ class SimuConfig(object):
 
     def get_log_file(self):
         return self.runtime_info.logdir.joinpath('simu.log')
+
+    @cached_property
+    def mapping_model(self):
+        return self.mapping(self)
+
+    @cached_property
+    def source_models(self):
+        return [s(self) for s in self.sources]
+
+    @cached_property
+    def simulator(self):
+        return self.instrument(self)
+
+    @cached_property
+    def t_simu(self):
+        """The length of the simulation.
+
+        It equals `obs_params.t_exp` when set, otherwise ``t_pattern``
+        of the mapping pattern is used.
+        """
+        t_simu = self.obs_params.t_exp
+        if t_simu is None:
+            t_pattern = self.mapping_model.t_pattern
+            self.logger.debug(f"mapping pattern time: {t_pattern}")
+            t_simu = t_pattern
+            self.logger.info(f"use t_simu={t_simu} from mapping pattern")
+        else:
+            self.logger.info(f"use t_simu={t_simu} from obs_params")
+        return t_simu
 
 
 class SimulatorRuntimeError(RuntimeContextError):
@@ -332,43 +363,30 @@ class SimulatorRuntime(RuntimeContext):
                     # TODO handle save here
                     pass
             return results
+
         # run simulator
-        sim = cfg.instrument(cfg)
-        obs_params = cfg.obs_params
-        perf_params = cfg.perf_params
-        m_mapping = cfg.mapping(cfg)
-        m_sources = [s(cfg) for s in cfg.sources]
+        simu = cfg.simulator
+        t_simu = cfg.t_simu
+        mapping_model = cfg.mapping_model
+        source_models = cfg.source_models
+        output_dir = cfg.get_or_create_output_dir()
 
         self.logger.debug(
-            f'run {sim} with:{{}}\n'.format(
+            f'run {simu} with:{{}}\n'.format(
                 pformat_yaml({
-                    'obs_params': obs_params.to_dict(),
-                    'perf_params': perf_params.to_dict(),
+                    'obs_params': cfg.obs_params.to_dict(),
+                    'perf_params': cfg.perf_params.to_dict(),
                     })))
         self.logger.debug(
             'mapping:\n{}\n\nsources:\n{}\n'.format(
-                m_mapping,
-                '\n'.join(str(s) for s in m_sources)
+                mapping_model,
+                '\n'.join(str(s) for s in source_models)
                 )
             )
-
-        # create the time grid and run the simulation
-        # here we use t_pattern when t_exp is not set
-        t_exp = obs_params.t_exp
-        if t_exp is None:
-            t_pattern = m_mapping.t_pattern
-            self.logger.debug(f"mapping pattern time: {t_pattern}")
-            t_exp = t_pattern
-            self.logger.info(f"use t_exp={t_exp} from mapping pattern")
-        else:
-            self.logger.info(f"use t_exp={t_exp} from obs_params")
-
-        t_chunks = self._make_time_chunks(
-            t_exp=t_exp,
-            f_smp=obs_params.f_smp_probing,
-            chunk_len=perf_params.chunk_len)
-
-        output_dir = cfg.get_or_create_output_dir()
+        self.logger.debug(
+            f'simu output dir: {output_dir}\nsimu length={t_simu}'
+            )
+        # run the simulator
         log_file = cfg.get_log_file()
         self.logger.info(f'setup logging to file {log_file}')
         with log_to_file(
@@ -376,7 +394,7 @@ class SimulatorRuntime(RuntimeContext):
                 level='DEBUG',
                 disable_other_handlers=False
                 ):
-            output_ctx = sim.output_context(dirpath=output_dir)
+            output_ctx = simu.output_context(dirpath=output_dir)
             with output_ctx.open():
                 self.logger.info(
                     f"write output to {output_ctx.rootpath}")
@@ -389,23 +407,17 @@ class SimulatorRuntime(RuntimeContext):
                     self.yaml_dump(config, fo)
                 # save mapping model meta
                 output_ctx.write_mapping_meta(
-                    mapping=m_mapping, simu_config=cfg)
+                    mapping=mapping_model, simu_config=cfg)
                 # save simulator meta
                 output_ctx.write_sim_meta(simu_config=cfg)
 
                 # run simulator for each chunk and save the data
-                tod_eval = sim.tod_evaluator(
-                    mapping=m_mapping, sources=m_sources,
-                    simu_config=cfg,
-                    pre_run_setup_time_grid=np.linspace(
-                        0, t_exp.to_value(u.s),
-                        cfg.perf_params.pre_run_setup_time_grid_size
-                        ) << u.s
-                    )
-                n_chunks = len(t_chunks)
-                for ci, t in enumerate(t_chunks):
-                    self.logger.info(f"working on chunk {ci} of {n_chunks}")
-                    output_ctx.write_sim_data(tod_eval(t))
+                with simu.iter_eval_context(cfg) as (iter_eval, t_chunks):
+                    n_chunks = len(t_chunks)
+                    for ci, t in enumerate(t_chunks):
+                        self.logger.info(
+                            f"working on chunk {ci} of {n_chunks}")
+                        output_ctx.write_sim_data(iter_eval(t))
         return output_dir
 
     def plot(self, type, **kwargs):
@@ -416,33 +428,6 @@ class SimulatorRuntime(RuntimeContext):
                 f"Available types: {plots_registry.keys()}")
         plotter = plots_registry[type].from_dict(kwargs)
         return plotter(self.simu_config)
-
-    @classmethod
-    def _make_time_chunks(cls, t_exp, f_smp, chunk_len):
-        t = np.arange(
-                0, t_exp.to_value(u.s),
-                (1 / f_smp).to_value(u.s)) * u.s
-        chunk_len = chunk_len
-        n_times_per_chunk = int((
-                chunk_len * f_smp).to_value(
-                        u.dimensionless_unscaled))
-        n_times = len(t)
-        n_chunks = n_times // n_times_per_chunk + bool(
-                n_times % n_times_per_chunk)
-        t_chunks = []
-        for i in range(n_chunks):
-            t_chunks.append(
-                    t[i * n_times_per_chunk:(i + 1) * n_times_per_chunk])
-        # merge the last chunk if it is too small
-        if n_chunks >= 2:
-            if len(t_chunks[-1]) * 10 < len(t_chunks[-2]):
-                last_chunk = t_chunks.pop()
-                t_chunks[-1] = np.hstack([t_chunks[-1], last_chunk])
-        n_chunks = len(t_chunks)
-        cls.logger.info(
-                f"simulate with n_times_per_chunk={n_times_per_chunk}"
-                f" n_times={len(t)} n_chunks={n_chunks}")
-        return t_chunks
 
 
 # make a list of all simu config item types
