@@ -347,36 +347,67 @@ class ToltecObsSimulator(object):
         return det_sky_traj
 
     def probing_evaluator(
-            self, f_smp, kids_fp=None,
+            self,
+            f_smp,
+            kids_p_tune,
+            kids_fp=None,
             power_loading_model=None):
-        """Return a function that can be used to get detector readout.
+        """Return a function that can be used to calculate detector readout.
 
-        When `power_loading_model` is given, the generated power loading
-        will be the sum of the contribution from the astronomical source
-        and the telescope and atmosphere:
+        When `power_loading_model` is given, the detector signal will be the
+        sum of the contribution from the astronomical source and the power
+        loading model which includes the telescope and atmosphere::
 
-            P_tot = P_src + P_bkg_fixture + P_atm(alt)
+            P_det = P_src + P_bkg_fixture + P_atm(alt)
 
-        We set the tune of the KidsSimulator,
-        such that x=0 at P=P_bkg_fixture + P_atm(alt_of_tune_obs).
+        We set the tune of the KidsSimulator,such that x=0 at P=kids_p_tune,
+        where kids_p_tune is typically calculated with the loading model
+        at some altitude P_bkg_fixture + P_atm(alt_tune)
 
         Thus the measured detuning parameters is proportional to
 
-            P_src + (P_atm(alt) - P_atm(alt_of_tune_obs))
+            P_src + (P_atm(alt) - P_atm(alt_tune))
         """
+
         apt = self.array_prop_table
         det_array_name = apt['array_name']
-        kids_sim = self.kids_simulator
+        kids_simu = self.kids_simulator.copy()
+        kids_simu._background = kids_p_tune
         kids_readout_model = self.kids_readout_model
         if kids_fp is None:
-            kids_fp = kids_sim.fr
+            kids_fp = kids_simu.fr
         if power_loading_model is not None:
             # make sure this is an instance of the toltec power loading model
             if not isinstance(power_loading_model, ToltecPowerLoadingModel):
                 raise ValueError("invalid power loading model.")
 
+        def kids_probe_p(det_p):
+            nonlocal kids_simu
+            return kids_simu.probe_p(
+                det_p,
+                fp=kids_fp, readout_model=kids_readout_model)
+
+        def sky_sb_to_pwr(det_s):
+            if power_loading_model is None:
+                # in this case we just convert the detector surface brightness
+                # to power with simple square passband.
+                # convert det sb to pwr loading
+                return (
+                    det_s.to(
+                            u.K,
+                            equivalencies=u.brightness_temperature(
+                                apt['wl_center'][:, np.newaxis])).to(
+                                u.J,
+                                equivalencies=u.temperature_energy())
+                            * apt['passband'][:, np.newaxis]
+                    ).to(u.pW)
+            return power_loading_model.sky_sb_to_pwr(
+                det_array_name=det_array_name,
+                det_s=det_s,
+                )
+
         def evaluate(det_s=None, det_sky_traj=None):
-            # make sure we have at least some input to the models
+            # make sure we have at least some input for eval
             if det_s is None and det_sky_traj is None:
                 raise ValueError("one of det_s and det_sky_traj is required")
             if det_s is not None and det_sky_traj is not None:
@@ -399,13 +430,7 @@ class ToltecObsSimulator(object):
                 # convert det sb to pwr loading
                 self.logger.debug(
                     "calculate power loading without loading model")
-                det_pwr = np.zeroes(data_shape, dtype='d') << u.pW
-                for array_name in self.array_names:
-                    m = (det_array_name == array_name)
-                    det_pwr[m] = self._sky_sb_to_pwr(
-                        array_name=array_name,
-                        det_s=det_s[m],
-                        )
+                det_pwr = sky_sb_to_pwr(det_s)
             else:
                 if det_sky_traj is None:
                     raise ValueError(
@@ -414,17 +439,20 @@ class ToltecObsSimulator(object):
                         f"calculate power loading with loading model "
                         f"{power_loading_model}"):
                     det_pwr = power_loading_model.evaluate_tod(
-                        det_array_name=apt['array_name'],
+                        det_array_name=det_array_name,
                         det_s=det_s,
                         det_alt=det_sky_traj['alt'],
                         f_smp=f_smp,
                         noise_seed=None,
                         )
-            self.logger.debug(
+            self.logger.info(
                 f"power loading at detector: "
                 f"min={det_pwr.min()} max={det_pwr.max()}")
+            # calculate the kids signal
+            nonlocal kids_probe_p
+            rs, xs, iqs = kids_probe_p(det_pwr)
             return det_pwr, locals()
-        return evaluate
+        return evaluate, locals()
 
     def mapping_evaluator(
             self, mapping, sources=None,
@@ -533,11 +561,11 @@ class ToltecObsSimulator(object):
                     s = s_additive[0]
                     for _s in s_additive[1:]:
                         s += _s
-                self.logger.debug(
-                    f"surface brightness at detector: "
+                self.logger.info(
+                    f"source surface brightness at detector: "
                     f"min={s.min()} max={s.max()}")
                 return s, locals()
-        return evaluate
+        return evaluate, locals()
 
     @contextmanager
     def iter_eval_context(self, simu_config):
@@ -580,20 +608,16 @@ class ToltecObsSimulator(object):
                         perf_params.pre_eval_t_grid_size
                         ) << u.s
 
-        # create the evaluators
-        mapping_evaluator = self.mapping_evaluator(
+        # create the mapping evaluator first so that we can get full
+        # sky bbox for the observation
+        # the altitude is needed to create the probing evaluator
+        mapping_evaluator, mapping_eval_ctx = self.mapping_evaluator(
             mapping=mapping_model, sources=sources_sb,
             erfa_interp_len=perf_params.mapping_erfa_interp_len,
             eval_interp_len=perf_params.mapping_eval_interp_len,
             catalog_model_render_pixel_size=(
                 perf_params.catalog_model_render_pixel_size),
             )
-        probing_evaluator = self.probing_evaluator(
-            kids_fp=None,
-            f_smp=obs_params.f_smp_probing,
-            power_loading_model=power_loading_model,
-            )
-
         # this context es is to hold any contexts during the iterative
         # eval
         es = ExitStack()
@@ -611,12 +635,20 @@ class ToltecObsSimulator(object):
         det_sky_bbox_altaz = SkyBoundingBox.from_lonlat(
             det_sky_traj['az'], det_sky_traj['alt']).pad_with(
                 *bbox_padding)
-        self.logger.debug(
-            f"det sky bbox: icrs={det_sky_bbox_icrs} "
-            f"altaz={det_sky_bbox_altaz}")
+        self.logger.info(
+            f"simulate sky bbox:\n"
+            f"ra: {det_sky_bbox_icrs.w!s} - {det_sky_bbox_icrs.e!s}\n"
+            f"dec: {det_sky_bbox_icrs.s!s} - {det_sky_bbox_icrs.n!s}\n"
+            f"az: {det_sky_bbox_altaz.w!s} - {det_sky_bbox_altaz.e!s}\n"
+            f"alt: {det_sky_bbox_altaz.s!s} - {det_sky_bbox_altaz.n!s}\n"
+            f"size: {det_sky_bbox_icrs.width}, {det_sky_bbox_icrs.height}"
+            )
+        # this apt will be modified and saved in the eval context
+        apt = self.array_prop_table.copy()
+        det_array_name = apt['array_name']
         # setup interp for power loading model
         if power_loading_model is not None:
-            alt_deg_step = perf_params.atm_eval_interp_alt_step.to_value(
+            alt_deg_step = perf_params.aplm_eval_interp_alt_step.to_value(
                 u.deg)
             interp_alt_grid = np.arange(
                 det_sky_bbox_altaz.s.degree,
@@ -624,9 +656,9 @@ class ToltecObsSimulator(object):
                 alt_deg_step,
                 ) << u.deg
             if len(interp_alt_grid) < 5:
-                raise ValueError('atm_eval_interp_alt_step too small.')
+                raise ValueError('aplm_eval_interp_alt_step too small.')
             es.enter_context(
-                power_loading_model.atm_eval_interp_context(
+                power_loading_model.aplm_eval_interp_context(
                     alt_grid=interp_alt_grid))
             # also we setup the toast slabs if atm_model_name is set to
             # toast
@@ -636,6 +668,66 @@ class ToltecObsSimulator(object):
                         sky_bbox_altaz=det_sky_bbox_altaz
                         )
                     )
+        # figure out the tune power  and flxscale
+        # we use the closest point on the boresight to the target
+        # for the tune obs
+        bs_coords_icrs = mapping_info['bs_coords_altaz']
+        target_icrs = mapping_model.target.transform_to('icrs')
+        i_closest = np.argmin(
+            target_icrs.separation(bs_coords_icrs))
+        det_alt_tune = det_sky_traj['alt'][:, i_closest]
+        self.logger.debug(f"use tune at detector alt={det_alt_tune.mean()}")
+        if power_loading_model is None:
+            # when power loading model is not set, we use the apt default
+            kids_p_tune = apt['background']
+        else:
+            kids_p_tune = power_loading_model.get_P(
+                det_array_name=det_array_name,
+                det_alt=Angle(np.full(
+                    len(det_array_name), det_alt_tune.degree) << u.deg)
+                )
+        for array_name in self.array_names:
+            m = (det_array_name == array_name)
+            p = kids_p_tune[m].mean()
+            self.logger.debug(f"set tune of {array_name} at P={p}")
+
+        # TODO allow adjust kids_fp
+        probing_evaluator, probing_eval_ctx = self.probing_evaluator(
+            kids_p_tune=kids_p_tune,
+            kids_fp=None,
+            f_smp=obs_params.f_smp_probing,
+            power_loading_model=power_loading_model,
+            )
+        # compute the detector flxscale for sb = 1MJy
+        kids_probe_p = probing_eval_ctx['kids_probe_p']
+        sky_sb_to_pwr = probing_eval_ctx['sky_sb_to_pwr']
+        p_sb_unity = np.squeeze(sky_sb_to_pwr(
+            det_s=np.ones((len(det_array_name), 1)) << u.MJy / u.sr
+            ))
+        p_norm = p_sb_unity + kids_p_tune
+        _, x_norm, _ = kids_probe_p(p_norm[:, np.newaxis])
+        x_norm = np.squeeze(x_norm)
+        flxscale = 1. / x_norm
+        # update the apt
+        apt['background'] = kids_p_tune
+        apt['flxscale'] = flxscale
+
+        for array_name in self.array_names:
+            m = (det_array_name == array_name)
+            _kids_p_tune = kids_p_tune[m].mean()
+            _p_sb_unity = p_sb_unity[m].mean()
+            _p_norm = p_norm[m].mean()
+            _x_norm = x_norm[m].mean()
+            _flxscale = flxscale[m].mean()
+            self.logger.debug(
+                f"summary of probing setup for {array_name}:\n"
+                f"    kids_p_tune={_kids_p_tune}\n"
+                f"    p_sb_unity={_p_sb_unity}\n"
+                f"    p_norm={_p_norm}\n"
+                f"    x_norm={_x_norm}\n"
+                f"    flxscale={_flxscale}\n"
+                )
+
         # import matplotlib.pyplot as plt
         # import matplotlib.patches as patches
         # fig, ax = plt.subplots(1, 1)
@@ -651,18 +743,26 @@ class ToltecObsSimulator(object):
         #     det_sky_bbox_altaz.height.to_value(u.deg),
         #     linewidth=1, edgecolor='r', facecolor='none')
         # ax.add_patch(p)
+        # det_az_tune = det_sky_traj['az'][:, i_closest]
+        # c = kids_p_tune.to_value(u.pW)[m]
+        # ax.scatter(
+        #     det_az_tune[m], det_alt_tune[m],
+        #     c=c, s=100, vmin=c.min(), vmax=c.max())
         # plt.show()
 
         # now we are ready to return the iterative evaluator
         def evaluate(t):
             det_s, mapping_info = mapping_evaluator(t)
             det_sky_traj = mapping_info['det_sky_traj']
-            det_p = probing_evaluator(det_s=det_s, det_sky_traj=det_sky_traj)
+            det_pwr, probing_info = probing_evaluator(
+                det_s=det_s, det_sky_traj=det_sky_traj)
             return locals()
 
+        self._eval_context = locals()
         yield evaluate, t_chunks
         # release the contexts
         es.close()
+        self._eval_context = None
 
 
 class ToltecSimuOutputContext(ExitStack):
@@ -970,8 +1070,13 @@ class ToltecSimuOutputContext(ExitStack):
         return nm_hwp
 
     def write_sim_meta(self, simu_config):
+        if getattr(self._simulator, '_eval_context', None) is None:
+            raise ValueError(
+                "Cannot write sim meta without eval context open")
+        eval_ctx = self._simulator._eval_context
         # apt.ecsv
-        apt = self._simulator.array_prop_table
+        apt = eval_ctx['apt']
+        # write the apt
         apt.write(self.make_output_filename('apt', '.ecsv'),
                   format='ascii.ecsv', overwrite=True)
         # toltec*.nc

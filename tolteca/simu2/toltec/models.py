@@ -629,6 +629,7 @@ class ToltecArrayPowerLoadingModel(Model):
                 name=atm_model_name)
         else:
             self._atm_model = None
+            # we still need the atm transmission for calculating efficiency
             # TODO revisit this
             _, self._atm_tx_model = get_lmt_atm_models(
                 name='am_q50')
@@ -983,10 +984,11 @@ class ToltecArrayPowerLoadingModel(Model):
         return p * sys_eff
 
     @contextmanager
-    def atm_eval_interp_context(self, alt_grid):
+    def eval_interp_context(self, alt_grid):
         interp_kwargs = dict(kind='linear')
         with timeit(
-            f"setup atm eval interp context with "
+            f"setup power loading model for {self._array_name} "
+            f"eval interp context with "
             f"alt_grid=[{alt_grid.min()}:{alt_grid.max()}] "
                 f"size={len(alt_grid)}"):
             self._p_pW_interp = interp1d(
@@ -1007,30 +1009,35 @@ class ToltecArrayPowerLoadingModel(Model):
     def evaluate_tod(
             self,
             det_alt,
-            f_smp,
+            f_smp=1 << u.Hz,
             random_seed=None,
+            return_realized_noise=True,
             ):
-        """Return the atmosphere power loading along with the noise."""
+        """Return the array power loading along with the noise."""
 
         if self._p_pW_interp is None:
             # no interp, direct eval
             alt = np.ravel(det_alt)
-            det_pwr_atm = self._get_P(alt).to(u.pW).reshape(det_alt.shape),
-            det_delta_pwr_atm_pW = self._get_dP(alt, f_smp).reshape(
-                det_alt.shape),
+            det_pwr = self._get_P(alt).to(u.pW).reshape(det_alt.shape),
+            det_delta_pwr = self._get_dP(alt, f_smp).reshape(
+                det_alt.shape).to(u.pW),
         else:
-            det_pwr_atm = self._p_pW_interp(det_alt.degree) << u.pW
+            det_pwr = self._p_pW_interp(det_alt.degree) << u.pW
             one_Hz = 1. << u.Hz
-            det_delta_pwr_atm_pW = self._dp_pW_interp_unity_f_smp(
-                det_alt.degree) * np.sqrt(f_smp / one_Hz)
+            det_delta_pwr = (self._dp_pW_interp_unity_f_smp(
+                det_alt.degree) << u.pW) * np.sqrt(f_smp / one_Hz)
+        if not return_realized_noise:
+            return det_pwr, det_delta_pwr
+        # realize noise
         rng = np.random.default_rng(seed=random_seed)
-        det_dp_atm = rng.normal(0., det_delta_pwr_atm_pW) << u.pW
+        det_noise = rng.normal(0., det_delta_pwr.to_value(u.pW)) << u.pW
         # calc the median P and dP for logging purpose
         med_alt = np.median(det_alt)
         med_P = self._get_P(med_alt).to(u.pW)
         med_dP = self._get_dP(med_alt, f_smp).to(u.aW)
-        self.logger.debug(f"atm at med_alt={med_alt} P={med_P} dp={med_dP}")
-        return det_pwr_atm + det_dp_atm
+        self.logger.debug(
+            f"array power loading at med_alt={med_alt} P={med_P} dP={med_dP}")
+        return det_pwr, det_noise
 
 
 class ToltecPowerLoadingModel(PowerLoadingModel):
@@ -1049,11 +1056,11 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
 
     def __init__(self, atm_model_name):
         if atm_model_name is None or atm_model_name == 'toast':
-            _atm_model_name = 'am_q50'
+            # this will disable the atm component in the power loading model
+            # but still create one for system efficiency calculation
+            _atm_model_name = None
         else:
             _atm_model_name = atm_model_name
-        # we need the ToltecArrayPowerLoadingModel for converting sb to
-        # pwr, so we need it anyway.
         self._array_power_loading_models = {
             array_name: ToltecArrayPowerLoadingModel(
                 array_name=array_name,
@@ -1074,38 +1081,63 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
         # implement the default behavior for the model
         return NotImplemented
 
-    def atm_eval_interp_context(self, alt_grid):
+    def aplm_eval_interp_context(self, alt_grid):
+        """Context manager that pre-calculate the interp for array power
+        loading model.
+        """
         es = ExitStack()
         for m in self._array_power_loading_models.values():
-            es.enter_context(m.atm_eval_interp_context(alt_grid))
+            es.enter_context(m.eval_interp_context(alt_grid))
         return es
+
+    def get_P(self, det_array_name, det_alt):
+        """Evaluate the power loading model only and without noise."""
+        p_out = np.zeros(det_alt.shape) << u.pW
+        for array_name in self.array_names:
+            mask = (det_array_name == array_name)
+            aplm = self._array_power_loading_models[array_name]
+            if self.atm_model_name == 'toast':
+                p = calc_toast_atm_pwr(det_alt[mask])
+            else:
+                # use the ToltecArrayPowerLoadingModel
+                p, _ = aplm.evaluate_tod(
+                    det_alt[mask], return_realized_noise=False)
+            p_out[mask] = p
+        return p_out
+
+    def sky_sb_to_pwr(self, det_array_name, det_s):
+        p_out = np.zeros(det_s.shape) << u.pW
+        for array_name in self.array_names:
+            mask = (det_array_name == array_name)
+            aplm = self._array_power_loading_models[array_name]
+            # compute the power loading from on-sky surface brightness
+            p_out[mask] = aplm.sky_sb_to_pwr(det_s=det_s[mask])
+        return p_out
 
     def evaluate_tod(
             self, det_array_name, det_s, det_alt,
             f_smp,
             noise_seed=None,
             ):
-        p_out = np.zeros(det_s.shape) << u.pW
+        p_out = self.sky_sb_to_pwr(det_array_name, det_s)
         for array_name in self.array_names:
             mask = (det_array_name == array_name)
             aplm = self._array_power_loading_models[array_name]
-            # compute the power loading from on-sky surface brightness
-            p = aplm.sky_sb_to_pwr(det_s=det_s[mask])
             if self.atm_model_name is None:
                 # atm is disabled
                 pass
             elif self.atm_model_name == 'toast':
-                p_atm = calc_toast_atm_pwr(det_alt=det_alt[mask])
-                p += p_atm
+                p = calc_toast_atm_pwr(det_alt=det_alt[mask])
+                p_out[mask] += p
             else:
                 # use the ToltecArrayPowerLoadingModel atm
-                p_atm = aplm.evaluate_tod(
+                p, p_noise = aplm.evaluate_tod(
                     det_alt=det_alt[mask],
                     f_smp=f_smp,
                     random_seed=noise_seed,
+                    return_realized_noise=True,
                     )
-                p += p_atm
-            p_out[mask] = p
+                p_out[mask] += (p + p_noise)
         return p_out
 
     def __str__(self):

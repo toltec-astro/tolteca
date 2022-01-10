@@ -94,10 +94,12 @@ class PerfParamsConfig(object):
             'schema': PhysicalTypeSchema("time"),
             }
         )
-    atm_eval_interp_alt_step: u.Quantity = field(
-        default=6 << u.arcmin,
+    aplm_eval_interp_alt_step: u.Quantity = field(
+        default=60 << u.arcmin,
         metadata={
-            'description': 'Interp altitude step to speed-up atm eval.',
+            'description': (
+                'Interp altitude step to speed-up '
+                'array power loading model eval.'),
             'schema': PhysicalTypeSchema("angle"),
             }
         )
@@ -405,18 +407,19 @@ class SimulatorRuntime(RuntimeContext):
                     config = copy.deepcopy(self.config)
                     rupdate(config, self.simu_config.to_config())
                     self.yaml_dump(config, fo)
-                # save mapping model meta
-                output_ctx.write_mapping_meta(
-                    mapping=mapping_model, simu_config=cfg)
-                # save simulator meta
-                output_ctx.write_sim_meta(simu_config=cfg)
-
-                # run simulator for each chunk and save the data
                 with simu.iter_eval_context(cfg) as (iter_eval, t_chunks):
+                    # save mapping model meta
+                    output_ctx.write_mapping_meta(
+                        mapping=mapping_model, simu_config=cfg)
+                    # save simulator meta
+                    output_ctx.write_sim_meta(simu_config=cfg)
+
+                    # run simulator for each chunk and save the data
                     n_chunks = len(t_chunks)
                     for ci, t in enumerate(t_chunks):
                         self.logger.info(
-                            f"working on chunk {ci} of {n_chunks}")
+                            f"simulate chunk {ci}/{n_chunks} "
+                            f"t_min={t.min()} t_max={t.max()}")
                         output_ctx.write_sim_data(iter_eval(t))
         return output_dir
 

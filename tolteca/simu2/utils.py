@@ -137,6 +137,13 @@ class SkyBoundingBox:
         lat_c = Latitude(lat_c << u.deg)
         return cls.from_lonlat(lon_c, lat_c)
 
+    # def __str__(self):
+    #     return (
+    #         f"{self.__class__.__name__}"
+    #         f"(lon=[{self.w.degree}:{self.e.degree}] deg, "
+    #         f"lat=[{self.s.degree}, {self.n.degree}] deg, "
+    #         f"lon_wrap_angle={self.lon_wrap_angle})")
+
 
 def make_time_grid(t, f_smp, chunk_len=None):
     """Return equal-bin time grid from 0 to `t` with `f_smp`.
