@@ -81,8 +81,7 @@ class ToltecObsSimulatorConfig(DataclassNamespace):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        if self.polarized:
-            simu_cls = ToltecObsSimulator
+        simu_cls = ToltecObsSimulator
         # get array prop table
         calobj = self.calobj = _load_calobj(
             self.calobj_index, allow_fallback=True)

@@ -495,6 +495,8 @@ class ToltecObsSimulator(object):
                         observer=mapping.observer,
                         coords_altaz=bs_coords_altaz,
                         coords_icrs=bs_coords_icrs)
+                    target_altaz = mapping.target.transform_to(
+                        bs_coords_altaz.frame)
                     hwp_pa_altaz = hwp_pa_t + bs_coords_altaz.alt
                     hwp_pa_icrs = hwp_pa_altaz + bs_parallactic_angle
                     bs_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
@@ -904,10 +906,8 @@ class ToltecSimuOutputContext(ExitStack):
     def _get_kidsdata_interface(self, nw):
         return f'toltec{nw}'
 
-    def _make_kidsdata_nc(self, nw, simu_config):
-        sim = self._simulator
+    def _make_kidsdata_nc(self, apt, nw, simu_config):
         state = self.state
-        apt = sim.array_prop_table
         mapt = apt[apt['nw'] == nw]
         interface = self._get_kidsdata_interface(nw)
         nm_toltec = self._create_nm(interface, '_timestream.nc')
@@ -1069,11 +1069,14 @@ class ToltecSimuOutputContext(ExitStack):
         nm_hwp.update(m)
         return nm_hwp
 
-    def write_sim_meta(self, simu_config):
+    def _ensure_sim_eval_context(self):
         if getattr(self._simulator, '_eval_context', None) is None:
             raise ValueError(
                 "Cannot write sim meta without eval context open")
-        eval_ctx = self._simulator._eval_context
+        return self._simulator._eval_context
+
+    def write_sim_meta(self, simu_config):
+        eval_ctx = self._ensure_sim_eval_context()
         # apt.ecsv
         apt = eval_ctx['apt']
         # write the apt
@@ -1081,12 +1084,59 @@ class ToltecSimuOutputContext(ExitStack):
                   format='ascii.ecsv', overwrite=True)
         # toltec*.nc
         for nw in np.unique(apt['nw']):
-            self._make_kidsdata_nc(nw, simu_config)
+            self._make_kidsdata_nc(apt, nw, simu_config)
         # hwp.nc
         self._make_hwp_nc(simu_config)
 
     def write_sim_data(self, data):
-        pass
+        eval_ctx = self._ensure_sim_eval_context()
+        # apt.ecsv
+        apt = eval_ctx['apt']
+
+        nm_tel = self.nms[self._get_tel_interface()]
+        nc_tel = nm_tel.nc_node
+        d_time = 'time'
+
+        bs_coords_icrs = data['mapping_info']['bs_coords_icrs']
+        bs_coords_altaz = data['mapping_info']['bs_coords_altaz']
+        bs_parallactic_angle = data['mapping_info']['bs_parallactic_angle']
+        target_altaz = data['mapping_info']['target_altaz']
+        time_obs = data['mapping_info']['time_obs']
+        holdflag = data['mapping_info']['holdflag']
+        t_grid = data['t']
+        iqs = data['probing_info']['iqs']
+
+        idx = nc_tel.dimensions[d_time].size
+        nm_tel.getvar('time')[idx:] = time_obs.unix
+        nm_tel.getvar('ra')[idx:] = bs_coords_icrs.ra.radian
+        nm_tel.getvar('dec')[idx:] = bs_coords_icrs.dec.radian
+        nm_tel.getvar('az')[idx:] = bs_coords_altaz.az.radian
+        nm_tel.getvar('alt')[idx:] = bs_coords_altaz.alt.radian
+        nm_tel.getvar('pa')[idx:] = bs_parallactic_angle.radian
+        # no pointing model
+        nm_tel.getvar('az_sky')[idx:] = bs_coords_altaz.az.radian
+        nm_tel.getvar('alt_sky')[idx:] = bs_coords_altaz.alt.radian
+        nm_tel.getvar('pa_sky')[idx:] = bs_parallactic_angle.radian
+
+        nm_tel.getvar('source_az')[idx:] = target_altaz.az.radian
+        nm_tel.getvar('source_alt')[idx:] = target_altaz.alt.radian
+        nm_tel.getvar('hold')[idx:] = holdflag
+        self.logger.info(
+                f'write [{idx}:{idx + len(time_obs)}] to'
+                f' {nc_tel.filepath()}')
+        for nw in np.unique(apt['nw']):
+            nm_toltec = self.nms[self._get_kidsdata_interface(nw)]
+            nc_toltec = nm_toltec.nc_node
+            idx = nc_toltec.dimensions[d_time].size
+            self.logger.info(
+                f'write [{nc_toltec.dimensions["iqlen"].size}]'
+                f'[{idx}:{idx + len(time_obs)}] to'
+                f' {nc_toltec.filepath()}')
+            m = (apt['nw'] == nw)
+            nm_toltec.getvar('flo')[idx:] = 0
+            nm_toltec.getvar('time')[idx:, 0] = t_grid
+            nm_toltec.getvar('I')[idx:, :] = iqs.real[m, :].T
+            nm_toltec.getvar('Q')[idx:, :] = iqs.imag[m, :].T
 
     def open(self, overwrite=False):
         """Open files to save data.

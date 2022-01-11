@@ -140,12 +140,13 @@ class ImageSourceModel(SurfaceBrightnessModel):
         logger.debug(
                 f"pixel range updated: [{ii.min()}, {ii.max()}] "
                 f"[{jj.min()}, {jj.max()}]")
-        ig = np.where(g)
-        m = np.flatnonzero(s_out_mask)[ig]
+        ig, jg = np.where(g)
         s = hdu.data[ii, jj] << s_out_unit
         logger.debug(
             f'detector signal range: [{s.min()}, {s.max()}]')
-        s_out[m] = s
+        # combine the mask with overlapping mask
+        m = np.flatnonzero(s_out_mask)[ig]
+        s_out[m, jg] = s
 
     def evaluate_tod_icrs(
             self, det_array_name, det_ra, det_dec,
