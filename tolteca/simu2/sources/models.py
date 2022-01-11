@@ -145,34 +145,46 @@ class ImageSourceModel(SurfaceBrightnessModel):
         logger.debug(
             f'detector signal range: [{s.min()}, {s.max()}]')
         # combine the mask with overlapping mask
-        m = np.flatnonzero(s_out_mask)[ig]
-        s_out[m, jg] = s
+        s_out[np.flatnonzero(s_out_mask)[ig], jg] = s
 
     def evaluate_tod_icrs(
-            self, det_array_name, det_ra, det_dec,
+            self,
+            det_array_name, det_ra, det_dec,
             det_pa_icrs=None,
             hwp_pa_icrs=None):
         """Return signal data."""
         data_tbl = self.data
+        eval_polarized = det_pa_icrs is not None
+        eval_hwp = hwp_pa_icrs is not None
+        self.logger.debug(
+            f"eval_polarized={eval_polarized} eval_hwp={eval_hwp}")
+
         if 'stokes_param' not in data_tbl.colnames:
             stokes_params = None
         else:
             stokes_params = np.unique(data_tbl['stokes_param'])
-        if det_pa_icrs is None and stokes_params is not None:
+        # check if stokes_params exists for polarized eval
+        if not eval_polarized and (
+            stokes_params is not None and set(stokes_params).intersection(
+                {'Q', 'U'})):
             self.logger.warning(
                 "stokes_param Q and U are ignored because "
-                "no position angles are provided"
+                "no position angles are provided for polarized eval"
                 )
+            # in this case we only use the data_tbl with the stokes I
             data_tbl = data_tbl[data_tbl['stokes_param'] == 'I']
-        elif det_pa_icrs is not None and stokes_params is None:
+            # this won't be used but just for consistency
+            stokes_params = ['I']
+        elif eval_polarized and stokes_params is None:
             raise ValueError(
                 "stokes_param is required for polarized evaluation")
         else:
+            # good to go
             pass
         # a special value used to indicate data array for non polarized
         # evaluation
         UNPOLARIZED = object()
-        if stokes_params is None:
+        if not eval_polarized:
             data_keys = [UNPOLARIZED]
         else:
             data_keys = stokes_params
@@ -200,6 +212,8 @@ class ImageSourceModel(SurfaceBrightnessModel):
                     entry = group[group['stokes_param'] == data_key]
                     assert len(entry) == 1
                     entry = entry[0]
+                self.logger.debug(
+                    f"get data from hdu {entry['extname']}")
                 # get data into the s_out array
                 hdu = entry['hdu']
                 self._set_data_for_hdu(
@@ -208,14 +222,14 @@ class ImageSourceModel(SurfaceBrightnessModel):
                     det_dec=det_dec[m],
                     s_out_mask=m,
                     s_out=s_outs[data_key])
-        if UNPOLARIZED in data_keys:
+        if not eval_polarized:
             # non polarized case
             return s_outs[data_key]
         # mix the I Q and U
         I = s_outs['I']  # noqa: E741
         Q = s_outs['Q']
         U = s_outs['U']
-        if hwp_pa_icrs is None:
+        if not eval_hwp:
             return 0.5 * (
                 I
                 + Q * np.cos(2. * det_pa_icrs)

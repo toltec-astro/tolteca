@@ -465,13 +465,11 @@ class ToltecObsSimulator(object):
         apt = self.array_prop_table
 
         hwp_cfg = self.hwp_config
-        if hwp_cfg.rotator_enabled:
-            def get_hwp_pa_t(t):
-                # return the hwp position angle at time t
-                return Angle(((hwp_cfg.f_rot * t).to_value(
-                    u.dimensionless_unscaled) * 2. * np.pi) << u.rad)
-        else:
-            get_hwp_pa_t = None
+
+        def get_hwp_pa_t(t):
+            # return the hwp position angle at time t
+            return Angle(((hwp_cfg.f_rot * t).to_value(
+                u.dimensionless_unscaled) * 2. * np.pi) << u.rad)
 
         def evaluate(t, mapping_only=False):
             time_obs = t0 + t
@@ -479,10 +477,8 @@ class ToltecObsSimulator(object):
             self.logger.debug(
                 f"evalute time_obs from {time_obs[0]} to "
                 f"{time_obs[-1]} n_times={n_times}")
-            if get_hwp_pa_t is None:
-                hwp_pa_t = None
-            else:
-                hwp_pa_t = get_hwp_pa_t(t)
+            # TODO add more control for the hwp position
+            hwp_pa_t = get_hwp_pa_t(t)
             # if True:
             with erfa_astrom.set(ErfaAstromInterpolator(erfa_interp_len)):
                 with timeit("transform bore sight coords"):
@@ -548,12 +544,18 @@ class ToltecObsSimulator(object):
                         # only ICRS is supported
                         with timeit(
                                 "extract flux from source image model"):
+                            # we only pass the pa and hwp when we want
+                            # them to be eval for polarimetry
+                            kwargs = dict()
+                            if self.polarized:
+                                kwargs['det_pa_icrs'] = det_pa_icrs
+                                if hwp_cfg.rotator_enabled:
+                                    kwargs['hwp_pa_icrs'] = hwp_pa_icrs
                             s = m_source.evaluate_tod_icrs(
                                 apt['array_name'],
                                 det_ra,
                                 det_dec,
-                                det_pa_icrs,
-                                hwp_pa_icrs=hwp_pa_icrs
+                                **kwargs
                                 )
                         s_additive.append(s)
                 if len(s_additive) <= 0:
