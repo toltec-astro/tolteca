@@ -11,6 +11,8 @@ from ...utils.common_schema import PhysicalTypeSchema, RelPathSchema
 from .utils import _resolve_target, _get_frame_class
 from .lmt_tcs import LmtTcsTrajMappingModel
 from .raster import SkyRasterScanModel
+from .lissajous import (
+    SkyLissajousModel, SkyDoubleLissajousModel, SkyRastajousModel)
 from .base import PatternKind
 
 
@@ -110,3 +112,12 @@ def make_offset_mapping_model_config_cls(key, offset_mapping_model_cls):
 
 make_offset_mapping_model_config_cls(
     SkyRasterScanModel.pattern_name, SkyRasterScanModel)
+
+make_offset_mapping_model_config_cls(
+    SkyLissajousModel.pattern_name, SkyLissajousModel)
+
+make_offset_mapping_model_config_cls(
+    SkyDoubleLissajousModel.pattern_name, SkyDoubleLissajousModel)
+
+make_offset_mapping_model_config_cls(
+    SkyRastajousModel.pattern_name, SkyRastajousModel)

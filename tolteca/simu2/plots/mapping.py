@@ -21,11 +21,12 @@ def plot_mapping(
     logger.info(f"plot mapping {mapping}")
 
     t_pattern = mapping.t_pattern
-
-    t = np.arange(0, t_pattern.to_value(u.s), 0.5) << u.s
-
+    t = np.arange(0, t_pattern.to_value(u.s) + 0.1, 0.1) << u.s
     n_pts = t.size
-    logger.debug(f"create {n_pts} sampling points")
+    if n_pts < 500:
+        n_pts = 500
+        t = np.linspace(0, t_pattern.to_value(u.s), n_pts) << u.s
+    logger.debug(f"create {n_pts} sampling points for t_pattern={t_pattern}")
 
     # this is to show the mapping in offset unit
     mapping_offset = mapping.offset_mapping_model

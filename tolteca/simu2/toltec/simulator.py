@@ -546,16 +546,16 @@ class ToltecObsSimulator(object):
                                 "extract flux from source image model"):
                             # we only pass the pa and hwp when we want
                             # them to be eval for polarimetry
-                            kwargs = dict()
+                            source_eval_kw = dict()
                             if self.polarized:
-                                kwargs['det_pa_icrs'] = det_pa_icrs
+                                source_eval_kw['det_pa_icrs'] = det_pa_icrs
                                 if hwp_cfg.rotator_enabled:
-                                    kwargs['hwp_pa_icrs'] = hwp_pa_icrs
+                                    source_eval_kw['hwp_pa_icrs'] = hwp_pa_icrs
                             s = m_source.evaluate_tod_icrs(
                                 apt['array_name'],
                                 det_ra,
                                 det_dec,
-                                **kwargs
+                                **source_eval_kw
                                 )
                         s_additive.append(s)
                 if len(s_additive) <= 0:
@@ -1023,8 +1023,8 @@ class ToltecSimuOutputContext(ExitStack):
     def _make_hwp_nc(self, simu_config):
         sim = self._simulator
         hwp_cfg = sim.hwp_config
-        if not hwp_cfg.rotator_enabled:
-            return None
+        # if not hwp_cfg.rotator_enabled:
+        #     return None
         state = self.state
         interface = self._get_hwp_interface()
         nm_hwp = self._create_nm(interface, '.nc')
@@ -1060,6 +1060,9 @@ class ToltecSimuOutputContext(ExitStack):
         nm_hwp.setscalar(
                 'Header.Hwp.SampleFreq',
                 hwp_cfg.f_smp.to_value(u.Hz))
+        nm_hwp.setscalar(
+                'Header.Hwp.RotatorEnabled',
+                hwp_cfg.rotator_enabled, dtype='i4')
         # data variables
         m = dict()
         nc_hwp.createDimension('tlen', 6)
@@ -1103,6 +1106,7 @@ class ToltecSimuOutputContext(ExitStack):
         bs_coords_altaz = data['mapping_info']['bs_coords_altaz']
         bs_parallactic_angle = data['mapping_info']['bs_parallactic_angle']
         target_altaz = data['mapping_info']['target_altaz']
+        hwp_pa_altaz = data['mapping_info']['hwp_pa_altaz']
         time_obs = data['mapping_info']['time_obs']
         holdflag = data['mapping_info']['holdflag']
         t_grid = data['t']
@@ -1139,6 +1143,17 @@ class ToltecSimuOutputContext(ExitStack):
             nm_toltec.getvar('time')[idx:, 0] = t_grid
             nm_toltec.getvar('I')[idx:, :] = iqs.real[m, :].T
             nm_toltec.getvar('Q')[idx:, :] = iqs.imag[m, :].T
+
+        # hwp
+        nm_hwp = self.nms[self._get_hwp_interface()]
+        nc_hwp = nm_hwp.nc_node
+        idx = nc_hwp.dimensions[d_time].size
+        self.logger.info(
+            f'write '
+            f'[{idx}:{idx + len(time_obs)}] to'
+            f' {nc_hwp.filepath()}')
+        nm_hwp.getvar('time')[idx:, 0] = time_obs.unix
+        nm_hwp.getvar('pa')[idx:] = hwp_pa_altaz.radian
 
     def open(self, overwrite=False):
         """Open files to save data.
