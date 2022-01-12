@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, is_dataclass
 from cached_property import cached_property
 import copy
 from typing import ClassVar
+from schema import Or
 
 from tollan.utils.dataclass_schema import add_schema
 from tollan.utils.log import get_logger, logit, log_to_file
@@ -31,7 +32,7 @@ class ObsParamsConfig(object):
         default=None,
         metadata={
             'description': 'The duration of the observation to simulate.',
-            'schema': PhysicalTypeSchema('time'),
+            'schema': Or(PhysicalTypeSchema('time'), None),
             }
         )
 
