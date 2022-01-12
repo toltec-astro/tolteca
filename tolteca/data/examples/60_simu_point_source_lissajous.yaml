@@ -10,9 +10,10 @@
 # a lissajous pattern.
 #
 # For the sources list, we added the point source catalog, as well
-# as the toltec_array_loading.
+# as the toltec_power_loading with the static atmosphere model atm_q50
 
 # Dict under "simu" key defines the tolteca.simu config.
+# Consult 00_config_dict_references.rst for the schema.
 simu:
   # The identifier of this job.
   # This jobkey is used to identify the simulator run.
@@ -20,10 +21,12 @@ simu:
   # data files. It is also used by the DPDB to identify the source of
   # the data products.
   jobkey: dsfg_simu
-  # This invokes the TolTEC simulator without polarimetry
+  # The instrument section configures the TolTEC simulator
+  # in this case we set polarized to False for non-polarimetry simulation
   instrument:
     name: toltec
-  # This list of sources to simulate
+    polarized: false
+  # The list of sources to be simulated
   sources:
     # This defines the input path and format of the point source catalog
     # to use
@@ -31,54 +34,97 @@ simu:
     # This file has to be copied into the workdir.
     # the catalog needs to one of the readable format by
     # `astropy.table.Table`. The catalog shall also have column names
-    # defined for each column. These names are used in the colname_map
+    # defined for each column. These names are used in the *_col keys
     # to indicate what information each column has.
     filepath: sources.csv
-    # The grouping keyword defines the set of map keys (which map to
-    # catalog columns) to be used by the simulator.
-    # The array_name makes available the keys ['a1100', 'a1400', 'a2000'],
-    # which are mapped to the fluxes of the three arrays
-    # 1.1mm, 1.4mm, and 2.0mm.
-    # Any categorical columns of the array property table can be used.
-    # For example, "nw" for each network, "fg" for each frequency group,
-    # etc.
-    grouping: 'array_name'
-    # Defines the column name maps to internal info key.
-    colname_map:
-      # The unique name used to identify each source
-      name: name
-      # The coordinates of the source.
-      # Standard names line ra, dec, l, b, etc. are recognized
-      # and the correct coordinate frame are created automatically.
-      ra: ra
-      dec: dec
-      # The group keys for the "grouping" specified above.
-      a1100: flux_a1100
-      a1400: flux_a1400
-      a2000: flux_a2000
-    # This model provides the bulk of background loading.
-  - type: toltec_array_loading
-    # Choose from am_q25, am_q50 and am_q75
-    # See `totleca.simu.toltec.lmt.LmtAtmosphereData` for details.
-    atm_model_name: am_q25
+    # The name_col specify the column to be used as unique identifiers
+    # for each source. This is optional.
+    name_col: 'name'
+    # The pos_col specify the columns to be used as the position of
+    # the sources. It is assumed to be in ICRS coordinates unless the
+    # column names matches the conventional name of axes for other
+    # coordinate frame such as ['az', 'alt'] for AltAz.
+    pos_cols: ['ra', 'dec']
+    # The data_cols defines the columns of source fluxes. Inline templates
+    # are supported to specify multiple data_cols in one single entry.
+    # The example below specifies three flux columns, which is equivalent
+    # to:
+    # - colname: 'flux_a1100'
+    #   array_name: 'a1100'
+    # - colname: 'flux_a1400'
+    #   array_name: 'a1400'
+    # - colname: 'flux_a2000'
+    #   array_name: 'a2000'
+    # Any item enclosed in `{{}}` is expanded with the jinja template engine:
+    # https://jinja.palletsprojects.com/en/3.0.x/templates/
+    # note that only simple variable and filters are supported.
+    data_cols:
+    - colname: 'flux_{{array_name}}'
+      array_name: ['a1100', 'a1400', 'a2000']
+    # This toltec_power_loading model provides the TolTEC power loading model
+    # including both the telescope fixture and the atmosphere
+  - type: toltec_power_loading
+    # The atmosphere model can be null, one of am_q{25,50,75}, or toast.
+    # When null, the atm model is disabled, but the power loading from the
+    # telescope is still applied.
+    # The am_q25, am_q50, and am_q75 are static atmosphere models
+    # without fluctuation. The toast atm makes use the TOAST3 package for
+    # creating realistic atmosphere including the fluctuations.
+    atm_model_name: am_q50
   # Parameters related to execution of the "observation"
   obs_params:
     # The sample frequency used for mapping related data.
-    f_smp_mapping: 12Hz
+    f_smp_mapping: 20Hz
     # The sample frequency used for detector data.
     f_smp_probing: 122Hz
     # The "exposure" time of the simulation.
-    # It can be in time unit like 1h or 40min, or in unit of "ct",
-    # shortcut for "count", where 1 ct equals to the time needed to
-    # finish the mapping pattern.
+    # It can be in time unit like 1h or 40min, in this case the observation
+    # is conducted for the given length. However, be aware that if the t_exp
+    # is longer than the time needed to execute the full mapping pattern,
+    # the behavior is undefined, especially for the raster and rastajous
+    # patterns.
+    # Specifying the t_exp as null will allow the simulator to simulate
+    # the entire mapping pattern. This is recommended for raster and rastajous
+    # patterns to ensure the pattern gets executed in its full.
+    #
     # Note that the mapping pattern length is less well-behaving for
-    # Lissajous pattern.
-    t_exp: 2h
+    # Lissajous patterns, depending on the ratio of the angular frequencies
+    # of the x and y direction, therefore t_exp is recommented to specify
+    # the length of observation.
+    t_exp: 10 min
+  # The perf_params defines some parameters related to approximations and
+  # optimizations of the simulator. Refer to 00_config_dict_references.rst
+  # for more information of the perf_params options.
+  perf_params:
+    # This set the chunked evaluation of the simulation. Increase the chunk len
+    # will consume more memory.
+    chunk_len: 10s
+    # This defines the accuracy of the mapping evaluation. 0.05s is 20Hz which
+    # is about the same as the LMT.
+    mapping_eval_interp_len: 0.05s
+    # This defines the pre-evaluate grid of the atmosphere model.
+    # Increase this number when the mapping spans a large range of in the
+    # altitude, to reduce the number of points to calculated for
+    # the atm model. It is required at least 5 points are needed, so for
+    # the smallest simulation (4 arcmin, equals to TolTEC FOV), this value
+    # should be at most 1 arcmin.
+    aplm_eval_interp_alt_step: 1 arcmin
   mapping:
+    # The reference frame used to define the mapping pattern.
+    # Possible values are 'icrs' and 'altaz'.
+    ref_frame: altaz
+    # The target at which to execute the pattern.
+    # the target can be specified in any form understood
+    # by the SIMBAD name lookup service.
+    target: 0.05d 0.05d
+    # The time (UT) of the observation.
+    t0: 2021-04-04T16:35:00
     # This defines a lissajous pattern dancing around in a 0.5arcmin range.
     # Recall that the TolTEC FOV is 4 arcmin, the full coverage will be ~4.5
-    # arcmin.
-    type: tolteca.simu:SkyLissajousModel
+    # arcmin. other types of mappling patterns are raster, rastajous,
+    # double_lissajous, and daisy. Refer to 00_config_dict_references.rst for
+    # the description of all patterns and their parameters.
+    type: lissajous
     # the extend of the lissajous
     x_length: 0.5 arcmin
     y_length: 0.5 arcmin
@@ -95,12 +141,10 @@ simu:
     # The rotation of the pattern, with respect to the +lon direction
     # of the ref_frame below.
     rot: 0 deg
-    # The reference frame used to define the mapping pattern.
-    # Possible values are 'icrs' and 'altaz'.
-    ref_frame: altaz
-    # The target at which to execute the pattern.
-    # the target can be specified in any form understood
-    # by the SIMBAD name lookup service.
-    target: 0.05d 0.05d
-    # The time (UT) of the observation.
-    t0: 2021-04-04T16:35:00
+  # This defines the items to plot when invoked with
+  # tolteca simu --plot_only
+  plots:
+    # This plots the visibility window of the target
+  - type: visibility
+    # This plots the mapping pattern.
+  - type: mapping

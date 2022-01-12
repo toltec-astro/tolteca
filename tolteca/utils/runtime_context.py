@@ -667,7 +667,7 @@ in multiple such files, the one with larger leading number takes precedence
                 '10_db.yaml',
                 '60_simu_point_source_lissajous.yaml',
                 '61_simu_blank_field_raster.yaml',
-                '62_simu_fits_input_rastajous.yaml',
+                # '62_simu_fits_input_rastajous.yaml',
                 '70_redu_simulated_data.yaml'
                 ]:
             shutil.copyfile(example_dir.joinpath(file), docdir.joinpath(file))

@@ -55,7 +55,7 @@ class ToltecObsSimulatorConfig(DataclassNamespace):
         bool,
         Optional(
             'hwp',
-            default=ToltecHwpConfig,
+            default=(lambda: ToltecHwpConfig()),
             description='The dict contains the HWP config.',
             ): ToltecHwpConfig.schema,
         # TODO make this explicit, not fallback

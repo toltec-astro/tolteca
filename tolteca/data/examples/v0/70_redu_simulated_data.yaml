@@ -1,0 +1,176 @@
+# vim: et ts=2 sts=2 sw=2
+---
+
+# An example config for to reduce simulated TolTEC data (intensity only).
+#
+# Compatible with tolteca version v0.3.0
+#
+# In this config we define one "step" in the "steps" list which calls
+# the Citlali pipeline engine to produce maps from the simulated data.
+
+reduce:
+
+  # The identifier of this job.
+  # This jobkey is used to identify the reduction run.
+  # In particular, it is used as the output directory name for the reduced
+  # data files. It is also used by the DPDB to identify the source of
+  # the data products.
+  jobkey: reduced
+
+  # The input list. This interface is quite flexible in its form. The tolteca
+  # package will look into each entry of this list and find out what kind of
+  # data it holds (e.g., local file system, or DPDB table, etc.), create data
+  # loader instances that recognizes the metadata, and aggregate similar
+  # entries by the data loader type and pass the loaders to the reduction steps
+  # defined in the `steps` list. When the DPDB is available, the DPDB, if
+  # available), and automatically compose the raw_obs data product to be used
+  # as input to the reduction.
+  inputs:
+    # For the purpose of reducing the simulated TolTEC data, we only add one
+    # entry to this list with the `path` points to the directory that holds the
+    # simulated data files. The "select" clause can be used to select a subset
+    # of the data. If select is not given, the default is to reduce the latest
+    # obsnum. the path `ecdfs` is the jobkey of the
+    # `60_simu_blank_field_raster.yaml` which is the output dir of the `tolteca
+    # simu` if this simu config file is used.
+    - path: ecdfs
+      # Without specifying the select, it will reduce the latest obsnum, which
+      # is equivalent to settings `select: "obsnum_r == 0"`, where obsnum_r is
+      # is the obsnum reversed with `obsnum_r == 1` refers to the second last
+      # obsnum. Some commonly used columns are obsnum, subobsnum, scannum, ut,
+      # etc.
+      # select: 'obsnum_r <= 3'  # this reduces the latest 3 obsnums.
+
+  # The reduction steps are defined in this list.
+  # Each item is a dict that can be resolved to one of the registered
+  # reduction step factories, indicated by the `name` key.
+  # As of this version (v0.3), the supported steps are "citlali".
+  steps:
+    # A Citlali reduction step that reduces the input data. The exact Citlali
+    # installation to use can be specified via the `path` and `version` key. By
+    # default, tolteca will look in the workdir/bin directory for any
+    # executable named "citlali_*", and also in the system PATH environment for
+    # any executable named "citlali". Alternatively `path` can be provided to
+    # explicitly specify the path (can be either directory or the full
+    # executable path) to locate the executable. When `path` is set, the system
+    # PATH env is not consulted.
+    # The version of the found Citlali executables
+    # can be constrained by the `version` field. ">", "<", "==", "~=" can be to
+    # specify the range. Multiple conditions can be specified like "<1.2,>=1.0"
+  - name: citlali
+    # path: /path/to/a/specific/citlali/executable/citlali
+    version: "~=1.0"  # requires compatibility with v1.0.0
+
+    # Citlali is configured by this config dict.
+    config:
+      # The high level config dicts
+      # these entries are handled via the
+      # tolteca.reduce.engines.citlali.CitlaliConfig class and will overwrite
+      # entries in the low level dict.
+      image_frame_params:
+        pixel_size: 0.75 arcsec
+
+      # acts as the base of the config passed to the Citlali call. If set to
+      # null (the default), the built-in low level config as produced by
+      # `citlali --dump_config` will be used. The "low_level" value can either
+      # be a string which is path to a low level config file,
+      # or a dict with is used verbatim. To not loading any low
+      # level config, set it to an empty dict: `low_level: {}`
+      # low_level: /path/to/my/low_level/citlali/config.yaml
+      low_level:
+        kids:
+          fitter:
+            modelspec: gainlintrend
+            weight_window:
+              fwhm_Hz: 1.5e4
+              type: lorentz
+          solver:
+        runtime:
+          parallel_policy: seq # seq, omp, tbb
+          n_threads: 1 # number of threads to parallelize over
+          output_dir: null
+          reduction_type: science #beammap, pointing, etc
+          meta:
+            version: tolteca...
+            #high level config settings
+        interface_sync_offset: #dict for each toltec[0..12]+hwp+lmt/  #match keys with file interface key
+          - toltec0: 0
+          - toltec1: 0
+          - toltec2: 0
+          - toltec3: 0
+          - toltec4: 0
+          - toltec5: 0
+          - toltec6: 0
+          - toltec7: 0
+          - toltec8: 0
+          - toltec9: 0
+          - toltec10: 0
+          - toltec11: 0
+          - toltec12: 0
+          - hwp: 0
+        timestream:
+          chunking:
+            length_sec: 10.0
+          weighting:
+            type: full #approximate
+          despike:
+            enabled: true
+            min_spike_sigma: 8.0
+            time_constant_sec: 0.015
+            window_size: 32
+          filter:
+            enabled: true
+            a_gibbs: 50.0
+            freq_high_Hz: 16.0
+            freq_low_Hz: 0.0
+            n_terms: 32
+          downsample:
+            enabled: true
+            factor: 1
+          kernel:
+            enabled: true
+            filepath: null
+            type: internal_gaussian #image, internal_airy
+          clean:
+            enabled: true
+            cut_std: 0.0
+            grouping: array_name
+            n_eig_to_cut: 3
+        mapmaking:
+          grouping: array_name #array, detector, polarization, nw
+          method: naive #jinc, maximum_likelihood (toast)?
+          pixel_axes: icrs #icrs, lb
+          pixel_size_arcsec: 0.75
+          crval1_J2000: 0 #absolute pointing_x
+          crval2_J2000: 0 #absolute pointing_y
+          crpix1: 0
+          crpix2: 0
+          x_size_pix: 0 #null or value
+          y_size_pix: 0 #null or value
+        beammap:
+          iter_tolerance: 0.2
+          iter_max: 1
+        source_fitting:
+          enabled: false
+          model: gaussian
+          bounding_box_arcsec: 10
+          initial_guess: brightest_pixel #table
+        coadd:
+          enabled: false
+          cov_cut: 0.9
+          noise_maps:
+            enabled: false
+            n_noise_maps: 100
+          filtering:
+            enabled: true
+            type: wiener_filter
+        wiener_filter:
+          gaussian_template: true
+          gaussian_template_fwhm_arcsec: 
+            a1100: 5
+            a1400: 6.3
+            a2000: 9.5
+          lowpass_only: false
+          highpass_only: false
+          normalize_error: false
+

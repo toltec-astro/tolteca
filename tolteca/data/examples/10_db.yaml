@@ -3,9 +3,8 @@
 # The database config for tolteca.
 #
 # A section named "db" in the config shall be present to create a
-# `tolteca.cli.db.DatabaseRuntime` instance. The database runtime
-# handles the creation of connections to the entries defined in the
-# db config.
+# `tolteca.cli.db.DatabaseRuntime` instance. The database runtime handles the
+# creation of connections to the database entries defined in the db config.
 #
 # The "db" shall be a dict of db entries, each of which has a valid
 # SQLAlchemy URI provided. For more information, visit

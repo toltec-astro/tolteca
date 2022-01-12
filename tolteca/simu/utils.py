@@ -112,8 +112,8 @@ class SkyBoundingBox:
         cls.logger.debug(
             f"re-wrapping longitude at {lon_wrap_angle}")
         return (
-            Longitude(west_deg[i_w] << u.deg),
-            Longitude(east_deg[i_w] << u.deg),
+            Longitude(west_deg[i_w] << u.deg, wrap_angle=lon_wrap_angle),
+            Longitude(east_deg[i_w] << u.deg, wrap_angle=lon_wrap_angle),
             lon_wrap_angle)
 
     @classmethod

@@ -10,12 +10,13 @@
 # a raster scan pattern.
 #
 # We do not put any real astronomical sources in the `sources` list, but
-# we do enable the source of type `toltec_array_loading`, which simulates
+# we do enable the source of type `toltec_power_loading`, which simulates
 # the power loading from atmosphere (the smooth component) and various
 # components on the optical path. This introduces realistic photo noise
 # and the simulated data can be used to check the expected depth/SNR.
 
 # Dict under "simu" key defines the tolteca.simu config.
+# Consult 00_config_dict_references.rst for the schema.
 simu:
   # The identifier of this job.
   # This jobkey is used to identify the simulator run.
@@ -23,15 +24,22 @@ simu:
   # data files. It is also used by the DPDB to identify the source of
   # the data products.
   jobkey: ecdfs
-  # This invokes the TolTEC simulator without polarimetry
+  # The instrument section configures the TolTEC simulator
+  # in this case we set polarized to False for non-polarimetry simulation
   instrument:
     name: toltec
+    polarized: false
   # This list of sources to simulate
   sources:
-    # this model provides the bulk of background loading.
-  - type: toltec_array_loading
-    # Choose from am_q25, am_q50 and am_q75
-    # See `totleca.simu.toltec.lmt.LmtAtmosphereData` for details.
+    # This toltec_power_loading model provides the TolTEC power loading model
+    # including both the telescope fixture and the atmosphere
+  - type: toltec_power_loading
+    # The atmosphere model can be null, one of am_q{25,50,75}, or toast.
+    # When null, the atm model is disabled, but the power loading from the
+    # telescope is still applied.
+    # The am_q25, am_q50, and am_q75 are static atmosphere models
+    # without fluctuation. The toast atm makes use the TOAST3 package for
+    # creating realistic atmosphere including the fluctuations.
     atm_model_name: am_q25
   # Parameters related to execution of the "observation"
   obs_params:
@@ -40,15 +48,52 @@ simu:
     # The sample frequency used for detector data.
     f_smp_probing: 122Hz
     # The "exposure" time of the simulation.
-    # It can be in time unit like 1h or 40min, or in unit of "ct",
-    # shortcut for "count", where 1 ct equals to the time needed to
-    # finish the mapping pattern.
+    # It can be in time unit like 1h or 40min, in this case the observation
+    # is conducted for the given length. However, be aware that if the t_exp
+    # is longer than the time needed to execute the full mapping pattern,
+    # the behavior is undefined, especially for the raster and rastajous
+    # patterns.
+    # Specifying the t_exp as null will allow the simulator to simulate
+    # the entire mapping pattern. This is recommended for raster and rastajous
+    # patterns to ensure the pattern gets executed in its full.
+    #
     # Note that the mapping pattern length is less well-behaving for
-    # Lissajous pattern.
-    t_exp: 1 ct
+    # Lissajous patterns, depending on the ratio of the angular frequencies
+    # of the x and y direction, therefore t_exp is recommented to specify
+    # the length of observation.
+    t_exp: null
+  # The perf_params defines some parameters related to approximations and
+  # optimizations of the simulator. Refer to 00_config_dict_references.rst
+  # for more information of the perf_params options.
+  perf_params:
+    # This set the chunked evaluation of the simulation. Increase the chunk len
+    # will consume more memory.
+    chunk_len: 10s
+    # This defines the accuracy of the mapping evaluation. 0.05s is 20Hz which
+    # is about the same as the LMT.
+    mapping_eval_interp_len: 0.05s
+    # This defines the pre-evaluate grid of the atmosphere model.
+    # Increase this number when the mapping spans a large range of in the
+    # altitude, to reduce the number of points to calculated for
+    # the atm model. It is required at least 5 points are needed, so for
+    # the smallest simulation (4 arcmin, equals to TolTEC FOV), this value
+    # should be at most 1 arcmin.
+    aplm_eval_interp_alt_step: 1 arcmin
   mapping:
+    # The target at which to execute the pattern.
+    # the target can be specified in any form understood
+    # by the SIMBAD name lookup service.
+    target: 53.0d -28.1d
+    # The reference frame used to define the mapping pattern.
+    # Possible values are 'icrs' and 'altaz'.
+    ref_frame: altaz
+    # The time (UT) of the observation.
+    t0: 2022-01-01T02:30:00
     # This defines a raster patter covers about 10 deg^2
-    type: tolteca.simu:SkyRasterScanModel
+    # Other types of mappling patterns are raster, rastajous, double_lissajous,
+    # and daisy. Refer to 00_config_dict_references.rst for the description of
+    # all patterns and their parameters.
+    type: raster
     # The scan length.
     length: 200 arcmin
     # The space between scans.
@@ -64,12 +109,10 @@ simu:
     # The rotation of the pattern, with respect to the +lon direction
     # of the ref_frame below.
     rot: 0 deg
-    # The target at which to execute the pattern.
-    # the target can be specified in any form understood
-    # by the SIMBAD name lookup service.
-    target: 53.0d -28.1d
-    # The reference frame used to define the mapping pattern.
-    # Possible values are 'icrs' and 'altaz'.
-    ref_frame: altaz
-    # The time (UT) of the observation.
-    t0: 2022-01-01T02:30:00
+  # This defines the items to plot when invoked with
+  # tolteca simu --plot_only
+  plots:
+    # This plots the visibility window of the target
+  - type: visibility
+    # This plots the mapping pattern.
+  - type: mapping
