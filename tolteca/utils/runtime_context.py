@@ -651,7 +651,7 @@ in multiple such files, the one with larger leading number takes precedence
         with open(
                 docdir.joinpath('00_config_dict_references.txt'), 'w') as fo:
             # collect all config types from submodules
-            from ..simu2 import simu_config_item_types
+            from ..simu import simu_config_item_types
             from ..reduce import redu_config_item_types
             for dcls in [
                     ConfigInfo, SetupInfo, RuntimeInfo

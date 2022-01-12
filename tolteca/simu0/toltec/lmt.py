@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from copy import deepcopy
 import numpy as np
 from scipy.interpolate import interp1d, RectBivariateSpline
 
@@ -11,39 +12,29 @@ from astropy import coordinates as coord
 
 from tollan.utils.log import get_logger
 
-from astropy.modeling import Model
-from ...common.lmt import lmt_info as _lmt_info
+from ..base import _Model
+from ...common.lmt import lmt_info
 
 
 __all__ = [
-        'lmt_info',
+        'info',
         'LmtAtmosphereModel', 'LmtAtmosphereTxModel',
         'get_lmt_atm_models']
 
 
-lmt_location = coord.EarthLocation.from_geodetic(**_lmt_info['location'])
-"""The local of LMT."""
+info = deepcopy(lmt_info)
+"""The LMT site info used by the simulator.
 
+"""
 
-lmt_timezone_local = timezone(_lmt_info['timezone_local'])
-"""The local time zone of LMT."""
-
-
-lmt_observer = Observer(
-        name=_lmt_info['name_long'],
-        location=lmt_location,
-        timezone=lmt_timezone_local,
+info['location'] = coord.EarthLocation.from_geodetic(
+        **info['location'])
+info['timezone'] = timezone(info['timezone_local'])
+info['observer'] = Observer(
+        name=info['name_long'],
+        location=info['location'],
+        timezone=info['timezone'],
         )
-"""The observer at LMT."""
-
-
-lmt_info = dict(
-    _lmt_info,
-    location=lmt_location,
-    timezone_local=lmt_timezone_local,
-    observer=lmt_observer
-    )
-"""The LMT info dict with additional items related to simulator."""
 
 
 class LmtAtmosphereData(object):
@@ -147,7 +138,7 @@ class LmtAtmosphereData(object):
         return dict(np.load(download_file(url, cache=True)))
 
 
-class LmtAtmosphereModel(Model):
+class LmtAtmosphereModel(_Model):
     """
     A model of the LMT atmosphere.
 
@@ -196,7 +187,7 @@ class LmtAtmosphereModel(Model):
         return T
 
 
-class LmtAtmosphereTxModel(Model):
+class LmtAtmosphereTxModel(_Model):
     """
     A model of the LMT atmosphere transmission.
 
@@ -209,7 +200,7 @@ class LmtAtmosphereTxModel(Model):
         quartiles set to 25 and 50, respectively.
 
     *args, **kwargs
-        Arguments passed to the `Model` constructor.
+        Arguments passed to the `_Model` constructor.
 
     """
     logger = get_logger()

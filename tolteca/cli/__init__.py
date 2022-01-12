@@ -134,8 +134,8 @@ def main(args=None):
     from .setup import cmd_setup  # noqa: F401
     from .db import cmd_migrate  # noqa: F401
     # from .run import cmd_run  # noqa: F401
+    from .simu0 import cmd_simu0  # noqa: F401
     from .simu import cmd_simu  # noqa: F401
-    from .simu2 import cmd_simu2  # noqa: F401
     from .reduce import cmd_reduce  # noqa: F401
 
     option, unknown_args = parser.parse_known_args(args or sys.argv[1:])
