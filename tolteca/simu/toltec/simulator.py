@@ -1211,10 +1211,10 @@ class ToltecSimuOutputContext(ExitStack):
         state = PersistentState(
                 outdir.joinpath(self._statefile),
                 init={
-                    'obsnum': 0,
+                    'obsnum': 1,
                     'subobsnum': 0,
                     'scannum': 0,
-                    'cal_obsnum': 0,
+                    'cal_obsnum': 1,
                     'cal_subobsnum': 0,
                     'cal_scannum': 0,
                     })
