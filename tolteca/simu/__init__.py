@@ -104,6 +104,15 @@ class PerfParamsConfig(object):
             'schema': PhysicalTypeSchema("angle"),
             }
         )
+    pre_eval_sky_bbox_padding_size: u.Quantity = field(
+        default=3. << u.arcmin,
+        metadata={
+            'description': (
+                'Padding size to add to the sky bbox for '
+                'pre-eval calculations.'),
+            'schema': PhysicalTypeSchema("angle"),
+            }
+        )
     pre_eval_t_grid_size: int = field(
         default=100,
         metadata={

@@ -518,6 +518,19 @@ class ToltecObsSimulator(object):
                 det_ra = det_sky_traj['ra']
                 det_dec = det_sky_traj['dec']
                 det_pa_icrs = det_sky_traj['pa_icrs']
+                det_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
+                    det_ra, det_dec)
+                det_sky_bbox_altaz = SkyBoundingBox.from_lonlat(
+                    det_sky_traj['az'], det_sky_traj['alt'])
+                self.logger.info(
+                    f"det sky traj bbox:\n"
+                    f"ra: {det_sky_bbox_icrs.w!s} - {det_sky_bbox_icrs.e!s}\n"
+                    f"dec: {det_sky_bbox_icrs.s!s} - {det_sky_bbox_icrs.n!s}\n"
+                    f"az: {det_sky_bbox_altaz.w!s} - {det_sky_bbox_altaz.e!s}\n"
+                    f"alt: {det_sky_bbox_altaz.s!s} - {det_sky_bbox_altaz.n!s}\n"
+                    f"size: {det_sky_bbox_icrs.width}, {det_sky_bbox_icrs.height}"
+                    )
+
                 # import matplotlib.pyplot as plt
                 # fig, ax = plt.subplots(1, 1)
                 # for i in range(400):
@@ -637,7 +650,10 @@ class ToltecObsSimulator(object):
         mapping_info = mapping_evaluator(
             t_grid_pre_eval, mapping_only=True)
         # compute the extent for detectors
-        bbox_padding = (1 << u.arcmin, 1 << u.arcmin)
+        bbox_padding = (
+                perf_params.pre_eval_sky_bbox_padding_size,
+                perf_params.pre_eval_sky_bbox_padding_size,
+                )
         # here we add some padding to the bbox
         det_sky_traj = mapping_info['det_sky_traj']
         det_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
@@ -647,7 +663,7 @@ class ToltecObsSimulator(object):
             det_sky_traj['az'], det_sky_traj['alt']).pad_with(
                 *bbox_padding)
         self.logger.info(
-            f"simulate sky bbox:\n"
+            f"pre-eval sky bbox:\n"
             f"ra: {det_sky_bbox_icrs.w!s} - {det_sky_bbox_icrs.e!s}\n"
             f"dec: {det_sky_bbox_icrs.s!s} - {det_sky_bbox_icrs.n!s}\n"
             f"az: {det_sky_bbox_altaz.w!s} - {det_sky_bbox_altaz.e!s}\n"
