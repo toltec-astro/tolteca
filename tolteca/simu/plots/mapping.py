@@ -5,6 +5,7 @@ import numpy as np
 import astropy.units as u
 import matplotlib.pyplot as plt
 from astropy.wcs.utils import celestial_frame_to_wcs
+from ..mapping.utils import resolve_sky_coords_frame
 
 
 def plot_mapping(
@@ -31,6 +32,7 @@ def plot_mapping(
     # this is to show the mapping in offset unit
     mapping_offset = mapping.offset_mapping_model
     dlon, dlat = mapping_offset(t)
+    time_obs = mapping.t0 + t
 
     # then evaluate the mapping model in mapping.ref_frame
     # to get the bore sight coords
@@ -40,7 +42,11 @@ def plot_mapping(
     bs_coords_icrs = bs_coords.transform_to('icrs')
 
     # and we can convert the bs_coords to other frames if needed
-    bs_coords_altaz = bs_coords.transform_to('altaz')
+    bs_coords_altaz = bs_coords.transform_to(
+        resolve_sky_coords_frame(
+            'altaz', observer=mapping.observer, time_obs=time_obs
+            )
+        )
 
     # now we can plot all these information
 

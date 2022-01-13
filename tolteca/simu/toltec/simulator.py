@@ -6,7 +6,7 @@ from .models import (
 from .toltec_info import toltec_info
 from ..utils import PersistentState, SkyBoundingBox, make_time_grid
 from ..mapping import (PatternKind, LmtTcsTrajMappingModel)
-# from ..mapping.utils import resolve_sky_coords_frame
+from ..mapping.utils import resolve_sky_coords_frame
 from ..sources.base import (SurfaceBrightnessModel, )
 from ..sources.models import (ImageSourceModel, CatalogSourceModel)
 
@@ -486,7 +486,14 @@ class ToltecObsSimulator(object):
                     holdflag = mapping.evaluate_holdflag(t)
                     bs_coords = mapping.evaluate_coords(t)
                     bs_coords_icrs = bs_coords.transform_to('icrs')
-                    bs_coords_altaz = bs_coords.transform_to('altaz')
+                    # for the altaz we need to resolve the frame for the
+                    # toltec observer and time
+                    bs_coords_altaz = bs_coords.transform_to(
+                        resolve_sky_coords_frame(
+                            'altaz',
+                            observer=mapping.observer,
+                            time_obs=time_obs
+                            ))
                     bs_parallactic_angle = pa_from_coords(
                         observer=mapping.observer,
                         coords_altaz=bs_coords_altaz,
