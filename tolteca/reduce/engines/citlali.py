@@ -141,8 +141,10 @@ class CitlaliExec(object):
         return yaml_load(output)
 
     @staticmethod
-    def _norm_ver(ver):
+    def _norm_ver(ver, with_rev=True):
         # removes any non-standard suffix
+        if with_rev:
+            return re.sub(r'(-dirty)$', '', ver)
         return re.sub(r'(-dirty|~\d+|-\d+-.+)$', '', ver)
 
     @classmethod
@@ -158,10 +160,10 @@ class CitlaliExec(object):
         # try find the latest version tag in the history
         repo = _get_local_citlali_repo()
         try:
-            _ver = cls._norm_ver(repo.git.describe(ver, contains=True))
+            _ver = cls._norm_ver(repo.git.describe(ver, contains=True), with_rev=False)
         except Exception:
-            _ver = cls._norm_ver(repo.git.describe(ver, contains=False))
-        cls.logger.debug(f"commit {ver} -> version {_ver}")
+            _ver = cls._norm_ver(repo.git.describe(ver, contains=False), with_rev=False)
+        cls.logger.debug(f"version {ver} -> semver {_ver}")
         return Version(_ver)
 
     def check_version(self, version):
@@ -185,8 +187,8 @@ class CitlaliExec(object):
             return changelog
 
         # get remote head version
-        remote_version = repo.git.rev_parse('origin/HEAD', short=True)
-        changelog = get_git_changelog(self.version, remote_version)
+        remote_rev = repo.git.rev_parse('origin/HEAD', short=True)
+        changelog = get_git_changelog(self.version, remote_rev)
 
         if changelog is not None:
             changelog_section = (
@@ -199,11 +201,11 @@ class CitlaliExec(object):
                 f"\n"
                 )
         else:
-            changelog_section = ''
+            changelog_section = 'Citlali is update-to-date!'
         logger.info(
             f"\n\n"
             f"* Executable path: {self.path}"
-            f"* Remote Citlali version: {remote_version}\n"
+            f"* Remote Citlali rev: {remote_rev}\n"
             f"* Local Citlali version: {self.version}\n"
             f'{changelog_section}'
             )
