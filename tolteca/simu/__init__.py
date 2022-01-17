@@ -333,14 +333,20 @@ def _sre_lmtot(rt):
     logger = get_logger()
 
     cfg = rt.config['simu']
-
+    obs_params = rt.get_obs_params()
     simobj = rt.get_instrument_simulator()
     mapping = rt.get_mapping_model()
 
+    t_exp =  obs_params['t_exp']
+    t_pattern = mapping.get_total_time()
+    if t_exp.unit.is_equivalent(u.ct):
+        ct_exp = t_exp.to_value(u.ct)
+        t_exp = mapping.get_total_time() * ct_exp
+
     ot_lines = []
     ot_lines.append(f"# LMT OT script created by tolteca.simu at {Time.now()}")
-    ot_lines.append(f'ObsGoal Dcs; Dcs -ObsGoal "{cfg["jobkey"]}"')
-
+    # ot_lines.append(f'ObsGoal Dcs; Dcs -ObsGoal "{cfg["jobkey"]}"')
+    ot_lines.append(f'ObsGoal Dcs; Dcs -ObsGoal Science')
     ref_coord = simobj.resolve_target(
             mapping.target,
             mapping.t0,
@@ -376,7 +382,7 @@ def _sre_lmtot(rt):
             XOmega=x_omega.quantity.to_value(u.rad/u.s),
             YOmega=y_omega.quantity.to_value(u.rad/u.s),
             XDelta=delta.quantity.to_value(u.rad),
-            TScan=total_time,
+            TScan=total_time.to_value(u.s),
             ScanRate=np.hypot(v_x, v_y).to_value(u.arcsec / u.s),
             )
 
@@ -412,7 +418,7 @@ def _sre_lmtot(rt):
                 x_omega=m.x_omega,
                 y_omega=m.y_omega,
                 delta=m.delta,
-                total_time=m.get_total_time()
+                total_time=t_exp
                 ))
     elif isinstance(mapping, (SkyDoubleLissajousModel)):
         m = mapping
@@ -422,7 +428,7 @@ def _sre_lmtot(rt):
                 x_omega=m.x_omega_0,
                 y_omega=m.y_omega_0,
                 delta=m.delta_0,
-                total_time=m.get_total_time()
+                total_time=t_exp
                 )
         minor_params = _sky_lissajous_params_to_lmtot_params(
                 x_length=m.x_length_1,
@@ -481,7 +487,7 @@ def _sre_lmtot(rt):
                 x_omega=m.x_omega_0,
                 y_omega=m.y_omega_0,
                 delta=m.delta_0,
-                total_time=m.get_total_time()
+                total_time=t_exp
                 )
         minor_params = _sky_lissajous_params_to_lmtot_params(
                 x_length=m.x_length_1,
