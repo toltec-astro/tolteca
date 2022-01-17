@@ -20,7 +20,7 @@ from astroquery.utils import parse_coordinates
 from astropy.convolution import convolve_fft
 from tolteca.simu import SimulatorRuntime
 from astroquery.skyview import SkyView
-# from astropy.coordinates import SkyCoord
+from astropy.coordinates import SkyCoord
 from astropy import units as u
 from astroplan import Observer
 from astropy.time import Time
@@ -39,6 +39,9 @@ from .common.simuControls import getLissajousControls
 from .common.simuControls import getDoubleLissajousControls
 from .common.simuControls import getRasterControls
 from .common.simuControls import getRastajousControls
+from .common.smaPointingSourceFinder import SMAPointingCatalog
+# from .common.smaPointingSourceFinder import findPointingSource
+# from .common.smaPointingSourceFinder import generateOTScript
 
 
 TOLTEC_SENSITIVITY_MODULE_PATH_ENV = (
@@ -49,6 +52,16 @@ env_registry.register(
         "toltec_sensitivity")
 _toltec_sensitivity_module_path = env_registry.get(
         TOLTEC_SENSITIVITY_MODULE_PATH_ENV)
+
+SMA_POINTING_CATALOG_PATH_ENV = (
+        f"{env_prefix}_CUSTOM_SMA_POINTING_CATALOG_PATH")
+env_registry.register(
+        SMA_POINTING_CATALOG_PATH_ENV,
+        "The path to locate the SMA pointing catalog",
+        "sma_pointing_sources.ecsv")
+_sma_pointing_catalog_path = env_registry.get(
+        SMA_POINTING_CATALOG_PATH_ENV)
+_sma_pointing_catalog = SMAPointingCatalog(filepath=_sma_pointing_catalog_path)
 
 TOLTECA_SIMU_TEMPLATE_PATH_ENV = (
         f"{env_prefix}_CUSTOM_SIMU_TEMPLATE_PATH")
@@ -138,10 +151,12 @@ class obsPlanner(ComponentTemplate):
         outRow = controlBox.child(dbc.Row)
         yamlOut = outRow.child(dbc.Col, width=1).child(dcc.Download)
         mcOut = outRow.child(dbc.Col, width=1).child(dcc.Download)
+        mcPointOut = outRow.child(dbc.Col, width=1).child(dcc.Download)
         outButtons = {'yaml': yamlWrite,
                       'mc': mcWrite,
                       'yamlOut': yamlOut,
-                      'mcOut': mcOut}
+                      'mcOut': mcOut,
+                      'mcPoint': mcPointOut}
         
         # plots
         plotsBox = bigBox.child(dbc.Col, width=9)
@@ -242,7 +257,7 @@ class obsPlanner(ComponentTemplate):
             ],
             prevent_initial_call=True
         )
-        def makeYamlOutput(n, updated_context):
+        def makeMCOutput(n, updated_context):
             if updated_context is None:
                 print('run the sim first')
                 raise PreventUpdate
@@ -251,7 +266,31 @@ class obsPlanner(ComponentTemplate):
                 print('no valid sim')
                 raise PreventUpdate
             ot_content = sim.export(format='lmtot')
-            return [dict(content=ot_content, filename="mc.script.txt")]
+            return [dict(content=ot_content, filename="mc_target.script.txt")]
+
+        # download an M&C script with the pointing parameters
+        @app.callback(
+            [
+                Output(outButtons['mcPoint'].id, "data"),
+            ],
+            [
+                Input(outButtons['mc'].id, "n_clicks")
+            ],
+            [
+                State(updated_context.id, 'data'),
+                State(target['pointing']['store'].id, "data"),
+            ],
+            prevent_initial_call=True
+        )
+        def makeMCPointOutput(n, updated_context, ps):
+            if updated_context is None:
+                print('run the sim first')
+                raise PreventUpdate
+            print()
+            print(ps)
+            print()
+            ot_content = _sma_pointing_catalog.generateOTScript(ps)
+            return [dict(content=ot_content, filename="mc_pointing.script.txt")]
         
         # download a fits file of the coverage map
         @app.callback(
@@ -293,6 +332,36 @@ class obsPlanner(ComponentTemplate):
                 )
             return [send_bytes(hdul.writeto, "obs_planner_cov.fits")]
 
+        # update pointing source based on target ra and dec
+        @app.callback(
+            [
+                Output(target['pointing']['store'].id, "data"),
+                Output(target['pointing']['div'].id, "children"),
+            ],
+            [
+                Input(target['targRa'].id, "value"),
+                Input(target['targDec'].id, "value"),
+            ],
+        )
+        def getPointingSource(ra, dec):
+            print(ra)
+            print(dec)
+            target_coord = SkyCoord(
+                ra = ra << u.deg,
+                dec = dec << u.deg,
+                frame = 'icrs')
+            ps = _sma_pointing_catalog.findPointingSource(target_coord)
+            rat = ps['ra']
+            c1 = rat.find(':')
+            ratt = rat[0:c1]+'h'+rat[c1+1:]
+            ratt = ratt.replace(":", "m")
+            pstxt = ps['name']+':  '+ratt + ps['dec']
+            psb = ps['freq'].strip('][').split(', ')[0].replace("'","")
+            psf = ps['flux'].strip('][').split(', ')[0].replace("'","")
+            pstxt = ps['name']+':  SMA: '+psb+', '+psf+'Jy'
+            print(pstxt)
+            return [ps, pstxt]
+
         # update target ra and dec based on name search
         @app.callback(
             [
@@ -315,6 +384,12 @@ class obsPlanner(ComponentTemplate):
                 dec = 0.
                 return [ra, dec]
 
+            print()
+            print(targName)
+            print(target.ra)
+            print(target.dec)
+            print()
+            
             ra = target.ra.to_value(u.deg)
             dec = target.dec.to_value(u.deg)
             return [ra, dec]
