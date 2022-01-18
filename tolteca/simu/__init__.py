@@ -244,6 +244,11 @@ class SimuConfig(object):
         metadata={
             'description': 'Make plots of those defined in `plots`.'
             })
+    export_only: bool = field(
+        default=False,
+        metadata={
+            'description': 'Export the simu config as defined in `exports`.'
+            })
 
     class Meta:
         schema = {
@@ -358,25 +363,45 @@ class SimulatorRuntime(RuntimeContext):
         return self.run()
 
     def run(self):
-        """Run the simulator."""
-
         cfg = self.simu_config
-
         self.logger.debug(
             f"run simu with config dict: "
             f"{pformat_yaml(cfg.to_config())}")
 
         if cfg.plot_only:
-            results = []
-            for plotter in cfg.plots:
-                result = plotter(cfg)
-                results.append(result)
-                if plotter.save:
-                    # TODO handle save here
-                    pass
-            return results
+            return self._run_plot()
+        if cfg.export_only:
+            return self._run_export()
+        return self._run_simu()
 
-        # run simulator
+    def _run_plot(self):
+        cfg = self.simu_config
+        self.logger.info(
+            f"make simu plots:\n"
+            f"{pformat_yaml(cfg.to_dict()['plots'])}")
+        results = []
+        for plotter in cfg.plots:
+            result = plotter(cfg)
+            results.append(result)
+            if plotter.save:
+                # TODO handle save here
+                pass
+        return results
+
+    def _run_export(self):
+        cfg = self.simu_config
+        self.logger.info(
+            f"export simu:\n"
+            f"{pformat_yaml(cfg.to_dict()['exports'])}")
+        results = []
+        for exporter in cfg.exports:
+            result = exporter(cfg)
+            results.append(result)
+        return results
+
+    def _run_simu(self):
+        """Run the simulator."""
+        cfg = self.simu_config
         simu = cfg.simulator
         t_simu = cfg.t_simu
         mapping_model = cfg.mapping_model
