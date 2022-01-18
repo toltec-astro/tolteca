@@ -1119,9 +1119,10 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
             mask = (det_array_name == array_name)
             aplm = self._array_power_loading_models[array_name]
             if self.atm_model_name == 'toast':
-                p = self._toast_atm_evaluator.calc_toast_atm_pwr(
-                    det_az[mask],
-                    det_alt[mask])
+                p = self._toast_atm_evaluator.calc_toast_atm_pwr_for_array(
+                    array_name=array_name,
+                    det_az=det_az[mask],
+                    det_alt=det_alt[mask])
             else:
                 # use the ToltecArrayPowerLoadingModel
                 p, _ = aplm.evaluate_tod(
@@ -1151,7 +1152,8 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
                 # atm is disabled
                 pass
             elif self.atm_model_name == 'toast':
-                p = self._toast_atm_evaluator.calc_toast_atm_pwr(
+                p = self._toast_atm_evaluator.calc_toast_atm_pwr_for_array(
+                    array_name=array_name,
                     det_az=det_az[mask],
                     det_alt=det_alt[mask])
                 p_out[mask] += p
@@ -1283,12 +1285,12 @@ class ToastAtmEvaluator(object):
         # clean up the context
         self._toast_atm_simu = None
 
-    def calc_toast_atm_pwr(self, det_az, det_alt):
+    def calc_toast_atm_pwr_for_array(self, array_name, det_az, det_alt):
         toast_atm_simu = self._toast_atm_simu
         if toast_atm_simu is None:
             raise RuntimeError(
                 "The toast atm simulator is not setup.")
         # TODO
         # implement this to do integral for each det position
-        # at each time
+        # at each time for a single array given by array_name
         raise NotImplementedError("toast atm is not implemented yet")
