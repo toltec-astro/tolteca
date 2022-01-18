@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
 
+from pathlib import Path
 from schema import Schema, Optional, Use, Literal, Or
 from tollan.utils.dataclass_schema import DataclassNamespace
-from tollan.utils.log import get_logger
+from tollan.utils.log import get_logger, logit
 from astropy.table import Table
 from .. import instrument_registry, sources_registry
 from ...utils.common_schema import RelPathSchema
@@ -11,7 +12,7 @@ from .lmt import lmt_info as site_info
 from ...cal import ToltecCalib
 from ...utils import get_pkg_data_path
 from .simulator import ToltecObsSimulator, ToltecHwpConfig
-from .models import ToltecPowerLoadingModel
+from .models import (ToltecPowerLoadingModel, ToastAtmConfig)
 
 
 __all__ = [
@@ -107,9 +108,37 @@ class ToltecPowerLoadingModelConfig(DataclassNamespace):
 
     _namespace_from_dict_schema = Schema({
         Literal('atm_model_name', description='The atmosphere model to use.'):
-        Or(None, 'am_q25', 'am_q50', 'am_q75', 'toast')
+        Or(None, 'am_q25', 'am_q50', 'am_q75', 'toast'),
+        Optional(
+            'atm_model_params',
+            default=None,
+            description='The atmosphere model settings.'): Or(
+                None, ToastAtmConfig.schema),
+        Optional(
+            'atm_cache_dir',
+            default=Path('atm_cache'),
+            description='The directory to store atmosphere model data.'):
+        Or(None, RelPathSchema())
         })
+
+    _namespace_to_dict_schema = Schema({
+        'atm_model_params': Use(
+            lambda c: c.to_dict() if c is not None else None),
+        str: object
+        })
+
+    logger = get_logger()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # create the cache dir if specified
+        atm_cache_dir = self.atm_cache_dir
+        if atm_cache_dir is not None:
+            if not atm_cache_dir.exists():
+                with logit(self.logger.debug, 'create atm cache output dir'):
+                    atm_cache_dir.mkdir(parents=True, exist_ok=True)
 
     def __call__(self, cfg):
         return ToltecPowerLoadingModel(
-            atm_model_name=self.atm_model_name)
+            atm_model_name=self.atm_model_name,
+            atm_cache_dir=self.atm_cache_dir)

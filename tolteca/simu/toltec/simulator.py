@@ -441,6 +441,7 @@ class ToltecObsSimulator(object):
                     det_pwr = power_loading_model.evaluate_tod(
                         det_array_name=det_array_name,
                         det_s=det_s,
+                        det_az=det_sky_traj['az'],
                         det_alt=det_sky_traj['alt'],
                         f_smp=f_smp,
                         noise_seed=None,
@@ -689,7 +690,11 @@ class ToltecObsSimulator(object):
                 raise ValueError('aplm_eval_interp_alt_step too small.')
             es.enter_context(
                 power_loading_model.aplm_eval_interp_context(
-                    alt_grid=interp_alt_grid))
+                    t0=mapping_model.t0,
+                    t_grid=t_grid_pre_eval,
+                    sky_bbox_altaz=det_sky_bbox_altaz,
+                    alt_grid=interp_alt_grid,
+                    ))
             # also we setup the toast slabs if atm_model_name is set to
             # toast
             if power_loading_model.atm_model_name == 'toast':
@@ -705,7 +710,9 @@ class ToltecObsSimulator(object):
         target_icrs = mapping_model.target.transform_to('icrs')
         i_closest = np.argmin(
             target_icrs.separation(bs_coords_icrs))
+        det_az_tune = det_sky_traj['az'][:, i_closest]
         det_alt_tune = det_sky_traj['alt'][:, i_closest]
+
         self.logger.debug(f"use tune at detector alt={det_alt_tune.mean()}")
         if power_loading_model is None:
             # when power loading model is not set, we use the apt default
@@ -713,6 +720,8 @@ class ToltecObsSimulator(object):
         else:
             kids_p_tune = power_loading_model.get_P(
                 det_array_name=det_array_name,
+                det_az=Angle(np.full(
+                    len(det_array_name), det_az_tune.degree) << u.deg),
                 det_alt=Angle(np.full(
                     len(det_array_name), det_alt_tune.degree) << u.deg)
                 )
