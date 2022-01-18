@@ -526,9 +526,12 @@ class ToltecObsSimulator(object):
                     f"det sky traj bbox:\n"
                     f"ra: {det_sky_bbox_icrs.w!s} - {det_sky_bbox_icrs.e!s}\n"
                     f"dec: {det_sky_bbox_icrs.s!s} - {det_sky_bbox_icrs.n!s}\n"
-                    f"az: {det_sky_bbox_altaz.w!s} - {det_sky_bbox_altaz.e!s}\n"
-                    f"alt: {det_sky_bbox_altaz.s!s} - {det_sky_bbox_altaz.n!s}\n"
-                    f"size: {det_sky_bbox_icrs.width}, {det_sky_bbox_icrs.height}"
+                    f"az: {det_sky_bbox_altaz.w!s} "
+                    f"- {det_sky_bbox_altaz.e!s}\n"
+                    f"alt: {det_sky_bbox_altaz.s!s} "
+                    f"- {det_sky_bbox_altaz.n!s}\n"
+                    f"size: {det_sky_bbox_icrs.width}, "
+                    f"{det_sky_bbox_icrs.height}"
                     )
 
                 # import matplotlib.pyplot as plt
@@ -1000,19 +1003,19 @@ class ToltecSimuOutputContext(ExitStack):
                 'f8', ('numSweeps', 'modelParamsNum', 'toneFreqLen')
                 )
         mp_map = {
-                'f_centered': 'fp',
-                'f_out': 'fr',
-                'f_in': 'fp',
+                'f_centered': ('fp', u.Hz),
+                'f_out': ('fr', u.Hz),
+                'f_in': ('fp', u.Hz),
                 'flag': None,
-                'fp': 'fp',
+                'fp': ('fp', u.Hz),
                 'Qr': 'Qr',
                 'Qc': 1.,
-                'fr': 'fr',
+                'fr': ('fr', u.Hz),
                 'A': 0.,
                 'normI': 'g0',
                 'normQ': 'g1',
-                'slopeI': 'k0',
-                'slopeQ': 'k1',
+                'slopeI': ('k0', u.s),
+                'slopeQ': ('k1', u.s),
                 'interceptI': 'm0',
                 'interceptQ': 'm1',
                 }
@@ -1021,6 +1024,8 @@ class ToltecSimuOutputContext(ExitStack):
             if v is not None:
                 if isinstance(v, str):
                     v = mapt[v]
+                elif isinstance(v, tuple):
+                    v = mapt[v[0]].to_value(v[1])
                 v_mp[0, i, :] = v
 
         # data variables

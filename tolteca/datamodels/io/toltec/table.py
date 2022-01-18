@@ -74,7 +74,7 @@ class KidsModelParams(object):
     def get_model(self, i):
         m = self.model
         kwargs = {}
-        print(m)
+        # print(m)
         for name in m.param_names:
             param = getattr(m, name)
             v = param[i]
@@ -115,8 +115,8 @@ class KidsModelParams(object):
                     ('g', 'normI', None),
                     ('phi_g', 'normQ', None),
                     ('f0', 'fp', u.Hz),
-                    ('k0', 'slopeI', 1. / u.Hz),
-                    ('k1', 'slopeQ', 1. / u.Hz),
+                    ('k0', 'slopeI', u.s),
+                    ('k1', 'slopeQ', u.s),
                     ('m0', 'interceptI', None),
                     ('m1', 'interceptQ', None),
                     ]
@@ -250,7 +250,7 @@ class TableIO(DataFileIO):
 
 def identify_txt_kidsmodel(filepath):
     """Check if `filepath` points to a TolTEC model parameter file."""
-    logger =get_logger()
+    logger = get_logger()
     header = EcsvHeader()
     try:
         with open(filepath, 'r') as fo:
