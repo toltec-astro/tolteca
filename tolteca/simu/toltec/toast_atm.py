@@ -152,9 +152,9 @@ class ToastAtmosphereSimulation(object):
         """
 
         # sets toast to also produce debugging messages 
-        import toast.utils
-        toast_env = toast.utils.Environment.get()
-        toast_env.set_log_level('DEBUG')
+        # import toast.utils
+        # toast_env = toast.utils.Environment.get()
+        # toast_env.set_log_level('DEBUG')
 
         # Starting slab parameters (thank you Ted)
         rmin  =  0 * u.meter
@@ -196,10 +196,10 @@ class ToastAtmosphereSimulation(object):
                 azmin=azmin, azmax=azmax,
                 elmin=elmin, elmax=elmax,
                 tmin=tmin, tmax=tmax,
-                lmin_center=lmin_center,# 0.01 * u.meter,
-                lmin_sigma=lmin_sigma, # 0.001 * u.meter,
-                lmax_center=lmax_center, # 10.0 * u.meter,
-                lmax_sigma =lmax_sigma,  # 10.0 * u.meter,
+                lmin_center=lmin_center,
+                lmin_sigma=lmin_sigma,
+                lmax_center=lmax_center,
+                lmax_sigma =lmax_sigma,  
                 w_center=w_center,
                 w_sigma=0 * (u.km / u.second),
                 wdir_center=wdir_center,
@@ -208,8 +208,8 @@ class ToastAtmosphereSimulation(object):
                 z0_sigma=z0_sigma,  #0 * u.meter,
                 T0_center=self.T0_center,
                 T0_sigma=10 * u.Kelvin,
-                zatm=zatm,  #40000.0 * u.meter,
-                zmax=zmax,   #2000.0 * u.meter,
+                zatm=zatm, 
+                zmax=zmax, 
                 xstep=xstep,
                 ystep=ystep,
                 zstep=zstep,

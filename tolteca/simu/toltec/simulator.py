@@ -536,8 +536,6 @@ class ToltecObsSimulator(object):
                 det_pa_icrs = det_sky_traj['pa_icrs']
                 det_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
                     det_ra, det_dec)
-                # the following bbox calculation looks a bit off
-                # when observing through azimuth == 0
                 det_sky_bbox_altaz = SkyBoundingBox.from_lonlat(
                     det_sky_traj['az'], det_sky_traj['alt'])
                 self.logger.info(
@@ -721,7 +719,7 @@ class ToltecObsSimulator(object):
         i_closest = np.argmin(
             target_icrs.separation(bs_coords_icrs))
 
-        det_az_tune = det_sky_traj['az'][:, i_closest]#.wrap_at(det_sky_bbox_altaz.lon_wrap_angle)
+        det_az_tune = det_sky_traj['az'][:, i_closest]
         det_alt_tune = det_sky_traj['alt'][:, i_closest]
         
         # toast also needs the evaluation time
