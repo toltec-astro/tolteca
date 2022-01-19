@@ -2,8 +2,8 @@
 
 import argparse
 from tollan.utils.log import get_logger
-from tollan.utils import ensure_abspath
-# from tollan.utils.fmt import pformat_yaml
+from tollan.utils import ensure_abspath, getname
+from tollan.utils.fmt import pformat_yaml
 
 from . import main_parser, config_loader
 from .check import (
@@ -59,7 +59,8 @@ def check_reduce(result, option):
     return result
 
 
-def load_pipeline_runtime(config_loader, no_cwd=False):
+def load_pipeline_runtime(
+        config_loader, no_cwd=False, runtime_context_dir_only=False):
 
     logger = get_logger()
 
@@ -69,19 +70,28 @@ def load_pipeline_runtime(config_loader, no_cwd=False):
         # in this special case we just use the current directory
         workdir = ensure_abspath('.')
 
+    from ..utils import RuntimeContextError
     from ..reduce import PipelineRuntime
     try:
         rc = PipelineRuntime(workdir)
-    except Exception as e:
-        if config_loader.runtime_context_dir is not None:
+    except RuntimeContextError as e:
+        if (
+                config_loader.runtime_context_dir is not None
+                or runtime_context_dir_only):
             # raise when user explicitly specified the workdir
+            # or requested to load only from rc dir.
             raise argparse.ArgumentTypeError(
-                f"invalid workdir {workdir}: {e}")
+                f"invalid workdir {workdir}\n"
+                f"{getname(e.__class__)}: {e}")
         else:
             logger.debug(
                 "no valid runtime context in current directory", exc_info=True)
             # create rc from config
-            rc = PipelineRuntime(config_loader.get_config())
+            cfg = config_loader.get_config()
+            logger.warning(
+                f"create pipeline runtime from config dict:\n"
+                f"{pformat_yaml(cfg or dict())}")
+            rc = PipelineRuntime(cfg)
     logger.debug(f"pipeline rc: {rc}")
     return rc
 
@@ -100,5 +110,6 @@ def cmd_reduce(parser):
         logger.debug(f"option: {option}")
         logger.debug(f"unknown_args: {unknown_args}")
 
-        rc = load_pipeline_runtime(config_loader, no_cwd=option.no_cwd)
+        rc = load_pipeline_runtime(
+            config_loader, no_cwd=option.no_cwd, runtime_context_dir_only=True)
         rc.cli_run(args=unknown_args)

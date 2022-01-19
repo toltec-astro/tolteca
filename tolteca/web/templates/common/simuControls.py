@@ -203,13 +203,23 @@ def getSourceCard(controlBox):
         dcc.ConfirmDialog,
         message='Set obsTime and obsDate so that 20 < elevation < 80 deg.')
 
+    # The pointing source
+    pointingRow = c_body.child(dbc.Row)
+    pointingRow.child(html.Label("Nearest Pointing Source:  ",
+                                 title="A suggested pointing source from the SMA calibrator list."))
+    pstore = pointingRow.child(dcc.Store)
+    pdiv = pointingRow.child(html.Div)
+    pointing = {'store' : pstore,
+                'div' : pdiv}
+
     target = {'targName': targName,
               'targRa': targRa,
               'targDec': targDec,
               'obsTime': obsTime,
               'obsDate': obsDate,
               'targetAlert': targetAlert,
-              'targetPopUp': targetPopUp}
+              'targetPopUp': targetPopUp,
+              'pointing': pointing}
     return target
 
 
