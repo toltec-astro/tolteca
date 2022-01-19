@@ -1112,7 +1112,7 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
                 ))
         return es
 
-    def get_P(self, det_array_name, det_az, det_alt, eval_time):
+    def get_P(self, det_array_name, det_az, det_alt, time_obs):
         """Evaluate the power loading model only and without noise."""
         p_out = np.zeros(det_alt.shape) << u.pW
         for array_name in self.array_names:
@@ -1123,7 +1123,7 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
                     array_name=array_name,
                     det_az=det_az[mask],
                     det_alt=det_alt[mask],
-                    time_obs_unix=eval_time.unix[mask] 
+                    time_obs_unix=time_obs.unix[mask] 
                     )
             else:
                 # use the ToltecArrayPowerLoadingModel
