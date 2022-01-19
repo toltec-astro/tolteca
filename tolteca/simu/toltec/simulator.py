@@ -4,7 +4,8 @@ from .models import (
     ToltecArrayProjModel, ToltecSkyProjModel, pa_from_coords,
     ToltecPowerLoadingModel)
 from .toltec_info import toltec_info
-from ..utils import PersistentState, SkyBoundingBox, make_time_grid
+from ..utils import (
+    PersistentState, SkyBoundingBox, get_lon_extent, make_time_grid)
 from ..mapping import (PatternKind, LmtTcsTrajMappingModel)
 from ..mapping.utils import resolve_sky_coords_frame
 from ..sources.base import (SurfaceBrightnessModel, )
@@ -314,11 +315,20 @@ class ToltecObsSimulator(object):
             evaluate_interp_len=None
             )
         # now build the interp along the time dim.
+        # note that the longitude interp has to work outside of the
+        # wrap angle. We determine the wrap angle and re-wrap it for interp
+        det_az = det_sky_traj_s['az']
+        _, _, det_az_wrap_angle = get_lon_extent(det_az)
+        det_az = Longitude(det_az, wrap_angle=det_az_wrap_angle)
+        det_ra = det_sky_traj_s['ra']
+        _, _, det_ra_wrap_angle = get_lon_extent(det_ra)
+        det_ra = Longitude(det_ra, wrap_angle=det_ra_wrap_angle)
+
         mjd_day_s = mjd[s].to_value(u.day)
         interp_kwargs = dict(kind='linear', axis=1)
         az_deg_interp = interp1d(
                 mjd_day_s,
-                det_sky_traj_s['az'].degree, **interp_kwargs)
+                det_az.degree, **interp_kwargs)
         alt_deg_interp = interp1d(
                 mjd_day_s,
                 det_sky_traj_s['alt'].degree, **interp_kwargs)
@@ -328,7 +338,7 @@ class ToltecObsSimulator(object):
 
         ra_deg_interp = interp1d(
                 mjd_day_s,
-                det_sky_traj_s['ra'].degree, **interp_kwargs)
+                det_ra.degree, **interp_kwargs)
         dec_deg_interp = interp1d(
                 mjd_day_s,
                 det_sky_traj_s['dec'].degree, **interp_kwargs)
@@ -338,10 +348,12 @@ class ToltecObsSimulator(object):
         # interp for full time steps
         mjd_day = mjd.to_value(u.day)
         det_sky_traj = dict()
-        det_sky_traj['az'] = Longitude(az_deg_interp(mjd_day) << u.deg)
+        det_sky_traj['az'] = Longitude(
+            az_deg_interp(mjd_day) << u.deg, wrap_angle=det_az_wrap_angle)
         det_sky_traj['alt'] = Latitude(alt_deg_interp(mjd_day) << u.deg)
         det_sky_traj['pa_altaz'] = Angle(pa_altaz_deg_interp(mjd_day) << u.deg)
-        det_sky_traj['ra'] = Longitude(ra_deg_interp(mjd_day) << u.deg)
+        det_sky_traj['ra'] = Longitude(
+            ra_deg_interp(mjd_day) << u.deg, wrap_angle=det_ra_wrap_angle)
         det_sky_traj['dec'] = Latitude(dec_deg_interp(mjd_day) << u.deg)
         det_sky_traj['pa_icrs'] = Angle(pa_icrs_deg_interp(mjd_day) << u.deg)
         return det_sky_traj
