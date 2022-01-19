@@ -739,7 +739,7 @@ class ToltecObsSimulator(object):
                     len(det_array_name), det_az_tune.degree) << u.deg),
                 det_alt=Angle(np.full(
                     len(det_array_name), det_alt_tune.degree) << u.deg),
-                eval_time=tune_eval_time
+                time_obs=tune_eval_time
                 )
         for array_name in self.array_names:
             m = (det_array_name == array_name)
