@@ -7,8 +7,8 @@ import astropy.constants as const
 from tollan.utils.log import timeit, get_logger
 import toast
 
-from . import get_default_passbands
-from .lmt import lmt_info
+from .models import _get_default_passbands
+from ...common import lmt_info
 
 # load the atmosphere tools
 try:
@@ -39,20 +39,17 @@ class ToastAtmosphereSimulation(object):
 
         self.site_height = u.Quantity(lmt_info['location']['height'])
 
+        self.logger = get_logger()
 
     @timeit
-    def generate_simulation(self, **kwargs):
+    def generate_simulation(self, setup_params_dict):
         """ Generates with parameters
         """
-        # **kwargs are from the toast atm model config and passed to
-        # control the underlying slab generation
         self.atm_slabs = self._generate_toast_atm_slabs(
             self.t0, self.tmin, self.tmax, 
             self.azmin, self.azmax, 
-            self.elmin, self.elmax,
-            **kwargs
+            self.elmin, self.elmax, **setup_params_dict
         )
-
         self._bandpass_calculations()
 
     @staticmethod
@@ -78,6 +75,7 @@ class ToastAtmosphereSimulation(object):
         )
         return convolved
 
+    @timeit
     def _absorption_coefficient(self, bandpass):
         absorption = atm_absorption_coefficient_vec(
             self.site_height.to_value(u.meter),
@@ -90,6 +88,7 @@ class ToastAtmosphereSimulation(object):
         )    
         return absorption
 
+    @timeit
     def _atmospheric_loading(self, bandpass):
         loading = atm_atmospheric_loading_vec(
             self.site_height.to_value(u.meter),
@@ -104,18 +103,20 @@ class ToastAtmosphereSimulation(object):
 
     @timeit
     def _bandpass_calculations(self):
+        # TODO: make this faster
         
         self.absorption = dict()
         self.loading = dict()
 
-        pb = get_default_passbands()
+        pb = _get_default_passbands()
         for band in ['a1100', 'a1400', 'a2000']:
 
             # get the bandpass/throughput
             bandpass_freqs = np.array(pb[band]['f'][:]) * u.GHz
             bandpass_throughput = np.array(pb[band]['throughput'])
             
-            # calculate the absorption/loading
+            # calculate the absorption/loading 
+            # (around 15s each) (toast function so requires a bit more investigation )
             absorption = self._absorption_coefficient(bandpass_freqs)
             loading= self._atmospheric_loading(bandpass_freqs)
 
@@ -127,11 +128,32 @@ class ToastAtmosphereSimulation(object):
             self.absorption[band] = absorption_det
             self.loading[band]= loading_det
 
-    def _generate_toast_atm_slabs(self, t0, tmin, tmax, azmin, azmax, elmin, elmax, mpi_comm=None):
+    def _generate_toast_atm_slabs(
+        self, 
+        t0, 
+        tmin, 
+        tmax, 
+        azmin, 
+        azmax, 
+        elmin, 
+        elmax, 
+        lmin_center,
+        lmin_sigma,
+        lmax_center,
+        lmax_sigma, 
+        z0_center, 
+        z0_sigma, 
+        zatm, 
+        zmax,
+        nelem_sim_max,
+        mpi_comm=None
+    ):
         """Creates the atmosphere models using multiple slabs
-        Currently, only the parameters that define the time ranges, azimuth ranges, 
-        elevation ranges are exposed (by necessity)
         """
+
+        import toast.utils
+        toast_env = toast.utils.Environment.get()
+        toast_env.set_log_level('DEBUG')
 
         # Starting slab parameters (thank you Ted)
         rmin  =  0 * u.meter
@@ -148,7 +170,6 @@ class ToastAtmosphereSimulation(object):
         counter2 = 0
 
         # obtain the weather information
-        # TODO: separate out the weather to its own method
         self.sim_weather = toast.weather.SimWeather(
             time = t0.to_datetime(timezone=datetime.timezone.utc),
             name="LMT", median_weather=True
@@ -159,41 +180,45 @@ class ToastAtmosphereSimulation(object):
         w_center    = np.sqrt(self.wx ** 2 + self.wy ** 2)
         wdir_center = np.arctan2(self.wy, self.wx)
 
+        self.logger.debug(f'initial seed: {key1=} {key2=} {counter1=} {counter2=}')
+        self.logger.debug(f'weather params (1): {self.sim_weather.air_temperature=} {self.sim_weather.south_wind=} {self.sim_weather.west_wind=}')
+        self.logger.debug(f'weather params (2): {w_center=} {wdir_center=}')
+
         # dict of atmosphere slabs
         atm_slabs = dict()
 
-        # generate slabs until rmax > 100000 meters
-        # TODO: eventually expose these
-        while rmax < (100000 * u.meter):
+        # generate slabs until rmax > rmax_threshold
+        rmax_threshold = 100000 * u.meter
+        while rmax < rmax_threshold:
             slab_id = f'{key1}_{key2}_{counter1}_{counter2}'
             toast_atmsim_model = toast.atm.AtmSim(
                 azmin=azmin, azmax=azmax,
                 elmin=elmin, elmax=elmax,
                 tmin=tmin, tmax=tmax,
-                lmin_center=0.01 * u.meter,
-                lmin_sigma=0.001 * u.meter,
-                lmax_center=10.0 * u.meter,
-                lmax_sigma =10.0 * u.meter,
+                lmin_center=lmin_center,# 0.01 * u.meter,
+                lmin_sigma=lmin_sigma, # 0.001 * u.meter,
+                lmax_center=lmax_center, # 10.0 * u.meter,
+                lmax_sigma =lmax_sigma,  # 10.0 * u.meter,
                 w_center=w_center,
                 w_sigma=0 * (u.km / u.second),
                 wdir_center=wdir_center,
                 wdir_sigma=0 * u.radian,
-                z0_center=2000 * u.meter,
-                z0_sigma=0 * u.meter,
+                z0_center=z0_center,  #,2000 * u.meter,
+                z0_sigma=z0_sigma,  #0 * u.meter,
                 T0_center=self.T0_center,
                 T0_sigma=10 * u.Kelvin,
-                zatm=40000.0 * u.meter,
-                zmax=2000.0 * u.meter,
+                zatm=zatm,  #40000.0 * u.meter,
+                zmax=zmax,   #2000.0 * u.meter,
                 xstep=xstep,
                 ystep=ystep,
                 zstep=zstep,
-                nelem_sim_max=20000,
+                nelem_sim_max=nelem_sim_max,
                 comm=mpi_comm,
                 key1=key1,
                 key2=key2,
                 counterval1=counter1,
                 counterval2=counter2,
-                cachedir=self.cachedir, # TODO: add a cachedir in the working folder
+                cachedir=self.cachedir,
                 rmin=rmin,
                 rmax=rmax,
                 node_comm=None,

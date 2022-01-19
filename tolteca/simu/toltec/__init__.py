@@ -141,4 +141,5 @@ class ToltecPowerLoadingModelConfig(DataclassNamespace):
     def __call__(self, cfg):
         return ToltecPowerLoadingModel(
             atm_model_name=self.atm_model_name,
+            atm_model_params=self.atm_model_params,
             atm_cache_dir=self.atm_cache_dir)
