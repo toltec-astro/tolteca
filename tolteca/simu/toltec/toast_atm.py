@@ -151,6 +151,7 @@ class ToastAtmosphereSimulation(object):
         """Creates the atmosphere models using multiple slabs
         """
 
+        # sets toast to also produce debugging messages 
         import toast.utils
         toast_env = toast.utils.Environment.get()
         toast_env.set_log_level('DEBUG')

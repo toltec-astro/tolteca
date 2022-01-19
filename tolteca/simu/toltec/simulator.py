@@ -524,6 +524,8 @@ class ToltecObsSimulator(object):
                 det_pa_icrs = det_sky_traj['pa_icrs']
                 det_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
                     det_ra, det_dec)
+                # the following bbox calculation looks a bit off
+                # when observing through azimuth == 0
                 det_sky_bbox_altaz = SkyBoundingBox.from_lonlat(
                     det_sky_traj['az'], det_sky_traj['alt'])
                 self.logger.info(
