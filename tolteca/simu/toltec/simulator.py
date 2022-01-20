@@ -432,7 +432,9 @@ class ToltecObsSimulator(object):
                 det_s=det_s,
                 )
 
-        def evaluate(det_s=None, det_sky_traj=None):
+        def evaluate(det_s=None, det_sky_traj=None, t=None, mapping_info=None):
+            t0 = mapping_info['t0']
+            time_obs = t0 + t
             # make sure we have at least some input for eval
             if det_s is None and det_sky_traj is None:
                 raise ValueError("one of det_s and det_sky_traj is required")
@@ -471,6 +473,7 @@ class ToltecObsSimulator(object):
                         det_alt=det_sky_traj['alt'],
                         f_smp=f_smp,
                         noise_seed=None,
+                        time_obs=time_obs
                         )
             self.logger.info(
                 f"power loading at detector: "
@@ -731,14 +734,7 @@ class ToltecObsSimulator(object):
                     sky_bbox_altaz=det_sky_bbox_altaz,
                     alt_grid=interp_alt_grid,
                     ))
-            # also we setup the toast slabs if atm_model_name is set to
-            # toast
-            if power_loading_model.atm_model_name == 'toast':
-                es.enter_context(
-                    power_loading_model.toast_atm_eval_context(
-                        sky_bbox_altaz=det_sky_bbox_altaz
-                        )
-                    )
+    
         # figure out the tune power  and flxscale
         # we use the closest point on the boresight to the target
         # for the tune obs
@@ -746,9 +742,14 @@ class ToltecObsSimulator(object):
         target_icrs = mapping_model.target.transform_to('icrs')
         i_closest = np.argmin(
             target_icrs.separation(bs_coords_icrs))
+
         det_az_tune = det_sky_traj['az'][:, i_closest]
         det_alt_tune = det_sky_traj['alt'][:, i_closest]
-
+        
+        # toast also needs the evaluation time
+        t_grid_pre_eval_time = mapping_model.t0 + t_grid_pre_eval
+        tune_eval_time = t_grid_pre_eval_time[i_closest] + (np.full(len(det_array_name), 0) << u.s)
+        
         self.logger.debug(f"use tune at detector alt={det_alt_tune.mean()}")
         if power_loading_model is None:
             # when power loading model is not set, we use the apt default
@@ -759,7 +760,8 @@ class ToltecObsSimulator(object):
                 det_az=Angle(np.full(
                     len(det_array_name), det_az_tune.degree) << u.deg),
                 det_alt=Angle(np.full(
-                    len(det_array_name), det_alt_tune.degree) << u.deg)
+                    len(det_array_name), det_alt_tune.degree) << u.deg),
+                time_obs=tune_eval_time
                 )
         for array_name in self.array_names:
             m = (det_array_name == array_name)
@@ -834,7 +836,7 @@ class ToltecObsSimulator(object):
                 )
             det_sky_traj = mapping_info['det_sky_traj']
             det_pwr, probing_info = probing_evaluator(
-                det_s=det_s, det_sky_traj=det_sky_traj)
+                det_s=det_s, det_sky_traj=det_sky_traj, t=t, mapping_info=mapping_info)
             return locals()
 
         self._eval_context = locals()
