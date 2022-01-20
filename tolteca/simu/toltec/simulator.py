@@ -245,7 +245,9 @@ class ToltecObsSimulator(object):
             time_obs,
             bs_coords_altaz,
             bs_coords_icrs,
-            evaluate_interp_len=None):
+            evaluate_interp_len=None,
+            lon_wrap_angle_altaz=None,
+            lon_wrap_angle_icrs=None):
         """Return the detector positions of shape [n_detectors, n_times]
         on sky.
         """
@@ -283,6 +285,11 @@ class ToltecObsSimulator(object):
             det_sky_traj['dec'] = eval_ctx['coords_icrs'].dec
             det_sky_traj['pa_icrs'] = eval_ctx['pa_icrs']
             # dpa_altaz_icrs = eval_ctx['dpa_altaz_icrs']
+            # set the lon wrap angle if specified
+            if lon_wrap_angle_altaz is not None:
+                det_sky_traj['az'].wrap_angle = lon_wrap_angle_altaz
+            if lon_wrap_angle_icrs is not None:
+                det_sky_traj['ra'].wrap_angle = lon_wrap_angle_icrs
             return det_sky_traj
 
         # make a subset of parameters for faster evaluate
@@ -346,14 +353,21 @@ class ToltecObsSimulator(object):
             mjd_day_s,
             det_sky_traj_s['pa_icrs'].to_value(u.deg), **interp_kwargs)
         # interp for full time steps
+        # we use the wrap angle when it is not specified
+        if lon_wrap_angle_altaz is None:
+            lon_wrap_angle_altaz = det_az_wrap_angle
+        if lon_wrap_angle_icrs is None:
+            lon_wrap_angle_icrs = det_ra_wrap_angle
         mjd_day = mjd.to_value(u.day)
         det_sky_traj = dict()
         det_sky_traj['az'] = Longitude(
-            az_deg_interp(mjd_day) << u.deg, wrap_angle=det_az_wrap_angle)
+            az_deg_interp(mjd_day) << u.deg,
+            wrap_angle=lon_wrap_angle_altaz)
         det_sky_traj['alt'] = Latitude(alt_deg_interp(mjd_day) << u.deg)
         det_sky_traj['pa_altaz'] = Angle(pa_altaz_deg_interp(mjd_day) << u.deg)
         det_sky_traj['ra'] = Longitude(
-            ra_deg_interp(mjd_day) << u.deg, wrap_angle=det_ra_wrap_angle)
+            ra_deg_interp(mjd_day) << u.deg,
+            wrap_angle=lon_wrap_angle_icrs)
         det_sky_traj['dec'] = Latitude(dec_deg_interp(mjd_day) << u.deg)
         det_sky_traj['pa_icrs'] = Angle(pa_icrs_deg_interp(mjd_day) << u.deg)
         return det_sky_traj
@@ -484,12 +498,19 @@ class ToltecObsSimulator(object):
             return Angle(((hwp_cfg.f_rot * t).to_value(
                 u.dimensionless_unscaled) * 2. * np.pi) << u.rad)
 
-        def evaluate(t, mapping_only=False):
+        def evaluate(
+                t, mapping_only=False,
+                lon_wrap_angle_altaz=None,
+                lon_wrap_angle_icrs=None,
+                ):
             time_obs = t0 + t
             n_times = len(time_obs)
             self.logger.debug(
-                f"evalute time_obs from {time_obs[0]} to "
+                f"evaluate time_obs from {time_obs[0]} to "
                 f"{time_obs[-1]} n_times={n_times}")
+            self.logger.debug(
+                f'use lon_wrap_angle_icrs={lon_wrap_angle_icrs or "auto"} '
+                f'lon_wrap_angle_altaz={lon_wrap_angle_altaz or "auto"}')
             # TODO add more control for the hwp position
             hwp_pa_t = get_hwp_pa_t(t)
             # if True:
@@ -527,7 +548,10 @@ class ToltecObsSimulator(object):
                     time_obs=time_obs,
                     bs_coords_altaz=bs_coords_altaz,
                     bs_coords_icrs=bs_coords_icrs,
-                    evaluate_interp_len=eval_interp_len)
+                    evaluate_interp_len=eval_interp_len,
+                    lon_wrap_angle_altaz=lon_wrap_angle_altaz,
+                    lon_wrap_angle_icrs=lon_wrap_angle_icrs,
+                    )
                 det_ra = det_sky_traj['ra']
                 det_dec = det_sky_traj['dec']
                 det_pa_icrs = det_sky_traj['pa_icrs']
@@ -803,7 +827,11 @@ class ToltecObsSimulator(object):
 
         # now we are ready to return the iterative evaluator
         def evaluate(t):
-            det_s, mapping_info = mapping_evaluator(t)
+            det_s, mapping_info = mapping_evaluator(
+                t,
+                lon_wrap_angle_altaz=det_sky_bbox_altaz.lon_wrap_angle,
+                lon_wrap_angle_icrs=det_sky_bbox_icrs.lon_wrap_angle,
+                )
             det_sky_traj = mapping_info['det_sky_traj']
             det_pwr, probing_info = probing_evaluator(
                 det_s=det_s, det_sky_traj=det_sky_traj)

@@ -66,7 +66,9 @@ def get_lon_extent(lon):
     if not isinstance(lon, Longitude):
         raise ValueError("input has to be instance of Longitude.")
     lon = np.ravel(lon)
-    wrap_angle = Angle([360., 180.] << u.deg)
+    # this will always make sure use the original wrap angle when
+    # possible since argmin will return the one with smaller index.
+    wrap_angle = Angle([lon.wrap_angle.degree, 360., 180.] << u.deg)
     lon_deg_wrapped = np.vstack(
         [lon.wrap_at(a).degree for a in wrap_angle])
     # calculate the span for each wrap angle and take the smaller one
