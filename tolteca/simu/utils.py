@@ -114,10 +114,15 @@ class SkyBoundingBox:
         """Return an instance with padding."""
         coslat = np.cos((self.n + self.s) * 0.5)
         dlon = dx / coslat
-        lon_wrap_angle = self.lon_wrap_angle
+        # because with the padding, the lon may go across the wrap angle
+        # we need to re-compute the extent.
+        w, e, lon_wrap_angle = get_lon_extent(
+            Longitude(
+                [self.w - dlon, self.e + dlon],
+                wrap_angle=self.lon_wrap_angle))
         return self.__class__(
-            w=Longitude(self.w - dlon, wrap_angle=lon_wrap_angle),
-            e=Longitude(self.e + dlon, wrap_angle=lon_wrap_angle),
+            w=w,
+            e=e,
             s=Latitude(self.s - dy),
             n=Latitude(self.n + dy),
             lon_wrap_angle=lon_wrap_angle)
