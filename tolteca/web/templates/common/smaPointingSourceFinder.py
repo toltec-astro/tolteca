@@ -1,6 +1,6 @@
 from astropy.coordinates import SkyCoord
 from bs4 import BeautifulSoup as bs
-from datetime import datetime
+from datetime import datetime, timezone
 from datetime import date
 import astropy.units as u
 import numpy as np
@@ -162,10 +162,13 @@ class SMAPointingCatalog(object):
         ra = pointSource['ra']
         dec = pointSource['dec']
         sname = pointSource['name']
-        stxt = "Source Source;  Source  -BaselineList [] -CoordSys Eq -DecProperMotionCor 0 -Dec[0] {0:} -Dec[1] {0:} -El[0] 0.000000 -El[1] 0.000000 -EphemerisTrackOn 0 -Epoch 2000.0 -GoToZenith 0 -L[0] 0.0 -L[1] 0.0 -LineList [] -Planet None -RaProperMotionCor 0 -Ra[0] {1:} -Ra[1] {1:} -SourceName {2:} -VelSys Lsr -Velocity 0.000000 -Vmag 0.0\n".format(ra, dec, sname)
+        otxt = "ObsGoal DCS; Dcs -ObsGoal Pointing\n"
+        stxt = "Source Source;  Source  -BaselineList [] -CoordSys Eq -DecProperMotionCor 0 -Dec[0] {0:} -Dec[1] {0:} -El[0] 0.000000 -El[1] 0.000000 -EphemerisTrackOn 0 -Epoch 2000.0 -GoToZenith 1 -L[0] 0.0 -L[1] 0.0 -LineList [] -Planet None -RaProperMotionCor 0 -Ra[0] {1:} -Ra[1] {1:} -SourceName \"{2:}\" -VelSys Lsr -Velocity 0.000000 -Vmag 0.0\n".format(ra, dec, sname)
         ltxt = "Lissajous -ExecMode 0 -RotateWithElevation 0 -TunePeriod 0 -TScan 120 -ScanRate 58.21155955421865 -XLength 0.5 -YLength 0.5 -XOmega 9.2 -YOmega 8.0 -XDelta 0.7853981633974483 -XLengthMinor 0.0 -YLengthMinor 0.0 -XDeltaMinor 0.0"
-        head = "# LMT OT script created by smaPointingSourceFinder.py\n" + 'ObsGoal pointing; Dcs -ObsGoal "example_simu"\n'
-        mctxt = head + stxt + ltxt + "\n"
+        # head = "# LMT OT script created by smaPointingSourceFinder.py\n" + 'ObsGoal pointing; Dcs -ObsGoal "example_simu"\n'
+        timestamp = datetime.now(timezone.utc).strftime('%a %b %d %H:%M:%S %Z %Y')
+        head = '#ObservingScript -Name "pointing_{sname}.txt" -Author "obs_planner" -Date "{timestamp}"\n'.format(**locals())
+        mctxt = head + otxt, stxt + ltxt + "\n"
         
         if(0):
             oF = open(outFile, "w")

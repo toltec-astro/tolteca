@@ -15,7 +15,7 @@ import argparse
 import yaml
 import netCDF4
 from tollan.utils.nc import NcNodeMapper
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import UserDict
 from pathlib import Path
 from contextlib import contextmanager
@@ -342,13 +342,23 @@ def _sre_lmtot(rt):
     if t_exp.unit.is_equivalent(u.ct):
         ct_exp = t_exp.to_value(u.ct)
         t_exp = mapping.get_total_time() * ct_exp
-
+    target_text = cfg['mapping']['target']
+    target_coords = mapping.target
+    if len(set(" ,:").intersection(set(target_text))) > 0:
+        # use stringfied coords as name
+        source_name = target_coords.to_string(style='hmsdms', precision=0).replace(
+                ' ', '')
+    else:
+        # no special characters, use as is
+        source_name = target_text
+    timestamp = datetime.now(timezone.utc).strftime('%a %b %d %H:%M:%S %Z %Y')
     ot_lines = []
-    ot_lines.append(f"# LMT OT script created by tolteca.simu at {Time.now()}")
+    # ot_lines.append(f"# LMT OT script created by tolteca.simu at {Time.now()}")
+    ot_lines.append(
+        f'#ObservingScript -Name "{source_name}.txt" -Author "obs_planner"'
+        f' -Date "{timestamp}"')
     # ot_lines.append(f'ObsGoal Dcs; Dcs -ObsGoal "{cfg["jobkey"]}"')
     ot_lines.append(f'ObsGoal Dcs; Dcs -ObsGoal Science')
-    source_name = cfg['mapping']['target']
-    source_name = ','.join(source_name.split(' '))
     ref_coord = simobj.resolve_target(
             mapping.target,
             mapping.t0,
@@ -360,14 +370,14 @@ def _sre_lmtot(rt):
         " -El[0] 0.000000 -El[1] 0.000000 -EphemerisTrackOn 0 -Epoch 2000.0"
         " -GoToZenith 1 -L[0] 0.0 -L[1] 0.0 -LineList [] -Planet None"
         " -RaProperMotionCor 0 -Ra[0] {RA} -Ra[1] {RA}"
-        " -SourceName {Name} -VelSys Lsr -Velocity 0.000000 -Vmag 0.0".format(
+        " -SourceName \"{Name}\" -VelSys Lsr -Velocity 0.000000 -Vmag 0.0".format(
             RA=ref_coord.ra.to_string(
                 unit=u.hour, pad=True,
                 decimal=False, fields=3, sep=':'),
             Dec=ref_coord.dec.to_string(
                 unit=u.degree, pad=True, alwayssign=True,
                 decimal=False, fields=3, sep=':'),
-            Name=cfg['mapping']['target'],
+            Name=source_name,
             ))
 
     def _sky_lissajous_params_to_lmtot_params(
