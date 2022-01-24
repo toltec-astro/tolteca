@@ -348,7 +348,7 @@ def _sre_lmtot(rt):
     # ot_lines.append(f'ObsGoal Dcs; Dcs -ObsGoal "{cfg["jobkey"]}"')
     ot_lines.append(f'ObsGoal Dcs; Dcs -ObsGoal Science')
     source_name = cfg['mapping']['target']
-    source_name = source_name.split(' ').join(',')
+    source_name = ','.join(source_name.split(' '))
     ref_coord = simobj.resolve_target(
             mapping.target,
             mapping.t0,
