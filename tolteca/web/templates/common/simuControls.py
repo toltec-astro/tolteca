@@ -143,7 +143,7 @@ def getSourceCard(controlBox):
         dcc.Input, value="", debounce=True,
         type='text',
         style=dict(width='45%',))
-    makeTooltip(targNameRow, "Enter source coordinates in hh:mm:ss+dd:mm:ss " \
+    makeTooltip(targNameRow, "Enter source coordinates standard format (XXhYYmZZs+dd:mm:ss) " \
                 "or enter a target name.  If the name server doesn't recognize " \
                 "the name, the RA and Dec fields will both be set to zero.")
 
