@@ -239,7 +239,37 @@ class obsPlanner(ComponentTemplate):
             if sim is None:
                 print('no valid sim')
                 raise PreventUpdate
-            cfg = {'simu': sim.config['simu']}
+            s = sim.config['simu']
+            # cfg = {'simu': sim.config['simu']}
+            # here we fix the sim so it returns cfg for tolteca v1
+            cfg = {
+                    'mapping': s['mapping']
+                    }
+            t = cfg['mapping']['type']
+            if 'SkyRaster' in t:
+                cfg['mapping']['type'] = 'raster'
+            elif 'SkyLissajous' in t:
+                cfg['mapping']['type'] = 'lissajous'
+            elif 'SkyDoubleLissajous' in t:
+                cfg['mapping']['type'] = 'double_lissajous'
+            elif 'SkyRastajous' in t:
+                cfg['mapping']['type'] = 'rastajous'
+            cfg['jobkey'] = 'obs_planner'
+            cfg['sources'] = [
+                    {
+                        'type': 'toltec_power_loading',
+                        'atm_model_name': 'am_q50'
+                        },
+                    ]
+            cfg['instrument'] = {'name': 'toltec', 'polarized': False}
+            cfg['obs_params'] = {
+                    't_exp': s['obs_params']['t_exp'],
+                    'f_smp_mapping': s['obs_params']['f_smp_mapping'],
+                    'f_smp_probing': s['obs_params']['f_smp_data'],
+                    }
+            cfg['plots'] = [{'type': 'visibility'}, {'type': 'mapping'}]
+            cfg['exports'] = [{'type': 'lmtot'}]
+            cfg = {'simu': cfg}
             ss = StringIO()
             sim.write_config_to_yaml(cfg, ss)
             return [dict(content=ss.getvalue(), filename="sim.txt")]
