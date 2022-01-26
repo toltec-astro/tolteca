@@ -490,7 +490,7 @@ class obsPlanner(ComponentTemplate):
                 State(mapping['dlisxOmega1In'].id, "value"),
                 State(mapping['dlisyOmega1In'].id, "value"),
                 State(mapping['dlisDelta1In'].id, "value"),
-                State(mapping['listExpIn'].id, "value"),
+                State(mapping['dlistExpIn'].id, "value"),
                 State(target['targRa'].id, "value"),
                 State(target['targDec'].id, "value"),
                 State(target['obsTime'].id, "value"),
