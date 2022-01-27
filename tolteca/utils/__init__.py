@@ -19,7 +19,7 @@ __all__ = [
     'yaml_load', 'yaml_dump',
     'RuntimeContext', 'RuntimeContextError',
     'ConfigLoaderError', 'ConfigLoader',
-    'config_from_cli_args',
+    'dict_from_cli_args',
            ]
 
 
@@ -189,12 +189,18 @@ default_config_loader = ConfigLoader(runtime_context_dir='.')
 """The tolteca config loader with default settings."""
 
 
-def config_from_cli_args(args):
-    """Return a nested dict composed from CLI arguments."""
+def dict_from_cli_args(args):
+    """Return a nested dict composed from CLI arguments.
+
+    This is used to compose config dict on-the-fly. Nested keys can
+    be specified using syntax like ``--a.b.c``. Nested lists are
+    supported with the index as the key: ``--a.0.c``. The values
+    of the options are parsed as YAML string.
+    """
 
     logger = get_logger()
 
-    logger.debug(f"update config with command line args: {args}")
+    logger.debug(f"parse command line args: {args}")
 
     parser = argparse.ArgumentParser()
     re_arg = re.compile(r'^--(?P<key>[a-zA-Z_]([a-zA-z0-9_.\[\]])*)')
@@ -232,5 +238,5 @@ def config_from_cli_args(args):
         else:
             d[k] = v
     d = d.data
-    logger.debug(f'parsed config: {pformat_yaml(d)}')
+    logger.debug(f'dict parsed from CLI args: {pformat_yaml(d)}')
     return d

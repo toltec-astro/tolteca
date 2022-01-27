@@ -432,9 +432,11 @@ class ToltecObsSimulator(object):
                 det_s=det_s,
                 )
 
-        def evaluate(det_s=None, det_sky_traj=None, t=None, mapping_info=None):
-            t0 = mapping_info['t0']
-            time_obs = t0 + t
+        def evaluate(
+                det_s=None,
+                det_sky_traj=None,
+                time_obs=None
+                ):
             # make sure we have at least some input for eval
             if det_s is None and det_sky_traj is None:
                 raise ValueError("one of det_s and det_sky_traj is required")
@@ -473,7 +475,7 @@ class ToltecObsSimulator(object):
                         det_alt=det_sky_traj['alt'],
                         f_smp=f_smp,
                         noise_seed=None,
-                        time_obs=time_obs
+                        time_obs=time_obs,
                         )
             self.logger.info(
                 f"power loading at detector: "
@@ -661,7 +663,8 @@ class ToltecObsSimulator(object):
                 sources_unknown.append(s)
         self.logger.debug(f"surface brightness sources:\n{sources_sb}")
         self.logger.debug(f"power loading model:\n{power_loading_model}")
-        self.logger.warning(f"ignored sources:\n{sources_unknown}")
+        if sources_unknown:
+            self.logger.warning(f"ignored sources:\n{sources_unknown}")
 
         # create the time grids
         # this is the iterative eval time grids
@@ -720,13 +723,27 @@ class ToltecObsSimulator(object):
         if power_loading_model is not None:
             alt_deg_step = perf_params.aplm_eval_interp_alt_step.to_value(
                 u.deg)
+            n_min_steps = 5
+            if (alt_deg_step * (n_min_steps - 1)) \
+                    > det_sky_bbox_altaz.height.degree:
+                alt_step_new = (
+                    det_sky_bbox_altaz.height / (n_min_steps - 1)).to(
+                        perf_params.aplm_eval_interp_alt_step.unit)
+                # self.logger.warning(
+                raise ValueError(
+                    f"perf_params.aplm_eval_interp_alt_step="
+                    f"{perf_params.aplm_eval_interp_alt_step} is too large, "
+                    f"The value should be adjusted to at most {alt_step_new} "
+                    f"to ensure at least {n_min_steps} steps.")
+                alt_deg_step = alt_step_new.to_value(u.deg)
             interp_alt_grid = np.arange(
                 det_sky_bbox_altaz.s.degree,
                 det_sky_bbox_altaz.n.degree + alt_deg_step,
                 alt_deg_step,
                 ) << u.deg
-            if len(interp_alt_grid) < 5:
-                raise ValueError('aplm_eval_interp_alt_step too small.')
+            # if len(interp_alt_grid) < 5:
+            #     raise ValueError(
+            #         'aplm_eval_interp_alt_step too large.')
             es.enter_context(
                 power_loading_model.aplm_eval_interp_context(
                     t0=mapping_model.t0,
@@ -734,7 +751,7 @@ class ToltecObsSimulator(object):
                     sky_bbox_altaz=det_sky_bbox_altaz,
                     alt_grid=interp_alt_grid,
                     ))
-    
+
         # figure out the tune power  and flxscale
         # we use the closest point on the boresight to the target
         # for the tune obs
@@ -745,23 +762,27 @@ class ToltecObsSimulator(object):
 
         det_az_tune = det_sky_traj['az'][:, i_closest]
         det_alt_tune = det_sky_traj['alt'][:, i_closest]
-        
-        # toast also needs the evaluation time
-        t_grid_pre_eval_time = mapping_model.t0 + t_grid_pre_eval
-        tune_eval_time = t_grid_pre_eval_time[i_closest] + (np.full(len(det_array_name), 0) << u.s)
-        
-        self.logger.debug(f"use tune at detector alt={det_alt_tune.mean()}")
-        if power_loading_model is None:
+        t_tune = t_grid_pre_eval[i_closest]
+
+        self.logger.debug(
+            f"use tune at detector alt={det_alt_tune.mean()} t={t_tune}")
+        if (
+                power_loading_model is None
+                or power_loading_model.atm_model_name is None):
             # when power loading model is not set, we use the apt default
-            kids_p_tune = apt['background']
+            # in this case we also need to add to the det power the
+            # additional background loading
+            det_add_background_loading = apt['background']
+            kids_p_tune = det_add_background_loading
         else:
+            det_add_background_loading = None
             kids_p_tune = power_loading_model.get_P(
                 det_array_name=det_array_name,
                 det_az=Angle(np.full(
                     len(det_array_name), det_az_tune.degree) << u.deg),
                 det_alt=Angle(np.full(
                     len(det_array_name), det_alt_tune.degree) << u.deg),
-                time_obs=tune_eval_time
+                time_obs=mapping_model.t0 + t_tune,
                 )
         for array_name in self.array_names:
             m = (det_array_name == array_name)
@@ -836,7 +857,13 @@ class ToltecObsSimulator(object):
                 )
             det_sky_traj = mapping_info['det_sky_traj']
             det_pwr, probing_info = probing_evaluator(
-                det_s=det_s, det_sky_traj=det_sky_traj, t=t, mapping_info=mapping_info)
+                det_s=det_s,
+                det_sky_traj=det_sky_traj,
+                time_obs=mapping_info['time_obs']
+                )
+            if det_add_background_loading is not None:
+                # this is to match the kdis tune when no atm is set
+                det_pwr += det_add_background_loading[:, np.newaxis]
             return locals()
 
         self._eval_context = locals()

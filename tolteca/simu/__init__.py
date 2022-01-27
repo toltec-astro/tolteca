@@ -17,7 +17,7 @@ from ..utils.common_schema import PhysicalTypeSchema
 from ..utils.config_registry import ConfigRegistry
 from ..utils.config_schema import add_config_schema
 from ..utils.runtime_context import RuntimeContext, RuntimeContextError
-from ..utils import config_from_cli_args
+from ..utils import dict_from_cli_args
 
 
 __all__ = ['SimulatorRuntime', 'SimulatorRuntimeError']
@@ -63,7 +63,7 @@ class ObsParamsConfig(object):
 @add_schema
 @dataclass
 class PerfParamsConfig(object):
-    """The config class for ``simu.pef_params``."""
+    """The config class for ``simu.perf_params``."""
 
     chunk_len: u.Quantity = field(
         default=10 << u.s,
@@ -96,7 +96,7 @@ class PerfParamsConfig(object):
             }
         )
     aplm_eval_interp_alt_step: u.Quantity = field(
-        default=60 << u.arcmin,
+        default=2 << u.arcmin,
         metadata={
             'description': (
                 'Interp altitude step to speed-up '
@@ -105,7 +105,7 @@ class PerfParamsConfig(object):
             }
         )
     pre_eval_sky_bbox_padding_size: u.Quantity = field(
-        default=3. << u.arcmin,
+        default=4. << u.arcmin,
         metadata={
             'description': (
                 'Padding size to add to the sky bbox for '
@@ -114,7 +114,7 @@ class PerfParamsConfig(object):
             }
         )
     pre_eval_t_grid_size: int = field(
-        default=100,
+        default=200,
         metadata={
             'description': 'Size of time grid used for pre-eval calculations.',
             'schema': PhysicalTypeSchema("angle"),
@@ -336,7 +336,7 @@ class SimulatorRuntime(RuntimeContext):
         """Run the simulator with CLI as save the result.
         """
         if args is not None:
-            _cli_cfg = config_from_cli_args(args)
+            _cli_cfg = dict_from_cli_args(args)
             # note the cli_cfg is under the namespace simu
             cli_cfg = {self.config_cls.config_key: _cli_cfg}
             if _cli_cfg:

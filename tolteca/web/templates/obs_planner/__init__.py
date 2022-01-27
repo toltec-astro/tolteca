@@ -23,8 +23,10 @@ from tollan.utils.dataclass_schema import add_schema
 from tollan.utils.fmt import pformat_yaml
 
 from ....utils.common_schema import RelPathSchema
+from ... import env_mapper
 
 
+@env_mapper
 @add_schema
 @dataclass
 class ObsPlannerConfig(object):
@@ -65,22 +67,53 @@ class ObsPlannerConfig(object):
             }
 
 
+class ObsSite(object):
+    """A class provides info of observing site."""
+    pass
+
+    @classmethod
+    def from_name(cls, name):
+        """Return the site instance for `name`."""
+        pass
+
+
+class ObsInstru(object):
+    """A class provides info of observing instrument."""
+    pass
+
+    @classmethod
+    def from_name(cls, name):
+        """Return the instru instance for `name`."""
+        pass
+
+
 class ObsPlanner(ComponentTemplate):
     """An observation Planner."""
 
     class Meta:
         component_cls = dbc.Container
 
-    def __init__(self, config=None, **kwargs):
-        if config is None:
-            config = ObsPlannerConfig()
+    def __init__(
+            self,
+            site_name='lmt',
+            instru_name='toltec',
+            pointing_catalog_path=None,
+            title_text='Obs Planner',
+            **kwargs):
         kwargs.setdefault('fluid', True)
         super().__init__(**kwargs)
-        self._config = config
+        self._site = ObsSite.from_name(site_name)
+        self._instru = ObsInstru.from_name(instru_name)
+        self._pointing_catalog_path = pointing_catalog_path
+        self._title_text = title_text
 
     def setup_layout(self, app):
-        cfg = self._config
         container = self
-        container.child(html.H1(cfg.title_text))
-        container.child(html.Pre(pformat_yaml(cfg.to_dict())))
+        container.child(html.H1(self._title_text))
+        init_info = {
+            'site': self._site,
+            'instru': self._instru,
+            'pointing_catalog_path': self._pointing_catalog_path
+            }
+        container.child(html.Pre(pformat_yaml(init_info.to_dict())))
         super().setup_layout(app)

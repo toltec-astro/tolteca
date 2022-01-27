@@ -103,7 +103,7 @@ def main(args=None):
             default=argparse.SUPPRESS,
             help="The path to look for runtime context directory.",
             metavar='DIR',
-            type=PathType(exists=False, type_='dir'),
+            type=PathType(exists=None, type_='dir'),
             )
     parser.add_argument(
             "-n", "--no_persistent_config",
@@ -137,6 +137,8 @@ def main(args=None):
     from .simu0 import cmd_simu0  # noqa: F401
     from .simu import cmd_simu  # noqa: F401
     from .reduce import cmd_reduce  # noqa: F401
+    # from .web import cmd_web  # noqa: F401
+    # from .cal import cmd_cal  # noqa: F401
 
     option, unknown_args = parser.parse_known_args(args or sys.argv[1:])
 

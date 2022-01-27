@@ -8,7 +8,7 @@ from tollan.utils.fmt import pformat_yaml
 from ..utils.config_registry import ConfigRegistry
 from ..utils.config_schema import add_config_schema
 from ..utils.runtime_context import RuntimeContext, RuntimeContextError
-from ..utils import config_from_cli_args
+from ..utils import dict_from_cli_args
 
 
 __all__ = ['ReduConfig', 'PipelineRuntime', 'PipelineRuntimeError']
@@ -134,7 +134,7 @@ class PipelineRuntime(RuntimeContext):
         """Run the reduction with CLI and save the result.
         """
         if args is not None:
-            _cli_cfg = config_from_cli_args(args)
+            _cli_cfg = dict_from_cli_args(args)
             # note the cli_cfg is under the namespace redu
             cli_cfg = {self.config_cls.config_key: _cli_cfg}
             if _cli_cfg:
