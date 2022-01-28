@@ -435,7 +435,8 @@ class ToltecObsSimulator(object):
         def evaluate(
                 det_s=None,
                 det_sky_traj=None,
-                time_obs=None
+                time_obs=None,
+                det_add_pwr=None,
                 ):
             # make sure we have at least some input for eval
             if det_s is None and det_sky_traj is None:
@@ -477,6 +478,8 @@ class ToltecObsSimulator(object):
                         noise_seed=None,
                         time_obs=time_obs,
                         )
+            if det_add_pwr is not None:
+                det_pwr += det_add_pwr
             self.logger.info(
                 f"power loading at detector: "
                 f"min={det_pwr.min()} max={det_pwr.max()}")
@@ -772,8 +775,8 @@ class ToltecObsSimulator(object):
             # when power loading model is not set, we use the apt default
             # in this case we also need to add to the det power the
             # additional background loading
-            det_add_background_loading = apt['background']
-            kids_p_tune = det_add_background_loading
+            kids_p_tune = apt['background']
+            det_add_background_loading = kids_p_tune[:, np.newaxis]
         else:
             det_add_background_loading = None
             kids_p_tune = power_loading_model.get_P(
@@ -859,11 +862,9 @@ class ToltecObsSimulator(object):
             det_pwr, probing_info = probing_evaluator(
                 det_s=det_s,
                 det_sky_traj=det_sky_traj,
-                time_obs=mapping_info['time_obs']
+                time_obs=mapping_info['time_obs'],
+                det_add_pwr=det_add_background_loading
                 )
-            if det_add_background_loading is not None:
-                # this is to match the kdis tune when no atm is set
-                det_pwr += det_add_background_loading[:, np.newaxis]
             return locals()
 
         self._eval_context = locals()
