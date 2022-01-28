@@ -96,7 +96,7 @@ class SetupInfo(object):
     """The info saved to `DirConf` setup_file.
 
     The setup info contains a copy of the config (including the runtime info)
-    idct, and can be used for subsequent runs to detect changes of versions or
+    dict, and can be used for subsequent runs to detect changes of versions or
     environments that could lead to changes  to check any changes to the
     runtime context
     """
@@ -230,6 +230,11 @@ class ConfigBackendError(RuntimeError):
 class ConfigBackend(object):
     """A base class that defines the interface for config handling object.
 
+    This class manages three config dicts internally: ``_default_config``,
+    ``_config_impl``, and ``_override_config``, and the cached property
+    :attr:``config`` returns a merged dict of the three.
+
+    :meth:`reload` can be used to re-build the config dict.
     """
     def __init__(self):
         # build the config cache and runtime info.
@@ -314,6 +319,11 @@ class ConfigBackend(object):
 
     @cached_property
     def _config_impl(self):
+        """The cached config dict implemented in subclasses.
+        """
+        # This is necessary so that when reload after default_config
+        # and override_config changes, we don't have to also reload
+        # the config impl.
         return self._config
 
     def _make_config_from_configs(self):
@@ -333,6 +343,15 @@ class ConfigBackend(object):
 
         This invalidate the config cache and update the runtime info
         object accordingly.
+
+        Parameters
+        ----------
+        update_runtime_info : bool, optional
+            If True, the runtime info dict is updated.
+
+        reload_config : bool, optional
+            If True, the :attr:`_config_impl` cache is invalidated, which
+            triggers a reload of the config.
         """
         self._invalidate_config_cache(include_config_impl_cache=reload_config)
         # this is to just compile the config without dumping the runtimeinfo
@@ -374,7 +393,7 @@ class ConfigBackend(object):
     def set_default_config(self, cfg):
         """Set the default config dict.
 
-        This will invalidate the cache.
+        This will invalidate the config cache.
         """
         self._default_config = cfg
         self.load(reload_config=False, update_runtime_info=False)
@@ -382,7 +401,7 @@ class ConfigBackend(object):
     def set_override_config(self, cfg):
         """Set the override config dict.
 
-        This will invalidate the cache.
+        This will invalidate the config cache.
         """
 
         self._override_config = cfg
@@ -391,18 +410,18 @@ class ConfigBackend(object):
     def update_default_config(self, cfg):
         """Update the default config dict.
 
-        This will invalidate the cache.
+        This will invalidate the config cache.
         """
         rupdate(self._default_config, cfg)
-        self.load()
+        self.load(reload_config=False, update_runtime_info=False)
 
     def update_override_config(self, cfg):
         """Update the override config dict.
 
-        This will invalidate the cache.
+        This will invalidate the config cache.
         """
         rupdate(self._override_config, cfg)
-        self.load()
+        self.load(reload_config=False, update_runtime_info=False)
 
     @property
     def is_persistent(self):
@@ -419,7 +438,7 @@ class DirConf(ConfigBackend, DirConfMixin):
     A new workdir can be created by calling the factory method
     :meth:`DirConf.from_dir()` with option ``create=True``.
 
-    Once created, it by contains a setup.yaml file and a set of
+    Once created, it contains a setup.yaml file and a set of
     predefined subdirs ``bin``, ``log``, and ``cal``.
 
     The setup file is populated with the current runtime context
@@ -430,7 +449,7 @@ class DirConf(ConfigBackend, DirConfMixin):
     will be loaded and merged together upon user querying the
     :attr:`config` property.
 
-    The DirConf object is created implicitly when passing a valid config_path
+    The DirConf object is created implicitly when passing a valid path
     which points to a `DirConf` rootpath to the `RuntimeContext` constructor.
 
     Parameters
@@ -505,15 +524,6 @@ class DirConf(ConfigBackend, DirConfMixin):
         """The list of config files in the config dir.
 
         """
-        # new in v0.2: The tolteca setup used to create 50_setup.yaml
-        # we detect the presence of this file and ask user to remove it
-        files = self.collect_config_files()
-        if self.rootpath.joinpath('50_setup.yaml') in files:
-            raise RuntimeContextError(
-                "IMPORTANT! Found old 50_setup.yaml file in the workdir. "
-                " Since v0.2, `tolteca setup` produces 40_setup.yaml file "
-                "to hold the setup info dict. To avoid potential error, "
-                "please delete this file and try again.")
         return self.collect_config_files()
 
     @property
@@ -554,7 +564,7 @@ run the last time:
 
 ```
 >>> from tolteca.utils import RuntimeContext
->>> rc = RuntimeContext(config_path="/this/path")
+>>> rc = RuntimeContext("/this/path")
 >>> rc.setup()
 ```
 
@@ -638,7 +648,7 @@ in multiple such files, the one with larger leading number takes precedence
         # we also need to clear the config cache to make it take effect
         # in the config dict.
         # note that the runtime_info does not change for DirConf
-        # in this case because it is not dependant on user config entries.
+        # in this case because it is not dependent on user config entries.
         # TODO is this really the case?
         self._invalidate_config_cache()
 
@@ -1034,12 +1044,8 @@ and can be used as input to later runs for checking version compatibilities.
         For paths that have already been setup as a tolteca workdir previously,
         use the constructor with ``config=dirpath`` is more convenient.
 
-        .. code-block:: python
-            a = 1
-
         Parameters
         ----------
-
         dirpath : `pathlib.Path`, str
             The path to the work directory.
 
@@ -1064,7 +1070,7 @@ and can be used as input to later runs for checking version compatibilities.
             init_config = dict()
         # here we should already did the backup in populate_dir if
         # requested, so we pass disable_backup here
-        # we disable merge so the init config is no affected by previous
+        # we disable merge so the init config is not affected by previous
         # content in setup_file.
         DirConf(rootpath=dirconf).update_setup_file(
             init_config, disable_backup=True, merge=False)
