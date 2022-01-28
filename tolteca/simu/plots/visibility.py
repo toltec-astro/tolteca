@@ -98,7 +98,7 @@ def plot_visibility(t0, targets, target_names=None, show=True):
 
     extent = [-0.5, -0.5 + len(time_grid), -0.5, -0.5 + len(targets)]
 
-    ax.imshow(m_good, extent=extent)
+    ax.imshow(m_good, extent=extent, cmap='RdYlGn')
 
     ax.set_yticks(range(len(targets)))
     ax.set_yticklabels(reversed([target.name for target in targets]))
