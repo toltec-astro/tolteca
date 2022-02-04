@@ -1153,6 +1153,15 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
                     det_alt=det_alt[mask],
                     time_obs=time_obs,
                     )
+                # this power is only for the atm so we still need
+                # to add the telescope warm components and system efficiency
+                # note in this case aplm does not have the am_qxx models
+                # enabled.
+                p_tel, _ = aplm.evaluate_tod(
+                    det_alt=det_alt[mask],
+                    return_realized_noise=False,
+                    )
+                p += p_tel
             else:
                 # use the ToltecArrayPowerLoadingModel
                 p, _ = aplm.evaluate_tod(
