@@ -1318,6 +1318,9 @@ class ToltecSimuOutputContext(ExitStack):
             }
         if self._state_init is not None:
             rupdate(state_init, self._state_init)
+        # make sure the obsnum is always >= 1
+        if state_init['obsnum'] < 1:
+            state_init['obsnum'] = 1
         # set cal obs to be same as obsnum, because we use
         # built-in kids params
         for k in ['obsnum', 'subobsnum', 'scannum']:
