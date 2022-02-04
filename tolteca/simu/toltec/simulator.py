@@ -16,6 +16,7 @@ from tollan.utils.nc import NcNodeMapper
 from tollan.utils.log import get_logger, timeit
 from tollan.utils.fmt import pformat_yaml
 from tollan.utils.dataclass_schema import add_schema
+from tollan.utils import rupdate
 from kidsproc.kidsmodel.simulator import KidsSimulator
 from kidsproc.kidsmodel import ReadoutGainWithLinTrend
 
@@ -236,8 +237,9 @@ class ToltecObsSimulator(object):
             f'polarized={self.polarized})'
             )
 
-    def output_context(self, dirpath):
-        return ToltecSimuOutputContext(simulator=self, rootpath=dirpath)
+    def output_context(self, dirpath, **kwargs):
+        return ToltecSimuOutputContext(
+            simulator=self, rootpath=dirpath, **kwargs)
 
     @timeit
     def _get_detector_sky_traj(
@@ -883,12 +885,13 @@ class ToltecSimuOutputContext(ExitStack):
     _lockfile = 'simu.lock'
     _statefile = 'simustate.yaml'
 
-    def __init__(self, simulator, rootpath):
+    def __init__(self, simulator, rootpath, state_init=None):
         super().__init__()
         self._simulator = simulator
         self._rootpath = rootpath
         self._state = None
         self._nms = dict()
+        self._state_init = state_init
 
     @property
     def simulator(self):
@@ -1308,16 +1311,20 @@ class ToltecSimuOutputContext(ExitStack):
         lockfile = outdir.joinpath(self._lockfile)
         if lockfile.exists():
             raise RuntimeError(f"cannot acquire write lock for {outdir}")
+        state_init = {
+            'obsnum': 1,
+            'subobsnum': 0,
+            'scannum': 0,
+            }
+        if self._state_init is not None:
+            rupdate(state_init, self._state_init)
+        # set cal obs to be same as obsnum, because we use
+        # built-in kids params
+        for k in ['obsnum', 'subobsnum', 'scannum']:
+            state_init[f'cal_{k}'] = state_init[k]
         state = PersistentState(
                 outdir.joinpath(self._statefile),
-                init={
-                    'obsnum': 1,
-                    'subobsnum': 0,
-                    'scannum': 0,
-                    'cal_obsnum': 1,
-                    'cal_subobsnum': 0,
-                    'cal_scannum': 0,
-                    })
+                init=state_init)
         try:
             with open(lockfile, 'w'):
                 self.logger.debug(f'create lock file: {lockfile}')

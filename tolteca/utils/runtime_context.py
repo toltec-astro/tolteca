@@ -313,8 +313,8 @@ class ConfigBackend(object):
             del self.__dict__['config']
             logger.debug("config cache invalidated")
         if include_config_impl_cache and \
-                '_config_impl_cached' in self.__dict__:
-            del self.__dict__['_config_impl_cached']
+                '_config_impl' in self.__dict__:
+            del self.__dict__['_config_impl']
             logger.debug("config impl cache invalidated")
 
     @cached_property
@@ -650,7 +650,8 @@ in multiple such files, the one with larger leading number takes precedence
         # note that the runtime_info does not change for DirConf
         # in this case because it is not dependent on user config entries.
         # TODO is this really the case?
-        self._invalidate_config_cache()
+        # self._invalidate_config_cache()
+        self.load(update_runtime_info=True, reload_config=True)
 
     @classmethod
     def populate_dir(cls, *args, **kwargs):

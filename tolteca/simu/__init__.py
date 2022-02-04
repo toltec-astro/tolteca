@@ -249,6 +249,12 @@ class SimuConfig(object):
         metadata={
             'description': 'Export the simu config as defined in `exports`.'
             })
+    output_context: dict = field(
+        default_factory=dict,
+        metadata={
+            'description': 'Dict passed to output_context call.',
+            }
+        )
 
     class Meta:
         schema = {
@@ -431,7 +437,8 @@ class SimulatorRuntime(RuntimeContext):
                 level='DEBUG',
                 disable_other_handlers=False
                 ):
-            output_ctx = simu.output_context(dirpath=output_dir)
+            output_ctx = simu.output_context(
+                dirpath=output_dir, **cfg.output_context)
             with output_ctx.open():
                 self.logger.info(
                     f"write output to {output_ctx.rootpath}")
