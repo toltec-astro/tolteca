@@ -695,14 +695,30 @@ class ToltecArrayPowerLoadingModel(Model):
         f = self._f
         return np.exp(-((4.0 * np.pi * tel_surface_rms)/(const.c / f)) ** 2)
 
-    @property
-    def _system_efficiency(self):
+    def _get_syseff_sky_to_det(self, return_avg=False):
         """The overall system efficiency over the passband."""
-        return (
+        syseff = (
                 self._tel_primary_surface_optical_efficiency
                 * self._internal_params['cold_efficiency']
                 * self._throughput
                 )
+        if return_avg:
+            return self._wsum(syseff, self._throughput)
+        return syseff
+
+    def _get_syseff_window_to_det(self, return_avg=False):
+        """The system efficiency over the passband from window to detectors."""
+        syseff = (
+                self._internal_params['cold_efficiency']
+                * self._throughput
+                )
+        if return_avg:
+            return self._wsum(syseff, self._throughput)
+        return syseff
+
+    @property
+    def _system_efficiency(self):
+        return self._get_syseff_sky_to_det(return_avg=False)
 
     @staticmethod
     def _wsum(q, w):
@@ -769,7 +785,8 @@ class ToltecArrayPowerLoadingModel(Model):
         alt : `astropy.units.Quantity`
             The altitude.
         return_avg : bool, optional
-            If True, return the weighted sum over the passband instead.
+            If True, return the weighted sum over the system efficiency
+            instead.
         """
         T_atm = self._get_T_atm(alt, return_avg=False)
         # add the telescope warm component temps
@@ -981,10 +998,8 @@ class ToltecArrayPowerLoadingModel(Model):
             * pb_width
             ).to(u.pW)
         # the sys eff is also approximate
-        sys_eff = self._wsum(
-                self._system_efficiency, self._throughput
-                )
-        return p * sys_eff
+        syseff = self._get_syseff_sky_to_det(return_avg=True)
+        return p * syseff
 
     @contextmanager
     def eval_interp_context(self, alt_grid):
@@ -1112,6 +1127,19 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
                 ))
         return es
 
+    def _get_toast_P(self, array_name, det_az, det_alt, time_obs):
+        """Return the toast power loading with TolTEC system efficiency."""
+        aplm = self._array_power_loading_models[array_name]
+        if time_obs is None:
+            raise ValueError("time_obs is required for toast atm")
+        p = self._toast_atm_evaluator.calc_toast_atm_pwr_for_array(
+            array_name=array_name,
+            det_az=det_az,
+            det_alt=det_alt,
+            time_obs_unix=time_obs.unix,
+            )
+        return p * aplm._get_syseff_window_to_det(return_avg=True)
+
     def get_P(self, det_array_name, det_az, det_alt, time_obs=None):
         """Evaluate the power loading model only and without noise."""
         p_out = np.zeros(det_alt.shape) << u.pW
@@ -1119,13 +1147,11 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
             mask = (det_array_name == array_name)
             aplm = self._array_power_loading_models[array_name]
             if self.atm_model_name == 'toast':
-                if time_obs is None:
-                    raise ValueError("time_obs is required for toast atm")
-                p = self._toast_atm_evaluator.calc_toast_atm_pwr_for_array(
+                p = self._get_toast_P(
                     array_name=array_name,
                     det_az=det_az[mask],
                     det_alt=det_alt[mask],
-                    time_obs_unix=time_obs.unix,
+                    time_obs=time_obs,
                     )
             else:
                 # use the ToltecArrayPowerLoadingModel
@@ -1157,15 +1183,23 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
                 # atm is disabled
                 pass
             elif self.atm_model_name == 'toast':
-                if time_obs is None:
-                    raise ValueError("time_obs is required for toast atm")
-                p = self._toast_atm_evaluator.calc_toast_atm_pwr_for_array(
+                p_atm = self._get_toast_P(
                     array_name=array_name,
                     det_az=det_az[mask],
                     det_alt=det_alt[mask],
-                    time_obs_unix=time_obs.unix
+                    time_obs=time_obs,
                     )
-                p_out[mask] += p
+                # this power is only for the atm so we still need
+                # to add the telescope warm components and system efficiency
+                # note in this case aplm does not have the am_qxx models
+                # enabled.
+                p_tel, p_noise = aplm.evaluate_tod(
+                    det_alt=det_alt[mask],
+                    f_smp=f_smp,
+                    random_seed=noise_seed,
+                    return_realized_noise=True,
+                    )
+                p_out[mask] += p_atm + p_tel + p_noise
             else:
                 # use the ToltecArrayPowerLoadingModel atm
                 p, p_noise = aplm.evaluate_tod(
