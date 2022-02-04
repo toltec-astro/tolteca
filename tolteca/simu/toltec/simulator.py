@@ -482,12 +482,42 @@ class ToltecObsSimulator(object):
                         )
             if det_add_pwr is not None:
                 det_pwr += det_add_pwr
-            self.logger.info(
-                f"power loading at detector: "
-                f"min={det_pwr.min()} max={det_pwr.max()}")
+
             # calculate the kids signal
             nonlocal kids_probe_p
             rs, xs, iqs = kids_probe_p(det_pwr)
+
+            for array_name in self.array_names:
+                m = (det_array_name == array_name)
+                _p = det_pwr[m]
+                _s = det_s[m]
+                _rs = rs[m]
+                _xs = xs[m]
+                _iqs = iqs[m]
+                summary_tbl = []
+                summary_rownames = ['S', 'P', 'x', 'r', 'I', 'Q']
+                summary_vars = [_s, _p, _xs, _rs, _iqs.real, iqs.imag]
+                summary_funcnames = ['min', 'max', 'med', 'mean', 'std']
+                summary_func = [np.min, np.max, np.median, np.mean, np.std]
+                for name, var in zip(summary_rownames, summary_vars):
+                    row = [name, ]
+                    for f in summary_func:
+                        row.append(f(var))
+                    summary_tbl.append(row)
+                summary_tbl = QTable(
+                    rows=summary_tbl, names=['var'] + summary_funcnames)
+                for name in summary_funcnames:
+                    summary_tbl[name].info.format = '.5g'
+                summary_tbl_str = '\n'.join(summary_tbl.pformat_all())
+                self.logger.info(
+                    f"summary of simulated chunk for {array_name}:\n"
+                    f"{summary_tbl_str}\n"
+                    )
+
+            # self.logger.info(
+            #     f"power loading at detector: "
+            #     f"min={det_pwr.min()} max={det_pwr.max()}")
+
             return det_pwr, locals()
         return evaluate, locals()
 
