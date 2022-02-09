@@ -92,12 +92,12 @@ def add_config_schema(cls):
     """A decorator to add config schema and related methods to dataclass `cls`.
     """
     if any(hasattr(cls, a) for a in (
-            'from_config', 'config_key', 'to_config')):
+            'from_config_dict', 'config_key', 'to_config_dict')):
         raise TypeError(f"conflicted attribute exists on {cls}")
     cls.config_schema = config_schema(cls)
     cls.config_key = cls.config_schema.config_key
-    cls.from_config = cls.config_schema.load
+    cls.from_config_dict = cls.config_schema.load
     # this has to be done this way as the cls.config_schema itself is a
     # mound method
-    cls.to_config = lambda a: cls.config_schema.dump(a)
+    cls.to_config_dict = lambda a: cls.config_schema.dump(a)
     return cls

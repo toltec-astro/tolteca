@@ -8,74 +8,8 @@ from .check import (
     register_cli_checker,
     _check_load_config, _check_load_rc, _MISSING)
 from pathlib import Path
-from tollan.utils.db import SqlaDB
-from tollan.utils.dataclass_schema import (add_schema, DataclassNamespace)
 # from tollan.utils.fmt import pformat_yaml
-from schema import Schema, Regex, Optional, Literal, Use
-from ..utils import RuntimeContext, RuntimeContextError
-from dataclasses import dataclass, field
-from ..utils.config_schema import add_config_schema
-
-
-@add_schema
-@dataclass
-class DBConfigEntry(object):
-    """The config of a database."""
-    uri: str = field(
-        metadata={
-            'description': 'The SQLAlchemy engine URI of the database.',
-            'schema': Regex(r'.+:\/\/.+')
-            })
-
-    class Meta:
-        schema = {
-            'ignore_extra_keys': True,
-            'description': 'The config dict of a database.'
-            }
-
-
-@add_config_schema
-class DBConfig(DataclassNamespace):
-    """The class mapped to the database config."""
-
-    _dpdb_name = 'tolteca'
-    _config_key = 'db'  # consumed by ConfigMapperMixin
-    _namespace_from_dict_schema = Schema({
-        Literal(
-            _dpdb_name, description='The data product database config.'):
-        DBConfigEntry.schema,
-        Optional(str, description='Any other databases.'):
-        DBConfigEntry.schema,
-        })
-    _namespace_to_dict_schema = Schema(Use(
-        lambda d: {k: v for k, v in d.items() if isinstance(v, DBConfigEntry)}
-        ))
-
-    @property
-    def dpdb(self):
-        """The config entry for dpdb."""
-        return getattr(self, self._dpdb_name)
-
-
-class DatabaseRuntimeError(RuntimeContextError):
-    """Raise when errors occur in `DatabaseRuntime`."""
-    pass
-
-
-class DatabaseRuntime(RuntimeContext):
-    """A class that manages the runtime context of the databases.
-
-    This class facilitates the interaction with the data file database and
-    the data product database.
-    """
-
-    @property
-    def db_config(self):
-        return DBConfig.from_config(self.config, rootpath=self.rootpath)
-
-    @property
-    def dpdb_uri(self):
-        return self.db_config.dpdb.uri
+from ..db import DBConfig, DatabaseRuntime
 
 
 @register_cli_checker('db')
@@ -87,29 +21,32 @@ def check_db(result, option):
         if DBConfig.config_key in config:
             add_db_instruction = False
             db_config_dict = config[DBConfig.config_key]
-            n_dbs = len(db_config_dict)
+            if 'binds' not in db_config_dict:
+                db_binds_list = list()
+            else:
+                db_binds_list = db_config_dict['binds']
+            n_dbs = len(db_binds_list)
             result.add_item(
                 result.S.info,
                 f'Found {n_dbs} database entries in {source}',
-                details=pformat_yaml(db_config_dict)
+                details=pformat_yaml(db_binds_list)
                 )
             try:
                 db_config = DBConfig.from_config(config)
-                add_dpdb_instruction = False
-                # report the db_config info
-                result.add_item(
-                    result.S.ok,
-                    f'Found dpdb (tolteca) entry in {source}',
-                    details=pformat_yaml(db_config.dpdb.to_dict())
-                    )
+                if db_config.dpdb is not None:
+                    add_dpdb_instruction = False
+                    # report the db_config info
+                    result.add_item(
+                        result.S.ok,
+                        f'Found dpdb entry in {source}',
+                        details=pformat_yaml(db_config.dpdb.to_dict())
+                        )
             except Exception as e:
                 result.add_item(
                     result.S.error,
                     'Unable to create DBConfig object',
                     details=f'Reason: {e}'
                     )
-
-                pass
         else:
             result.add_item(
                 result.S.error,
@@ -139,7 +76,8 @@ def check_db(result, option):
             result.S.note,
             'Valid database is required to manage data products. '
             'To setup, add in the config file with key "db" and '
-            'value like: {"<name>": {"uri": "<sqla_engine_url>"}} '
+            'a list of "bind" dicts, each of which contains a '
+            'name and the SQLAlchemy engine URI, '
             'where the engine URL follows the convention of '
             'SQLAlchemy: https://docs.sqlalchemy.org/en/14/core/engines.html'
             )
@@ -176,31 +114,31 @@ def cmd_migrate(parser):
             workdir = ensure_abspath('.')
 
         try:
-            rc = DatabaseRuntime(workdir)
+            dbrt = DatabaseRuntime(workdir)
         except Exception as e:
-            raise DatabaseRuntimeError(
+            raise RuntimeError(
                 f'Cannot create database runtime: {e}. Check the config files '
                 f'and runtime context dir for config key "db". A valid '
-                f'db entry named "tolteca" is required to create the '
+                f'db bind entry named "dpdb" is required to create the '
                 f'data product database.')
-        logger.debug(f'db rc:{rc}')
+        logger.debug(f'dbrt config: {dbrt.config.to_dict()}')
 
-        # carray on with operations specified in option
-        dpdb_uri = rc.dpdb_uri
-        logger.debug(f"migrate database: {dpdb_uri}")
-
-        db = SqlaDB.from_uri(dpdb_uri, engine_options={'echo': True})
+        # carry on with operations specified in option
+        dpdb = dbrt.dpdb
+        logger.debug(f"migrate data product database: {dpdb}")
 
         from ..datamodels.db.toltec import data_prod
 
         data_prod.init_db(
-                db, create_tables=True, recreate=option.recreate_all)
+            dpdb,
+            create_tables=True,
+            recreate=option.recreate_all)
 
         if option.schema_graph is not None:
             from sqlalchemy_schemadisplay import create_schema_graph
 
             graph = create_schema_graph(
-                    metadata=db.metadata,
+                    metadata=dpdb.metadata,
                     show_datatypes=False,
                     show_indexes=False,
                     rankdir='LR',

@@ -1,6 +1,6 @@
 from tollan.utils.log import timeit, get_logger
-from dasha.web.templates import ComponentTemplate
-from dasha.web.extensions.cache import cache
+from dash_component_template import ComponentTemplate
+# from dasha.web.extensions.cache import cache
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 from dash_extensions import Download
@@ -30,7 +30,7 @@ from datetime import date
 import numpy as np
 
 from pathlib import Path
-from .. import env_registry, env_prefix
+from .. import env_mapper
 import sys
 
 from .common.simuControls import getSettingsCard
@@ -43,7 +43,7 @@ from .common.smaPointingSourceFinder import SMAPointingCatalog
 # from .common.smaPointingSourceFinder import findPointingSource
 # from .common.smaPointingSourceFinder import generateOTScript
 
-
+env_registry = env_mapper.registry
 TOLTEC_SENSITIVITY_MODULE_PATH_ENV = (
         f"{env_prefix}_CUSTOM_TOLTEC_SENSITIVITY_MODULE_PATH")
 env_registry.register(
@@ -869,7 +869,7 @@ def fetchConvolved(wcs, bimage, aimage, pixSize, t_exp, fwhmArcsec):
     return cimage, cra, cdec
 
 
-@cache.memoize()
+# @cache.memoize()
 def fetchOverlay(overlay, target, cra, cdec):
     w = -(cra[-1]-cra[0])*u.deg*np.cos(np.deg2rad(target.dec))
     h = (cdec[-1]-cdec[0])*u.deg

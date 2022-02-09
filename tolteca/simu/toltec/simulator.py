@@ -517,7 +517,14 @@ class ToltecObsSimulator(object):
             # self.logger.info(
             #     f"power loading at detector: "
             #     f"min={det_pwr.min()} max={det_pwr.max()}")
-
+            # import matplotlib.pyplot as plt
+            # fig, ax = plt.subplots(1, 1)
+            # ax.set_aspect('equal')
+            # for i in [0, ]:
+            #     ax.plot([0, ], [0, ])
+            #     ax.plot(
+            #         iqs.real[i], iqs.imag[i], linestyle='none', marker='.')
+            # plt.show()
             return det_pwr, locals()
         return evaluate, locals()
 
@@ -537,6 +544,24 @@ class ToltecObsSimulator(object):
             # return the hwp position angle at time t
             return Angle(((hwp_cfg.f_rot * t).to_value(
                 u.dimensionless_unscaled) * 2. * np.pi) << u.rad)
+
+        # convert the catalog source model to image source model, if any
+        source_models_for_eval = list()
+        for m_source in sources:
+            # TODO maybe there is a faster way of handling the
+            # catalog source model directly. For now
+            # we just convert it to image model
+            if isinstance(m_source, CatalogSourceModel):
+                # get fwhms from toltec_info
+                fwhms = dict()
+                for array_name in self.array_names:
+                    fwhms[array_name] = toltec_info[
+                        array_name]['a_fwhm']
+                m_source = m_source.make_image_model(
+                    fwhms=fwhms,
+                    pixscale=catalog_model_render_pixel_size / u.pix
+                    )
+            source_models_for_eval.append(m_source)
 
         def evaluate(
                 t, mapping_only=False,
@@ -625,20 +650,10 @@ class ToltecObsSimulator(object):
                     return locals()
                 # get source flux from models
                 s_additive = list()
-                for m_source in sources:
+                for m_source in source_models_for_eval:
                     # TODO maybe there is a faster way of handling the
                     # catalog source model directly. For now
-                    # we just convert it to image model
-                    if isinstance(m_source, CatalogSourceModel):
-                        # get fwhms from toltec_info
-                        fwhms = dict()
-                        for array_name in self.array_names:
-                            fwhms[array_name] = toltec_info[
-                                array_name]['a_fwhm']
-                        m_source = m_source.make_image_model(
-                            fwhms=fwhms,
-                            pixscale=catalog_model_render_pixel_size / u.pix
-                            )
+                    # we converted it to image model
                     if isinstance(m_source, ImageSourceModel):
                         # TODO support more types of wcs. For now
                         # only ICRS is supported

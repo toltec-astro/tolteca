@@ -121,7 +121,7 @@ class PipelineRuntime(RuntimeContext):
         :meth:`PipelineRuntime.update`
         should be used to update the underlying config and re-validate.
         """
-        return self.config_cls.from_config(
+        return self.config_cls.from_config_dict(
             self.config, rootpath=self.rootpath,
             runtime_info=self.runtime_info)
 
@@ -142,7 +142,7 @@ class PipelineRuntime(RuntimeContext):
                     f"config specified with commandline arguments:\n"
                     f"{pformat_yaml(cli_cfg)}")
             self.update(cli_cfg)
-            cfg = self.redu_config.to_config()
+            cfg = self.redu_config.to_config_dict()
             # here we recursively check the cli_cfg and report
             # if any of the key is ignored by the schema and
             # throw an error
@@ -167,7 +167,7 @@ class PipelineRuntime(RuntimeContext):
 
         self.logger.debug(
             f"run reduction with config dict: "
-            f"{pformat_yaml(cfg.to_config())}")
+            f"{pformat_yaml(cfg.to_config_dict())}")
         # TODO
         # later on we'll enable the DAG like pipeline step
         # management facility but for now we'll just run each step

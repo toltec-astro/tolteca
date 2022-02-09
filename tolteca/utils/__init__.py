@@ -3,7 +3,8 @@
 
 from .misc import (get_pkg_data_path, get_user_data_dir)
 from .runtime_context import (
-    ConfigInfo, yaml_load, yaml_dump, RuntimeContext, RuntimeContextError)
+    ConfigInfo, yaml_load, yaml_dump,
+    RuntimeContext, RuntimeContextError, RuntimeBase, RuntimeBaseError)
 from tollan.utils import ensure_abspath, rupdate
 from tollan.utils.sys import parse_systemd_envfile
 from tollan.utils.log import get_logger
@@ -18,6 +19,7 @@ __all__ = [
     'get_user_data_dir', 'get_pkg_data_path',
     'yaml_load', 'yaml_dump',
     'RuntimeContext', 'RuntimeContextError',
+    'RuntimeBase', 'RuntimeBaseError',
     'ConfigLoaderError', 'ConfigLoader',
     'dict_from_cli_args',
            ]

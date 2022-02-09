@@ -10,7 +10,7 @@ from astropy.modeling import models
 from astropy.modeling.functional_models import GAUSSIAN_SIGMA_TO_FWHM
 
 # from tollan.utils.fmt import pformat_yaml
-from tollan.utils.log import get_logger
+from tollan.utils.log import get_logger, timeit
 from tollan.utils import ensure_abspath
 
 from .base import SurfaceBrightnessModel
@@ -600,11 +600,12 @@ class CatalogSourceModel(SurfaceBrightnessModel):
             img = np.zeros((s, s), dtype=float) << u.MJy / u.sr
             # make a copy of the model so we update the info
             m = psf_model.copy()
-            for xx, yy, aa in zip(x, y, amp):
-                m.amplitude = aa
-                m.x_mean = xx
-                m.y_mean = yy
-                m.render(img)
+            with timeit(f"render {len(amp)} sources for ext {extname}"):
+                for xx, yy, aa in zip(x, y, amp):
+                    m.amplitude = aa
+                    m.x_mean = xx
+                    m.y_mean = yy
+                    m.render(img)
             # create the hdu with wcs and data
             hdu = fits.ImageHDU(
                 img.to_value(u.MJy / u.sr), header=header)

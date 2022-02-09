@@ -27,7 +27,9 @@ __all__ = [
     'yaml_load', 'yaml_dump',
     'ConfigInfo', 'SetupInfo', 'RuntimeInfo',
     'ConfigBackendError', 'ConfigBackend', 'DirConf', 'FileConf', 'DictConf',
-    'RuntimeContextError', 'RuntimeContext']
+    'RuntimeContextError', 'RuntimeContext',
+    'RuntimeBase', 'RuntimeBaseError'
+    ]
 
 
 @add_schema
@@ -771,9 +773,15 @@ class RuntimeContext(object):
     :attr:`config_info`, and :attr:`seup_info` can be used to access the
     information that are related to the current config and setup.
 
-    The class provides a schema registry that maps a sub-tree of the config
-    dict to class that consumes it. The method :meth:`get` can be used
-    to create object of the registered types conveniently.
+    The class provides a registry that maps itself to subclasses of
+    `RuntimeBase`, a consumer class of this class. Objects of
+    `RuntimeBase` subclasses can be constructed conveniently using the
+    ``__get_item__` interface::
+
+    >>> from tolteca.simu import SimulatorRuntime
+    >>> from tolteca.reduce import PipelineRuntime
+    >>> rc = RuntimeContext('/path/to/workdir')
+    >>> simrt, plrt = rc[DatabaseRuntime, PipelineRuntime]
 
     Parameters
     ----------
@@ -1076,3 +1084,71 @@ and can be used as input to later runs for checking version compatibilities.
         DirConf(rootpath=dirconf).update_setup_file(
             init_config, disable_backup=True, merge=False)
         return cls(dirpath)
+
+
+class RuntimeBaseError(RuntimeError):
+    pass
+
+
+class RuntimeBase(object):
+    """A base class that consumes `RuntimeContext`.
+
+    This class acts as a proxy of an underlying `RuntimeContext` object,
+    providing a unified interface for subclasses to managed
+    specialized config objects constructed from
+    the config dict of the runtime context and its the runtime info.
+
+    Parameters
+    ----------
+    config : `RuntimeContext`, `pathlib.Path`, str, dict
+        The runtime context object, or the config source of it.
+    """
+
+    def __init__(self, config):
+        if isinstance(config, RuntimeContext):
+            rc = config
+        else:
+            rc = RuntimeContext(config)
+        self._rc = rc
+
+    @property
+    def rc(self):
+        return self._rc
+
+    config_cls = NotImplemented
+    """Subclasses implement this to provide specialized config object."""
+
+    @cached_property
+    def config(self):
+        """The config object of :attr:`config_cls` constructed from the
+        runtime context config dict.
+
+        The config dict is validated and the constructed object is cached.
+        The config object can be updated by using :meth:`RuntimeBase.update`.
+        """
+        return self.config_cls.from_config_dict(
+            self.rc.config,
+            # these are passed to the schema validate method
+            rootpath=self.rc.rootpath,
+            runtime_info=self.rc.runtime_info)
+
+    def update(self, config, mode='override'):
+        """Update the config object with provided config dict.
+
+        Parameters
+        ----------
+        config : `dict`
+            The config dict to apply.
+        mode : {"override", "default"}
+            Controls how `config` dict is applied, Wether to override the
+            config or use as default for unspecified values.
+        """
+        if mode == 'override':
+            self.rc.config_backend.update_override_config(config)
+        elif mode == 'default':
+            self.rc.config_backend.update_default_config(config)
+        else:
+            raise ValueError("invalid update mode.")
+        # invalidate the cache
+        if 'config' in self.__dict__:
+            del self.__dict__['config']

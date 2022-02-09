@@ -329,7 +329,7 @@ class SimulatorRuntime(RuntimeContext):
         The validated config is cached. :meth:`SimulatorRuntime.update`
         should be used to update the underlying config and re-validate.
         """
-        return self.config_cls.from_config(
+        return self.config_cls.from_config_dict(
             self.config, rootpath=self.rootpath,
             runtime_info=self.runtime_info)
 
@@ -350,7 +350,7 @@ class SimulatorRuntime(RuntimeContext):
                     f"config specified with commandline arguments:\n"
                     f"{pformat_yaml(cli_cfg)}")
             self.update(cli_cfg)
-            cfg = self.simu_config.to_config()
+            cfg = self.simu_config.to_config_dict()
             # here we recursively check the cli_cfg and report
             # if any of the key is ignored by the schema and
             # throw an error
@@ -372,7 +372,7 @@ class SimulatorRuntime(RuntimeContext):
         cfg = self.simu_config
         self.logger.debug(
             f"run simu with config dict: "
-            f"{pformat_yaml(cfg.to_config())}")
+            f"{pformat_yaml(cfg.to_config_dict())}")
 
         if cfg.plot_only:
             return self._run_plot()
@@ -447,7 +447,7 @@ class SimulatorRuntime(RuntimeContext):
                     'tolteca', '.yaml')
                 with open(config_filepath, 'w') as fo:
                     config = copy.deepcopy(self.config)
-                    rupdate(config, self.simu_config.to_config())
+                    rupdate(config, self.simu_config.to_config_dict())
                     self.yaml_dump(config, fo)
                 with simu.iter_eval_context(cfg) as (iter_eval, t_chunks):
                     # save mapping model meta
