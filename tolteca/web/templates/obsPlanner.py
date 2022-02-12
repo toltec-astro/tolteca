@@ -1,5 +1,6 @@
 from tollan.utils.log import timeit, get_logger
 from dash_component_template import ComponentTemplate
+# from dash_component_template import ComponentTemplate
 # from dasha.web.extensions.cache import cache
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
@@ -29,8 +30,6 @@ from astropy.io import fits
 from datetime import date
 import numpy as np
 
-from pathlib import Path
-from .. import env_mapper
 import sys
 
 from .common.simuControls import getSettingsCard
@@ -42,51 +41,35 @@ from .common.simuControls import getRastajousControls
 from .common.smaPointingSourceFinder import SMAPointingCatalog
 # from .common.smaPointingSourceFinder import findPointingSource
 # from .common.smaPointingSourceFinder import generateOTScript
-
-env_registry = env_mapper.registry
-TOLTEC_SENSITIVITY_MODULE_PATH_ENV = (
-        f"{env_prefix}_CUSTOM_TOLTEC_SENSITIVITY_MODULE_PATH")
-env_registry.register(
-        TOLTEC_SENSITIVITY_MODULE_PATH_ENV,
-        "The path to locate the toltec_sensitivity module",
-        "toltec_sensitivity")
-_toltec_sensitivity_module_path = env_registry.get(
-        TOLTEC_SENSITIVITY_MODULE_PATH_ENV)
-
-SMA_POINTING_CATALOG_PATH_ENV = (
-        f"{env_prefix}_CUSTOM_SMA_POINTING_CATALOG_PATH")
-env_registry.register(
-        SMA_POINTING_CATALOG_PATH_ENV,
-        "The path to locate the SMA pointing catalog",
-        "sma_pointing_sources.ecsv")
-_sma_pointing_catalog_path = env_registry.get(
-        SMA_POINTING_CATALOG_PATH_ENV)
-_sma_pointing_catalog = SMAPointingCatalog(filepath=_sma_pointing_catalog_path)
-
-TOLTECA_SIMU_TEMPLATE_PATH_ENV = (
-        f"{env_prefix}_CUSTOM_SIMU_TEMPLATE_PATH")
-env_registry.register(
-        TOLTECA_SIMU_TEMPLATE_PATH_ENV,
-        "The path to locate the tolteca.simu template workdir",
-        "base_simu")
-_tolteca_simu_template_path = env_registry.get(
-        TOLTECA_SIMU_TEMPLATE_PATH_ENV)
-
-sys.path.insert(
-        0,
-        Path(_toltec_sensitivity_module_path).expanduser().parent.as_posix())
-from toltec_sensitivity import Detector
+from tollan.utils import rupdate
 
 
-class obsPlanner(ComponentTemplate):
+class ObsPlanner(ComponentTemplate):
 
     # sets up the global Div that the site lives under
-    _component_cls = dbc.Container
-    fluid = True
+    class Meta:
+        component_cls = dbc.Container
+
     logger = get_logger()
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+            self,
+            toltec_sensitivity_module_path,
+            raster_model_length_max=20 << u.arcmin,
+            sma_pointing_catalog_path=None,
+            title_text='Obs Planner',
+            fluid=True,
+            **kwargs):
+        super().__init__(fluid=fluid, **kwargs)
+        sys.path.insert(
+                0,
+                toltec_sensitivity_module_path.parent.as_posix())
+        from toltec_sensitivity import Detector
+        self._Detector = Detector
+        self._raster_model_length_max = raster_model_length_max
+        self._sma_pointing_catalog = SMAPointingCatalog(
+            filepath=sma_pointing_catalog_path)
+        self._title_text = title_text
 
     # This section of code only runs once when the server is started.
     def setup_layout(self, app):
@@ -147,7 +130,8 @@ class obsPlanner(ComponentTemplate):
         yamlWrite = butRow.child(dbc.Col, width=4).child(
             dbc.Button, "Download YAML", color="info", outline=True, size='sm')
         mcWrite = butRow.child(dbc.Col, width=4).child(
-            dbc.Button, "Download M&C script", color="info", outline=True, size='sm')
+            dbc.Button, "Download M&C script", color="info",
+            outline=True, size='sm')
         outRow = controlBox.child(dbc.Row)
         yamlOut = outRow.child(dbc.Col, width=1).child(dcc.Download)
         mcOut = outRow.child(dbc.Col, width=1).child(dcc.Download)
@@ -157,7 +141,7 @@ class obsPlanner(ComponentTemplate):
                       'yamlOut': yamlOut,
                       'mcOut': mcOut,
                       'mcPoint': mcPointOut}
-        
+
         # plots
         plotsBox = bigBox.child(dbc.Col, width=9)
         horizRow = plotsBox.child(dbc.Row)
@@ -289,9 +273,10 @@ class obsPlanner(ComponentTemplate):
             print()
             print(ps)
             print()
-            ot_content = _sma_pointing_catalog.generateOTScript(ps)
-            return [dict(content=ot_content, filename="mc_pointing.script.txt")]
-        
+            ot_content = self._sma_pointing_catalog.generateOTScript(ps)
+            return [dict(
+                content=ot_content, filename="mc_pointing.script.txt")]
+
         # download a fits file of the coverage map
         @app.callback(
             [
@@ -321,9 +306,10 @@ class obsPlanner(ComponentTemplate):
             if(mAlt.to_value(u.deg) < 20):
                 raise PreventUpdate
             else:
-                d = Detector(band, elevation=mAlt.to_value(u.deg),
-                             atmQuartile=atmQ,
-                             telescopeRMSmicrons=telRMS)
+                d = self._Detector(
+                    band, elevation=mAlt.to_value(u.deg),
+                    atmQuartile=atmQ,
+                    telescopeRMSmicrons=telRMS)
                 showArray = s2s.count('array')
                 tableData, tfig, cfig, hdul = getCelestialPlots(
                     sim, obs, d, units,
@@ -347,17 +333,17 @@ class obsPlanner(ComponentTemplate):
             print(ra)
             print(dec)
             target_coord = SkyCoord(
-                ra = ra << u.deg,
-                dec = dec << u.deg,
-                frame = 'icrs')
-            ps = _sma_pointing_catalog.findPointingSource(target_coord)
+                ra=ra << u.deg,
+                dec=dec << u.deg,
+                frame='icrs')
+            ps = self._sma_pointing_catalog.findPointingSource(target_coord)
             rat = ps['ra']
             c1 = rat.find(':')
             ratt = rat[0:c1]+'h'+rat[c1+1:]
             ratt = ratt.replace(":", "m")
             pstxt = ps['name']+':  '+ratt + ps['dec']
-            psb = ps['freq'].strip('][').split(', ')[0].replace("'","")
-            psf = ps['flux'].strip('][').split(', ')[0].replace("'","")
+            psb = ps['freq'].strip('][').split(', ')[0].replace("'", "")
+            psf = ps['flux'].strip('][').split(', ')[0].replace("'", "")
             pstxt = ps['name']+':  SMA: '+psb+', '+psf+'Jy'
             print(pstxt)
             return [ps, pstxt]
@@ -378,7 +364,7 @@ class obsPlanner(ComponentTemplate):
                 raise PreventUpdate
             try:
                 target = parse_coordinates(targName)
-            except:
+            except Exception:
                 print("Target {} not recognized.".format(targName))
                 ra = 0.
                 dec = 0.
@@ -389,7 +375,7 @@ class obsPlanner(ComponentTemplate):
             print(target.ra)
             print(target.dec)
             print()
-            
+
             ra = target.ra.to_value(u.deg)
             dec = target.dec.to_value(u.deg)
             return [ra, dec]
@@ -522,7 +508,7 @@ class obsPlanner(ComponentTemplate):
             ],
             prevent_initial_call=True
         )
-        def updateRasterDict(n, r, l, s, ns, speed, turn, tra, tdec,
+        def updateRasterDict(n, r, ll, s, ns, speed, turn, tra, tdec,
                              obsTime, obsDate, refFrame):
             # format date and time of start of observation
             date_object = date.fromisoformat(obsDate)
@@ -530,7 +516,7 @@ class obsPlanner(ComponentTemplate):
             t0 = date_string+'T'+obsTime
             d = {
                 'rot': (r*u.deg).to_string(),
-                'length': (l*u.arcmin).to_string(),
+                'length': (ll*u.arcmin).to_string(),
                 'step': (s*u.arcmin).to_string(),
                 'nScans': ns,
                 'speed': (speed*u.arcsec/u.s).to_string(),
@@ -577,7 +563,7 @@ class obsPlanner(ComponentTemplate):
             ],
             prevent_initial_call=True
         )
-        def updateRastajousDict(n, r, l, s, ns, speed, turn,
+        def updateRastajousDict(n, r, ll, s, ns, speed, turn,
                                 delta,
                                 xl0, yl0, xo0, yo0, delta0,
                                 xl1, yl1, xo1, yo1, delta1,
@@ -589,7 +575,7 @@ class obsPlanner(ComponentTemplate):
             t0 = date_string+'T'+obsTime
             d = {
                 'rot': (r*u.deg).to_string(),
-                'length': (l*u.arcmin).to_string(),
+                'length': (ll*u.arcmin).to_string(),
                 'step': (s*u.arcmin).to_string(),
                 'nScans': ns,
                 'speed': (speed*u.arcsec/u.s).to_string(),
@@ -630,21 +616,29 @@ class obsPlanner(ComponentTemplate):
             ],
             prevent_initial_call=True
         )
-        def updateContext(lis_output, dlis_output, ras_output, rj_output, band, atmQ):
+        def updateContext(
+                lis_output, dlis_output, ras_output, rj_output, band, atmQ):
             print(lis_output)
             print(dlis_output)
             print(ras_output)
             ctx = dash.callback_context
             print(ctx.triggered[0]['prop_id'])
-            if (ctx.triggered[0]['prop_id'] == f"{mapping['lis_output_state'].id}.children"):
+            if (
+                    ctx.triggered[0]['prop_id']
+                    == f"{mapping['lis_output_state'].id}.children"):
                 d = json.loads(lis_output)
                 c = writeSimuContext(d, band, mapType='lissajous', atmQ=atmQ)
                 print("lissajous context written")
-            elif (ctx.triggered[0]['prop_id'] == f"{mapping['dlis_output_state'].id}.children"):
+            elif (
+                    ctx.triggered[0]['prop_id']
+                    == f"{mapping['dlis_output_state'].id}.children"):
                 d = json.loads(dlis_output)
-                c = writeSimuContext(d, band, mapType='doubleLissajous', atmQ=atmQ)
+                c = writeSimuContext(
+                    d, band, mapType='doubleLissajous', atmQ=atmQ)
                 print("double lissajous context written")
-            elif (ctx.triggered[0]['prop_id'] == f"{mapping['rj_output_state'].id}.children"):
+            elif (
+                    ctx.triggered[0]['prop_id']
+                    == f"{mapping['rj_output_state'].id}.children"):
                 d = json.loads(rj_output)
                 c = writeSimuContext(d, band, mapType='rastajous', atmQ=atmQ)
                 print("rastajous context written")
@@ -727,9 +721,10 @@ class obsPlanner(ComponentTemplate):
                 tfig = getEmptyFig(500, 500)
                 cfig = getEmptyFig(500, 500)
             else:
-                d = Detector(band, elevation=mAlt.to_value(u.deg),
-                             atmQuartile=atmQ,
-                             telescopeRMSmicrons=telRMS)
+                d = self._Detector(
+                    band, elevation=mAlt.to_value(u.deg),
+                    atmQuartile=atmQ,
+                    telescopeRMSmicrons=telRMS)
                 showArray = s2s.count('array')
                 tableData, tfig, cfig, hdul = getCelestialPlots(
                     sim, obs, d, units,
@@ -739,14 +734,19 @@ class obsPlanner(ComponentTemplate):
             return [tableData, tfig, cfig]
 
 
-sim_template_config = SimulatorRuntime(
-        Path(_tolteca_simu_template_path).expanduser()).config
-# here we get rid of the simu tree to avoid unexpected overwrites
-sim_template_config.pop("simu")
+# sim_template_config = SimulatorRuntime(
+#         Path(_tolteca_simu_template_path).expanduser()).config
+# # here we get rid of the simu tree to avoid unexpected overwrites
+# sim_template_config.pop("simu")
 
 
 def fetchSim(config):
-    sim = SimulatorRuntime.from_config(sim_template_config, config)
+    _config = {
+        'simu': {
+            }
+        }
+    rupdate(_config, config)
+    sim = SimulatorRuntime(_config)
     print(sim.config)
     return sim
 
@@ -1005,7 +1005,6 @@ def makeUptimesFig(obs):
         obstime.append(np.datetime64(obs['t_absolute'][i].to_datetime()))
         targel.append(obs['target_altaz'].alt[i].to_value(u.deg))
 
-
     # Figure out the sun rise and set times at the telescope
     LMT = EarthLocation.from_geodetic(-97.31481605209875,
                                       18.98578175043638, 4500.)
@@ -1019,14 +1018,14 @@ def makeUptimesFig(obs):
     obt = np.array(obs['t_day'].mjd)
     sr = list(obt).index(nearest(obt, sun_rise.mjd))
     ss = list(obt).index(nearest(obt, sun_set.mjd))
-    
+
     c = ['blue']*len(daytime)
     if (sun_rise.mjd < sun_set.mjd):
         c[sr:ss] = ['orange']*(ss-sr+1)
     else:
         c[:ss] = ['orange']*(ss+1)
         c[sr:-1] = ['orange']*len(c[sr:-1])
-     
+
     upfig = go.Figure()
     xaxis, yaxis = getXYAxisLayouts()
     upfig.add_trace(
@@ -1065,16 +1064,14 @@ def makeUptimesFig(obs):
                      mode='lines',
                      line=dict(color='red',
                                width=10),
-                     showlegend=False,
-        )
+                     showlegend=False,)
     )
     upfig.add_trace(
         go.Scatter(x=daytime,
                    y=[20]*len(daytime),
                    mode='lines',
                    line=dict(color='gray'),
-                   showlegend=False,
-        )
+                   showlegend=False,)
     )
     upfig.add_trace(
         go.Scatter(x=daytime,
@@ -1082,8 +1079,7 @@ def makeUptimesFig(obs):
                    mode='lines',
                    line=dict(color='gray'),
                    fill='tonexty',
-                   showlegend=False,
-        )
+                   showlegend=False,)
     )
     upfig.update_layout(
         uirevision=True,
@@ -1291,7 +1287,8 @@ def getCelestialPlots(sim, obs, d, units,
         ohdu = fits.ImageHDU(overlayImage, owcs.to_header(), name=overlay)
         hdul.append(ohdu)
     else:
-        cm = 2.*(cra.max()-cra.mean())/np.cos(np.deg2rad(cdec.mean()))+cra.mean()
+        cm = 2.*(cra.max()-cra.mean())/np.cos(
+            np.deg2rad(cdec.mean()))+cra.mean()
         range = [cm, cra.min()]
 
     # the coverage image
@@ -1384,6 +1381,7 @@ def getCelestialPlots(sim, obs, d, units,
                      a_ra.max().to_value(u.deg)),
                  min(obs_ra.min().to_value(u.deg),
                      a_ra.min().to_value(u.deg))]
+    print(range)
 
     tfig.update_layout(
         uirevision=True,
@@ -1475,14 +1473,8 @@ def writeSimuContext(d, band, mapType='raster', atmQ=25):
         bandName = '\"a1400\"'
     else:
         bandName = '\"a2000\"'
+    print(bandName)
     atm_model_name = f'am_q{atmQ:2d}'
-    # target_coord = SkyCoord(
-    #         ra=d['target_ra'] << u.deg,
-    #         dec=d['target_dec'] << u.deg, frame='icrs')
-    # target_str = (
-    #         f'{target_coord.ra.to_string(unit=u.hourangle, sep="hms", precision=5, pad=True)}'
-    #         f'{target_coord.dec.to_string(unit=u.deg, sep="dms", precision=5, pad=True, alwayssign=True)}'
-    #         )
     target_str = "{0:}d {1:}d".format(d['target_ra'], d['target_dec'])
 
     oF = StringIO()

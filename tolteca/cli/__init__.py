@@ -5,6 +5,7 @@ import sys
 from .. import version
 from wrapt import ObjectProxy
 import argparse
+import os
 
 
 __all__ = ['main_parser', 'config_loader', 'main']
@@ -134,7 +135,7 @@ def main(args=None):
     from .setup import cmd_setup  # noqa: F401
     from .db import cmd_migrate  # noqa: F401
     # from .run import cmd_run  # noqa: F401
-    from .simu0 import cmd_simu0  # noqa: F401
+    # from .simu0 import cmd_simu0  # noqa: F401
     from .simu import cmd_simu  # noqa: F401
     from .reduce import cmd_reduce  # noqa: F401
     from .web import cmd_web  # noqa: F401
@@ -166,6 +167,10 @@ def main(args=None):
     cl = option.config_loader = config_loader.__wrapped__ = \
         ConfigLoader(**cl_kwargs)
     logger.debug(f"config info:{pformat_yaml(cl.to_dict())}")
+    # load env
+    env = cl.get_env()
+    logger.debug(f"update os.environ with env:\n{pformat_yaml(env)}")
+    os.environ.update(env)
     # load all the items
     # config.__wrapped__ = cl.get_config()
     # base_runtime_context.__wrapped__ = cl.get_runtime_context(

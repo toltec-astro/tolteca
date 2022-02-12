@@ -3,7 +3,7 @@
 
 import dash_html_components as html
 
-from dasha.web.templates import ComponentTemplate
+from dash_component_template import ComponentTemplate
 from schema import Schema, Optional
 from .toltec_logo_src import toltec_logo_src
 

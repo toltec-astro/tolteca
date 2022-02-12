@@ -50,12 +50,19 @@ class ConfigRegistry(Registry):
             super(Registry, self).register(key, item)
             # add dispatch entry to schema
             # this update the schema in-place
-
-            self._add_dispather_entry_to_schema(
+            # self._add_dispather_entry_to_schema(
+            #     item, dispatcher_key,
+            #     dispatcher_description, dispatcher_value_schema,
+            #     dispatcher_key_is_optional=self.dispatcher_key_is_optional,
+            #     dispatcher_key_optional_default=key)
+            # create a schema with dispatcher entry in it
+            dispatcher_schema = self._create_schema_with_dispatcher_entry(
                 item, dispatcher_key,
                 dispatcher_description, dispatcher_value_schema,
                 dispatcher_key_is_optional=self.dispatcher_key_is_optional,
-                dispatcher_key_optional_default=key)
+                dispatcher_key_optional_default=key
+                )
+            self._register_info[key]['dispatcher_schema'] = dispatcher_schema
             if aliases is not None:
                 # register the config item under the aliases
                 for a in aliases:
@@ -66,8 +73,9 @@ class ConfigRegistry(Registry):
     @property
     def item_schemas(self):
         """The generator for all item schemas."""
-        # build an or-schema for all factories
-        return (self[k].schema for k in self._register_info.keys())
+        return (
+            v['dispatcher_schema']
+            for k, v in self._register_info.items())
 
     @property
     def schema(self):
@@ -95,22 +103,39 @@ class ConfigRegistry(Registry):
             indent=4)
         body = textwrap.indent('\n'.join(
             [
-                # recreate dataclass schema without the dispatcher entry
-                DataclassSchema(s._schema_orig, dataclass_cls=s.dataclass_cls
-                                ).pformat()
-                for s in self.item_schemas]), prefix='  ')
+                self[k].schema.pformat()
+                for k in self._register_info.keys()]), prefix='  ')
         return f"{header}{toc}\n{body}"
 
+    # @staticmethod
+    # def _add_dispather_entry_to_schema(
+    #         item, dispatcher_key, description, value_schema,
+    #         dispatcher_key_is_optional=False,
+    #         dispatcher_key_optional_default=None):
+    #     # this will update the dict in-place
+    #     # which may not be safe...
+    #     # this juggling is to make the dispatcher key the first
+    #     d = item.schema._schema
+    #     d1 = item.schema._schema_orig = d.copy()
+    #     d.clear()
+    #     key_schema_kwargs = {'description': description}
+    #     if dispatcher_key_is_optional:
+    #         key_schema_cls = Optional
+    #         key_schema_kwargs['default'] = dispatcher_key_optional_default
+    #     else:
+    #         key_schema_cls = Literal
+    #     d[key_schema_cls(dispatcher_key, **key_schema_kwargs)] = value_schema
+    #     d.update(d1)
+
     @staticmethod
-    def _add_dispather_entry_to_schema(
+    def _create_schema_with_dispatcher_entry(
             item, dispatcher_key, description, value_schema,
             dispatcher_key_is_optional=False,
             dispatcher_key_optional_default=None):
-        # this will update the dict in-place
-        # which may not be safe...
-        # this juggling is to make the dispatcher key the first
-        d = item.schema._schema
-        d1 = item.schema._schema_orig = d.copy()
+        # this juggling with copying d1 is to make the dispatcher key the
+        # first
+        d = item.schema._schema.copy()
+        d1 = d.copy()
         d.clear()
         key_schema_kwargs = {'description': description}
         if dispatcher_key_is_optional:
@@ -120,3 +145,4 @@ class ConfigRegistry(Registry):
             key_schema_cls = Literal
         d[key_schema_cls(dispatcher_key, **key_schema_kwargs)] = value_schema
         d.update(d1)
+        return DataclassSchema(d, dataclass_cls=item)

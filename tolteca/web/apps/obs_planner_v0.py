@@ -3,54 +3,68 @@
 import dash_bootstrap_components as dbc
 
 import astropy.units as u
+from pathlib import Path
 
-from tollan.utils.log import get_logger
-from tollan.utils.dataclass_schema import DataclassNamespace
-from schema import Optional, Schema
+from tollan.utils.dataclass_schema import add_schema
+from dataclasses import dataclass, field
+from schema import Or
+from typing import Union
 
-from .. import apps_registry
+from .. import apps_registry, get_app_config
 from ...utils.common_schema import PhysicalTypeSchema, RelPathSchema
 
 
 @apps_registry.register('obs_planner_v0')
-class ObsPlannerV0Config(DataclassNamespace):
+@add_schema
+@dataclass
+class ObsPlannerV0Config():
     """The config class for legacy obs planner app."""
 
-    _namespace_from_dict_schema = Schema({
-        Optional(
-            'raster_model_length_max',
-            default=20 << u.arcmin,
-            description='The maximum length of raster scan model.'):
-        PhysicalTypeSchema('angle'),
-        Optional(
-            'pointing_catalog_path',
-            default=None,
-            description='The catalog path containing the pointing sources.'):
-        RelPathSchema(),
-        Optional(
-            'title_text',
-            default='Obs Planner',
-            description='The title text of the page.'): str
+    toltec_sensitivity_module_path: Path = field(
+        metadata={
+            'description': 'The path to locate toltec sensitivity module.',
+            'schema': RelPathSchema()
+            }
+        )
+    sma_pointing_catalog_path: Union[None, Path] = field(
+        default=None,
+        metadata={
+            'description': 'The path to locate SMA pointing catalog.',
+            'schema': Or(RelPathSchema(), None)
+            }
+        )
+    raster_model_length_max: u.Quantity = field(
+        default=20 << u.arcmin,
+        metadata={
+            'description': 'The maximum length of raster scan model.',
+            'schema': PhysicalTypeSchema('angle')
+            }
+
+        )
+    title_text: str = field(
+        default='Obs Planner',
+        metadata={
+            'description': 'The title text of the page.'
+            }
+        )
+
+
+def DASHA_SITE():
+    """The dasha site entry point.
+    """
+    dasha_config = get_app_config(ObsPlannerV0Config).to_dict()
+    dasha_config.update({
+        'template': 'tolteca.web.templates.obsPlanner:ObsPlanner',
+        'EXTERNAL_STYLESHEETS': [
+            dbc.themes.MATERIA,
+            ],
+        'ASSETS_IGNORE': 'bootstrap.*',
         })
-
-    logger = get_logger()
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-
-DASHA_SITE = {
-    'extensions': [
-        {
-            'module': 'dasha.web.extensions.dasha',
-            'config': {
-                'template': 'tolteca.web.templates.obsPlanner:ObsPlanner',
-                'EXTERNAL_STYLESHEETS': [
-                    dbc.themes.MATERIA,
-                    ],
-                'ASSETS_IGNORE': 'bootstrap.*'
-                'site_name'
+    return {
+        'extensions': [
+            {
+                'module': 'dasha.web.extensions.dasha',
+                'config': dasha_config
                 },
-            },
-        ]
-    }
+            ]
+        }

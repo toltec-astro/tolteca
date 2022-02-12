@@ -11,6 +11,7 @@ from .check import (
     _check_load_rc, _MISSING, _note_specify_runtime_context_dir,
     _error_no_rc_setup)
 from ..utils import RuntimeContext, RuntimeContextError
+from ..utils.doc_helper import install_workdir_doc
 
 
 @register_cli_checker('setup')
@@ -65,7 +66,7 @@ def cmd_setup(parser):
             help="If set, overwrite exist setup info."
             )
     parser.add_argument(
-            "--no_backup", action="store_true",
+            "-p", "--no_backup", action="store_true",
             help="Disable creation of backup files when `-f` is used."
             )
     parser.add_argument(
@@ -73,6 +74,11 @@ def cmd_setup(parser):
         help='If set, the config in config files (system, user, and '
              'standalone via `-c`) will not be included in the setup.yaml.'
             )
+    parser.add_argument(
+            "--no_doc", action="store_true",
+            help="Disable creation of files in doc folder and the README.md."
+            )
+
     parser.add_argument(
             "--dry_run", action="store_true",
             help="Run without actually create/modify files."
@@ -128,6 +134,17 @@ def cmd_setup(parser):
                 setup_filepath=None,
                 backup_setup_file=False,
                 )
+            # install doc files if no_doc is not set
+            if not option.no_doc:
+                with logit(logger.info, "install workdir doc"):
+                    install_workdir_doc(rc)
+                readme_banner = (
+                    "View the README.md for a brief tour "
+                    "of the contents within.")
+            else:
+                readme_banner = (
+                    "See documentation at https://to.be.set. for details.")
+
         logger.debug(f"runtime context: {rc}")
         logger.debug(f"rc config: {rc.config}")
         logger.info(
@@ -139,7 +156,7 @@ The following path is sucessfully set up as a tolteca workdir:
 
     {rcdir}
 
-View the README.md for a brief tour of the contents within.
+{readme_banner}
 
 .~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~
 """)

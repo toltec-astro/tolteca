@@ -20,7 +20,6 @@ import shlex
 import inspect
 from astropy.time import Time
 import collections.abc
-import shutil
 
 
 __all__ = [
@@ -28,7 +27,8 @@ __all__ = [
     'ConfigInfo', 'SetupInfo', 'RuntimeInfo',
     'ConfigBackendError', 'ConfigBackend', 'DirConf', 'FileConf', 'DictConf',
     'RuntimeContextError', 'RuntimeContext',
-    'RuntimeBase', 'RuntimeBaseError'
+    'RuntimeBase', 'RuntimeBaseError',
+    'rc_config_item_types'
     ]
 
 
@@ -655,41 +655,6 @@ in multiple such files, the one with larger leading number takes precedence
         # self._invalidate_config_cache()
         self.load(update_runtime_info=True, reload_config=True)
 
-    @classmethod
-    def populate_dir(cls, *args, **kwargs):
-        dirpath = super().populate_dir(*args, **kwargs)
-        # add some custom content to the example folder
-        docdir = cls._contents['docdir'].resolve_path(dirpath)
-        # reference of all dataclasses.
-        with open(
-                docdir.joinpath('00_config_dict_references.txt'), 'w') as fo:
-            # collect all config types from submodules
-            from ..simu import simu_config_item_types
-            from ..reduce import redu_config_item_types
-            for dcls in [
-                    ConfigInfo, SetupInfo, RuntimeInfo
-                    ] + simu_config_item_types + redu_config_item_types:
-                if hasattr(dcls, 'pformat_schema'):
-                    doc = dcls.pformat_schema()
-                else:
-                    doc = dcls.schema.pformat()
-                fo.write(f"\n{doc}\n")
-        # example config files
-        example_dir = get_pkg_data_path().joinpath('examples')
-        for file in [
-                '10_db.yaml',
-                '60_simu_point_source_lissajous.yaml',
-                '61_simu_blank_field_raster.yaml',
-                # '62_simu_fits_input_rastajous.yaml',
-                '70_redu_simulated_data.yaml'
-                ]:
-            shutil.copyfile(example_dir.joinpath(file), docdir.joinpath(file))
-        # readme file in the rootpath
-        shutil.copyfile(
-            example_dir.joinpath('workdir_README_template.md'),
-            dirpath.joinpath('README.md'))
-        return dirpath
-
 
 class FileConf(ConfigBackend):
     """A config backend for single file.
@@ -855,6 +820,14 @@ class RuntimeContext(object):
     def caldir(self):
         """The cal directory."""
         return self.runtime_info.caldir
+
+    @property
+    def docdir(self):
+        """The doc directory, available only for `DirConf` backend."""
+        config_backend = self.config_backend
+        if isinstance(config_backend, DirConf):
+            return config_backend.docdir
+        return None
 
     @property
     def config_backend(self):
@@ -1152,3 +1125,7 @@ class RuntimeBase(object):
         # invalidate the cache
         if 'config' in self.__dict__:
             del self.__dict__['config']
+
+
+# make a list of all rc config item types
+rc_config_item_types = [RuntimeInfo, SetupInfo, ConfigInfo]
