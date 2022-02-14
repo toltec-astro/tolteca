@@ -746,7 +746,7 @@ class RuntimeContext(object):
     >>> from tolteca.simu import SimulatorRuntime
     >>> from tolteca.reduce import PipelineRuntime
     >>> rc = RuntimeContext('/path/to/workdir')
-    >>> simrt, plrt = rc[DatabaseRuntime, PipelineRuntime]
+    >>> simrt, plrt = rc[SimulatorRuntime, PipelineRuntime]
 
     Parameters
     ----------
@@ -1076,6 +1076,10 @@ class RuntimeBase(object):
     config : `RuntimeContext`, `pathlib.Path`, str, dict
         The runtime context object, or the config source of it.
     """
+
+    # some frequently used items included as class attr
+    yaml_load = RuntimeContext.yaml_load
+    yaml_dump = RuntimeContext.yaml_dump
 
     def __init__(self, config):
         if isinstance(config, RuntimeContext):

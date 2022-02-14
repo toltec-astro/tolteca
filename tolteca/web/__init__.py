@@ -13,9 +13,12 @@ from ..utils import RuntimeBase, RuntimeBaseError
 from ..utils.config_registry import ConfigRegistry
 from ..utils.config_schema import add_config_schema
 from ..utils.env_loader import EnvLoader
+from ..utils.doc_helper import collect_config_item_types
 
 
-__all__ = ['env_loader', 'WebRuntime', 'WebRuntimeError']
+__all__ = [
+    'env_loader', 'WebConfig', 'WebRuntime', 'WebRuntimeError',
+    ]
 
 
 env_loader = EnvLoader(root_namespace='TOLTECA_WEB')
@@ -143,3 +146,6 @@ class WebRuntime(RuntimeBase):
         from dasha.cli import run_site
         dasha_site_name = f'tolteca.web.apps.{app_name}'
         return run_site(args=['-s', dasha_site_name, ext_proc_name])
+
+
+web_config_item_types = collect_config_item_types(list(locals().values()))

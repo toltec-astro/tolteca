@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 
 import shutil
+
+from tollan.utils.dataclass_schema import DataclassSchema
+
 from .misc import get_pkg_data_path
+from .config_registry import ConfigRegistry
 
 
 def make_config_schema_rst():
@@ -9,12 +13,16 @@ def make_config_schema_rst():
     from .runtime_context import rc_config_item_types
     from ..simu import simu_config_item_types
     from ..reduce import redu_config_item_types
+    from ..db import db_config_item_types
+    from ..web import web_config_item_types
 
     output = list()
     for dcls in (
             rc_config_item_types
             + simu_config_item_types
-            + redu_config_item_types):
+            + redu_config_item_types
+            + db_config_item_types
+            + web_config_item_types):
         # TODO refine this to make it in RST syntax
         if hasattr(dcls, 'pformat_schema'):
             doc = dcls.pformat_schema()
@@ -57,3 +65,16 @@ def install_workdir_doc(rc):
     shutil.copyfile(
         example_dir.joinpath('workdir_README_template.md'),
         rootpath.joinpath('README.md'))
+
+
+def collect_config_item_types(types):
+    """A helper to collect config item types."""
+    result = list()
+    for t in types:
+        if hasattr(t, 'schema') and isinstance(t.schema, DataclassSchema):
+            result.append(t)
+        elif isinstance(t, ConfigRegistry):
+            result.append(t)
+        else:
+            pass
+    return result

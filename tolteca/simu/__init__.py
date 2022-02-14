@@ -2,7 +2,7 @@
 
 import astropy.units as u
 from typing import Union
-from dataclasses import dataclass, field, is_dataclass
+from dataclasses import dataclass, field
 from cached_property import cached_property
 import copy
 from typing import ClassVar
@@ -16,11 +16,14 @@ from tollan.utils import rupdate
 from ..utils.common_schema import PhysicalTypeSchema
 from ..utils.config_registry import ConfigRegistry
 from ..utils.config_schema import add_config_schema
-from ..utils.runtime_context import RuntimeContext, RuntimeContextError
-from ..utils import dict_from_cli_args
+from ..utils import RuntimeBase, RuntimeBaseError
+from ..utils.doc_helper import collect_config_item_types
 
 
-__all__ = ['SimulatorRuntime', 'SimulatorRuntimeError']
+__all__ = [
+    'SimuConfig',
+    'SimulatorRuntime', 'SimulatorRuntimeError',
+    ]
 
 
 @add_schema
@@ -307,69 +310,22 @@ class SimuConfig(object):
         return t_simu
 
 
-class SimulatorRuntimeError(RuntimeContextError):
+class SimulatorRuntimeError(RuntimeBaseError):
     """Raise when errors occur in `SimulatorRuntime`."""
     pass
 
 
-class SimulatorRuntime(RuntimeContext):
-    """A class that manages the runtime context of the simulator.
+class SimulatorRuntime(RuntimeBase):
+    """A class to run the simulator.
 
-    This class drives the execution of the simulator.
     """
 
     config_cls = SimuConfig
 
     logger = get_logger()
 
-    @cached_property
-    def simu_config(self):
-        """Validate and return the simulator config object..
-
-        The validated config is cached. :meth:`SimulatorRuntime.update`
-        should be used to update the underlying config and re-validate.
-        """
-        return self.config_cls.from_config_dict(
-            self.config, rootpath=self.rootpath,
-            runtime_info=self.runtime_info)
-
-    def update(self, config):
-        self.config_backend.update_override_config(config)
-        if 'simu_config' in self.__dict__:
-            del self.__dict__['simu_config']
-
-    def cli_run(self, args=None):
-        """Run the simulator with CLI as save the result.
-        """
-        if args is not None:
-            _cli_cfg = dict_from_cli_args(args)
-            # note the cli_cfg is under the namespace simu
-            cli_cfg = {self.config_cls.config_key: _cli_cfg}
-            if _cli_cfg:
-                self.logger.info(
-                    f"config specified with commandline arguments:\n"
-                    f"{pformat_yaml(cli_cfg)}")
-            self.update(cli_cfg)
-            cfg = self.simu_config.to_config_dict()
-            # here we recursively check the cli_cfg and report
-            # if any of the key is ignored by the schema and
-            # throw an error
-
-            def _check_ignored(key_prefix, d, c):
-                if isinstance(d, dict) and isinstance(c, dict):
-                    ignored = set(d.keys()) - set(c.keys())
-                    ignored = [f'{key_prefix}.{k}' for k in ignored]
-                    if len(ignored) > 0:
-                        raise SimulatorRuntimeError(
-                            f"Invalid config items specified in "
-                            f"the commandline: {ignored}")
-                    for k in set(d.keys()).intersection(c.keys()):
-                        _check_ignored(f'{key_prefix}{k}', d[k], c[k])
-            _check_ignored('', cli_cfg, cfg)
-        return self.run()
-
     def run(self):
-        cfg = self.simu_config
+        cfg = self.config
         self.logger.debug(
             f"run simu with config dict: "
             f"{pformat_yaml(cfg.to_config_dict())}")
@@ -381,7 +337,7 @@ class SimulatorRuntime(RuntimeContext):
         return self._run_simu()
 
     def _run_plot(self):
-        cfg = self.simu_config
+        cfg = self.config
         self.logger.info(
             f"make simu plots:\n"
             f"{pformat_yaml(cfg.to_dict()['plots'])}")
@@ -395,7 +351,7 @@ class SimulatorRuntime(RuntimeContext):
         return results
 
     def _run_export(self):
-        cfg = self.simu_config
+        cfg = self.config
         self.logger.info(
             f"export simu:\n"
             f"{pformat_yaml(cfg.to_dict()['exports'])}")
@@ -407,7 +363,7 @@ class SimulatorRuntime(RuntimeContext):
 
     def _run_simu(self):
         """Run the simulator."""
-        cfg = self.simu_config
+        cfg = self.config
         simu = cfg.simulator
         t_simu = cfg.t_simu
         mapping_model = cfg.mapping_model
@@ -446,8 +402,10 @@ class SimulatorRuntime(RuntimeContext):
                 config_filepath = output_ctx.make_output_filename(
                     'tolteca', '.yaml')
                 with open(config_filepath, 'w') as fo:
-                    config = copy.deepcopy(self.config)
-                    rupdate(config, self.simu_config.to_config_dict())
+                    # here we need to the config dict of the
+                    # underlying runtime context
+                    config = copy.deepcopy(self.rc.config)
+                    rupdate(config, cfg.to_config_dict())
                     self.yaml_dump(config, fo)
                 with simu.iter_eval_context(cfg) as (iter_eval, t_chunks):
                     # save mapping model meta
@@ -472,14 +430,8 @@ class SimulatorRuntime(RuntimeContext):
                 f"Invalid plot type {type}. "
                 f"Available types: {plots_registry.keys()}")
         plotter = plots_registry[type].from_dict(kwargs)
-        return plotter(self.simu_config)
+        return plotter(self.config)
 
 
 # make a list of all simu config item types
-_locals = list(locals().values())
-simu_config_item_types = list()
-for v in _locals:
-    if is_dataclass(v) and hasattr(v, 'schema'):
-        simu_config_item_types.append(v)
-    elif isinstance(v, ConfigRegistry):
-        simu_config_item_types.append(v)
+simu_config_item_types = collect_config_item_types(list(locals().values()))

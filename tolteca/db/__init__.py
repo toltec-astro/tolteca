@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from schema import Regex
-from typing import ClassVar
+from typing import ClassVar, Sequence
 
 from tollan.utils.log import get_logger
 from tollan.utils import odict_from_list
@@ -12,6 +12,10 @@ from tollan.utils.dataclass_schema import (add_schema, )
 
 from ..utils import RuntimeBase, RuntimeBaseError
 from ..utils.config_schema import add_config_schema
+from ..utils.doc_helper import collect_config_item_types
+
+
+__all__ = ['DBConfig', 'DatabaseRuntime', 'DatabaseRuntimeError']
 
 
 @add_schema
@@ -46,7 +50,7 @@ class SqlaBindConfig(object):
 class DBConfig(object):
     """The config for `tolteca.db`."""
 
-    binds: list = field(
+    binds: Sequence[SqlaBindConfig] = field(
         default_factory=list,
         metadata={
             'description': 'The list of database binds (connections).',
@@ -97,3 +101,6 @@ class DatabaseRuntime(RuntimeBase):
     @property
     def dpdb(self):
         return self.config.dpdb()
+
+
+db_config_item_types = collect_config_item_types(list(locals().values()))

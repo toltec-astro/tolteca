@@ -180,6 +180,47 @@ def _check_load_rc(
     return rc
 
 
+def _check_load_rc_config(
+        result,
+        config_name,
+        load_config_cls,
+        make_config_details,
+        config_instruction,
+        ):
+    # load the rc
+    rc = _check_load_rc(result)
+
+    # this will set to false if rc is valid and config is found
+    add_instruction = True
+
+    if rc is not _MISSING and rc is not None:
+        rc_config = rc.config
+        config_cls = load_config_cls(result, rc)
+        d = rc_config.get(config_cls.config_key, _MISSING)
+        if d is not _MISSING:
+            result.add_item(
+                result.S.info,
+                f'Found {config_name} config in {rc}',
+                details=make_config_details(result, rc, d)
+                )
+            add_instruction = False
+        else:
+            result.add_item(
+                result.S.info,
+                f'No {config_name} config found')
+    else:
+        add_instruction = False
+        result.add_item(
+            result.S.info,
+            'Skipped checking web config in runtime context '
+            '(not loaded).')
+    if add_instruction:
+        result.add_item(
+            result.S.note,
+            config_instruction)
+    return result
+
+
 @register_cli_checker('runtime')
 def check_runtime(result, option):
 

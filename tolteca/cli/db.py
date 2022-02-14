@@ -1,19 +1,21 @@
 #! /usr/bin/env python
 
+from pathlib import Path
+
 from tollan.utils.log import get_logger
 from tollan.utils import ensure_abspath
 from tollan.utils.fmt import pformat_yaml
+
 from . import main_parser, config_loader
 from .check import (
     register_cli_checker,
     _check_load_config, _check_load_rc, _MISSING)
-from pathlib import Path
-# from tollan.utils.fmt import pformat_yaml
-from ..db import DBConfig, DatabaseRuntime
 
 
 @register_cli_checker('db')
 def check_db(result, option):
+
+    from ..db import DBConfig
 
     def _check_db_config(result, config, source):
         add_db_instruction = True
@@ -32,7 +34,7 @@ def check_db(result, option):
                 details=pformat_yaml(db_binds_list)
                 )
             try:
-                db_config = DBConfig.from_config(config)
+                db_config = DBConfig.from_config_dict(config)
                 if db_config.dpdb is not None:
                     add_dpdb_instruction = False
                     # report the db_config info
@@ -113,6 +115,9 @@ def cmd_migrate(parser):
             # in this special case we just use the current directory
             workdir = ensure_abspath('.')
 
+        from ..db import DatabaseRuntime
+        from ..datamodels.db.toltec import data_prod
+
         try:
             dbrt = DatabaseRuntime(workdir)
         except Exception as e:
@@ -126,8 +131,6 @@ def cmd_migrate(parser):
         # carry on with operations specified in option
         dpdb = dbrt.dpdb
         logger.debug(f"migrate data product database: {dpdb}")
-
-        from ..datamodels.db.toltec import data_prod
 
         data_prod.init_db(
             dpdb,

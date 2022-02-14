@@ -92,13 +92,15 @@ class ConfigRegistry(Registry):
         header = (
             f'{name}:\n  description:\n    {desc}'
             f'\n  {self.dispatcher_key}s:')
-        toc_hdr = (f'{self.dispatcher_key}', 'choices', 'config class')
+        toc_hdr = (f'{self.dispatcher_key}', 'aliases', 'config class')
         toc_hdr = [toc_hdr, tuple('-' * len(h) for h in toc_hdr)]
 
         toc = pformat_list(
             toc_hdr + list(
-                (k, aliases, self[k].__name__)
-                for k, aliases in self._register_info.items()
+                (k,
+                 v['aliases'] if v['aliases'] is not None else '',
+                 self[k].__name__)
+                for k, v in self._register_info.items()
                 ),
             indent=4)
         body = textwrap.indent('\n'.join(
@@ -145,4 +147,16 @@ class ConfigRegistry(Registry):
             key_schema_cls = Literal
         d[key_schema_cls(dispatcher_key, **key_schema_kwargs)] = value_schema
         d.update(d1)
-        return DataclassSchema(d, dataclass_cls=item)
+
+        def remove_dispatcher_entry(d):
+            d.pop(dispatcher_key, None)
+            return d
+
+        # make the dispatcher a readonly property on the class
+        item.name = property(lambda self: dispatcher_key)
+
+        return DataclassSchema(
+            d,
+            dataclass_cls=item,
+            post_validate_func=remove_dispatcher_entry
+            )

@@ -160,9 +160,11 @@ class CitlaliExec(object):
         # try find the latest version tag in the history
         repo = _get_local_citlali_repo()
         try:
-            _ver = cls._norm_ver(repo.git.describe(ver, contains=True), with_rev=False)
+            _ver = cls._norm_ver(
+                repo.git.describe(ver, contains=True), with_rev=False)
         except Exception:
-            _ver = cls._norm_ver(repo.git.describe(ver, contains=False), with_rev=False)
+            _ver = cls._norm_ver(
+                repo.git.describe(ver, contains=False), with_rev=False)
         cls.logger.debug(f"version {ver} -> semver {_ver}")
         return Version(_ver)
 
@@ -436,7 +438,8 @@ class CitlaliProc(object):
                 rows=updated_entries,
                 names=['low_level_config_key', 'default', 'updated'])
             self.logger.info(
-                f"low level config entries overwitten by high level config:\n\n"
+                f"low level config entries overwitten by "
+                f"high level config:\n\n"
                 f"{updated_entries}\n")
         name = input_items[0]['meta']['name']
         output_name = f'citlali_o{name}_c{len(input_items)}.yaml'

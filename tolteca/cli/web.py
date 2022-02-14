@@ -1,80 +1,47 @@
 #! /usr/bin/env python
 
 from tollan.utils.log import get_logger
-from tollan.utils import ensure_abspath
 
 from . import main_parser, config_loader
 from .utils import load_runtime
 from .check import (
     register_cli_checker,
-    _MISSING,
-    _check_load_rc,
+    _check_load_rc_config,
     )
 
 
 @register_cli_checker('web')
 def check_web(result, option):
 
-    # load the rc
-    rc = _check_load_rc(result)
+    def load_config_cls(result, rc):
+        from ..web import WebConfig
+        return WebConfig
 
-    add_web_instruction = False
+    def make_config_details(result, rc, config_dict):
+        apps = config_dict.get('apps', list())
+        return f'n_apps: {len(apps)}\n'
 
-    from ..web import WebConfig
-    config_cls = WebConfig
-
-    if rc is not _MISSING and rc is not None:
-        rc_config = rc.config
-        if config_cls.config_key in rc_config:
-            d = rc_config[config_cls.config_key]
-            result.add_item(
-                result.S.info,
-                f'Found web config in {rc}',
-                details=(
-                    f'n_apps: {len(d["apps"])}\n'
-                    )
-                )
-            add_web_instruction = False
-        else:
-            result.add_item(
-                result.S.info,
-                'No web config found')
-    else:
-        result.add_item(
-            result.S.info,
-            'Skipped checking web config in runtime context '
-            '(not loaded).')
-    if add_web_instruction:
-        result.add_item(
-            result.S.note,
-            'Valid web config is required to run ``tolteca web``.'
-            'To setup, add in the config file with key "web" and '
+    _check_load_rc_config(
+        result,
+        config_name='web',
+        load_config_cls=load_config_cls,
+        make_config_details=make_config_details,
+        config_instruction=(
+            'Web config allows customizing Web-based tools invoked by '
+            '``tolteca web``. '
+            'Add in the config file with key "web" and '
             'value being a dict following one of the examples in the '
-            '{workdir}/doc folder.'
-            )
+            '{workdir}/doc folder.')
+        )
     return result
 
 
-def load_web_runtime(
-        config_loader, no_cwd=False,
-        runtime_context_dir_only=False,
-        runtime_cli_args=None):
-
-    # logger = get_logger()
-
-    workdir = config_loader.runtime_context_dir
-
-    if workdir is None and not no_cwd:
-        # in this special case we just use the current directory
-        workdir = ensure_abspath('.')
+def load_web_runtime(config_loader, **kwargs):
 
     from ..web import WebRuntime
 
-    rc = load_runtime(
-        runtime_cls=WebRuntime, config_loader=config_loader,
-        no_cwd=no_cwd, runtime_context_dir_only=runtime_context_dir_only,
-        runtime_cli_args=runtime_cli_args)
-    return rc
+    return load_runtime(
+        runtime_cls=WebRuntime, config_loader=config_loader, **kwargs)
 
 
 @main_parser.register_action_parser(
