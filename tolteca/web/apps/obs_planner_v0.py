@@ -34,12 +34,25 @@ class ObsPlannerV0Config():
             }
         )
     raster_model_length_max: u.Quantity = field(
-        default=20 << u.arcmin,
+        default=3 << u.deg,
         metadata={
             'description': 'The maximum length of raster scan model.',
             'schema': PhysicalTypeSchema('angle')
             }
-
+        )
+    lissajous_model_length_max: u.Quantity = field(
+        default=20 << u.arcmin,
+        metadata={
+            'description': 'The maximum length of lissajous model.',
+            'schema': PhysicalTypeSchema('angle')
+            }
+        )
+    t_exp_max: u.Quantity = field(
+        default=1. << u.hour,
+        metadata={
+            'description': 'The maximum length of observation time.',
+            'schema': PhysicalTypeSchema('time')
+            }
         )
     title_text: str = field(
         default='Obs Planner',

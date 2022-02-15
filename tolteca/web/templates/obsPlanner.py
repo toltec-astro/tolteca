@@ -56,7 +56,9 @@ class ObsPlanner(ComponentTemplate):
     def __init__(
             self,
             toltec_sensitivity_module_path,
-            raster_model_length_max=20 << u.arcmin,
+            raster_model_length_max=3 << u.deg,
+            lissajous_model_length_max=3 << u.arcmin,
+            t_exp_max=3600 << u.s,
             sma_pointing_catalog_path=None,
             title_text='TolTEC Observation Planner',
             fluid=True,
@@ -68,6 +70,8 @@ class ObsPlanner(ComponentTemplate):
         from toltec_sensitivity import Detector
         self._Detector = Detector
         self._raster_model_length_max = raster_model_length_max
+        self._lissajous_model_length_max = lissajous_model_length_max
+        self._t_exp_max = t_exp_max
         if sma_pointing_catalog_path is not None:
             self._sma_pointing_catalog = SMAPointingCatalog(
                 filepath=sma_pointing_catalog_path)
@@ -107,16 +111,30 @@ class ObsPlanner(ComponentTemplate):
             dbc.Row, className='mt-3').child(dbc.Col).child(dbc.Tabs)
 
         # Single Lissajous Parameter Set
-        lisControls = getLissajousControls(mappingBox)
+        lisControls = getLissajousControls(
+            mappingBox, size_max=self._lissajous_model_length_max,
+            t_max=self._t_exp_max,
+            )
 
         # Double Lissajous Parameter Set
-        doubleLisControls = getDoubleLissajousControls(mappingBox)
+        doubleLisControls = getDoubleLissajousControls(
+            mappingBox, size_max=self._lissajous_model_length_max,
+            t_max=self._t_exp_max,
+            )
 
         # Raster Pattern Parameter Set
-        rasterControls = getRasterControls(mappingBox)
+        rasterControls = getRasterControls(
+            mappingBox, size_max=self._raster_model_length_max,
+            t_max=self._t_exp_max,
+            )
 
         # Rastajous Pattern Parameter Set
-        rastajousControls = getRastajousControls(mappingBox)
+        rastajousControls = getRastajousControls(
+            mappingBox,
+            raster_size_max=self._raster_model_length_max,
+            lissajous_size_max=self._lissajous_model_length_max,
+            t_max=self._t_exp_max,
+            )
 
         # Combine the mapping controls into a single dictionary
         mapping = {}

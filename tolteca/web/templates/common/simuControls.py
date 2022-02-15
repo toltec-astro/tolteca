@@ -3,6 +3,7 @@ import dash_bootstrap_components as dbc
 import dash_html_components as html
 import dash_core_components as dcc
 from datetime import date
+import astropy.units as u
 
 
 # These functions retun dasha components that are useful for setting
@@ -223,7 +224,7 @@ def getSourceCard(controlBox):
     return target
 
 
-def getLissajousControls(mappingBox):
+def getLissajousControls(mappingBox, size_max, t_max):
     lissBox = mappingBox.child(dbc.Tab, label="Lissajous")
     lissCard = lissBox.child(dbc.Card)
     l_header = lissCard.child(dbc.CardHeader).child(dbc.Row)
@@ -246,22 +247,30 @@ def getLissajousControls(mappingBox):
     lisxLenInRow = l_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     lisxLenInRow.child(html.Label("x_length [arcmin]: "))
     lisxLenIn = lisxLenInRow.child(dcc.Input, value=0.5,
-                                   min=0.001, max=10.,
+                                   min=0.001, max=size_max.to_value(u.arcmin),
                                    debounce=True, type='number',
                                    style={'width': '25%',
                                           'margin-right': '20px'})
-    makeTooltip(lisxLenInRow, "Full width of the pattern along the " \
-                "x-direction: 0.001 < x_length < 10 arcminutes.")
+    makeTooltip(
+        lisxLenInRow,
+        (
+            f"Full width of the pattern along the "
+            f"x-direction: 0.001 < x_length < {size_max}.")
+        )
 
     lisyLenInRow = l_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     lisyLenInRow.child(html.Label("y_length [arcmin]: "))
     lisyLenIn = lisyLenInRow.child(dcc.Input, value=0.5,
-                                   min=0.001, max=10.,
+                                   min=0.001, max=size_max.to_value(u.arcmin),
                                    debounce=True, type='number',
                                    style={'width': '25%',
                                           'margin-right': '20px'})
-    makeTooltip(lisyLenInRow, "Full width of the pattern along the " \
-                "y-direction: 0.001 < y_length < 10 arcminutes.")
+    makeTooltip(
+        lisyLenInRow,
+        (
+            f"Full width of the pattern along the "
+            f"y-direction: 0.001 < y_length < {size_max}.")
+        )
 
     lisxOmegaInRow = l_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     lisxOmegaInRow.child(html.Label("x_omega: "))
@@ -297,11 +306,13 @@ def getLissajousControls(mappingBox):
     listExpInRow = l_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     listExpInRow.child(html.Label("t_exp [s]: "))
     listExpIn = listExpInRow.child(dcc.Input, value=120.,
-                                   min=1., max=1800.,
+                                   min=1., max=t_max.to_value(u.s),
                                    debounce=True, type='number',
                                    style={'width': '25%',
                                           'margin-right': '20px'})
-    makeTooltip(listExpInRow, "Exposure time of observation in seconds. 1<t_exp<1800 s.")
+    makeTooltip(
+        listExpInRow,
+        f"Exposure time of observation in seconds. 1<t_exp<{t_max}.")
 
     refFrameLissRow = l_body.child(html.Div, className='d-flex justify-content-end', justify='begin')
     refFrameLissRow.child(html.Label("Tel Frame: "))
@@ -338,7 +349,7 @@ def getLissajousControls(mappingBox):
     return lisControls
 
 
-def getDoubleLissajousControls(mappingBox):
+def getDoubleLissajousControls(mappingBox, size_max, t_max):
     dlissBox = mappingBox.child(dbc.Tab, label="Double Lissajous")
     dlissCard = dlissBox.child(dbc.Card)
     dl_header = dlissCard.child(dbc.CardHeader).child(dbc.Row)
@@ -367,7 +378,7 @@ def getDoubleLissajousControls(mappingBox):
     dlisxLen0InRow = dl_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     dlisxLen0InRow.child(html.Label("x_length_0 [arcmin]: "))
     dlisxLen0In = dlisxLen0InRow.child(dcc.Input, value=0.5,
-                                       min=0.001, max=10.,
+                                       min=0.001, max=size_max.to_value(u.arcmin),
                                        debounce=True, type='number',
                                        style={'width': '25%',
                                               'margin-right': '20px'})
@@ -375,7 +386,7 @@ def getDoubleLissajousControls(mappingBox):
     dlisyLen0InRow = dl_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     dlisyLen0InRow.child(html.Label("y_length_0 [arcmin]: "))
     dlisyLen0In = dlisyLen0InRow.child(dcc.Input, value=0.5,
-                                       min=0.001, max=10.,
+                                       min=0.001, max=size_max.to_value(u.arcmin),
                                        debounce=True, type='number',
                                        style={'width': '25%',
                                               'margin-right': '20px'})
@@ -407,7 +418,7 @@ def getDoubleLissajousControls(mappingBox):
     dlisxLen1InRow = dl_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     dlisxLen1InRow.child(html.Label("x_length_1 [arcmin]: "))
     dlisxLen1In = dlisxLen1InRow.child(dcc.Input, value=0.5,
-                                       min=0.001, max=10.,
+                                       min=0.001, max=size_max.to_value(u.arcmin),
                                        debounce=True, type='number',
                                        style={'width': '25%',
                                               'margin-right': '20px'})
@@ -415,7 +426,7 @@ def getDoubleLissajousControls(mappingBox):
     dlisyLen1InRow = dl_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     dlisyLen1InRow.child(html.Label("y_length_1 [arcmin]: "))
     dlisyLen1In = dlisyLen1InRow.child(dcc.Input, value=0.5,
-                                       min=0.001, max=10.,
+                                       min=0.001, max=size_max.to_value(u.arcmin),
                                        debounce=True, type='number',
                                        style={'width': '25%',
                                               'margin-right': '20px'})
@@ -447,7 +458,7 @@ def getDoubleLissajousControls(mappingBox):
     dlistExpInRow = dl_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     dlistExpInRow.child(html.Label("t_exp [s]: "))
     dlistExpIn = dlistExpInRow.child(dcc.Input, value=120.,
-                                     min=1., max=1800.,
+                                     min=1., max=t_max.to_value(u.s),
                                      debounce=True, type='number',
                                      style={'width': '25%',
                                             'margin-right': '20px'})
@@ -493,7 +504,7 @@ def getDoubleLissajousControls(mappingBox):
     return doubleLisControls
 
 
-def getRasterControls(mappingBox):
+def getRasterControls(mappingBox, size_max, t_max):
     rasBox = mappingBox.child(dbc.Tab, label="Raster")
     rasCard = rasBox.child(dbc.Card)
     r_header = rasCard.child(dbc.CardHeader).child(dbc.Row)
@@ -516,15 +527,17 @@ def getRasterControls(mappingBox):
 
     rasLenInRow = r_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     rasLenInRow.child(html.Label("length [arcmin]: "))
-    rasLenIn = rasLenInRow.child(dcc.Input, value=15.,
-                                 min=0.0001, max=30.,
+    rasLenIn = rasLenInRow.child(dcc.Input, value=15,
+                                 min=0.0001, max=size_max.to_value(u.arcmin),
                                  debounce=True, type='number',
                                  style={'width': '25%',
                                         'margin-right': '20px'})
-    makeTooltip(rasLenInRow,
-                "Scan length of pattern [arcminuts]. For memory reasons, this " \
-                "tool restricts scan lengths to 30 arcmin.  Use tolteca.simu " \
-                "for simuations requiring larger maps.")
+    makeTooltip(
+        rasLenInRow,
+        (
+            f"Scan length of pattern [arcminuts]. For memory reasons, this "
+            f"tool restricts scan lengths to {size_max}.  Use tolteca.simu "
+            f"for simuations requiring larger maps."))
 
     rasStepInRow = r_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     rasStepInRow.child(html.Label("step [arcmin]: "))
@@ -541,15 +554,19 @@ def getRasterControls(mappingBox):
 
     rasnScansInRow = r_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     rasnScansInRow.child(html.Label("nScans: "))
+    max_scan = int((size_max / (0.1 << u.arcmin)).to_value(u.dimensionless_unscaled))
     rasnScansIn = rasnScansInRow.child(dcc.Input, value=15,
-                                       min=1, max=30,
+                                       min=1, max=max_scan,
                                        debounce=True, type='number',
                                        style={'width': '25%',
                                               'margin-right': '20px'})
-    makeTooltip(rasnScansInRow,
-                "The number of rows in the pattern. For memory reasons, this " \
-                "tool restricts the maximum number of rows to 30.  Use tolteca.simu " \
-                "for simuations requiring larger maps.")
+    makeTooltip(
+        rasnScansInRow,
+        (
+            f"The number of rows in the pattern. For memory reasons, this "
+            f"tool restricts the maximum number of rows to {max_scan}.  Use tolteca.simu "
+            f"for simuations requiring larger maps.")
+        )
 
     rasSpeedInRow = r_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     rasSpeedInRow.child(html.Label("speed [arcsec/s]: "))
@@ -609,7 +626,7 @@ def getRasterControls(mappingBox):
     return rasterControls
 
 
-def getRastajousControls(mappingBox):
+def getRastajousControls(mappingBox, raster_size_max, lissajous_size_max, t_max):
     rjBox = mappingBox.child(dbc.Tab, label="Rastajous")
     rjCard = rjBox.child(dbc.Card)
     rj_header = rjCard.child(dbc.CardHeader).child(dbc.Row)
@@ -630,7 +647,7 @@ def getRastajousControls(mappingBox):
     rjLenInRow = rj_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     rjLenInRow.child(html.Label("length [arcmin]: "))
     rjLenIn = rjLenInRow.child(dcc.Input, value=10.,
-                               min=0.0001, max=30.,
+                               min=0.0001, max=raster_size_max.to_value(u.arcmin),
                                debounce=True, type='number',
                                style={'width': '25%',
                                       'margin-right': '20px'})
@@ -642,11 +659,11 @@ def getRastajousControls(mappingBox):
                                  debounce=True, type='number',
                                  style={'width': '25%',
                                         'margin-right': '20px'})
-
+    max_scan = int((raster_size_max / (0.1 << u.arcmin)).to_value(u.dimensionless_unscaled))
     rjnScansInRow = rj_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     rjnScansInRow.child(html.Label("nScans: "))
     rjnScansIn = rjnScansInRow.child(dcc.Input, value=3,
-                                     min=1, max=30,
+                                     min=1, max=max_scan,
                                      debounce=True, type='number',
                                      style={'width': '25%',
                                             'margin-right': '20px'})
@@ -678,7 +695,7 @@ def getRastajousControls(mappingBox):
     rjxLen0InRow = rj_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     rjxLen0InRow.child(html.Label("x_length_0 [arcmin]: "))
     rjxLen0In = rjxLen0InRow.child(dcc.Input, value=2.,
-                                   min=0.001, max=10.,
+                                   min=0.001, max=lissajous_size_max.to_value(u.arcmin),
                                    debounce=True, type='number',
                                    style={'width': '25%',
                                           'margin-right': '20px'})
@@ -686,7 +703,7 @@ def getRastajousControls(mappingBox):
     rjyLen0InRow = rj_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     rjyLen0InRow.child(html.Label("y_length_0 [arcmin]: "))
     rjyLen0In = rjyLen0InRow.child(dcc.Input, value=2.,
-                                   min=0.001, max=10.,
+                                   min=0.001, max=lissajous_size_max.to_value(u.arcmin),
                                    debounce=True, type='number',
                                    style={'width': '25%',
                                           'margin-right': '20px'})
@@ -718,7 +735,7 @@ def getRastajousControls(mappingBox):
     rjxLen1InRow = rj_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     rjxLen1InRow.child(html.Label("x_length_1 [arcmin]: "))
     rjxLen1In = rjxLen1InRow.child(dcc.Input, value=0.5,
-                                   min=0.001, max=10.,
+                                   min=0.001, max=lissajous_size_max.to_value(u.arcmin),
                                    debounce=True, type='number',
                                    style={'width': '25%',
                                           'margin-right': '20px'})
@@ -726,7 +743,7 @@ def getRastajousControls(mappingBox):
     rjyLen1InRow = rj_body.child(html.Div, className='d-flex justify-content-end', justify='end')
     rjyLen1InRow.child(html.Label("y_length_1 [arcmin]: "))
     rjyLen1In = rjyLen1InRow.child(dcc.Input, value=0.5,
-                                   min=0.001, max=10.,
+                                   min=0.001, max=lissajous_size_max.to_value(u.arcmin),
                                    debounce=True, type='number',
                                    style={'width': '25%',
                                           'margin-right': '20px'})
