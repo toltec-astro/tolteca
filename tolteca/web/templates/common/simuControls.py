@@ -229,7 +229,7 @@ def getLissajousControls(mappingBox):
     l_header = lissCard.child(dbc.CardHeader).child(dbc.Row)
     l_body = lissCard.child(dbc.CardBody)
     l_header.child(dbc.Col).child(html.H5, "Lissajous Controls", className='mb-2')
-    infoIcon = l_header.child(dbc.Col).child(dbc.Row, justify='end').child(
+    infoIcon = l_header.child(dbc.Col).child(html.Div, justify='end').child(
         html.Img, src="http://toltec.astro.umass.edu/images/info.png", height=22,
         title="This is the most basic lissajous pattern.  It is useful for photometry maps and other very compact maps.  Making the x and y lengths too large will result in very uneven coverage and so is discouraged.  Try the Double Lissajous in that case instead.")
 
@@ -344,7 +344,7 @@ def getDoubleLissajousControls(mappingBox):
     dl_header = dlissCard.child(dbc.CardHeader).child(dbc.Row)
     dl_body = dlissCard.child(dbc.CardBody)
     dl_header.child(dbc.Col, width=8).child(html.H5, "Double Lissajous Controls", className='mb-2')
-    infoIcon = dl_header.child(dbc.Col).child(dbc.Row, justify='end').child(
+    infoIcon = dl_header.child(dbc.Col).child(html.Div, justify='end').child(
         html.Img, src="http://toltec.astro.umass.edu/images/info.png", height=22,
         title="This is the advanced lissajous pattern which simply sums to other lissajous patterns.  The general idea is to have a small, slow lissajous run underneath a larger lissajous pattern.  We haven't optimized the parameters for these yet but eventually we will and then we'll set them as the defaults here.")
 
@@ -499,7 +499,7 @@ def getRasterControls(mappingBox):
     r_header = rasCard.child(dbc.CardHeader).child(dbc.Row)
     r_body = rasCard.child(dbc.CardBody)
     r_header.child(dbc.Col, width=8).child(html.H5, "Raster Controls", className='mb-2')
-    infoIcon = r_header.child(dbc.Col).child(dbc.Row, justify='end').child(
+    infoIcon = r_header.child(dbc.Col).child(html.Div, justify='end').child(
         html.Img, src="http://toltec.astro.umass.edu/images/info.png", height=22,
         title="The raster pattern is our go-to pattern for making large maps " \
         "with high-speed scans.")
@@ -615,7 +615,7 @@ def getRastajousControls(mappingBox):
     rj_header = rjCard.child(dbc.CardHeader).child(dbc.Row)
     rj_body = rjCard.child(dbc.CardBody)
     rj_header.child(dbc.Col).child(html.H5, "Rastajous Controls", className='mb-2')
-    infoIcon = rj_header.child(dbc.Col).child(dbc.Row, justify='end').child(
+    infoIcon = rj_header.child(dbc.Col).child(html.Div, justify='end').child(
         html.Img, src="http://toltec.astro.umass.edu/images/info.png", height=22,
         title="A Rastajous is a combination of a Double Lissajous and a Raster map.  The idea is that the lissajous pattern will be slowly swept over a larger field, akin to painting with a very fat brush.  The key is to get the relative timing of the two patterns right.  The raster part of the map should be pretty slow so that the turns at the ends of the scans can be preserved.")
     

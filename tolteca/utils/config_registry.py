@@ -4,7 +4,7 @@ from tollan.utils.registry import Registry
 from schema import Or, Literal, Optional
 from tollan.utils.fmt import pformat_list
 import textwrap
-from tollan.utils.dataclass_schema import DataclassSchema
+# from tollan.utils.dataclass_schema import DataclassSchema
 
 
 __all__ = ['ConfigRegistry']
@@ -134,10 +134,12 @@ class ConfigRegistry(Registry):
             item, dispatcher_key, description, value_schema,
             dispatcher_key_is_optional=False,
             dispatcher_key_optional_default=None):
+        # we make a copy of the item schema and update the underlying dict
+        # inplace
+        s = item.schema.copy()
         # this juggling with copying d1 is to make the dispatcher key the
         # first
-        d = item.schema._schema.copy()
-        d1 = d.copy()
+        d = s._schema
         d.clear()
         key_schema_kwargs = {'description': description}
         if dispatcher_key_is_optional:
@@ -146,17 +148,16 @@ class ConfigRegistry(Registry):
         else:
             key_schema_cls = Literal
         d[key_schema_cls(dispatcher_key, **key_schema_kwargs)] = value_schema
-        d.update(d1)
+        # put back original schema dict entries
+        d.update(item.schema._schema)
 
+        # update hook functions
         def remove_dispatcher_entry(d):
             d.pop(dispatcher_key, None)
             return d
+        s.append_post_validate_func(remove_dispatcher_entry)
 
         # make the dispatcher a readonly property on the class
         item.name = property(lambda self: dispatcher_key)
 
-        return DataclassSchema(
-            d,
-            dataclass_cls=item,
-            post_validate_func=remove_dispatcher_entry
-            )
+        return s

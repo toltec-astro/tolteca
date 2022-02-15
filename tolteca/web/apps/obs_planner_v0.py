@@ -55,9 +55,10 @@ def DASHA_SITE():
     dasha_config = get_app_config(ObsPlannerV0Config).to_dict()
     dasha_config.update({
         'template': 'tolteca.web.templates.obsPlanner:ObsPlanner',
-        'EXTERNAL_STYLESHEETS': [
-            dbc.themes.MATERIA,
-            ],
+        'THEME': dbc.themes.MATERIA,
+        # 'EXTERNAL_STYLESHEETS': [
+        #     dbc.themes.MATERIA,
+        #     ],
         'ASSETS_IGNORE': 'bootstrap.*',
         })
     return {

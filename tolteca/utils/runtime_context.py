@@ -311,13 +311,14 @@ class ConfigBackend(object):
     def _invalidate_config_cache(self, include_config_impl_cache=True):
         """This has to be called to allow re-build of the config dict."""
         logger = get_logger()
-        if 'config' in self.__dict__:
-            del self.__dict__['config']
-            logger.debug("config cache invalidated")
         if include_config_impl_cache and \
                 '_config_impl' in self.__dict__:
             del self.__dict__['_config_impl']
             logger.debug("config impl cache invalidated")
+
+        if 'config' in self.__dict__:
+            del self.__dict__['config']
+            logger.debug("config cache invalidated")
 
     @cached_property
     def _config_impl(self):
@@ -398,7 +399,9 @@ class ConfigBackend(object):
         This will invalidate the config cache.
         """
         self._default_config = cfg
-        self.load(reload_config=False, update_runtime_info=False)
+        # we update the config cache without re-load the config from file
+        self.__dict__['config'] = self.load(
+            reload_config=False, update_runtime_info=True)
 
     def set_override_config(self, cfg):
         """Set the override config dict.
@@ -407,7 +410,9 @@ class ConfigBackend(object):
         """
 
         self._override_config = cfg
-        self.load(reload_config=False, update_runtime_info=False)
+        # we update the config cache without re-load the config from file
+        self.__dict__['config'] = self.load(
+            reload_config=False, update_runtime_info=True)
 
     def update_default_config(self, cfg):
         """Update the default config dict.
@@ -415,7 +420,9 @@ class ConfigBackend(object):
         This will invalidate the config cache.
         """
         rupdate(self._default_config, cfg)
-        self.load(reload_config=False, update_runtime_info=False)
+        # we update the config cache without re-load the config from file
+        self.__dict__['config'] = self.load(
+            reload_config=False, update_runtime_info=True)
 
     def update_override_config(self, cfg):
         """Update the override config dict.
@@ -423,7 +430,9 @@ class ConfigBackend(object):
         This will invalidate the config cache.
         """
         rupdate(self._override_config, cfg)
-        self.load(reload_config=False, update_runtime_info=False)
+        # we update the config cache without re-load the config from file
+        self.__dict__['config'] = self.load(
+            reload_config=False, update_runtime_info=True)
 
     @property
     def is_persistent(self):

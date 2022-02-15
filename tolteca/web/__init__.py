@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
+import os
 from wrapt import ObjectProxy
 import inspect
 from dataclasses import dataclass, field
+from cached_property import cached_property
 
 from tollan.utils.dataclass_schema import add_schema
 from tollan.utils.log import get_logger
@@ -138,10 +140,55 @@ class WebRuntime(RuntimeBase):
 
     logger = get_logger()
 
+    @cached_property
+    def config(self):
+        # re-implement config so that we re-set the env_loader
+        # cache for each config load.
+        # TODO remove this when we sort out the env handling stuff
+        env_loader._attr_dict_from_env_var.cache_clear()
+        return self.config_cls.from_config_dict(
+            self.rc.config,
+            # these are passed to the schema validate method
+            rootpath=self.rc.rootpath,
+            runtime_info=self.rc.runtime_info)
+
+    def update_from_env_loader(self):
+        """Update config dict with env vars."""
+        # TODO the current aproach to inject env vars is at
+        # the dataclass_cls level through schema. This causes
+        # re-parsing of the env vars for each sub schema validate
+        # call which could occur multiple times.
+        # maybe it is better to collect the env vars at the
+        # config level just like how the CLI config is collected
+        return NotImplemented
+        # need to get the cfg dict to figure out existing app config
+        # and the index
+        # web_cfg_key = self.config_cls.config_key
+        # cfg = self.rc.config
+        # if web_cfg_key not in
+        # cfg = self.rc.config[]
+        # app_cfg_idx = {
+        #     d['name']: i
+        #     for i, d in enumerate(
+        #         self.rc.config[self.config_cls.config_key]['apps'])
+        #     }
+        # # update app dict by traversing all registered app config type
+        # for k, s in apps_registry.item_schemas.items():
+        #     env_cfg.update({
+        #         'app'})
+
     def run(self, app_name, ext_proc_name='flask'):
-        web_config.__wrapped__ = self.config
+        # load env vars
+        # self.update_from_env_loader(env_loader)
+        cfg = web_config.__wrapped__ = self.config
+        env_dict = {
+            k: v for k, v in os.environ.items()
+            if k.startswith(env_loader.root_namespace)}
         self.logger.debug(
-            f"run web app={app_name} ext_proc={ext_proc_name}")
+            f"run web app={app_name} ext_proc={ext_proc_name}\n"
+            f"config dict:\n{pformat_yaml(cfg.to_config_dict())}\n"
+            f"env dict:\n{pformat_yaml(env_dict)}")
+
         # invoke dasha cli
         from dasha.cli import run_site
         dasha_site_name = f'tolteca.web.apps.{app_name}'

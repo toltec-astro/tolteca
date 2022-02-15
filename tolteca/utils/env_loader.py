@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import copy
 from schema import Optional
+import functools
 
 from tollan.utils.log import get_logger
 from tollan.utils.env import EnvRegistry
@@ -32,6 +32,8 @@ class EnvLoader(object):
     def root_namespace(self):
         return self._root_namespace
 
+    # we use a cache to avoid query the env var multiple times
+    @functools.lru_cache(maxsize=1)
     def _attr_dict_from_env_var(self, dataclass_cls):
         # collect value from env var for dataclass_cls attr dict.
         if dataclass_cls not in self._register_info:
@@ -73,15 +75,13 @@ class EnvLoader(object):
             self._register_info[dataclass_cls] = dict(
                 namespace=namespace, env_name_map=env_name_map)
 
-            # hook the from_dict function so it handles
+            # hook the schema validate function so it handles
             # loading the fields with env
-            _old_from_dict = dataclass_cls.from_dict
-
-            def _new_from_dict(d):
-                d = copy.copy(d)
+            def add_env_attrs(d):
+                # d = d.copy()
                 d.update(self._attr_dict_from_env_var(dataclass_cls))
-                return _old_from_dict(d)
-            dataclass_cls.from_dict = _new_from_dict
+                return d
+            schema.append_pre_validate_func(add_env_attrs)
             return dataclass_cls
         return decorator
 

@@ -52,6 +52,8 @@ def load_runtime(
                 f"config specified with commandline arguments:\n"
                 f"{pformat_yaml(cli_cfg)}")
         rt.update(cli_cfg, mode='override')
+        logger.debug(
+            f"config dict with cli args merged:\n{pformat_yaml(rt.rc.config)}")
         cfg = rt.config.to_config_dict()
         # here we recursively check the cli_cfg and report
         # if any of the key is ignored by the schema and
@@ -68,5 +70,4 @@ def load_runtime(
                 for k in set(d.keys()).intersection(c.keys()):
                     _check_ignored(f'{key_prefix}{k}', d[k], c[k])
         _check_ignored('', cli_cfg, cfg)
-
     return rt

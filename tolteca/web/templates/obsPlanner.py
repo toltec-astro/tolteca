@@ -20,6 +20,7 @@ from astropy.convolution import Gaussian2DKernel
 from astroquery.utils import parse_coordinates
 from astropy.convolution import convolve_fft
 from tolteca.simu import SimulatorRuntime
+from tolteca.simu.mapping.utils import resolve_sky_coords_frame
 from astroquery.skyview import SkyView
 from astropy.coordinates import SkyCoord
 from astropy import units as u
@@ -57,7 +58,7 @@ class ObsPlanner(ComponentTemplate):
             toltec_sensitivity_module_path,
             raster_model_length_max=20 << u.arcmin,
             sma_pointing_catalog_path=None,
-            title_text='Obs Planner',
+            title_text='TolTEC Observation Planner',
             fluid=True,
             **kwargs):
         super().__init__(fluid=fluid, **kwargs)
@@ -67,8 +68,11 @@ class ObsPlanner(ComponentTemplate):
         from toltec_sensitivity import Detector
         self._Detector = Detector
         self._raster_model_length_max = raster_model_length_max
-        self._sma_pointing_catalog = SMAPointingCatalog(
-            filepath=sma_pointing_catalog_path)
+        if sma_pointing_catalog_path is not None:
+            self._sma_pointing_catalog = SMAPointingCatalog(
+                filepath=sma_pointing_catalog_path)
+        else:
+            self._sma_pointing_catalog = None
         self._title_text = title_text
 
     # This section of code only runs once when the server is started.
@@ -76,7 +80,7 @@ class ObsPlanner(ComponentTemplate):
         container = self
         header_section, hr_container, body = container.grid(3, 1)
         hr_container.child(html.H2,
-                           "TolTEC Observation Planner",
+                           self._title_text,
                            className='my-2')
         hr_container.child(html.Hr())
 
@@ -270,10 +274,14 @@ class ObsPlanner(ComponentTemplate):
             if updated_context is None:
                 print('run the sim first')
                 raise PreventUpdate
+            spc = self._sma_pointing_catalog
+            if spc is None:
+                print("no sma pointing catalog set.")
+                raise PreventUpdate
             print()
             print(ps)
             print()
-            ot_content = self._sma_pointing_catalog.generateOTScript(ps)
+            ot_content = spc.generateOTScript(ps)
             return [dict(
                 content=ot_content, filename="mc_pointing.script.txt")]
 
@@ -336,6 +344,9 @@ class ObsPlanner(ComponentTemplate):
                 ra=ra << u.deg,
                 dec=dec << u.deg,
                 frame='icrs')
+            spc = self._sma_pointing_catalog
+            if spc is None:
+                return [None, 'No pointing source catalog set']
             ps = self._sma_pointing_catalog.findPointingSource(target_coord)
             rat = ps['ra']
             c1 = rat.find(':')
@@ -752,28 +763,31 @@ def fetchSim(config):
 
 
 def target_to_frame(target, simulator, frame, t_absolute):
-    return target.transform_to(simulator.resolve_sky_map_ref_frame(
-        ref_frame=frame, time_obs=t_absolute))
+    return target.transform_to(resolve_sky_coords_frame(
+        frame, time_obs=t_absolute, observer=simulator.observer))
 
 
 def obs_coords_to_frame(obs_coords, simulator, frame, t_absolute):
-    return obs_coords.transform_to(simulator.resolve_sky_map_ref_frame(
-        ref_frame=frame, time_obs=t_absolute))
+    return obs_coords.transform_to(resolve_sky_coords_frame(
+        frame, time_obs=t_absolute, observer=simulator.observer))
 
 
 # Generates obs_coords in the three primary reference frames.
 def generateMappings(sim, band):
-    m_obs = sim.get_mapping_model()
-    p_obs = sim.get_obs_params()
+    simu_config = sim.config
+    m_obs = simu_config.mapping_model
+    p_obs = simu_config.obs_params.to_dict()
     target = m_obs.target
-    simulator = sim.get_instrument_simulator()
+    simulator = simu_config.simulator
 
     # construct the relative and absolute times
-    t_pattern = m_obs.get_total_time()
-    if (m_obs.pattern == 'raster') | (m_obs.pattern == 'rastajous'):
-        t_exp = t_pattern
-    else:
-        t_exp = p_obs['t_exp']
+    # t_pattern = m_obs.get_total_time()
+    # if (m_obs.pattern == 'raster') | (m_obs.pattern == 'rastajous'):
+    #     t_exp = t_pattern
+    # else:
+    #     t_exp = p_obs['t_exp']
+    t_simu = simu_config.t_simu
+    t_exp = t_simu
     t = np.arange(0, t_exp.to_value(u.s),
                   1./p_obs['f_smp_mapping'].to_value(u.Hz)) * u.s
     t0 = m_obs.t0
@@ -781,8 +795,8 @@ def generateMappings(sim, band):
 
     # Get the reference frame of the map trajectory. Remember that
     # m_obs.ref_frame is taken from the reference frame of the target
-    ref_frame = simulator.resolve_sky_map_ref_frame(
-        ref_frame=m_obs.ref_frame,
+    ref_frame = resolve_sky_coords_frame(
+        m_obs.ref_frame, observer=m_obs.observer,
         time_obs=t_absolute)
 
     # Get the target coordinates in the mapping reference frame
@@ -807,14 +821,15 @@ def generateMappings(sim, band):
     # Note that obs_coords has time, location, coordinates, and frame
     # and so can be used to generate coordinates in any frame as shown
     # below.
-    obs_coords = m_obs.evaluate_at(target_in_ref_frame, t)
+    # obs_coords = m_obs.evaluate_at(target_in_ref_frame, t)
+    obs_coords = m_obs.evaluate_coords(t)
     obs_coords_icrs = obs_coords.transform_to('icrs')
     obs_coords_altaz = obs_coords_to_frame(obs_coords, simulator,
                                            'altaz', t_absolute)
     obs_coords_galactic = obs_coords.transform_to('galactic')
 
     # the array
-    apt = simulator.table
+    apt = simulator.array_prop_table
     if(band == 1.1):
         aname = 'a1100'
     elif(band == 1.4):
@@ -827,7 +842,7 @@ def generateMappings(sim, band):
         't': t,
         't_absolute': t_absolute,
         't0': t0,
-        't_pattern': t_pattern,
+        't_pattern': m_obs.t_pattern,
         't_exp': t_exp,
         'obs_coords': obs_coords,
         'obs_coords_icrs': obs_coords_icrs,
@@ -1120,8 +1135,9 @@ def makeUptimesFig(obs):
 def getCelestialPlots(sim, obs, d, units,
                       overlay='None', showArray=0,
                       sensDegred=np.sqrt(2.)):
-    simulator = sim.get_instrument_simulator()
-    p_obs = sim.get_obs_params()
+    simu_config = sim.config
+    simulator = simu_config.simulator
+    p_obs = simu_config.obs_params.to_dict()
     sampleTime = 1./p_obs['f_smp_mapping'].to_value(u.Hz)
     obs_ra = obs['obs_coords_icrs'].ra
     obs_dec = obs['obs_coords_icrs'].dec
@@ -1487,20 +1503,21 @@ def writeSimuContext(d, band, mapType='raster', atmQ=25):
     oF.write("    filepath: ./tel_toltec_2020-10-01_103371_00_0000.nc\n")
     if(mapType == 'raster'):
         oF.write("  example_mapping_model_raster: &example_mapping_model_raster\n")
-        oF.write("    type: tolteca.simu:SkyRasterScanModel\n")
+        # oF.write("    type: tolteca.simu:SkyRasterScanModel\n")
+        oF.write("    type: raster\n")
         oF.write("    rot: {}\n".format(u.Quantity(d['rot'])))
         oF.write("    length: {}\n".format(u.Quantity(d['length'])))
         oF.write("    space: {}\n".format(u.Quantity(d['step'])))
         oF.write("    n_scans: {}\n".format(d['nScans']))
         oF.write("    speed: {}\n".format(u.Quantity(d['speed'])))
-        oF.write("    t_turnover: {} s\n".format(d['t_turnaround']))
+        oF.write("    t_turnaround: {} s\n".format(d['t_turnaround']))
         oF.write("    target: {}\n".format(target_str))
         oF.write("    ref_frame: {}\n".format(d['ref_frame']))
         oF.write("    t0: {}\n".format(d['t0']))
         oF.write("    # lst0: ...\n")
     elif(mapType == 'lissajous'):
         oF.write("  example_mapping_model_lissajous: &example_mapping_model_lissajous\n")
-        oF.write("    type: tolteca.simu:SkyLissajousModel\n")
+        oF.write("    type: lissajous\n")
         oF.write("    rot: {}\n".format(u.Quantity(d['rot'])))
         oF.write("    x_length: {}\n".format(u.Quantity(d['x_length'])))
         oF.write("    y_length: {}\n".format(u.Quantity(d['y_length'])))
@@ -1512,7 +1529,7 @@ def writeSimuContext(d, band, mapType='raster', atmQ=25):
         oF.write("    t0: {}\n".format(d['t0']))
     elif(mapType == 'doubleLissajous'):
         oF.write("  example_mapping_model_double_lissajous: &example_mapping_model_double_lissajous\n")
-        oF.write("    type: tolteca.simu:SkyDoubleLissajousModel\n")
+        oF.write("    type: double_lissajous\n")
         oF.write("    rot: {}\n".format(u.Quantity(d['d_rot'])))
         oF.write("    delta: {}\n".format(u.Quantity(d['d_delta'])))
         oF.write("    x_length_0: {}\n".format(u.Quantity(d['d_x_length_0'])))
@@ -1531,13 +1548,13 @@ def writeSimuContext(d, band, mapType='raster', atmQ=25):
         oF.write("    t0: {}\n".format(d['t0']))
     elif(mapType == 'rastajous'):
         oF.write("  example_mapping_model_rastajous: &example_mapping_model_rastajous\n")
-        oF.write("    type: tolteca.simu:SkyRastajousModel\n")
+        oF.write("    type: rastajous\n")
         oF.write("    rot: {}\n".format(u.Quantity(d['rot'])))
         oF.write("    length: {}\n".format(u.Quantity(d['length'])))
         oF.write("    space: {}\n".format(u.Quantity(d['step'])))
         oF.write("    n_scans: {}\n".format(d['nScans']))
         oF.write("    speed: {}\n".format(u.Quantity(d['speed'])))
-        oF.write("    t_turnover: {} s\n".format(d['t_turnaround']))
+        oF.write("    t_turnaround: {} s\n".format(d['t_turnaround']))
         oF.write("    delta: {}\n".format(u.Quantity(d['d_delta'])))
         oF.write("    x_length_0: {}\n".format(u.Quantity(d['d_x_length_0'])))
         oF.write("    y_length_0: {}\n".format(u.Quantity(d['d_y_length_0'])))
@@ -1563,16 +1580,16 @@ def writeSimuContext(d, band, mapType='raster', atmQ=25):
     # oF.write("    select: 'array_name == {}'\n".format(bandName))
     # oF.write("    # select: 'pg == 1'\n")
     oF.write("  obs_params:\n")
-    oF.write("    f_smp_data: 488 Hz  # the sample frequency for data\n")
+    oF.write("    f_smp_probing: 488 Hz  # the sample frequency for data\n")
     oF.write("    f_smp_mapping: 12.2 Hz  # the sample freq for mapping\n")
     if((mapType == 'rastajous') | (mapType == 'raster')):
-        oF.write("    t_exp: 1 ct\n")
+        oF.write("    t_exp: null\n")
     else:
         oF.write("    t_exp: {} s\n".format(d['t_exp']))
     oF.write("  sources:\n")
-    oF.write("    - type: point_source_catalog\n")
-    oF.write("      filepath: inputs/example_input.asc\n")
-    oF.write("    - type: toltec_array_loading\n")
+    # oF.write("    - type: point_source_catalog\n")
+    # oF.write("      filepath: inputs/example_input.asc\n")
+    oF.write("    - type: toltec_power_loading\n")
     oF.write("      atm_model_name: {}\n".format(atm_model_name))
     if(mapType == 'lissajous'):
         oF.write("  mapping: *example_mapping_model_lissajous\n")
