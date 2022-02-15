@@ -131,6 +131,7 @@ reduce:
             enabled: true
             filepath: null
             type: internal_gaussian #image, internal_airy
+            image_ext_name: signal
           clean:
             enabled: true
             cut_std: 0.0
