@@ -35,6 +35,7 @@ class ConfigRegistry(Registry):
             ):
         """Register(or return decorator to register) item with `key` with
         optional aliases."""
+        dispatcher_value = key
         if aliases is None:
             dispatcher_value_schema = key
         else:
@@ -57,10 +58,12 @@ class ConfigRegistry(Registry):
             #     dispatcher_key_optional_default=key)
             # create a schema with dispatcher entry in it
             dispatcher_schema = self._create_schema_with_dispatcher_entry(
-                item, dispatcher_key,
+                item,
+                dispatcher_key,
+                dispatcher_value,
                 dispatcher_description, dispatcher_value_schema,
                 dispatcher_key_is_optional=self.dispatcher_key_is_optional,
-                dispatcher_key_optional_default=key
+                dispatcher_key_optional_default=dispatcher_value,
                 )
             self._register_info[key]['dispatcher_schema'] = dispatcher_schema
             if aliases is not None:
@@ -131,9 +134,11 @@ class ConfigRegistry(Registry):
 
     @staticmethod
     def _create_schema_with_dispatcher_entry(
-            item, dispatcher_key, description, value_schema,
+            item, dispatcher_key, dispatcher_value,
+            description, value_schema,
             dispatcher_key_is_optional=False,
-            dispatcher_key_optional_default=None):
+            dispatcher_key_optional_default=None,
+            ):
         # we make a copy of the item schema and update the underlying dict
         # inplace
         s = item.schema.copy()
@@ -158,6 +163,6 @@ class ConfigRegistry(Registry):
         s.append_post_validate_func(remove_dispatcher_entry)
 
         # make the dispatcher a readonly property on the class
-        item.name = property(lambda self: dispatcher_key)
+        item.name = property(lambda self: dispatcher_value)
 
         return s

@@ -227,9 +227,9 @@ class ObsPlanner(ComponentTemplate):
             if sim is None:
                 print('no valid sim')
                 raise PreventUpdate
-            cfg = {'simu': sim.config['simu']}
+            cfg = sim.config.to_config_dict()
             ss = StringIO()
-            sim.write_config_to_yaml(cfg, ss)
+            sim.yaml_dump(cfg, ss)
             return [dict(content=ss.getvalue(), filename="sim.txt")]
 
         # download an M&C script with the simulation parameters
@@ -253,7 +253,9 @@ class ObsPlanner(ComponentTemplate):
             if sim is None:
                 print('no valid sim')
                 raise PreventUpdate
-            ot_content = sim.export(format='lmtot')
+            from tolteca.simu.exports import LmtOTExporterConfig
+            lmtot_exporter = LmtOTExporterConfig(save=False)
+            ot_content = lmtot_exporter(sim.config)
             return [dict(content=ot_content, filename="mc_target.script.txt")]
 
         # download an M&C script with the pointing parameters
@@ -1137,6 +1139,7 @@ def getCelestialPlots(sim, obs, d, units,
                       sensDegred=np.sqrt(2.)):
     simu_config = sim.config
     simulator = simu_config.simulator
+    m_obs = simu_config.mapping_model
     p_obs = simu_config.obs_params.to_dict()
     sampleTime = 1./p_obs['f_smp_mapping'].to_value(u.Hz)
     obs_ra = obs['obs_coords_icrs'].ra
@@ -1148,21 +1151,34 @@ def getCelestialPlots(sim, obs, d, units,
     # times is very expensive.  Since TolTEC has a circular array,
     # let's ignore the rotation for this calculation unless it's
     # really desirable to do it properly
-    projectArray = 0
-    if(projectArray):
-        print("Sit back ... this will take a while.")
-        m_proj = simulator.get_sky_projection_model(
-            ref_coord=obs['obs_coords_icrs'],
-            time_obs=obs['t_absolute'])
-        x_t = np.tile(kidArray['x_t'], (npts, 1))
-        y_t = np.tile(kidArray['y_t'], (npts, 1))
-        a_ra, a_dec = m_proj(x_t, y_t, frame='icrs')
-    else:
-        print("Ignoring array rotation during observations.")
-        m_proj = simulator.get_sky_projection_model(
-            ref_coord=obs['target_icrs'],
-            time_obs=Time(obs['t0'])+np.median(obs['t']))
-        a_ra, a_dec = m_proj(kidArray['x_t'], kidArray['y_t'], frame='icrs')
+
+    mapping_evaluator, mapping_eval_ctx = simulator.mapping_evaluator(
+        mapping=m_obs,
+        eval_interp_len=None,
+        )
+    t_mid = np.median(obs['t'])
+    mapping_info = mapping_evaluator(
+        u.Quantity([t_mid]), mapping_only=True)
+    det_sky_traj = mapping_info['det_sky_traj']
+    a_ra = det_sky_traj['ra'][0]
+    a_dec = det_sky_traj['dec'][0]
+    print(a_ra.shape)
+    print(a_dec.shape)
+    # projectArray = 0
+    # if(projectArray):
+    #     print("Sit back ... this will take a while.")
+    #     m_proj = simulator.get_sky_projection_model(
+    #         ref_coord=obs['obs_coords_icrs'],
+    #         time_obs=obs['t_absolute'])
+    #     x_t = np.tile(kidArray['x_t'], (npts, 1))
+    #     y_t = np.tile(kidArray['y_t'], (npts, 1))
+    #     a_ra, a_dec = m_proj(x_t, y_t, frame='icrs')
+    # else:
+    #     print("Ignoring array rotation during observations.")
+    #     m_proj = simulator.get_sky_projection_model(
+    #         ref_coord=obs['target_icrs'],
+    #         time_obs=Time(obs['t0'])+np.median(obs['t']))
+    #     a_ra, a_dec = m_proj(kidArray['x_t'], kidArray['y_t'], frame='icrs')
 
     # create a wcs for the observations and a pixel array for the data
     pixSize = 1.*u.arcsec
@@ -1572,7 +1588,7 @@ def writeSimuContext(d, band, mapType='raster', atmQ=25):
     oF.write("\n")
     oF.write("simu:\n")
     # oF.write("  # this is the actual simulator\n")
-    oF.write("  jobkey: example_simu\n")
+    oF.write("  jobkey: obs_planner_v0\n")
     # oF.write("  # plot: true\n")
     oF.write("  instrument:\n")
     oF.write("    name: toltec\n")

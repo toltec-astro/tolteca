@@ -38,7 +38,7 @@ class LmtOTComposer(object):
                 " -Dec[0] {Dec} -Dec[1] {Dec}"
                 " -El[0] 0.000000 -El[1] 0.000000 -EphemerisTrackOn 0"
                 " -Epoch 2000.0"
-                " -GoToZenith 0 -L[0] 0.0 -L[1] 0.0 -LineList [] -Planet None"
+                " -GoToZenith 1 -L[0] 0.0 -L[1] 0.0 -LineList [] -Planet None"
                 " -RaProperMotionCor 0 -Ra[0] {RA} -Ra[1] {RA}"
                 " -SourceName {Name}"
                 " -VelSys Lsr -Velocity 0.000000 -Vmag 0.0").format(
