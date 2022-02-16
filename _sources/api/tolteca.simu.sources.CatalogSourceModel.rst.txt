@@ -1,0 +1,41 @@
+CatalogSourceModel
+==================
+
+.. currentmodule:: tolteca.simu.sources
+
+.. autoclass:: CatalogSourceModel
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~CatalogSourceModel.data
+      ~CatalogSourceModel.logger
+      ~CatalogSourceModel.n_inputs
+      ~CatalogSourceModel.n_outputs
+      ~CatalogSourceModel.pos
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~CatalogSourceModel.__call__
+      ~CatalogSourceModel.evaluate
+      ~CatalogSourceModel.from_file
+      ~CatalogSourceModel.make_image_model
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: data
+   .. autoattribute:: logger
+   .. autoattribute:: n_inputs
+   .. autoattribute:: n_outputs
+   .. autoattribute:: pos
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: evaluate
+   .. automethod:: from_file
+   .. automethod:: make_image_model

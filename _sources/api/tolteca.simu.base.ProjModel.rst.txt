@@ -1,0 +1,17 @@
+ProjModel
+=========
+
+.. currentmodule:: tolteca.simu.base
+
+.. autoclass:: ProjModel
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~ProjModel.fittable
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: fittable

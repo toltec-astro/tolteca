@@ -1,6 +1,0 @@
-get_default_passbands
-=====================
-
-.. currentmodule:: tolteca.simu.toltec
-
-.. autofunction:: get_default_passbands

@@ -6,22 +6,22 @@ PipelineRuntime
 .. autoclass:: PipelineRuntime
    :show-inheritance:
 
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~PipelineRuntime.logger
+
    .. rubric:: Methods Summary
 
    .. autosummary::
 
-      ~PipelineRuntime.cli_run
-      ~PipelineRuntime.extend_config_schema
-      ~PipelineRuntime.get_input_dataset
-      ~PipelineRuntime.get_or_create_output_dir
-      ~PipelineRuntime.get_pipeline_params
       ~PipelineRuntime.run
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: logger
 
    .. rubric:: Methods Documentation
 
-   .. automethod:: cli_run
-   .. automethod:: extend_config_schema
-   .. automethod:: get_input_dataset
-   .. automethod:: get_or_create_output_dir
-   .. automethod:: get_pipeline_params
    .. automethod:: run

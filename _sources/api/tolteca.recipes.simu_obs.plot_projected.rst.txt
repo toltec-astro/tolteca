@@ -1,6 +1,0 @@
-plot_projected
-==============
-
-.. currentmodule:: tolteca.recipes.simu_obs
-
-.. autofunction:: plot_projected

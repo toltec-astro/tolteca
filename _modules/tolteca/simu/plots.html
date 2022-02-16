@@ -1,0 +1,139 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tolteca.simu.plots &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/plot_directive.css" />
+    
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/jquery.js"></script>
+    <script src="../../../_static/underscore.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../simu.html" accesskey="U">tolteca.simu</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tolteca.simu.plots</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python</span>
+
+<span class="kn">from</span> <span class="nn">tollan.utils.dataclass_schema</span> <span class="kn">import</span> <span class="n">DataclassNamespace</span>
+<span class="kn">from</span> <span class="nn">schema</span> <span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">Optional</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="kn">import</span> <span class="n">plots_registry</span>
+<span class="kn">from</span> <span class="nn">.visibility</span> <span class="kn">import</span> <span class="n">plot_visibility</span>
+<span class="kn">from</span> <span class="nn">.mapping</span> <span class="kn">import</span> <span class="n">plot_mapping</span>
+
+
+<span class="n">_common_plotter_schema</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;save&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Save the figure.&#39;</span><span class="p">):</span> <span class="nb">bool</span>
+    <span class="p">}</span>
+
+
+<div class="viewcode-block" id="VisibilityPlotConfig"><a class="viewcode-back" href="../../../api/tolteca.simu.plots.VisibilityPlotConfig.html#tolteca.simu.plots.VisibilityPlotConfig">[docs]</a><span class="nd">@plots_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s1">&#39;visibility&#39;</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">VisibilityPlotConfig</span><span class="p">(</span><span class="n">DataclassNamespace</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The config class for visibility plot.&quot;&quot;&quot;</span>
+
+    <span class="n">_namespace_from_dict_schema</span> <span class="o">=</span> <span class="n">Schema</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">_common_plotter_schema</span><span class="p">))</span>
+
+<div class="viewcode-block" id="VisibilityPlotConfig.__call__"><a class="viewcode-back" href="../../../api/tolteca.simu.plots.VisibilityPlotConfig.html#tolteca.simu.plots.VisibilityPlotConfig.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Make visibility plot for simulation config `cfg`.&quot;&quot;&quot;</span>
+        <span class="n">target_coord</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mapping</span><span class="o">.</span><span class="n">target_coord</span>
+        <span class="n">target_name</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">mapping</span><span class="o">.</span><span class="n">target</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">plot_visibility</span><span class="p">(</span>
+            <span class="n">t0</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">mapping</span><span class="o">.</span><span class="n">t0</span><span class="p">,</span>
+            <span class="n">targets</span><span class="o">=</span><span class="p">[</span><span class="n">target_coord</span><span class="p">],</span>
+            <span class="n">target_names</span><span class="o">=</span><span class="p">[</span><span class="n">target_name</span><span class="p">],</span>
+            <span class="n">show</span><span class="o">=</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">save</span>  <span class="c1"># we handle the save later in the run() method</span>
+            <span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="MappingPlotConfig"><a class="viewcode-back" href="../../../api/tolteca.simu.plots.MappingPlotConfig.html#tolteca.simu.plots.MappingPlotConfig">[docs]</a><span class="nd">@plots_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s1">&#39;mapping&#39;</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">MappingPlotConfig</span><span class="p">(</span><span class="n">DataclassNamespace</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The config class for mapping trajectory plot.&quot;&quot;&quot;</span>
+
+    <span class="n">_namespace_from_dict_schema</span> <span class="o">=</span> <span class="n">Schema</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">_common_plotter_schema</span><span class="p">))</span>
+
+<div class="viewcode-block" id="MappingPlotConfig.__call__"><a class="viewcode-back" href="../../../api/tolteca.simu.plots.MappingPlotConfig.html#tolteca.simu.plots.MappingPlotConfig.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Make mapping plot for simulation config `cfg`.&quot;&quot;&quot;</span>
+        <span class="n">target_name</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">mapping</span><span class="o">.</span><span class="n">target</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">plot_mapping</span><span class="p">(</span>
+            <span class="n">simulator</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">instrument</span><span class="p">(</span><span class="n">cfg</span><span class="p">),</span>
+            <span class="n">mapping</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">mapping</span><span class="p">(</span><span class="n">cfg</span><span class="p">),</span>
+            <span class="n">target_name</span><span class="o">=</span><span class="n">target_name</span><span class="p">,</span>
+            <span class="n">show</span><span class="o">=</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">save</span>  <span class="c1"># we handle the save later in the run() method</span>
+            <span class="p">)</span></div></div>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
+  </p>
+</footer>
+  </body>
+</html>

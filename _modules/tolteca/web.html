@@ -5,7 +5,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>tolteca.web &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <title>tolteca.web &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/bootstrap-astropy.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
@@ -47,7 +47,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
+	<a href="../../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
 	 &#187;
       </li>
       <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li>
@@ -63,219 +63,204 @@
           <div class="body" role="main">
             
   <h1>Source code for tolteca.web</h1><div class="highlight"><pre>
-<span></span><span class="ch">#! /usr/bin/env python</span>
+<span></span><span class="ch">#!/usr/bin/env python</span>
 
-<span class="sd">&quot;&quot;&quot;DashA site for TolTECA.&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">wrapt</span> <span class="kn">import</span> <span class="n">ObjectProxy</span>
+<span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span> <span class="nn">cached_property</span> <span class="kn">import</span> <span class="n">cached_property</span>
 
-<span class="kn">from</span> <span class="nn">tollan.utils.env</span> <span class="kn">import</span> <span class="n">env_registry</span>
-<span class="kn">from</span> <span class="nn">tolteca.datamodels.fs.toltec</span> <span class="kn">import</span> <span class="n">ToltecDataFileStore</span>
-<span class="kn">from</span> <span class="nn">..utils</span> <span class="kn">import</span> <span class="n">get_user_data_dir</span>
-<span class="kn">import</span> <span class="nn">dash_bootstrap_components</span> <span class="k">as</span> <span class="nn">dbc</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.dataclass_schema</span> <span class="kn">import</span> <span class="n">add_schema</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_yaml</span>
+<span class="kn">from</span> <span class="nn">tollan.utils</span> <span class="kn">import</span> <span class="n">odict_from_list</span>
 
-
-<span class="n">env_prefix</span> <span class="o">=</span> <span class="s1">&#39;TOLTECA&#39;</span>
-
-<span class="n">env_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_DB_TOLTEC_URL&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;The TolTEC database url.&quot;</span><span class="p">,</span>
-        <span class="s1">&#39;mysql+mysqldb://localhost:3306&#39;</span><span class="p">)</span>
-<span class="n">env_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_DB_TOLTEC_USERLOG_TOOL_URL&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;The TolTEC database url for user log tool.&quot;</span><span class="p">,</span>
-        <span class="s1">&#39;mysql+mysqldb://localhost:3306&#39;</span><span class="p">)</span>
-<span class="n">env_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_DB_TOLTECA_URL&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;The TolTECA database url&quot;</span><span class="p">,</span>
-        <span class="s1">&#39;mysql+mysqldb://localhost:3306&#39;</span><span class="p">)</span>
-<span class="n">env_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_FS_TOLTEC_ROOTPATH&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;The root path to TolTEC data files&quot;</span><span class="p">,</span>
-        <span class="n">get_user_data_dir</span><span class="p">())</span>
-<span class="n">env_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_LMT_OCS3_URL&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;The OCS3_URL&quot;</span><span class="p">,</span>
-        <span class="s1">&#39;socket://localhost:61559&#39;</span><span class="p">)</span>
-<span class="n">env_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_FS_TOLTEC_HK_ROOTPATH&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;The root path to TolTEC housekeeping data files&quot;</span><span class="p">,</span>
-        <span class="n">get_user_data_dir</span><span class="p">())</span>
-
-<span class="c1"># resource providers</span>
-<span class="n">db_toltec_url</span> <span class="o">=</span> <span class="n">env_registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_DB_TOLTEC_URL&quot;</span><span class="p">)</span>
-<span class="n">db_toltec_userlog_tool_url</span> <span class="o">=</span> <span class="n">env_registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_DB_TOLTEC_USERLOG_TOOL_URL&quot;</span><span class="p">)</span>
-<span class="n">db_tolteca_url</span> <span class="o">=</span> <span class="n">env_registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_DB_TOLTECA_URL&quot;</span><span class="p">)</span>
-<span class="n">redis_url</span> <span class="o">=</span> <span class="s2">&quot;redis://localhost:6379&quot;</span>
-<span class="n">fs_toltec_rootpath</span> <span class="o">=</span> <span class="n">env_registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_FS_TOLTEC_ROOTPATH&quot;</span><span class="p">)</span>
-<span class="n">fs_toltec_hk_rootpath</span> <span class="o">=</span> <span class="n">env_registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_FS_TOLTEC_HK_ROOTPATH&quot;</span><span class="p">)</span>
-<span class="n">lmt_ocs3_url</span> <span class="o">=</span> <span class="n">env_registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">env_prefix</span><span class="si">}</span><span class="s2">_LMT_OCS3_URL&quot;</span><span class="p">)</span>
-<span class="n">toltec_datastore</span> <span class="o">=</span> <span class="n">ToltecDataFileStore</span><span class="p">(</span><span class="n">fs_toltec_rootpath</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="kn">import</span> <span class="n">RuntimeBase</span><span class="p">,</span> <span class="n">RuntimeBaseError</span>
+<span class="kn">from</span> <span class="nn">..utils.config_registry</span> <span class="kn">import</span> <span class="n">ConfigRegistry</span>
+<span class="kn">from</span> <span class="nn">..utils.config_schema</span> <span class="kn">import</span> <span class="n">add_config_schema</span>
+<span class="kn">from</span> <span class="nn">..utils.env_loader</span> <span class="kn">import</span> <span class="n">EnvLoader</span>
+<span class="kn">from</span> <span class="nn">..utils.doc_helper</span> <span class="kn">import</span> <span class="n">collect_config_item_types</span>
 
 
-<span class="c1"># site configs</span>
-<span class="n">db_config</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s2">&quot;SQLALCHEMY_TRACK_MODIFICATIONS&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-        <span class="s2">&quot;SQLALCHEMY_BINDS&quot;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="s1">&#39;toltec&#39;</span><span class="p">:</span> <span class="n">db_toltec_url</span><span class="p">,</span>
-            <span class="s1">&#39;toltec_userlog_tool&#39;</span><span class="p">:</span> <span class="n">db_toltec_userlog_tool_url</span><span class="p">,</span>
-            <span class="s1">&#39;tolteca&#39;</span><span class="p">:</span> <span class="n">db_tolteca_url</span><span class="p">,</span>
-            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="n">db_tolteca_url</span><span class="p">,</span>
-            <span class="p">}</span>
-        <span class="p">}</span>
-<span class="n">cache_config</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s2">&quot;CACHE_TYPE&quot;</span><span class="p">:</span> <span class="s1">&#39;redis&#39;</span><span class="p">,</span>
-        <span class="s2">&quot;CACHE_DEFAULT_TIMEOUT&quot;</span><span class="p">:</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">5</span><span class="p">,</span>  <span class="c1"># second</span>
-        <span class="s2">&quot;CACHE_KEY_PREFIX&quot;</span><span class="p">:</span> <span class="s1">&#39;tolteca_&#39;</span><span class="p">,</span>
-        <span class="s2">&quot;CACHE_REDIS_URL&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">redis_url</span><span class="si">}</span><span class="s2">/0&quot;</span><span class="p">,</span>
-        <span class="p">}</span>
-<span class="n">ipc_config</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s1">&#39;backends&#39;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="s1">&#39;rejson&#39;</span><span class="p">:</span> <span class="p">{</span>
-                <span class="s1">&#39;url&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">redis_url</span><span class="si">}</span><span class="s2">/1&quot;</span><span class="p">,</span>
-                <span class="p">},</span>
-            <span class="p">}</span>
-        <span class="p">}</span>
-<span class="n">celery_config</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s2">&quot;CELERY_RESULT_BACKEND&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">redis_url</span><span class="si">}</span><span class="s2">/7&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;CELERY_RESULT_EXPIRES&quot;</span><span class="p">:</span> <span class="mi">24</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span><span class="p">,</span>  <span class="c1"># second  == 1day</span>
-        <span class="s2">&quot;CELERY_BROKER_URL&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">redis_url</span><span class="si">}</span><span class="s2">/7&quot;</span><span class="p">,</span>
-        <span class="p">}</span>
-<span class="n">dasha_config</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s2">&quot;TolTECA&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;dasha.web.templates.slapdash&quot;</span><span class="p">,</span>
-        <span class="s1">&#39;EXTERNAL_STYLESHEETS&#39;</span><span class="p">:</span> <span class="p">[</span>
-            <span class="c1"># dbc.themes.MATERIA,</span>
-            <span class="c1"># dbc.themes.YETI,</span>
-            <span class="n">dbc</span><span class="o">.</span><span class="n">themes</span><span class="o">.</span><span class="n">BOOTSTRAP</span><span class="p">,</span>
-            <span class="p">],</span>
-        <span class="s1">&#39;ASSETS_IGNORE&#39;</span><span class="p">:</span> <span class="s1">&#39;bootstrap.*&#39;</span>
-        <span class="p">}</span>
-
-
-<span class="c1"># tolteca payloads</span>
-<span class="c1"># from .tasks import toltecdb  # noqa: E402</span>
-
-
-<div class="viewcode-block" id="load_task_modules"><a class="viewcode-back" href="../../api/tolteca.web.load_task_modules.html#tolteca.web.load_task_modules">[docs]</a><span class="k">def</span> <span class="nf">load_task_modules</span><span class="p">():</span>
-    <span class="c1"># from .tasks import kidsview  # noqa: F401</span>
-    <span class="kn">from</span> <span class="nn">.tasks</span> <span class="kn">import</span> <span class="n">kidsreduce</span>  <span class="c1"># noqa: F401</span>
-    <span class="kn">from</span> <span class="nn">.tasks</span> <span class="kn">import</span> <span class="n">ocs3</span>  <span class="c1"># noqa: F401</span></div>
-
-
-<span class="n">celery_config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
-        <span class="c1"># tasks=toltecdb.tasks,</span>
-        <span class="n">post_init_app</span><span class="o">=</span><span class="n">load_task_modules</span>
-        <span class="p">)</span>
-
-<span class="n">dasha_config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
-        <span class="n">pages</span><span class="o">=</span><span class="p">[</span>
-                <span class="p">{</span>
-                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.toltecdashboard&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;toltecdashboard&quot;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_text&#39;</span><span class="p">:</span> <span class="s2">&quot;Dashboard&quot;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-tachometer-alt&#39;</span><span class="p">,</span>
-                <span class="p">},</span>
-                <span class="p">{</span>
-                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.logview&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;logview&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;Log View&#39;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;far fa-sticky-note&#39;</span><span class="p">,</span>
-                <span class="p">},</span>
-                <span class="p">{</span>
-                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.beammap&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;beammap&quot;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_text&#39;</span><span class="p">:</span> <span class="s2">&quot;Beammap&quot;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-layer-group&#39;</span><span class="p">,</span>
-                <span class="p">},</span>
-                <span class="p">{</span>
-                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.dichroic&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;dichroic&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;Dichro Temp&#39;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-thermometer-half&#39;</span><span class="p">,</span>
-                <span class="p">},</span>
-                <span class="p">{</span>
-                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.hkview&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;hkview&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;HK View&#39;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-thermometer-half&#39;</span><span class="p">,</span>
-                <span class="p">},</span>
-                <span class="p">{</span>
-                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.kids_explorer&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;kids_explorer&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;KIDs Explorer&#39;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-icicles&#39;</span><span class="p">,</span>
-                <span class="p">},</span>
-                <span class="p">{</span>
-                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.vna_explorer&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;vna_explorer&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;VNA Explorer&#39;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-icicles&#39;</span><span class="p">,</span>
-                <span class="p">},</span>
-                <span class="p">{</span>
-                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.tune_explorer&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;tune_explorer&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;TUNE Explorer&#39;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-icicles&#39;</span><span class="p">,</span>
-                <span class="p">},</span>
-                <span class="p">{</span>
-                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.noise_explorer&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;noise_explorer&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;Noise Explorer&#39;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-wave-square&#39;</span><span class="p">,</span>
-                <span class="p">},</span>
-                <span class="p">{</span>
-                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.disk_stats&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;disk_stats&quot;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_text&#39;</span><span class="p">:</span> <span class="s2">&quot;(dbg) Disk Stats&quot;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-hdd&#39;</span><span class="p">,</span>
-                <span class="p">},</span>
-                <span class="p">{</span>
-                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.toltecdb&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;toltecdb&quot;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_text&#39;</span><span class="p">:</span> <span class="s2">&quot;(dbg) Databases&quot;</span><span class="p">,</span>
-                    <span class="s1">&#39;title_icon&#39;</span><span class="p">:</span> <span class="s1">&#39;fas fa-table&#39;</span><span class="p">,</span>
-                <span class="p">},</span>
-                <span class="p">{</span>
-                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.taskview&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;taskview&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;(dbg) Beat Schedule&#39;</span><span class="p">,</span>
-                    <span class="s2">&quot;title_icon&quot;</span><span class="p">:</span> <span class="s1">&#39;fas fa-tasks&#39;</span>
-                <span class="p">},</span>
-                <span class="p">{</span>
-                    <span class="s2">&quot;template&quot;</span><span class="p">:</span> <span class="s2">&quot;tolteca.web.templates.kidsreduceview&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;route_name&quot;</span><span class="p">:</span> <span class="s2">&quot;kidsreduce&quot;</span><span class="p">,</span>
-                    <span class="s2">&quot;title_text&quot;</span><span class="p">:</span> <span class="s1">&#39;(dbg) TRS Info&#39;</span><span class="p">,</span>
-                <span class="p">},</span>
-            <span class="p">],</span>
-        <span class="p">)</span>
-
-
-<span class="c1"># site runtime</span>
-<span class="n">_dasha_ext_module_parent</span> <span class="o">=</span> <span class="s1">&#39;dasha.web.extensions&#39;</span>
-<span class="n">extensions</span> <span class="o">=</span> <span class="p">[</span>
-    <span class="p">{</span>
-        <span class="s1">&#39;module&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">_dasha_ext_module_parent</span><span class="si">}</span><span class="s1">.db&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;config&#39;</span><span class="p">:</span> <span class="n">db_config</span><span class="p">,</span>
-        <span class="p">},</span>
-    <span class="p">{</span>
-        <span class="s1">&#39;module&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">_dasha_ext_module_parent</span><span class="si">}</span><span class="s1">.cache&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;config&#39;</span><span class="p">:</span> <span class="n">cache_config</span><span class="p">,</span>
-        <span class="p">},</span>
-    <span class="p">{</span>
-        <span class="s1">&#39;module&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">_dasha_ext_module_parent</span><span class="si">}</span><span class="s2">.ipc&quot;</span><span class="p">,</span>
-        <span class="s1">&#39;config&#39;</span><span class="p">:</span> <span class="n">ipc_config</span>
-        <span class="p">},</span>
-    <span class="p">{</span>
-        <span class="s1">&#39;module&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">_dasha_ext_module_parent</span><span class="si">}</span><span class="s2">.celery&quot;</span><span class="p">,</span>
-        <span class="s1">&#39;config&#39;</span><span class="p">:</span> <span class="n">celery_config</span>
-        <span class="p">},</span>
-    <span class="p">{</span>
-        <span class="s1">&#39;module&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">_dasha_ext_module_parent</span><span class="si">}</span><span class="s1">.dasha&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;config&#39;</span><span class="p">:</span> <span class="n">dasha_config</span><span class="p">,</span>
-        <span class="p">},</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;env_loader&#39;</span><span class="p">,</span> <span class="s1">&#39;WebConfig&#39;</span><span class="p">,</span> <span class="s1">&#39;WebRuntime&#39;</span><span class="p">,</span> <span class="s1">&#39;WebRuntimeError&#39;</span><span class="p">,</span>
     <span class="p">]</span>
 
-<span class="c1"># from .defaults import create_server  # noqa: F401</span>
+
+<span class="n">env_loader</span> <span class="o">=</span> <span class="n">EnvLoader</span><span class="p">(</span><span class="n">root_namespace</span><span class="o">=</span><span class="s1">&#39;TOLTECA_WEB&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;An env loader instance shared by all apps.&quot;&quot;&quot;</span>
+
+
+<span class="n">web_config</span> <span class="o">=</span> <span class="n">ObjectProxy</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">A proxy to the web config, which is made available</span>
+<span class="sd">when `WebRuntime` instance is created.</span>
+
+<span class="sd">This is consumed in the `tolteca.web.apps` submodule.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">ConfigRegistryWithEnvLoader</span><span class="p">(</span><span class="n">ConfigRegistry</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A helper class to register config object with env loader.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">register</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># we subclass the config registry to allow register the app</span>
+        <span class="c1"># config classes with env loader</span>
+        <span class="c1"># this will hook the app config from_dict method so it</span>
+        <span class="c1"># pulls the env values before constructing the instance.</span>
+        <span class="n">cf</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">ef</span> <span class="o">=</span> <span class="n">env_loader</span><span class="o">.</span><span class="n">register_dataclass_schema</span><span class="p">(</span><span class="n">namespace</span><span class="o">=</span><span class="n">key</span><span class="o">.</span><span class="n">upper</span><span class="p">())</span>
+
+        <span class="k">def</span> <span class="nf">wrapped</span><span class="p">(</span><span class="n">item</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">cf</span><span class="p">(</span><span class="n">ef</span><span class="p">(</span><span class="n">item</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">wrapped</span>
+
+
+<span class="n">apps_registry</span> <span class="o">=</span> <span class="n">ConfigRegistryWithEnvLoader</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s1">&#39;AppsConfig&#39;</span><span class="p">,</span>
+    <span class="n">dispatcher_key</span><span class="o">=</span><span class="s1">&#39;name&#39;</span><span class="p">,</span>
+    <span class="n">dispatcher_description</span><span class="o">=</span><span class="s1">&#39;The app name.&#39;</span><span class="p">,</span>
+    <span class="n">dispatcher_key_is_optional</span><span class="o">=</span><span class="kc">False</span>
+    <span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;The registry for ``web.apps``.&quot;&quot;&quot;</span>
+
+
+<span class="k">def</span> <span class="nf">get_app_config</span><span class="p">(</span><span class="n">app_config_cls</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return app config instance for given class.&quot;&quot;&quot;</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">web_config</span><span class="p">:</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="n">web_config</span><span class="o">.</span><span class="n">get_app_config</span><span class="p">(</span><span class="n">app_config_cls</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">cfg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="s2">&quot;load app config from web config:</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">to_dict</span><span class="p">())</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">cfg</span>
+    <span class="c1"># fall back to create a default one, if possible</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># note we use from_dict here to trigger env loader</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="n">app_config_cls</span><span class="o">.</span><span class="n">from_dict</span><span class="p">({})</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">&quot;load default app config:</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">to_dict</span><span class="p">())</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;cannot construct app config class </span><span class="si">{</span><span class="n">app_config_cls</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">cfg</span>
+
+
+<span class="c1"># Load apps here to populate the registries</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">apps</span> <span class="k">as</span> <span class="n">_</span>  <span class="c1"># noqa: F401, E402, F811</span>
+
+<span class="c1"># we keep track of this dict in order to look up the namespace for</span>
+<span class="c1"># collecting env vars</span>
+<span class="n">_app_name_by_config_cls</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">apps_registry</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+
+
+<div class="viewcode-block" id="WebConfig"><a class="viewcode-back" href="../../api/tolteca.web.WebConfig.html#tolteca.web.WebConfig">[docs]</a><span class="nd">@add_config_schema</span>
+<span class="nd">@add_schema</span>
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">WebConfig</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The config for `tolteca.web`.&quot;&quot;&quot;</span>
+
+    <span class="n">apps</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">,</span>
+        <span class="n">metadata</span><span class="o">=</span><span class="p">{</span>
+            <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="s1">&#39;The list contains config for apps.&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;schema&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">apps_registry</span><span class="o">.</span><span class="n">item_schemas</span><span class="p">),</span>
+            <span class="s1">&#39;pformat_schema_type&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;[&lt;</span><span class="si">{</span><span class="n">apps_registry</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&gt;, ...]&quot;</span>
+            <span class="p">})</span>
+
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;ignore_extra_keys&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="s1">&#39;The config dict for web apps.&#39;</span>
+            <span class="p">}</span>
+        <span class="n">config_key</span> <span class="o">=</span> <span class="s1">&#39;web&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_apps_by_name</span> <span class="o">=</span> <span class="n">odict_from_list</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">apps</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">c</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+<div class="viewcode-block" id="WebConfig.get_app_config"><a class="viewcode-back" href="../../api/tolteca.web.WebConfig.html#tolteca.web.WebConfig.get_app_config">[docs]</a>    <span class="k">def</span> <span class="nf">get_app_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apps_by_name</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
+            <span class="n">arg</span> <span class="o">=</span> <span class="n">_app_name_by_config_cls</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_app_config</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;invalid arg: </span><span class="si">{</span><span class="n">arg</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="WebRuntimeError"><a class="viewcode-back" href="../../api/tolteca.web.WebRuntimeError.html#tolteca.web.WebRuntimeError">[docs]</a><span class="k">class</span> <span class="nc">WebRuntimeError</span><span class="p">(</span><span class="n">RuntimeBaseError</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="WebRuntime"><a class="viewcode-back" href="../../api/tolteca.web.WebRuntime.html#tolteca.web.WebRuntime">[docs]</a><span class="k">class</span> <span class="nc">WebRuntime</span><span class="p">(</span><span class="n">RuntimeBase</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A class that manages the runtime context of web apps.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">config_cls</span> <span class="o">=</span> <span class="n">WebConfig</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># re-implement config so that we re-set the env_loader</span>
+        <span class="c1"># cache for each config load.</span>
+        <span class="c1"># TODO remove this when we sort out the env handling stuff</span>
+        <span class="n">env_loader</span><span class="o">.</span><span class="n">_attr_dict_from_env_var</span><span class="o">.</span><span class="n">cache_clear</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">config_cls</span><span class="o">.</span><span class="n">from_config_dict</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rc</span><span class="o">.</span><span class="n">config</span><span class="p">,</span>
+            <span class="c1"># these are passed to the schema validate method</span>
+            <span class="n">rootpath</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">rc</span><span class="o">.</span><span class="n">rootpath</span><span class="p">,</span>
+            <span class="n">runtime_info</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">rc</span><span class="o">.</span><span class="n">runtime_info</span><span class="p">)</span>
+
+<div class="viewcode-block" id="WebRuntime.update_from_env_loader"><a class="viewcode-back" href="../../api/tolteca.web.WebRuntime.html#tolteca.web.WebRuntime.update_from_env_loader">[docs]</a>    <span class="k">def</span> <span class="nf">update_from_env_loader</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Update config dict with env vars.&quot;&quot;&quot;</span>
+        <span class="c1"># TODO the current aproach to inject env vars is at</span>
+        <span class="c1"># the dataclass_cls level through schema. This causes</span>
+        <span class="c1"># re-parsing of the env vars for each sub schema validate</span>
+        <span class="c1"># call which could occur multiple times.</span>
+        <span class="c1"># maybe it is better to collect the env vars at the</span>
+        <span class="c1"># config level just like how the CLI config is collected</span>
+        <span class="k">return</span> <span class="bp">NotImplemented</span></div>
+        <span class="c1"># need to get the cfg dict to figure out existing app config</span>
+        <span class="c1"># and the index</span>
+        <span class="c1"># web_cfg_key = self.config_cls.config_key</span>
+        <span class="c1"># cfg = self.rc.config</span>
+        <span class="c1"># if web_cfg_key not in</span>
+        <span class="c1"># cfg = self.rc.config[]</span>
+        <span class="c1"># app_cfg_idx = {</span>
+        <span class="c1">#     d[&#39;name&#39;]: i</span>
+        <span class="c1">#     for i, d in enumerate(</span>
+        <span class="c1">#         self.rc.config[self.config_cls.config_key][&#39;apps&#39;])</span>
+        <span class="c1">#     }</span>
+        <span class="c1"># # update app dict by traversing all registered app config type</span>
+        <span class="c1"># for k, s in apps_registry.item_schemas.items():</span>
+        <span class="c1">#     env_cfg.update({</span>
+        <span class="c1">#         &#39;app&#39;})</span>
+
+<div class="viewcode-block" id="WebRuntime.run"><a class="viewcode-back" href="../../api/tolteca.web.WebRuntime.html#tolteca.web.WebRuntime.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">app_name</span><span class="p">,</span> <span class="n">ext_proc_name</span><span class="o">=</span><span class="s1">&#39;flask&#39;</span><span class="p">):</span>
+        <span class="c1"># load env vars</span>
+        <span class="c1"># self.update_from_env_loader(env_loader)</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="n">web_config</span><span class="o">.</span><span class="n">__wrapped__</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span>
+        <span class="n">env_dict</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">env_loader</span><span class="o">.</span><span class="n">root_namespace</span><span class="p">)}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;run web app=</span><span class="si">{</span><span class="n">app_name</span><span class="si">}</span><span class="s2"> ext_proc=</span><span class="si">{</span><span class="n">ext_proc_name</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;config dict:</span><span class="se">\n</span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">to_config_dict</span><span class="p">())</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;env dict:</span><span class="se">\n</span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">env_dict</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># invoke dasha cli</span>
+        <span class="kn">from</span> <span class="nn">dasha.cli</span> <span class="kn">import</span> <span class="n">run_site</span>
+        <span class="n">dasha_site_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;tolteca.web.apps.</span><span class="si">{</span><span class="n">app_name</span><span class="si">}</span><span class="s1">&#39;</span>
+        <span class="k">return</span> <span class="n">run_site</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;-s&#39;</span><span class="p">,</span> <span class="n">dasha_site_name</span><span class="p">,</span> <span class="n">ext_proc_name</span><span class="p">])</span></div></div>
+
+
+<span class="n">web_config_item_types</span> <span class="o">=</span> <span class="n">collect_config_item_types</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">locals</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
 </pre></div>
 
             <div class="clearer"></div>
@@ -294,9 +279,9 @@
   <p class="pull-right"> &nbsp;
     <a href="#">Back to Top</a></p>
   <p>
-    &copy; Copyright 2021, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
-    Last built 18 Jun 2021. <br/>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
   </p>
 </footer>
   </body>

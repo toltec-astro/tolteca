@@ -5,7 +5,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>tolteca.reduce.toltec &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <title>tolteca.reduce.toltec &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/bootstrap-astropy.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css" />
@@ -47,7 +47,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
+	<a href="../../../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
 	 &#187;
       </li>
       <li><a href="../../index.html" >Module code</a> &#187;</li>
@@ -64,201 +64,76 @@
           <div class="body" role="main">
             
   <h1>Source code for tolteca.reduce.toltec</h1><div class="highlight"><pre>
-<span></span><span class="ch">#! /usr/bin/env python</span>
+<span></span><span class="ch">#!/usr/bin/env python</span>
 
-<span class="kn">from</span> <span class="nn">packaging.specifiers</span> <span class="kn">import</span> <span class="n">SpecifierSet</span>
-<span class="kn">from</span> <span class="nn">packaging.version</span> <span class="kn">import</span> <span class="n">parse</span> <span class="k">as</span> <span class="n">parse_version</span>
-<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
-<span class="kn">import</span> <span class="nn">subprocess</span>
-<span class="kn">from</span> <span class="nn">contextlib</span> <span class="kn">import</span> <span class="n">contextmanager</span>
-<span class="kn">from</span> <span class="nn">astropy.table</span> <span class="kn">import</span> <span class="n">Table</span>
-<span class="c1"># import yaml</span>
-<span class="kn">import</span> <span class="nn">re</span>
-<span class="kn">from</span> <span class="nn">copy</span> <span class="kn">import</span> <span class="n">deepcopy</span>
-<span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_yaml</span>
-<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span><span class="p">,</span> <span class="n">timeit</span>
-<span class="kn">from</span> <span class="nn">..base</span> <span class="kn">import</span> <span class="n">PipelineEngine</span>
-<span class="kn">from</span> <span class="nn">tollan.utils</span> <span class="kn">import</span> <span class="n">call_subprocess_with_live_output</span><span class="p">,</span> <span class="n">make_subprocess_env</span>
+
+<span class="kn">from</span> <span class="nn">..datastore</span> <span class="kn">import</span> <span class="n">LocalFileDataStore</span>
+<span class="kn">from</span> <span class="nn">...datamodels.toltec</span> <span class="kn">import</span> <span class="n">BasicObsDataset</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.namespace</span> <span class="kn">import</span> <span class="n">NamespaceMixin</span>
+<span class="kn">from</span> <span class="nn">tollan.utils</span> <span class="kn">import</span> <span class="n">fileloc</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">u</span>
 
 
-<span class="k">def</span> <span class="nf">_fix_apt</span><span class="p">(</span><span class="n">source</span><span class="p">):</span>
-    <span class="c1"># this is a temporary fix to allow citlali to work with the</span>
-    <span class="c1"># apt</span>
-    <span class="n">tbl</span> <span class="o">=</span> <span class="n">Table</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;ascii.ecsv&#39;</span><span class="p">)</span>
-    <span class="n">tbl_new</span> <span class="o">=</span> <span class="n">Table</span><span class="p">()</span>
-    <span class="n">tbl_new</span><span class="p">[</span><span class="s1">&#39;nw&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;nw&#39;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;d&#39;</span><span class="p">)</span>
-    <span class="n">tbl_new</span><span class="p">[</span><span class="s1">&#39;array&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;array&#39;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;d&#39;</span><span class="p">)</span>
-    <span class="n">tbl_new</span><span class="p">[</span><span class="s1">&#39;x_t&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;x_t&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span>
-    <span class="n">tbl_new</span><span class="p">[</span><span class="s1">&#39;y_t&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;y_t&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span>
-    <span class="n">source_new</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;.ecsv&#39;</span><span class="p">,</span> <span class="s1">&#39;_trimmed.ecsv&#39;</span><span class="p">)</span>
-    <span class="n">tbl_new</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">source_new</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;ascii.ecsv&#39;</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">source_new</span>
+<div class="viewcode-block" id="BasicObsDatasetLoader"><a class="viewcode-back" href="../../../api/tolteca.reduce.toltec.BasicObsDatasetLoader.html#tolteca.reduce.toltec.BasicObsDatasetLoader">[docs]</a><span class="nd">@LocalFileDataStore</span><span class="o">.</span><span class="n">register_data_loader</span><span class="p">(</span><span class="s1">&#39;toltec_bod&#39;</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">BasicObsDatasetLoader</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A class to collect TolTEC basic obs dataset from local files.&quot;&quot;&quot;</span>
 
-
-<div class="viewcode-block" id="Citlali"><a class="viewcode-back" href="../../../api/tolteca.reduce.toltec.Citlali.html#tolteca.reduce.toltec.Citlali">[docs]</a><span class="k">class</span> <span class="nc">Citlali</span><span class="p">(</span><span class="n">PipelineEngine</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;A class to run citlali, the TolTEC data reduction engine.</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    -----------</span>
-<span class="sd">    binpath : str or `~pathlib.Path`, optional</span>
-<span class="sd">        The path to the citlali executable.</span>
-<span class="sd">    version_specifiers : str, optional</span>
-<span class="sd">        If set, the citlali version is checked against these specifiers.</span>
-<span class="sd">    calobj : `~tolteca.cal.ToltecCalib`, optional</span>
-<span class="sd">        The calibration object to use.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
-    <span class="n">_name</span> <span class="o">=</span> <span class="s1">&#39;citlali&#39;</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
-            <span class="bp">self</span><span class="p">,</span> <span class="n">binpath</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">version_specifiers</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-            <span class="n">calobj</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_version_specifiers</span> <span class="o">=</span> <span class="n">version_specifiers</span>
-        <span class="n">binpath</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">binpath</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">Path</span><span class="p">(</span><span class="n">binpath</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_binpath</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_citlali_cmd</span><span class="p">(</span>
-                <span class="n">binpath</span><span class="o">=</span><span class="n">binpath</span><span class="p">,</span>
-                <span class="n">version_specifiers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_version_specifiers</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_version</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_citlali_version</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_binpath</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_calobj</span> <span class="o">=</span> <span class="n">calobj</span>
-
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">_get_citlali_version</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">citlali_cmd</span><span class="p">):</span>
-        <span class="n">output</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">(</span>
-                <span class="p">(</span><span class="n">citlali_cmd</span><span class="p">,</span> <span class="s1">&#39;--version&#39;</span><span class="p">),</span>
-                <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">STDOUT</span><span class="p">,</span>
-                <span class="n">env</span><span class="o">=</span><span class="n">make_subprocess_env</span><span class="p">()</span>
-                <span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
-        <span class="c1"># logger.debug(f&#39;citlali version:\n{output}&#39;)</span>
-        <span class="n">r</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
-                <span class="sa">r</span><span class="s1">&#39;^citlali\s(?P&lt;version&gt;.+)\s\((?P&lt;timestamp&gt;.+)\)$&#39;</span><span class="p">,</span>
-                <span class="n">re</span><span class="o">.</span><span class="n">MULTILINE</span><span class="p">)</span>
-        <span class="n">m</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span><span class="o">.</span><span class="n">groupdict</span><span class="p">()</span>
-        <span class="n">version</span> <span class="o">=</span> <span class="n">m</span><span class="p">[</span><span class="s1">&#39;version&#39;</span><span class="p">]</span>
-        <span class="k">return</span> <span class="n">version</span>
-
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">_get_citlali_cmd</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">binpath</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">version_specifiers</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Get the citlali executable.&quot;&quot;&quot;</span>
-        <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
-        <span class="k">if</span> <span class="n">binpath</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">binpath</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
-                <span class="n">binpath</span> <span class="o">=</span> <span class="n">binpath</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;citlali&#39;</span><span class="p">)</span>
-            <span class="n">citlali_cmd</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">binpath</span><span class="p">)</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_normalize_source</span><span class="p">(</span><span class="n">source</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">NamespaceMixin</span><span class="p">):</span>
+            <span class="c1"># by default we select the last item from the BODs</span>
+            <span class="c1"># if select is not given</span>
+            <span class="n">select</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">select</span> <span class="ow">or</span> <span class="s1">&#39;obsnum_r == 0&#39;</span>
+            <span class="n">source</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">path</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">citlali_cmd</span> <span class="o">=</span> <span class="s1">&#39;citlali&#39;</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">version</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_get_citlali_version</span><span class="p">(</span><span class="n">citlali_cmd</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="c1"># raise RuntimeError(f&quot;unable to get citlali version: {e}&quot;)</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;unable to get citlali version: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="n">version</span> <span class="o">=</span> <span class="s1">&#39;unknown&#39;</span>
-        <span class="k">if</span> <span class="n">version_specifiers</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> \
-                <span class="n">parse_version</span><span class="p">(</span><span class="n">version</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">SpecifierSet</span><span class="p">(</span><span class="n">version_specifiers</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;citlali version does not satisfy </span><span class="si">{</span><span class="n">version_specifiers</span><span class="si">}</span><span class="s2">&quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;, found </span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">pformat_yaml</span><span class="p">(</span>
-            <span class="p">{</span><span class="s1">&#39;citlali&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="n">citlali_cmd</span><span class="p">,</span> <span class="s1">&#39;version&#39;</span><span class="p">:</span> <span class="n">version</span><span class="p">}}))</span>
-        <span class="k">return</span> <span class="n">citlali_cmd</span>
+            <span class="n">select</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">source</span> <span class="o">=</span> <span class="n">fileloc</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">source</span><span class="p">,</span> <span class="n">select</span>
 
-    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">(</span>
-                <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s1">&#39;</span>
-                <span class="sa">f</span><span class="s1">&#39;(</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_binpath</span><span class="si">}</span><span class="s1">,version=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">version</span><span class="si">}</span><span class="s1">)&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="BasicObsDatasetLoader.identify"><a class="viewcode-back" href="../../../api/tolteca.reduce.toltec.BasicObsDatasetLoader.html#tolteca.reduce.toltec.BasicObsDatasetLoader.identify">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">identify</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">source</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Identify if `BasicObsDataset` can be constructed from `source`.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">LocalFileDataStore</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="n">source</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_normalize_source</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">source</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
 
-<div class="viewcode-block" id="Citlali.proc_context"><a class="viewcode-back" href="../../../api/tolteca.reduce.toltec.Citlali.html#tolteca.reduce.toltec.Citlali.proc_context">[docs]</a>    <span class="nd">@contextmanager</span>
-    <span class="k">def</span> <span class="nf">proc_context</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return a function that can be used to run the</span>
-<span class="sd">        Citlali for given input dataset.</span>
+<div class="viewcode-block" id="BasicObsDatasetLoader.load"><a class="viewcode-back" href="../../../api/tolteca.reduce.toltec.BasicObsDatasetLoader.html#tolteca.reduce.toltec.BasicObsDatasetLoader.load">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">load</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">select</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Load `BasicObsDataset` from `source`.&quot;&quot;&quot;</span>
+        <span class="n">source</span><span class="p">,</span> <span class="n">default_select</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_normalize_source</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">select</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">select</span> <span class="o">=</span> <span class="n">default_select</span>
+        <span class="n">bods</span> <span class="o">=</span> <span class="n">BasicObsDataset</span><span class="o">.</span><span class="n">from_files</span><span class="p">(</span>
+                <span class="n">source</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s1">&#39;*&#39;</span><span class="p">),</span> <span class="n">open_</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="c1"># remove any file that does not have valid interface</span>
+        <span class="n">bods</span> <span class="o">=</span> <span class="n">bods</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">equal</span><span class="p">(</span><span class="n">bods</span><span class="p">[</span><span class="s1">&#39;interface&#39;</span><span class="p">],</span> <span class="kc">None</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">select</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># apply custom select</span>
+            <span class="n">bods</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_normalize_bods</span><span class="p">(</span><span class="n">bods</span><span class="p">)</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">select</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">bods</span><span class="p">]</span></div>
 
-<span class="sd">        Parameters</span>
-<span class="sd">        ==========</span>
-<span class="sd">        cfg : dict</span>
+<div class="viewcode-block" id="BasicObsDatasetLoader.aggregate"><a class="viewcode-back" href="../../../api/tolteca.reduce.toltec.BasicObsDatasetLoader.html#tolteca.reduce.toltec.BasicObsDatasetLoader.aggregate">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">aggregate</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">items</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Aggregate `BasicObsDataset` in `items` into a single one.&quot;&quot;&quot;</span>
+        <span class="n">bods_list</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">item</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">items</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">BasicObsDataset</span><span class="p">)]</span>
+        <span class="n">bods</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_normalize_bods</span><span class="p">(</span><span class="n">BasicObsDataset</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">bods_list</span><span class="p">))</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;collected </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">bods</span><span class="p">)</span><span class="si">}</span><span class="s2"> data items&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">bods</span><span class="p">]</span></div>
 
-<span class="sd">            The high-level configuration.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">cfg</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
-
-        <span class="nd">@timeit</span>
-        <span class="k">def</span> <span class="nf">proc</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span> <span class="n">outdir</span><span class="p">):</span>
-            <span class="c1"># resolve the dataset to input items</span>
-            <span class="n">tbl</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">index_table</span>
-            <span class="n">grouped</span> <span class="o">=</span> <span class="n">tbl</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span>
-                <span class="p">[</span><span class="s1">&#39;obsnum&#39;</span><span class="p">,</span> <span class="s1">&#39;subobsnum&#39;</span><span class="p">,</span> <span class="s1">&#39;scannum&#39;</span><span class="p">,</span> <span class="s1">&#39;master&#39;</span><span class="p">,</span> <span class="s1">&#39;repeat&#39;</span><span class="p">])</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;collected </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">grouped</span><span class="p">)</span><span class="si">}</span><span class="s2"> observations&quot;</span><span class="p">)</span>
-
-            <span class="k">def</span> <span class="nf">resolve_input_item</span><span class="p">(</span><span class="n">tbl</span><span class="p">):</span>
-                <span class="n">d0</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-                <span class="n">meta</span> <span class="o">=</span> <span class="p">{</span>
-                    <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">d0</span><span class="p">[</span><span class="s2">&quot;obsnum&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">d0</span><span class="p">[</span><span class="s2">&quot;subobsnum&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">d0</span><span class="p">[</span><span class="s2">&quot;scannum&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span>
-                    <span class="p">}</span>
-                <span class="n">data_items</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
-                <span class="n">cal_items</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
-                <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">tbl</span><span class="p">:</span>
-                    <span class="n">instru</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;instru&#39;</span><span class="p">]</span>
-                    <span class="n">interface</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;interface&#39;</span><span class="p">]</span>
-                    <span class="n">source</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;source&#39;</span><span class="p">]</span>
-                    <span class="k">if</span> <span class="n">instru</span> <span class="o">==</span> <span class="s1">&#39;toltec&#39;</span><span class="p">:</span>
-                        <span class="n">c</span> <span class="o">=</span> <span class="n">data_items</span>
-                    <span class="k">elif</span> <span class="n">interface</span> <span class="o">==</span> <span class="s1">&#39;lmt&#39;</span><span class="p">:</span>
-                        <span class="n">c</span> <span class="o">=</span> <span class="n">data_items</span>
-                    <span class="k">elif</span> <span class="n">interface</span> <span class="o">==</span> <span class="s1">&#39;apt&#39;</span><span class="p">:</span>
-                        <span class="n">c</span> <span class="o">=</span> <span class="n">cal_items</span>
-                        <span class="c1"># TODO implement in citlali the proper</span>
-                        <span class="c1"># ecsv handling</span>
-                        <span class="n">source</span> <span class="o">=</span> <span class="n">_fix_apt</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
-                    <span class="k">else</span><span class="p">:</span>
-                        <span class="k">continue</span>
-                    <span class="n">c</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                            <span class="s1">&#39;filepath&#39;</span><span class="p">:</span> <span class="n">source</span><span class="p">,</span>
-                            <span class="s1">&#39;meta&#39;</span><span class="p">:</span> <span class="p">{</span>
-                                <span class="s1">&#39;interface&#39;</span><span class="p">:</span> <span class="n">interface</span>
-                                <span class="p">}</span>
-                            <span class="p">})</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;collected </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">data_items</span><span class="p">)</span><span class="si">}</span><span class="s2"> data_items&quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">cal_items</span><span class="p">)</span><span class="si">}</span><span class="s2"> cal_items&quot;</span><span class="p">)</span>
-                <span class="c1"># this is a hack. TODO fix the proper ordering of data items</span>
-                <span class="n">data_items</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
-                        <span class="n">data_items</span><span class="p">,</span>
-                        <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="p">(</span>
-                            <span class="nb">int</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="s1">&#39;meta&#39;</span><span class="p">][</span><span class="s1">&#39;interface&#39;</span><span class="p">][</span><span class="mi">6</span><span class="p">:])</span>
-                            <span class="k">if</span> <span class="n">d</span><span class="p">[</span><span class="s1">&#39;meta&#39;</span><span class="p">][</span><span class="s1">&#39;interface&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;toltec&#39;</span><span class="p">)</span>
-                            <span class="k">else</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-                        <span class="p">)</span>
-                <span class="k">return</span> <span class="p">{</span>
-                        <span class="s1">&#39;meta&#39;</span><span class="p">:</span> <span class="n">meta</span><span class="p">,</span>
-                        <span class="s1">&#39;data_items&#39;</span><span class="p">:</span> <span class="n">data_items</span><span class="p">,</span>
-                        <span class="s1">&#39;cal_items&#39;</span><span class="p">:</span> <span class="n">cal_items</span><span class="p">,</span>
-                        <span class="p">}</span>
-
-            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">group</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">grouped</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">keys</span><span class="p">,</span> <span class="n">grouped</span><span class="o">.</span><span class="n">groups</span><span class="p">):</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                        <span class="s1">&#39;****** obs=</span><span class="si">{obsnum}</span><span class="s1">_</span><span class="si">{subobsnum}</span><span class="s1">_</span><span class="si">{scannum}</span><span class="s1"> &#39;</span>
-                        <span class="s1">&#39;*******&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">**</span><span class="n">key</span><span class="p">))</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">group</span><span class="si">}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
-            <span class="n">input_items</span> <span class="o">=</span> <span class="p">[</span><span class="n">resolve_input_item</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">grouped</span><span class="o">.</span><span class="n">groups</span><span class="p">]</span>
-            <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;inputs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">input_items</span>
-            <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;runtime&#39;</span><span class="p">][</span><span class="s1">&#39;output_filepath&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">outdir</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s1">&#39;resolved low level config:</span><span class="se">\n</span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-            <span class="n">cfg_filepath</span> <span class="o">=</span> <span class="n">outdir</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;citlali.yaml&#39;</span><span class="p">)</span>
-            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">cfg_filepath</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
-                <span class="n">fo</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">cfg</span><span class="p">))</span>
-                <span class="c1"># yaml.dump(pformatcfg, fo)</span>
-            <span class="c1"># run the pipeline</span>
-            <span class="n">cmd</span> <span class="o">=</span> <span class="p">[</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">_binpath</span><span class="p">,</span>
-                    <span class="s1">&#39;-l&#39;</span><span class="p">,</span> <span class="s1">&#39;error&#39;</span><span class="p">,</span>
-                    <span class="n">cfg_filepath</span><span class="o">.</span><span class="n">as_posix</span><span class="p">(),</span>
-                    <span class="p">]</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;reduce with cmd: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">cmd</span><span class="p">)))</span>
-            <span class="n">call_subprocess_with_live_output</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
-            <span class="k">return</span> <span class="nb">locals</span><span class="p">()</span>
-        <span class="k">yield</span> <span class="n">proc</span></div></div>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_normalize_bods</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">bods</span><span class="p">):</span>
+        <span class="n">bods</span><span class="o">.</span><span class="n">sort</span><span class="p">([</span><span class="s1">&#39;obsnum&#39;</span><span class="p">,</span> <span class="s1">&#39;interface&#39;</span><span class="p">])</span>
+        <span class="c1"># add special index columns for obsnums for backward selection</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;obsnum&#39;</span><span class="p">,</span> <span class="p">]:</span>
+            <span class="n">bods</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s1">_r&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">bods</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">-</span> <span class="n">bods</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">bods</span></div>
 </pre></div>
 
             <div class="clearer"></div>
@@ -277,9 +152,9 @@
   <p class="pull-right"> &nbsp;
     <a href="#">Back to Top</a></p>
   <p>
-    &copy; Copyright 2021, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
-    Last built 18 Jun 2021. <br/>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
   </p>
 </footer>
   </body>

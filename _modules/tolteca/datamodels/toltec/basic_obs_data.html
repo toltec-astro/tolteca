@@ -5,7 +5,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>tolteca.datamodels.toltec.basic_obs_data &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <title>tolteca.datamodels.toltec.basic_obs_data &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
     <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="../../../../_static/bootstrap-astropy.css" />
     <link rel="stylesheet" type="text/css" href="../../../../_static/graphviz.css" />
@@ -47,7 +47,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../../../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
+	<a href="../../../../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
 	 &#187;
       </li>
       <li><a href="../../../index.html" accesskey="U">Module code</a> &#187;</li>
@@ -98,15 +98,17 @@
 <span class="sd">        &gt;&gt;&gt; from tolteca.datamodels.toltec import BasicObsData</span>
 <span class="sd">        &gt;&gt;&gt; bod = BasicObsData(&#39;toltec0.nc&#39;)</span>
 <span class="sd">        &gt;&gt;&gt; with bod.open() as fo:</span>
-<span class="sd">        &gt;&gt;&gt;     # `fo` is a `~tolteca.datamodels.io.toltec.NcFileIO` instance.</span>
+<span class="sd">        &gt;&gt;&gt;     # ``fo`` is a `~tolteca.datamodels.io.toltec.NcFileIO`</span>
+<span class="sd">        &gt;&gt;&gt;     # instance.</span>
 <span class="sd">        &gt;&gt;&gt;     kidsdata = fo.read()</span>
 
-<span class="sd">        The above can also be done via the `open_file` shortcut as follows::</span>
+<span class="sd">    The above can also be done via the :meth:`BasicObsData.open` shortcut</span>
+<span class="sd">    as follows::</span>
 
 <span class="sd">        &gt;&gt;&gt; with BasicObsData.open(&#39;toltec0.nc&#39;) as fo:</span>
 <span class="sd">        &gt;&gt;&gt;     kidsdata = fo.read()</span>
 
-<span class="sd">        This can further be shortened as::</span>
+<span class="sd">    This can further be shortened as::</span>
 
 <span class="sd">        &gt;&gt;&gt; kidsdata = BasicObsData.read(&#39;toltec0.nc&#39;)</span>
 
@@ -122,7 +124,7 @@
 <span class="sd">    ----------</span>
 <span class="sd">    source : str, `~pathlib.Path`, `~tollan.utils.FileLoc`.</span>
 <span class="sd">        The data file location. Remote locations can be specified in</span>
-<span class="sd">        either URL or SFTP format ``&lt;host&gt;:&lt;path&gt;`.</span>
+<span class="sd">        either URL or SFTP format ``&lt;host&gt;:&lt;path&gt;``.</span>
 
 <span class="sd">    open_: bool</span>
 <span class="sd">        If True, attemp to open the file to load meta data.</span>
@@ -441,7 +443,7 @@
 
 <span class="sd">        When `cond` is a string, the index table is converted to</span>
 <span class="sd">        `~pandas.DataFrame` and the selection is done by</span>
-<span class="sd">        :meta:`~pandas.DataFrame.eval`.</span>
+<span class="sd">        :meth:`~pandas.DataFrame.eval`.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
@@ -496,6 +498,9 @@
                 <span class="n">bod_list</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bod_list</span><span class="p">)[</span><span class="n">item</span><span class="p">])</span>
 
     <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(n_bods=</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">index_table</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">pformat_tbl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">index_table</span><span class="o">.</span><span class="n">pformat</span><span class="p">(</span><span class="n">max_width</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">pformat_tbl</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;Length&quot;</span><span class="p">):</span>
             <span class="n">pformat_tbl</span> <span class="o">=</span> <span class="n">pformat_tbl</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
@@ -581,9 +586,9 @@
   <p class="pull-right"> &nbsp;
     <a href="#">Back to Top</a></p>
   <p>
-    &copy; Copyright 2021, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
-    Last built 18 Jun 2021. <br/>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
   </p>
 </footer>
   </body>

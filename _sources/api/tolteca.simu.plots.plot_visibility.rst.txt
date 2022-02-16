@@ -1,0 +1,6 @@
+plot_visibility
+===============
+
+.. currentmodule:: tolteca.simu.plots
+
+.. autofunction:: plot_visibility

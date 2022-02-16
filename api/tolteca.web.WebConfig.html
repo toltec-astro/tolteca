@@ -1,0 +1,224 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>WebConfig &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+    
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="WebRuntime" href="tolteca.web.WebRuntime.html" />
+    <link rel="prev" title="ConfigLoader" href="tolteca.utils.ConfigLoader.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="tolteca.web.WebRuntime.html" title="WebRuntime">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="tolteca.utils.ConfigLoader.html" title="ConfigLoader">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
+	 &#187;
+      </li>
+      
+      <li>WebConfig</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="webconfig">
+<h1>WebConfig<a class="headerlink" href="#webconfig" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="tolteca.web.WebConfig">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">tolteca.web.</span></span><span class="sig-name descname"><span class="pre">WebConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">apps:</span> <span class="pre">list</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/web.html#WebConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.web.WebConfig" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.10)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>The config for <a class="reference internal" href="../index.html#module-tolteca.web" title="tolteca.web"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tolteca.web</span></code></a>.</p>
+<p class="rubric">Attributes Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.web.WebConfig.config_key" title="tolteca.web.WebConfig.config_key"><code class="xref py py-obj docutils literal notranslate"><span class="pre">config_key</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.web.WebConfig.config_schema" title="tolteca.web.WebConfig.config_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">config_schema</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.web.WebConfig.optional" title="tolteca.web.WebConfig.optional"><code class="xref py py-obj docutils literal notranslate"><span class="pre">optional</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.web.WebConfig.schema" title="tolteca.web.WebConfig.schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">schema</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.web.WebConfig.default_factory" title="tolteca.web.WebConfig.default_factory"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_factory</span></code></a>(default_value)</p></td>
+<td><p>Return a callable suitable to be used as default_factory.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.web.WebConfig.from_config_dict" title="tolteca.web.WebConfig.from_config_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_config_dict</span></code></a>(config[, runtime_info])</p></td>
+<td><p>Return the instance of <code class="xref py py-attr docutils literal notranslate"><span class="pre">dataclass_cls</span></code> created from <code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code> after validation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.web.WebConfig.from_dict" title="tolteca.web.WebConfig.from_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_dict</span></code></a>(data)</p></td>
+<td><p>Return the instance of <code class="xref py py-attr docutils literal notranslate"><span class="pre">dataclass_cls</span></code> created from <code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code> after validation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.web.WebConfig.get_app_config" title="tolteca.web.WebConfig.get_app_config"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_app_config</span></code></a>(arg)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.web.WebConfig.to_config_dict" title="tolteca.web.WebConfig.to_config_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_config_dict</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.web.WebConfig.to_dict" title="tolteca.web.WebConfig.to_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_dict</span></code></a>(*[, dict_factory])</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Attributes Documentation</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.web.WebConfig.config_key">
+<span class="sig-name descname"><span class="pre">config_key</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'web'</span></em><a class="headerlink" href="#tolteca.web.WebConfig.config_key" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.web.WebConfig.config_schema">
+<span class="sig-name descname"><span class="pre">config_schema</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">ConfigSchema({'web':</span> <span class="pre">DataclassSchema({DataclassSchemaOptional('apps'):</span> <span class="pre">[DataclassSchema({Literal(&quot;name&quot;,</span> <span class="pre">description=&quot;The</span> <span class="pre">app</span> <span class="pre">name.&quot;):</span> <span class="pre">'obs_planner',</span> <span class="pre">Optional('raster_model_length_max'):</span> <span class="pre">PhysicalTypeSchema(Or(&lt;class</span> <span class="pre">'int'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'float'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;)),</span> <span class="pre">Optional('site_name'):</span> <span class="pre">Or('lmt'),</span> <span class="pre">Optional('instru_name'):</span> <span class="pre">Or('toltec'),</span> <span class="pre">Optional('pointing_catalog_path'):</span> <span class="pre">RelPathSchema(&lt;class</span> <span class="pre">'str'&gt;),</span> <span class="pre">Optional('title_text'):</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;}),</span> <span class="pre">DataclassSchema({Literal(&quot;name&quot;,</span> <span class="pre">description=&quot;The</span> <span class="pre">app</span> <span class="pre">name.&quot;):</span> <span class="pre">'obs_planner_v0',</span> <span class="pre">Literal(&quot;toltec_sensitivity_module_path&quot;,</span> <span class="pre">description=&quot;The</span> <span class="pre">path</span> <span class="pre">to</span> <span class="pre">locate</span> <span class="pre">toltec</span> <span class="pre">sensitivity</span> <span class="pre">module.&quot;):</span> <span class="pre">RelPathSchema(&lt;class</span> <span class="pre">'str'&gt;),</span> <span class="pre">DataclassSchemaOptional('sma_pointing_catalog_path'):</span> <span class="pre">Or(RelPathSchema(&lt;class</span> <span class="pre">'str'&gt;),</span> <span class="pre">None),</span> <span class="pre">DataclassSchemaOptional('raster_model_length_max'):</span> <span class="pre">PhysicalTypeSchema(Or(&lt;class</span> <span class="pre">'int'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'float'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;)),</span> <span class="pre">DataclassSchemaOptional('lissajous_model_length_max'):</span> <span class="pre">PhysicalTypeSchema(Or(&lt;class</span> <span class="pre">'int'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'float'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;)),</span> <span class="pre">DataclassSchemaOptional('t_exp_max'):</span> <span class="pre">PhysicalTypeSchema(Or(&lt;class</span> <span class="pre">'int'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'float'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;)),</span> <span class="pre">DataclassSchemaOptional('title_text'):</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;})]})})</span></em><a class="headerlink" href="#tolteca.web.WebConfig.config_schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.web.WebConfig.optional">
+<span class="sig-name descname"><span class="pre">optional</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">functools.partial(&lt;class</span> <span class="pre">'tollan.utils.dataclass_schema.DataclassSchemaOptional'&gt;,</span> <span class="pre">dataclass_cls=&lt;class</span> <span class="pre">'tolteca.web.WebConfig'&gt;)</span></em><a class="headerlink" href="#tolteca.web.WebConfig.optional" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.web.WebConfig.schema">
+<span class="sig-name descname"><span class="pre">schema</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">DataclassSchema({DataclassSchemaOptional('apps'):</span> <span class="pre">[DataclassSchema({Literal(&quot;name&quot;,</span> <span class="pre">description=&quot;The</span> <span class="pre">app</span> <span class="pre">name.&quot;):</span> <span class="pre">'obs_planner',</span> <span class="pre">Optional('raster_model_length_max'):</span> <span class="pre">PhysicalTypeSchema(Or(&lt;class</span> <span class="pre">'int'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'float'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;)),</span> <span class="pre">Optional('site_name'):</span> <span class="pre">Or('lmt'),</span> <span class="pre">Optional('instru_name'):</span> <span class="pre">Or('toltec'),</span> <span class="pre">Optional('pointing_catalog_path'):</span> <span class="pre">RelPathSchema(&lt;class</span> <span class="pre">'str'&gt;),</span> <span class="pre">Optional('title_text'):</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;}),</span> <span class="pre">DataclassSchema({Literal(&quot;name&quot;,</span> <span class="pre">description=&quot;The</span> <span class="pre">app</span> <span class="pre">name.&quot;):</span> <span class="pre">'obs_planner_v0',</span> <span class="pre">Literal(&quot;toltec_sensitivity_module_path&quot;,</span> <span class="pre">description=&quot;The</span> <span class="pre">path</span> <span class="pre">to</span> <span class="pre">locate</span> <span class="pre">toltec</span> <span class="pre">sensitivity</span> <span class="pre">module.&quot;):</span> <span class="pre">RelPathSchema(&lt;class</span> <span class="pre">'str'&gt;),</span> <span class="pre">DataclassSchemaOptional('sma_pointing_catalog_path'):</span> <span class="pre">Or(RelPathSchema(&lt;class</span> <span class="pre">'str'&gt;),</span> <span class="pre">None),</span> <span class="pre">DataclassSchemaOptional('raster_model_length_max'):</span> <span class="pre">PhysicalTypeSchema(Or(&lt;class</span> <span class="pre">'int'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'float'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;)),</span> <span class="pre">DataclassSchemaOptional('lissajous_model_length_max'):</span> <span class="pre">PhysicalTypeSchema(Or(&lt;class</span> <span class="pre">'int'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'float'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;)),</span> <span class="pre">DataclassSchemaOptional('t_exp_max'):</span> <span class="pre">PhysicalTypeSchema(Or(&lt;class</span> <span class="pre">'int'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'float'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;)),</span> <span class="pre">DataclassSchemaOptional('title_text'):</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;})]})</span></em><a class="headerlink" href="#tolteca.web.WebConfig.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.web.WebConfig.default_factory">
+<span class="sig-name descname"><span class="pre">default_factory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">default_value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.web.WebConfig.default_factory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a callable suitable to be used as default_factory.</p>
+<p>By default this is to create instance, so that when used as
+field default factory, no argument is required.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.web.WebConfig.from_config_dict">
+<span class="sig-name descname"><span class="pre">from_config_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">runtime_info</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.web.WebConfig.from_config_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the instance of <code class="xref py py-attr docutils literal notranslate"><span class="pre">dataclass_cls</span></code> created from <code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code>
+after validation.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.web.WebConfig.from_dict">
+<span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.web.WebConfig.from_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the instance of <code class="xref py py-attr docutils literal notranslate"><span class="pre">dataclass_cls</span></code> created from <code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code>
+after validation.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.web.WebConfig.get_app_config">
+<span class="sig-name descname"><span class="pre">get_app_config</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">arg</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/web.html#WebConfig.get_app_config"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.web.WebConfig.get_app_config" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.web.WebConfig.to_config_dict">
+<span class="sig-name descname"><span class="pre">to_config_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.web.WebConfig.to_config_dict" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.web.WebConfig.to_dict">
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dict_factory=&lt;class</span> <span class="pre">'dict'&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.web.WebConfig.to_dict" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">WebConfig</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/api/tolteca.web.WebConfig.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
+  </p>
+</footer>
+  </body>
+</html>

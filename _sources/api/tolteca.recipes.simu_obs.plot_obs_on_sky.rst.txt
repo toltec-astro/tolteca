@@ -1,6 +1,0 @@
-plot_obs_on_sky
-===============
-
-.. currentmodule:: tolteca.recipes.simu_obs
-
-.. autofunction:: plot_obs_on_sky

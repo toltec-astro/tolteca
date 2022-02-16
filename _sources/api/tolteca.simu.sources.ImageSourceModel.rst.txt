@@ -1,0 +1,39 @@
+ImageSourceModel
+================
+
+.. currentmodule:: tolteca.simu.sources
+
+.. autoclass:: ImageSourceModel
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~ImageSourceModel.data
+      ~ImageSourceModel.logger
+      ~ImageSourceModel.n_inputs
+      ~ImageSourceModel.n_outputs
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~ImageSourceModel.__call__
+      ~ImageSourceModel.evaluate
+      ~ImageSourceModel.evaluate_tod_icrs
+      ~ImageSourceModel.from_file
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: data
+   .. autoattribute:: logger
+   .. autoattribute:: n_inputs
+   .. autoattribute:: n_outputs
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: evaluate
+   .. automethod:: evaluate_tod_icrs
+   .. automethod:: from_file

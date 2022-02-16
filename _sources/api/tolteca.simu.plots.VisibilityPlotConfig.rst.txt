@@ -1,0 +1,29 @@
+VisibilityPlotConfig
+====================
+
+.. currentmodule:: tolteca.simu.plots
+
+.. autoclass:: VisibilityPlotConfig
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~VisibilityPlotConfig.name
+      ~VisibilityPlotConfig.schema
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~VisibilityPlotConfig.__call__
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: name
+   .. autoattribute:: schema
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__

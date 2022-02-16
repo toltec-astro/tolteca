@@ -1,0 +1,39 @@
+Citlali
+=======
+
+.. currentmodule:: tolteca.reduce.engines
+
+.. autoclass:: Citlali
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~Citlali.exec_path
+      ~Citlali.logger
+      ~Citlali.version
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~Citlali.check_for_update
+      ~Citlali.find_citlali_executables
+      ~Citlali.get_default_config
+      ~Citlali.proc_context
+      ~Citlali.run
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: exec_path
+   .. autoattribute:: logger
+   .. autoattribute:: version
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: check_for_update
+   .. automethod:: find_citlali_executables
+   .. automethod:: get_default_config
+   .. automethod:: proc_context
+   .. automethod:: run

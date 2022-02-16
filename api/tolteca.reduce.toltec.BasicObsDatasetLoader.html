@@ -1,0 +1,172 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>BasicObsDatasetLoader &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+    
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="SimuConfig" href="tolteca.simu.SimuConfig.html" />
+    <link rel="prev" title="CitlaliStepConfig" href="tolteca.reduce.engines.CitlaliStepConfig.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="tolteca.simu.SimuConfig.html" title="SimuConfig">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="tolteca.reduce.engines.CitlaliStepConfig.html" title="CitlaliStepConfig">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
+	 &#187;
+      </li>
+      
+      <li>BasicObsDatasetLoader</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="basicobsdatasetloader">
+<h1>BasicObsDatasetLoader<a class="headerlink" href="#basicobsdatasetloader" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="tolteca.reduce.toltec.BasicObsDatasetLoader">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">tolteca.reduce.toltec.</span></span><span class="sig-name descname"><span class="pre">BasicObsDatasetLoader</span></span><a class="reference internal" href="../_modules/tolteca/reduce/toltec.html#BasicObsDatasetLoader"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.reduce.toltec.BasicObsDatasetLoader" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.10)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>A class to collect TolTEC basic obs dataset from local files.</p>
+<p class="rubric">Attributes Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.reduce.toltec.BasicObsDatasetLoader.logger" title="tolteca.reduce.toltec.BasicObsDatasetLoader.logger"><code class="xref py py-obj docutils literal notranslate"><span class="pre">logger</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.reduce.toltec.BasicObsDatasetLoader.aggregate" title="tolteca.reduce.toltec.BasicObsDatasetLoader.aggregate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">aggregate</span></code></a>(items)</p></td>
+<td><p>Aggregate <code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsDataset</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">items</span></code> into a single one.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.reduce.toltec.BasicObsDatasetLoader.identify" title="tolteca.reduce.toltec.BasicObsDatasetLoader.identify"><code class="xref py py-obj docutils literal notranslate"><span class="pre">identify</span></code></a>(source)</p></td>
+<td><p>Identify if <code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsDataset</span></code> can be constructed from <code class="xref py py-obj docutils literal notranslate"><span class="pre">source</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.reduce.toltec.BasicObsDatasetLoader.load" title="tolteca.reduce.toltec.BasicObsDatasetLoader.load"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load</span></code></a>(source[, select])</p></td>
+<td><p>Load <code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsDataset</span></code> from <code class="xref py py-obj docutils literal notranslate"><span class="pre">source</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Attributes Documentation</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.reduce.toltec.BasicObsDatasetLoader.logger">
+<span class="sig-name descname"><span class="pre">logger</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;Logger</span> <span class="pre">BasicObsDatasetLoader</span> <span class="pre">(DEBUG)&gt;</span></em><a class="headerlink" href="#tolteca.reduce.toltec.BasicObsDatasetLoader.logger" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.reduce.toltec.BasicObsDatasetLoader.aggregate">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">aggregate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">items</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/reduce/toltec.html#BasicObsDatasetLoader.aggregate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.reduce.toltec.BasicObsDatasetLoader.aggregate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Aggregate <code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsDataset</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">items</span></code> into a single one.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.reduce.toltec.BasicObsDatasetLoader.identify">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">identify</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/reduce/toltec.html#BasicObsDatasetLoader.identify"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.reduce.toltec.BasicObsDatasetLoader.identify" title="Permalink to this definition">¶</a></dt>
+<dd><p>Identify if <code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsDataset</span></code> can be constructed from <code class="xref py py-obj docutils literal notranslate"><span class="pre">source</span></code>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.reduce.toltec.BasicObsDatasetLoader.load">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">select</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/reduce/toltec.html#BasicObsDatasetLoader.load"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.reduce.toltec.BasicObsDatasetLoader.load" title="Permalink to this definition">¶</a></dt>
+<dd><p>Load <code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsDataset</span></code> from <code class="xref py py-obj docutils literal notranslate"><span class="pre">source</span></code>.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">BasicObsDatasetLoader</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/api/tolteca.reduce.toltec.BasicObsDatasetLoader.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
+  </p>
+</footer>
+  </body>
+</html>

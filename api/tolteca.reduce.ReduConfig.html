@@ -1,0 +1,241 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>ReduConfig &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+    
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="PipelineRuntime" href="tolteca.reduce.PipelineRuntime.html" />
+    <link rel="prev" title="NcFileIO" href="tolteca.datamodels.io.NcFileIO.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="tolteca.reduce.PipelineRuntime.html" title="PipelineRuntime">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="tolteca.datamodels.io.NcFileIO.html" title="NcFileIO">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
+	 &#187;
+      </li>
+      
+      <li>ReduConfig</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="reduconfig">
+<h1>ReduConfig<a class="headerlink" href="#reduconfig" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="tolteca.reduce.ReduConfig">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">tolteca.reduce.</span></span><span class="sig-name descname"><span class="pre">ReduConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">jobkey:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inputs:</span> <span class="pre">list</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">steps:</span> <span class="pre">list</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/reduce.html#ReduConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.reduce.ReduConfig" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.10)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>The config for <a class="reference internal" href="../index.html#module-tolteca.reduce" title="tolteca.reduce"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tolteca.reduce</span></code></a>.</p>
+<p class="rubric">Attributes Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.reduce.ReduConfig.config_key" title="tolteca.reduce.ReduConfig.config_key"><code class="xref py py-obj docutils literal notranslate"><span class="pre">config_key</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.reduce.ReduConfig.config_schema" title="tolteca.reduce.ReduConfig.config_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">config_schema</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.reduce.ReduConfig.optional" title="tolteca.reduce.ReduConfig.optional"><code class="xref py py-obj docutils literal notranslate"><span class="pre">optional</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.reduce.ReduConfig.schema" title="tolteca.reduce.ReduConfig.schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">schema</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.reduce.ReduConfig.default_factory" title="tolteca.reduce.ReduConfig.default_factory"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_factory</span></code></a>(default_value)</p></td>
+<td><p>Return a callable suitable to be used as default_factory.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.reduce.ReduConfig.from_config_dict" title="tolteca.reduce.ReduConfig.from_config_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_config_dict</span></code></a>(config[, runtime_info])</p></td>
+<td><p>Return the instance of <code class="xref py py-attr docutils literal notranslate"><span class="pre">dataclass_cls</span></code> created from <code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code> after validation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.reduce.ReduConfig.from_dict" title="tolteca.reduce.ReduConfig.from_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_dict</span></code></a>(data)</p></td>
+<td><p>Return the instance of <code class="xref py py-attr docutils literal notranslate"><span class="pre">dataclass_cls</span></code> created from <code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code> after validation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.reduce.ReduConfig.get_log_file" title="tolteca.reduce.ReduConfig.get_log_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_log_file</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.reduce.ReduConfig.get_or_create_output_dir" title="tolteca.reduce.ReduConfig.get_or_create_output_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_or_create_output_dir</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.reduce.ReduConfig.load_input_data" title="tolteca.reduce.ReduConfig.load_input_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_input_data</span></code></a>()</p></td>
+<td><p>Return loaded data objects from reduction config.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.reduce.ReduConfig.to_config_dict" title="tolteca.reduce.ReduConfig.to_config_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_config_dict</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.reduce.ReduConfig.to_dict" title="tolteca.reduce.ReduConfig.to_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_dict</span></code></a>(*[, dict_factory])</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Attributes Documentation</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.reduce.ReduConfig.config_key">
+<span class="sig-name descname"><span class="pre">config_key</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'reduce'</span></em><a class="headerlink" href="#tolteca.reduce.ReduConfig.config_key" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.reduce.ReduConfig.config_schema">
+<span class="sig-name descname"><span class="pre">config_schema</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">ConfigSchema({'reduce':</span> <span class="pre">DataclassSchema({Literal(&quot;jobkey&quot;,</span> <span class="pre">description=&quot;The</span> <span class="pre">unique</span> <span class="pre">identifier</span> <span class="pre">the</span> <span class="pre">job.&quot;):</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;,</span> <span class="pre">DataclassSchemaOptional('inputs'):</span> <span class="pre">[DataclassSchema({Optional('type'):</span> <span class="pre">'localfile',</span> <span class="pre">Optional('path'):</span> <span class="pre">RelPathSchema(&lt;class</span> <span class="pre">'str'&gt;),</span> <span class="pre">Optional('select'):</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;}),</span> <span class="pre">DataclassSchema({Optional('type'):</span> <span class="pre">'database',</span> <span class="pre">Optional('uri'):</span> <span class="pre">RelPathSchema(&lt;class</span> <span class="pre">'str'&gt;)})],</span> <span class="pre">DataclassSchemaOptional('steps'):</span> <span class="pre">[DataclassSchema({Literal(&quot;name&quot;,</span> <span class="pre">description=&quot;The</span> <span class="pre">reduction</span> <span class="pre">step</span> <span class="pre">name.&quot;):</span> <span class="pre">'citlali',</span> <span class="pre">Optional('path'):</span> <span class="pre">RelPathSchema(&lt;class</span> <span class="pre">'str'&gt;),</span> <span class="pre">Optional('version'):</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;,</span> <span class="pre">Optional('log_level'):</span> <span class="pre">Or('TRACE',</span> <span class="pre">'DEBUG',</span> <span class="pre">'INFO'),</span> <span class="pre">Optional('config'):</span> <span class="pre">DataclassSchema({DataclassSchemaOptional('low_level'):</span> <span class="pre">Or(RelPathSchema(&lt;class</span> <span class="pre">'str'&gt;),</span> <span class="pre">&lt;class</span> <span class="pre">'dict'&gt;),</span> <span class="pre">DataclassSchemaOptional('image_frame_params'):</span> <span class="pre">DataclassSchema({DataclassSchemaOptional('pixel_size'):</span> <span class="pre">PhysicalTypeSchema(Or(&lt;class</span> <span class="pre">'int'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'float'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;))})})})]})})</span></em><a class="headerlink" href="#tolteca.reduce.ReduConfig.config_schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.reduce.ReduConfig.optional">
+<span class="sig-name descname"><span class="pre">optional</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">functools.partial(&lt;class</span> <span class="pre">'tollan.utils.dataclass_schema.DataclassSchemaOptional'&gt;,</span> <span class="pre">dataclass_cls=&lt;class</span> <span class="pre">'tolteca.reduce.ReduConfig'&gt;)</span></em><a class="headerlink" href="#tolteca.reduce.ReduConfig.optional" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.reduce.ReduConfig.schema">
+<span class="sig-name descname"><span class="pre">schema</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">DataclassSchema({Literal(&quot;jobkey&quot;,</span> <span class="pre">description=&quot;The</span> <span class="pre">unique</span> <span class="pre">identifier</span> <span class="pre">the</span> <span class="pre">job.&quot;):</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;,</span> <span class="pre">DataclassSchemaOptional('inputs'):</span> <span class="pre">[DataclassSchema({Optional('type'):</span> <span class="pre">'localfile',</span> <span class="pre">Optional('path'):</span> <span class="pre">RelPathSchema(&lt;class</span> <span class="pre">'str'&gt;),</span> <span class="pre">Optional('select'):</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;}),</span> <span class="pre">DataclassSchema({Optional('type'):</span> <span class="pre">'database',</span> <span class="pre">Optional('uri'):</span> <span class="pre">RelPathSchema(&lt;class</span> <span class="pre">'str'&gt;)})],</span> <span class="pre">DataclassSchemaOptional('steps'):</span> <span class="pre">[DataclassSchema({Literal(&quot;name&quot;,</span> <span class="pre">description=&quot;The</span> <span class="pre">reduction</span> <span class="pre">step</span> <span class="pre">name.&quot;):</span> <span class="pre">'citlali',</span> <span class="pre">Optional('path'):</span> <span class="pre">RelPathSchema(&lt;class</span> <span class="pre">'str'&gt;),</span> <span class="pre">Optional('version'):</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;,</span> <span class="pre">Optional('log_level'):</span> <span class="pre">Or('TRACE',</span> <span class="pre">'DEBUG',</span> <span class="pre">'INFO'),</span> <span class="pre">Optional('config'):</span> <span class="pre">DataclassSchema({DataclassSchemaOptional('low_level'):</span> <span class="pre">Or(RelPathSchema(&lt;class</span> <span class="pre">'str'&gt;),</span> <span class="pre">&lt;class</span> <span class="pre">'dict'&gt;),</span> <span class="pre">DataclassSchemaOptional('image_frame_params'):</span> <span class="pre">DataclassSchema({DataclassSchemaOptional('pixel_size'):</span> <span class="pre">PhysicalTypeSchema(Or(&lt;class</span> <span class="pre">'int'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'float'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;))})})})]})</span></em><a class="headerlink" href="#tolteca.reduce.ReduConfig.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.reduce.ReduConfig.default_factory">
+<span class="sig-name descname"><span class="pre">default_factory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">default_value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.reduce.ReduConfig.default_factory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a callable suitable to be used as default_factory.</p>
+<p>By default this is to create instance, so that when used as
+field default factory, no argument is required.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.reduce.ReduConfig.from_config_dict">
+<span class="sig-name descname"><span class="pre">from_config_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">runtime_info</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.reduce.ReduConfig.from_config_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the instance of <code class="xref py py-attr docutils literal notranslate"><span class="pre">dataclass_cls</span></code> created from <code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code>
+after validation.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.reduce.ReduConfig.from_dict">
+<span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.reduce.ReduConfig.from_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the instance of <code class="xref py py-attr docutils literal notranslate"><span class="pre">dataclass_cls</span></code> created from <code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code>
+after validation.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.reduce.ReduConfig.get_log_file">
+<span class="sig-name descname"><span class="pre">get_log_file</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/reduce.html#ReduConfig.get_log_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.reduce.ReduConfig.get_log_file" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.reduce.ReduConfig.get_or_create_output_dir">
+<span class="sig-name descname"><span class="pre">get_or_create_output_dir</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/reduce.html#ReduConfig.get_or_create_output_dir"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.reduce.ReduConfig.get_or_create_output_dir" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.reduce.ReduConfig.load_input_data">
+<span class="sig-name descname"><span class="pre">load_input_data</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/reduce.html#ReduConfig.load_input_data"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.reduce.ReduConfig.load_input_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return loaded data objects from reduction config.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.reduce.ReduConfig.to_config_dict">
+<span class="sig-name descname"><span class="pre">to_config_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.reduce.ReduConfig.to_config_dict" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.reduce.ReduConfig.to_dict">
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dict_factory=&lt;class</span> <span class="pre">'dict'&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.reduce.ReduConfig.to_dict" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">ReduConfig</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/api/tolteca.reduce.ReduConfig.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
+  </p>
+</footer>
+  </body>
+</html>

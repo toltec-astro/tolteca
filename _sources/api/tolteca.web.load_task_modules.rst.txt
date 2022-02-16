@@ -1,6 +1,0 @@
-load_task_modules
-=================
-
-.. currentmodule:: tolteca.web
-
-.. autofunction:: load_task_modules

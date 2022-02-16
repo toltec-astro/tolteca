@@ -1,0 +1,35 @@
+CitlaliConfig
+=============
+
+.. currentmodule:: tolteca.reduce.engines
+
+.. autoclass:: CitlaliConfig
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~CitlaliConfig.low_level
+      ~CitlaliConfig.optional
+      ~CitlaliConfig.schema
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~CitlaliConfig.default_factory
+      ~CitlaliConfig.from_dict
+      ~CitlaliConfig.to_dict
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: low_level
+   .. autoattribute:: optional
+   .. autoattribute:: schema
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: default_factory
+   .. automethod:: from_dict
+   .. automethod:: to_dict

@@ -1,0 +1,6 @@
+ConfigLoaderError
+=================
+
+.. currentmodule:: tolteca.utils
+
+.. autoexception:: ConfigLoaderError

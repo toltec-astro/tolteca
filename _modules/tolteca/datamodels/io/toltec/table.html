@@ -5,7 +5,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>tolteca.datamodels.io.toltec.table &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <title>tolteca.datamodels.io.toltec.table &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
     <link rel="stylesheet" type="text/css" href="../../../../../_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/bootstrap-astropy.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/graphviz.css" />
@@ -47,7 +47,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../../../../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
+	<a href="../../../../../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
 	 &#187;
       </li>
       <li><a href="../../../../index.html" accesskey="U">Module code</a> &#187;</li>
@@ -139,7 +139,7 @@
     <span class="k">def</span> <span class="nf">get_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
         <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span>
         <span class="n">kwargs</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="nb">print</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
+        <span class="c1"># print(m)</span>
         <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">m</span><span class="o">.</span><span class="n">param_names</span><span class="p">:</span>
             <span class="n">param</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
             <span class="n">v</span> <span class="o">=</span> <span class="n">param</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
@@ -180,8 +180,8 @@
                     <span class="p">(</span><span class="s1">&#39;g&#39;</span><span class="p">,</span> <span class="s1">&#39;normI&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
                     <span class="p">(</span><span class="s1">&#39;phi_g&#39;</span><span class="p">,</span> <span class="s1">&#39;normQ&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
                     <span class="p">(</span><span class="s1">&#39;f0&#39;</span><span class="p">,</span> <span class="s1">&#39;fp&#39;</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">),</span>
-                    <span class="p">(</span><span class="s1">&#39;k0&#39;</span><span class="p">,</span> <span class="s1">&#39;slopeI&#39;</span><span class="p">,</span> <span class="mf">1.</span> <span class="o">/</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">),</span>
-                    <span class="p">(</span><span class="s1">&#39;k1&#39;</span><span class="p">,</span> <span class="s1">&#39;slopeQ&#39;</span><span class="p">,</span> <span class="mf">1.</span> <span class="o">/</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">),</span>
+                    <span class="p">(</span><span class="s1">&#39;k0&#39;</span><span class="p">,</span> <span class="s1">&#39;slopeI&#39;</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">),</span>
+                    <span class="p">(</span><span class="s1">&#39;k1&#39;</span><span class="p">,</span> <span class="s1">&#39;slopeQ&#39;</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">),</span>
                     <span class="p">(</span><span class="s1">&#39;m0&#39;</span><span class="p">,</span> <span class="s1">&#39;interceptI&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
                     <span class="p">(</span><span class="s1">&#39;m1&#39;</span><span class="p">,</span> <span class="s1">&#39;interceptQ&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
                     <span class="p">]</span>
@@ -315,7 +315,7 @@
 
 <span class="k">def</span> <span class="nf">identify_txt_kidsmodel</span><span class="p">(</span><span class="n">filepath</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Check if `filepath` points to a TolTEC model parameter file.&quot;&quot;&quot;</span>
-    <span class="n">logger</span> <span class="o">=</span><span class="n">get_logger</span><span class="p">()</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
     <span class="n">header</span> <span class="o">=</span> <span class="n">EcsvHeader</span><span class="p">()</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
@@ -375,9 +375,9 @@
   <p class="pull-right"> &nbsp;
     <a href="#">Back to Top</a></p>
   <p>
-    &copy; Copyright 2021, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
-    Last built 18 Jun 2021. <br/>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
   </p>
 </footer>
   </body>

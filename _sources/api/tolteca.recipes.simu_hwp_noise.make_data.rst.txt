@@ -1,6 +1,0 @@
-make_data
-=========
-
-.. currentmodule:: tolteca.recipes.simu_hwp_noise
-
-.. autofunction:: make_data

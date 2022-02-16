@@ -1,0 +1,6 @@
+dict_from_cli_args
+==================
+
+.. currentmodule:: tolteca.utils
+
+.. autofunction:: dict_from_cli_args

@@ -1,0 +1,203 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tolteca.reduce.engines &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/plot_directive.css" />
+    
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/jquery.js"></script>
+    <script src="../../../_static/underscore.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../reduce.html" accesskey="U">tolteca.reduce</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tolteca.reduce.engines</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python</span>
+
+
+<span class="kn">from</span> <span class="nn">..</span> <span class="kn">import</span> <span class="n">steps_registry</span>
+<span class="kn">from</span> <span class="nn">...utils.common_schema</span> <span class="kn">import</span> <span class="n">RelPathSchema</span>
+<span class="kn">from</span> <span class="nn">...datamodels.toltec</span> <span class="kn">import</span> <span class="n">BasicObsDataset</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.dataclass_schema</span> <span class="kn">import</span> <span class="n">DataclassNamespace</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span><span class="p">,</span> <span class="n">log_to_file</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">functools</span>
+<span class="kn">from</span> <span class="nn">schema</span> <span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">Or</span>
+<span class="kn">from</span> <span class="nn">.citlali</span> <span class="kn">import</span> <span class="n">Citlali</span><span class="p">,</span> <span class="n">CitlaliConfig</span>
+
+
+<div class="viewcode-block" id="CitlaliStepConfig"><a class="viewcode-back" href="../../../api/tolteca.reduce.engines.CitlaliStepConfig.html#tolteca.reduce.engines.CitlaliStepConfig">[docs]</a><span class="nd">@steps_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s1">&#39;citlali&#39;</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">CitlaliStepConfig</span><span class="p">(</span><span class="n">DataclassNamespace</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The config class for reduction with Citlali.&quot;&quot;&quot;</span>
+
+    <span class="n">_namespace_from_dict_schema</span> <span class="o">=</span> <span class="n">Schema</span><span class="p">({</span>
+        <span class="n">Optional</span><span class="p">(</span>
+            <span class="s1">&#39;path&#39;</span><span class="p">,</span>
+            <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">&#39;The path to find the executable.&#39;</span><span class="p">):</span>
+        <span class="n">RelPathSchema</span><span class="p">(),</span>
+        <span class="n">Optional</span><span class="p">(</span>
+            <span class="s1">&#39;version&#39;</span><span class="p">,</span>
+            <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">&#39;A version string or version predicate to specify the &#39;</span>
+                        <span class="s1">&#39;version of citlali.&#39;</span><span class="p">):</span>
+        <span class="nb">str</span><span class="p">,</span>
+        <span class="n">Optional</span><span class="p">(</span>
+            <span class="s1">&#39;log_level&#39;</span><span class="p">,</span>
+            <span class="n">default</span><span class="o">=</span><span class="s1">&#39;INFO&#39;</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">&#39;The log level for the Citlali call.&#39;</span><span class="p">):</span>
+        <span class="n">Or</span><span class="p">(</span><span class="s2">&quot;TRACE&quot;</span><span class="p">,</span> <span class="s2">&quot;DEBUG&quot;</span><span class="p">,</span> <span class="s1">&#39;INFO&#39;</span><span class="p">),</span>
+        <span class="n">Optional</span><span class="p">(</span>
+            <span class="s1">&#39;config&#39;</span><span class="p">,</span>
+            <span class="n">default</span><span class="o">=</span><span class="n">CitlaliConfig</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="s1">&#39;The config dict passed to Citlali.&#39;</span>
+            <span class="p">):</span>
+        <span class="n">CitlaliConfig</span><span class="o">.</span><span class="n">schema</span>
+        <span class="p">})</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@functools</span><span class="o">.</span><span class="n">lru_cache</span><span class="p">(</span><span class="n">maxsize</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_get_bindir_citlali_paths</span><span class="p">(</span><span class="n">bindir</span><span class="p">):</span>
+        <span class="n">paths</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="p">[</span><span class="n">bindir</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;citlali&#39;</span><span class="p">)]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">bindir</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">&quot;citlali_*&quot;</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">access</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">X_OK</span><span class="p">):</span>
+                <span class="n">paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">paths</span>
+
+<div class="viewcode-block" id="CitlaliStepConfig.__call__"><a class="viewcode-back" href="../../../api/tolteca.reduce.engines.CitlaliStepConfig.html#tolteca.reduce.engines.CitlaliStepConfig.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">):</span>
+        <span class="n">runtime_info</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">runtime_info</span>
+
+        <span class="c1"># check the bindir for a list of possible citlali paths</span>
+        <span class="c1"># create a list of paths to search for citlali executable</span>
+        <span class="c1"># here we glob the bindir to find multiple versions of citlali</span>
+        <span class="c1"># with format &quot;citlali_*&quot;</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span>
+        <span class="k">if</span> <span class="n">path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">paths</span> <span class="o">=</span> <span class="p">[</span><span class="n">path</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">paths</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">paths</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_bindir_citlali_paths</span><span class="p">(</span><span class="n">runtime_info</span><span class="o">.</span><span class="n">bindir</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;create Citlali with paths=</span><span class="si">{</span><span class="n">paths</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">engine</span> <span class="o">=</span> <span class="n">Citlali</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="n">paths</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">version</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">path</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span>
+                <span class="p">{</span><span class="s1">&#39;&gt;&#39;</span><span class="p">,</span> <span class="s1">&#39;&lt;&#39;</span><span class="p">,</span> <span class="s1">&#39;~&#39;</span><span class="p">}</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">version</span> <span class="ow">or</span> <span class="s1">&#39;&#39;</span><span class="p">)))</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># we only check for update when the engine executable is requested</span>
+            <span class="c1"># or a specific version is used</span>
+            <span class="n">engine</span><span class="o">.</span><span class="n">check_for_update</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">engine</span></div>
+
+<div class="viewcode-block" id="CitlaliStepConfig.run"><a class="viewcode-back" href="../../../api/tolteca.reduce.engines.CitlaliStepConfig.html#tolteca.reduce.engines.CitlaliStepConfig.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">inputs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Run this reduction step.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">inputs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">inputs</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">load_input_data</span><span class="p">()</span>
+        <span class="c1"># get bods</span>
+        <span class="n">bods</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="nb">input</span> <span class="k">for</span> <span class="nb">input</span> <span class="ow">in</span> <span class="n">inputs</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="n">BasicObsDataset</span><span class="p">)</span>
+            <span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bods</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;no valid input for this step, skip&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">bods</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+        <span class="n">bods</span> <span class="o">=</span> <span class="n">bods</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">output_dir</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get_or_create_output_dir</span><span class="p">()</span>
+        <span class="n">log_file</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get_log_file</span><span class="p">()</span>
+        <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">(</span><span class="s2">&quot;citlali&quot;</span><span class="p">)</span>
+        <span class="n">engine</span> <span class="o">=</span> <span class="bp">self</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;setup logging to file </span><span class="si">{</span><span class="n">log_file</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">log_to_file</span><span class="p">(</span>
+                <span class="n">filepath</span><span class="o">=</span><span class="n">log_file</span><span class="p">,</span>
+                <span class="n">level</span><span class="o">=</span><span class="s1">&#39;DEBUG&#39;</span><span class="p">,</span>
+                <span class="n">disable_other_handlers</span><span class="o">=</span><span class="kc">False</span>
+                <span class="p">)</span> <span class="k">as</span> <span class="n">handler</span><span class="p">,</span> <span class="n">engine</span><span class="o">.</span><span class="n">proc_context</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">config</span>
+                    <span class="p">)</span> <span class="k">as</span> <span class="n">proc</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">propagate</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">handler</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">proc</span><span class="p">(</span>
+                <span class="n">dataset</span><span class="o">=</span><span class="n">bods</span><span class="p">,</span>
+                <span class="n">output_dir</span><span class="o">=</span><span class="n">output_dir</span><span class="p">,</span>
+                <span class="n">log_level</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">log_level</span><span class="p">,</span>
+                <span class="n">logger_func</span><span class="o">=</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">)</span></div></div>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
+  </p>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,320 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tolteca.simu.exports.lmtot &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/plot_directive.css" />
+    
+    <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+    <script src="../../../../_static/jquery.js"></script>
+    <script src="../../../../_static/underscore.js"></script>
+    <script src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../simu.html" >tolteca.simu</a> &#187;</li>
+      <li><a href="../exports.html" accesskey="U">tolteca.simu.exports</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tolteca.simu.exports.lmtot</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python</span>
+
+<span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">u</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span>
+
+<span class="kn">from</span> <span class="nn">..mapping.raster</span> <span class="kn">import</span> <span class="n">SkyRasterScanModel</span>
+<span class="kn">from</span> <span class="nn">..mapping.lissajous</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">SkyLissajousModel</span><span class="p">,</span> <span class="n">SkyDoubleLissajousModel</span><span class="p">,</span>
+    <span class="n">SkyRastajousModel</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="LmtOTComposer"><a class="viewcode-back" href="../../../../api/tolteca.simu.exports.LmtOTComposer.html#tolteca.simu.exports.LmtOTComposer">[docs]</a><span class="k">class</span> <span class="nc">LmtOTComposer</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A class to create LMT OT scripts.&quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+<div class="viewcode-block" id="LmtOTComposer.make_pointing_steps"><a class="viewcode-back" href="../../../../api/tolteca.simu.exports.LmtOTComposer.html#tolteca.simu.exports.LmtOTComposer.make_pointing_steps">[docs]</a>    <span class="k">def</span> <span class="nf">make_pointing_steps</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="LmtOTComposer.make_mapping_steps"><a class="viewcode-back" href="../../../../api/tolteca.simu.exports.LmtOTComposer.html#tolteca.simu.exports.LmtOTComposer.make_mapping_steps">[docs]</a>    <span class="k">def</span> <span class="nf">make_mapping_steps</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">mapping_model</span><span class="p">,</span> <span class="n">target_name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">t_exp</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">steps</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="n">mapping_model</span><span class="o">.</span><span class="n">target</span>
+        <span class="n">ref_frame</span> <span class="o">=</span> <span class="n">mapping_model</span><span class="o">.</span><span class="n">ref_frame</span>
+        <span class="k">if</span> <span class="n">t_exp</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">t_exp</span> <span class="o">=</span> <span class="n">mapping_model</span><span class="o">.</span><span class="n">t_pattern</span>
+        <span class="k">if</span> <span class="n">target_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">target_name</span> <span class="o">=</span> <span class="s1">&#39;unknown_source&#39;</span>
+        <span class="k">if</span> <span class="n">target</span><span class="o">.</span><span class="n">frame</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;icrs&#39;</span><span class="p">:</span>
+            <span class="c1"># Eq</span>
+            <span class="n">source_line</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">&quot;Source Source;  Source  -BaselineList [] -CoordSys Eq&quot;</span>
+                <span class="s2">&quot; -DecProperMotionCor 0&quot;</span>
+                <span class="s2">&quot; -Dec[0] </span><span class="si">{Dec}</span><span class="s2"> -Dec[1] </span><span class="si">{Dec}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -El[0] 0.000000 -El[1] 0.000000 -EphemerisTrackOn 0&quot;</span>
+                <span class="s2">&quot; -Epoch 2000.0&quot;</span>
+                <span class="s2">&quot; -GoToZenith 1 -L[0] 0.0 -L[1] 0.0 -LineList [] -Planet None&quot;</span>
+                <span class="s2">&quot; -RaProperMotionCor 0 -Ra[0] </span><span class="si">{RA}</span><span class="s2"> -Ra[1] </span><span class="si">{RA}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -SourceName </span><span class="si">{Name}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -VelSys Lsr -Velocity 0.000000 -Vmag 0.0&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">RA</span><span class="o">=</span><span class="n">target</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">to_string</span><span class="p">(</span>
+                        <span class="n">unit</span><span class="o">=</span><span class="n">u</span><span class="o">.</span><span class="n">hour</span><span class="p">,</span> <span class="n">pad</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                        <span class="n">decimal</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">fields</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">),</span>
+                    <span class="n">Dec</span><span class="o">=</span><span class="n">target</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">to_string</span><span class="p">(</span>
+                        <span class="n">unit</span><span class="o">=</span><span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">,</span> <span class="n">pad</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">alwayssign</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                        <span class="n">decimal</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">fields</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">),</span>
+                    <span class="n">Name</span><span class="o">=</span><span class="n">target_name</span><span class="p">,</span>
+                    <span class="p">)</span>
+            <span class="n">steps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">source_line</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid target frame </span><span class="si">{</span><span class="n">target</span><span class="o">.</span><span class="n">frame</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="c1"># mapping line</span>
+        <span class="c1"># TODO fix this for non-offset models</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="n">mapping_model</span><span class="o">.</span><span class="n">offset_mapping_model</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="p">(</span><span class="n">SkyLissajousModel</span><span class="p">)):</span>
+            <span class="n">mapping_line</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">&quot;Lissajous -ExecMode 0 -RotateWithElevation 0 -TunePeriod 0&quot;</span>
+                <span class="s2">&quot; -TScan </span><span class="si">{TScan}</span><span class="s2"> -ScanRate </span><span class="si">{ScanRate}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -XLength </span><span class="si">{XLength}</span><span class="s2"> -YLength </span><span class="si">{YLength}</span><span class="s2"> -XOmega </span><span class="si">{XOmega}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -YOmega </span><span class="si">{YOmega}</span><span class="s2"> -XDelta </span><span class="si">{XDelta}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -XLengthMinor 0.0 -YLengthMinor 0.0 -XDeltaMinor 0.0&quot;</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_sky_lissajous_params_to_mapping_step_params</span><span class="p">(</span>
+                    <span class="n">x_length</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">x_length</span><span class="p">,</span>
+                    <span class="n">y_length</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">y_length</span><span class="p">,</span>
+                    <span class="n">x_omega</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">x_omega</span><span class="p">,</span>
+                    <span class="n">y_omega</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">y_omega</span><span class="p">,</span>
+                    <span class="n">delta</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">delta</span><span class="p">,</span>
+                    <span class="n">t_exp</span><span class="o">=</span><span class="n">t_exp</span>
+                    <span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="p">(</span><span class="n">SkyDoubleLissajousModel</span><span class="p">)):</span>
+            <span class="n">major_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sky_lissajous_params_to_mapping_step_params</span><span class="p">(</span>
+                    <span class="n">x_length</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">x_length_0</span><span class="p">,</span>
+                    <span class="n">y_length</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">y_length_0</span><span class="p">,</span>
+                    <span class="n">x_omega</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">x_omega_0</span><span class="p">,</span>
+                    <span class="n">y_omega</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">y_omega_0</span><span class="p">,</span>
+                    <span class="n">delta</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">delta_0</span><span class="p">,</span>
+                    <span class="n">t_exp</span><span class="o">=</span><span class="n">t_exp</span>
+                    <span class="p">)</span>
+            <span class="n">minor_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sky_lissajous_params_to_mapping_step_params</span><span class="p">(</span>
+                    <span class="n">x_length</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">x_length_1</span><span class="p">,</span>
+                    <span class="n">y_length</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">y_length_1</span><span class="p">,</span>
+                    <span class="n">x_omega</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">x_omega_1</span><span class="p">,</span>
+                    <span class="n">y_omega</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">y_omega_1</span><span class="p">,</span>
+                    <span class="n">delta</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">delta_1</span><span class="p">,</span>
+                    <span class="n">t_exp</span><span class="o">=</span><span class="mi">0</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span>
+                    <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">&quot;some parameters will be ignored during the exporting &quot;</span>
+                    <span class="s2">&quot;and the result will be different.&quot;</span><span class="p">)</span>
+            <span class="n">mapping_line</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">&quot;Lissajous -ExecMode 0 -RotateWithElevation 0 -TunePeriod 0&quot;</span>
+                <span class="s2">&quot; -TScan </span><span class="si">{TScan}</span><span class="s2"> -ScanRate </span><span class="si">{ScanRate}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -XLength </span><span class="si">{XLength}</span><span class="s2"> -YLength </span><span class="si">{YLength}</span><span class="s2"> -XOmega </span><span class="si">{XOmega}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -YOmega </span><span class="si">{YOmega}</span><span class="s2"> -XDelta </span><span class="si">{XDelta}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -XLengthMinor </span><span class="si">{XLengthMinor}</span><span class="s2"> -YLengthMinor </span><span class="si">{YLengthMinor}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -XDeltaMinor </span><span class="si">{XDeltaMinor}</span><span class="s2">&quot;</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">XLengthMinor</span><span class="o">=</span><span class="n">minor_params</span><span class="p">[</span><span class="s1">&#39;XLength&#39;</span><span class="p">],</span>
+                    <span class="n">YLengthMinor</span><span class="o">=</span><span class="n">minor_params</span><span class="p">[</span><span class="s1">&#39;YLength&#39;</span><span class="p">],</span>
+                    <span class="n">XDeltaMinor</span><span class="o">=</span><span class="n">minor_params</span><span class="p">[</span><span class="s1">&#39;XDelta&#39;</span><span class="p">],</span>
+                    <span class="o">**</span><span class="n">major_params</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="p">(</span><span class="n">SkyRasterScanModel</span><span class="p">)):</span>
+            <span class="n">mapping_line</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">&quot;RasterMap Map; Map -ExecMode 0 -HPBW 1 -HoldDuringTurns 0&quot;</span>
+                <span class="s2">&quot; -MapMotion Continuous -NumPass 1 -NumRepeats 1 -NumScans 0&quot;</span>
+                <span class="s2">&quot; -RowsPerScan 1000000 -ScansPerCal 0 -ScansToSkip 0&quot;</span>
+                <span class="s2">&quot; -TCal 0 -TRef 0 -TSamp 1&quot;</span>
+                <span class="s2">&quot; -MapCoord </span><span class="si">{MapCoord}</span><span class="s2"> -ScanAngle </span><span class="si">{ScanAngle}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -XLength </span><span class="si">{XLength}</span><span class="s2"> -XOffset 0 -XRamp 0 -XStep </span><span class="si">{XStep}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -YLength </span><span class="si">{YLength}</span><span class="s2"> -YOffset 0 -YRamp 0 -YStep </span><span class="si">{YStep}</span><span class="s2">&quot;</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_sky_raster_params_to_mapping_step_params</span><span class="p">(</span>
+                    <span class="n">length</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">length</span><span class="p">,</span>
+                    <span class="n">space</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">space</span><span class="p">,</span>
+                    <span class="n">n_scans</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">n_scans</span><span class="p">,</span>
+                    <span class="n">rot</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">rot</span><span class="p">,</span>
+                    <span class="n">speed</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">speed</span><span class="p">,</span>
+                    <span class="n">ref_frame</span><span class="o">=</span><span class="n">ref_frame</span>
+                    <span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="p">(</span><span class="n">SkyRastajousModel</span><span class="p">)):</span>
+            <span class="n">raster_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sky_raster_params_to_mapping_step_params</span><span class="p">(</span>
+                    <span class="n">length</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">length</span><span class="p">,</span>
+                    <span class="n">space</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">space</span><span class="p">,</span>
+                    <span class="n">n_scans</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">n_scans</span><span class="p">,</span>
+                    <span class="n">rot</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">rot</span><span class="p">,</span>
+                    <span class="n">speed</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">speed</span><span class="p">,</span>
+                    <span class="n">ref_frame</span><span class="o">=</span><span class="n">ref_frame</span>
+                    <span class="p">)</span>
+            <span class="n">major_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sky_lissajous_params_to_mapping_step_params</span><span class="p">(</span>
+                    <span class="n">x_length</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">x_length_0</span><span class="p">,</span>
+                    <span class="n">y_length</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">y_length_0</span><span class="p">,</span>
+                    <span class="n">x_omega</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">x_omega_0</span><span class="p">,</span>
+                    <span class="n">y_omega</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">y_omega_0</span><span class="p">,</span>
+                    <span class="n">delta</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">delta_0</span><span class="p">,</span>
+                    <span class="n">t_exp</span><span class="o">=</span><span class="n">t_exp</span>
+                    <span class="p">)</span>
+            <span class="n">minor_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sky_lissajous_params_to_mapping_step_params</span><span class="p">(</span>
+                    <span class="n">x_length</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">x_length_1</span><span class="p">,</span>
+                    <span class="n">y_length</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">y_length_1</span><span class="p">,</span>
+                    <span class="n">x_omega</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">x_omega_1</span><span class="p">,</span>
+                    <span class="n">y_omega</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">y_omega_1</span><span class="p">,</span>
+                    <span class="n">delta</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">delta_1</span><span class="p">,</span>
+                    <span class="n">t_exp</span><span class="o">=</span><span class="mi">0</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span>
+                    <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">&quot;some parameters will be ignored during the exporting &quot;</span>
+                    <span class="s2">&quot;and the result will be different.&quot;</span><span class="p">)</span>
+            <span class="n">mapping_line_lissajous</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">&quot;Lissajous -ExecMode 1 -RotateWithElevation 0 -TunePeriod 0&quot;</span>
+                <span class="s2">&quot; -TScan </span><span class="si">{TScan}</span><span class="s2"> -ScanRate </span><span class="si">{ScanRate}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -XLength </span><span class="si">{XLength}</span><span class="s2"> -YLength </span><span class="si">{YLength}</span><span class="s2"> -XOmega </span><span class="si">{XOmega}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -YOmega </span><span class="si">{YOmega}</span><span class="s2"> -XDelta </span><span class="si">{XDelta}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -XLengthMinor </span><span class="si">{XLengthMinor}</span><span class="s2"> -YLengthMinor </span><span class="si">{YLengthMinor}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -XDeltaMinor </span><span class="si">{XDeltaMinor}</span><span class="s2">&quot;</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">XLengthMinor</span><span class="o">=</span><span class="n">minor_params</span><span class="p">[</span><span class="s1">&#39;XLength&#39;</span><span class="p">],</span>
+                    <span class="n">YLengthMinor</span><span class="o">=</span><span class="n">minor_params</span><span class="p">[</span><span class="s1">&#39;YLength&#39;</span><span class="p">],</span>
+                    <span class="n">XDeltaMinor</span><span class="o">=</span><span class="n">minor_params</span><span class="p">[</span><span class="s1">&#39;XDelta&#39;</span><span class="p">],</span>
+                    <span class="o">**</span><span class="n">major_params</span><span class="p">)</span>
+            <span class="n">mapping_line_raster</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">&quot;RasterMap Map; Map -ExecMode 1 -HPBW 1 -HoldDuringTurns 0&quot;</span>
+                <span class="s2">&quot; -MapMotion Continuous -NumPass 1 -NumRepeats 1 -NumScans 0&quot;</span>
+                <span class="s2">&quot; -RowsPerScan 1000000 -ScansPerCal 0 -ScansToSkip 0&quot;</span>
+                <span class="s2">&quot; -TCal 0 -TRef 0 -TSamp 1&quot;</span>
+                <span class="s2">&quot; -MapCoord </span><span class="si">{MapCoord}</span><span class="s2"> -ScanAngle </span><span class="si">{ScanAngle}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -XLength </span><span class="si">{XLength}</span><span class="s2"> -XOffset 0 -XRamp 0 -XStep </span><span class="si">{XStep}</span><span class="s2">&quot;</span>
+                <span class="s2">&quot; -YLength </span><span class="si">{YLength}</span><span class="s2"> -YOffset 0 -YRamp 0 -YStep </span><span class="si">{YStep}</span><span class="s2">&quot;</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">**</span><span class="n">raster_params</span><span class="p">)</span>
+            <span class="n">mapping_line</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">mapping_line_lissajous</span><span class="si">}</span><span class="se">\n</span><span class="si">{</span><span class="n">mapping_line_raster</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+        <span class="n">steps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mapping_line</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">steps</span></div>
+
+<div class="viewcode-block" id="LmtOTComposer.make_setup_steps"><a class="viewcode-back" href="../../../../api/tolteca.simu.exports.LmtOTComposer.html#tolteca.simu.exports.LmtOTComposer.make_setup_steps">[docs]</a>    <span class="k">def</span> <span class="nf">make_setup_steps</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instru_name</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">instru_name</span> <span class="o">==</span> <span class="s1">&#39;toltec&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_toltec_setup_steps</span><span class="p">()</span>
+
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;setup steps not implemented for </span><span class="si">{</span><span class="n">instru_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_toltec_setup_steps</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">steps</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="n">steps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;ObsGoal Dcs; Dcs -ObsGoal Science&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">steps</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_sky_lissajous_params_to_mapping_step_params</span><span class="p">(</span>
+            <span class="bp">cls</span><span class="p">,</span>
+            <span class="n">x_length</span><span class="p">,</span> <span class="n">y_length</span><span class="p">,</span> <span class="n">x_omega</span><span class="p">,</span> <span class="n">y_omega</span><span class="p">,</span>
+            <span class="n">delta</span><span class="p">,</span> <span class="n">t_exp</span>
+            <span class="p">):</span>
+        <span class="n">v_x</span> <span class="o">=</span> <span class="n">x_length</span> <span class="o">*</span> <span class="n">x_omega</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+                <span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">,</span> <span class="n">equivalencies</span><span class="o">=</span><span class="p">[(</span><span class="n">u</span><span class="o">.</span><span class="n">cy</span><span class="o">/</span><span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">)])</span>
+        <span class="n">v_y</span> <span class="o">=</span> <span class="n">y_length</span> <span class="o">*</span> <span class="n">y_omega</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+                <span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">,</span> <span class="n">equivalencies</span><span class="o">=</span><span class="p">[(</span><span class="n">u</span><span class="o">.</span><span class="n">cy</span><span class="o">/</span><span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">)])</span>
+        <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="n">XLength</span><span class="o">=</span><span class="n">x_length</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">arcmin</span><span class="p">),</span>
+            <span class="n">YLength</span><span class="o">=</span><span class="n">y_length</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">arcmin</span><span class="p">),</span>
+            <span class="n">XOmega</span><span class="o">=</span><span class="n">x_omega</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">rad</span><span class="o">/</span><span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">),</span>
+            <span class="n">YOmega</span><span class="o">=</span><span class="n">y_omega</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">rad</span><span class="o">/</span><span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">),</span>
+            <span class="n">XDelta</span><span class="o">=</span><span class="n">delta</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">rad</span><span class="p">),</span>
+            <span class="n">TScan</span><span class="o">=</span><span class="n">t_exp</span><span class="p">,</span>
+            <span class="n">ScanRate</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">hypot</span><span class="p">(</span><span class="n">v_x</span><span class="p">,</span> <span class="n">v_y</span><span class="p">)</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">arcsec</span> <span class="o">/</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">),</span>
+            <span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_sky_raster_params_to_mapping_step_params</span><span class="p">(</span>
+            <span class="bp">cls</span><span class="p">,</span>
+            <span class="n">length</span><span class="p">,</span> <span class="n">space</span><span class="p">,</span> <span class="n">n_scans</span><span class="p">,</span> <span class="n">rot</span><span class="p">,</span> <span class="n">speed</span><span class="p">,</span> <span class="n">ref_frame</span>
+            <span class="p">):</span>
+        <span class="k">if</span> <span class="n">ref_frame</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;icrs&#39;</span><span class="p">:</span>
+            <span class="n">MapCoord</span> <span class="o">=</span> <span class="s1">&#39;Ra&#39;</span>
+        <span class="k">elif</span> <span class="n">ref_frame</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;altaz&#39;</span><span class="p">:</span>
+            <span class="n">MapCoord</span> <span class="o">=</span> <span class="s1">&#39;Az&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;invalid ref_frame </span><span class="si">{</span><span class="n">ref_frame</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="n">MapCoord</span><span class="o">=</span><span class="n">MapCoord</span><span class="p">,</span>
+            <span class="n">ScanAngle</span><span class="o">=</span><span class="n">rot</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">),</span>
+            <span class="n">XLength</span><span class="o">=</span><span class="n">length</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">arcsec</span><span class="p">),</span>
+            <span class="n">XStep</span><span class="o">=</span><span class="n">speed</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">arcsec</span> <span class="o">/</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">),</span>
+            <span class="n">YLength</span><span class="o">=</span><span class="p">(</span><span class="n">n_scans</span> <span class="o">*</span> <span class="n">space</span><span class="o">.</span><span class="n">quantity</span><span class="p">)</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">arcsec</span><span class="p">),</span>
+            <span class="n">YStep</span><span class="o">=</span><span class="n">space</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">arcsec</span><span class="p">),</span>
+            <span class="p">)</span></div>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
+  </p>
+</footer>
+  </body>
+</html>

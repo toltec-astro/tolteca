@@ -1,0 +1,6 @@
+RuntimeBaseError
+================
+
+.. currentmodule:: tolteca.utils
+
+.. autoexception:: RuntimeBaseError

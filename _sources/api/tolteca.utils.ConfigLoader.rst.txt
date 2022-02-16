@@ -1,0 +1,39 @@
+ConfigLoader
+============
+
+.. currentmodule:: tolteca.utils
+
+.. autoclass:: ConfigLoader
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~ConfigLoader.logger
+      ~ConfigLoader.sys_config_path
+      ~ConfigLoader.user_config_path
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~ConfigLoader.get_config
+      ~ConfigLoader.get_config_paths
+      ~ConfigLoader.get_env
+      ~ConfigLoader.get_runtime_context
+      ~ConfigLoader.load_config_from_files
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: logger
+   .. autoattribute:: sys_config_path
+   .. autoattribute:: user_config_path
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: get_config
+   .. automethod:: get_config_paths
+   .. automethod:: get_env
+   .. automethod:: get_runtime_context
+   .. automethod:: load_config_from_files

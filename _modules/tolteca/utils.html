@@ -5,7 +5,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>tolteca.utils &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <title>tolteca.utils &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/bootstrap-astropy.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
@@ -47,7 +47,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
+	<a href="../../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
 	 &#187;
       </li>
       <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li>
@@ -65,371 +65,248 @@
   <h1>Source code for tolteca.utils</h1><div class="highlight"><pre>
 <span></span><span class="ch">#!/usr/bin/env python</span>
 
-<span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_yaml</span>
-<span class="kn">from</span> <span class="nn">tollan.utils</span> <span class="kn">import</span> <span class="n">rupdate</span>
+
+<span class="kn">from</span> <span class="nn">.misc</span> <span class="kn">import</span> <span class="p">(</span><span class="n">get_pkg_data_path</span><span class="p">,</span> <span class="n">get_user_data_dir</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">.runtime_context</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ConfigInfo</span><span class="p">,</span> <span class="n">yaml_load</span><span class="p">,</span> <span class="n">yaml_dump</span><span class="p">,</span>
+    <span class="n">RuntimeContext</span><span class="p">,</span> <span class="n">RuntimeContextError</span><span class="p">,</span> <span class="n">RuntimeBase</span><span class="p">,</span> <span class="n">RuntimeBaseError</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">tollan.utils</span> <span class="kn">import</span> <span class="n">ensure_abspath</span><span class="p">,</span> <span class="n">rupdate</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.sys</span> <span class="kn">import</span> <span class="n">parse_systemd_envfile</span>
 <span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span>
-<span class="kn">from</span> <span class="nn">tollan.utils.dirconf</span> <span class="kn">import</span> <span class="n">DirConfError</span><span class="p">,</span> <span class="n">DirConfMixin</span>
-
-<span class="kn">from</span> <span class="nn">..version</span> <span class="kn">import</span> <span class="n">version</span>
-<span class="kn">from</span> <span class="nn">astropy.time</span> <span class="kn">import</span> <span class="n">Time</span>
-<span class="kn">import</span> <span class="nn">appdirs</span>
-<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
-<span class="kn">from</span> <span class="nn">cached_property</span> <span class="kn">import</span> <span class="n">cached_property</span>
-<span class="kn">from</span> <span class="nn">schema</span> <span class="kn">import</span> <span class="n">Use</span><span class="p">,</span> <span class="n">Optional</span>
-<span class="kn">from</span> <span class="nn">copy</span> <span class="kn">import</span> <span class="n">deepcopy</span>
-<span class="kn">import</span> <span class="nn">yaml</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_yaml</span>
+<span class="kn">from</span> <span class="nn">wrapt</span> <span class="kn">import</span> <span class="n">ObjectProxy</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">scalpl</span>
+<span class="kn">import</span> <span class="nn">argparse</span>
 
 
-<div class="viewcode-block" id="get_pkg_data_path"><a class="viewcode-back" href="../../api/tolteca.utils.get_pkg_data_path.html#tolteca.utils.get_pkg_data_path">[docs]</a><span class="k">def</span> <span class="nf">get_pkg_data_path</span><span class="p">():</span>
-    <span class="sd">&quot;&quot;&quot;Return the package data path.&quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">)</span></div>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;get_user_data_dir&#39;</span><span class="p">,</span> <span class="s1">&#39;get_pkg_data_path&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;yaml_load&#39;</span><span class="p">,</span> <span class="s1">&#39;yaml_dump&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;RuntimeContext&#39;</span><span class="p">,</span> <span class="s1">&#39;RuntimeContextError&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;RuntimeBase&#39;</span><span class="p">,</span> <span class="s1">&#39;RuntimeBaseError&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;ConfigLoaderError&#39;</span><span class="p">,</span> <span class="s1">&#39;ConfigLoader&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;dict_from_cli_args&#39;</span><span class="p">,</span>
+           <span class="p">]</span>
 
 
-<div class="viewcode-block" id="get_user_data_dir"><a class="viewcode-back" href="../../api/tolteca.utils.get_user_data_dir.html#tolteca.utils.get_user_data_dir">[docs]</a><span class="k">def</span> <span class="nf">get_user_data_dir</span><span class="p">():</span>
-    <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="n">appdirs</span><span class="o">.</span><span class="n">user_data_dir</span><span class="p">(</span><span class="s1">&#39;tolteca&#39;</span><span class="p">,</span> <span class="s1">&#39;toltec&#39;</span><span class="p">))</span></div>
-
-
-<div class="viewcode-block" id="RuntimeContextError"><a class="viewcode-back" href="../../api/tolteca.utils.RuntimeContextError.html#tolteca.utils.RuntimeContextError">[docs]</a><span class="k">class</span> <span class="nc">RuntimeContextError</span><span class="p">(</span><span class="n">DirConfError</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Raise when errors occur in `RuntimeContext`.&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="ConfigLoaderError"><a class="viewcode-back" href="../../api/tolteca.utils.ConfigLoaderError.html#tolteca.utils.ConfigLoaderError">[docs]</a><span class="k">class</span> <span class="nc">ConfigLoaderError</span><span class="p">(</span><span class="ne">RuntimeError</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Raise when error in `ConfigLoader`.&quot;&quot;&quot;</span>
     <span class="k">pass</span></div>
 
 
-<div class="viewcode-block" id="RuntimeContext"><a class="viewcode-back" href="../../api/tolteca.utils.RuntimeContext.html#tolteca.utils.RuntimeContext">[docs]</a><span class="k">class</span> <span class="nc">RuntimeContext</span><span class="p">(</span><span class="n">DirConfMixin</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;A class to manage runtime contexts.</span>
+<div class="viewcode-block" id="ConfigLoader"><a class="viewcode-back" href="../../api/tolteca.utils.ConfigLoader.html#tolteca.utils.ConfigLoader">[docs]</a><span class="k">class</span> <span class="nc">ConfigLoader</span><span class="p">(</span><span class="n">ObjectProxy</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A helper class to load config files for tolteca.</span>
 
-<span class="sd">    This class manages a set of configurations in a coherent way, providing</span>
-<span class="sd">    per-project persistence for user settings.</span>
+<span class="sd">    The config paths are loaded in the following order:</span>
 
-<span class="sd">    A runtime context can be constructed either from file system,</span>
-<span class="sd">    using the `tollan.utils.dirconf.DirConfMixin` under the hood, or</span>
-<span class="sd">    be constructed directly from a configuration dict composed</span>
-<span class="sd">    programatically. Property :attr:``is_persistent`` is set to True in the</span>
-<span class="sd">    former case.</span>
+<span class="sd">        system_config_path &lt; user_config_path &lt; standalone_config_files</span>
 
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    files : list</span>
+<span class="sd">        A list of YAML config file paths. The config dict get</span>
+<span class="sd">        merged in their order in the list.</span>
+
+<span class="sd">    load_sys_config : bool</span>
+<span class="sd">        If True, load the built-in config file (:attr:`sys_config_path`).</span>
+
+<span class="sd">    load_user_config : bool</span>
+<span class="sd">        If True, load the user config file (:attr:`user_config_path`).</span>
+
+<span class="sd">    runtime_context_dir : str, `pathlib.Path`, optional</span>
+<span class="sd">        If specified, load the runtime context from this path.</span>
+
+<span class="sd">    env_files : list</span>
+<span class="sd">        A list of systemd env file paths. The env dict get</span>
+<span class="sd">        merged in their order in the list.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">_contents</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s1">&#39;bindir&#39;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="s1">&#39;bin&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;dir&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;backup_enabled&#39;</span><span class="p">:</span> <span class="kc">False</span>
-            <span class="p">},</span>
-        <span class="s1">&#39;caldir&#39;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="s1">&#39;cal&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;dir&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;backup_enabled&#39;</span><span class="p">:</span> <span class="kc">False</span>
-            <span class="p">},</span>
-        <span class="s1">&#39;logdir&#39;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="s1">&#39;log&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;dir&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;backup_enabled&#39;</span><span class="p">:</span> <span class="kc">False</span>
-            <span class="p">},</span>
-        <span class="s1">&#39;setup_file&#39;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="s1">&#39;50_setup.yaml&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;file&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;backup_enabled&#39;</span><span class="p">:</span> <span class="kc">True</span>
-            <span class="p">},</span>
-        <span class="p">}</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+    <span class="n">sys_config_path</span> <span class="o">=</span> <span class="n">get_pkg_data_path</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;tolteca.yaml&quot;</span><span class="p">)</span>
+    <span class="n">user_config_path</span> <span class="o">=</span> <span class="n">get_user_data_dir</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;tolteca.yaml&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">files</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">load_sys_config</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">load_user_config</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">runtime_context_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">env_files</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="p">):</span>
+        <span class="c1"># build the list of paths</span>
+        <span class="n">load_sys_config</span> <span class="o">=</span> <span class="n">load_sys_config</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">sys_config_path</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span>
+        <span class="n">load_user_config</span> <span class="o">=</span> <span class="n">load_user_config</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">user_config_path</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span>
+
+        <span class="c1"># build a config info object and initialize the proxy.</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">ConfigInfo</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">load</span><span class="p">({</span>
+            <span class="s1">&#39;standalone_config_files&#39;</span><span class="p">:</span> <span class="n">files</span> <span class="ow">or</span> <span class="nb">list</span><span class="p">(),</span>
+            <span class="s1">&#39;user_config_path&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">user_config_path</span><span class="p">,</span>
+            <span class="s1">&#39;sys_config_path&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">sys_config_path</span><span class="p">,</span>
+            <span class="s1">&#39;load_user_config&#39;</span><span class="p">:</span> <span class="n">load_user_config</span><span class="p">,</span>
+            <span class="s1">&#39;load_sys_config&#39;</span><span class="p">:</span> <span class="n">load_sys_config</span><span class="p">,</span>
+            <span class="s1">&#39;runtime_context_dir&#39;</span><span class="p">:</span> <span class="n">runtime_context_dir</span><span class="p">,</span>
+            <span class="s1">&#39;env_files&#39;</span><span class="p">:</span> <span class="n">env_files</span> <span class="ow">or</span> <span class="nb">list</span><span class="p">(),</span>
+            <span class="p">}))</span>
+
+<div class="viewcode-block" id="ConfigLoader.get_config"><a class="viewcode-back" href="../../api/tolteca.utils.ConfigLoader.html#tolteca.utils.ConfigLoader.get_config">[docs]</a>    <span class="k">def</span> <span class="nf">get_config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the merged config dict from all config file paths.</span>
+
+<span class="sd">        Note that this only compile the user supplied config files via</span>
+<span class="sd">        `filepaths` in the constructor and the sys/user config files.</span>
+
+<span class="sd">        It does not load the config from the runtime context dir.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">load_config_from_files</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_config_paths</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="ConfigLoader.get_config_paths"><a class="viewcode-back" href="../../api/tolteca.utils.ConfigLoader.html#tolteca.utils.ConfigLoader.get_config_paths">[docs]</a>    <span class="k">def</span> <span class="nf">get_config_paths</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the merged config paths list from all config file paths.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">paths</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">load_sys_config</span><span class="p">:</span>
+            <span class="n">paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sys_config_path</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">load_user_config</span><span class="p">:</span>
+            <span class="n">paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">user_config_path</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">standalone_config_files</span><span class="p">:</span>
+            <span class="n">paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ensure_abspath</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">paths</span></div>
+
+<div class="viewcode-block" id="ConfigLoader.get_runtime_context"><a class="viewcode-back" href="../../api/tolteca.utils.ConfigLoader.html#tolteca.utils.ConfigLoader.get_runtime_context">[docs]</a>    <span class="k">def</span> <span class="nf">get_runtime_context</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">include_config_as_default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">include_config_as_override</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the runtime context.</span>
+
+<span class="sd">        Returns None when the ``runtime_context_dir`` is not set.</span>
+
+<span class="sd">        The `include_config_as_*` can be set to True to include the config dict</span>
+<span class="sd">        from the :meth:`get_config`. When as default, the config dict is made</span>
+<span class="sd">        available to the runtime context config through the</span>
+<span class="sd">        `ConfigBackend.set_default_config`, when as override, it is made</span>
+<span class="sd">        available to the runtime context config trough the</span>
+<span class="sd">        `ConfigBackend.set_override_config`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># when include as override, include as default is ignored because</span>
+        <span class="c1"># it gets override anyway</span>
+        <span class="k">if</span> <span class="n">include_config_as_override</span><span class="p">:</span>
+            <span class="n">include_config_as_default</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">dirpath</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">runtime_context_dir</span>
+        <span class="k">if</span> <span class="n">dirpath</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">dirpath</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="n">ConfigLoaderError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;runtime context dir </span><span class="si">{</span><span class="n">dirpath</span><span class="si">}</span><span class="s2"> does not exist.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">dirpath</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="n">ConfigLoaderError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;runtime context dir </span><span class="si">{</span><span class="n">dirpath</span><span class="si">}</span><span class="s2"> is not a directory.&quot;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">rc</span> <span class="o">=</span> <span class="n">RuntimeContext</span><span class="p">(</span><span class="n">dirpath</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">RuntimeContextError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ConfigLoaderError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;invalid runtime context dir </span><span class="si">{</span><span class="n">dirpath</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">include_config_as_default</span><span class="p">:</span>
+            <span class="n">rc</span><span class="o">.</span><span class="n">config_backend</span><span class="o">.</span><span class="n">set_default_config</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_config</span><span class="p">())</span>
+        <span class="k">elif</span> <span class="n">include_config_as_override</span><span class="p">:</span>
+            <span class="n">rc</span><span class="o">.</span><span class="n">config_backend</span><span class="o">.</span><span class="n">set_override_config</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_config</span><span class="p">())</span>
+        <span class="k">return</span> <span class="n">rc</span></div>
+
+<div class="viewcode-block" id="ConfigLoader.load_config_from_files"><a class="viewcode-back" href="../../api/tolteca.utils.ConfigLoader.html#tolteca.utils.ConfigLoader.load_config_from_files">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">load_config_from_files</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">filepaths</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">filepaths</span><span class="p">:</span>
+            <span class="n">rupdate</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_load_config_from_file</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">schema</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">cfg</span>
+        <span class="k">return</span> <span class="n">schema</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></div>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_load_config_from_file</span><span class="p">(</span><span class="n">filepath</span><span class="p">):</span>
+        <span class="n">filepath</span> <span class="o">=</span> <span class="n">ensure_abspath</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">filepath</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
+                    <span class="n">cfg</span> <span class="o">=</span> <span class="n">yaml_load</span><span class="p">(</span><span class="n">fo</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">cfg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="c1"># empty file is fine</span>
+                    <span class="n">cfg</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+                <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="n">ConfigLoaderError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;no valid config dict found in </span><span class="si">{</span><span class="n">filepath</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ConfigLoaderError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;cannot load config from </span><span class="si">{</span><span class="n">filepath</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ConfigLoaderError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">filepath</span><span class="si">}</span><span class="s2"> does not exist.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cfg</span>
+
+<div class="viewcode-block" id="ConfigLoader.get_env"><a class="viewcode-back" href="../../api/tolteca.utils.ConfigLoader.html#tolteca.utils.ConfigLoader.get_env">[docs]</a>    <span class="k">def</span> <span class="nf">get_env</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the merged env dict from all env file paths.&quot;&quot;&quot;</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="c1"># we use update here because env file is only one level.</span>
+        <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_files</span> <span class="ow">or</span> <span class="nb">list</span><span class="p">():</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">parse_systemd_envfile</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">env</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;loaded env:</span><span class="se">\n</span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">env</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">env</span></div></div>
+
+
+<span class="n">default_config_loader</span> <span class="o">=</span> <span class="n">ConfigLoader</span><span class="p">(</span><span class="n">runtime_context_dir</span><span class="o">=</span><span class="s1">&#39;.&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;The tolteca config loader with default settings.&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="dict_from_cli_args"><a class="viewcode-back" href="../../api/tolteca.utils.dict_from_cli_args.html#tolteca.utils.dict_from_cli_args">[docs]</a><span class="k">def</span> <span class="nf">dict_from_cli_args</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return a nested dict composed from CLI arguments.</span>
+
+<span class="sd">    This is used to compose config dict on-the-fly. Nested keys can</span>
+<span class="sd">    be specified using syntax like ``--a.b.c``. Nested lists are</span>
+<span class="sd">    supported with the index as the key: ``--a.0.c``. The values</span>
+<span class="sd">    of the options are parsed as YAML string.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rootpath</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="k">if</span> <span class="nb">sum</span><span class="p">([</span><span class="n">rootpath</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">,</span> <span class="n">config</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">])</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">RuntimeContextError</span><span class="p">(</span>
-                    <span class="s2">&quot;one and only one of rootpath and config has to be set&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">rootpath</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="c1"># we expect that rootpath is already setup if constructed</span>
-            <span class="c1"># this way.</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="n">rootpath</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">populate_dir</span><span class="p">(</span>
-                        <span class="n">rootpath</span><span class="p">,</span>
-                        <span class="n">create</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-            <span class="k">except</span> <span class="n">DirConfError</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="n">RuntimeContextError</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s1">&#39;missing runtime context contents in </span><span class="si">{</span><span class="n">rootpath</span><span class="si">}</span><span class="s1">. &#39;</span>
-                        <span class="sa">f</span><span class="s1">&#39;Use </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s1">.from_dir &#39;</span>
-                        <span class="sa">f</span><span class="s1">&#39;with create=True instead.&#39;</span>
-                        <span class="p">)</span>
-        <span class="k">elif</span> <span class="n">config</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="c1"># make our own copy because we may update it</span>
-            <span class="n">config</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_rootpath</span> <span class="o">=</span> <span class="n">rootpath</span>
-        <span class="c1"># we delay the validating of config to accessing time</span>
-        <span class="c1"># in property ``config``</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_config</span> <span class="o">=</span> <span class="n">config</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_persistent</span><span class="p">:</span>
-            <span class="c1"># when user provide config directly</span>
-            <span class="c1"># it is likely that its not setup, therefore</span>
-            <span class="c1"># just do it here</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">setup</span><span class="p">()</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;parse command line args: </span><span class="si">{</span><span class="n">args</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">is_persistent</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;True if this context is created from a valid rootpath.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rootpath</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">rootpath</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_persistent</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rootpath</span>
-        <span class="c1"># the config runtime should always be available,</span>
-        <span class="c1"># since we add that at the end of the config property getter</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;runtime&#39;</span><span class="p">][</span><span class="s1">&#39;rootpath&#39;</span><span class="p">]</span>
-
-    <span class="k">def</span> <span class="fm">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
-        <span class="c1"># in case the config is not persistent,</span>
-        <span class="c1"># we return the content paths from the runtime dict</span>
-        <span class="c1"># make available the content attributes</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_persistent</span><span class="p">:</span>
-            <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__getattr__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_contents</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;runtime&#39;</span><span class="p">][</span><span class="n">name</span><span class="p">]</span>
-        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__getattribute__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_persistent</span><span class="p">:</span>
-            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rootpath</span><span class="si">}</span><span class="s2">)&quot;</span>
-        <span class="c1"># an extra star to indication is not persistent</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(*</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rootpath</span><span class="si">}</span><span class="s2">)&quot;</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">config_files</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;The list of config files present in the :attr:`config_files`.</span>
-
-<span class="sd">        Returns ``None`` if the runtime context is not persistent.</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_persistent</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">collect_config_files</span><span class="p">()</span>
-        <span class="k">return</span> <span class="kc">None</span>
-
-    <span class="nd">@cached_property</span>
-    <span class="k">def</span> <span class="nf">config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;The runtime context dict.</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_persistent</span><span class="p">:</span>
-            <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">collect_config_from_files</span><span class="p">(</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">config_files</span><span class="p">,</span> <span class="n">validate</span><span class="o">=</span><span class="kc">True</span>
-                    <span class="p">)</span>
-            <span class="c1"># update runtime info</span>
-            <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;runtime&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">()</span>
+    <span class="n">re_arg</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;^--(?P&lt;key&gt;[a-zA-Z_]([a-zA-z0-9_.\[\]])*)&#39;</span><span class="p">)</span>
+    <span class="n">n_args</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">arg</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+        <span class="c1"># collect all items that are argument keys.</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="n">re_arg</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">m</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">&lt;</span> <span class="n">n_args</span><span class="p">:</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">validate_config</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="p">)</span>
-            <span class="c1"># here we also add the runtime dict if it not already exists</span>
-            <span class="k">if</span> <span class="s1">&#39;runtime&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cfg</span><span class="p">:</span>
-                <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;runtime&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-                        <span class="n">attr</span><span class="p">:</span> <span class="kc">None</span>
-                        <span class="k">for</span> <span class="n">attr</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_to_dict_attrs</span><span class="p">()</span>
-                        <span class="p">}</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;loaded config: </span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">cfg</span>
-
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">_validate_setup</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">cfg_setup</span><span class="p">):</span>
-        <span class="c1"># TODO implement more logic to verify the settings</span>
-        <span class="k">if</span> <span class="n">cfg_setup</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">cfg_setup</span> <span class="o">=</span> <span class="p">{}</span>
-
-        <span class="c1"># check version</span>
-        <span class="kn">from</span> <span class="nn">..version</span> <span class="kn">import</span> <span class="n">version</span>
-        <span class="c1"># for now we just issue a warning but this will be replaced</span>
-        <span class="c1"># by actual version comparison.</span>
-        <span class="k">if</span> <span class="s1">&#39;version&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cfg_setup</span><span class="p">:</span>
-            <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;no version info found.&quot;</span><span class="p">)</span>
-            <span class="n">cfg_setup</span><span class="p">[</span><span class="s1">&#39;version&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">version</span>
-        <span class="k">if</span> <span class="n">cfg_setup</span><span class="p">[</span><span class="s1">&#39;version&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="n">version</span><span class="p">:</span>
-            <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;mismatch of tolteca version &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cfg_setup</span><span class="p">[</span><span class="s1">&#39;version&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">cfg_setup</span>
-
-<div class="viewcode-block" id="RuntimeContext.extend_config_schema"><a class="viewcode-back" href="../../api/tolteca.utils.RuntimeContext.html#tolteca.utils.RuntimeContext.extend_config_schema">[docs]</a>    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">extend_config_schema</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
-        <span class="c1"># this defines a basic schema to validate the config</span>
-        <span class="k">return</span> <span class="p">{</span>
-            <span class="s1">&#39;setup&#39;</span><span class="p">:</span> <span class="n">Use</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_validate_setup</span><span class="p">),</span>
-            <span class="n">Optional</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span> <span class="nb">object</span>
-            <span class="p">}</span></div>
-
-<div class="viewcode-block" id="RuntimeContext.from_dir"><a class="viewcode-back" href="../../api/tolteca.utils.RuntimeContext.html#tolteca.utils.RuntimeContext.from_dir">[docs]</a>    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">from_dir</span><span class="p">(</span>
-            <span class="bp">cls</span><span class="p">,</span> <span class="n">dirpath</span><span class="p">,</span> <span class="n">init_config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span>
-            <span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Create `RuntimeContext` instance from `dirpath`.</span>
-
-<span class="sd">        This is the preferred method to construct `RuntimeContext`</span>
-<span class="sd">        from arbitrary path.</span>
-
-<span class="sd">        For paths that have already setup previous as runtime context,</span>
-<span class="sd">        use the constructor instead.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        dirpath : `pathlib.Path`, str</span>
-<span class="sd">            The path to the work directory.</span>
-<span class="sd">        init_config : dict, optional</span>
-<span class="sd">            The dict to add to setup_file.</span>
-<span class="sd">        **kwargs : dict, optional</span>
-<span class="sd">            Additional arguments passed to the underlying</span>
-<span class="sd">            :meth:`DirConfMixin.populate_dir`.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">dirpath</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">populate_dir</span><span class="p">(</span><span class="n">dirpath</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dry_run&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
-            <span class="c1"># when dry_run we just create a in-memory rc</span>
-            <span class="n">cfg</span> <span class="o">=</span> <span class="p">{</span>
-                    <span class="s1">&#39;runtime&#39;</span><span class="p">:</span> <span class="p">{</span>
-                        <span class="s1">&#39;rootpath&#39;</span><span class="p">:</span> <span class="n">dirpath</span>
-                        <span class="p">}</span>
-                    <span class="p">}</span>
-            <span class="k">if</span> <span class="n">init_config</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">rupdate</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">init_config</span><span class="p">)</span>
-            <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="n">cfg</span><span class="p">)</span>
-        <span class="c1"># write init_config to setup_file</span>
-        <span class="k">if</span> <span class="n">init_config</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">setup_file</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_resolve_content_path</span><span class="p">(</span><span class="n">dirpath</span><span class="p">,</span> <span class="s1">&#39;setup_file&#39;</span><span class="p">)</span>
-            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">setup_file</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
-                <span class="n">cfg</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">fo</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">cfg</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-                    <span class="n">cfg</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
-                <span class="n">rupdate</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">init_config</span><span class="p">)</span>
-            <span class="bp">cls</span><span class="o">.</span><span class="n">write_config_to_yaml</span><span class="p">(</span>
-                    <span class="n">cfg</span><span class="p">,</span>
-                    <span class="n">setup_file</span><span class="p">,</span>
-                    <span class="n">overwrite</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">rootpath</span><span class="o">=</span><span class="n">dirpath</span><span class="p">)</span></div>
-
-<div class="viewcode-block" id="RuntimeContext.from_config"><a class="viewcode-back" href="../../api/tolteca.utils.RuntimeContext.html#tolteca.utils.RuntimeContext.from_config">[docs]</a>    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">from_config</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">configs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Create `RuntimeContext` instance from a set of configs.</span>
-
-<span class="sd">        This method allow constructing `RuntimeContext`</span>
-<span class="sd">        from multiple configuration dicts.</span>
-
-<span class="sd">        For a single config dict, use the constructor instead.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        *configs : tuple</span>
-<span class="sd">            The config dicts.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">cfg</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">configs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-        <span class="c1"># TODO maybe we nned to make deepcopy of all?</span>
-        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">configs</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
-            <span class="n">rupdate</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="n">cfg</span><span class="p">)</span></div>
-
-<div class="viewcode-block" id="RuntimeContext.symlink_to_bindir"><a class="viewcode-back" href="../../api/tolteca.utils.RuntimeContext.html#tolteca.utils.RuntimeContext.symlink_to_bindir">[docs]</a>    <span class="k">def</span> <span class="nf">symlink_to_bindir</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src</span><span class="p">,</span> <span class="n">link_name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Create a symbolic link of of `src` in :attr:`bindir`.</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">src</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">src</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">link_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">link_name</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">name</span>
-        <span class="n">dst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bindir</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">link_name</span><span class="p">)</span>
-        <span class="n">dst</span><span class="o">.</span><span class="n">symlink_to</span><span class="p">(</span><span class="n">src</span><span class="p">)</span>  <span class="c1"># note this may seem backward but it is the way</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;symlink </span><span class="si">{</span><span class="n">src</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">dst</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">dst</span></div>
-
-<div class="viewcode-block" id="RuntimeContext.setup"><a class="viewcode-back" href="../../api/tolteca.utils.RuntimeContext.html#tolteca.utils.RuntimeContext.setup">[docs]</a>    <span class="k">def</span> <span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Populate the setup file (50_setup.yaml).</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        config : dict, optional</span>
-<span class="sd">            Additional config to add to the setup file.</span>
-<span class="sd">        overwrite : bool</span>
-<span class="sd">            Set to True to force overwrite the existing</span>
-<span class="sd">            setup info. Otherwise a `RuntimeContextError` is</span>
-<span class="sd">            raised.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># check if already setup</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_persistent</span><span class="p">:</span>
-            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">setup_file</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
-                <span class="n">setup_cfg</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">fo</span><span class="p">)</span>
+            <span class="c1"># the last item</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">arg_kwargs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">re_arg</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># the next item is a validate arg, this is a flag</span>
+            <span class="n">arg_kwargs</span><span class="p">[</span><span class="s1">&#39;action&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;store_true&#39;</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># use the unvalidated version here so we can setup for the</span>
-            <span class="c1"># first time</span>
-            <span class="n">setup_cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">setup_cfg</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="s1">&#39;setup&#39;</span> <span class="ow">in</span> <span class="n">setup_cfg</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">overwrite</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                    <span class="s2">&quot;runtime context is already setup, overwrite&quot;</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="n">RuntimeContextError</span><span class="p">(</span>
-                        <span class="s1">&#39;runtime context is already setup&#39;</span>
-                        <span class="p">)</span>
-        <span class="k">if</span> <span class="n">config</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">config</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+            <span class="c1"># parse the item with config yaml loader</span>
+            <span class="n">arg_kwargs</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">yaml_load</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="o">**</span><span class="n">arg_kwargs</span><span class="p">)</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+    <span class="c1"># create the nested dict</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">scalpl</span><span class="o">.</span><span class="n">Cut</span><span class="p">(</span><span class="nb">dict</span><span class="p">())</span>
+    <span class="n">_missing</span> <span class="o">=</span> <span class="nb">object</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">v0</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">_missing</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">v0</span> <span class="ow">is</span> <span class="n">_missing</span><span class="p">:</span>
+            <span class="n">d</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="c1"># update v to v0 if dict</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v0</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="n">rupdate</span><span class="p">(</span><span class="n">v0</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">config</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
-        <span class="n">rupdate</span><span class="p">(</span>
-            <span class="n">config</span><span class="p">,</span>
-            <span class="p">{</span>
-                <span class="s1">&#39;setup&#39;</span><span class="p">:</span> <span class="p">{</span>
-                    <span class="s1">&#39;version&#39;</span><span class="p">:</span> <span class="n">version</span><span class="p">,</span>
-                    <span class="s1">&#39;created_at&#39;</span><span class="p">:</span> <span class="n">Time</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">isot</span><span class="p">,</span>
-                    <span class="p">}</span>
-            <span class="p">})</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_persistent</span><span class="p">:</span>
-            <span class="c1"># write the setup context to the setup_file</span>
-            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">setup_file</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
-                <span class="n">yaml</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">fo</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># create setup key in the config</span>
-            <span class="n">rupdate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
-        <span class="c1"># invalidate the config cache if needed</span>
-        <span class="c1"># so later self.config will pick up the new setting</span>
-        <span class="k">if</span> <span class="s1">&#39;config&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">:</span>
-            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">[</span><span class="s1">&#39;config&#39;</span><span class="p">]</span>
-        <span class="k">return</span> <span class="bp">self</span></div>
-
-<div class="viewcode-block" id="RuntimeContext.update"><a class="viewcode-back" href="../../api/tolteca.utils.RuntimeContext.html#tolteca.utils.RuntimeContext.update">[docs]</a>    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">config_file</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Populate the `config_file` with `config`.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        config : dict</span>
-<span class="sd">            Config to add to `config_file`.</span>
-<span class="sd">        config : str, `pathlib.Path`, optional</span>
-<span class="sd">            Config to add to `config_file`. When self is not persistent</span>
-<span class="sd">            this has to be set to None.</span>
-<span class="sd">        overwrite : bool</span>
-<span class="sd">            Set to True to force overwrite the existing</span>
-<span class="sd">            config info. Otherwise a `RuntimeContextError` is</span>
-<span class="sd">            raised.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_persistent</span><span class="p">:</span>
-            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">config_file</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
-                <span class="n">cfg</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">fo</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span>
-        <span class="k">if</span> <span class="n">config</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">config</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-            <span class="n">common_keys</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">common_keys</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">overwrite</span><span class="p">:</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;keys </span><span class="si">{</span><span class="n">common_keys</span><span class="si">}</span><span class="s2"> exists, overwrite&quot;</span><span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="n">RuntimeContextError</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s1">&#39;keys </span><span class="si">{</span><span class="n">common_keys</span><span class="si">}</span><span class="s1"> already exists&#39;</span>
-                        <span class="p">)</span>
-        <span class="n">rupdate</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_persistent</span><span class="p">:</span>
-            <span class="c1"># write the setup context to the setup_file</span>
-            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">config_file</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
-                <span class="n">yaml</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">fo</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_config</span> <span class="o">=</span> <span class="n">cfg</span>
-        <span class="c1"># invalidate the config cache if needed</span>
-        <span class="c1"># so later self.config will pick up the new setting</span>
-        <span class="k">if</span> <span class="s1">&#39;config&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">:</span>
-            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">[</span><span class="s1">&#39;config&#39;</span><span class="p">]</span>
-        <span class="k">return</span> <span class="bp">self</span></div></div>
+            <span class="n">d</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">data</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;dict parsed from CLI args: </span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">d</span></div>
 </pre></div>
 
             <div class="clearer"></div>
@@ -448,9 +325,9 @@
   <p class="pull-right"> &nbsp;
     <a href="#">Back to Top</a></p>
   <p>
-    &copy; Copyright 2021, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
-    Last built 18 Jun 2021. <br/>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
   </p>
 </footer>
   </body>

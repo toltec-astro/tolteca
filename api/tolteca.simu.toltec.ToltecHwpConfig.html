@@ -1,0 +1,206 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>ToltecHwpConfig &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+    
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="ToltecPowerLoadingModelConfig" href="tolteca.simu.toltec.ToltecPowerLoadingModelConfig.html" />
+    <link rel="prev" title="ToltecObsSimulatorConfig" href="tolteca.simu.toltec.ToltecObsSimulatorConfig.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="tolteca.simu.toltec.ToltecPowerLoadingModelConfig.html" title="ToltecPowerLoadingModelConfig">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="tolteca.simu.toltec.ToltecObsSimulatorConfig.html" title="ToltecObsSimulatorConfig">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
+	 &#187;
+      </li>
+      
+      <li>ToltecHwpConfig</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="toltechwpconfig">
+<h1>ToltecHwpConfig<a class="headerlink" href="#toltechwpconfig" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="tolteca.simu.toltec.ToltecHwpConfig">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">tolteca.simu.toltec.</span></span><span class="sig-name descname"><span class="pre">ToltecHwpConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">f_rot:</span> <span class="pre">astropy.units.quantity.Quantity</span> <span class="pre">=</span> <span class="pre">&lt;Quantity</span> <span class="pre">4.</span> <span class="pre">Hz&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_smp:</span> <span class="pre">astropy.units.quantity.Quantity</span> <span class="pre">=</span> <span class="pre">&lt;Quantity</span> <span class="pre">20.</span> <span class="pre">Hz&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rotator_enabled:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/simu/toltec/simulator.html#ToltecHwpConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.simu.toltec.ToltecHwpConfig" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.10)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>The config class for TolTEC half-wave plate and the rotator.</p>
+<p class="rubric">Attributes Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.simu.toltec.ToltecHwpConfig.f_rot" title="tolteca.simu.toltec.ToltecHwpConfig.f_rot"><code class="xref py py-obj docutils literal notranslate"><span class="pre">f_rot</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.simu.toltec.ToltecHwpConfig.f_smp" title="tolteca.simu.toltec.ToltecHwpConfig.f_smp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">f_smp</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.simu.toltec.ToltecHwpConfig.optional" title="tolteca.simu.toltec.ToltecHwpConfig.optional"><code class="xref py py-obj docutils literal notranslate"><span class="pre">optional</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.simu.toltec.ToltecHwpConfig.rotator_enabled" title="tolteca.simu.toltec.ToltecHwpConfig.rotator_enabled"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rotator_enabled</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.simu.toltec.ToltecHwpConfig.schema" title="tolteca.simu.toltec.ToltecHwpConfig.schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">schema</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.simu.toltec.ToltecHwpConfig.default_factory" title="tolteca.simu.toltec.ToltecHwpConfig.default_factory"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_factory</span></code></a>(default_value)</p></td>
+<td><p>Return a callable suitable to be used as default_factory.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.simu.toltec.ToltecHwpConfig.from_dict" title="tolteca.simu.toltec.ToltecHwpConfig.from_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_dict</span></code></a>(data)</p></td>
+<td><p>Return the instance of <code class="xref py py-attr docutils literal notranslate"><span class="pre">dataclass_cls</span></code> created from <code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code> after validation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.simu.toltec.ToltecHwpConfig.to_dict" title="tolteca.simu.toltec.ToltecHwpConfig.to_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_dict</span></code></a>(*[, dict_factory])</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Attributes Documentation</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.simu.toltec.ToltecHwpConfig.f_rot">
+<span class="sig-name descname"><span class="pre">f_rot</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.astropy.org/en/stable/api/astropy.units.quantity.Quantity.html#astropy.units.quantity.Quantity" title="(in Astropy v5.0)"><span class="pre">astropy.units.quantity.Quantity</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;Quantity</span> <span class="pre">4.</span> <span class="pre">Hz&gt;</span></em><a class="headerlink" href="#tolteca.simu.toltec.ToltecHwpConfig.f_rot" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.simu.toltec.ToltecHwpConfig.f_smp">
+<span class="sig-name descname"><span class="pre">f_smp</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.astropy.org/en/stable/api/astropy.units.quantity.Quantity.html#astropy.units.quantity.Quantity" title="(in Astropy v5.0)"><span class="pre">astropy.units.quantity.Quantity</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;Quantity</span> <span class="pre">20.</span> <span class="pre">Hz&gt;</span></em><a class="headerlink" href="#tolteca.simu.toltec.ToltecHwpConfig.f_smp" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.simu.toltec.ToltecHwpConfig.optional">
+<span class="sig-name descname"><span class="pre">optional</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">functools.partial(&lt;class</span> <span class="pre">'tollan.utils.dataclass_schema.DataclassSchemaOptional'&gt;,</span> <span class="pre">dataclass_cls=&lt;class</span> <span class="pre">'tolteca.simu.toltec.simulator.ToltecHwpConfig'&gt;)</span></em><a class="headerlink" href="#tolteca.simu.toltec.ToltecHwpConfig.optional" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.simu.toltec.ToltecHwpConfig.rotator_enabled">
+<span class="sig-name descname"><span class="pre">rotator_enabled</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.10)"><span class="pre">bool</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#tolteca.simu.toltec.ToltecHwpConfig.rotator_enabled" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.simu.toltec.ToltecHwpConfig.schema">
+<span class="sig-name descname"><span class="pre">schema</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">DataclassSchema({DataclassSchemaOptional('f_rot'):</span> <span class="pre">PhysicalTypeSchema(Or(&lt;class</span> <span class="pre">'int'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'float'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;)),</span> <span class="pre">DataclassSchemaOptional('f_smp'):</span> <span class="pre">PhysicalTypeSchema(Or(&lt;class</span> <span class="pre">'int'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'float'&gt;,</span> <span class="pre">&lt;class</span> <span class="pre">'str'&gt;)),</span> <span class="pre">DataclassSchemaOptional('rotator_enabled'):</span> <span class="pre">&lt;class</span> <span class="pre">'bool'&gt;})</span></em><a class="headerlink" href="#tolteca.simu.toltec.ToltecHwpConfig.schema" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.simu.toltec.ToltecHwpConfig.default_factory">
+<span class="sig-name descname"><span class="pre">default_factory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">default_value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.simu.toltec.ToltecHwpConfig.default_factory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a callable suitable to be used as default_factory.</p>
+<p>By default this is to create instance, so that when used as
+field default factory, no argument is required.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.simu.toltec.ToltecHwpConfig.from_dict">
+<span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.simu.toltec.ToltecHwpConfig.from_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the instance of <code class="xref py py-attr docutils literal notranslate"><span class="pre">dataclass_cls</span></code> created from <code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code>
+after validation.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.simu.toltec.ToltecHwpConfig.to_dict">
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dict_factory=&lt;class</span> <span class="pre">'dict'&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.simu.toltec.ToltecHwpConfig.to_dict" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">ToltecHwpConfig</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/api/tolteca.simu.toltec.ToltecHwpConfig.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
+  </p>
+</footer>
+  </body>
+</html>

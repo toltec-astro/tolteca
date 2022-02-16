@@ -1,0 +1,31 @@
+BasicObsDatasetLoader
+=====================
+
+.. currentmodule:: tolteca.reduce.toltec
+
+.. autoclass:: BasicObsDatasetLoader
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~BasicObsDatasetLoader.logger
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~BasicObsDatasetLoader.aggregate
+      ~BasicObsDatasetLoader.identify
+      ~BasicObsDatasetLoader.load
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: logger
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: aggregate
+   .. automethod:: identify
+   .. automethod:: load

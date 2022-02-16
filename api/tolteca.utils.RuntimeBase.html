@@ -1,0 +1,225 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>RuntimeBase &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+    
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="RuntimeBaseError" href="tolteca.utils.RuntimeBaseError.html" />
+    <link rel="prev" title="RuntimeContextError" href="tolteca.utils.RuntimeContextError.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="tolteca.utils.RuntimeBaseError.html" title="RuntimeBaseError">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="tolteca.utils.RuntimeContextError.html" title="RuntimeContextError">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
+	 &#187;
+      </li>
+      
+      <li>RuntimeBase</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="runtimebase">
+<h1>RuntimeBase<a class="headerlink" href="#runtimebase" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="tolteca.utils.RuntimeBase">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">tolteca.utils.</span></span><span class="sig-name descname"><span class="pre">RuntimeBase</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/utils/runtime_context.html#RuntimeBase"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.utils.RuntimeBase" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.10)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>A base class that consumes <a class="reference internal" href="tolteca.utils.RuntimeContext.html#tolteca.utils.RuntimeContext" title="tolteca.utils.RuntimeContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RuntimeContext</span></code></a>.</p>
+<p>This class acts as a proxy of an underlying <a class="reference internal" href="tolteca.utils.RuntimeContext.html#tolteca.utils.RuntimeContext" title="tolteca.utils.RuntimeContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RuntimeContext</span></code></a> object,
+providing a unified interface for subclasses to managed
+specialized config objects constructed from
+the config dict of the runtime context and its the runtime info.</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl>
+<dt><strong>config</strong><span class="classifier"><a class="reference internal" href="tolteca.utils.RuntimeContext.html#tolteca.utils.RuntimeContext" title="tolteca.utils.RuntimeContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RuntimeContext</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pathlib.Path</span></code></a>, str, dict</span></dt><dd><p>The runtime context object, or the config source of it.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">Attributes Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.utils.RuntimeBase.config" title="tolteca.utils.RuntimeBase.config"><code class="xref py py-obj docutils literal notranslate"><span class="pre">config</span></code></a></p></td>
+<td><p>The config object of <a class="reference internal" href="#tolteca.utils.RuntimeBase.config_cls" title="tolteca.utils.RuntimeBase.config_cls"><code class="xref py py-attr docutils literal notranslate"><span class="pre">config_cls</span></code></a> constructed from the runtime context config dict.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.utils.RuntimeBase.config_cls" title="tolteca.utils.RuntimeBase.config_cls"><code class="xref py py-obj docutils literal notranslate"><span class="pre">config_cls</span></code></a></p></td>
+<td><p>Subclasses implement this to provide specialized config object.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.utils.RuntimeBase.rc" title="tolteca.utils.RuntimeBase.rc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rc</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.utils.RuntimeBase.update" title="tolteca.utils.RuntimeBase.update"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update</span></code></a>(config[, mode])</p></td>
+<td><p>Update the config object with provided config dict.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.utils.RuntimeBase.yaml_dump" title="tolteca.utils.RuntimeBase.yaml_dump"><code class="xref py py-obj docutils literal notranslate"><span class="pre">yaml_dump</span></code></a>(config[, output])</p></td>
+<td><p>Dump <a class="reference internal" href="#tolteca.utils.RuntimeBase.config" title="tolteca.utils.RuntimeBase.config"><code class="xref py py-obj docutils literal notranslate"><span class="pre">config</span></code></a> as YAML to <code class="xref py py-obj docutils literal notranslate"><span class="pre">output</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.utils.RuntimeBase.yaml_load" title="tolteca.utils.RuntimeBase.yaml_load"><code class="xref py py-obj docutils literal notranslate"><span class="pre">yaml_load</span></code></a>(stream)</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Attributes Documentation</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.utils.RuntimeBase.config">
+<span class="sig-name descname"><span class="pre">config</span></span><a class="headerlink" href="#tolteca.utils.RuntimeBase.config" title="Permalink to this definition">¶</a></dt>
+<dd><p>The config object of <a class="reference internal" href="#tolteca.utils.RuntimeBase.config_cls" title="tolteca.utils.RuntimeBase.config_cls"><code class="xref py py-attr docutils literal notranslate"><span class="pre">config_cls</span></code></a> constructed from the
+runtime context config dict.</p>
+<p>The config dict is validated and the constructed object is cached.
+The config object can be updated by using <a class="reference internal" href="#tolteca.utils.RuntimeBase.update" title="tolteca.utils.RuntimeBase.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">RuntimeBase.update()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.utils.RuntimeBase.config_cls">
+<span class="sig-name descname"><span class="pre">config_cls</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">NotImplemented</span></em><a class="headerlink" href="#tolteca.utils.RuntimeBase.config_cls" title="Permalink to this definition">¶</a></dt>
+<dd><p>Subclasses implement this to provide specialized config object.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.utils.RuntimeBase.rc">
+<span class="sig-name descname"><span class="pre">rc</span></span><a class="headerlink" href="#tolteca.utils.RuntimeBase.rc" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.utils.RuntimeBase.update">
+<span class="sig-name descname"><span class="pre">update</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'override'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/utils/runtime_context.html#RuntimeBase.update"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.utils.RuntimeBase.update" title="Permalink to this definition">¶</a></dt>
+<dd><p>Update the config object with provided config dict.</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl>
+<dt><strong>config</strong><span class="classifier"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a></span></dt><dd><p>The config dict to apply.</p>
+</dd>
+<dt><strong>mode</strong><span class="classifier">{“override”, “default”}</span></dt><dd><p>Controls how <a class="reference internal" href="#tolteca.utils.RuntimeBase.config" title="tolteca.utils.RuntimeBase.config"><code class="xref py py-obj docutils literal notranslate"><span class="pre">config</span></code></a> dict is applied, Wether to override the
+config or use as default for unspecified values.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.utils.RuntimeBase.yaml_dump">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">yaml_dump</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.utils.RuntimeBase.yaml_dump" title="Permalink to this definition">¶</a></dt>
+<dd><p>Dump <a class="reference internal" href="#tolteca.utils.RuntimeBase.config" title="tolteca.utils.RuntimeBase.config"><code class="xref py py-obj docutils literal notranslate"><span class="pre">config</span></code></a> as YAML to <code class="xref py py-obj docutils literal notranslate"><span class="pre">output</span></code></p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>config</strong><span class="classifier">dict</span></dt><dd><p>The config to write.</p>
+</dd>
+<dt><strong>output</strong><span class="classifier">io.StringIO, optional</span></dt><dd><p>The object to write to. If None, return the YAML as string.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.utils.RuntimeBase.yaml_load">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">yaml_load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stream</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tolteca.utils.RuntimeBase.yaml_load" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">RuntimeBase</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/api/tolteca.utils.RuntimeBase.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
+  </p>
+</footer>
+  </body>
+</html>

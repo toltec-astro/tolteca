@@ -1,0 +1,23 @@
+PatternKind
+===========
+
+.. currentmodule:: tolteca.simu.mapping
+
+.. autoclass:: PatternKind
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~PatternKind.lissajous
+      ~PatternKind.rastajous
+      ~PatternKind.raster
+      ~PatternKind.raster_like
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: lissajous
+   .. autoattribute:: rastajous
+   .. autoattribute:: raster
+   .. autoattribute:: raster_like

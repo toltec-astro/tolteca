@@ -5,3 +5,51 @@ NcFileIO
 
 .. autoclass:: NcFileIO
    :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~NcFileIO.axis_types
+      ~NcFileIO.block_loc
+      ~NcFileIO.data_kind
+      ~NcFileIO.io_registry_info
+      ~NcFileIO.logger
+      ~NcFileIO.meta
+      ~NcFileIO.nc_node
+      ~NcFileIO.node_mappers
+      ~NcFileIO.sample_loc
+      ~NcFileIO.sweep_loc
+      ~NcFileIO.time_loc
+      ~NcFileIO.tone_loc
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~NcFileIO.get_sweep_axis_data
+      ~NcFileIO.get_tone_axis_data
+      ~NcFileIO.open
+      ~NcFileIO.read
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: axis_types
+   .. autoattribute:: block_loc
+   .. autoattribute:: data_kind
+   .. autoattribute:: io_registry_info
+   .. autoattribute:: logger
+   .. autoattribute:: meta
+   .. autoattribute:: nc_node
+   .. autoattribute:: node_mappers
+   .. autoattribute:: sample_loc
+   .. autoattribute:: sweep_loc
+   .. autoattribute:: time_loc
+   .. autoattribute:: tone_loc
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: get_sweep_axis_data
+   .. automethod:: get_tone_axis_data
+   .. automethod:: open
+   .. automethod:: read

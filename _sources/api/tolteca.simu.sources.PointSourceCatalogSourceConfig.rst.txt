@@ -1,0 +1,29 @@
+PointSourceCatalogSourceConfig
+==============================
+
+.. currentmodule:: tolteca.simu.sources
+
+.. autoclass:: PointSourceCatalogSourceConfig
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~PointSourceCatalogSourceConfig.name
+      ~PointSourceCatalogSourceConfig.schema
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~PointSourceCatalogSourceConfig.__call__
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: name
+   .. autoattribute:: schema
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__

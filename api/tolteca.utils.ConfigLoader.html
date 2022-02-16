@@ -1,0 +1,237 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>ConfigLoader &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+    
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="WebConfig" href="tolteca.web.WebConfig.html" />
+    <link rel="prev" title="ConfigLoaderError" href="tolteca.utils.ConfigLoaderError.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="tolteca.web.WebConfig.html" title="WebConfig">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="tolteca.utils.ConfigLoaderError.html" title="ConfigLoaderError">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
+	 &#187;
+      </li>
+      
+      <li>ConfigLoader</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="configloader">
+<h1>ConfigLoader<a class="headerlink" href="#configloader" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="tolteca.utils.ConfigLoader">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">tolteca.utils.</span></span><span class="sig-name descname"><span class="pre">ConfigLoader</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">files</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">load_sys_config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">load_user_config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">runtime_context_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_files</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/utils.html#ConfigLoader"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.utils.ConfigLoader" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ObjectProxy</span></code></p>
+<p>A helper class to load config files for tolteca.</p>
+<p>The config paths are loaded in the following order:</p>
+<blockquote>
+<div><p>system_config_path &lt; user_config_path &lt; standalone_config_files</p>
+</div></blockquote>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl>
+<dt><strong>files</strong><span class="classifier">list</span></dt><dd><p>A list of YAML config file paths. The config dict get
+merged in their order in the list.</p>
+</dd>
+<dt><strong>load_sys_config</strong><span class="classifier">bool</span></dt><dd><p>If True, load the built-in config file (<a class="reference internal" href="#tolteca.utils.ConfigLoader.sys_config_path" title="tolteca.utils.ConfigLoader.sys_config_path"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sys_config_path</span></code></a>).</p>
+</dd>
+<dt><strong>load_user_config</strong><span class="classifier">bool</span></dt><dd><p>If True, load the user config file (<a class="reference internal" href="#tolteca.utils.ConfigLoader.user_config_path" title="tolteca.utils.ConfigLoader.user_config_path"><code class="xref py py-attr docutils literal notranslate"><span class="pre">user_config_path</span></code></a>).</p>
+</dd>
+<dt><strong>runtime_context_dir</strong><span class="classifier">str, <a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pathlib.Path</span></code></a>, optional</span></dt><dd><p>If specified, load the runtime context from this path.</p>
+</dd>
+<dt><strong>env_files</strong><span class="classifier">list</span></dt><dd><p>A list of systemd env file paths. The env dict get
+merged in their order in the list.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">Attributes Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.utils.ConfigLoader.logger" title="tolteca.utils.ConfigLoader.logger"><code class="xref py py-obj docutils literal notranslate"><span class="pre">logger</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.utils.ConfigLoader.sys_config_path" title="tolteca.utils.ConfigLoader.sys_config_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sys_config_path</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.utils.ConfigLoader.user_config_path" title="tolteca.utils.ConfigLoader.user_config_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">user_config_path</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.utils.ConfigLoader.get_config" title="tolteca.utils.ConfigLoader.get_config"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_config</span></code></a>()</p></td>
+<td><p>Return the merged config dict from all config file paths.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.utils.ConfigLoader.get_config_paths" title="tolteca.utils.ConfigLoader.get_config_paths"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_config_paths</span></code></a>()</p></td>
+<td><p>Return the merged config paths list from all config file paths.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.utils.ConfigLoader.get_env" title="tolteca.utils.ConfigLoader.get_env"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_env</span></code></a>()</p></td>
+<td><p>Return the merged env dict from all env file paths.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.utils.ConfigLoader.get_runtime_context" title="tolteca.utils.ConfigLoader.get_runtime_context"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_runtime_context</span></code></a>([...])</p></td>
+<td><p>Return the runtime context.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.utils.ConfigLoader.load_config_from_files" title="tolteca.utils.ConfigLoader.load_config_from_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_config_from_files</span></code></a>(filepaths[, schema])</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Attributes Documentation</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.utils.ConfigLoader.logger">
+<span class="sig-name descname"><span class="pre">logger</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;Logger</span> <span class="pre">ConfigLoader</span> <span class="pre">(DEBUG)&gt;</span></em><a class="headerlink" href="#tolteca.utils.ConfigLoader.logger" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.utils.ConfigLoader.sys_config_path">
+<span class="sig-name descname"><span class="pre">sys_config_path</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">PosixPath('/Users/ma/Codes/toltec/py/tolteca/tolteca/data/tolteca.yaml')</span></em><a class="headerlink" href="#tolteca.utils.ConfigLoader.sys_config_path" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.utils.ConfigLoader.user_config_path">
+<span class="sig-name descname"><span class="pre">user_config_path</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">PosixPath('/Users/ma/Library/Application</span> <span class="pre">Support/tolteca/tolteca.yaml')</span></em><a class="headerlink" href="#tolteca.utils.ConfigLoader.user_config_path" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.utils.ConfigLoader.get_config">
+<span class="sig-name descname"><span class="pre">get_config</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/utils.html#ConfigLoader.get_config"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.utils.ConfigLoader.get_config" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the merged config dict from all config file paths.</p>
+<p>Note that this only compile the user supplied config files via
+<code class="xref py py-obj docutils literal notranslate"><span class="pre">filepaths</span></code> in the constructor and the sys/user config files.</p>
+<p>It does not load the config from the runtime context dir.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.utils.ConfigLoader.get_config_paths">
+<span class="sig-name descname"><span class="pre">get_config_paths</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/utils.html#ConfigLoader.get_config_paths"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.utils.ConfigLoader.get_config_paths" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the merged config paths list from all config file paths.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.utils.ConfigLoader.get_env">
+<span class="sig-name descname"><span class="pre">get_env</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/utils.html#ConfigLoader.get_env"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.utils.ConfigLoader.get_env" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the merged env dict from all env file paths.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.utils.ConfigLoader.get_runtime_context">
+<span class="sig-name descname"><span class="pre">get_runtime_context</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">include_config_as_default</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_config_as_override</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/utils.html#ConfigLoader.get_runtime_context"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.utils.ConfigLoader.get_runtime_context" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the runtime context.</p>
+<p>Returns None when the <code class="docutils literal notranslate"><span class="pre">runtime_context_dir</span></code> is not set.</p>
+<p>The <code class="xref py py-obj docutils literal notranslate"><span class="pre">include_config_as_*</span></code> can be set to True to include the config dict
+from the <a class="reference internal" href="#tolteca.utils.ConfigLoader.get_config" title="tolteca.utils.ConfigLoader.get_config"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_config()</span></code></a>. When as default, the config dict is made
+available to the runtime context config through the
+<code class="xref py py-obj docutils literal notranslate"><span class="pre">ConfigBackend.set_default_config</span></code>, when as override, it is made
+available to the runtime context config trough the
+<code class="xref py py-obj docutils literal notranslate"><span class="pre">ConfigBackend.set_override_config</span></code>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.utils.ConfigLoader.load_config_from_files">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load_config_from_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filepaths</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">schema</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/utils.html#ConfigLoader.load_config_from_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.utils.ConfigLoader.load_config_from_files" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">ConfigLoader</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/api/tolteca.utils.ConfigLoader.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
+  </p>
+</footer>
+  </body>
+</html>

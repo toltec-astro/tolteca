@@ -5,7 +5,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>tolteca.reduce &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <title>tolteca.reduce &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/bootstrap-astropy.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
@@ -47,7 +47,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
+	<a href="../../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
 	 &#187;
       </li>
       <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li>
@@ -63,184 +63,152 @@
           <div class="body" role="main">
             
   <h1>Source code for tolteca.reduce</h1><div class="highlight"><pre>
-<span></span><span class="ch">#! /usr/bin/env python</span>
+<span></span><span class="ch">#!/usr/bin/env python</span>
 
-<span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_yaml</span>
+<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.dataclass_schema</span> <span class="kn">import</span> <span class="n">add_schema</span>
 <span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span><span class="p">,</span> <span class="n">timeit</span><span class="p">,</span> <span class="n">logit</span>
-<span class="kn">from</span> <span class="nn">tollan.utils.schema</span> <span class="kn">import</span> <span class="n">create_relpath_validator</span>
-<span class="kn">from</span> <span class="nn">tollan.utils.registry</span> <span class="kn">import</span> <span class="n">Registry</span><span class="p">,</span> <span class="n">register_to</span>
-<span class="kn">from</span> <span class="nn">tollan.utils.namespace</span> <span class="kn">import</span> <span class="n">Namespace</span>
-
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">yaml</span>
-<span class="kn">from</span> <span class="nn">schema</span> <span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Use</span><span class="p">,</span> <span class="n">Schema</span>
-
-<span class="kn">from</span> <span class="nn">..utils</span> <span class="kn">import</span> <span class="n">RuntimeContext</span><span class="p">,</span> <span class="n">RuntimeContextError</span><span class="p">,</span> <span class="n">get_pkg_data_path</span>
-<span class="kn">from</span> <span class="nn">..datamodels.toltec</span> <span class="kn">import</span> <span class="n">BasicObsDataset</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_yaml</span>
+<span class="kn">from</span> <span class="nn">..utils.config_registry</span> <span class="kn">import</span> <span class="n">ConfigRegistry</span>
+<span class="kn">from</span> <span class="nn">..utils.config_schema</span> <span class="kn">import</span> <span class="n">add_config_schema</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="kn">import</span> <span class="n">RuntimeBase</span><span class="p">,</span> <span class="n">RuntimeBaseError</span>
+<span class="kn">from</span> <span class="nn">..utils.doc_helper</span> <span class="kn">import</span> <span class="n">collect_config_item_types</span>
 
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;PipelineRuntimeError&#39;</span><span class="p">,</span> <span class="s1">&#39;PipelineRuntime&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;ReduConfig&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;PipelineRuntime&#39;</span><span class="p">,</span> <span class="s1">&#39;PipelineRuntimeError&#39;</span><span class="p">,</span>
+    <span class="p">]</span>
 
 
-<span class="n">_instru_pipeline_factory</span> <span class="o">=</span> <span class="n">Registry</span><span class="o">.</span><span class="n">create</span><span class="p">()</span>
-<span class="sd">&quot;&quot;&quot;This holds the handler of the instrument pipeline config.&quot;&quot;&quot;</span>
+<span class="n">inputs_registry</span> <span class="o">=</span> <span class="n">ConfigRegistry</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s1">&#39;InputsConfig&#39;</span><span class="p">,</span>
+    <span class="n">dispatcher_key</span><span class="o">=</span><span class="s1">&#39;type&#39;</span><span class="p">,</span>
+    <span class="n">dispatcher_description</span><span class="o">=</span><span class="s1">&#39;The input type.&#39;</span><span class="p">,</span>
+    <span class="n">dispatcher_key_is_optional</span><span class="o">=</span><span class="kc">True</span>
+    <span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;The registry for ``reduce.inputs``.&quot;&quot;&quot;</span>
 
 
-<span class="nd">@register_to</span><span class="p">(</span><span class="n">_instru_pipeline_factory</span><span class="p">,</span> <span class="s1">&#39;citlali&#39;</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">_ipf_citlali</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">cfg_rt</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Create and return `ToltecPipeline` from the config.&quot;&quot;&quot;</span>
-
-    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
-
-    <span class="kn">from</span> <span class="nn">..cal</span> <span class="kn">import</span> <span class="n">ToltecCalib</span>
-    <span class="kn">from</span> <span class="nn">.toltec</span> <span class="kn">import</span> <span class="n">Citlali</span>
-
-    <span class="n">path_validator</span> <span class="o">=</span> <span class="n">create_relpath_validator</span><span class="p">(</span><span class="n">cfg_rt</span><span class="p">[</span><span class="s1">&#39;rootpath&#39;</span><span class="p">])</span>
-
-    <span class="k">def</span> <span class="nf">get_calobj</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">ToltecCalib</span><span class="o">.</span><span class="n">from_indexfile</span><span class="p">(</span><span class="n">path_validator</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
-        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                    <span class="s1">&#39;invalid calibration object index file path,&#39;</span>
-                    <span class="s1">&#39; fallback to default&#39;</span><span class="p">)</span>
-            <span class="n">default_cal_indexfile</span> <span class="o">=</span> <span class="n">get_pkg_data_path</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span>
-                    <span class="s1">&#39;cal/toltec_default/index.yaml&#39;</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">ToltecCalib</span><span class="o">.</span><span class="n">from_indexfile</span><span class="p">(</span><span class="n">default_cal_indexfile</span><span class="p">)</span>
-
-    <span class="n">cfg</span> <span class="o">=</span> <span class="n">Schema</span><span class="p">({</span>
-        <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;citlali&#39;</span><span class="p">,</span>
-        <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;config&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span> <span class="nb">dict</span><span class="p">,</span>
-        <span class="p">})</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
-
-    <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;engine&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Citlali</span><span class="p">(</span>
-            <span class="n">binpath</span><span class="o">=</span><span class="n">cfg_rt</span><span class="p">[</span><span class="s1">&#39;bindir&#39;</span><span class="p">],</span>
-            <span class="n">version_specifiers</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-            <span class="p">)</span>
-    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;pipeline config: </span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">cfg</span>
+<span class="n">steps_registry</span> <span class="o">=</span> <span class="n">ConfigRegistry</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s1">&#39;StepsConfig&#39;</span><span class="p">,</span>
+    <span class="n">dispatcher_key</span><span class="o">=</span><span class="s1">&#39;name&#39;</span><span class="p">,</span>
+    <span class="n">dispatcher_description</span><span class="o">=</span><span class="s1">&#39;The reduction step name.&#39;</span>
+    <span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;The registry for ``reduce.steps``.&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="PipelineRuntimeError"><a class="viewcode-back" href="../../api/tolteca.reduce.PipelineRuntimeError.html#tolteca.reduce.PipelineRuntimeError">[docs]</a><span class="k">class</span> <span class="nc">PipelineRuntimeError</span><span class="p">(</span><span class="n">RuntimeContextError</span><span class="p">):</span>
+<span class="c1"># Load submodules here to populate the registries</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">engines</span> <span class="k">as</span> <span class="n">_</span>  <span class="c1"># noqa: F401, E402, F811</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">toltec</span> <span class="k">as</span> <span class="n">_</span>  <span class="c1"># noqa: F401, E402, F811</span>
+
+
+<div class="viewcode-block" id="ReduConfig"><a class="viewcode-back" href="../../api/tolteca.reduce.ReduConfig.html#tolteca.reduce.ReduConfig">[docs]</a><span class="nd">@add_config_schema</span>
+<span class="nd">@add_schema</span>
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">ReduConfig</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The config for `tolteca.reduce`.&quot;&quot;&quot;</span>
+
+    <span class="n">jobkey</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">metadata</span><span class="o">=</span><span class="p">{</span>
+            <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="s1">&#39;The unique identifier the job.&#39;</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+    <span class="n">inputs</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">,</span>
+        <span class="n">metadata</span><span class="o">=</span><span class="p">{</span>
+            <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="s1">&#39;The list contains input data for reduction.&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;schema&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">inputs_registry</span><span class="o">.</span><span class="n">item_schemas</span><span class="p">),</span>
+            <span class="s1">&#39;pformat_schema_type&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;[&lt;</span><span class="si">{</span><span class="n">inputs_registry</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&gt;, ...]&quot;</span>
+            <span class="p">})</span>
+    <span class="n">steps</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">,</span>
+        <span class="n">metadata</span><span class="o">=</span><span class="p">{</span>
+            <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="s1">&#39;The list contains the defs of pipeline steps.&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;schema&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">steps_registry</span><span class="o">.</span><span class="n">item_schemas</span><span class="p">),</span>
+            <span class="s1">&#39;pformat_schema_type&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;[&lt;</span><span class="si">{</span><span class="n">steps_registry</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&gt;, ...]&quot;</span>
+            <span class="p">})</span>
+
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;ignore_extra_keys&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="s1">&#39;The config dict for running reduction.&#39;</span>
+            <span class="p">}</span>
+        <span class="n">config_key</span> <span class="o">=</span> <span class="s1">&#39;reduce&#39;</span>
+
+<div class="viewcode-block" id="ReduConfig.load_input_data"><a class="viewcode-back" href="../../api/tolteca.reduce.ReduConfig.html#tolteca.reduce.ReduConfig.load_input_data">[docs]</a>    <span class="k">def</span> <span class="nf">load_input_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return loaded data objects from reduction config.&quot;&quot;&quot;</span>
+        <span class="c1"># This go through all registered data loaders and load the all the</span>
+        <span class="c1"># input items. The loaded input items get aggregated on a per loader</span>
+        <span class="c1"># basis</span>
+        <span class="n">data_collection</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="n">data_loaders</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="nb">input</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">:</span>
+            <span class="n">data_collection</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="nb">input</span><span class="o">.</span><span class="n">load_all_data</span><span class="p">())</span>
+            <span class="n">data_loaders</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">input</span><span class="o">.</span><span class="n">get_data_loaders</span><span class="p">())</span>
+        <span class="n">aggregated_data_collection</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">data_loader</span> <span class="ow">in</span> <span class="n">data_loaders</span><span class="p">:</span>
+            <span class="n">aggregated_data_collection</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+                <span class="n">data_loader</span><span class="o">.</span><span class="n">aggregate</span><span class="p">(</span><span class="n">data_collection</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">aggregated_data_collection</span></div>
+
+<div class="viewcode-block" id="ReduConfig.get_or_create_output_dir"><a class="viewcode-back" href="../../api/tolteca.reduce.ReduConfig.html#tolteca.reduce.ReduConfig.get_or_create_output_dir">[docs]</a>    <span class="k">def</span> <span class="nf">get_or_create_output_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+        <span class="n">rootpath</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">runtime_info</span><span class="o">.</span><span class="n">config_info</span><span class="o">.</span><span class="n">runtime_context_dir</span>
+        <span class="n">output_dir</span> <span class="o">=</span> <span class="n">rootpath</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">jobkey</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">output_dir</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">with</span> <span class="n">logit</span><span class="p">(</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span> <span class="s1">&#39;create output dir&#39;</span><span class="p">):</span>
+                <span class="n">output_dir</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">output_dir</span></div>
+
+<div class="viewcode-block" id="ReduConfig.get_log_file"><a class="viewcode-back" href="../../api/tolteca.reduce.ReduConfig.html#tolteca.reduce.ReduConfig.get_log_file">[docs]</a>    <span class="k">def</span> <span class="nf">get_log_file</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">runtime_info</span><span class="o">.</span><span class="n">logdir</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;reduce.log&#39;</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="PipelineRuntimeError"><a class="viewcode-back" href="../../api/tolteca.reduce.PipelineRuntimeError.html#tolteca.reduce.PipelineRuntimeError">[docs]</a><span class="k">class</span> <span class="nc">PipelineRuntimeError</span><span class="p">(</span><span class="n">RuntimeBaseError</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Raise when errors occur in `PipelineRuntime`.&quot;&quot;&quot;</span>
     <span class="k">pass</span></div>
 
 
-<div class="viewcode-block" id="PipelineRuntime"><a class="viewcode-back" href="../../api/tolteca.reduce.PipelineRuntime.html#tolteca.reduce.PipelineRuntime">[docs]</a><span class="k">class</span> <span class="nc">PipelineRuntime</span><span class="p">(</span><span class="n">RuntimeContext</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;A class that manages the runtime of the reduction pipeline.&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="PipelineRuntime"><a class="viewcode-back" href="../../api/tolteca.reduce.PipelineRuntime.html#tolteca.reduce.PipelineRuntime">[docs]</a><span class="k">class</span> <span class="nc">PipelineRuntime</span><span class="p">(</span><span class="n">RuntimeBase</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A class to run the data reduction pipeline.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="PipelineRuntime.extend_config_schema"><a class="viewcode-back" href="../../api/tolteca.reduce.PipelineRuntime.html#tolteca.reduce.PipelineRuntime.extend_config_schema">[docs]</a>    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">extend_config_schema</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
-        <span class="c1"># this defines the subschema relevant to the simulator.</span>
-        <span class="k">return</span> <span class="p">{</span>
-            <span class="s1">&#39;reduce&#39;</span><span class="p">:</span> <span class="p">{</span>
-                <span class="s1">&#39;jobkey&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-                <span class="s1">&#39;pipeline&#39;</span><span class="p">:</span> <span class="p">{</span>
-                    <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-                    <span class="s1">&#39;config&#39;</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
-                    <span class="p">},</span>
-                <span class="s1">&#39;inputs&#39;</span><span class="p">:</span> <span class="p">[{</span>
-                    <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-                    <span class="c1"># &#39;select&#39;: str,</span>
-                    <span class="n">Optional</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span> <span class="nb">object</span>
-                    <span class="p">}],</span>
-                <span class="c1"># &#39;calobj&#39;: str,</span>
-                <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;select&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span> <span class="nb">str</span>
-                <span class="p">},</span>
-            <span class="p">}</span></div>
+    <span class="n">config_cls</span> <span class="o">=</span> <span class="n">ReduConfig</span>
 
-<div class="viewcode-block" id="PipelineRuntime.get_pipeline_params"><a class="viewcode-back" href="../../api/tolteca.reduce.PipelineRuntime.html#tolteca.reduce.PipelineRuntime.get_pipeline_params">[docs]</a>    <span class="k">def</span> <span class="nf">get_pipeline_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return the data reduction pipeline object specified in the runtime</span>
-<span class="sd">        config.&quot;&quot;&quot;</span>
-        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;reduce&#39;</span><span class="p">]</span>
-        <span class="n">cfg_rt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;runtime&#39;</span><span class="p">]</span>
-        <span class="n">pl_params</span> <span class="o">=</span> <span class="n">_instru_pipeline_factory</span><span class="p">[</span><span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;pipeline&#39;</span><span class="p">][</span><span class="s1">&#39;name&#39;</span><span class="p">]](</span>
-                <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;pipeline&#39;</span><span class="p">],</span> <span class="n">cfg_rt</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">pl_params</span></div>
-
-<div class="viewcode-block" id="PipelineRuntime.get_input_dataset"><a class="viewcode-back" href="../../api/tolteca.reduce.PipelineRuntime.html#tolteca.reduce.PipelineRuntime.get_input_dataset">[docs]</a>    <span class="k">def</span> <span class="nf">get_input_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return the input dataset.&quot;&quot;&quot;</span>
-        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;reduce&#39;</span><span class="p">]</span>
-        <span class="n">cfg_rt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;runtime&#39;</span><span class="p">]</span>
-        <span class="n">path_validator</span> <span class="o">=</span> <span class="n">create_relpath_validator</span><span class="p">(</span><span class="n">cfg_rt</span><span class="p">[</span><span class="s1">&#39;rootpath&#39;</span><span class="p">])</span>
-
-        <span class="k">def</span> <span class="nf">resolve_input_item</span><span class="p">(</span><span class="n">cfg</span><span class="p">):</span>
-            <span class="c1"># index_table_filename=&#39;tolteca_index_table.ecsv&#39;</span>
-            <span class="c1"># index_table_path = datadir.joinpath(index_table_filename)</span>
-            <span class="n">cfg</span> <span class="o">=</span> <span class="n">Schema</span><span class="p">({</span>
-                <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="n">Use</span><span class="p">(</span><span class="n">path_validator</span><span class="p">),</span>
-                <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;select&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span> <span class="nb">str</span>
-                <span class="p">})</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
-            <span class="n">dataset</span> <span class="o">=</span> <span class="n">BasicObsDataset</span><span class="o">.</span><span class="n">from_files</span><span class="p">(</span>
-                    <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s1">&#39;*&#39;</span><span class="p">),</span> <span class="n">open_</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-            <span class="n">dataset</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">equal</span><span class="p">(</span><span class="n">dataset</span><span class="p">[</span><span class="s1">&#39;interface&#39;</span><span class="p">],</span> <span class="kc">None</span><span class="p">))</span>
-            <span class="k">return</span> <span class="n">dataset</span>
-
-        <span class="n">dataset</span> <span class="o">=</span> <span class="n">BasicObsDataset</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span>
-                <span class="nb">map</span><span class="p">(</span><span class="n">resolve_input_item</span><span class="p">,</span> <span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;inputs&#39;</span><span class="p">]))</span>
-        <span class="n">dataset</span><span class="o">.</span><span class="n">sort</span><span class="p">([</span><span class="s1">&#39;obsnum&#39;</span><span class="p">,</span> <span class="s1">&#39;interface&#39;</span><span class="p">])</span>
-        <span class="c1"># add special index columns for obsnums for backward selection</span>
-        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;obsnum&#39;</span><span class="p">,</span> <span class="s1">&#39;subobsnum&#39;</span><span class="p">,</span> <span class="s1">&#39;scannum&#39;</span><span class="p">]:</span>
-            <span class="n">dataset</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s1">_r&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">dataset</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">-</span> <span class="n">dataset</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;collected </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span><span class="si">}</span><span class="s2"> data items&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">dataset</span></div>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
 
 <div class="viewcode-block" id="PipelineRuntime.run"><a class="viewcode-back" href="../../api/tolteca.reduce.PipelineRuntime.html#tolteca.reduce.PipelineRuntime.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Run the pipeline.</span>
+        <span class="sd">&quot;&quot;&quot;Run the reduction.&quot;&quot;&quot;</span>
 
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        `PipelineResult` : The result context containing the reduced data.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">pl_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_pipeline_params</span><span class="p">()</span>
-        <span class="n">engine</span> <span class="o">=</span> <span class="n">pl_params</span><span class="p">[</span><span class="s1">&#39;engine&#39;</span><span class="p">]</span>
-        <span class="n">input_dataset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_input_dataset</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">input_dataset</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-        <span class="k">with</span> <span class="n">engine</span><span class="o">.</span><span class="n">proc_context</span><span class="p">(</span><span class="n">pl_params</span><span class="p">[</span><span class="s1">&#39;config&#39;</span><span class="p">])</span> <span class="k">as</span> <span class="n">proc</span><span class="p">:</span>
-            <span class="n">pl_info</span> <span class="o">=</span> <span class="n">proc</span><span class="p">(</span>
-                    <span class="n">input_dataset</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s1">&#39;obsnum_r == 0&#39;</span><span class="p">),</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">get_or_create_output_dir</span><span class="p">()</span>
-                    <span class="p">)</span>
-        <span class="k">return</span> <span class="n">pl_info</span></div>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span>
 
-<div class="viewcode-block" id="PipelineRuntime.cli_run"><a class="viewcode-back" href="../../api/tolteca.reduce.PipelineRuntime.html#tolteca.reduce.PipelineRuntime.cli_run">[docs]</a>    <span class="nd">@timeit</span>
-    <span class="k">def</span> <span class="nf">cli_run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Run the pipeline and save the result.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">()</span></div>
-        <span class="c1"># result = self.run()</span>
-        <span class="c1"># result.save(self.get_or_create_output_dir())</span>
-
-<div class="viewcode-block" id="PipelineRuntime.get_or_create_output_dir"><a class="viewcode-back" href="../../api/tolteca.reduce.PipelineRuntime.html#tolteca.reduce.PipelineRuntime.get_or_create_output_dir">[docs]</a>    <span class="k">def</span> <span class="nf">get_or_create_output_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;reduce&#39;</span><span class="p">]</span>
-        <span class="n">outdir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rootpath</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">cfg</span><span class="p">[</span><span class="s1">&#39;jobkey&#39;</span><span class="p">])</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">outdir</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-            <span class="k">with</span> <span class="n">logit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span> <span class="s1">&#39;create output dir&#39;</span><span class="p">):</span>
-                <span class="n">outdir</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">outdir</span></div></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;run reduction with config dict: &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">to_config_dict</span><span class="p">())</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="c1"># TODO</span>
+        <span class="c1"># later on we&#39;ll enable the DAG like pipeline step</span>
+        <span class="c1"># management facility but for now we&#39;ll just run each step</span>
+        <span class="c1"># sequentially.</span>
+        <span class="n">n_steps</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">steps</span><span class="p">)</span>
+        <span class="n">tmp_data</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">load_input_data</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;collected data from inputs: </span><span class="si">{</span><span class="n">tmp_data</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">steps</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;no pipeline steps found, nothing to do.&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">steps</span><span class="p">):</span>
+            <span class="k">with</span> <span class="n">timeit</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;run pipeline step [</span><span class="si">{</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">n_steps</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="n">level</span><span class="o">=</span><span class="s1">&#39;INFO&#39;</span><span class="p">,</span>
+                    <span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;input data </span><span class="si">{</span><span class="n">tmp_data</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">tmp_data</span> <span class="o">=</span> <span class="n">step</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">inputs</span><span class="o">=</span><span class="n">tmp_data</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;output data </span><span class="si">{</span><span class="n">tmp_data</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;work&#39;s done!&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">tmp_data</span></div></div>
 
 
-<span class="k">class</span> <span class="nc">PipelineResult</span><span class="p">(</span><span class="n">Namespace</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;A class to hold the results of a pipeline run.&quot;&quot;&quot;</span>
-    <span class="k">pass</span>
-
-
-<span class="k">def</span> <span class="nf">load_example_configs</span><span class="p">():</span>
-
-    <span class="n">example_dir</span> <span class="o">=</span> <span class="n">get_pkg_data_path</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;examples&#39;</span><span class="p">)</span>
-    <span class="n">files</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;toltec_citlali_simple.yaml&#39;</span><span class="p">]</span>
-
-    <span class="k">def</span> <span class="nf">load_yaml</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
-        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">fo</span><span class="p">)</span>
-
-    <span class="n">configs</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">f</span><span class="o">.</span><span class="n">stem</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">:</span> <span class="n">load_yaml</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
-            <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="nb">map</span><span class="p">(</span><span class="n">example_dir</span><span class="o">.</span><span class="n">joinpath</span><span class="p">,</span> <span class="n">files</span><span class="p">)}</span>
-    <span class="k">return</span> <span class="n">configs</span>
-
-
-<span class="n">example_configs</span> <span class="o">=</span> <span class="n">load_example_configs</span><span class="p">()</span>
+<span class="c1"># make a list of all redu config item types</span>
+<span class="n">redu_config_item_types</span> <span class="o">=</span> <span class="n">collect_config_item_types</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">locals</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
 </pre></div>
 
             <div class="clearer"></div>
@@ -259,9 +227,9 @@
   <p class="pull-right"> &nbsp;
     <a href="#">Back to Top</a></p>
   <p>
-    &copy; Copyright 2021, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
-    Last built 18 Jun 2021. <br/>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
   </p>
 </footer>
   </body>

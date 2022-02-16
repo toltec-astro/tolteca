@@ -6,7 +6,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
-    <title>BasicObsDataset &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <title>BasicObsDataset &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="../_static/bootstrap-astropy.css" />
     <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
@@ -61,10 +61,9 @@
 	 |
       </li>
       <li>
-	<a href="../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
+	<a href="../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
 	 &#187;
       </li>
-      <li><a href="../tolteca/index.html" accesskey="U">TolTECA Documentation</a> &#187;</li>
       
       <li>BasicObsDataset</li> 
     </ul>
@@ -80,25 +79,25 @@
 <h1>BasicObsDataset<a class="headerlink" href="#basicobsdataset" title="Permalink to this headline">¶</a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">tolteca.datamodels.toltec.</span></span><span class="sig-name descname"><span class="pre">BasicObsDataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">index_table</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bod_list</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_meta_cols</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'intersection'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.9)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">tolteca.datamodels.toltec.</span></span><span class="sig-name descname"><span class="pre">BasicObsDataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">index_table</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bod_list</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_meta_cols</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'intersection'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.10)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
 <p>A helper class to access a set of TolTEC basic obs data items.</p>
 <p>An instance of this class is typically created from one of its
 <code class="docutils literal notranslate"><span class="pre">from_*</span></code> factory functions.</p>
 <p>This class is implemented as a thin wrapper around an index table (a
-<a class="reference external" href="https://docs.astropy.org/en/stable/api/astropy.table.Table.html#astropy.table.Table" title="(in Astropy v4.2)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Table</span></code></a> instance) that contains information to identify
+<a class="reference external" href="https://docs.astropy.org/en/stable/api/astropy.table.Table.html#astropy.table.Table" title="(in Astropy v5.0)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Table</span></code></a> instance) that contains information to identify
 BOD items.</p>
 <dl class="field-list">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><dl>
-<dt><strong>index_table</strong><span class="classifier"><a class="reference external" href="https://docs.astropy.org/en/stable/api/astropy.table.Table.html#astropy.table.Table" title="(in Astropy v4.2)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Table</span></code></a></span></dt><dd><p>The table that identifies a set of BOD items.</p>
+<dt><strong>index_table</strong><span class="classifier"><a class="reference external" href="https://docs.astropy.org/en/stable/api/astropy.table.Table.html#astropy.table.Table" title="(in Astropy v5.0)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Table</span></code></a></span></dt><dd><p>The table that identifies a set of BOD items.</p>
 </dd>
 <dt><strong>bod_list</strong><span class="classifier">list</span></dt><dd><p>A list of <a class="reference internal" href="tolteca.datamodels.toltec.BasicObsData.html#tolteca.datamodels.toltec.BasicObsData" title="tolteca.datamodels.toltec.BasicObsData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsData</span></code></a> instances.</p>
 </dd>
 <dt><strong>include_meta_cols</strong><span class="classifier">str, list</span></dt><dd><p>The columns to include in the index table, extracted from the
 loaded meta data.</p>
 </dd>
-<dt><strong>**kwargs :</strong></dt><dd><p>Passed to <a class="reference internal" href="tolteca.datamodels.toltec.BasicObsData.html#tolteca.datamodels.toltec.BasicObsData" title="tolteca.datamodels.toltec.BasicObsData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsData</span></code></a> constructor.</p>
+<dt><strong>**kwargs</strong></dt><dd><p>Passed to <a class="reference internal" href="tolteca.datamodels.toltec.BasicObsData.html#tolteca.datamodels.toltec.BasicObsData" title="tolteca.datamodels.toltec.BasicObsData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsData</span></code></a> constructor.</p>
 </dd>
 </dl>
 </dd>
@@ -197,7 +196,7 @@ loaded meta data.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.logger">
-<span class="sig-name descname"><span class="pre">logger</span></span><em class="property"> <span class="pre">=</span> <span class="pre">&lt;Logger</span> <span class="pre">BasicObsDataset</span> <span class="pre">(DEBUG)&gt;</span></em><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.logger" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">logger</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;Logger</span> <span class="pre">BasicObsDataset</span> <span class="pre">(DEBUG)&gt;</span></em><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.logger" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -228,17 +227,17 @@ loaded meta data.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.from_files">
-<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">from_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">files</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">open_</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.from_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.from_files" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">files</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">open_</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.from_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.from_files" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.from_index_table">
-<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">from_index_table</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">index_table</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">copy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">meta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.from_index_table"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.from_index_table" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_index_table</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">index_table</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">copy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">meta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.from_index_table"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.from_index_table" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return a dataset from an index table.</p>
 <dl class="field-list">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><dl>
-<dt><strong>index_table</strong><span class="classifier"><a class="reference external" href="https://docs.astropy.org/en/stable/api/astropy.table.Table.html#astropy.table.Table" title="(in Astropy v4.2)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">astropy.table.Table</span></code></a>, str</span></dt><dd><p>The table or that path to the table that contains
+<dt><strong>index_table</strong><span class="classifier"><a class="reference external" href="https://docs.astropy.org/en/stable/api/astropy.table.Table.html#astropy.table.Table" title="(in Astropy v5.0)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">astropy.table.Table</span></code></a>, str</span></dt><dd><p>The table or that path to the table that contains
 the BOD identifiers.</p>
 </dd>
 <dt><strong>copy</strong><span class="classifier">bool</span></dt><dd><p>If True, a copy of the <a class="reference internal" href="#tolteca.datamodels.toltec.BasicObsDataset.index_table" title="tolteca.datamodels.toltec.BasicObsDataset.index_table"><code class="xref py py-obj docutils literal notranslate"><span class="pre">index_table</span></code></a> is made.</p>
@@ -268,7 +267,7 @@ the BOD identifiers.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.load">
-<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filepath</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.load"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.load" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filepath</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.load"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.load" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -289,11 +288,11 @@ the BOD identifiers.</p>
 <dd><p>Return a subset of the dataset specified by <code class="xref py py-obj docutils literal notranslate"><span class="pre">cond</span></code></p>
 <p>When <code class="xref py py-obj docutils literal notranslate"><span class="pre">cond</span></code> is a string, the index table is converted to
 <code class="xref py py-obj docutils literal notranslate"><span class="pre">DataFrame</span></code> and the selection is done by
-<a href="#id1"><span class="problematic" id="id2">:meta:`~pandas.DataFrame.eval`</span></a>.</p>
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">eval()</span></code>.</p>
 <dl class="field-list">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><dl>
-<dt><strong>cond</strong><span class="classifier">str or <a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v1.20)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ndarray</span></code></a></span></dt><dd><p>The condition to create the subset.</p>
+<dt><strong>cond</strong><span class="classifier">str or <a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v1.22)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ndarray</span></code></a></span></dt><dd><p>The condition to create the subset.</p>
 </dd>
 <dt><strong>desc</strong><span class="classifier">str</span></dt><dd><p>A description of this selection to include in the table meta.</p>
 </dd>
@@ -320,7 +319,7 @@ the BOD identifiers.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="tolteca.datamodels.toltec.BasicObsDataset.vstack">
-<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">vstack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">instances</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.vstack"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.vstack" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">vstack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">instances</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/toltec/basic_obs_data.html#BasicObsDataset.vstack"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.toltec.BasicObsDataset.vstack" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -354,9 +353,9 @@ the BOD identifiers.</p>
        rel="nofollow">Page Source</a> &nbsp;
     <a href="#">Back to Top</a></p>
   <p>
-    &copy; Copyright 2021, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
-    Last built 18 Jun 2021. <br/>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
   </p>
 </footer>
   </body>

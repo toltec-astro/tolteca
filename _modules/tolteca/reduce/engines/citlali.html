@@ -1,0 +1,683 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tolteca.reduce.engines.citlali &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/plot_directive.css" />
+    
+    <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+    <script src="../../../../_static/jquery.js"></script>
+    <script src="../../../../_static/underscore.js"></script>
+    <script src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../reduce.html" >tolteca.reduce</a> &#187;</li>
+      <li><a href="../engines.html" accesskey="U">tolteca.reduce.engines</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tolteca.reduce.engines.citlali</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python</span>
+
+<span class="kn">import</span> <span class="nn">functools</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">git</span>
+<span class="kn">import</span> <span class="nn">pathlib</span>
+
+<span class="kn">from</span> <span class="nn">copy</span> <span class="kn">import</span> <span class="n">deepcopy</span>
+<span class="kn">from</span> <span class="nn">cached_property</span> <span class="kn">import</span> <span class="n">cached_property</span>
+<span class="kn">from</span> <span class="nn">packaging.version</span> <span class="kn">import</span> <span class="n">Version</span><span class="p">,</span> <span class="n">InvalidVersion</span>
+<span class="kn">from</span> <span class="nn">packaging.specifiers</span> <span class="kn">import</span> <span class="n">SpecifierSet</span>
+<span class="kn">from</span> <span class="nn">astropy.table</span> <span class="kn">import</span> <span class="n">Table</span>
+<span class="kn">from</span> <span class="nn">scalpl</span> <span class="kn">import</span> <span class="n">Cut</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">u</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span> <span class="nn">schema</span> <span class="kn">import</span> <span class="n">Or</span>
+<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">replace</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Union</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.dataclass_schema</span> <span class="kn">import</span> <span class="n">add_schema</span>
+<span class="kn">from</span> <span class="nn">tollan.utils</span> <span class="kn">import</span> <span class="n">rupdate</span>
+<span class="kn">from</span> <span class="nn">tollan.utils</span> <span class="kn">import</span> <span class="n">call_subprocess_with_live_output</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span><span class="p">,</span> <span class="n">timeit</span>
+<span class="kn">from</span> <span class="nn">tollan.utils</span> <span class="kn">import</span> <span class="n">ensure_abspath</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_yaml</span>
+
+<span class="kn">from</span> <span class="nn">.base</span> <span class="kn">import</span> <span class="n">PipelineEngine</span><span class="p">,</span> <span class="n">PipelineEngineError</span>
+<span class="kn">from</span> <span class="nn">...utils</span> <span class="kn">import</span> <span class="n">get_user_data_dir</span>
+<span class="kn">from</span> <span class="nn">...utils.misc</span> <span class="kn">import</span> <span class="n">get_nested_keys</span>
+<span class="kn">from</span> <span class="nn">...utils.common_schema</span> <span class="kn">import</span> <span class="n">RelPathSchema</span><span class="p">,</span> <span class="n">PhysicalTypeSchema</span>
+<span class="kn">from</span> <span class="nn">...utils.runtime_context</span> <span class="kn">import</span> <span class="n">yaml_load</span>
+
+
+<span class="n">REMOTE_CITLALI_REPO_URL</span> <span class="o">=</span> <span class="s1">&#39;https://github.com/toltec-astro/citlali.git&#39;</span>
+<span class="n">LOCAL_CITLALI_REPO_PATH</span> <span class="o">=</span> <span class="n">get_user_data_dir</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;engines/citlali&quot;</span><span class="p">)</span>
+<span class="n">GIT_REMOTE_TIMEOUT</span> <span class="o">=</span> <span class="mf">10.</span>
+
+
+<span class="nd">@functools</span><span class="o">.</span><span class="n">lru_cache</span><span class="p">(</span><span class="n">maxsize</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">_get_local_citlali_repo</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Return the Citlali git repo made available in the user data directory.</span>
+
+<span class="sd">    This repo is maintained by this package for check commit histories and</span>
+<span class="sd">    comparing versions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">LOCAL_CITLALI_REPO_PATH</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+        <span class="n">repo</span> <span class="o">=</span> <span class="n">git</span><span class="o">.</span><span class="n">Repo</span><span class="p">(</span><span class="n">LOCAL_CITLALI_REPO_PATH</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">repo</span><span class="o">.</span><span class="n">remote</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;origin&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">fetch</span><span class="p">(</span>
+                <span class="n">kill_after_timeout</span><span class="o">=</span><span class="n">GIT_REMOTE_TIMEOUT</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">repo</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;error fetching local citlali repo in &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">LOCAL_CITLALI_REPO_PATH</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">repo</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;setup local citlali repo in $</span><span class="si">{</span><span class="n">LOCAL_CITLALI_REPO_PATH</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="c1"># class _Progress(git.remote.RemoteProgress):</span>
+    <span class="c1">#     def update(self, op_code, cur_count, max_count=None, message=&#39;&#39;):</span>
+    <span class="c1">#         logger.debug(self._cur_line)</span>
+
+    <span class="n">repo</span> <span class="o">=</span> <span class="n">git</span><span class="o">.</span><span class="n">Repo</span><span class="o">.</span><span class="n">clone_from</span><span class="p">(</span>
+        <span class="n">REMOTE_CITLALI_REPO_URL</span><span class="p">,</span>
+        <span class="n">LOCAL_CITLALI_REPO_PATH</span><span class="p">,</span>
+        <span class="c1"># progress=_Progress()</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">repo</span>
+
+
+<span class="n">UNKNOWN_VERSION</span> <span class="o">=</span> <span class="s1">&#39;unknown&#39;</span>
+<span class="sd">&quot;&quot;&quot;Value used when the version is unknown.&quot;&quot;&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">CitlaliExec</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A low level wrapper class to run Citlali executable.&quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="o">=</span> <span class="n">ensure_abspath</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="n">version</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_version</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_version</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="n">UNKNOWN_VERSION</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;invalid Citlali executable path </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s1">(version=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">version</span><span class="si">}</span><span class="s1">)&#39;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">path</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The path of the Citlali executable.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">version</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The version of the Citlali executable.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_version</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">semver</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The semantic version of the Citlali executable.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ver_to_semver</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_version</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">get_version</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get the version of the Citlali.&quot;&quot;&quot;</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">(</span>
+                <span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;--version&#39;</span><span class="p">),</span>
+                <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">STDOUT</span><span class="p">,</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;check version of </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s1">:</span><span class="se">\n</span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
+            <span class="sa">r</span><span class="s1">&#39;^(?P&lt;name&gt;citlali\s)?(?P&lt;version&gt;.+)\s\((?P&lt;timestamp&gt;.+)\)$&#39;</span><span class="p">,</span>
+            <span class="n">re</span><span class="o">.</span><span class="n">MULTILINE</span><span class="p">)</span>
+        <span class="n">m0</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
+        <span class="c1"># import pdb</span>
+        <span class="c1"># pdb.set_trace()</span>
+        <span class="k">if</span> <span class="n">m0</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;unable to parse citlali version: </span><span class="se">\n</span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">version</span> <span class="o">=</span> <span class="n">UNKNOWN_VERSION</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="n">m0</span><span class="o">.</span><span class="n">groupdict</span><span class="p">()</span>
+            <span class="n">version</span> <span class="o">=</span> <span class="n">m</span><span class="p">[</span><span class="s1">&#39;version&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_norm_ver</span><span class="p">(</span><span class="n">version</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_default_config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get the default config of the Citlali.&quot;&quot;&quot;</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">(</span>
+                <span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;--dump_config&#39;</span><span class="p">),</span>
+                <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">STDOUT</span><span class="p">,</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;dump config of </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s1">:</span><span class="se">\n</span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">yaml_load</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_norm_ver</span><span class="p">(</span><span class="n">ver</span><span class="p">,</span> <span class="n">with_rev</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="c1"># removes any non-standard suffix</span>
+        <span class="k">if</span> <span class="n">with_rev</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;(-dirty)$&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">ver</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;(-dirty|~\d+|-\d+-.+)$&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">ver</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_ver_to_semver</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">ver</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Convert version string (tag, rev hash, etc.) to SemVer.</span>
+
+<span class="sd">        This is done by querying the local Citlali repo history.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Version</span><span class="p">(</span><span class="n">ver</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">InvalidVersion</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="c1"># try find the latest version tag in the history</span>
+        <span class="n">repo</span> <span class="o">=</span> <span class="n">_get_local_citlali_repo</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">_ver</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_norm_ver</span><span class="p">(</span>
+                <span class="n">repo</span><span class="o">.</span><span class="n">git</span><span class="o">.</span><span class="n">describe</span><span class="p">(</span><span class="n">ver</span><span class="p">,</span> <span class="n">contains</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">with_rev</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="n">_ver</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_norm_ver</span><span class="p">(</span>
+                <span class="n">repo</span><span class="o">.</span><span class="n">git</span><span class="o">.</span><span class="n">describe</span><span class="p">(</span><span class="n">ver</span><span class="p">,</span> <span class="n">contains</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span> <span class="n">with_rev</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;version </span><span class="si">{</span><span class="n">ver</span><span class="si">}</span><span class="s2"> -&gt; semver </span><span class="si">{</span><span class="n">_ver</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Version</span><span class="p">(</span><span class="n">_ver</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">check_version</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">version</span><span class="p">):</span>
+        <span class="n">verspec</span> <span class="o">=</span> <span class="n">SpecifierSet</span><span class="p">(</span><span class="n">version</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;check </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">semver</span><span class="si">}</span><span class="s2"> against </span><span class="si">{</span><span class="n">verspec</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">semver</span> <span class="ow">in</span> <span class="n">verspec</span>
+
+    <span class="k">def</span> <span class="nf">check_for_update</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Check the current Citlali version agains the Github remote head.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+        <span class="n">repo</span> <span class="o">=</span> <span class="n">_get_local_citlali_repo</span><span class="p">()</span>
+
+        <span class="k">def</span> <span class="nf">get_git_changelog</span><span class="p">(</span><span class="n">v1</span><span class="p">,</span> <span class="n">v2</span><span class="p">):</span>
+
+            <span class="n">changelog</span> <span class="o">=</span> <span class="n">repo</span><span class="o">.</span><span class="n">git</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">v1</span><span class="si">}</span><span class="s1">..</span><span class="si">{</span><span class="n">v2</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">oneline</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">changelog</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span><span class="p">:</span>
+                <span class="c1"># same revision</span>
+                <span class="n">changelog</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">return</span> <span class="n">changelog</span>
+
+        <span class="c1"># get remote head version</span>
+        <span class="n">remote_rev</span> <span class="o">=</span> <span class="n">repo</span><span class="o">.</span><span class="n">git</span><span class="o">.</span><span class="n">rev_parse</span><span class="p">(</span><span class="s1">&#39;origin/HEAD&#39;</span><span class="p">,</span> <span class="n">short</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">changelog</span> <span class="o">=</span> <span class="n">get_git_changelog</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">version</span><span class="p">,</span> <span class="n">remote_rev</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">changelog</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">changelog_section</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;###################### Attention #######################</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;You are using an outdated version of Citlali. The latest</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;version has the following changes:</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">changelog</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;########################################################&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">changelog_section</span> <span class="o">=</span> <span class="s1">&#39;Citlali is update-to-date!&#39;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;* Executable path: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;* Remote Citlali rev: </span><span class="si">{</span><span class="n">remote_rev</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;* Local Citlali version: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">version</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">changelog_section</span><span class="si">}</span><span class="s1">&#39;</span>
+            <span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@functools</span><span class="o">.</span><span class="n">lru_cache</span><span class="p">(</span><span class="n">maxsize</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_get_line_buf_cmd</span><span class="p">():</span>
+        <span class="n">stdbuf</span> <span class="o">=</span> <span class="n">shutil</span><span class="o">.</span><span class="n">which</span><span class="p">(</span><span class="s1">&#39;stdbuf&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">stdbuf</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">stdbuf</span><span class="p">,</span> <span class="s1">&#39;-oL&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config_file</span><span class="p">,</span> <span class="n">log_level</span><span class="o">=</span><span class="s2">&quot;INFO&quot;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">exec_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span>
+        <span class="n">citlali_cmd</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">exec_path</span><span class="o">.</span><span class="n">as_posix</span><span class="p">(),</span>
+                <span class="s1">&#39;-l&#39;</span><span class="p">,</span> <span class="n">log_level</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span>
+                <span class="n">config_file</span><span class="o">.</span><span class="n">as_posix</span><span class="p">(),</span>
+                <span class="p">]</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_line_buf_cmd</span><span class="p">()</span> <span class="o">+</span> <span class="n">citlali_cmd</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">&quot;run </span><span class="si">{}</span><span class="s2"> cmd: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">citlali_cmd</span><span class="p">)))</span>
+        <span class="k">return</span> <span class="n">call_subprocess_with_live_output</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+
+<span class="nd">@functools</span><span class="o">.</span><span class="n">lru_cache</span><span class="p">(</span><span class="n">maxsize</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">_get_citlali_exec</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+    <span class="c1"># This caches all the found exec.</span>
+    <span class="k">return</span> <span class="n">CitlaliExec</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Citlali"><a class="viewcode-back" href="../../../../api/tolteca.reduce.engines.Citlali.html#tolteca.reduce.engines.Citlali">[docs]</a><span class="k">class</span> <span class="nc">Citlali</span><span class="p">(</span><span class="n">PipelineEngine</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A wrapper class of Citlali, the TolTEC data reduction pipeline</span>
+<span class="sd">    engine.</span>
+
+<span class="sd">    It searches for instances of ``citlali`` executables and check their</span>
+<span class="sd">    versions against the required version. The latest one is adopted if</span>
+<span class="sd">    multiple are found.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    path : str, `pathlib.Path`, list</span>
+<span class="sd">        The path to search the executable for. A list of paths is accepted</span>
+<span class="sd">        which searches the executable in the list in order.</span>
+
+<span class="sd">    version : str</span>
+<span class="sd">        A version specifier/predicate that specifies the required version of</span>
+<span class="sd">        pipeline.</span>
+
+<span class="sd">    use_env_path : bool</span>
+<span class="sd">        If True, the system PATH env var is consulted.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">use_env_path</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="n">citlali_executables</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">find_citlali_executables</span><span class="p">(</span>
+            <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">,</span> <span class="n">use_env_path</span><span class="o">=</span><span class="n">use_env_path</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">citlali_executables</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">PipelineEngineError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Cannot find Citlali executables for &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;version </span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">citlali_executables</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Found multiple Citlali executables for &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;version=</span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="c1"># f&quot;{citlali_executables[&#39;path&#39;, &#39;version&#39;, &#39;timestamp&#39;]}&quot;</span>
+                <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="n">citlali_exec</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_citlali_exec</span> <span class="o">=</span> <span class="n">citlali_executables</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;use citlali executable: </span><span class="si">{</span><span class="n">citlali_exec</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s1">(version=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">version</span><span class="si">}</span><span class="s1">)&#39;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">exec_path</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_citlali_exec</span><span class="o">.</span><span class="n">path</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">version</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_citlali_exec</span><span class="o">.</span><span class="n">version</span>
+
+<div class="viewcode-block" id="Citlali.get_default_config"><a class="viewcode-back" href="../../../../api/tolteca.reduce.engines.Citlali.html#tolteca.reduce.engines.Citlali.get_default_config">[docs]</a>    <span class="k">def</span> <span class="nf">get_default_config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_citlali_exec</span><span class="o">.</span><span class="n">get_default_config</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="Citlali.check_for_update"><a class="viewcode-back" href="../../../../api/tolteca.reduce.engines.Citlali.html#tolteca.reduce.engines.Citlali.check_for_update">[docs]</a>    <span class="k">def</span> <span class="nf">check_for_update</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_citlali_exec</span><span class="o">.</span><span class="n">check_for_update</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="Citlali.run"><a class="viewcode-back" href="../../../../api/tolteca.reduce.engines.Citlali.html#tolteca.reduce.engines.Citlali.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_citlali_exec</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Citlali.find_citlali_executables"><a class="viewcode-back" href="../../../../api/tolteca.reduce.engines.Citlali.html#tolteca.reduce.engines.Citlali.find_citlali_executables">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">find_citlali_executables</span><span class="p">(</span>
+            <span class="bp">cls</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">use_env_path</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a list of `CitlaliExec` objects that satisfy the version</span>
+<span class="sd">        constraints.&quot;&quot;&quot;</span>
+        <span class="n">exec_name</span> <span class="o">=</span> <span class="s1">&#39;citlali&#39;</span>
+
+        <span class="k">if</span> <span class="n">path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">)):</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="p">[</span><span class="n">path</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">if</span> <span class="n">use_env_path</span><span class="p">:</span>
+            <span class="c1"># check if the executable is in env path</span>
+            <span class="n">exec_path</span> <span class="o">=</span> <span class="n">shutil</span><span class="o">.</span><span class="n">which</span><span class="p">(</span><span class="n">exec_name</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">exec_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exec_path</span><span class="p">)</span>
+
+        <span class="c1"># now go over each item in path and get executable for checking</span>
+        <span class="n">paths</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+
+        <span class="k">def</span> <span class="nf">_check_and_add_path</span><span class="p">(</span><span class="n">exec_path</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">exec</span> <span class="o">=</span> <span class="n">CitlaliExec</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="n">exec_path</span><span class="p">)</span>
+                <span class="n">paths</span><span class="p">[</span><span class="n">exec_path</span><span class="p">]</span> <span class="o">=</span> <span class="n">exec</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;skip invalid cialali exec </span><span class="si">{</span><span class="n">exec_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;find citali executables in paths:</span><span class="se">\n</span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">path</span><span class="p">:</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">ensure_abspath</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
+                <span class="n">_check_and_add_path</span><span class="p">(</span><span class="n">shutil</span><span class="o">.</span><span class="n">which</span><span class="p">(</span><span class="s1">&#39;citlali&#39;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="n">p</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">p</span><span class="o">.</span><span class="n">is_file</span><span class="p">()</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">access</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">X_OK</span><span class="p">):</span>
+                <span class="n">_check_and_add_path</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;skip invalid path </span><span class="si">{</span><span class="n">p</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span><span class="si">}</span><span class="s2"> citlali executables:</span><span class="se">\n</span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="c1"># now check each executable with version</span>
+        <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;skip checking executable versions&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">paths</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+        <span class="n">valid_execs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;check executable versions&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">paths</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">check_version</span><span class="p">(</span><span class="n">version</span><span class="p">):</span>
+                <span class="n">valid_execs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+                <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2"> version satisfies </span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2"> version does not satisfies </span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">valid_execs</span></div>
+
+<div class="viewcode-block" id="Citlali.proc_context"><a class="viewcode-back" href="../../../../api/tolteca.reduce.engines.Citlali.html#tolteca.reduce.engines.Citlali.proc_context">[docs]</a>    <span class="nd">@timeit</span>
+    <span class="k">def</span> <span class="nf">proc_context</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a `CitlaliProc` that run reduction for given input dataset.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">CitlaliProc</span><span class="p">(</span><span class="n">citlali</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span></div></div>
+
+
+<span class="k">class</span> <span class="nc">CitlaliProc</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A context class for running Citlali.&quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">citlali</span><span class="p">,</span> <span class="n">config</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_citlali</span> <span class="o">=</span> <span class="n">citlali</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_config</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span>
+            <span class="n">config</span><span class="p">,</span>
+            <span class="n">low_level</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_resolve_low_level_config</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">low_level</span><span class="p">)</span>
+            <span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">citlali</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_citlali</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span>
+
+    <span class="k">def</span> <span class="fm">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="fm">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">,</span>
+            <span class="n">log_level</span><span class="o">=</span><span class="s1">&#39;INFO&#39;</span><span class="p">,</span> <span class="n">logger_func</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="c1"># resolve the dataset to input items</span>
+        <span class="n">tbl</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">index_table</span>
+        <span class="n">grouped</span> <span class="o">=</span> <span class="n">tbl</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span>
+            <span class="p">[</span><span class="s1">&#39;obsnum&#39;</span><span class="p">,</span> <span class="s1">&#39;subobsnum&#39;</span><span class="p">,</span> <span class="s1">&#39;scannum&#39;</span><span class="p">,</span> <span class="s1">&#39;master&#39;</span><span class="p">,</span> <span class="s1">&#39;repeat&#39;</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;collected </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">grouped</span><span class="p">)</span><span class="si">}</span><span class="s2"> raw obs&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">group</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">grouped</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">keys</span><span class="p">,</span> <span class="n">grouped</span><span class="o">.</span><span class="n">groups</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="s1">&#39;****** obs name=</span><span class="si">{obsnum}</span><span class="s1">_</span><span class="si">{subobsnum}</span><span class="s1">_</span><span class="si">{scannum}</span><span class="s1"> &#39;</span>
+                    <span class="s1">&#39;*******&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">**</span><span class="n">key</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">group</span><span class="si">}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">input_items</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_input_item</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">grouped</span><span class="o">.</span><span class="n">groups</span><span class="p">]</span>
+        <span class="c1"># create low level config object and dump to file</span>
+        <span class="c1"># the low level has been resolved to a dict when __init__ is called</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">low_level</span><span class="p">)</span>
+        <span class="n">rupdate</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="p">{</span>
+            <span class="s1">&#39;inputs&#39;</span><span class="p">:</span> <span class="n">input_items</span><span class="p">,</span>
+            <span class="s1">&#39;runtime&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="c1"># TODO get rid of the trailing slash</span>
+                <span class="s1">&#39;output_dir&#39;</span><span class="p">:</span> <span class="n">output_dir</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span>
+                <span class="p">}</span>
+            <span class="p">})</span>
+        <span class="n">cfg_hl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_high_level_config</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">)</span>
+        <span class="n">rupdate</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">cfg_hl</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s1">&#39;resolved low level config:</span><span class="se">\n</span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="c1"># show the high level config entries that over writes the low level</span>
+        <span class="c1"># values</span>
+        <span class="n">chl</span> <span class="o">=</span> <span class="n">Cut</span><span class="p">(</span><span class="n">cfg_hl</span><span class="p">)</span>
+        <span class="n">cll</span> <span class="o">=</span> <span class="n">Cut</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">low_level</span><span class="p">)</span>
+        <span class="n">updated_entries</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">get_nested_keys</span><span class="p">(</span><span class="n">cfg_hl</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cll</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">new</span> <span class="o">=</span> <span class="n">chl</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+            <span class="n">old</span> <span class="o">=</span> <span class="n">cll</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">new</span> <span class="o">==</span> <span class="n">old</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">updated_entries</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">key</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">updated_entries</span><span class="p">:</span>
+            <span class="n">updated_entries</span> <span class="o">=</span> <span class="n">Table</span><span class="p">(</span>
+                <span class="n">rows</span><span class="o">=</span><span class="n">updated_entries</span><span class="p">,</span>
+                <span class="n">names</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;low_level_config_key&#39;</span><span class="p">,</span> <span class="s1">&#39;default&#39;</span><span class="p">,</span> <span class="s1">&#39;updated&#39;</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;low level config entries overwitten by &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;high level config:</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">updated_entries</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">input_items</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;meta&#39;</span><span class="p">][</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+        <span class="n">output_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;citlali_o</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s1">_c</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">input_items</span><span class="p">)</span><span class="si">}</span><span class="s1">.yaml&#39;</span>
+        <span class="n">cfg_filepath</span> <span class="o">=</span> <span class="n">output_dir</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">output_name</span><span class="p">)</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">cfg_filepath</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
+            <span class="n">fo</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">cfg</span><span class="p">))</span>
+            <span class="c1"># yaml_dump(cfg, fo)</span>
+        <span class="n">success</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_citlali</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+            <span class="n">cfg_filepath</span><span class="p">,</span> <span class="n">log_level</span><span class="o">=</span><span class="n">log_level</span><span class="p">,</span> <span class="n">logger_func</span><span class="o">=</span><span class="n">logger_func</span><span class="p">)</span>
+        <span class="c1"># TODO implement the logic to locate the generated output files</span>
+        <span class="c1"># which will be used to create data prod object.</span>
+        <span class="k">if</span> <span class="n">success</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">output_dir</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;failed to run </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">citlali</span><span class="si">}</span><span class="s2"> with config file </span><span class="si">{</span><span class="n">cfg_filepath</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_resolve_low_level_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">low_level</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a low-level config dict from low_level config entry.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">low_level</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">citlali</span><span class="o">.</span><span class="n">get_default_config</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">low_level</span><span class="p">,</span> <span class="n">Path</span><span class="p">):</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">low_level</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">yaml_load</span><span class="p">(</span><span class="n">fo</span><span class="p">)</span>
+        <span class="c1"># a dict already</span>
+        <span class="k">return</span> <span class="n">low_level</span>
+
+    <span class="k">def</span> <span class="nf">_resolve_high_level_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">high_level</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a low level config dict from high level dict.&quot;&quot;&quot;</span>
+        <span class="c1"># image_frame_params</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="n">Cut</span><span class="p">(</span><span class="nb">dict</span><span class="p">())</span>
+        <span class="n">pixel_size</span> <span class="o">=</span> <span class="n">high_level</span><span class="o">.</span><span class="n">image_frame_params</span><span class="o">.</span><span class="n">pixel_size</span>
+        <span class="k">if</span> <span class="n">pixel_size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">cfg</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span>
+                <span class="s1">&#39;mapmaking.pixel_size_arcsec&#39;</span><span class="p">,</span> <span class="n">pixel_size</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">arcsec</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">cfg</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_resolve_input_item</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">index_table</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an citlali input list entry from index table.&quot;&quot;&quot;</span>
+        <span class="n">tbl</span> <span class="o">=</span> <span class="n">index_table</span>
+        <span class="n">d0</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">d0</span><span class="p">[</span><span class="s2">&quot;obsnum&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">d0</span><span class="p">[</span><span class="s2">&quot;subobsnum&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">d0</span><span class="p">[</span><span class="s2">&quot;scannum&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span>
+            <span class="p">}</span>
+        <span class="n">data_items</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="n">cal_items</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">tbl</span><span class="p">:</span>
+            <span class="n">instru</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;instru&#39;</span><span class="p">]</span>
+            <span class="n">interface</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;interface&#39;</span><span class="p">]</span>
+            <span class="n">source</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;source&#39;</span><span class="p">]</span>
+            <span class="n">extra</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">instru</span> <span class="o">==</span> <span class="s1">&#39;toltec&#39;</span><span class="p">:</span>
+                <span class="n">c</span> <span class="o">=</span> <span class="n">data_items</span>
+            <span class="k">elif</span> <span class="n">interface</span> <span class="o">==</span> <span class="s1">&#39;lmt&#39;</span><span class="p">:</span>
+                <span class="n">c</span> <span class="o">=</span> <span class="n">data_items</span>
+            <span class="k">elif</span> <span class="n">interface</span> <span class="o">==</span> <span class="s1">&#39;apt&#39;</span><span class="p">:</span>
+                <span class="n">c</span> <span class="o">=</span> <span class="n">cal_items</span>
+                <span class="c1"># TODO implement in citlali the proper</span>
+                <span class="c1"># ecsv handling</span>
+                <span class="n">source</span> <span class="o">=</span> <span class="n">_fix_apt</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+                <span class="n">extra</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;array_prop_table&#39;</span><span class="p">}</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">c</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">dict</span><span class="p">({</span>
+                    <span class="s1">&#39;filepath&#39;</span><span class="p">:</span> <span class="n">source</span><span class="p">,</span>
+                    <span class="s1">&#39;meta&#39;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s1">&#39;interface&#39;</span><span class="p">:</span> <span class="n">interface</span>
+                        <span class="p">}</span>
+                    <span class="p">},</span> <span class="o">**</span><span class="n">extra</span><span class="p">)</span>
+                    <span class="p">)</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;collected input item name=</span><span class="si">{</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;n_data_items=</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">data_items</span><span class="p">)</span><span class="si">}</span><span class="s2"> &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;n_cal_items=</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">cal_items</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="c1"># this is a hack. TODO fix the proper ordering of data items</span>
+        <span class="n">data_items</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+                <span class="n">data_items</span><span class="p">,</span>
+                <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="p">(</span>
+                    <span class="nb">int</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="s1">&#39;meta&#39;</span><span class="p">][</span><span class="s1">&#39;interface&#39;</span><span class="p">][</span><span class="mi">6</span><span class="p">:])</span>
+                    <span class="k">if</span> <span class="n">d</span><span class="p">[</span><span class="s1">&#39;meta&#39;</span><span class="p">][</span><span class="s1">&#39;interface&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;toltec&#39;</span><span class="p">)</span>
+                    <span class="k">else</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                <span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span>
+                <span class="s1">&#39;meta&#39;</span><span class="p">:</span> <span class="n">meta</span><span class="p">,</span>
+                <span class="s1">&#39;data_items&#39;</span><span class="p">:</span> <span class="n">data_items</span><span class="p">,</span>
+                <span class="s1">&#39;cal_items&#39;</span><span class="p">:</span> <span class="n">cal_items</span><span class="p">,</span>
+                <span class="p">}</span>
+
+
+<span class="k">def</span> <span class="nf">_fix_apt</span><span class="p">(</span><span class="n">source</span><span class="p">):</span>
+    <span class="c1"># this is a temporary fix to make citlali work with the</span>
+    <span class="c1"># apt</span>
+    <span class="n">tbl</span> <span class="o">=</span> <span class="n">Table</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;ascii.ecsv&#39;</span><span class="p">)</span>
+    <span class="n">tbl_new</span> <span class="o">=</span> <span class="n">Table</span><span class="p">()</span>
+    <span class="n">tbl_new</span><span class="p">[</span><span class="s1">&#39;nw&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;nw&#39;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;d&#39;</span><span class="p">)</span>
+    <span class="n">tbl_new</span><span class="p">[</span><span class="s1">&#39;array&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;array&#39;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;d&#39;</span><span class="p">)</span>
+    <span class="n">tbl_new</span><span class="p">[</span><span class="s1">&#39;flxscale&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;flxscale&#39;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;d&#39;</span><span class="p">)</span>
+    <span class="n">tbl_new</span><span class="p">[</span><span class="s1">&#39;x_t&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;x_t&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span>
+    <span class="n">tbl_new</span><span class="p">[</span><span class="s1">&#39;y_t&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;y_t&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span>
+    <span class="n">tbl_new</span><span class="p">[</span><span class="s1">&#39;a_fwhm&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;a_fwhm&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span>
+    <span class="n">tbl_new</span><span class="p">[</span><span class="s1">&#39;b_fwhm&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="s1">&#39;b_fwhm&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span>
+    <span class="n">source_new</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;.ecsv&#39;</span><span class="p">,</span> <span class="s1">&#39;_trimmed.ecsv&#39;</span><span class="p">)</span>
+    <span class="n">tbl_new</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">source_new</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;ascii.ecsv&#39;</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">source_new</span>
+
+
+<span class="c1"># High level config classes</span>
+<span class="c1"># TODO some of these config can be made more generic and does not needs to</span>
+<span class="c1"># be citlali specific.</span>
+
+
+<span class="nd">@add_schema</span>
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">ImageFrameParams</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Params related to 2D image data shape and WCS.&quot;&quot;&quot;</span>
+    <span class="n">pixel_size</span><span class="p">:</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">metadata</span><span class="o">=</span><span class="p">{</span>
+            <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="s1">&#39;The pixel size of image.&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;schema&#39;</span><span class="p">:</span> <span class="n">PhysicalTypeSchema</span><span class="p">(</span><span class="s1">&#39;angle&#39;</span><span class="p">)</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+
+
+<div class="viewcode-block" id="CitlaliConfig"><a class="viewcode-back" href="../../../../api/tolteca.reduce.engines.CitlaliConfig.html#tolteca.reduce.engines.CitlaliConfig">[docs]</a><span class="nd">@add_schema</span>
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">CitlaliConfig</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The high-level config for Citlali.&quot;&quot;&quot;</span>
+
+    <span class="n">low_level</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="n">Path</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">metadata</span><span class="o">=</span><span class="p">{</span>
+            <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="s1">&#39;The low level config used as the base.&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;schema&#39;</span><span class="p">:</span> <span class="n">Or</span><span class="p">(</span><span class="n">RelPathSchema</span><span class="p">(),</span> <span class="nb">dict</span><span class="p">)</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+    <span class="n">image_frame_params</span><span class="p">:</span> <span class="n">ImageFrameParams</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">default_factory</span><span class="o">=</span><span class="n">ImageFrameParams</span><span class="p">,</span>
+        <span class="n">metadata</span><span class="o">=</span><span class="p">{</span>
+            <span class="s1">&#39;description&#39;</span><span class="p">:</span>
+            <span class="s1">&#39;The params related to the output image data shape and WCS.&#39;</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+
+    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;ignore_extra_keys&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="s1">&#39;The high level config for Citlali.&#39;</span>
+            <span class="p">}</span></div>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
+  </p>
+</footer>
+  </body>
+</html>

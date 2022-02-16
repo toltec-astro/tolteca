@@ -6,7 +6,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
-    <title>Documentation &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <title>TolTECA Documentation &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/bootstrap-astropy.css" />
     <link rel="stylesheet" type="text/css" href="_static/graphviz.css" />
@@ -21,7 +21,7 @@
     <link rel="shortcut icon" href="_static/astropy_logo.ico"/>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="TolTECA Documentation" href="tolteca/index.html" />
+    <link rel="next" title="Web-based Tools (tolteca.web)" href="tolteca/web.html" />
     <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
 
   </head><body>
@@ -49,12 +49,12 @@
     <h3>Navigation</h3>
     <ul>
       <li class="right">
-	<a href="tolteca/index.html" title="TolTECA Documentation">
+	<a href="tolteca/web.html" title="Web-based Tools (tolteca.web)">
 	  next &raquo;
 	</a>
       </li>
       <li>
-	<a href="#">tolteca v0.1.dev323+g1c6dc6b</a>
+	<a href="#">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
 	 &#187;
       </li>
       
@@ -68,19 +68,698 @@
         <div class="bodywrapper">
           <div class="body" role="main">
             
-  <section id="documentation">
-<h1>Documentation<a class="headerlink" href="#documentation" title="Permalink to this headline">¶</a></h1>
-<p>This is the documentation for TolTECA.</p>
-<p>TolTECA is a package for analyzing TolTEC data.</p>
+  <section id="tolteca-documentation">
+<h1>TolTECA Documentation<a class="headerlink" href="#tolteca-documentation" title="Permalink to this headline">¶</a></h1>
+<p><code class="docutils literal notranslate"><span class="pre">tolteca</span></code> is a Python package developed to handle data taken by the TolTEC
+Camera on the Large Millimeter Telescope.</p>
+<p>While TolTEC is its main target instrument, the infrastructure and generic workflow
+are implemented in a instrument agnostic fashion, which allows the functionalities
+to be extendable to other instruments.</p>
+<section id="getting-started">
+<h2>Getting Started<a class="headerlink" href="#getting-started" title="Permalink to this headline">¶</a></h2>
+<div class="admonition-todo admonition" id="id1">
+<p class="admonition-title">Todo</p>
+<p>Add details.</p>
+</div>
+</section>
+<section id="using-tolteca">
+<h2>Using <code class="docutils literal notranslate"><span class="pre">tolteca</span></code><a class="headerlink" href="#using-tolteca" title="Permalink to this headline">¶</a></h2>
+<section id="overview-of-workflow">
+<h3>Overview of Workflow<a class="headerlink" href="#overview-of-workflow" title="Permalink to this headline">¶</a></h3>
+<ul class="simple">
+<li><p>RuntimeContext and RuntimeBase</p></li>
+<li><p>Commandline Interface</p></li>
+<li><p>Programming Interface</p></li>
+</ul>
+</section>
+<section id="data-file-and-data-product-management">
+<h3>Data File and Data Product Management<a class="headerlink" href="#data-file-and-data-product-management" title="Permalink to this headline">¶</a></h3>
+</section>
+<section id="data-reduction-pipeline">
+<h3>Data Reduction Pipeline<a class="headerlink" href="#data-reduction-pipeline" title="Permalink to this headline">¶</a></h3>
+</section>
+<section id="observation-simulator">
+<h3>Observation Simulator<a class="headerlink" href="#observation-simulator" title="Permalink to this headline">¶</a></h3>
+</section>
+<section id="web-based-tools">
+<h3>Web-based Tools<a class="headerlink" href="#web-based-tools" title="Permalink to this headline">¶</a></h3>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="tolteca/index.html">TolTECA Documentation</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="tolteca/tolteca_recipes.html">TolTECA Recipes</a></li>
-<li class="toctree-l2"><a class="reference internal" href="tolteca/index.html#reference-api">Reference/API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tolteca/web.html">Web-based Tools (<code class="xref py py-obj docutils literal notranslate"><span class="pre">tolteca.web</span></code>)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="tolteca/web.html#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tolteca/web.html#getting-started">Getting Started</a></li>
 </ul>
 </li>
 </ul>
 </div>
+</section>
+<section id="recipes">
+<h3>Recipes<a class="headerlink" href="#recipes" title="Permalink to this headline">¶</a></h3>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="tolteca/recipes.html">TolTECA Recipes</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="tolteca/recipes.html#module-tolteca.recipes">tolteca.recipes Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tolteca/recipes.html#module-tolteca.recipes.autodrive">tolteca.recipes.autodrive Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tolteca/recipes.html#module-tolteca.recipes.dataset_rsync">tolteca.recipes.dataset_rsync Module</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+<section id="scripts">
+<h3>Scripts<a class="headerlink" href="#scripts" title="Permalink to this headline">¶</a></h3>
+</section>
+</section>
+<section id="reference-api">
+<h2>Reference/API<a class="headerlink" href="#reference-api" title="Permalink to this headline">¶</a></h2>
+<section id="module-tolteca">
+<span id="tolteca-package"></span><h3>tolteca Package<a class="headerlink" href="#module-tolteca" title="Permalink to this headline">¶</a></h3>
+</section>
+<section id="module-tolteca.cli">
+<span id="tolteca-cli-package"></span><h3>tolteca.cli Package<a class="headerlink" href="#module-tolteca.cli" title="Permalink to this headline">¶</a></h3>
+<section id="functions">
+<h4>Functions<a class="headerlink" href="#functions" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.cli.main.html#tolteca.cli.main" title="tolteca.cli.main"><code class="xref py py-obj docutils literal notranslate"><span class="pre">main</span></code></a>([args])</p></td>
+<td><p>The CLI entry point.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="module-tolteca.common.toltec">
+<span id="tolteca-common-toltec-package"></span><h3>tolteca.common.toltec Package<a class="headerlink" href="#module-tolteca.common.toltec" title="Permalink to this headline">¶</a></h3>
+</section>
+<section id="module-tolteca.common.lmt">
+<span id="tolteca-common-lmt-package"></span><h3>tolteca.common.lmt Package<a class="headerlink" href="#module-tolteca.common.lmt" title="Permalink to this headline">¶</a></h3>
+</section>
+<section id="module-tolteca.datamodels.toltec">
+<span id="tolteca-datamodels-toltec-package"></span><h3>tolteca.datamodels.toltec Package<a class="headerlink" href="#module-tolteca.datamodels.toltec" title="Permalink to this headline">¶</a></h3>
+<p>This module implements the TolTEC data model.</p>
+<p>The TolTEC data model covers two topics:</p>
+<ol class="arabic">
+<li><p>Basic Obs Data (BOD)</p>
+<blockquote>
+<div><p>Basic Obs Data are the data from the telescope/instrument control system
+(TCS/ICS) and the timely analysis service (TAS).</p>
+<p>These data are typically stored on disk on a per-interface basis, and
+carry full runtime information of the TolTEC instrument.</p>
+<p>The name “basic obs” (BO) refers to a continuous file-writing transaction
+executed by the TCS/ICS. This is different from an “obs request” (OR) which
+may consist of multiple BOs.</p>
+<p>Each basic obs is assigned a unique transaction identifier, consists of a
+4-tuple of “master”, “obsnum”, “subobsnum”, and “scannum”. In addition,
+the basic obs data stream may be relayed (duplicated) to remote
+destinations and files will be created with the destination local repeat
+writers. The (repeated) copy of the data files are distinguished by an
+integer field “repeat”. The original data has “repeat” value of 0.</p>
+<p>The TAS monitors newly generated raw obs data and runs various data
+reduction recipes to create timely view data products to guide the
+observation. One of the most important output of this is noted as the basic
+reduced data files for each input raw obs data files.</p>
+<p>Both raw obs data and basic reduced data can be handled by the wrapper
+class <a class="reference internal" href="api/tolteca.datamodels.toltec.BasicObsData.html#tolteca.datamodels.toltec.BasicObsData" title="tolteca.datamodels.toltec.BasicObsData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsData</span></code></a>. By providing a unified
+interface for access the meta data and data in the data files, this wrapper
+class hides away the details of handling of interacting with each data
+storage format for different data kinds, which is implemented in the
+various subclasses of <code class="xref py py-obj docutils literal notranslate"><span class="pre">DataFileIO</span></code> defined in
+<code class="xref py py-obj docutils literal notranslate"><span class="pre">toltec</span></code>.</p>
+<p>More over, the helper class <a class="reference internal" href="api/tolteca.datamodels.toltec.BasicObsDataset.html#tolteca.datamodels.toltec.BasicObsDataset" title="tolteca.datamodels.toltec.BasicObsDataset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsDataset</span></code></a>
+provides a table-like way to work with a collection of BOD files for
+carrying out instrument level diagnostics and data analysis.</p>
+</div></blockquote>
+</li>
+<li><p>Data Products and the Associations</p>
+<blockquote>
+<div><p>Data Products (DPs) and Data Product Associations (DPAs) are the core
+concepts of the TolTEC data management system, which involves both the raw
+data and the reduced data.</p>
+<p>The DP and DPA information are managed using the data product database
+(DPDB). The modules <a class="reference internal" href="#module-tolteca.datamodels.db" title="tolteca.datamodels.db"><code class="xref py py-obj docutils literal notranslate"><span class="pre">db</span></code></a>,
+<code class="xref py py-obj docutils literal notranslate"><span class="pre">dp</span></code>, and <code class="xref py py-obj docutils literal notranslate"><span class="pre">toltecdp</span></code> implement
+the database structure, the data product specification/schema, as well
+as the interface to manage the DP and DPAs.</p>
+<p>Data analysis tasks run via TolTECA read and write to DPDB to record
+the inputs, outputs, the associations, as well the runtime context info.</p>
+<p>The key element of a data product is an index object (DPIndex), typically
+stored along with the actual (textual or binary) data files as an
+standalone YAML (or JSON) file.</p>
+<p>One of the key property of a data product is the data product type.
+The contents of the DPIndex for different data types are constrained by the
+corresponding schemas.</p>
+<p>Some data product types are:</p>
+<ul class="simple">
+<li><dl class="simple">
+<dt>dp_raw_obs</dt><dd><p>Simple collection of raw basic obs data files (BODs).</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>dp_basic_reduced_obs</dt><dd><p>Simple collection of basic reduced obs data generated by the TAS,
+one-to-one mapping to the dp_raw_obs.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>dp_science</dt><dd><p>Reduced, science-ready maps/catalogs.</p>
+</dd>
+</dl>
+</li>
+</ul>
+<p>The DPs are related to each other through association info noted as DPAs.
+Each DPA typically has contextual data (meta data) to describe the
+relations of the DPs.</p>
+</div></blockquote>
+</li>
+</ol>
+<section id="classes">
+<h4>Classes<a class="headerlink" href="#classes" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.datamodels.toltec.BasicObsData.html#tolteca.datamodels.toltec.BasicObsData" title="tolteca.datamodels.toltec.BasicObsData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsData</span></code></a>(source[, open_])</p></td>
+<td><p>A class that provides unified IO interface to TolTEC basic obs data.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.datamodels.toltec.BasicObsDataset.html#tolteca.datamodels.toltec.BasicObsDataset" title="tolteca.datamodels.toltec.BasicObsDataset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsDataset</span></code></a>([index_table, bod_list, ...])</p></td>
+<td><p>A helper class to access a set of TolTEC basic obs data items.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.datamodels.toltec.ToltecDataProd.html#tolteca.datamodels.toltec.ToltecDataProd" title="tolteca.datamodels.toltec.ToltecDataProd"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ToltecDataProd</span></code></a>()</p></td>
+<td><p>This class provides access to TolTEC data product info.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="class-inheritance-diagram">
+<h4>Class Inheritance Diagram<a class="headerlink" href="#class-inheritance-diagram" title="Permalink to this headline">¶</a></h4>
+<div class="graphviz"><object data="_images/inheritance-bfece41db2dfd8c659d3da651924eba4ca1bd49b.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.datamodels.toltec.basic_obs_data.BasicObsData, tolteca.datamodels.toltec.basic_obs_data.BasicObsDataset, tolteca.datamodels.toltec.data_prod.ToltecDataProd</p></object></div>
+</section>
+</section>
+<section id="module-tolteca.datamodels.fs">
+<span id="tolteca-datamodels-fs-package"></span><h3>tolteca.datamodels.fs Package<a class="headerlink" href="#module-tolteca.datamodels.fs" title="Permalink to this headline">¶</a></h3>
+</section>
+<section id="module-tolteca.datamodels.db">
+<span id="tolteca-datamodels-db-package"></span><h3>tolteca.datamodels.db Package<a class="headerlink" href="#module-tolteca.datamodels.db" title="Permalink to this headline">¶</a></h3>
+</section>
+<section id="module-tolteca.datamodels.io">
+<span id="tolteca-datamodels-io-package"></span><h3>tolteca.datamodels.io Package<a class="headerlink" href="#module-tolteca.datamodels.io" title="Permalink to this headline">¶</a></h3>
+<section id="id2">
+<h4>Functions<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.datamodels.io.open_file.html#tolteca.datamodels.io.open_file" title="tolteca.datamodels.io.open_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">open_file</span></code></a>(source[, format])</p></td>
+<td><p>A alias of <code class="xref py py-obj docutils literal notranslate"><span class="pre">open</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id3">
+<h4>Classes<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.datamodels.io.KidsModelParamsIO.html#tolteca.datamodels.io.KidsModelParamsIO" title="tolteca.datamodels.io.KidsModelParamsIO"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KidsModelParamsIO</span></code></a>([source, open_])</p></td>
+<td><p>&quot;A class to read KIDs model parameters.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.datamodels.io.NcFileIO.html#tolteca.datamodels.io.NcFileIO" title="tolteca.datamodels.io.NcFileIO"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NcFileIO</span></code></a>([source, open_, load_meta_on_open, ...])</p></td>
+<td><p>A class to read data from TolTEC netCDF files.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id4">
+<h4>Class Inheritance Diagram<a class="headerlink" href="#id4" title="Permalink to this headline">¶</a></h4>
+<div class="graphviz"><object data="_images/inheritance-b32309ecc74bbbe4d6f90bfb2f16a644767e83ee.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.datamodels.io.toltec.table.KidsModelParamsIO, tolteca.datamodels.io.toltec.kidsdata.NcFileIO</p></object></div>
+</section>
+</section>
+<section id="module-tolteca.reduce">
+<span id="tolteca-reduce-package"></span><h3>tolteca.reduce Package<a class="headerlink" href="#module-tolteca.reduce" title="Permalink to this headline">¶</a></h3>
+<section id="id5">
+<h4>Classes<a class="headerlink" href="#id5" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.reduce.ReduConfig.html#tolteca.reduce.ReduConfig" title="tolteca.reduce.ReduConfig"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ReduConfig</span></code></a>(jobkey, inputs, steps)</p></td>
+<td><p>The config for <a class="reference internal" href="#module-tolteca.reduce" title="tolteca.reduce"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tolteca.reduce</span></code></a>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.reduce.PipelineRuntime.html#tolteca.reduce.PipelineRuntime" title="tolteca.reduce.PipelineRuntime"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PipelineRuntime</span></code></a>(config)</p></td>
+<td><p>A class to run the data reduction pipeline.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.reduce.PipelineRuntimeError.html#tolteca.reduce.PipelineRuntimeError" title="tolteca.reduce.PipelineRuntimeError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PipelineRuntimeError</span></code></a></p></td>
+<td><p>Raise when errors occur in <a class="reference internal" href="api/tolteca.reduce.PipelineRuntime.html#tolteca.reduce.PipelineRuntime" title="tolteca.reduce.PipelineRuntime"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PipelineRuntime</span></code></a>.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id6">
+<h4>Class Inheritance Diagram<a class="headerlink" href="#id6" title="Permalink to this headline">¶</a></h4>
+<div class="graphviz"><object data="_images/inheritance-d8af4ee958909afbf0650b7a1c5d064384a0a8dd.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.reduce.ReduConfig, tolteca.reduce.PipelineRuntime, tolteca.reduce.PipelineRuntimeError</p></object></div>
+</section>
+</section>
+<section id="module-tolteca.reduce.engines">
+<span id="tolteca-reduce-engines-package"></span><h3>tolteca.reduce.engines Package<a class="headerlink" href="#module-tolteca.reduce.engines" title="Permalink to this headline">¶</a></h3>
+<section id="id7">
+<h4>Classes<a class="headerlink" href="#id7" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsDataset</span></code>([index_table, bod_list, ...])</p></td>
+<td><p>A helper class to access a set of TolTEC basic obs data items.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.reduce.engines.Citlali.html#tolteca.reduce.engines.Citlali" title="tolteca.reduce.engines.Citlali"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Citlali</span></code></a>([path, version, use_env_path])</p></td>
+<td><p>A wrapper class of Citlali, the TolTEC data reduction pipeline engine.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.reduce.engines.CitlaliConfig.html#tolteca.reduce.engines.CitlaliConfig" title="tolteca.reduce.engines.CitlaliConfig"><code class="xref py py-obj docutils literal notranslate"><span class="pre">CitlaliConfig</span></code></a>(low_level, pathlib.Path, ...)</p></td>
+<td><p>The high-level config for Citlali.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.reduce.engines.CitlaliStepConfig.html#tolteca.reduce.engines.CitlaliStepConfig" title="tolteca.reduce.engines.CitlaliStepConfig"><code class="xref py py-obj docutils literal notranslate"><span class="pre">CitlaliStepConfig</span></code></a>(**kwargs)</p></td>
+<td><p>The config class for reduction with Citlali.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">DataclassNamespace</span></code></p></td>
+<td><p>A subclass of <code class="xref py py-obj docutils literal notranslate"><span class="pre">tollan.utils.namespace.Namespace</span></code> that support dataclass type members.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Optional</span></code>(*args, **kwargs)</p></td>
+<td><p>Marker for an optional part of the validation Schema.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Or</span></code>(*args, **kwargs)</p></td>
+<td><p>Utility function to combine validation directives in a OR Boolean fashion.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">RelPathSchema</span></code>([check_exists])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Schema</span></code>(schema[, error, ignore_extra_keys, ...])</p></td>
+<td><p>Entry point of the library, use this class to instantiate validation schema for the data that will be validated.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">log_to_file</span></code>(filepath[, logger, level, ...])</p></td>
+<td><p>A context manager to log to file.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id8">
+<h4>Class Inheritance Diagram<a class="headerlink" href="#id8" title="Permalink to this headline">¶</a></h4>
+<div class="graphviz"><object data="_images/inheritance-b10e1be345cc66418d9b09d0d86cabf77d6bdce7.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.reduce.engines.citlali.Citlali, tolteca.reduce.engines.citlali.CitlaliConfig, tolteca.reduce.engines.CitlaliStepConfig</p></object></div>
+</section>
+</section>
+<section id="module-tolteca.reduce.toltec">
+<span id="tolteca-reduce-toltec-package"></span><h3>tolteca.reduce.toltec Package<a class="headerlink" href="#module-tolteca.reduce.toltec" title="Permalink to this headline">¶</a></h3>
+<section id="id9">
+<h4>Classes<a class="headerlink" href="#id9" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsDataset</span></code>([index_table, bod_list, ...])</p></td>
+<td><p>A helper class to access a set of TolTEC basic obs data items.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.reduce.toltec.BasicObsDatasetLoader.html#tolteca.reduce.toltec.BasicObsDatasetLoader" title="tolteca.reduce.toltec.BasicObsDatasetLoader"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BasicObsDatasetLoader</span></code></a>()</p></td>
+<td><p>A class to collect TolTEC basic obs dataset from local files.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">LocalFileDataStore</span></code></p></td>
+<td><p>A class describing data managed in local file system.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">NamespaceMixin</span></code>()</p></td>
+<td><p>A mixin class that allows converting object to and from dict.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id10">
+<h4>Class Inheritance Diagram<a class="headerlink" href="#id10" title="Permalink to this headline">¶</a></h4>
+<div class="graphviz"><object data="_images/inheritance-9b86f9dc47bea25d581b0ffd9d313e0f79ab3b18.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.reduce.toltec.BasicObsDatasetLoader</p></object></div>
+</section>
+</section>
+<section id="module-tolteca.simu">
+<span id="tolteca-simu-package"></span><h3>tolteca.simu Package<a class="headerlink" href="#module-tolteca.simu" title="Permalink to this headline">¶</a></h3>
+<section id="id11">
+<h4>Classes<a class="headerlink" href="#id11" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.simu.SimuConfig.html#tolteca.simu.SimuConfig" title="tolteca.simu.SimuConfig"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SimuConfig</span></code></a>(jobkey, instrument, mapping, ...)</p></td>
+<td><p>The config for <a class="reference internal" href="#module-tolteca.simu" title="tolteca.simu"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tolteca.simu</span></code></a>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.simu.SimulatorRuntime.html#tolteca.simu.SimulatorRuntime" title="tolteca.simu.SimulatorRuntime"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SimulatorRuntime</span></code></a>(config)</p></td>
+<td><p>A class to run the simulator.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.simu.SimulatorRuntimeError.html#tolteca.simu.SimulatorRuntimeError" title="tolteca.simu.SimulatorRuntimeError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SimulatorRuntimeError</span></code></a></p></td>
+<td><p>Raise when errors occur in <a class="reference internal" href="api/tolteca.simu.SimulatorRuntime.html#tolteca.simu.SimulatorRuntime" title="tolteca.simu.SimulatorRuntime"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SimulatorRuntime</span></code></a>.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id12">
+<h4>Class Inheritance Diagram<a class="headerlink" href="#id12" title="Permalink to this headline">¶</a></h4>
+<div class="graphviz"><object data="_images/inheritance-c7d76b5216c896cfd3deba196bf767cc010fbae6.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.simu.SimuConfig, tolteca.simu.SimulatorRuntime, tolteca.simu.SimulatorRuntimeError</p></object></div>
+</section>
+</section>
+<section id="module-tolteca.simu.base">
+<span id="tolteca-simu-base-module"></span><h3>tolteca.simu.base Module<a class="headerlink" href="#module-tolteca.simu.base" title="Permalink to this headline">¶</a></h3>
+<section id="id13">
+<h4>Classes<a class="headerlink" href="#id13" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.simu.base.ProjModel.html#tolteca.simu.base.ProjModel" title="tolteca.simu.base.ProjModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ProjModel</span></code></a>(*args, **kwargs)</p></td>
+<td><p>Base class for models that transform properties from one frame to another.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.simu.base.LabelFrame.html#tolteca.simu.base.LabelFrame" title="tolteca.simu.base.LabelFrame"><code class="xref py py-obj docutils literal notranslate"><span class="pre">LabelFrame</span></code></a>(axes_names[, axes_order, name])</p></td>
+<td><p>An coordinate frame for describing discrete detector attributes.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id14">
+<h4>Class Inheritance Diagram<a class="headerlink" href="#id14" title="Permalink to this headline">¶</a></h4>
+<div class="graphviz"><object data="_images/inheritance-da55d5a5595b142dfedda6f7e2b153287b02db28.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.simu.base.ProjModel, tolteca.simu.base.LabelFrame</p></object></div>
+</section>
+</section>
+<section id="module-tolteca.simu.mapping">
+<span id="tolteca-simu-mapping-package"></span><h3>tolteca.simu.mapping Package<a class="headerlink" href="#module-tolteca.simu.mapping" title="Permalink to this headline">¶</a></h3>
+<section id="id15">
+<h4>Classes<a class="headerlink" href="#id15" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.simu.mapping.PatternKind.html#tolteca.simu.mapping.PatternKind" title="tolteca.simu.mapping.PatternKind"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PatternKind</span></code></a>(value)</p></td>
+<td><p>The available pattern kinds.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.simu.mapping.LmtTcsTrajMappingModel.html#tolteca.simu.mapping.LmtTcsTrajMappingModel" title="tolteca.simu.mapping.LmtTcsTrajMappingModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">LmtTcsTrajMappingModel</span></code></a>(filepath)</p></td>
+<td><p>The class for to describe trajectories loaded from LMT TCS <code class="docutils literal notranslate"><span class="pre">tel.nc</span></code> file.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id16">
+<h4>Class Inheritance Diagram<a class="headerlink" href="#id16" title="Permalink to this headline">¶</a></h4>
+<div class="graphviz"><object data="_images/inheritance-138c19656d93d5b5638e2d15034ae62dc65adbda.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.simu.mapping.base.PatternKind, tolteca.simu.mapping.lmt_tcs.LmtTcsTrajMappingModel</p></object></div>
+</section>
+</section>
+<section id="module-tolteca.simu.sources">
+<span id="tolteca-simu-sources-package"></span><h3>tolteca.simu.sources Package<a class="headerlink" href="#module-tolteca.simu.sources" title="Permalink to this headline">¶</a></h3>
+<section id="id17">
+<h4>Classes<a class="headerlink" href="#id17" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.simu.sources.CatalogSourceModel.html#tolteca.simu.sources.CatalogSourceModel" title="tolteca.simu.sources.CatalogSourceModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">CatalogSourceModel</span></code></a>(catalog[, pos_cols, ...])</p></td>
+<td><p>The class for simulator source specified by catalog.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">DataclassNamespace</span></code></p></td>
+<td><p>A subclass of <code class="xref py py-obj docutils literal notranslate"><span class="pre">tollan.utils.namespace.Namespace</span></code> that support dataclass type members.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">DictTemplateListSchema</span></code>(template_key[, ...])</p></td>
+<td><p>A schema that can resolve list of dict specified with templates.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.simu.sources.ImageSourceConfig.html#tolteca.simu.sources.ImageSourceConfig" title="tolteca.simu.sources.ImageSourceConfig"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ImageSourceConfig</span></code></a></p></td>
+<td><p>The config class for image source model created from FITS image file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.simu.sources.ImageSourceModel.html#tolteca.simu.sources.ImageSourceModel" title="tolteca.simu.sources.ImageSourceModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ImageSourceModel</span></code></a>(hdulist[, data_exts])</p></td>
+<td><p>The class for simulator source from FITS image.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Literal</span></code>(value[, description])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Optional</span></code>(*args, **kwargs)</p></td>
+<td><p>Marker for an optional part of the validation Schema.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Or</span></code>(*args, **kwargs)</p></td>
+<td><p>Utility function to combine validation directives in a OR Boolean fashion.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.simu.sources.PointSourceCatalogSourceConfig.html#tolteca.simu.sources.PointSourceCatalogSourceConfig" title="tolteca.simu.sources.PointSourceCatalogSourceConfig"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PointSourceCatalogSourceConfig</span></code></a></p></td>
+<td><p>The config class for point source catalog source model created from catalog file.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">RelPathSchema</span></code>([check_exists])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Schema</span></code>(schema[, error, ignore_extra_keys, ...])</p></td>
+<td><p>Entry point of the library, use this class to instantiate validation schema for the data that will be validated.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id18">
+<h4>Class Inheritance Diagram<a class="headerlink" href="#id18" title="Permalink to this headline">¶</a></h4>
+<div class="graphviz"><object data="_images/inheritance-5f1eec1b9c82d4ba47fe80c5ec0ef7c3a0ef45ce.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.simu.sources.models.CatalogSourceModel, tolteca.simu.sources.ImageSourceConfig, tolteca.simu.sources.models.ImageSourceModel, tolteca.simu.sources.PointSourceCatalogSourceConfig</p></object></div>
+</section>
+</section>
+<section id="module-tolteca.simu.exports">
+<span id="tolteca-simu-exports-package"></span><h3>tolteca.simu.exports Package<a class="headerlink" href="#module-tolteca.simu.exports" title="Permalink to this headline">¶</a></h3>
+<section id="id19">
+<h4>Classes<a class="headerlink" href="#id19" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">DataclassNamespace</span></code></p></td>
+<td><p>A subclass of <code class="xref py py-obj docutils literal notranslate"><span class="pre">tollan.utils.namespace.Namespace</span></code> that support dataclass type members.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.simu.exports.LmtOTComposer.html#tolteca.simu.exports.LmtOTComposer" title="tolteca.simu.exports.LmtOTComposer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">LmtOTComposer</span></code></a>()</p></td>
+<td><p>A class to create LMT OT scripts.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.simu.exports.LmtOTExporterConfig.html#tolteca.simu.exports.LmtOTExporterConfig" title="tolteca.simu.exports.LmtOTExporterConfig"><code class="xref py py-obj docutils literal notranslate"><span class="pre">LmtOTExporterConfig</span></code></a>(*args, **kwargs)</p></td>
+<td><p>The config class for LMT OT script exporter.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Optional</span></code>(*args, **kwargs)</p></td>
+<td><p>Marker for an optional part of the validation Schema.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Schema</span></code>(schema[, error, ignore_extra_keys, ...])</p></td>
+<td><p>Entry point of the library, use this class to instantiate validation schema for the data that will be validated.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime</span></code>(year, month, day[, hour[, minute[, ...)</p></td>
+<td><p>The year, month and day arguments are required.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">timezone</span></code></p></td>
+<td><p>Fixed offset from UTC implementation of tzinfo.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id20">
+<h4>Class Inheritance Diagram<a class="headerlink" href="#id20" title="Permalink to this headline">¶</a></h4>
+<div class="graphviz"><object data="_images/inheritance-85a89e5fc8c7560cfe2b34a43ca6ac0645d76127.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.simu.exports.lmtot.LmtOTComposer, tolteca.simu.exports.LmtOTExporterConfig</p></object></div>
+</section>
+</section>
+<section id="module-tolteca.simu.plots">
+<span id="tolteca-simu-plots-package"></span><h3>tolteca.simu.plots Package<a class="headerlink" href="#module-tolteca.simu.plots" title="Permalink to this headline">¶</a></h3>
+<section id="id21">
+<h4>Functions<a class="headerlink" href="#id21" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.simu.plots.plot_mapping.html#tolteca.simu.plots.plot_mapping" title="tolteca.simu.plots.plot_mapping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_mapping</span></code></a>(simulator, mapping[, ...])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.simu.plots.plot_visibility.html#tolteca.simu.plots.plot_visibility" title="tolteca.simu.plots.plot_visibility"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_visibility</span></code></a>(t0, targets[, target_names, ...])</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id22">
+<h4>Classes<a class="headerlink" href="#id22" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">DataclassNamespace</span></code></p></td>
+<td><p>A subclass of <code class="xref py py-obj docutils literal notranslate"><span class="pre">tollan.utils.namespace.Namespace</span></code> that support dataclass type members.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.simu.plots.MappingPlotConfig.html#tolteca.simu.plots.MappingPlotConfig" title="tolteca.simu.plots.MappingPlotConfig"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MappingPlotConfig</span></code></a></p></td>
+<td><p>The config class for mapping trajectory plot.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Optional</span></code>(*args, **kwargs)</p></td>
+<td><p>Marker for an optional part of the validation Schema.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Schema</span></code>(schema[, error, ignore_extra_keys, ...])</p></td>
+<td><p>Entry point of the library, use this class to instantiate validation schema for the data that will be validated.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.simu.plots.VisibilityPlotConfig.html#tolteca.simu.plots.VisibilityPlotConfig" title="tolteca.simu.plots.VisibilityPlotConfig"><code class="xref py py-obj docutils literal notranslate"><span class="pre">VisibilityPlotConfig</span></code></a></p></td>
+<td><p>The config class for visibility plot.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id23">
+<h4>Class Inheritance Diagram<a class="headerlink" href="#id23" title="Permalink to this headline">¶</a></h4>
+<div class="graphviz"><object data="_images/inheritance-4de4a2937756b261ae3c809a9bcd5d7124e4ec51.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.simu.plots.MappingPlotConfig, tolteca.simu.plots.VisibilityPlotConfig</p></object></div>
+</section>
+</section>
+<section id="module-tolteca.simu.toltec">
+<span id="tolteca-simu-toltec-package"></span><h3>tolteca.simu.toltec Package<a class="headerlink" href="#module-tolteca.simu.toltec" title="Permalink to this headline">¶</a></h3>
+<section id="id24">
+<h4>Classes<a class="headerlink" href="#id24" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.simu.toltec.ToltecObsSimulatorConfig.html#tolteca.simu.toltec.ToltecObsSimulatorConfig" title="tolteca.simu.toltec.ToltecObsSimulatorConfig"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ToltecObsSimulatorConfig</span></code></a>(**kwargs)</p></td>
+<td><p>The config class for TolTEC observation simulator.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.simu.toltec.ToltecHwpConfig.html#tolteca.simu.toltec.ToltecHwpConfig" title="tolteca.simu.toltec.ToltecHwpConfig"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ToltecHwpConfig</span></code></a>(f_rot, f_smp, rotator_enabled)</p></td>
+<td><p>The config class for TolTEC half-wave plate and the rotator.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.simu.toltec.ToltecPowerLoadingModelConfig.html#tolteca.simu.toltec.ToltecPowerLoadingModelConfig" title="tolteca.simu.toltec.ToltecPowerLoadingModelConfig"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ToltecPowerLoadingModelConfig</span></code></a>(*args, **kwargs)</p></td>
+<td><p>The config class to compute the TolTEC detector power loading.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id25">
+<h4>Class Inheritance Diagram<a class="headerlink" href="#id25" title="Permalink to this headline">¶</a></h4>
+<div class="graphviz"><object data="_images/inheritance-28ecb11129c82ce5c2f04afd28d31f0863fb6197.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.simu.toltec.ToltecObsSimulatorConfig, tolteca.simu.toltec.simulator.ToltecHwpConfig, tolteca.simu.toltec.ToltecPowerLoadingModelConfig</p></object></div>
+</section>
+</section>
+<section id="module-tolteca.utils">
+<span id="tolteca-utils-package"></span><h3>tolteca.utils Package<a class="headerlink" href="#module-tolteca.utils" title="Permalink to this headline">¶</a></h3>
+<section id="id26">
+<h4>Functions<a class="headerlink" href="#id26" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.utils.get_user_data_dir.html#tolteca.utils.get_user_data_dir" title="tolteca.utils.get_user_data_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_user_data_dir</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.utils.get_pkg_data_path.html#tolteca.utils.get_pkg_data_path" title="tolteca.utils.get_pkg_data_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_pkg_data_path</span></code></a>()</p></td>
+<td><p>Return the package data path.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">yaml_load</span></code>(stream)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">yaml_dump</span></code>(config[, output])</p></td>
+<td><p>Dump <code class="xref py py-obj docutils literal notranslate"><span class="pre">config</span></code> as YAML to <code class="xref py py-obj docutils literal notranslate"><span class="pre">output</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.utils.dict_from_cli_args.html#tolteca.utils.dict_from_cli_args" title="tolteca.utils.dict_from_cli_args"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict_from_cli_args</span></code></a>(args)</p></td>
+<td><p>Return a nested dict composed from CLI arguments.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id27">
+<h4>Classes<a class="headerlink" href="#id27" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.utils.RuntimeContext.html#tolteca.utils.RuntimeContext" title="tolteca.utils.RuntimeContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RuntimeContext</span></code></a>(config)</p></td>
+<td><p>A class to manage configurations.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.utils.RuntimeContextError.html#tolteca.utils.RuntimeContextError" title="tolteca.utils.RuntimeContextError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RuntimeContextError</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.utils.RuntimeBase.html#tolteca.utils.RuntimeBase" title="tolteca.utils.RuntimeBase"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RuntimeBase</span></code></a>(config)</p></td>
+<td><p>A base class that consumes <a class="reference internal" href="api/tolteca.utils.RuntimeContext.html#tolteca.utils.RuntimeContext" title="tolteca.utils.RuntimeContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RuntimeContext</span></code></a>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.utils.RuntimeBaseError.html#tolteca.utils.RuntimeBaseError" title="tolteca.utils.RuntimeBaseError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RuntimeBaseError</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.utils.ConfigLoaderError.html#tolteca.utils.ConfigLoaderError" title="tolteca.utils.ConfigLoaderError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ConfigLoaderError</span></code></a></p></td>
+<td><p>Raise when error in <a class="reference internal" href="api/tolteca.utils.ConfigLoader.html#tolteca.utils.ConfigLoader" title="tolteca.utils.ConfigLoader"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ConfigLoader</span></code></a>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.utils.ConfigLoader.html#tolteca.utils.ConfigLoader" title="tolteca.utils.ConfigLoader"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ConfigLoader</span></code></a>([files, load_sys_config, ...])</p></td>
+<td><p>A helper class to load config files for tolteca.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id28">
+<h4>Class Inheritance Diagram<a class="headerlink" href="#id28" title="Permalink to this headline">¶</a></h4>
+<div class="graphviz"><object data="_images/inheritance-8bd1993856ecd2ad9df3b7a342947374e65790d3.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.utils.runtime_context.RuntimeContext, tolteca.utils.runtime_context.RuntimeContextError, tolteca.utils.runtime_context.RuntimeBase, tolteca.utils.runtime_context.RuntimeBaseError, tolteca.utils.ConfigLoaderError, tolteca.utils.ConfigLoader</p></object></div>
+</section>
+</section>
+<section id="module-tolteca.web">
+<span id="tolteca-web-package"></span><h3>tolteca.web Package<a class="headerlink" href="#module-tolteca.web" title="Permalink to this headline">¶</a></h3>
+<section id="id29">
+<h4>Classes<a class="headerlink" href="#id29" title="Permalink to this headline">¶</a></h4>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.web.WebConfig.html#tolteca.web.WebConfig" title="tolteca.web.WebConfig"><code class="xref py py-obj docutils literal notranslate"><span class="pre">WebConfig</span></code></a>(apps)</p></td>
+<td><p>The config for <a class="reference internal" href="#module-tolteca.web" title="tolteca.web"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tolteca.web</span></code></a>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/tolteca.web.WebRuntime.html#tolteca.web.WebRuntime" title="tolteca.web.WebRuntime"><code class="xref py py-obj docutils literal notranslate"><span class="pre">WebRuntime</span></code></a>(config)</p></td>
+<td><p>A class that manages the runtime context of web apps.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/tolteca.web.WebRuntimeError.html#tolteca.web.WebRuntimeError" title="tolteca.web.WebRuntimeError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">WebRuntimeError</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id30">
+<h4>Class Inheritance Diagram<a class="headerlink" href="#id30" title="Permalink to this headline">¶</a></h4>
+<div class="graphviz"><object data="_images/inheritance-7c38f531fe59ead1133fb399cd392d61c503044f.svg" type="image/svg+xml" class="inheritance graphviz">
+<p class="warning">Inheritance diagram of tolteca.web.WebConfig, tolteca.web.WebRuntime, tolteca.web.WebRuntimeError</p></object></div>
+</section>
+</section>
+<section id="module-tolteca.web.apps">
+<span id="tolteca-web-apps-package"></span><h3>tolteca.web.apps Package<a class="headerlink" href="#module-tolteca.web.apps" title="Permalink to this headline">¶</a></h3>
+</section>
+</section>
 </section>
 
 
@@ -91,7 +770,106 @@
       <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
         <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
 <ul>
-<li><a class="reference internal" href="#">Documentation</a></li>
+<li><a class="reference internal" href="#">TolTECA Documentation</a><ul>
+<li><a class="reference internal" href="#getting-started">Getting Started</a></li>
+<li><a class="reference internal" href="#using-tolteca">Using <code class="docutils literal notranslate"><span class="pre">tolteca</span></code></a><ul>
+<li><a class="reference internal" href="#overview-of-workflow">Overview of Workflow</a></li>
+<li><a class="reference internal" href="#data-file-and-data-product-management">Data File and Data Product Management</a></li>
+<li><a class="reference internal" href="#data-reduction-pipeline">Data Reduction Pipeline</a></li>
+<li><a class="reference internal" href="#observation-simulator">Observation Simulator</a></li>
+<li><a class="reference internal" href="#web-based-tools">Web-based Tools</a></li>
+<li><a class="reference internal" href="#recipes">Recipes</a></li>
+<li><a class="reference internal" href="#scripts">Scripts</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#reference-api">Reference/API</a><ul>
+<li><a class="reference internal" href="#module-tolteca">tolteca Package</a></li>
+<li><a class="reference internal" href="#module-tolteca.cli">tolteca.cli Package</a><ul>
+<li><a class="reference internal" href="#functions">Functions</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-tolteca.common.toltec">tolteca.common.toltec Package</a></li>
+<li><a class="reference internal" href="#module-tolteca.common.lmt">tolteca.common.lmt Package</a></li>
+<li><a class="reference internal" href="#module-tolteca.datamodels.toltec">tolteca.datamodels.toltec Package</a><ul>
+<li><a class="reference internal" href="#classes">Classes</a></li>
+<li><a class="reference internal" href="#class-inheritance-diagram">Class Inheritance Diagram</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-tolteca.datamodels.fs">tolteca.datamodels.fs Package</a></li>
+<li><a class="reference internal" href="#module-tolteca.datamodels.db">tolteca.datamodels.db Package</a></li>
+<li><a class="reference internal" href="#module-tolteca.datamodels.io">tolteca.datamodels.io Package</a><ul>
+<li><a class="reference internal" href="#id2">Functions</a></li>
+<li><a class="reference internal" href="#id3">Classes</a></li>
+<li><a class="reference internal" href="#id4">Class Inheritance Diagram</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-tolteca.reduce">tolteca.reduce Package</a><ul>
+<li><a class="reference internal" href="#id5">Classes</a></li>
+<li><a class="reference internal" href="#id6">Class Inheritance Diagram</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-tolteca.reduce.engines">tolteca.reduce.engines Package</a><ul>
+<li><a class="reference internal" href="#id7">Classes</a></li>
+<li><a class="reference internal" href="#id8">Class Inheritance Diagram</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-tolteca.reduce.toltec">tolteca.reduce.toltec Package</a><ul>
+<li><a class="reference internal" href="#id9">Classes</a></li>
+<li><a class="reference internal" href="#id10">Class Inheritance Diagram</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-tolteca.simu">tolteca.simu Package</a><ul>
+<li><a class="reference internal" href="#id11">Classes</a></li>
+<li><a class="reference internal" href="#id12">Class Inheritance Diagram</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-tolteca.simu.base">tolteca.simu.base Module</a><ul>
+<li><a class="reference internal" href="#id13">Classes</a></li>
+<li><a class="reference internal" href="#id14">Class Inheritance Diagram</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-tolteca.simu.mapping">tolteca.simu.mapping Package</a><ul>
+<li><a class="reference internal" href="#id15">Classes</a></li>
+<li><a class="reference internal" href="#id16">Class Inheritance Diagram</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-tolteca.simu.sources">tolteca.simu.sources Package</a><ul>
+<li><a class="reference internal" href="#id17">Classes</a></li>
+<li><a class="reference internal" href="#id18">Class Inheritance Diagram</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-tolteca.simu.exports">tolteca.simu.exports Package</a><ul>
+<li><a class="reference internal" href="#id19">Classes</a></li>
+<li><a class="reference internal" href="#id20">Class Inheritance Diagram</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-tolteca.simu.plots">tolteca.simu.plots Package</a><ul>
+<li><a class="reference internal" href="#id21">Functions</a></li>
+<li><a class="reference internal" href="#id22">Classes</a></li>
+<li><a class="reference internal" href="#id23">Class Inheritance Diagram</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-tolteca.simu.toltec">tolteca.simu.toltec Package</a><ul>
+<li><a class="reference internal" href="#id24">Classes</a></li>
+<li><a class="reference internal" href="#id25">Class Inheritance Diagram</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-tolteca.utils">tolteca.utils Package</a><ul>
+<li><a class="reference internal" href="#id26">Functions</a></li>
+<li><a class="reference internal" href="#id27">Classes</a></li>
+<li><a class="reference internal" href="#id28">Class Inheritance Diagram</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-tolteca.web">tolteca.web Package</a><ul>
+<li><a class="reference internal" href="#id29">Classes</a></li>
+<li><a class="reference internal" href="#id30">Class Inheritance Diagram</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-tolteca.web.apps">tolteca.web.apps Package</a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 
 
@@ -105,9 +883,9 @@
        rel="nofollow">Page Source</a> &nbsp;
     <a href="#">Back to Top</a></p>
   <p>
-    &copy; Copyright 2021, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
-    Last built 18 Jun 2021. <br/>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
   </p>
 </footer>
   </body>

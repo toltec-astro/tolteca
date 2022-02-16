@@ -1,0 +1,33 @@
+CitlaliStepConfig
+=================
+
+.. currentmodule:: tolteca.reduce.engines
+
+.. autoclass:: CitlaliStepConfig
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~CitlaliStepConfig.logger
+      ~CitlaliStepConfig.name
+      ~CitlaliStepConfig.schema
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~CitlaliStepConfig.__call__
+      ~CitlaliStepConfig.run
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: logger
+   .. autoattribute:: name
+   .. autoattribute:: schema
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: run

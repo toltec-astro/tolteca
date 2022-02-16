@@ -1,0 +1,6 @@
+plot_mapping
+============
+
+.. currentmodule:: tolteca.simu.plots
+
+.. autofunction:: plot_mapping

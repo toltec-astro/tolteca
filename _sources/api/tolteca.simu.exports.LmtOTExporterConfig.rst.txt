@@ -1,0 +1,31 @@
+LmtOTExporterConfig
+===================
+
+.. currentmodule:: tolteca.simu.exports
+
+.. autoclass:: LmtOTExporterConfig
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~LmtOTExporterConfig.logger
+      ~LmtOTExporterConfig.name
+      ~LmtOTExporterConfig.schema
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~LmtOTExporterConfig.__call__
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: logger
+   .. autoattribute:: name
+   .. autoattribute:: schema
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__

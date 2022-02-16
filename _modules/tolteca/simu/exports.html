@@ -1,0 +1,162 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tolteca.simu.exports &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/plot_directive.css" />
+    
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/jquery.js"></script>
+    <script src="../../../_static/underscore.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../simu.html" accesskey="U">tolteca.simu</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tolteca.simu.exports</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python</span>
+
+<span class="kn">from</span> <span class="nn">schema</span> <span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">Optional</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timezone</span>
+
+<span class="kn">from</span> <span class="nn">tollan.utils.dataclass_schema</span> <span class="kn">import</span> <span class="n">DataclassNamespace</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="kn">import</span> <span class="n">exports_registry</span>
+<span class="kn">from</span> <span class="nn">.lmtot</span> <span class="kn">import</span> <span class="n">LmtOTComposer</span>
+
+
+<div class="viewcode-block" id="LmtOTExporterConfig"><a class="viewcode-back" href="../../../api/tolteca.simu.exports.LmtOTExporterConfig.html#tolteca.simu.exports.LmtOTExporterConfig">[docs]</a><span class="nd">@exports_registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s1">&#39;lmtot&#39;</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">LmtOTExporterConfig</span><span class="p">(</span><span class="n">DataclassNamespace</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The config class for LMT OT script exporter.&quot;&quot;&quot;</span>
+
+    <span class="n">_namespace_from_dict_schema</span> <span class="o">=</span> <span class="n">Schema</span><span class="p">({</span>
+        <span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;save&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Save the exported data.&#39;</span><span class="p">):</span>
+        <span class="nb">bool</span>
+        <span class="p">})</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_lmtot_composer</span> <span class="o">=</span> <span class="n">LmtOTComposer</span><span class="p">()</span>
+
+<div class="viewcode-block" id="LmtOTExporterConfig.__call__"><a class="viewcode-back" href="../../../api/tolteca.simu.exports.LmtOTExporterConfig.html#tolteca.simu.exports.LmtOTExporterConfig.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Make LMT OT script from simulator config `cfg`.&quot;&quot;&quot;</span>
+        <span class="n">lmtot_composer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lmtot_composer</span>
+        <span class="n">runtime_info</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">runtime_info</span>
+        <span class="n">rootpath</span> <span class="o">=</span> <span class="n">runtime_info</span><span class="o">.</span><span class="n">config_info</span><span class="o">.</span><span class="n">runtime_context_dir</span>
+        <span class="c1"># preamble = (</span>
+        <span class="c1">#     f&#39;# LMT OT script generated with tolteca.simu v{version}\n&#39;</span>
+        <span class="c1">#     f&#39;# Created at: {Time.now()}\n&#39;</span>
+        <span class="c1">#     f&#39;# Created by: &#39;</span>
+        <span class="c1">#     f&#39;{runtime_info.username}@{runtime_info.hostname}\n&#39;</span>
+        <span class="c1">#     )</span>
+        <span class="n">target_text</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mapping</span><span class="o">.</span><span class="n">target</span>
+        <span class="n">target_coords</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mapping_model</span><span class="o">.</span><span class="n">target</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="s2">&quot; ,:&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">target_text</span><span class="p">)))</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># use stringfied coords as name</span>
+            <span class="n">source_name</span> <span class="o">=</span> <span class="n">target_coords</span><span class="o">.</span><span class="n">to_string</span><span class="p">(</span>
+                <span class="n">style</span><span class="o">=</span><span class="s1">&#39;hmsdms&#39;</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
+                    <span class="s1">&#39; &#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># no special characters, use as is</span>
+            <span class="n">source_name</span> <span class="o">=</span> <span class="n">target_text</span>
+        <span class="n">timestamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(</span>
+            <span class="n">timezone</span><span class="o">.</span><span class="n">utc</span><span class="p">)</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%a</span><span class="s1"> %b </span><span class="si">%d</span><span class="s1"> %H:%M:%S %Z %Y&#39;</span><span class="p">)</span>
+        <span class="n">author</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">jobkey</span>
+        <span class="n">preamble</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;#ObservingScript -Name &quot;</span><span class="si">{</span><span class="n">source_name</span><span class="si">}</span><span class="s1">.txt&quot;&#39;</span>
+            <span class="sa">f</span><span class="s1">&#39; -Author &quot;</span><span class="si">{</span><span class="n">author</span><span class="si">}</span><span class="s1">&quot;&#39;</span>
+            <span class="sa">f</span><span class="s1">&#39; -Date &quot;</span><span class="si">{</span><span class="n">timestamp</span><span class="si">}</span><span class="s1">&quot;&#39;</span>
+            <span class="p">)</span>
+        <span class="n">steps</span> <span class="o">=</span> <span class="p">[</span><span class="n">preamble</span><span class="p">,</span> <span class="p">]</span>
+        <span class="n">steps</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">lmtot_composer</span><span class="o">.</span><span class="n">make_setup_steps</span><span class="p">(</span>
+            <span class="n">instru_name</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">instrument</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+        <span class="n">steps</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">lmtot_composer</span><span class="o">.</span><span class="n">make_pointing_steps</span><span class="p">()</span> <span class="ow">or</span> <span class="nb">list</span><span class="p">())</span>
+        <span class="n">steps</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">lmtot_composer</span><span class="o">.</span><span class="n">make_mapping_steps</span><span class="p">(</span>
+            <span class="n">mapping_model</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">mapping_model</span><span class="p">,</span>
+            <span class="n">target_name</span><span class="o">=</span><span class="n">source_name</span><span class="p">,</span>
+            <span class="n">t_exp</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">t_simu</span>
+            <span class="p">))</span>
+        <span class="n">content</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">steps</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">:</span>
+            <span class="n">output_filepath</span> <span class="o">=</span> <span class="n">rootpath</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">jobkey</span><span class="si">}</span><span class="s1">.lmtot&#39;</span><span class="p">)</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">output_filepath</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
+                <span class="n">fo</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;LMT OT script exported to </span><span class="si">{</span><span class="n">output_filepath</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">content</span></div></div>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
+  </p>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,47 @@
+ReduConfig
+==========
+
+.. currentmodule:: tolteca.reduce
+
+.. autoclass:: ReduConfig
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~ReduConfig.config_key
+      ~ReduConfig.config_schema
+      ~ReduConfig.optional
+      ~ReduConfig.schema
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~ReduConfig.default_factory
+      ~ReduConfig.from_config_dict
+      ~ReduConfig.from_dict
+      ~ReduConfig.get_log_file
+      ~ReduConfig.get_or_create_output_dir
+      ~ReduConfig.load_input_data
+      ~ReduConfig.to_config_dict
+      ~ReduConfig.to_dict
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: config_key
+   .. autoattribute:: config_schema
+   .. autoattribute:: optional
+   .. autoattribute:: schema
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: default_factory
+   .. automethod:: from_config_dict
+   .. automethod:: from_dict
+   .. automethod:: get_log_file
+   .. automethod:: get_or_create_output_dir
+   .. automethod:: load_input_data
+   .. automethod:: to_config_dict
+   .. automethod:: to_dict

@@ -1,0 +1,6 @@
+WebRuntimeError
+===============
+
+.. currentmodule:: tolteca.web
+
+.. autoexception:: WebRuntimeError

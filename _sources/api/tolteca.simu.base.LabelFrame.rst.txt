@@ -1,0 +1,39 @@
+LabelFrame
+==========
+
+.. currentmodule:: tolteca.simu.base
+
+.. autoclass:: LabelFrame
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~LabelFrame.axes_names
+      ~LabelFrame.axes_order
+      ~LabelFrame.axes_type
+      ~LabelFrame.axis_physical_types
+      ~LabelFrame.name
+      ~LabelFrame.naxes
+      ~LabelFrame.unit
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~LabelFrame.coordinates
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: axes_names
+   .. autoattribute:: axes_order
+   .. autoattribute:: axes_type
+   .. autoattribute:: axis_physical_types
+   .. autoattribute:: name
+   .. autoattribute:: naxes
+   .. autoattribute:: unit
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: coordinates

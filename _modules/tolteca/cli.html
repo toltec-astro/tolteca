@@ -5,7 +5,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>tolteca.cli &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <title>tolteca.cli &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/bootstrap-astropy.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
@@ -47,7 +47,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
+	<a href="../../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
 	 &#187;
       </li>
       <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li>
@@ -67,20 +67,13 @@
 
 <span class="kn">import</span> <span class="nn">sys</span>
 
-<span class="kn">from</span> <span class="nn">..utils</span> <span class="kn">import</span> <span class="n">get_pkg_data_path</span>
 <span class="kn">from</span> <span class="nn">..</span> <span class="kn">import</span> <span class="n">version</span>
-<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">init_log</span><span class="p">,</span> <span class="n">get_logger</span>
-<span class="kn">from</span> <span class="nn">tollan.utils.cli.multi_action_argparser</span> <span class="kn">import</span> \
-        <span class="n">MultiActionArgumentParser</span>
-<span class="kn">from</span> <span class="nn">tollan.utils.sys</span> <span class="kn">import</span> <span class="n">parse_systemd_envfile</span>
-<span class="kn">from</span> <span class="nn">tollan.utils</span> <span class="kn">import</span> <span class="n">rupdate</span>
-<span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_yaml</span>
-<span class="kn">import</span> <span class="nn">yaml</span>
-<span class="kn">import</span> <span class="nn">os</span>
 <span class="kn">from</span> <span class="nn">wrapt</span> <span class="kn">import</span> <span class="n">ObjectProxy</span>
+<span class="kn">import</span> <span class="nn">argparse</span>
+<span class="kn">import</span> <span class="nn">os</span>
 
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;main_parser&#39;</span><span class="p">,</span> <span class="s1">&#39;main&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;main_parser&#39;</span><span class="p">,</span> <span class="s1">&#39;config_loader&#39;</span><span class="p">,</span> <span class="s1">&#39;main&#39;</span><span class="p">]</span>
 
 
 <span class="n">main_parser</span> <span class="o">=</span> <span class="n">ObjectProxy</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
@@ -94,80 +87,160 @@
 
 <span class="sd">&quot;&quot;&quot;</span>
 
+<span class="n">config_loader</span> <span class="o">=</span> <span class="n">ObjectProxy</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">A proxy to the `ConfigLoader` instance created via CLI.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
 
 <div class="viewcode-block" id="main"><a class="viewcode-back" href="../../api/tolteca.cli.main.html#tolteca.cli.main">[docs]</a><span class="k">def</span> <span class="nf">main</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;The CLI entry point.&quot;&quot;&quot;</span>
 
     <span class="n">prog_name</span> <span class="o">=</span> <span class="s1">&#39;TolTECA&#39;</span>
     <span class="n">prog_desc</span> <span class="o">=</span> <span class="s1">&#39;TolTEC Data Analysis All-in-one!&#39;</span>
-    <span class="n">config_default</span> <span class="o">=</span> <span class="n">get_pkg_data_path</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;tolteca.yaml&quot;</span><span class="p">)</span>
+    <span class="c1"># prog_url = &#39;http://toltecdr.astro.umass.edu&#39;</span>
+    <span class="n">description</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prog_name</span><span class="si">}</span><span class="s2"> v</span><span class="si">{</span><span class="n">version</span><span class="o">.</span><span class="n">version</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="n">prog_desc</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">banner</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~</span>
+<span class="s2">     _____  ____  _     _____  _____ ____  ____</span>
+<span class="s2">    /__ __\/  _ \/ \   /__ __\/  __//   _\/  _ \</span>
+<span class="s2">      / \  | / \|| |     / \  |  \  |  /  | / \|</span>
+<span class="s2">      | |  | \_/|| |_/\  | |  |  /_ |  \_ | |-||</span>
+<span class="s2">      \_/  \____/\____/  \_/  \____\\____/\_/ \|</span>
 
-    <span class="n">parser</span> <span class="o">=</span> <span class="n">main_parser</span><span class="o">.</span><span class="n">__wrapped__</span> <span class="o">=</span> <span class="n">MultiActionArgumentParser</span><span class="p">(</span>
-            <span class="n">description</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prog_name</span><span class="si">}</span><span class="s2"> v</span><span class="si">{</span><span class="n">version</span><span class="o">.</span><span class="n">version</span><span class="si">}</span><span class="s2">&quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot; - </span><span class="si">{</span><span class="n">prog_desc</span><span class="si">}</span><span class="s2">&quot;</span>
-            <span class="p">)</span>
 
-    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-            <span class="s2">&quot;-c&quot;</span><span class="p">,</span> <span class="s2">&quot;--config&quot;</span><span class="p">,</span>
-            <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;+&#39;</span><span class="p">,</span>
-            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;The path to the config file(s). &quot;</span>
-                 <span class="s2">&quot;Multiple config files are merged in order.&quot;</span><span class="p">,</span>
-            <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;FILE&#39;</span><span class="p">,</span>
-            <span class="n">default</span><span class="o">=</span><span class="p">[</span><span class="n">config_default</span><span class="p">,</span> <span class="p">])</span>
-    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-            <span class="s1">&#39;--env_files&#39;</span><span class="p">,</span> <span class="s1">&#39;-e&#39;</span><span class="p">,</span>
-            <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;ENV_FILE&#39;</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;*&#39;</span><span class="p">,</span>
-            <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Path to systemd env file.&#39;</span><span class="p">)</span>
-    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-            <span class="s2">&quot;-q&quot;</span><span class="p">,</span> <span class="s2">&quot;--quiet&quot;</span><span class="p">,</span>
-            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Suppress debug logs.&quot;</span><span class="p">,</span>
-            <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">)</span>
-    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-            <span class="s1">&#39;-v&#39;</span><span class="p">,</span> <span class="s1">&#39;--version&#39;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
-            <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Print the version info and exit.&#39;</span>
-            <span class="p">)</span>
+<span class="s2">          http://toltecdr.astro.umass.edu</span>
+<span class="s2">~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.</span>
+<span class="s2">&quot;&quot;&quot;</span>
 
-    <span class="c1"># import subcommand modules:</span>
-    <span class="kn">from</span> <span class="nn">.db</span> <span class="kn">import</span> <span class="n">cmd_migrate</span>  <span class="c1"># noqa: F401</span>
-    <span class="kn">from</span> <span class="nn">.run</span> <span class="kn">import</span> <span class="n">cmd_run</span>  <span class="c1"># noqa: F401</span>
-    <span class="kn">from</span> <span class="nn">.setup</span> <span class="kn">import</span> <span class="n">cmd_setup</span>  <span class="c1"># noqa: F401</span>
-    <span class="kn">from</span> <span class="nn">.simu</span> <span class="kn">import</span> <span class="n">cmd_simu</span>  <span class="c1"># noqa: F401</span>
-    <span class="kn">from</span> <span class="nn">.reduce</span> <span class="kn">import</span> <span class="n">cmd_reduce</span>  <span class="c1"># noqa: F401</span>
-
-    <span class="c1"># parse and handle global args:</span>
+    <span class="c1"># make a &quot;pre-parser&quot; without loading subcommands.</span>
+    <span class="c1"># this is useful to speed things up for something like `tolteca -v`</span>
+    <span class="k">def</span> <span class="nf">_add_pre_parser_arguments</span><span class="p">(</span><span class="n">parser</span><span class="p">):</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+                <span class="s2">&quot;--no_banner&quot;</span><span class="p">,</span>
+                <span class="n">help</span><span class="o">=</span><span class="s2">&quot;If set, the banner will not be shown.&quot;</span><span class="p">,</span>
+                <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
+                <span class="p">)</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+                <span class="s1">&#39;-v&#39;</span><span class="p">,</span> <span class="s1">&#39;--version&#39;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
+                <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Print the version info and exit.&#39;</span>
+                <span class="p">)</span>
+        <span class="k">return</span> <span class="n">parser</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">_add_pre_parser_arguments</span><span class="p">(</span>
+        <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="n">description</span><span class="p">,</span> <span class="n">add_help</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
     <span class="n">option</span><span class="p">,</span> <span class="n">unknown_args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_known_args</span><span class="p">(</span><span class="n">args</span> <span class="ow">or</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
-
-    <span class="k">if</span> <span class="n">option</span><span class="o">.</span><span class="n">quiet</span><span class="p">:</span>
-        <span class="n">loglevel</span> <span class="o">=</span> <span class="s1">&#39;INFO&#39;</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">loglevel</span> <span class="o">=</span> <span class="s1">&#39;DEBUG&#39;</span>
-    <span class="n">init_log</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">loglevel</span><span class="p">)</span>
-
-    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">option</span><span class="o">.</span><span class="n">no_banner</span><span class="p">:</span>
+        <span class="c1"># generating the ascii art is too slow.</span>
+        <span class="c1"># since it is static we just created that inline.</span>
+        <span class="c1"># from ..utils.misc import make_ascii_banner</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">banner</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">option</span><span class="o">.</span><span class="n">version</span><span class="p">:</span>
         <span class="nb">print</span><span class="p">(</span><span class="n">version</span><span class="o">.</span><span class="n">version</span><span class="p">)</span>
         <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
 
-    <span class="c1"># load config</span>
-    <span class="n">_config</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">option</span><span class="o">.</span><span class="n">config</span><span class="p">:</span>
-        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">_config</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">_config</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">fo</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">rupdate</span><span class="p">(</span><span class="n">_config</span><span class="p">,</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">fo</span><span class="p">))</span>
-    <span class="n">option</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">_config</span>
+    <span class="c1"># now we create the actual parser with subcommands loaded</span>
 
+    <span class="kn">from</span> <span class="nn">tollan.utils.cli.multi_action_argparser</span> <span class="kn">import</span> \
+        <span class="n">MultiActionArgumentParser</span>
+    <span class="kn">from</span> <span class="nn">tollan.utils.cli.path_type</span> <span class="kn">import</span> <span class="n">PathType</span>
+    <span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+
+    <span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">init_log</span><span class="p">,</span> <span class="n">get_logger</span>
+    <span class="kn">from</span> <span class="nn">..utils</span> <span class="kn">import</span> <span class="n">ConfigLoader</span>
+    <span class="kn">from</span> <span class="nn">tollan.utils.fmt</span> <span class="kn">import</span> <span class="n">pformat_yaml</span>
+
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">main_parser</span><span class="o">.</span><span class="n">__wrapped__</span> <span class="o">=</span> <span class="n">_add_pre_parser_arguments</span><span class="p">(</span>
+        <span class="n">MultiActionArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="n">description</span><span class="p">))</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s2">&quot;-c&quot;</span><span class="p">,</span> <span class="s2">&quot;--config&quot;</span><span class="p">,</span>
+            <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;+&#39;</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;The path to additional YAML config file(s) for tolteca. &quot;</span>
+                 <span class="s2">&quot;By default, the sys config and user config are loaded, &quot;</span>
+                 <span class="s2">&quot;which can be disabled by the switch -n.&quot;</span><span class="p">,</span>
+            <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;FILE&#39;</span><span class="p">,</span>
+            <span class="nb">type</span><span class="o">=</span><span class="n">PathType</span><span class="p">(</span><span class="n">exists</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">type_</span><span class="o">=</span><span class="s2">&quot;file&quot;</span><span class="p">)</span>
+            <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s2">&quot;-d&quot;</span><span class="p">,</span> <span class="s2">&quot;--runtime_context_dir&quot;</span><span class="p">,</span>
+            <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;?&#39;</span><span class="p">,</span>
+            <span class="n">default</span><span class="o">=</span><span class="n">argparse</span><span class="o">.</span><span class="n">SUPPRESS</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;The path to look for runtime context directory.&quot;</span><span class="p">,</span>
+            <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;DIR&#39;</span><span class="p">,</span>
+            <span class="nb">type</span><span class="o">=</span><span class="n">PathType</span><span class="p">(</span><span class="n">exists</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">type_</span><span class="o">=</span><span class="s1">&#39;dir&#39;</span><span class="p">),</span>
+            <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s2">&quot;-n&quot;</span><span class="p">,</span> <span class="s2">&quot;--no_persistent_config&quot;</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;If set, skip loading the sys config and user config.&quot;</span><span class="p">,</span>
+            <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
+            <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s2">&quot;-w&quot;</span><span class="p">,</span> <span class="s2">&quot;--no_cwd&quot;</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;If set, skip automatically set -d to cwd when applicable.&quot;</span><span class="p">,</span>
+            <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
+            <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s1">&#39;-e&#39;</span><span class="p">,</span> <span class="s1">&#39;--env_files&#39;</span><span class="p">,</span>
+            <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;ENV_FILE&#39;</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;*&#39;</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Path to systemd env file. &#39;</span>
+                 <span class="s1">&#39;Multiple files are merged in order.&#39;</span><span class="p">,</span>
+            <span class="nb">type</span><span class="o">=</span><span class="n">PathType</span><span class="p">(</span><span class="n">exists</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">type_</span><span class="o">=</span><span class="s2">&quot;file&quot;</span><span class="p">)</span>
+            <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s2">&quot;-g&quot;</span><span class="p">,</span> <span class="s2">&quot;--debug&quot;</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Show debug logging messages.&quot;</span><span class="p">,</span>
+            <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">)</span>
+
+    <span class="c1"># import subcommand modules</span>
+    <span class="c1"># these has to go here because they rely on the main_parser object</span>
+    <span class="c1"># defined above.</span>
+    <span class="kn">from</span> <span class="nn">.check</span> <span class="kn">import</span> <span class="n">cmd_check</span>  <span class="c1"># noqa: F401</span>
+    <span class="kn">from</span> <span class="nn">.setup</span> <span class="kn">import</span> <span class="n">cmd_setup</span>  <span class="c1"># noqa: F401</span>
+    <span class="kn">from</span> <span class="nn">.db</span> <span class="kn">import</span> <span class="n">cmd_migrate</span>  <span class="c1"># noqa: F401</span>
+    <span class="c1"># from .run import cmd_run  # noqa: F401</span>
+    <span class="c1"># from .simu0 import cmd_simu0  # noqa: F401</span>
+    <span class="kn">from</span> <span class="nn">.simu</span> <span class="kn">import</span> <span class="n">cmd_simu</span>  <span class="c1"># noqa: F401</span>
+    <span class="kn">from</span> <span class="nn">.reduce</span> <span class="kn">import</span> <span class="n">cmd_reduce</span>  <span class="c1"># noqa: F401</span>
+    <span class="kn">from</span> <span class="nn">.web</span> <span class="kn">import</span> <span class="n">cmd_web</span>  <span class="c1"># noqa: F401</span>
+    <span class="c1"># from .cal import cmd_cal  # noqa: F401</span>
+
+    <span class="n">option</span><span class="p">,</span> <span class="n">unknown_args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_known_args</span><span class="p">(</span><span class="n">args</span> <span class="ow">or</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+
+    <span class="k">if</span> <span class="n">option</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
+        <span class="n">loglevel</span> <span class="o">=</span> <span class="s1">&#39;DEBUG&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">loglevel</span> <span class="o">=</span> <span class="s1">&#39;INFO&#39;</span>
+
+    <span class="n">init_log</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">loglevel</span><span class="p">)</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="c1"># create config loader</span>
+    <span class="n">cl_kwargs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+        <span class="n">load_sys_config</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">load_user_config</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">runtime_context_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">files</span><span class="o">=</span><span class="n">option</span><span class="o">.</span><span class="n">config</span><span class="p">,</span>
+        <span class="n">env_files</span><span class="o">=</span><span class="n">option</span><span class="o">.</span><span class="n">env_files</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="s1">&#39;runtime_context_dir&#39;</span> <span class="ow">in</span> <span class="n">option</span><span class="p">:</span>
+        <span class="n">cl_kwargs</span><span class="p">[</span><span class="s1">&#39;runtime_context_dir&#39;</span><span class="p">]</span> <span class="o">=</span> \
+            <span class="n">option</span><span class="o">.</span><span class="n">runtime_context_dir</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">option</span><span class="o">.</span><span class="n">no_persistent_config</span><span class="p">:</span>
+        <span class="n">cl_kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">load_sys_config</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">load_user_config</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">cl</span> <span class="o">=</span> <span class="n">option</span><span class="o">.</span><span class="n">config_loader</span> <span class="o">=</span> <span class="n">config_loader</span><span class="o">.</span><span class="n">__wrapped__</span> <span class="o">=</span> \
+        <span class="n">ConfigLoader</span><span class="p">(</span><span class="o">**</span><span class="n">cl_kwargs</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;config info:</span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">cl</span><span class="o">.</span><span class="n">to_dict</span><span class="p">())</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
     <span class="c1"># load env</span>
-    <span class="n">envs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
-    <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">option</span><span class="o">.</span><span class="n">env_files</span> <span class="ow">or</span> <span class="nb">tuple</span><span class="p">():</span>
-        <span class="n">envs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">parse_systemd_envfile</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
-    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">envs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;loaded envs:</span><span class="se">\n</span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">envs</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">envs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span> <span class="ow">or</span> <span class="s1">&#39;&#39;</span>
-
+    <span class="n">env</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">get_env</span><span class="p">()</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;update os.environ with env:</span><span class="se">\n</span><span class="si">{</span><span class="n">pformat_yaml</span><span class="p">(</span><span class="n">env</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
+    <span class="c1"># load all the items</span>
+    <span class="c1"># config.__wrapped__ = cl.get_config()</span>
+    <span class="c1"># base_runtime_context.__wrapped__ = cl.get_runtime_context(</span>
+    <span class="c1">#     include_config_as_default=False, include_config_as_override=False)</span>
+    <span class="c1"># env.__wrapped__ = cl.get_env()</span>
     <span class="c1"># handle subcommands</span>
     <span class="n">parser</span><span class="o">.</span><span class="n">bootstrap_actions</span><span class="p">(</span><span class="n">option</span><span class="p">,</span> <span class="n">unknown_args</span><span class="o">=</span><span class="n">unknown_args</span><span class="p">)</span></div>
 </pre></div>
@@ -188,9 +261,9 @@
   <p class="pull-right"> &nbsp;
     <a href="#">Back to Top</a></p>
   <p>
-    &copy; Copyright 2021, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
-    Last built 18 Jun 2021. <br/>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
   </p>
 </footer>
   </body>

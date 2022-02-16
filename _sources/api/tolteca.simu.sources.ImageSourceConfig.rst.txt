@@ -1,0 +1,29 @@
+ImageSourceConfig
+=================
+
+.. currentmodule:: tolteca.simu.sources
+
+.. autoclass:: ImageSourceConfig
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~ImageSourceConfig.name
+      ~ImageSourceConfig.schema
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~ImageSourceConfig.__call__
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: name
+   .. autoattribute:: schema
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__

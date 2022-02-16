@@ -1,0 +1,226 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>TolTECA Recipes &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+    
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="autodrive" href="../api/tolteca.recipes.autodrive.autodrive.html" />
+    <link rel="prev" title="Web-based Tools (tolteca.web)" href="web.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="../api/tolteca.recipes.autodrive.autodrive.html" title="autodrive">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="web.html" title="Web-based Tools (tolteca.web)">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
+	 &#187;
+      </li>
+      
+      <li>TolTECA Recipes</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="tolteca-recipes">
+<h1>TolTECA Recipes<a class="headerlink" href="#tolteca-recipes" title="Permalink to this headline">¶</a></h1>
+<section id="module-tolteca.recipes">
+<span id="tolteca-recipes-package"></span><h2>tolteca.recipes Package<a class="headerlink" href="#module-tolteca.recipes" title="Permalink to this headline">¶</a></h2>
+<p>This package contains a set of recipes that make use of <a class="reference internal" href="../index.html#module-tolteca" title="tolteca"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tolteca</span></code></a>.</p>
+</section>
+<section id="module-tolteca.recipes.autodrive">
+<span id="tolteca-recipes-autodrive-module"></span><h2>tolteca.recipes.autodrive Module<a class="headerlink" href="#module-tolteca.recipes.autodrive" title="Permalink to this headline">¶</a></h2>
+<p>This recipe implements the “autodrive” procedure to determine the best
+drive attenuations for the KIDs.</p>
+<section id="functions">
+<h3>Functions<a class="headerlink" href="#functions" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.autodrive.autodrive.html#tolteca.recipes.autodrive.autodrive" title="tolteca.recipes.autodrive.autodrive"><code class="xref py py-obj docutils literal notranslate"><span class="pre">autodrive</span></code></a>(targs[, toneloc, plot, ...])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.autodrive.find_best_a_naive.html#tolteca.recipes.autodrive.find_best_a_naive" title="tolteca.recipes.autodrive.find_best_a_naive"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_best_a_naive</span></code></a>(a, y, n_flat, thresh)</p></td>
+<td><p>A simple brutal force finder of the best atten value.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.autodrive.find_best_a_naive2.html#tolteca.recipes.autodrive.find_best_a_naive2" title="tolteca.recipes.autodrive.find_best_a_naive2"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_best_a_naive2</span></code></a>(a, y, n_init, n_sigma)</p></td>
+<td><p>A simple brutal force finder of the best atten value.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.autodrive.find_best_a_naive3.html#tolteca.recipes.autodrive.find_best_a_naive3" title="tolteca.recipes.autodrive.find_best_a_naive3"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_best_a_naive3</span></code></a>(a, y, n_flat, thresh, ...)</p></td>
+<td><p>A simple brutal force finder of the best atten value.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_logger</span></code>([name])</p></td>
+<td><p>Return a logger named <code class="xref py py-obj docutils literal notranslate"><span class="pre">name</span></code> if specified, otherwise use the name of the calling context.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">join</span></code>(left, right[, keys, join_type, ...])</p></td>
+<td><p>Perform a join of the left table with the right table on specified keys.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../api/tolteca.recipes.autodrive.load_autodrive_data.html#tolteca.recipes.autodrive.load_autodrive_data" title="tolteca.recipes.autodrive.load_autodrive_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_autodrive_data</span></code></a>(dataset)</p></td>
+<td><p>Given a dataset, try load all the necessary data to run the autodrive.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.autodrive.main.html#tolteca.recipes.autodrive.main" title="tolteca.recipes.autodrive.main"><code class="xref py py-obj docutils literal notranslate"><span class="pre">main</span></code></a>(args)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_slice</span></code>(slice_str)</p></td>
+<td><p>Return a slice object from string.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">save_or_show</span></code>(fig, filepath[, bbox_inches, ...])</p></td>
+<td><p>Save figure or show  plot, depending on the last sys.argv</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="module-tolteca.recipes.dataset_rsync">
+<span id="tolteca-recipes-dataset-rsync-module"></span><h2>tolteca.recipes.dataset_rsync Module<a class="headerlink" href="#module-tolteca.recipes.dataset_rsync" title="Permalink to this headline">¶</a></h2>
+<p>This recipe shows how to use the <code class="xref py py-obj docutils literal notranslate"><span class="pre">tolteca.datamodels.fs.rsync.RsyncAccessor</span></code>
+to select and retrieve TolTEC data files from remote.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">-s</span></code> switch makes use of the <code class="docutils literal notranslate"><span class="pre">panads.DataFrame.query</span></code>, and the
+documentation on composing the query string could be found here:
+<a class="reference external" href="https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#indexing-query">https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#indexing-query</a></p>
+<p>Example usage:</p>
+<ol class="arabic simple">
+<li><p>The following prints a list of files according to the selection string</p></li>
+</ol>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp"># </span>noqa: E501
+<span class="gp">$ </span>python dataset_rsync.py taco:/data/data_toltec/reduced/ -s <span class="s2">&quot;(obsid&gt;10232) &amp; (fileext==&#39;txt&#39;)&quot;</span>
+<span class="go">&lt;some logging messages&gt;</span>
+<span class="go">taco:/data/data_toltec/reduced/toltec3_010860_00_0000_2020_03_23_18_51_39_tune.txt</span>
+<span class="go">taco:/data/data_toltec/reduced/toltec3_010885_00_0000_2020_03_23_22_31_43_tune.txt</span>
+<span class="go">taco:/data/data_toltec/reduced/toltec3_010886_00_0000_2020_03_23_22_34_41_tune.txt</span>
+<span class="go">taco:/data/data_toltec/reduced/toltec3_010888_00_0000_2020_03_24_01_13_47_tune.txt</span>
+<span class="go">taco:/data/data_toltec/reduced/toltec3_010890_00_0000_2020_03_24_03_55_18_tune.txt</span>
+<span class="go">taco:/data/data_toltec/reduced/toltec3_010892_00_0000_2020_03_24_06_36_33_tune.txt</span>
+<span class="go">taco:/data/data_toltec/reduced/toltec3_010894_00_0000_2020_03_24_09_19_45_tune.txt</span>
+<span class="go">taco:/data/data_toltec/reduced/toltec3_010896_00_0000_2020_03_24_12_00_58_tune.txt</span>
+<span class="go">taco:/data/data_toltec/reduced/toltec3_010898_00_0000_2020_03_24_14_44_00_tune.txt</span>
+</pre></div>
+</div>
+<ol class="arabic simple" start="2">
+<li><p>The following will download the matched files to specified directory.
+Optionally, specify [-f] -o &lt;FILENAME&gt; to also same an dataset index table
+for later use</p></li>
+</ol>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp"> $ </span>python dataset_rsync.py taco:/data/data_toltec/reduced/ -s <span class="s2">&quot;(obsid&gt;10232) &amp; (nwid==3) &amp; (fileext==&#39;txt&#39;)&quot;</span> -d my_local_data_dir -f -o dataset_for_bla.asc
+
+<span class="go">The files matching the criteria will be mirrored to the folder</span>
+<span class="go">`./my_local_data_dir`, and an index table named `dataset_for_bla.asc` is</span>
+<span class="go">created in the current directory.</span>
+</pre></div>
+</div>
+<section id="id1">
+<h3>Functions<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_logger</span></code>([name])</p></td>
+<td><p>Return a logger named <code class="xref py py-obj docutils literal notranslate"><span class="pre">name</span></code> if specified, otherwise use the name of the calling context.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../api/tolteca.recipes.dataset_rsync.main.html#tolteca.recipes.dataset_rsync.main" title="tolteca.recipes.dataset_rsync.main"><code class="xref py py-obj docutils literal notranslate"><span class="pre">main</span></code></a>(args)</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">TolTECA Recipes</a><ul>
+<li><a class="reference internal" href="#module-tolteca.recipes">tolteca.recipes Package</a></li>
+<li><a class="reference internal" href="#module-tolteca.recipes.autodrive">tolteca.recipes.autodrive Module</a><ul>
+<li><a class="reference internal" href="#functions">Functions</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-tolteca.recipes.dataset_rsync">tolteca.recipes.dataset_rsync Module</a><ul>
+<li><a class="reference internal" href="#id1">Functions</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/tolteca/recipes.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
+  </p>
+</footer>
+  </body>
+</html>

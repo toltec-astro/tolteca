@@ -6,7 +6,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
-    <title>NcFileIO &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <title>NcFileIO &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="../_static/bootstrap-astropy.css" />
     <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
@@ -21,7 +21,7 @@
     <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="PipelineRuntimeError" href="tolteca.reduce.PipelineRuntimeError.html" />
+    <link rel="next" title="ReduConfig" href="tolteca.reduce.ReduConfig.html" />
     <link rel="prev" title="KidsModelParamsIO" href="tolteca.datamodels.io.KidsModelParamsIO.html" />
     <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
 
@@ -50,7 +50,7 @@
     <h3>Navigation</h3>
     <ul>
       <li class="right">
-	<a href="tolteca.reduce.PipelineRuntimeError.html" title="PipelineRuntimeError">
+	<a href="tolteca.reduce.ReduConfig.html" title="ReduConfig">
 	  next &raquo;
 	</a>
       </li>
@@ -61,10 +61,9 @@
 	 |
       </li>
       <li>
-	<a href="../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
+	<a href="../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
 	 &#187;
       </li>
-      <li><a href="../tolteca/index.html" accesskey="U">TolTECA Documentation</a> &#187;</li>
       
       <li>NcFileIO</li> 
     </ul>
@@ -80,13 +79,13 @@
 <h1>NcFileIO<a class="headerlink" href="#ncfileio" title="Permalink to this headline">¶</a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="tolteca.datamodels.io.NcFileIO">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">tolteca.datamodels.io.</span></span><span class="sig-name descname"><span class="pre">NcFileIO</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">open_</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">load_meta_on_open</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">auto_close_on_pickle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/io/toltec/kidsdata.html#NcFileIO"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">tolteca.datamodels.io.</span></span><span class="sig-name descname"><span class="pre">NcFileIO</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">open_</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">load_meta_on_open</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">auto_close_on_pickle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/io/toltec/kidsdata.html#NcFileIO"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">tolteca.datamodels.io.base.DataFileIO</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">tolteca.datamodels.io.toltec.kidsdata._NcFileIOKidsDataAxisSlicerMixin</span></code></p>
 <p>A class to read data from TolTEC netCDF files.</p>
 <dl class="field-list">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><dl>
-<dt><strong>source</strong><span class="classifier">str, <a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pathlib.Path</span></code></a>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">FileLoc</span></code>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">netCDF4.Dataset</span></code></span></dt><dd><p>The data file location or netCDF dataset.
+<dt><strong>source</strong><span class="classifier">str, <a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pathlib.Path</span></code></a>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">FileLoc</span></code>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">netCDF4.Dataset</span></code></span></dt><dd><p>The data file location or netCDF dataset.
 This is passed to <code class="xref py py-obj docutils literal notranslate"><span class="pre">NcNodeMapper</span></code>.</p>
 </dd>
 <dt><strong>open_</strong><span class="classifier">bool</span></dt><dd><p>If True and <code class="xref py py-obj docutils literal notranslate"><span class="pre">source</span></code> is set, open the file.</p>
@@ -99,6 +98,186 @@ This is ignored if <code class="xref py py-obj docutils literal notranslate"><sp
 </dl>
 </dd>
 </dl>
+<p class="rubric">Attributes Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.io.NcFileIO.axis_types" title="tolteca.datamodels.io.NcFileIO.axis_types"><code class="xref py py-obj docutils literal notranslate"><span class="pre">axis_types</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.datamodels.io.NcFileIO.block_loc" title="tolteca.datamodels.io.NcFileIO.block_loc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">block_loc</span></code></a></p></td>
+<td><p>The axis slicer for locating block.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.io.NcFileIO.data_kind" title="tolteca.datamodels.io.NcFileIO.data_kind"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data_kind</span></code></a></p></td>
+<td><p>The data kind.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.datamodels.io.NcFileIO.io_registry_info" title="tolteca.datamodels.io.NcFileIO.io_registry_info"><code class="xref py py-obj docutils literal notranslate"><span class="pre">io_registry_info</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.io.NcFileIO.logger" title="tolteca.datamodels.io.NcFileIO.logger"><code class="xref py py-obj docutils literal notranslate"><span class="pre">logger</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.datamodels.io.NcFileIO.meta" title="tolteca.datamodels.io.NcFileIO.meta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">meta</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.io.NcFileIO.nc_node" title="tolteca.datamodels.io.NcFileIO.nc_node"><code class="xref py py-obj docutils literal notranslate"><span class="pre">nc_node</span></code></a></p></td>
+<td><p>The underlying netCDF dataset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.datamodels.io.NcFileIO.node_mappers" title="tolteca.datamodels.io.NcFileIO.node_mappers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">node_mappers</span></code></a></p></td>
+<td><p>The tree of low level netCDF dataset mappers.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.io.NcFileIO.sample_loc" title="tolteca.datamodels.io.NcFileIO.sample_loc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_loc</span></code></a></p></td>
+<td><p>The axis slicer for locating sample.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.datamodels.io.NcFileIO.sweep_loc" title="tolteca.datamodels.io.NcFileIO.sweep_loc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sweep_loc</span></code></a></p></td>
+<td><p>The axis slicer for locating sweep.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.io.NcFileIO.time_loc" title="tolteca.datamodels.io.NcFileIO.time_loc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">time_loc</span></code></a></p></td>
+<td><p>The axis slicer for locating time.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.datamodels.io.NcFileIO.tone_loc" title="tolteca.datamodels.io.NcFileIO.tone_loc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tone_loc</span></code></a></p></td>
+<td><p>The axis slicer for locating tone.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.io.NcFileIO.get_sweep_axis_data" title="tolteca.datamodels.io.NcFileIO.get_sweep_axis_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_sweep_axis_data</span></code></a>([block_index])</p></td>
+<td><p>Return the tones at <code class="xref py py-obj docutils literal notranslate"><span class="pre">block_index</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.datamodels.io.NcFileIO.get_tone_axis_data" title="tolteca.datamodels.io.NcFileIO.get_tone_axis_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_tone_axis_data</span></code></a>([block_index])</p></td>
+<td><p>Return the tones at <code class="xref py py-obj docutils literal notranslate"><span class="pre">block_index</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.datamodels.io.NcFileIO.open" title="tolteca.datamodels.io.NcFileIO.open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">open</span></code></a>([source])</p></td>
+<td><p>Return a context to operate on <code class="xref py py-obj docutils literal notranslate"><span class="pre">source</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.datamodels.io.NcFileIO.read" title="tolteca.datamodels.io.NcFileIO.read"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read</span></code></a>(**slicer_args)</p></td>
+<td><p>Read the file and return a data object.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Attributes Documentation</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.datamodels.io.NcFileIO.axis_types">
+<span class="sig-name descname"><span class="pre">axis_types</span></span><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO.axis_types" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.datamodels.io.NcFileIO.block_loc">
+<span class="sig-name descname"><span class="pre">block_loc</span></span><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO.block_loc" title="Permalink to this definition">¶</a></dt>
+<dd><p>The axis slicer for locating block.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.datamodels.io.NcFileIO.data_kind">
+<span class="sig-name descname"><span class="pre">data_kind</span></span><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO.data_kind" title="Permalink to this definition">¶</a></dt>
+<dd><p>The data kind.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.datamodels.io.NcFileIO.io_registry_info">
+<span class="sig-name descname"><span class="pre">io_registry_info</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'identifier':</span> <span class="pre">&lt;function</span> <span class="pre">identify_toltec_nc_file&gt;,</span> <span class="pre">'label':</span> <span class="pre">'nc.toltec.kidsdata'}</span></em><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO.io_registry_info" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.datamodels.io.NcFileIO.logger">
+<span class="sig-name descname"><span class="pre">logger</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;Logger</span> <span class="pre">NcFileIO</span> <span class="pre">(DEBUG)&gt;</span></em><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO.logger" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.datamodels.io.NcFileIO.meta">
+<span class="sig-name descname"><span class="pre">meta</span></span><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO.meta" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.datamodels.io.NcFileIO.nc_node">
+<span class="sig-name descname"><span class="pre">nc_node</span></span><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO.nc_node" title="Permalink to this definition">¶</a></dt>
+<dd><p>The underlying netCDF dataset.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.datamodels.io.NcFileIO.node_mappers">
+<span class="sig-name descname"><span class="pre">node_mappers</span></span><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO.node_mappers" title="Permalink to this definition">¶</a></dt>
+<dd><p>The tree of low level netCDF dataset mappers.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.datamodels.io.NcFileIO.sample_loc">
+<span class="sig-name descname"><span class="pre">sample_loc</span></span><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO.sample_loc" title="Permalink to this definition">¶</a></dt>
+<dd><p>The axis slicer for locating sample.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.datamodels.io.NcFileIO.sweep_loc">
+<span class="sig-name descname"><span class="pre">sweep_loc</span></span><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO.sweep_loc" title="Permalink to this definition">¶</a></dt>
+<dd><p>The axis slicer for locating sweep.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.datamodels.io.NcFileIO.time_loc">
+<span class="sig-name descname"><span class="pre">time_loc</span></span><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO.time_loc" title="Permalink to this definition">¶</a></dt>
+<dd><p>The axis slicer for locating time.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.datamodels.io.NcFileIO.tone_loc">
+<span class="sig-name descname"><span class="pre">tone_loc</span></span><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO.tone_loc" title="Permalink to this definition">¶</a></dt>
+<dd><p>The axis slicer for locating tone.</p>
+</dd></dl>
+
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.io.NcFileIO.get_sweep_axis_data">
+<span class="sig-name descname"><span class="pre">get_sweep_axis_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block_index</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/io/toltec/kidsdata.html#NcFileIO.get_sweep_axis_data"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO.get_sweep_axis_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the tones at <code class="xref py py-obj docutils literal notranslate"><span class="pre">block_index</span></code>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.io.NcFileIO.get_tone_axis_data">
+<span class="sig-name descname"><span class="pre">get_tone_axis_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block_index</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/io/toltec/kidsdata.html#NcFileIO.get_tone_axis_data"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO.get_tone_axis_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the tones at <code class="xref py py-obj docutils literal notranslate"><span class="pre">block_index</span></code>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.io.NcFileIO.open">
+<span class="sig-name descname"><span class="pre">open</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/io/toltec/kidsdata.html#NcFileIO.open"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO.open" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a context to operate on <code class="xref py py-obj docutils literal notranslate"><span class="pre">source</span></code>.</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl>
+<dt><strong>source</strong><span class="classifier">str, <a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pathlib.Path</span></code></a>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">FileLoc</span></code>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">netCDF4.Dataset</span></code>, optional</span></dt><dd><p>The data file location or netCDF dataset. If None, the
+source passed to constructor is used. Noe that source has to
+be None if it has been specified in the constructor.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.datamodels.io.NcFileIO.read">
+<span class="sig-name descname"><span class="pre">read</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">slicer_args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/datamodels/io/toltec/kidsdata.html#NcFileIO.read"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.datamodels.io.NcFileIO.read" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read the file and return a data object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>slicer_args</strong><span class="classifier">dict</span></dt><dd><p>The arguments to specify the data to load.
+The keys shall be one of the axis names
+block, tone, sweep, time, or sample.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
 </dd></dl>
 
 </section>
@@ -125,9 +304,9 @@ This is ignored if <code class="xref py py-obj docutils literal notranslate"><sp
        rel="nofollow">Page Source</a> &nbsp;
     <a href="#">Back to Top</a></p>
   <p>
-    &copy; Copyright 2021, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
-    Last built 18 Jun 2021. <br/>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
   </p>
 </footer>
   </body>

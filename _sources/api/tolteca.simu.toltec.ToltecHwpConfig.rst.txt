@@ -1,0 +1,39 @@
+ToltecHwpConfig
+===============
+
+.. currentmodule:: tolteca.simu.toltec
+
+.. autoclass:: ToltecHwpConfig
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~ToltecHwpConfig.f_rot
+      ~ToltecHwpConfig.f_smp
+      ~ToltecHwpConfig.optional
+      ~ToltecHwpConfig.rotator_enabled
+      ~ToltecHwpConfig.schema
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~ToltecHwpConfig.default_factory
+      ~ToltecHwpConfig.from_dict
+      ~ToltecHwpConfig.to_dict
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: f_rot
+   .. autoattribute:: f_smp
+   .. autoattribute:: optional
+   .. autoattribute:: rotator_enabled
+   .. autoattribute:: schema
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: default_factory
+   .. automethod:: from_dict
+   .. automethod:: to_dict

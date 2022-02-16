@@ -1,0 +1,29 @@
+MappingPlotConfig
+=================
+
+.. currentmodule:: tolteca.simu.plots
+
+.. autoclass:: MappingPlotConfig
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~MappingPlotConfig.name
+      ~MappingPlotConfig.schema
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~MappingPlotConfig.__call__
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: name
+   .. autoattribute:: schema
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__

@@ -1,0 +1,206 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>LabelFrame &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+    
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="PatternKind" href="tolteca.simu.mapping.PatternKind.html" />
+    <link rel="prev" title="ProjModel" href="tolteca.simu.base.ProjModel.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="tolteca.simu.mapping.PatternKind.html" title="PatternKind">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="tolteca.simu.base.ProjModel.html" title="ProjModel">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
+	 &#187;
+      </li>
+      
+      <li>LabelFrame</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="labelframe">
+<h1>LabelFrame<a class="headerlink" href="#labelframe" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="tolteca.simu.base.LabelFrame">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">tolteca.simu.base.</span></span><span class="sig-name descname"><span class="pre">LabelFrame</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">axes_names</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axes_order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/simu/base.html#LabelFrame"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.simu.base.LabelFrame" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.10)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>An coordinate frame for describing discrete detector attributes.</p>
+<p class="rubric">Attributes Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.simu.base.LabelFrame.axes_names" title="tolteca.simu.base.LabelFrame.axes_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">axes_names</span></code></a></p></td>
+<td><p>Names of axes in the frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.simu.base.LabelFrame.axes_order" title="tolteca.simu.base.LabelFrame.axes_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">axes_order</span></code></a></p></td>
+<td><p>A tuple of indices which map inputs to axes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.simu.base.LabelFrame.axes_type" title="tolteca.simu.base.LabelFrame.axes_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">axes_type</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.simu.base.LabelFrame.axis_physical_types" title="tolteca.simu.base.LabelFrame.axis_physical_types"><code class="xref py py-obj docutils literal notranslate"><span class="pre">axis_physical_types</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.simu.base.LabelFrame.name" title="tolteca.simu.base.LabelFrame.name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">name</span></code></a></p></td>
+<td><p>A custom name of this frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#tolteca.simu.base.LabelFrame.naxes" title="tolteca.simu.base.LabelFrame.naxes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">naxes</span></code></a></p></td>
+<td><p>The number of axes in this frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.simu.base.LabelFrame.unit" title="tolteca.simu.base.LabelFrame.unit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">unit</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#tolteca.simu.base.LabelFrame.coordinates" title="tolteca.simu.base.LabelFrame.coordinates"><code class="xref py py-obj docutils literal notranslate"><span class="pre">coordinates</span></code></a>(*args)</p></td>
+<td><p>Create world coordinates object</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Attributes Documentation</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.simu.base.LabelFrame.axes_names">
+<span class="sig-name descname"><span class="pre">axes_names</span></span><a class="headerlink" href="#tolteca.simu.base.LabelFrame.axes_names" title="Permalink to this definition">¶</a></dt>
+<dd><p>Names of axes in the frame.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.simu.base.LabelFrame.axes_order">
+<span class="sig-name descname"><span class="pre">axes_order</span></span><a class="headerlink" href="#tolteca.simu.base.LabelFrame.axes_order" title="Permalink to this definition">¶</a></dt>
+<dd><p>A tuple of indices which map inputs to axes.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.simu.base.LabelFrame.axes_type">
+<span class="sig-name descname"><span class="pre">axes_type</span></span><a class="headerlink" href="#tolteca.simu.base.LabelFrame.axes_type" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.simu.base.LabelFrame.axis_physical_types">
+<span class="sig-name descname"><span class="pre">axis_physical_types</span></span><a class="headerlink" href="#tolteca.simu.base.LabelFrame.axis_physical_types" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.simu.base.LabelFrame.name">
+<span class="sig-name descname"><span class="pre">name</span></span><a class="headerlink" href="#tolteca.simu.base.LabelFrame.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>A custom name of this frame.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.simu.base.LabelFrame.naxes">
+<span class="sig-name descname"><span class="pre">naxes</span></span><a class="headerlink" href="#tolteca.simu.base.LabelFrame.naxes" title="Permalink to this definition">¶</a></dt>
+<dd><p>The number of axes in this frame.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="tolteca.simu.base.LabelFrame.unit">
+<span class="sig-name descname"><span class="pre">unit</span></span><a class="headerlink" href="#tolteca.simu.base.LabelFrame.unit" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="tolteca.simu.base.LabelFrame.coordinates">
+<span class="sig-name descname"><span class="pre">coordinates</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/tolteca/simu/base.html#LabelFrame.coordinates"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#tolteca.simu.base.LabelFrame.coordinates" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create world coordinates object</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">LabelFrame</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/api/tolteca.simu.base.LabelFrame.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
+  </p>
+</footer>
+  </body>
+</html>

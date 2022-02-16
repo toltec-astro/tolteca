@@ -1,6 +1,0 @@
-simulate_hwp
-============
-
-.. currentmodule:: tolteca.recipes.simu_hwp_noise
-
-.. autofunction:: simulate_hwp

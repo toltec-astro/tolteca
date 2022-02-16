@@ -1,6 +1,0 @@
-get_observer
-============
-
-.. currentmodule:: tolteca.simu.toltec
-
-.. autofunction:: get_observer

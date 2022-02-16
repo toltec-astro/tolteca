@@ -1,0 +1,31 @@
+LmtOTComposer
+=============
+
+.. currentmodule:: tolteca.simu.exports
+
+.. autoclass:: LmtOTComposer
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~LmtOTComposer.logger
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~LmtOTComposer.make_mapping_steps
+      ~LmtOTComposer.make_pointing_steps
+      ~LmtOTComposer.make_setup_steps
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: logger
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: make_mapping_steps
+   .. automethod:: make_pointing_steps
+   .. automethod:: make_setup_steps

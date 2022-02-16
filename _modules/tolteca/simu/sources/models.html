@@ -1,0 +1,720 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tolteca.simu.sources.models &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/bootstrap-astropy.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/plot_directive.css" />
+    
+    <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+    <script src="../../../../_static/jquery.js"></script>
+    <script src="../../../../_static/underscore.js"></script>
+    <script src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">TolTECA</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../simu.html" >tolteca.simu</a> &#187;</li>
+      <li><a href="../sources.html" accesskey="U">tolteca.simu.sources</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tolteca.simu.sources.models</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python</span>
+
+<span class="kn">from</span> <span class="nn">astropy.io</span> <span class="kn">import</span> <span class="n">fits</span>
+<span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">u</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">astropy.wcs</span> <span class="kn">import</span> <span class="n">WCS</span>
+<span class="kn">from</span> <span class="nn">astropy.coordinates</span> <span class="kn">import</span> <span class="n">SkyCoord</span>
+<span class="kn">from</span> <span class="nn">astropy.table</span> <span class="kn">import</span> <span class="n">Table</span><span class="p">,</span> <span class="n">QTable</span>
+<span class="kn">from</span> <span class="nn">astropy.modeling</span> <span class="kn">import</span> <span class="n">models</span>
+<span class="kn">from</span> <span class="nn">astropy.modeling.functional_models</span> <span class="kn">import</span> <span class="n">GAUSSIAN_SIGMA_TO_FWHM</span>
+
+<span class="c1"># from tollan.utils.fmt import pformat_yaml</span>
+<span class="kn">from</span> <span class="nn">tollan.utils.log</span> <span class="kn">import</span> <span class="n">get_logger</span><span class="p">,</span> <span class="n">timeit</span>
+<span class="kn">from</span> <span class="nn">tollan.utils</span> <span class="kn">import</span> <span class="n">ensure_abspath</span>
+
+<span class="kn">from</span> <span class="nn">.base</span> <span class="kn">import</span> <span class="n">SurfaceBrightnessModel</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="kn">import</span> <span class="n">SkyBoundingBox</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ImageSourceModel&#39;</span><span class="p">,</span> <span class="s1">&#39;CatalogSourceModel&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="ImageSourceModel"><a class="viewcode-back" href="../../../../api/tolteca.simu.sources.ImageSourceModel.html#tolteca.simu.sources.ImageSourceModel">[docs]</a><span class="k">class</span> <span class="nc">ImageSourceModel</span><span class="p">(</span><span class="n">SurfaceBrightnessModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The class for simulator source from FITS image.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : dict</span>
+<span class="sd">        A dict of HDUs for the data. The dict keys are labels that</span>
+<span class="sd">        expected as the first argument of the model evaluation.</span>
+<span class="sd">        The dict values can alternatively be a dict of keys I, Q and</span>
+<span class="sd">        U for polarized data.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="n">n_inputs</span> <span class="o">=</span> <span class="mi">4</span>
+    <span class="n">n_outputs</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hdulist</span><span class="p">,</span> <span class="n">data_exts</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;label&#39;</span><span class="p">,</span> <span class="s1">&#39;lon&#39;</span><span class="p">,</span> <span class="s1">&#39;lat&#39;</span><span class="p">,</span> <span class="s1">&#39;pa&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_hdulist</span> <span class="o">=</span> <span class="n">hdulist</span>
+
+        <span class="c1"># resolve data exts by replacing ext names with the fits extensions</span>
+        <span class="n">data_items</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+
+        <span class="c1"># a dict view of hdus keyed by extname</span>
+        <span class="n">extname_hdu</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">hdu</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">hdulist</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;HDU </span><span class="si">{}</span><span class="s1">: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">i</span><span class="p">,</span> <span class="n">hdu</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">tostring</span><span class="p">(</span><span class="n">sep</span><span class="o">=</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="p">))</span>
+            <span class="n">label</span> <span class="o">=</span> <span class="n">hdu</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;EXTNAME&#39;</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+            <span class="c1"># TODO handling stokes WCS here to generate I Q U map</span>
+            <span class="n">extname_hdu</span><span class="p">[</span><span class="n">label</span><span class="p">]</span> <span class="o">=</span> <span class="n">hdu</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">data_exts</span><span class="p">:</span>
+            <span class="n">extname</span> <span class="o">=</span> <span class="n">item</span><span class="p">[</span><span class="s1">&#39;extname&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">extname</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">extname_hdu</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;missing ext </span><span class="si">{</span><span class="n">extname</span><span class="si">}</span><span class="s2"> in FITS data.&quot;</span><span class="p">)</span>
+            <span class="n">data_items</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="o">**</span><span class="n">item</span><span class="p">,</span> <span class="n">hdu</span><span class="o">=</span><span class="n">extname_hdu</span><span class="p">[</span><span class="n">extname</span><span class="p">]))</span>
+        <span class="c1"># store the data item as table for masked access</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">Table</span><span class="p">(</span><span class="n">rows</span><span class="o">=</span><span class="n">data_items</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;FITS image data:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># if extname_map is None:</span>
+        <span class="c1">#     extname_map = {</span>
+        <span class="c1">#             k: k for k in extname_hdu.keys()</span>
+        <span class="c1">#             }</span>
+        <span class="c1"># cls.logger.debug(f&quot;use extname_map: {pformat_yaml(extname_map)}&quot;)</span>
+
+        <span class="c1"># data = dict()</span>
+
+        <span class="c1"># def resolve_extname(d):</span>
+        <span class="c1">#     result = dict()</span>
+        <span class="c1">#     for k, v in d.items():</span>
+        <span class="c1">#         if isinstance(v, dict):</span>
+        <span class="c1">#             result[k] = resolve_extname(v)</span>
+        <span class="c1">#         elif v in extname_hdu:</span>
+        <span class="c1">#             result[k] = extname_hdu[v]</span>
+        <span class="c1">#         else:</span>
+        <span class="c1">#             cls.logger.warning(f&quot;ignore invalid extname {v}&quot;)</span>
+        <span class="c1">#             continue</span>
+        <span class="c1">#     return result</span>
+
+        <span class="c1"># data = resolve_extname(extname_map)</span>
+        <span class="c1"># cls.logger.debug(f&#39;source data items: {pformat_yaml(data)}&#39;)</span>
+        <span class="c1"># return cls(data=data, name=filepath.as_posix(), **kwargs)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_set_data_for_hdu</span><span class="p">(</span>
+            <span class="bp">cls</span><span class="p">,</span> <span class="n">hdu</span><span class="p">,</span> <span class="n">det_ra</span><span class="p">,</span> <span class="n">det_dec</span><span class="p">,</span> <span class="n">s_out_mask</span><span class="p">,</span> <span class="n">s_out</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Populate `s_out` using data from `hdu`.&quot;&quot;&quot;</span>
+        <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+        <span class="c1"># check lon lat range of hdu and re-wrap longitude for proper</span>
+        <span class="c1"># range check</span>
+        <span class="n">s_out_unit</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">hdu</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;SIGUNIT&#39;</span><span class="p">,</span> <span class="s1">&#39;adu&#39;</span><span class="p">))</span>
+        <span class="n">wcsobj</span> <span class="o">=</span> <span class="n">WCS</span><span class="p">(</span><span class="n">hdu</span><span class="o">.</span><span class="n">header</span><span class="p">)</span>
+        <span class="n">ny</span><span class="p">,</span> <span class="n">nx</span> <span class="o">=</span> <span class="n">data_shape</span> <span class="o">=</span> <span class="n">hdu</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">sky_bbox</span> <span class="o">=</span> <span class="n">SkyBoundingBox</span><span class="o">.</span><span class="n">from_wcs</span><span class="p">(</span><span class="n">wcsobj</span><span class="p">,</span> <span class="n">data_shape</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;data bbox: w=</span><span class="si">{</span><span class="n">sky_bbox</span><span class="o">.</span><span class="n">w</span><span class="si">}</span><span class="s2"> e=</span><span class="si">{</span><span class="n">sky_bbox</span><span class="o">.</span><span class="n">e</span><span class="si">}</span><span class="s2"> &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;s=</span><span class="si">{</span><span class="n">sky_bbox</span><span class="o">.</span><span class="n">s</span><span class="si">}</span><span class="s2"> n=</span><span class="si">{</span><span class="n">sky_bbox</span><span class="o">.</span><span class="n">n</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;data shape: </span><span class="si">{</span><span class="n">data_shape</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="c1"># to make it simple we work in deg explicitly</span>
+        <span class="c1"># here we also re-wrap the ra to be consistent with the sky bbox.</span>
+        <span class="n">det_ra_deg</span> <span class="o">=</span> <span class="n">det_ra</span><span class="o">.</span><span class="n">wrap_at</span><span class="p">(</span><span class="n">sky_bbox</span><span class="o">.</span><span class="n">lon_wrap_angle</span><span class="p">)</span><span class="o">.</span><span class="n">degree</span>
+        <span class="n">det_dec_deg</span> <span class="o">=</span> <span class="n">det_dec</span><span class="o">.</span><span class="n">degree</span>
+        <span class="c1"># compute the detector pos mask within the foot print</span>
+        <span class="n">g</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="p">(</span><span class="n">det_ra_deg</span> <span class="o">&gt;</span> <span class="n">sky_bbox</span><span class="o">.</span><span class="n">w</span><span class="o">.</span><span class="n">degree</span><span class="p">)</span>
+                <span class="o">&amp;</span> <span class="p">(</span><span class="n">det_ra_deg</span> <span class="o">&lt;</span> <span class="n">sky_bbox</span><span class="o">.</span><span class="n">e</span><span class="o">.</span><span class="n">degree</span><span class="p">)</span>
+                <span class="o">&amp;</span> <span class="p">(</span><span class="n">det_dec_deg</span> <span class="o">&gt;</span> <span class="n">sky_bbox</span><span class="o">.</span><span class="n">s</span><span class="o">.</span><span class="n">degree</span><span class="p">)</span>
+                <span class="o">&amp;</span> <span class="p">(</span><span class="n">det_dec_deg</span> <span class="o">&lt;</span> <span class="n">sky_bbox</span><span class="o">.</span><span class="n">n</span><span class="o">.</span><span class="n">degree</span><span class="p">)</span>
+                <span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;data group mask </span><span class="si">{</span><span class="n">g</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">det_dec</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># skip because no overlap between detectors and sky bbox</span>
+            <span class="k">return</span>
+        <span class="c1"># convert all detector posistions to x y</span>
+        <span class="n">x_g</span><span class="p">,</span> <span class="n">y_g</span> <span class="o">=</span> <span class="n">wcsobj</span><span class="o">.</span><span class="n">wcs_world2pix</span><span class="p">(</span><span class="n">det_ra_deg</span><span class="p">[</span><span class="n">g</span><span class="p">],</span> <span class="n">det_dec_deg</span><span class="p">[</span><span class="n">g</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">ii</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">rint</span><span class="p">(</span><span class="n">y_g</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">jj</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">rint</span><span class="p">(</span><span class="n">x_g</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;pixel range: [</span><span class="si">{</span><span class="n">ii</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">ii</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">] &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">jj</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">jj</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">]&quot;</span><span class="p">)</span>
+        <span class="c1"># check ii and jj for valid pixel range</span>
+        <span class="n">gp</span> <span class="o">=</span> <span class="p">(</span><span class="n">ii</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">ii</span> <span class="o">&lt;</span> <span class="n">ny</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">jj</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">jj</span> <span class="o">&lt;</span> <span class="n">nx</span><span class="p">)</span>
+        <span class="c1"># update g to include only valid pixels</span>
+        <span class="n">g</span><span class="p">[</span><span class="n">g</span><span class="p">]</span> <span class="o">=</span> <span class="n">gp</span>
+        <span class="c1"># TODO this seems to be unnecessary</span>
+        <span class="c1"># convert all lon lat to x y with update mask g</span>
+        <span class="n">x_g</span><span class="p">,</span> <span class="n">y_g</span> <span class="o">=</span> <span class="n">wcsobj</span><span class="o">.</span><span class="n">wcs_world2pix</span><span class="p">(</span><span class="n">det_ra_deg</span><span class="p">[</span><span class="n">g</span><span class="p">],</span> <span class="n">det_dec_deg</span><span class="p">[</span><span class="n">g</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">ii</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">rint</span><span class="p">(</span><span class="n">y_g</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">jj</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">rint</span><span class="p">(</span><span class="n">x_g</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;pixel range updated: [</span><span class="si">{</span><span class="n">ii</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">ii</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">] &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">jj</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">jj</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">]&quot;</span><span class="p">)</span>
+        <span class="n">ig</span><span class="p">,</span> <span class="n">jg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">hdu</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="n">jj</span><span class="p">]</span> <span class="o">&lt;&lt;</span> <span class="n">s_out_unit</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;detector signal range: [</span><span class="si">{</span><span class="n">s</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s1">, </span><span class="si">{</span><span class="n">s</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s1">]&#39;</span><span class="p">)</span>
+        <span class="c1"># combine the mask with overlapping mask</span>
+        <span class="n">s_out</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">flatnonzero</span><span class="p">(</span><span class="n">s_out_mask</span><span class="p">)[</span><span class="n">ig</span><span class="p">],</span> <span class="n">jg</span><span class="p">]</span> <span class="o">=</span> <span class="n">s</span>
+
+<div class="viewcode-block" id="ImageSourceModel.evaluate_tod_icrs"><a class="viewcode-back" href="../../../../api/tolteca.simu.sources.ImageSourceModel.html#tolteca.simu.sources.ImageSourceModel.evaluate_tod_icrs">[docs]</a>    <span class="k">def</span> <span class="nf">evaluate_tod_icrs</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">det_array_name</span><span class="p">,</span> <span class="n">det_ra</span><span class="p">,</span> <span class="n">det_dec</span><span class="p">,</span>
+            <span class="n">det_pa_icrs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">hwp_pa_icrs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return signal data.&quot;&quot;&quot;</span>
+        <span class="n">data_tbl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
+        <span class="n">eval_polarized</span> <span class="o">=</span> <span class="n">det_pa_icrs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="n">eval_hwp</span> <span class="o">=</span> <span class="n">hwp_pa_icrs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;eval_polarized=</span><span class="si">{</span><span class="n">eval_polarized</span><span class="si">}</span><span class="s2"> eval_hwp=</span><span class="si">{</span><span class="n">eval_hwp</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="s1">&#39;stokes_param&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">data_tbl</span><span class="o">.</span><span class="n">colnames</span><span class="p">:</span>
+            <span class="n">stokes_params</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">stokes_params</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">data_tbl</span><span class="p">[</span><span class="s1">&#39;stokes_param&#39;</span><span class="p">])</span>
+        <span class="c1"># check if stokes_params exists for polarized eval</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">eval_polarized</span> <span class="ow">and</span> <span class="p">(</span>
+            <span class="n">stokes_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">set</span><span class="p">(</span><span class="n">stokes_params</span><span class="p">)</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span>
+                <span class="p">{</span><span class="s1">&#39;Q&#39;</span><span class="p">,</span> <span class="s1">&#39;U&#39;</span><span class="p">})):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">&quot;stokes_param Q and U are ignored because &quot;</span>
+                <span class="s2">&quot;no position angles are provided for polarized eval&quot;</span>
+                <span class="p">)</span>
+            <span class="c1"># in this case we only use the data_tbl with the stokes I</span>
+            <span class="n">data_tbl</span> <span class="o">=</span> <span class="n">data_tbl</span><span class="p">[</span><span class="n">data_tbl</span><span class="p">[</span><span class="s1">&#39;stokes_param&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;I&#39;</span><span class="p">]</span>
+            <span class="c1"># this won&#39;t be used but just for consistency</span>
+            <span class="n">stokes_params</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;I&#39;</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">eval_polarized</span> <span class="ow">and</span> <span class="n">stokes_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;stokes_param is required for polarized evaluation&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># good to go</span>
+            <span class="k">pass</span>
+        <span class="c1"># a special value used to indicate data array for non polarized</span>
+        <span class="c1"># evaluation</span>
+        <span class="n">UNPOLARIZED</span> <span class="o">=</span> <span class="nb">object</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">eval_polarized</span><span class="p">:</span>
+            <span class="n">data_keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">UNPOLARIZED</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">data_keys</span> <span class="o">=</span> <span class="n">stokes_params</span>
+        <span class="n">data_by_array_name</span> <span class="o">=</span> <span class="n">data_tbl</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s1">&#39;array_name&#39;</span><span class="p">)</span>
+        <span class="n">s_outs</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">k</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">det_ra</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">MJy</span> <span class="o">/</span> <span class="n">u</span><span class="o">.</span><span class="n">sr</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">data_keys</span>
+            <span class="p">}</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">group</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+                <span class="n">data_by_array_name</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">keys</span><span class="p">,</span>
+                <span class="n">data_by_array_name</span><span class="o">.</span><span class="n">groups</span><span class="p">):</span>
+            <span class="n">array_name</span> <span class="o">=</span> <span class="n">key</span><span class="p">[</span><span class="s1">&#39;array_name&#39;</span><span class="p">]</span>
+            <span class="c1"># the size of group should match with the size of data keys</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">group</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">data_keys</span><span class="p">)</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="p">(</span><span class="n">det_array_name</span> <span class="o">==</span> <span class="n">array_name</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;evaluate </span><span class="si">{</span><span class="n">m</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">m</span><span class="p">)</span><span class="si">}</span><span class="s2"> &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;detector signals for array_name=</span><span class="si">{</span><span class="n">array_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">data_key</span> <span class="ow">in</span> <span class="n">data_keys</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">data_key</span> <span class="ow">is</span> <span class="n">UNPOLARIZED</span><span class="p">:</span>
+                    <span class="c1"># just use the only entry here for as input</span>
+                    <span class="n">entry</span> <span class="o">=</span> <span class="n">group</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># evaluate for the entry with matching stokes_param</span>
+                    <span class="n">entry</span> <span class="o">=</span> <span class="n">group</span><span class="p">[</span><span class="n">group</span><span class="p">[</span><span class="s1">&#39;stokes_param&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">data_key</span><span class="p">]</span>
+                    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+                    <span class="n">entry</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;get data from hdu </span><span class="si">{</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;extname&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="c1"># get data into the s_out array</span>
+                <span class="n">hdu</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;hdu&#39;</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_set_data_for_hdu</span><span class="p">(</span>
+                    <span class="n">hdu</span><span class="o">=</span><span class="n">hdu</span><span class="p">,</span>
+                    <span class="n">det_ra</span><span class="o">=</span><span class="n">det_ra</span><span class="p">[</span><span class="n">m</span><span class="p">],</span>
+                    <span class="n">det_dec</span><span class="o">=</span><span class="n">det_dec</span><span class="p">[</span><span class="n">m</span><span class="p">],</span>
+                    <span class="n">s_out_mask</span><span class="o">=</span><span class="n">m</span><span class="p">,</span>
+                    <span class="n">s_out</span><span class="o">=</span><span class="n">s_outs</span><span class="p">[</span><span class="n">data_key</span><span class="p">])</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">eval_polarized</span><span class="p">:</span>
+            <span class="c1"># non polarized case</span>
+            <span class="k">return</span> <span class="n">s_outs</span><span class="p">[</span><span class="n">data_key</span><span class="p">]</span>
+        <span class="c1"># mix the I Q and U</span>
+        <span class="n">I</span> <span class="o">=</span> <span class="n">s_outs</span><span class="p">[</span><span class="s1">&#39;I&#39;</span><span class="p">]</span>  <span class="c1"># noqa: E741</span>
+        <span class="n">Q</span> <span class="o">=</span> <span class="n">s_outs</span><span class="p">[</span><span class="s1">&#39;Q&#39;</span><span class="p">]</span>
+        <span class="n">U</span> <span class="o">=</span> <span class="n">s_outs</span><span class="p">[</span><span class="s1">&#39;U&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">eval_hwp</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span>
+                <span class="n">I</span>
+                <span class="o">+</span> <span class="n">Q</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mf">2.</span> <span class="o">*</span> <span class="n">det_pa_icrs</span><span class="p">)</span>
+                <span class="o">+</span> <span class="n">U</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="mf">2.</span> <span class="o">*</span> <span class="n">det_pa_icrs</span><span class="p">)</span>
+                <span class="p">)</span>
+        <span class="k">return</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span>
+            <span class="n">I</span>
+            <span class="o">+</span> <span class="n">Q</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mf">4.</span> <span class="o">*</span> <span class="n">hwp_pa_icrs</span> <span class="o">-</span> <span class="mf">2.</span> <span class="o">*</span> <span class="n">det_pa_icrs</span><span class="p">)</span>
+            <span class="o">+</span> <span class="n">U</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="mf">4.</span> <span class="o">*</span> <span class="n">hwp_pa_icrs</span> <span class="o">-</span> <span class="mf">2.</span> <span class="o">*</span> <span class="n">det_pa_icrs</span><span class="p">)</span>
+            <span class="p">)</span></div>
+
+    <span class="c1"># @staticmethod</span>
+    <span class="c1"># def _get_data_sky_bbox(wcsobj, data_shape):</span>
+    <span class="c1">#     logger = get_logger()</span>
+    <span class="c1">#     # check lon lat range</span>
+    <span class="c1">#     # because here we check longitude ranges</span>
+    <span class="c1">#     # we need to take into account wrapping issue</span>
+    <span class="c1">#     # check pixel range</span>
+    <span class="c1">#     ny, nx = data_shape</span>
+    <span class="c1">#     # lon lat edge of pixel edges</span>
+    <span class="c1">#     lon_e, lat_e = wcsobj.wcs_pix2world(</span>
+    <span class="c1">#             np.array([0, 0, nx - 1, nx - 1]),</span>
+    <span class="c1">#             np.array([0, ny - 1, 0, ny - 1]),</span>
+    <span class="c1">#             0)</span>
+    <span class="c1">#     # fix potential wrapping issue by check at 360 and 180 wrapping</span>
+    <span class="c1">#     lon_e = Angle(lon_e &lt;&lt; u.deg).wrap_at(360. &lt;&lt; u.deg).degree</span>
+    <span class="c1">#     lon_e_180 = Angle(lon_e &lt;&lt; u.deg).wrap_at(180. &lt;&lt; u.deg).degree</span>
+    <span class="c1">#     # this is done by taking the one with smaller span</span>
+    <span class="c1">#     w_e, e_e = np.min(lon_e), np.max(lon_e)</span>
+    <span class="c1">#     w_e_180, e_e_180 = np.min(lon_e_180), np.max(lon_e_180)</span>
+    <span class="c1">#     s_e, n_e = np.min(lat_e), np.max(lat_e)</span>
+    <span class="c1">#     if (e_e_180 - w_e_180) &lt; (e_e - w_e):</span>
+    <span class="c1">#         # use wrapping at 180.d</span>
+    <span class="c1">#         w_e = w_e_180</span>
+    <span class="c1">#         e_e = e_e_180</span>
+    <span class="c1">#         lon_wrap_at = 180. &lt;&lt; u.deg</span>
+    <span class="c1">#         logger.debug(f&quot;re-wrapping data bbox coords at {lon_wrap_at}&quot;)</span>
+    <span class="c1">#     else:</span>
+    <span class="c1">#         lon_wrap_at = 360. &lt;&lt; u.deg</span>
+    <span class="c1">#     logger.debug(f&quot;data bbox: w={w_e} e={e_e} s={s_e} n={n_e}&quot;)</span>
+    <span class="c1">#     logger.debug(f&#39;data shape: {data_shape}&#39;)</span>
+    <span class="c1">#     return [(w_e, e_e), (s_e, n_e)], lon_wrap_at</span>
+
+    <span class="c1"># @classmethod</span>
+    <span class="c1"># def _set_data_for_group(cls, hdu, group_mask, lon, lat, s_out):</span>
+    <span class="c1">#     &quot;&quot;&quot;Populate `s_out` for `group_mask` from `hdu`.&quot;&quot;&quot;</span>
+    <span class="c1">#     logger = get_logger()</span>
+    <span class="c1">#     # check lon lat range of hdu and re-wrap longitude for proper</span>
+    <span class="c1">#     # range check</span>
+    <span class="c1">#     s_out_unit = u.Unit(hdu.header.get(&#39;SIGUNIT&#39;, &#39;adu&#39;))</span>
+    <span class="c1">#     wcsobj = WCS(hdu.header)</span>
+    <span class="c1">#     ny, nx = data_shape = hdu.data.shape</span>
+    <span class="c1">#     (w_e, e_e), (s_e, n_e), lon_wrap_at = cls._get_data_sky_bbox(</span>
+    <span class="c1">#         wcsobj, data_shape)</span>
+    <span class="c1">#     lon = Angle(lon &lt;&lt; u.deg).wrap_at(lon_wrap_at).degree</span>
+    <span class="c1">#     g = (</span>
+    <span class="c1">#             (lon &gt; w_e) &amp; (lon &lt; e_e)</span>
+    <span class="c1">#             &amp; (lat &gt; s_e) &amp; (lat &lt; n_e)</span>
+    <span class="c1">#             )</span>
+    <span class="c1">#     logger.debug(f&quot;data group mask {g.sum()}/{lon.size}&quot;)</span>
+    <span class="c1">#     if g.sum() == 0:</span>
+    <span class="c1">#         # skip because no overlap</span>
+    <span class="c1">#         return</span>
+    <span class="c1">#     # convert all lon lat to x y</span>
+    <span class="c1">#     x_g, y_g = wcsobj.wcs_world2pix(lon[g], lat[g], 0)</span>
+    <span class="c1">#     ii = np.rint(y_g).astype(int)</span>
+    <span class="c1">#     jj = np.rint(x_g).astype(int)</span>
+    <span class="c1">#     logger.debug(</span>
+    <span class="c1">#             f&quot;pixel range: [{ii.min()}, {ii.max()}] &quot;</span>
+    <span class="c1">#             f&quot;[{jj.min()}, {jj.max()}]&quot;)</span>
+    <span class="c1">#     # check ii and jj for valid pixel range</span>
+    <span class="c1">#     gp = (ii &gt;= 0) &amp; (ii &lt; ny) &amp; (jj &gt;= 0) &amp; (jj &lt; nx)</span>
+    <span class="c1">#     # update g to include only valid pixels</span>
+    <span class="c1">#     g[g] = gp</span>
+    <span class="c1">#     # TODO this seems to be unnecessary</span>
+    <span class="c1">#     # convert all lon lat to x y</span>
+    <span class="c1">#     x_g, y_g = wcsobj.wcs_world2pix(lon[g], lat[g], 0)</span>
+    <span class="c1">#     ii = np.rint(y_g).astype(int)</span>
+    <span class="c1">#     jj = np.rint(x_g).astype(int)</span>
+    <span class="c1">#     logger.debug(</span>
+    <span class="c1">#             f&quot;pixel range updated: [{ii.min()}, {ii.max()}] &quot;</span>
+    <span class="c1">#             f&quot;[{jj.min()}, {jj.max()}]&quot;)</span>
+    <span class="c1">#     ig = np.where(g)</span>
+    <span class="c1">#     m = np.flatnonzero(group_mask)[ig]</span>
+    <span class="c1">#     s_out[m] = hdu.data[ii, jj] &lt;&lt; s_out_unit</span>
+    <span class="c1">#     logger.debug(</span>
+    <span class="c1">#         f&#39;signal range: [{s_out[m].min()}, {s_out[m].max()}]&#39;)</span>
+
+<div class="viewcode-block" id="ImageSourceModel.evaluate"><a class="viewcode-back" href="../../../../api/tolteca.simu.sources.ImageSourceModel.html#tolteca.simu.sources.ImageSourceModel.evaluate">[docs]</a>    <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">lon</span><span class="p">,</span> <span class="n">lat</span><span class="p">,</span> <span class="n">pa</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">NotImplemented</span></div>
+        <span class="c1"># # make group_masks for each label value</span>
+        <span class="c1"># data = self._data</span>
+        <span class="c1"># data_groups = []</span>
+        <span class="c1"># group_names = np.unique(label)</span>
+
+        <span class="c1"># # note the data_g is a dict of hdus keyed off with stokes I Q U</span>
+        <span class="c1"># # and they may not be present so we can save some memory here</span>
+        <span class="c1"># # by only create those that are needed</span>
+        <span class="c1"># s_outs = {</span>
+        <span class="c1">#     &#39;I&#39;: None,</span>
+        <span class="c1">#     &#39;Q&#39;: None,</span>
+        <span class="c1">#     &#39;U&#39;: None</span>
+        <span class="c1">#     }</span>
+        <span class="c1"># for g in group_names:</span>
+        <span class="c1">#     if g not in data:</span>
+        <span class="c1">#         self.logger.debug(f&quot;group {g} not found in data&quot;)</span>
+        <span class="c1">#         continue</span>
+        <span class="c1">#     data_g = self._data[g]</span>
+        <span class="c1">#     m = (label == g)</span>
+        <span class="c1">#     data_groups.append([data_g, m])</span>
+        <span class="c1">#     self.logger.debug(f&quot;group {g}: {m.sum()}/{len(m)}&quot;)</span>
+        <span class="c1">#     for sk in s_outs.keys():</span>
+        <span class="c1">#         if sk in data_g and s_outs[sk] is None:</span>
+        <span class="c1">#             # create this s_out data</span>
+        <span class="c1">#             s_outs[sk] = np.zeros(lon.shape) &lt;&lt; u.MJy / u.sr</span>
+        <span class="c1"># used_stokes_keys = set(</span>
+        <span class="c1">#     sk for sk, arr in s_outs.items() if arr is not None)</span>
+        <span class="c1"># self.logger.debug(</span>
+        <span class="c1">#     f&quot;evaluate {len(data_groups)} groups &quot;</span>
+        <span class="c1">#     f&quot;for Stokes {used_stokes_keys}&quot;)</span>
+
+        <span class="c1"># lon = lon.to_value(u.deg)</span>
+        <span class="c1"># lat = lat.to_value(u.deg)</span>
+
+        <span class="c1"># for data_g, m in data_groups:</span>
+        <span class="c1">#     for sk, hdu in data_g.items():</span>
+        <span class="c1">#         self._set_data_for_group(hdu, m, lon[m], lat[m], s_outs[sk])</span>
+        <span class="c1"># # now we do the polarimetry handling</span>
+        <span class="c1"># if used_stokes_keys == {&#39;I&#39;, }:</span>
+        <span class="c1">#     # this is un-polarized</span>
+        <span class="c1">#     return s_outs[&#39;I&#39;]</span>
+        <span class="c1"># # mix i, Q, and U</span>
+        <span class="c1"># I = s_outs[&#39;I&#39;]  # noqa: E741</span>
+        <span class="c1"># Q = s_outs[&#39;Q&#39;]</span>
+        <span class="c1"># U = s_outs[&#39;U&#39;]</span>
+        <span class="c1"># return 0.5 * (I + np.cos(2. * pa) * Q + np.sin(2. * pa) * U)</span>
+
+<div class="viewcode-block" id="ImageSourceModel.from_file"><a class="viewcode-back" href="../../../../api/tolteca.simu.sources.ImageSourceModel.html#tolteca.simu.sources.ImageSourceModel.from_file">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">from_file</span><span class="p">(</span>
+            <span class="bp">cls</span><span class="p">,</span> <span class="n">filepath</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return source model from FITS image file.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filepath : str, `pathlib.Path`</span>
+<span class="sd">            The path to the FITS file.</span>
+
+<span class="sd">        **kwargs :</span>
+<span class="sd">            Arguments passed to constructor.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># we may be working with large files so let&#39;s just keep this</span>
+        <span class="c1"># open during the program.</span>
+        <span class="c1"># TODO use an exit stack to manage the resource.</span>
+        <span class="n">filepath</span> <span class="o">=</span> <span class="n">ensure_abspath</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
+        <span class="n">hdulist</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
+        <span class="n">kwargs</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="n">filepath</span><span class="o">.</span><span class="n">as_posix</span><span class="p">())</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">hdulist</span><span class="o">=</span><span class="n">hdulist</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="CatalogSourceModel"><a class="viewcode-back" href="../../../../api/tolteca.simu.sources.CatalogSourceModel.html#tolteca.simu.sources.CatalogSourceModel">[docs]</a><span class="k">class</span> <span class="nc">CatalogSourceModel</span><span class="p">(</span><span class="n">SurfaceBrightnessModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The class for simulator source specified by catalog.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    catalog : `astropy.table.Table`</span>
+<span class="sd">        The source catalog.</span>
+
+<span class="sd">    pos_cols : tuple, optional</span>
+<span class="sd">        A 2-tuple specifying the column names of source positions.</span>
+
+<span class="sd">    data_cols : list of dict, optional</span>
+<span class="sd">        A list of dicts that tag the flux column names with labels.</span>
+<span class="sd">        All items shall have matching dict keys, and have the `colname`</span>
+<span class="sd">        key referring to the column name of the catalog.</span>
+<span class="sd">        An educated guess will be made when missing.</span>
+
+<span class="sd">    name_col : str, optional</span>
+<span class="sd">        Specify the column names to included in the returned data.</span>
+<span class="sd">        If None, an educated guess will be made.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">()</span>
+
+    <span class="n">n_inputs</span> <span class="o">=</span> <span class="mi">4</span>
+    <span class="n">n_outputs</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">catalog</span><span class="p">,</span>
+            <span class="n">pos_cols</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;ra&#39;</span><span class="p">,</span> <span class="s1">&#39;dec&#39;</span><span class="p">),</span>
+            <span class="n">name_col</span><span class="o">=</span><span class="s1">&#39;source_name&#39;</span><span class="p">,</span>
+            <span class="n">data_cols</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;label&#39;</span><span class="p">,</span> <span class="s1">&#39;lon&#39;</span><span class="p">,</span> <span class="s1">&#39;lat&#39;</span><span class="p">,</span> <span class="s1">&#39;pa&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_catalog</span> <span class="o">=</span> <span class="n">catalog</span>
+        <span class="c1"># extract and normalize some useful props from the catalog</span>
+        <span class="n">prop_tbl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prop_tbl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_prop_table</span><span class="p">(</span>
+            <span class="n">catalog</span><span class="p">,</span> <span class="n">pos_cols</span><span class="p">,</span> <span class="n">name_col</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;catalog source props:</span><span class="se">\n</span><span class="si">{</span><span class="n">prop_tbl</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="c1"># TODO: add handling of different coordinate system in input</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">SkyCoord</span><span class="p">(</span>
+                <span class="n">prop_tbl</span><span class="p">[</span><span class="s1">&#39;ra&#39;</span><span class="p">],</span> <span class="n">prop_tbl</span><span class="p">[</span><span class="s1">&#39;dec&#39;</span><span class="p">],</span> <span class="n">frame</span><span class="o">=</span><span class="s1">&#39;icrs&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pos</span> <span class="o">=</span> <span class="n">pos</span>
+        <span class="c1"># resolve data cols by replacing column names with the catalog column</span>
+        <span class="n">data_items</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">data_cols</span><span class="p">:</span>
+            <span class="n">colname</span> <span class="o">=</span> <span class="n">item</span><span class="p">[</span><span class="s1">&#39;colname&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">colname</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">catalog</span><span class="o">.</span><span class="n">colnames</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;missing column </span><span class="si">{colname}</span><span class="s2"> in catalog.&quot;</span><span class="p">)</span>
+            <span class="n">data_items</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span>
+                <span class="o">**</span><span class="n">item</span><span class="p">,</span>
+                <span class="n">flux</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_col_quantity</span><span class="p">(</span><span class="n">catalog</span><span class="p">,</span> <span class="n">colname</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">mJy</span><span class="p">)))</span>
+        <span class="c1"># store the data item as table for masked access</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">QTable</span><span class="p">(</span><span class="n">rows</span><span class="o">=</span><span class="n">data_items</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;catalog data:</span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_get_col_quantity</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">tbl</span><span class="p">,</span> <span class="n">colname</span><span class="p">,</span> <span class="n">unit</span><span class="p">):</span>
+        <span class="c1"># get quantity from table column</span>
+        <span class="n">col</span> <span class="o">=</span> <span class="n">tbl</span><span class="p">[</span><span class="n">colname</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">col</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">cls</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;assume unit </span><span class="si">{</span><span class="n">unit</span><span class="si">}</span><span class="s2"> for column </span><span class="si">{</span><span class="n">colname</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">col</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="n">unit</span>
+        <span class="k">if</span> <span class="n">col</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">col</span>
+        <span class="k">return</span> <span class="n">col</span><span class="o">.</span><span class="n">quantity</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_get_prop_table</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">catalog</span><span class="p">,</span> <span class="n">pos_cols</span><span class="p">,</span> <span class="n">name_col</span><span class="o">=</span><span class="s1">&#39;source_name&#39;</span><span class="p">):</span>
+        <span class="c1"># we use a qtable to hold name and pos</span>
+        <span class="n">prop_tbl</span> <span class="o">=</span> <span class="n">QTable</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">name_col</span> <span class="ow">in</span> <span class="n">catalog</span><span class="o">.</span><span class="n">colnames</span><span class="p">:</span>
+            <span class="n">prop_tbl</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_get_col_quantity</span><span class="p">(</span><span class="n">catalog</span><span class="p">,</span> <span class="n">name_col</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">prop_tbl</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s1">&#39;src</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">catalog</span><span class="p">))]</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">((</span><span class="s1">&#39;lon&#39;</span><span class="p">,</span> <span class="s1">&#39;lat&#39;</span><span class="p">),</span> <span class="n">pos_cols</span><span class="p">):</span>
+            <span class="n">prop_tbl</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_get_col_quantity</span><span class="p">(</span><span class="n">catalog</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span>
+        <span class="c1"># keep a record of the original colnames</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">((</span><span class="s1">&#39;lon&#39;</span><span class="p">,</span> <span class="s1">&#39;lat&#39;</span><span class="p">),</span> <span class="n">pos_cols</span><span class="p">):</span>
+            <span class="n">prop_tbl</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">prop_tbl</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">prop_tbl</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">pos</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pos</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span>
+
+<div class="viewcode-block" id="CatalogSourceModel.from_file"><a class="viewcode-back" href="../../../../api/tolteca.simu.sources.CatalogSourceModel.html#tolteca.simu.sources.CatalogSourceModel.from_file">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">from_file</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">filepath</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return source model from catalog file.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filepath : str, `pathlib.Path`</span>
+<span class="sd">            The path to the catalog file.</span>
+
+<span class="sd">        **kwargs</span>
+<span class="sd">            Arguments passed to constructor.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">filepath</span> <span class="o">=</span> <span class="n">ensure_abspath</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
+        <span class="n">catalog</span> <span class="o">=</span> <span class="n">Table</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;ascii&#39;</span><span class="p">)</span>
+        <span class="n">kwargs</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="n">filepath</span><span class="o">.</span><span class="n">as_posix</span><span class="p">())</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">catalog</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CatalogSourceModel.evaluate"><a class="viewcode-back" href="../../../../api/tolteca.simu.sources.CatalogSourceModel.html#tolteca.simu.sources.CatalogSourceModel.evaluate">[docs]</a>    <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># TODO a trivial implementation of this is too slow. Need to figure</span>
+        <span class="c1"># out a better one</span>
+        <span class="k">return</span> <span class="bp">NotImplemented</span></div>
+
+<div class="viewcode-block" id="CatalogSourceModel.make_image_model"><a class="viewcode-back" href="../../../../api/tolteca.simu.sources.CatalogSourceModel.html#tolteca.simu.sources.CatalogSourceModel.make_image_model">[docs]</a>    <span class="k">def</span> <span class="nf">make_image_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fwhms</span><span class="p">,</span> <span class="n">pixscale</span><span class="p">):</span>
+        <span class="c1"># fwhms is a dict keyed by the array_names</span>
+        <span class="n">pixscale</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">pixel_scale</span><span class="p">(</span><span class="n">pixscale</span><span class="p">)</span>
+        <span class="n">delta_pix</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">pix</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">arcsec</span><span class="p">,</span> <span class="n">equivalencies</span><span class="o">=</span><span class="n">pixscale</span><span class="p">)</span>
+        <span class="n">data_tbl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
+
+        <span class="c1"># we convert all fwhms to pixels and create a gaussian PSF model</span>
+        <span class="c1"># for each data table entry</span>
+
+        <span class="k">def</span> <span class="nf">make_gauss_psf_model</span><span class="p">(</span><span class="n">a_fwhm</span><span class="p">,</span> <span class="n">b_fwhm</span><span class="p">):</span>
+            <span class="c1"># here we keep the flux in unit of surface brightness but</span>
+            <span class="c1"># x and y are in pix</span>
+            <span class="n">a_stddev</span> <span class="o">=</span> <span class="p">(</span><span class="n">a_fwhm</span> <span class="o">/</span> <span class="n">GAUSSIAN_SIGMA_TO_FWHM</span><span class="p">)</span>
+            <span class="n">b_stddev</span> <span class="o">=</span> <span class="p">(</span><span class="n">b_fwhm</span> <span class="o">/</span> <span class="n">GAUSSIAN_SIGMA_TO_FWHM</span><span class="p">)</span>
+            <span class="n">beam_area</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">a_stddev</span> <span class="o">*</span> <span class="n">b_stddev</span>
+            <span class="k">return</span> <span class="n">models</span><span class="o">.</span><span class="n">Gaussian2D</span><span class="p">(</span>
+                    <span class="n">amplitude</span><span class="o">=</span><span class="mf">1.</span> <span class="o">/</span> <span class="n">beam_area</span><span class="p">,</span>
+                    <span class="n">x_mean</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span>
+                    <span class="n">y_mean</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span>
+                    <span class="n">x_stddev</span><span class="o">=</span><span class="n">a_stddev</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span>
+                        <span class="n">u</span><span class="o">.</span><span class="n">pix</span><span class="p">,</span> <span class="n">equivalencies</span><span class="o">=</span><span class="n">pixscale</span>
+                        <span class="p">),</span>
+                    <span class="n">y_stddev</span><span class="o">=</span><span class="n">b_stddev</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span>
+                        <span class="n">u</span><span class="o">.</span><span class="n">pix</span><span class="p">,</span> <span class="n">equivalencies</span><span class="o">=</span><span class="n">pixscale</span>
+                        <span class="p">),</span>
+                    <span class="p">)</span>
+
+        <span class="c1"># keep a record of max fwhm in pix so we can use it as the padding</span>
+        <span class="n">fwhm_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">fwhms</span><span class="o">.</span><span class="n">values</span><span class="p">())))</span>
+
+        <span class="n">d_psf_models</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">array_name</span><span class="p">:</span> <span class="n">make_gauss_psf_model</span><span class="p">(</span><span class="n">fwhm</span><span class="p">,</span> <span class="n">fwhm</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">array_name</span><span class="p">,</span> <span class="n">fwhm</span> <span class="ow">in</span> <span class="n">fwhms</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">}</span>
+
+        <span class="c1"># make a list of models that matches with the data table</span>
+        <span class="n">psf_models</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">data_tbl</span><span class="p">:</span>
+            <span class="n">psf_models</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">d_psf_models</span><span class="p">[</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;array_name&#39;</span><span class="p">]])</span>
+
+        <span class="c1"># Here we create the fits image with the same WCS for all extensions</span>
+        <span class="c1"># TODO: maybe it is more efficient to use different WCS per ext?</span>
+        <span class="c1"># use the first pos as the reference to build the image wcs</span>
+        <span class="n">ref_coord</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">wcsobj</span> <span class="o">=</span> <span class="n">WCS</span><span class="p">(</span><span class="n">naxis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">wcsobj</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">crpix</span> <span class="o">=</span> <span class="p">[</span><span class="mf">1.5</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">]</span>
+        <span class="n">wcsobj</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cdelt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span>
+            <span class="o">-</span><span class="n">delta_pix</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">),</span>
+            <span class="n">delta_pix</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">),</span>
+            <span class="p">])</span>
+        <span class="n">wcsobj</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">ctype</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;RA---TAN&quot;</span><span class="p">,</span> <span class="s2">&quot;DEC--TAN&quot;</span><span class="p">]</span>
+        <span class="n">wcsobj</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">crval</span> <span class="o">=</span> <span class="p">[</span><span class="n">ref_coord</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">degree</span><span class="p">,</span> <span class="n">ref_coord</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">degree</span><span class="p">]</span>
+
+        <span class="c1"># compute the pixel range of the catalog for this wcs</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">wcsobj</span><span class="o">.</span><span class="n">wcs_world2pix</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">ra</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">dec</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">l</span><span class="p">,</span> <span class="n">r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">b</span><span class="p">,</span> <span class="n">t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">y</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+        <span class="n">w</span><span class="p">,</span> <span class="n">h</span> <span class="o">=</span> <span class="n">r</span> <span class="o">-</span> <span class="n">l</span><span class="p">,</span> <span class="n">t</span> <span class="o">-</span> <span class="n">b</span>
+        <span class="c1"># size of the square bbox, with added padding on the edge</span>
+        <span class="c1"># from the psf model</span>
+        <span class="n">padding</span> <span class="o">=</span> <span class="mi">10</span> <span class="o">*</span> <span class="n">fwhm_max</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">pix</span><span class="p">,</span> <span class="n">equivalencies</span><span class="o">=</span><span class="n">pixscale</span><span class="p">)</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">([</span><span class="n">w</span><span class="p">,</span> <span class="n">h</span><span class="p">])</span> <span class="o">+</span> <span class="n">padding</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;source image size: </span><span class="si">{</span><span class="n">s</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="c1"># figure out center coord on sky and re-center the wcs</span>
+        <span class="n">c_x</span> <span class="o">=</span> <span class="p">(</span><span class="n">l</span> <span class="o">+</span> <span class="n">r</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="n">c_y</span> <span class="o">=</span> <span class="p">(</span><span class="n">b</span> <span class="o">+</span> <span class="n">t</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="n">c_ra</span><span class="p">,</span> <span class="n">c_dec</span> <span class="o">=</span> <span class="n">wcsobj</span><span class="o">.</span><span class="n">wcs_pix2world</span><span class="p">(</span><span class="n">c_x</span><span class="p">,</span> <span class="n">c_y</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">wcsobj</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">crpix</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span> <span class="o">/</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">s</span> <span class="o">/</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="n">wcsobj</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">crval</span> <span class="o">=</span> <span class="n">c_ra</span><span class="p">,</span> <span class="n">c_dec</span>
+        <span class="n">header</span> <span class="o">=</span> <span class="n">wcsobj</span><span class="o">.</span><span class="n">to_header</span><span class="p">()</span>
+        <span class="c1"># compute the pixel positions with the new wcs</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">wcsobj</span><span class="o">.</span><span class="n">wcs_world2pix</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">ra</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">dec</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="c1"># just a sanity check of the pixel values of all catalog sources</span>
+        <span class="c1"># are within the footprint</span>
+        <span class="k">assert</span> <span class="p">((</span><span class="n">x</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">x</span> <span class="o">&gt;</span> <span class="n">s</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span>
+        <span class="k">assert</span> <span class="p">((</span><span class="n">y</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">y</span> <span class="o">&gt;</span> <span class="n">s</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span>
+
+        <span class="c1"># render the image for each data table entry</span>
+
+        <span class="n">hdus</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="n">data_exts</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">entry</span><span class="p">,</span> <span class="n">psf_model</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">data_tbl</span><span class="p">,</span> <span class="n">psf_models</span><span class="p">)):</span>
+            <span class="c1"># make hdu for model psf_model with flux in entry[&#39;flux&#39;]</span>
+            <span class="c1"># note flux is a vector</span>
+            <span class="n">data_ext</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="n">c</span><span class="p">:</span> <span class="n">entry</span><span class="p">[</span><span class="n">c</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">data_tbl</span><span class="o">.</span><span class="n">colnames</span>
+                <span class="p">}</span>
+            <span class="n">flux</span> <span class="o">=</span> <span class="n">data_ext</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;flux&#39;</span><span class="p">)</span>
+            <span class="n">extname</span> <span class="o">=</span> <span class="n">data_ext</span><span class="p">[</span><span class="s1">&#39;extname&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">data_ext</span><span class="p">[</span><span class="s2">&quot;colname&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span>
+            <span class="n">amp</span> <span class="o">=</span> <span class="p">(</span><span class="n">flux</span> <span class="o">*</span> <span class="n">psf_model</span><span class="o">.</span><span class="n">amplitude</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">MJy</span> <span class="o">/</span> <span class="n">u</span><span class="o">.</span><span class="n">sr</span><span class="p">)</span>
+            <span class="n">img</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">s</span><span class="p">,</span> <span class="n">s</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span> <span class="o">&lt;&lt;</span> <span class="n">u</span><span class="o">.</span><span class="n">MJy</span> <span class="o">/</span> <span class="n">u</span><span class="o">.</span><span class="n">sr</span>
+            <span class="c1"># make a copy of the model so we update the info</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="n">psf_model</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="k">with</span> <span class="n">timeit</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;render </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">amp</span><span class="p">)</span><span class="si">}</span><span class="s2"> sources for ext </span><span class="si">{</span><span class="n">extname</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">xx</span><span class="p">,</span> <span class="n">yy</span><span class="p">,</span> <span class="n">aa</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">amp</span><span class="p">):</span>
+                    <span class="n">m</span><span class="o">.</span><span class="n">amplitude</span> <span class="o">=</span> <span class="n">aa</span>
+                    <span class="n">m</span><span class="o">.</span><span class="n">x_mean</span> <span class="o">=</span> <span class="n">xx</span>
+                    <span class="n">m</span><span class="o">.</span><span class="n">y_mean</span> <span class="o">=</span> <span class="n">yy</span>
+                    <span class="n">m</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">img</span><span class="p">)</span>
+            <span class="c1"># create the hdu with wcs and data</span>
+            <span class="n">hdu</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">ImageHDU</span><span class="p">(</span>
+                <span class="n">img</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">MJy</span> <span class="o">/</span> <span class="n">u</span><span class="o">.</span><span class="n">sr</span><span class="p">),</span> <span class="n">header</span><span class="o">=</span><span class="n">header</span><span class="p">)</span>
+            <span class="n">hdu</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;SIGUNIT&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;MJy / sr&#39;</span>
+            <span class="n">hdu</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;EXTNAME&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">extname</span>
+            <span class="n">hdus</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">hdu</span><span class="p">)</span>
+            <span class="n">data_exts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data_ext</span><span class="p">)</span>
+
+        <span class="c1"># import matplotlib.pyplot as plt</span>
+        <span class="c1"># fig, axes = plt.subplots(3, 3)</span>
+        <span class="c1"># for i, hdu in enumerate(hdus):</span>
+        <span class="c1">#     ax = axes.ravel()[i]</span>
+        <span class="c1">#     ax.imshow(hdu.data)</span>
+        <span class="c1">#     ax.set_title(hdu.header[&#39;EXTNAME&#39;])</span>
+        <span class="c1"># plt.show()</span>
+        <span class="k">return</span> <span class="n">ImageSourceModel</span><span class="p">(</span>
+                <span class="n">hdulist</span><span class="o">=</span><span class="n">hdus</span><span class="p">,</span>
+                <span class="n">data_exts</span><span class="o">=</span><span class="n">data_exts</span><span class="p">,</span>
+                <span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                <span class="p">)</span></div></div>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
+  </p>
+</footer>
+  </body>
+</html>

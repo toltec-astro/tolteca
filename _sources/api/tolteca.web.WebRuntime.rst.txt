@@ -1,0 +1,31 @@
+WebRuntime
+==========
+
+.. currentmodule:: tolteca.web
+
+.. autoclass:: WebRuntime
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~WebRuntime.config
+      ~WebRuntime.logger
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~WebRuntime.run
+      ~WebRuntime.update_from_env_loader
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: config
+   .. autoattribute:: logger
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: run
+   .. automethod:: update_from_env_loader

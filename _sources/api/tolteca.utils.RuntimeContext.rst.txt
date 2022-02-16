@@ -10,36 +10,48 @@ RuntimeContext
 
    .. autosummary::
 
+      ~RuntimeContext.bindir
+      ~RuntimeContext.caldir
       ~RuntimeContext.config
-      ~RuntimeContext.config_files
+      ~RuntimeContext.config_backend
+      ~RuntimeContext.config_info
+      ~RuntimeContext.docdir
       ~RuntimeContext.is_persistent
+      ~RuntimeContext.logdir
       ~RuntimeContext.logger
       ~RuntimeContext.rootpath
+      ~RuntimeContext.runtime_info
+      ~RuntimeContext.setup_info
 
    .. rubric:: Methods Summary
 
    .. autosummary::
 
-      ~RuntimeContext.extend_config_schema
-      ~RuntimeContext.from_config
       ~RuntimeContext.from_dir
+      ~RuntimeContext.get_setup_rc
       ~RuntimeContext.setup
-      ~RuntimeContext.symlink_to_bindir
-      ~RuntimeContext.update
+      ~RuntimeContext.yaml_dump
+      ~RuntimeContext.yaml_load
 
    .. rubric:: Attributes Documentation
 
+   .. autoattribute:: bindir
+   .. autoattribute:: caldir
    .. autoattribute:: config
-   .. autoattribute:: config_files
+   .. autoattribute:: config_backend
+   .. autoattribute:: config_info
+   .. autoattribute:: docdir
    .. autoattribute:: is_persistent
+   .. autoattribute:: logdir
    .. autoattribute:: logger
    .. autoattribute:: rootpath
+   .. autoattribute:: runtime_info
+   .. autoattribute:: setup_info
 
    .. rubric:: Methods Documentation
 
-   .. automethod:: extend_config_schema
-   .. automethod:: from_config
    .. automethod:: from_dir
+   .. automethod:: get_setup_rc
    .. automethod:: setup
-   .. automethod:: symlink_to_bindir
-   .. automethod:: update
+   .. automethod:: yaml_dump
+   .. automethod:: yaml_load

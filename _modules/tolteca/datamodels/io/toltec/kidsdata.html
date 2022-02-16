@@ -5,7 +5,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>tolteca.datamodels.io.toltec.kidsdata &#8212; tolteca v0.1.dev323+g1c6dc6b</title>
+    <title>tolteca.datamodels.io.toltec.kidsdata &#8212; tolteca v1.1.1.dev0+g81c4624.d20220216</title>
     <link rel="stylesheet" type="text/css" href="../../../../../_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/bootstrap-astropy.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/graphviz.css" />
@@ -47,7 +47,7 @@
     <h3>Navigation</h3>
     <ul>
       <li>
-	<a href="../../../../../index.html">tolteca v0.1.dev323+g1c6dc6b</a>
+	<a href="../../../../../index.html">tolteca v1.1.1.dev0+g81c4624.d20220216</a>
 	 &#187;
       </li>
       <li><a href="../../../../index.html" accesskey="U">Module code</a> &#187;</li>
@@ -180,7 +180,9 @@
             <span class="n">func</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span>
                             <span class="n">_axis_loc</span><span class="p">,</span> <span class="n">axis_type</span><span class="o">=</span><span class="n">t</span><span class="p">)</span>
             <span class="n">name</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">t</span><span class="si">}</span><span class="s1">_loc&#39;</span>
-            <span class="nb">setattr</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="nb">property</span><span class="p">(</span><span class="n">func</span><span class="p">))</span>
+            <span class="n">prop</span> <span class="o">=</span> <span class="nb">property</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+            <span class="n">prop</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;The axis slicer for locating </span><span class="si">{</span><span class="n">t</span><span class="si">}</span><span class="s1">.&#39;</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">prop</span><span class="p">)</span>
 
 
 <span class="k">class</span> <span class="nc">_KidsDataAxisSlicer</span><span class="p">(</span><span class="nb">object</span><span class="p">,</span> <span class="n">metaclass</span><span class="o">=</span><span class="n">_KidsDataAxisSlicerMeta</span><span class="p">):</span>
@@ -457,7 +459,7 @@
     <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s1">(</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">filepath</span><span class="si">}</span><span class="s1">)&#39;</span>
 
-    <span class="k">def</span> <span class="nf">open</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="NcFileIO.open"><a class="viewcode-back" href="../../../../../api/tolteca.datamodels.io.NcFileIO.html#tolteca.datamodels.io.NcFileIO.open">[docs]</a>    <span class="k">def</span> <span class="nf">open</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return a context to operate on `source`.</span>
 
 <span class="sd">        Parameters</span>
@@ -503,7 +505,7 @@
         <span class="c1"># trigger loading the meta on open if requested</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_meta_on_open</span><span class="p">:</span>
             <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span>  <span class="c1"># noqa: F841</span>
-        <span class="k">return</span> <span class="bp">self</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
 
     <span class="nd">@staticmethod</span>
     <span class="k">def</span> <span class="nf">_create_node_mappers</span><span class="p">(</span><span class="n">node_maps</span><span class="p">):</span>
@@ -766,13 +768,13 @@
             <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tone_axis_data</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">result</span>
 
-    <span class="k">def</span> <span class="nf">get_tone_axis_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">block_index</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="NcFileIO.get_tone_axis_data"><a class="viewcode-back" href="../../../../../api/tolteca.datamodels.io.NcFileIO.html#tolteca.datamodels.io.NcFileIO.get_tone_axis_data">[docs]</a>    <span class="k">def</span> <span class="nf">get_tone_axis_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">block_index</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the tones at `block_index`.</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">iblock</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_block_index</span><span class="p">(</span>
                 <span class="n">block_index</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tone_axis_data</span><span class="p">[</span><span class="n">iblock</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tone_axis_data</span><span class="p">[</span><span class="n">iblock</span><span class="p">]</span></div>
 
     <span class="k">def</span> <span class="nf">_get_raw_sweep_sweep_axis_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the sweep steps.</span>
@@ -850,7 +852,7 @@
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_raw_sweep_sweep_axis_data</span><span class="p">()</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_reduced_sweep_sweep_axis_data</span><span class="p">()</span>
 
-    <span class="k">def</span> <span class="nf">get_sweep_axis_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">block_index</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="NcFileIO.get_sweep_axis_data"><a class="viewcode-back" href="../../../../../api/tolteca.datamodels.io.NcFileIO.html#tolteca.datamodels.io.NcFileIO.get_sweep_axis_data">[docs]</a>    <span class="k">def</span> <span class="nf">get_sweep_axis_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">block_index</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the tones at `block_index`.</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -861,9 +863,9 @@
                     <span class="sa">f</span><span class="s2">&quot;no sweep axis for data kind of </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">data_kind</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="n">iblock</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_block_index</span><span class="p">(</span>
                 <span class="n">block_index</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">data</span><span class="p">[</span><span class="n">iblock</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">data</span><span class="p">[</span><span class="n">iblock</span><span class="p">]</span></div>
 
-    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">slicer_args</span><span class="p">):</span>
+<div class="viewcode-block" id="NcFileIO.read"><a class="viewcode-back" href="../../../../../api/tolteca.datamodels.io.NcFileIO.html#tolteca.datamodels.io.NcFileIO.read">[docs]</a>    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">slicer_args</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Read the file and return a data object.</span>
 
 <span class="sd">        Parameters</span>
@@ -877,7 +879,7 @@
         <span class="n">slicer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_loc</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">slicer_args</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">slicer</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">slicer</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">t</span><span class="si">}</span><span class="s1">_loc&#39;</span><span class="p">)(</span><span class="n">arg</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_sliced</span><span class="p">(</span><span class="n">slicer</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_sliced</span><span class="p">(</span><span class="n">slicer</span><span class="p">)</span></div>
 
     <span class="k">def</span> <span class="nf">_resolve_slice</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slicer</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Read the file for data specified by the `slicer`.&quot;&quot;&quot;</span>
@@ -1235,9 +1237,9 @@
   <p class="pull-right"> &nbsp;
     <a href="#">Back to Top</a></p>
   <p>
-    &copy; Copyright 2021, Zhiyuan Ma.<br/>
-    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.0.2. &nbsp;
-    Last built 18 Jun 2021. <br/>
+    &copy; Copyright 2022, Zhiyuan Ma.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 4.4.0. &nbsp;
+    Last built 15 Feb 2022. <br/>
   </p>
 </footer>
   </body>

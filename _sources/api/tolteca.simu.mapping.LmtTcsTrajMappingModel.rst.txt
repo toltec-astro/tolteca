@@ -1,0 +1,7 @@
+LmtTcsTrajMappingModel
+======================
+
+.. currentmodule:: tolteca.simu.mapping
+
+.. autoclass:: LmtTcsTrajMappingModel
+   :show-inheritance:

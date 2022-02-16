@@ -1,6 +1,0 @@
-get_lmt_atm_models
-==================
-
-.. currentmodule:: tolteca.simu.toltec.lmt
-
-.. autofunction:: get_lmt_atm_models

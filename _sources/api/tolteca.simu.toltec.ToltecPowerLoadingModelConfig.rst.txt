@@ -1,0 +1,31 @@
+ToltecPowerLoadingModelConfig
+=============================
+
+.. currentmodule:: tolteca.simu.toltec
+
+.. autoclass:: ToltecPowerLoadingModelConfig
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~ToltecPowerLoadingModelConfig.logger
+      ~ToltecPowerLoadingModelConfig.name
+      ~ToltecPowerLoadingModelConfig.schema
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~ToltecPowerLoadingModelConfig.__call__
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: logger
+   .. autoattribute:: name
+   .. autoattribute:: schema
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
