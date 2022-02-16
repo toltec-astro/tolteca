@@ -211,3 +211,5 @@ linkcheck_anchors = False
 # apidoc_output_dir = 'apidoc'
 # apidoc_excluded_paths = ['tests']
 # apidoc_separate_modules = True
+extensions += ['sphinx.ext.todo', ]
+todo_include_todos = True

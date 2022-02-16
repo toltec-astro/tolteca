@@ -2,8 +2,9 @@
 
 from contextlib import ExitStack
 from astropy.utils.metadata import MetaData
+from pathlib import Path
 from tollan.utils import fileloc, FileLoc
-from tollan.utils.nc import ncopen, NcNodeMapperMixin
+# from tollan.utils.nc import ncopen, NcNodeMapperMixin
 from .registry import io_registry as io_registry
 
 

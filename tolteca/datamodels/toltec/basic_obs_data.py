@@ -33,15 +33,17 @@ class BasicObsData(DataFileIO):
         >>> from tolteca.datamodels.toltec import BasicObsData
         >>> bod = BasicObsData('toltec0.nc')
         >>> with bod.open() as fo:
-        >>>     # `fo` is a `~tolteca.datamodels.io.toltec.NcFileIO` instance.
+        >>>     # ``fo`` is a `~tolteca.datamodels.io.toltec.NcFileIO`
+        >>>     # instance.
         >>>     kidsdata = fo.read()
 
-        The above can also be done via the `open_file` shortcut as follows::
+    The above can also be done via the :meth:`BasicObsData.open` shortcut
+    as follows::
 
         >>> with BasicObsData.open('toltec0.nc') as fo:
         >>>     kidsdata = fo.read()
 
-        This can further be shortened as::
+    This can further be shortened as::
 
         >>> kidsdata = BasicObsData.read('toltec0.nc')
 
@@ -57,7 +59,7 @@ class BasicObsData(DataFileIO):
     ----------
     source : str, `~pathlib.Path`, `~tollan.utils.FileLoc`.
         The data file location. Remote locations can be specified in
-        either URL or SFTP format ``<host>:<path>`.
+        either URL or SFTP format ``<host>:<path>``.
 
     open_: bool
         If True, attemp to open the file to load meta data.
@@ -376,7 +378,7 @@ class BasicObsDataset(object):
 
         When `cond` is a string, the index table is converted to
         `~pandas.DataFrame` and the selection is done by
-        :meta:`~pandas.DataFrame.eval`.
+        :meth:`~pandas.DataFrame.eval`.
 
         Parameters
         ----------

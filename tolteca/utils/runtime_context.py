@@ -750,7 +750,7 @@ class RuntimeContext(object):
     The class provides a registry that maps itself to subclasses of
     `RuntimeBase`, a consumer class of this class. Objects of
     `RuntimeBase` subclasses can be constructed conveniently using the
-    ``__get_item__` interface::
+    ``__get_item__`` interface::
 
     >>> from tolteca.simu import SimulatorRuntime
     >>> from tolteca.reduce import PipelineRuntime

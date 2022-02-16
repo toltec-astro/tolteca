@@ -115,7 +115,9 @@ class _KidsDataAxisSlicerMeta(ABCMeta):
             func = functools.partial(
                             _axis_loc, axis_type=t)
             name = f'{t}_loc'
-            setattr(cls, name, property(func))
+            prop = property(func)
+            prop.__doc__ = f'The axis slicer for locating {t}.'
+            setattr(cls, name, prop)
 
 
 class _KidsDataAxisSlicer(object, metaclass=_KidsDataAxisSlicerMeta):

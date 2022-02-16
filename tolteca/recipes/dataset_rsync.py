@@ -17,7 +17,9 @@ https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#indexing-q
 
 Example usage:
 
-1. The following prints a list of files according to the selection string::
+1. The following prints a list of files according to the selection string
+
+.. code-block:: console
 
     # noqa: E501
     $ python dataset_rsync.py taco:/data/data_toltec/reduced/ -s "(obsid>10232) & (fileext=='txt')"
@@ -34,7 +36,9 @@ Example usage:
 
 2. The following will download the matched files to specified directory.
    Optionally, specify [-f] -o <FILENAME> to also same an dataset index table
-   for later use::
+   for later use
+
+.. code-block:: console
 
     $ python dataset_rsync.py taco:/data/data_toltec/reduced/ -s "(obsid>10232) & (nwid==3) & (fileext=='txt')" -d my_local_data_dir -f -o dataset_for_bla.asc
 
