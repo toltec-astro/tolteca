@@ -53,7 +53,7 @@ def make_offset_mapping_model_config_cls(key, offset_mapping_model_cls):
         str,
         Optional(
             'target_frame',
-            default='icrs',
+            default=_get_frame_inst('icrs'),
             description='The frame the target coordinate is specified in.'):
         Use(_get_frame_inst),
         Literal(
@@ -88,12 +88,19 @@ def make_offset_mapping_model_config_cls(key, offset_mapping_model_cls):
         self._m_cls = mcls
         self._m_params = params
 
-    def _call(self, cfg):
-        return self._m_cls(**self._m_params).get_traj_model(
+    def _get_offset_model(self):
+        return self._m_cls(**self._m_params)
+
+    def _get_model(self, observer):
+        return self.get_offset_model().get_traj_model(
             target=self.target_coord,
-            ref_frame=self.ref_frame, t0=self.t0,
-            observer=cfg.instrument.observer
+            ref_frame=self.ref_frame,
+            t0=self.t0,
+            observer=observer
             )
+
+    def _call(self, cfg):
+        return self.get_model(cfg.instrument.observer)
 
     config_cls = type(
         f"{key.capitalize()}MappingConfig",
@@ -101,7 +108,14 @@ def make_offset_mapping_model_config_cls(key, offset_mapping_model_cls):
             '__init__': _init,
             '__call__': _call,
             '_namespace_from_dict_schema': Schema(s),
+            '_namespace_to_dict_schema': Schema({
+                'target_frame': Use(lambda f: f.name),
+                'ref_frame': Use(lambda f: f.name),
+                str: object
+                }),
             'model_cls': mcls,
+            'get_offset_model': _get_offset_model,
+            'get_model': _get_model,
             'logger': get_logger(),
             })
     mapping_registry.register(

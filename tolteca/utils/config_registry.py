@@ -163,6 +163,6 @@ class ConfigRegistry(Registry):
         s.append_post_validate_func(remove_dispatcher_entry)
 
         # make the dispatcher a readonly property on the class
-        item.name = property(lambda self: dispatcher_value)
+        setattr(item, dispatcher_key, property(lambda self: dispatcher_value))
 
         return s
