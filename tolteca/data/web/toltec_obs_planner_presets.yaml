@@ -1,0 +1,267 @@
+# vim: et ts=2 sts=2 sw=2
+---
+presets:
+- type: mapping
+  key: blank_field_raster
+  label: "Large - 3 x 3 deg² raster, ~40min)"
+  description: 'A large raster scan pattern for blank field observation.'
+  description_long: |
+    The raster pattern is our go-to pattern for making large maps with
+    high speed scan.
+  data:
+  - key: type
+    value: raster
+    component_type: text
+    component_kw:
+      input_props:
+        disabled: true
+  - key: length
+    unit: deg
+    value: 3
+    value_min: 0
+    value_max: 10
+  - key: space
+    unit: arcmin
+    value: 2
+    value_min: 0
+    value_max: 4
+  - key: n_scans
+    value: 91
+    value_min: 0
+  - key: speed
+    unit: arcmin/s
+    value: 8
+    value_min: 2
+    value_max: 10
+  - key: t_turnaround
+    unit: s
+    value: 5
+    value_min: 0
+    value_max: 20
+  - key: rot
+    unit: deg
+    value: 0
+    value_min: 0
+    value_max: 360
+- type: mapping
+  key: blank_field_rastajous
+  label: "Medium - 12 x 12 arcmin² rastajous, ~20min)"
+  description: 'A rastajous pattern for medium-sized field observation.'
+  description_long: |
+    A Rastajous is a combination of a Double Lissajous and a Raster map.  The
+    idea is that the lissajous pattern will be slowly swept over a larger
+    field, akin to painting with a very fat brush.  The key is to get the
+    relative timing of the two patterns right.  The raster part of the map
+    should be pretty slow so that the turns at the ends of the scans can be
+    preserved.
+  data:
+  - key: type
+    value: rastajous
+    component_type: text
+    component_kw:
+      input_props:
+        disabled: true
+  - key: length
+    unit: arcmin
+    value: 10
+    value_min: 5
+    value_max: 30
+  - key: space
+    unit: arcmin
+    value: 1
+    value_min: 0
+    value_max: 4
+  - key: n_scans
+    value: 10
+    value_min: 0
+  - key: speed
+    unit: arcsec/s
+    value: 5
+    value_min: 2
+  - key: t_turnaround
+    unit: s
+    value: 12
+    value_min: 0
+    value_max: 20
+    description: |
+      The turnaround time for the rastajous. This value needs to be carefully
+      estimated to match the raster scan speed. A rule of thumb is to use
+      [space/speed].
+  - key: rot
+    unit: deg
+    value: 0
+    value_min: 0
+    value_max: 360
+  - key: delta
+    unit: deg
+    value: 0
+    value_min: 0
+    value_max: 360
+  - key: x_length_0
+    unit: arcmin
+    value: 2.0
+    value_min: 2
+    value_max: 6
+  - key: y_length_0
+    unit: arcmin
+    value: 2.0
+    value_min: 2
+    value_max: 6
+  - key: x_omega_0
+    unit: rad/s
+    value: 9.2
+    value_min: 0
+  - key: y_omega_0
+    unit: rad/s
+    value: 8
+    value_min: 0
+  - key: delta_0
+    unit: deg
+    value: 45
+    value_min: 0
+    value_max: 360
+  - key: x_length_1
+    unit: arcmin
+    value: 0.5
+    value_min: 0
+    value_max: 2
+  - key: y_length_1
+    unit: arcmin
+    value: 0.5
+    value_min: 0
+    value_max: 2
+  - key: x_omega_1
+    unit: rad/s
+    value: 0.46
+    value_min: 0
+  - key: y_omega_1
+    unit: rad/s
+    value: 0.4
+    value_min: 0
+  - key: delta_1
+    unit: deg
+    value: 45
+    value_min: 0
+    value_max: 360
+- type: mapping
+  key: blank_field_double_lissajous
+  label: "Small - 6 x 6 arcmin² double_lissajous, 10min)"
+  description: 'A double lissajous pattern for small-sized field observation.'
+  description_long: |
+    This is the advanced lissajous pattern which simply sums to other lissajous
+    patterns.  The general idea is to have a small, slow lissajous run
+    underneath a larger lissajous pattern.  We haven't optimized the parameters
+    for these yet but eventually we will and then we'll set them as the
+    defaults here.
+  data:
+  - key: type
+    value: double_lissajous
+    component_type: text
+    component_kw:
+      input_props:
+        disabled: true
+  - key: x_length_0
+    unit: arcmin
+    value: 3.5
+    value_min: 2
+    value_max: 6
+  - key: y_length_0
+    unit: arcmin
+    value: 3.5
+    value_min: 2
+    value_max: 6
+  - key: x_omega_0
+    unit: rad/s
+    value: 9.2
+    value_min: 0
+  - key: y_omega_0
+    unit: rad/s
+    value: 8
+    value_min: 0
+  - key: delta_0
+    unit: deg
+    value: 45
+    value_min: 0
+    value_max: 360
+  - key: x_length_1
+    unit: arcmin
+    value: 0.5
+    value_min: 0
+    value_max: 2
+  - key: y_length_1
+    unit: arcmin
+    value: 0.5
+    value_min: 0
+    value_max: 2
+  - key: x_omega_1
+    unit: rad/s
+    value: 0.46
+    value_min: 0
+  - key: y_omega_1
+    unit: rad/s
+    value: 0.4
+    value_min: 0
+  - key: delta_1
+    unit: deg
+    value: 45
+    value_min: 0
+    value_max: 360
+  - key: delta
+    unit: deg
+    value: 22.5
+    value_min: 0
+    value_max: 360
+  - key: rot
+    unit: deg
+    value: 0
+    value_min: 0
+    value_max: 360
+- type: mapping
+  key: blank_field_lissajous
+  label: "Small - 6 x 6 arcmin² lissajous, 10min)"
+  description: 'A lissajous scan pattern for small field observation.'
+  description_long: |
+    This is the most basic lissajous pattern.  It is useful for photometry maps
+    and other very compact maps.  Making the x and y lengths too large will
+    result in very uneven coverage and so is discouraged.  Try the Double
+    Lissajous or rastajous in that case instead.
+  data:
+  - key: type
+    value: lissajous
+    component_type: text
+    component_kw:
+      input_props:
+        disabled: true
+  - key: x_length
+    unit: arcmin
+    value: 4.0
+    value_min: 2
+    value_max: 6
+  - key: y_length
+    unit: arcmin
+    value: 4.0
+    value_min: 2
+    value_max: 6
+  - key: x_omega
+    unit: rad/s
+    value: 9.2
+    value_min: 0
+  - key: y_omega
+    unit: rad/s
+    value: 8
+    value_min: 0
+  - key: delta
+    unit: deg
+    value: 45
+    value_min: 0
+    value_max: 360
+  - key: rot
+    unit: deg
+    value: 0
+    value_min: 0
+    value_max: 360
+  - key: t_exp
+    unit: min
+    value: 10
+    value_min: 1
+    description: 'Exposure time of observation.'
