@@ -17,6 +17,8 @@ import astropy.units as u
 from astroquery.utils import parse_coordinates
 from astropy.coordinates import SkyCoord
 from astropy.time import Time
+from astropy.coordinates.erfa_astrom import (
+        erfa_astrom, ErfaAstromInterpolator)
 from astroplan import FixedTarget
 from astroplan import (AltitudeConstraint, AtNightConstraint)
 from astroplan import observability_table
@@ -34,6 +36,7 @@ from tollan.utils.log import get_logger, timeit
 from tollan.utils.fmt import pformat_yaml
 from tollan.utils import rupdate
 from tollan.utils.dataclass_schema import add_schema
+from tollan.utils.namespace import Namespace
 
 from ....utils import yaml_load, yaml_dump
 from ....simu.toltec.lmt import lmt_info
@@ -90,7 +93,7 @@ class Lmt(ObsSite, name='lmt'):
 
     def make_site_info_display(self, container):
         info_container = container.child(
-                CollapseContent(button_text='Site Info ...')
+                CollapseContent(button_text='Current Site Info ...')
             ).content
         info_panel = info_container.child(self.InfoPanel(site=self))
         return info_panel
@@ -416,9 +419,13 @@ class ObsPlanner(ComponentTemplate):
         controls_panel.style = {
                     'width': '375px'
                     }
+        controls_panel.parent.style = {
+            'flex-wrap': 'nowrap'
+            }
         # make the plotting area auto fill the available space.
         plots_panel.style = {
-            'flex-grow': '1'
+            'flex-grow': '1',
+            'flex-shrink': '1',
             }
         # Left panel, these are containers for the input controls
         target_container, mapping_container, \
@@ -593,7 +600,7 @@ class ObsPlanner(ComponentTemplate):
         app.clientside_callback(
             '''
             function(exec_info) {
-                return JSON.stringify(exec_info)
+                return JSON.stringify(exec_info["exec_config"])
             }
             ''',
             Output(exec_details.id, 'children'),
@@ -843,17 +850,19 @@ class ObsPlannerExecConfig(object):
         bs_coords = mapping_model.evaluate_coords(t)
 
         # and we can convert the bs_coords to other frames if needed
-        bs_coords_icrs = bs_coords.transform_to('icrs')
-
-        # and we can convert the bs_coords to other frames if needed
         altaz_frame = resolve_sky_coords_frame(
             'altaz', observer=observer, time_obs=time_obs
             )
+        # this interpolator can speeds things up a bit
+        erfa_interp_len = 300. << u.s
+        with erfa_astrom.set(ErfaAstromInterpolator(erfa_interp_len)):
+            # and we can convert the bs_coords to other frames if needed
+            bs_coords_icrs = bs_coords.transform_to('icrs')
 
-        bs_coords_altaz = bs_coords.transform_to(altaz_frame)
-        # also for the target coord
-        target_coord = self.mapping.target_coord
-        target_coords_altaz = target_coord.transform_to(altaz_frame)
+            bs_coords_altaz = bs_coords.transform_to(altaz_frame)
+            # also for the target coord
+            target_coord = self.mapping.target_coord
+            target_coords_altaz = target_coord.transform_to(altaz_frame)
 
         return {
             'time_obs': time_obs,
@@ -868,7 +877,7 @@ class ObsPlannerExecConfig(object):
             }
 
 
-@functools.lru_cache(maxsize=1)
+@functools.lru_cache(maxsize=8)
 def _make_traj_data_cached(exec_config):
     return exec_config.make_traj_data()
 
@@ -1210,6 +1219,14 @@ class ObsPlannerTargetSelect(ComponentTemplate):
             )
         target_name_feedback = target_name_container.child(
             dbc.FormFeedback, type='valid')
+        target_name_container.child(
+            dbc.Tooltip,
+            """
+Enter source name or coordinates. Names are sent to a name lookup server
+for resolving the coordinates. Coordinates should be like "17.7d -2.1d"
+or "10h09m08s +20d19m18s".
+            """,
+            target=target_name_input.id)
 
         target_resolved_store = controls_form_container.child(dcc.Store)
 
@@ -1272,6 +1289,18 @@ elevation > {self._target_alt_min} during the night.
             """,
             target=time_picker_input.id)
         time_picker_feedback = time_picker_group.feedback
+        check_button_container = controls_form_container.child(
+            html.Div,
+            className=(
+                'd-flex justify-content-end mt-2'
+                )
+            )
+        check_button = check_button_container.child(
+            dbc.Button, 'Plot Alt. vs Time',
+            color='primary',
+            )
+        check_result_modal = check_button_container.child(
+            dbc.Modal, is_open=False, centered=False)
 
         self._site.make_site_info_display(container)
 
@@ -1425,9 +1454,10 @@ elevation > {self._target_alt_min} during the night.
             alt_min = self._target_alt_min
             if target_alt < self._target_alt_min:
                 feedback_content = (
-                    f'Target at Az = {target_az.degree:.4f}d '
-                    f'Alt ={target_alt.degree:.4f}d '
-                    f'is too low (< {alt_min}) to observer. Pick another time.'
+                        f'Target at Az = {target_az.degree:.4f}d '
+                        f'Alt ={target_alt.degree:.4f}d '
+                        f'is too low (< {alt_min}) to observer. '
+                        f'Pick another time.'
                     )
                 return (False, True, feedback_content, 'invalid')
             feedback_content = (
@@ -1439,6 +1469,52 @@ elevation > {self._target_alt_min} during the night.
                 feedback_content,
                 'valid'
                 )
+
+        @app.callback(
+            [
+                Output(check_result_modal.id, 'children'),
+                Output(check_result_modal.id, 'is_open'),
+                ],
+            [
+                Input(check_button.id, 'n_clicks'),
+                State(date_picker_input.id, 'value'),
+                State(time_picker_input.id, 'value'),
+                State(target_resolved_store.id, 'data'),
+                ],
+            prevent_initial_call=True,
+            )
+        def check_visibility(n_clicks, date_value, time_value, target_data):
+            # composing a dummy exec config object so we can call
+            # the plotter
+            def make_output(content):
+                return [dbc.ModalBody(content), True]
+
+            if target_data is None:
+                return make_output('Invalid target format.')
+            t_exp = 0 << u.min
+            try:
+                t0 = Time(f'{date_value}')
+            except ValueError:
+                return make_output("Invalid date format.")
+            try:
+                t0 = Time(f'{date_value} {time_value}')
+                # this will show the target position
+                t_exp = 2 << u.min
+            except ValueError:
+                pass
+            plotter = ObsPlannerMappingPlotter(site=self._site)
+            target_coord = SkyCoord(
+                f"{target_data['ra_deg']} {target_data['dec_deg']}",
+                unit=u.deg, frame='icrs')
+            exec_config = Namespace(
+                obs_params=Namespace(t_exp=t_exp),
+                mapping=Namespace(
+                    t0=t0,
+                    target_coord=target_coord
+                    )
+                )
+            fig = plotter._plot_visibility(exec_config)
+            return make_output(dcc.Graph(figure=fig))
 
         app.clientside_callback(
             """
@@ -1612,10 +1688,11 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
     def _plot_visibility(self, exec_config):
         logger = get_logger()
         mapping_config = exec_config.mapping
-        t_pattern = mapping_config.get_offset_model().t_pattern
         obs_params = exec_config.obs_params
         # highlight the obstime and t_exp
-        t_exp = obs_params.t_exp or t_pattern
+        t_exp = obs_params.t_exp
+        if t_exp is None:
+            t_exp = mapping_config.get_offset_model().t_pattern
 
         # make a plot of the uptimes for given mapping_config
         observer = self._site.observer

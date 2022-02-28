@@ -3,7 +3,7 @@
 presets:
 - type: mapping
   key: blank_field_raster
-  label: "Large - 3 x 3 deg² raster, ~40min)"
+  label: "Large - 3 x 3 deg² raster, ~40min"
   description: 'A large raster scan pattern for blank field observation.'
   description_long: |
     The raster pattern is our go-to pattern for making large maps with
@@ -45,7 +45,7 @@ presets:
     value_max: 360
 - type: mapping
   key: blank_field_rastajous
-  label: "Medium - 12 x 12 arcmin² rastajous, ~20min)"
+  label: "Medium - 12 x 12 arcmin² rastajous, ~20min"
   description: 'A rastajous pattern for medium-sized field observation.'
   description_long: |
     A Rastajous is a combination of a Double Lissajous and a Raster map.  The
@@ -145,8 +145,8 @@ presets:
     value_max: 360
 - type: mapping
   key: blank_field_double_lissajous
-  label: "Small - 6 x 6 arcmin² double_lissajous, 10min)"
-  description: 'A double lissajous pattern for small-sized field observation.'
+  label: "Small - 6 x 6 arcmin² double_lissajous, 10min"
+  description: 'A double lissajous pattern with more controls for small-sized field observation.'
   description_long: |
     This is the advanced lissajous pattern which simply sums to other lissajous
     patterns.  The general idea is to have a small, slow lissajous run
@@ -218,8 +218,8 @@ presets:
     value_max: 360
 - type: mapping
   key: blank_field_lissajous
-  label: "Small - 6 x 6 arcmin² lissajous, 10min)"
-  description: 'A lissajous scan pattern for small field observation.'
+  label: "Small - 6 x 6 arcmin² lissajous, 10min"
+  description: 'A lissajous pattern for small field observation.'
   description_long: |
     This is the most basic lissajous pattern.  It is useful for photometry maps
     and other very compact maps.  Making the x and y lengths too large will
