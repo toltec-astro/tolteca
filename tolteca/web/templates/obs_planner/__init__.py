@@ -1297,7 +1297,7 @@ elevation > {self._target_alt_min} during the night.
             )
         check_button = check_button_container.child(
             dbc.Button, 'Plot Alt. vs Time',
-            color='primary',
+            color='primary', size='sm',
             )
         check_result_modal = check_button_container.child(
             dbc.Modal, is_open=False, centered=False)
