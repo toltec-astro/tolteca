@@ -348,7 +348,7 @@ class RastajousModelMeta(OffsetMappingModel.__class__):
         lunit = x_length_0.unit
 
         x_r, y_r = RasterScanModelMeta._evaluate(
-            t=t, length=length, space=space, n_scans=n_scans, rot=rot,
+            t=t, length=length, space=space, n_scans=n_scans, rot=0 << u.deg,
             speed=speed, t_turnaround=t_turnaround,
             return_holdflag_only=False
             )
@@ -358,7 +358,7 @@ class RastajousModelMeta(OffsetMappingModel.__class__):
             x_omega_0=x_omega_0, y_omega_0=y_omega_0, delta_0=delta_0,
             x_length_1=x_length_1, y_length_1=y_length_1,
             x_omega_1=x_omega_1, y_omega_1=y_omega_1, delta_1=delta_1,
-            delta=delta, rot=rot
+            delta=delta, rot=0 << u.deg
             )
         xy = np.empty((2, ) + t.shape, dtype=np.float64) << lunit
         xy[0] = x_r + x_l
