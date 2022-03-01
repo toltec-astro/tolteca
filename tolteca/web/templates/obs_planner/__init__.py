@@ -41,7 +41,9 @@ from tollan.utils.namespace import Namespace
 from ....utils import yaml_load, yaml_dump
 from ....simu.toltec.lmt import lmt_info
 from ....simu.toltec.toltec_info import toltec_info
-from ....simu import mapping_registry, SimulatorRuntime, ObsParamsConfig
+from ....simu import (
+    mapping_registry,
+    instrument_registry, SimulatorRuntime, ObsParamsConfig)
 from ....simu.mapping.utils import resolve_sky_coords_frame
 
 from .preset import PresetsConfig
@@ -69,9 +71,43 @@ def _add_from_name_factory(cls):
     return cls
 
 
+class ObsPlannerModule(object):
+    """Base class for modules in obsplanner."""
+
+    def make_controls(self, container):
+        return container.child(self.ControlPanel(self))
+
+    def make_info_display(self, container):
+        return container.child(self.InfoPanel(self))
+
+    InfoPanel = NotImplemented
+    """
+    Subclass should implement this as a `ComponentTemplate` to generate UI
+    for display read-only custom info for this module.
+    """
+
+    ControlPanel = NotImplemented
+    """
+    Subclass should implement this class as a ComponentTemplate
+    to generate UI for collecting user inputs.
+
+    The template should have an attribute ``info_store`` of type
+    dcc.Store, which is updated when user input changes.
+
+    The data in info_store is typically consumed by `ObsplannerExecConfig` to
+    create the exec config object.
+    """
+
+    display_name = NotImplemented
+    """Name to display as title of the module."""
+
+
 @_add_from_name_factory
-class ObsSite(object):
-    """A class provides info of observing site."""
+class ObsSite(ObsPlannerModule):
+    """A module base class for an observation site"""
+
+    observer = NotImplemented
+    """The astroplan.Observer instance for the site."""
 
     @classmethod
     def get_observer(cls, name):
@@ -79,9 +115,15 @@ class ObsSite(object):
 
 
 @_add_from_name_factory
-class ObsInstru(object):
-    """A class provides info of observing instrument."""
-    pass
+class ObsInstru(ObsPlannerModule):
+    """A module base class for an observation instrument."""
+
+    @classmethod
+    def make_traj_data(cls, exec_config):
+        """Subclass should implement this to generate traj_data
+        as part of the result of `ObsPlannerExecConfig.make_traj_data`.
+        """
+        return NotImplemented
 
 
 class Lmt(ObsSite, name='lmt'):
@@ -90,16 +132,6 @@ class Lmt(ObsSite, name='lmt'):
     info = lmt_info
     display_name = info['name_long']
     observer = info['observer']
-
-    def make_site_info_display(self, container):
-        info_container = container.child(
-                CollapseContent(button_text='Current Site Info ...')
-            ).content
-        info_panel = info_container.child(self.InfoPanel(site=self))
-        return info_panel
-
-    def make_controls(self, container):
-        return container.child(self.ControlPanel(site=self))
 
     class ControlPanel(ComponentTemplate):
         class Meta:
@@ -188,7 +220,9 @@ class Lmt(ObsSite, name='lmt'):
             self._site = site
 
         def setup_layout(self, app):
-            container = self
+            container = self.child(
+                    CollapseContent(button_text='Current Site Info ...')
+                ).content
             info = self._site.info
             location = info['location']
             timezone_local = info['timezone_local']
@@ -214,21 +248,6 @@ class Lmt(ObsSite, name='lmt'):
                 # f' {location.height:.0f}'
                 **pre_kwargs)
             loc_display.className += ' mb-0'
-            # loc_display = container.child(
-            #     LabeledInput(
-            #         label_text='Location',
-            #         className='w-auto',
-            #         size='sm',
-            #         input_props={
-            #             # these are the dbc.Input kwargs
-            #             'type': 'text',
-            #             'plaintext': True,
-            #             },
-            #         )).input
-            # loc_display.value = (
-            #     f'Location: {location.lon.to_string()} '
-            #     f'{location.lat.to_string()}'
-            #     )
             time_display = container.child(
                 html.Pre, **pre_kwargs)
             timer = container.child(dcc.Interval, interval=500)
@@ -286,9 +305,6 @@ class Toltec(ObsInstru, name='toltec'):
 
     info = toltec_info
     display_name = info['name_long']
-
-    def make_controls(self, container):
-        return container.child(self.ControlPanel(instru=self))
 
     class ControlPanel(ComponentTemplate):
         class Meta:
@@ -370,6 +386,49 @@ class Toltec(ObsInstru, name='toltec'):
                     ]
                 )
 
+    @classmethod
+    def make_traj_data(cls, exec_config, bs_traj_data):
+        logger = get_logger()
+        logger.debug("make traj data for instru toltec")
+        # here we do it with the toltec simulator
+        instru = instrument_registry.schema.validate({
+            'name': 'toltec',
+            'polarized': False
+            }, create_instance=True)
+        simulator = instru.simulator
+        array_name = exec_config.instru_data['array_name']
+
+        # make trace dicts for array overlay
+        apt = simulator.array_prop_table
+        apt_0 = apt[apt['array_name'] == array_name]
+
+        # each trace is for one polarimetry group
+        offset_traces = list()
+
+        # dlon = bs_traj_data['dlon']
+        # dlat = bs_traj_data['dlat']
+
+        for i, (pg, marker) in enumerate([(0, 'cross'), (1, 'x')]):
+            mask = apt_0['pg'] == pg
+            offset_traces.append({
+                'x': (apt_0[mask]['x_t']).to_value(u.arcmin),
+                'y': (apt_0[mask]['y_t']).to_value(u.arcmin),
+                'mode': 'markers',
+                'marker': {
+                    'symbol': marker,
+                    'color': 'black',
+                    'size': 3,
+                    },
+                'legendgroup': 'toltec_array_fov',
+                'showlegend': i == 0,
+                'name': f"Toggle FOV: {cls.info[array_name]['name_long']}"
+                })
+        return {
+            'overlay_traces': {
+                'offset': offset_traces
+                }
+            }
+
 
 class ObsPlanner(ComponentTemplate):
     """An observation Planner."""
@@ -436,7 +495,7 @@ class ObsPlanner(ComponentTemplate):
             title_text='Target')).body_container
         target_info_store = target_container.child(
             ObsPlannerTargetSelect(site=self._site, className='px-0')
-            ).target_info_store
+            ).info_store
 
         mapping_container = mapping_container.child(self.Card(
             title_text='Mapping')).body_container
@@ -444,7 +503,7 @@ class ObsPlanner(ComponentTemplate):
             ObsPlannerMappingPresetsSelect(
                 presets_config_path=self._presets_config_path,
                 className='px-0')
-            ).mapping_info_store
+            ).info_store
 
         # mapping execution
         exec_button_container = mapping_container.child(
@@ -574,20 +633,20 @@ class ObsPlanner(ComponentTemplate):
             mapping_figs = mapping_plotter.make_figures(
                 exec_config=exec_config,
                 traj_data=traj_data)
-            # stores the data to client sidestore
+            # stores the figs to clientside
             return (
                 {
                     # the traj data needs to be transformed for json
                     # serialization
-                    'mapping_traj_data': {
-                        'time_obs_mjd': traj_data['time_obs'].mjd,
-                        'ra_deg': traj_data['ra'].degree,
-                        'dec_deg': traj_data['dec'].degree,
-                        'az_deg': traj_data['az'].degree,
-                        'alt_deg': traj_data['alt'].degree,
-                        'target_az_deg': traj_data['target_az'].degree,
-                        'target_alt_deg': traj_data['target_alt'].degree,
-                        },
+                    # 'mapping_traj_data': {
+                    #     'time_obs_mjd': traj_data['time_obs'].mjd,
+                    #     'ra_deg': traj_data['ra'].degree,
+                    #     'dec_deg': traj_data['dec'].degree,
+                    #     'az_deg': traj_data['az'].degree,
+                    #     'alt_deg': traj_data['alt'].degree,
+                    #     'target_az_deg': traj_data['target_az'].degree,
+                    #     'target_alt_deg': traj_data['target_alt'].degree,
+                    #     },
                     'mapping_figs': {
                         name: fig.to_dict()
                         for name, fig in mapping_figs.items()
@@ -613,67 +672,11 @@ class ObsPlanner(ComponentTemplate):
         mapping_plotter.make_mapping_plot_callbacks(
             app, exec_info_store_id=exec_info_store.id)
 
-        # @app.callback(
-        #     Output(mapping_plot_container.id, 'children'),
-        #     [
-        #         Input(mapping_plot_button.id, 'n_clicks'),
-        #         State(mapping_info_store.id, 'data'),
-        #         State(target_info_store.id, 'data'),
-        #         ]
-        #     )
-        # def make_mapping_plots(n_clicks, mapping_data, target_data):
-        #     if mapping_data is None or target_data is None:
-        #         raise PreventUpdate
-        #     mapping_config = _make_mapping_config(
-        #         mapping_data=mapping_data, target_data=target_data)
-        #     return mapping_plotter.make_figures(mapping_config)
-
-        # @app.callback(
-        #     [
-        #         Output(mapping_config_details.id, 'children'),
-        #         Output(mapping_plot_button.id, 'color'),
-        #         Output(mapping_plot_button.id, 'disabled'),
-        #         ],
-        #     [
-        #         Input(mapping_info_store.id, 'data'),
-        #         Input(target_info_store.id, 'data'),
-        #         ]
-        #     )
-        # def make_mapping_config_details(mapping_data, target_data):
-        #     if mapping_data is None and target_data is None:
-        #         return ("Invalid data.", plot_button_disabled_color, True)
-        #     if mapping_data is None:
-        #         return (
-        #             "Invalid mapping data.",
-        #             plot_button_disabled_color, True)
-        #     if target_data is None:
-        #         return (
-        #             "Invalid target data.", plot_button_disabled_color, True)
-        #     mapping_config = _make_mapping_config(
-        #         mapping_data=mapping_data, target_data=target_data)
-        #     mapping_model = mapping_config.get_model(
-        #         observer=self._site.observer)
-        #     result = {
-        #         'mapping_model_name': mapping_model.name,
-        #         'mapping_model_pattern_time':
-        #         f'{mapping_model.t_pattern:.2f}',
-        #         'config_dict': {
-        #             'mapping': asdict(mapping_config)
-        #             }
-        #         }
-        #     details_text = f'{pformat_yaml(result)}'.strip()
-        #     return (details_text, plot_button_enabled_color, False)
-
     class Card(ComponentTemplate):
         class Meta:
             component_cls = dbc.Card
 
         def __init__(self, title_text, **kwargs):
-            # kwargs.setdefault(
-            #     'style', {
-            #         # this is for width 1280 col-3
-            #         'max-width': '293.75px'
-            #         })
             super().__init__(**kwargs)
             container = self
             container.child(html.H6(title_text, className='card-header'))
@@ -769,12 +772,10 @@ class ObsPlannerExecConfig(object):
 
     def get_simulator_runtime(self):
         """Return a simulator runtime object from this config."""
-        site_data = self.site_data
-        instru_data = self.instru_data
         # dispatch site/instru to create parts of the simu config dict
-        if site_data['name'] == 'lmt' and instru_data['name'] == 'toltec':
+        if self._site.name == 'lmt' and self._instru.name == 'toltec':
             simu_cfg = self._make_lmt_toltec_simu_config_dict(
-                lmt_data=site_data, toltec_data=instru_data)
+                lmt_data=self.site_data, toltec_data=self.instru_data)
         else:
             raise ValueError("unsupported site/instruments for simu.")
         # add to simu cfg the mapping and obs_params
@@ -864,7 +865,7 @@ class ObsPlannerExecConfig(object):
             target_coord = self.mapping.target_coord
             target_coords_altaz = target_coord.transform_to(altaz_frame)
 
-        return {
+        bs_traj_data = {
             'time_obs': time_obs,
             'dlon': dlon,
             'dlat': dlat,
@@ -874,6 +875,14 @@ class ObsPlannerExecConfig(object):
             'alt': bs_coords_altaz.alt,
             'target_az': target_coords_altaz.az,
             'target_alt': target_coords_altaz.alt,
+            }
+        # make instru specific traj data
+        obsinstru = ObsInstru.from_name(self.instru_data['name'])
+        instru_traj_data = obsinstru.make_traj_data(self, bs_traj_data)
+
+        return {
+            'site': bs_traj_data,
+            'instru': instru_traj_data,
             }
 
 
@@ -900,11 +909,11 @@ class ObsPlannerMappingPresetsSelect(ComponentTemplate):
             self._presets = PresetsConfig.from_dict(yaml_load(fo))
         self._t_exp_max = t_exp_max
         container = self
-        self._mapping_info_store = container.child(dcc.Store)
+        self._info_store = container.child(dcc.Store)
 
     @property
-    def mapping_info_store(self):
-        return self._mapping_info_store
+    def info_store(self):
+        return self._info_store
 
     @property
     def presets(self):
@@ -980,7 +989,7 @@ class ObsPlannerMappingPresetsSelect(ComponentTemplate):
                 Output(mapping_preset_feedback.id, 'type'),
                 ],
             [
-                Input(self.mapping_info_store.id, 'data')
+                Input(self.info_store.id, 'data')
                 ]
             )
         def validate_mapping(mapping_data):
@@ -1033,7 +1042,7 @@ class ObsPlannerMappingPresetsSelect(ComponentTemplate):
                 return data
             }
             """,
-            output=Output(self.mapping_info_store.id, 'data'),
+            output=Output(self.info_store.id, 'data'),
             inputs=[
                 Input(mapping_ref_frame_select.id, 'value'),
                 Input(mapping_preset_data_store.id, 'data')
@@ -1196,11 +1205,11 @@ class ObsPlannerTargetSelect(ComponentTemplate):
         self._site = site
         self._target_alt_min = target_alt_min
         container = self
-        self._target_info_store = container.child(dcc.Store)
+        self._info_store = container.child(dcc.Store)
 
     @property
-    def target_info_store(self):
-        return self._target_info_store
+    def info_store(self):
+        return self._info_store
 
     def setup_layout(self, app):
         container = self
@@ -1302,7 +1311,7 @@ elevation > {self._target_alt_min} during the night.
         check_result_modal = check_button_container.child(
             dbc.Modal, is_open=False, centered=False)
 
-        self._site.make_site_info_display(container)
+        self._site.make_info_display(container)
 
         super().setup_layout(app)
 
@@ -1531,7 +1540,7 @@ elevation > {self._target_alt_min} during the night.
                 return null
             }
             """,
-            output=Output(self.target_info_store.id, 'data'),
+            output=Output(self.info_store.id, 'data'),
             inputs=[
                 Input(date_picker_input.id, 'value'),
                 Input(date_picker_input.id, 'valid'),
@@ -1586,29 +1595,6 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
                 Input(exec_info_store_id, 'data')
                 ]
             )
-
-    @timeit
-    def _make_figures(self, mapping_config, obs_params, traj_data):
-
-        visibility_fig = self._plot_visibility(mapping_config)
-
-        mapping_figs = self._plot_mapping_pattern(mapping_config)
-
-        # create the container for all the figures
-        container = NullComponent(self.id)
-        visibility_plot_container, \
-            offset_plot_container, \
-            altaz_traj_plot_container, \
-            icrs_traj_plot_container = container.colgrid(2, 2).ravel()
-        visibility_plot_container.child(
-            dcc.Graph, figure=visibility_fig)
-        offset_plot_container.child(
-            dcc.Graph, figure=mapping_figs['offset'])
-        altaz_traj_plot_container.child(
-            dcc.Graph, figure=mapping_figs['altaz'])
-        icrs_traj_plot_container.child(
-            dcc.Graph, figure=mapping_figs['icrs'])
-        return container.layout
 
     @timeit
     def make_figures(self, exec_config, traj_data):
@@ -1812,10 +1798,10 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
             yaxis_autorange=False,
             legend=dict(
                 orientation="h",
-                x=1,
+                x=0.5,
                 y=1.02,
                 yanchor="bottom",
-                xanchor="right",
+                xanchor="center",
                 bgcolor="#dfdfdf",
                 )
             )
@@ -1840,11 +1826,14 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
                 #     }
                 }
 
+        bs_traj_data = traj_data['site']
+        instru_traj_data = traj_data['instru']
+
         # offset
         fig = offset_fig = figs[0]
         fig.add_trace(dict(trace_kw, **{
-            'x': traj_data['dlon'].to_value(u.arcmin),
-            'y': traj_data['dlat'].to_value(u.arcmin),
+            'x': bs_traj_data['dlon'].to_value(u.arcmin),
+            'y': bs_traj_data['dlat'].to_value(u.arcmin),
             }))
         ref_frame_name = exec_config.mapping.ref_frame.name
 
@@ -1863,16 +1852,21 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
                 title_text="Delta-Source [arcmin]")
             fig.update_yaxes(
                 title_text="Delta-Source [arcmin]")
+        if instru_traj_data is not None:
+            # add instru traj_data
+            overlay_traces = instru_traj_data['overlay_traces']
+            for t in overlay_traces['offset']:
+                fig.add_trace(dict(trace_kw, **t))
 
         # altaz
         fig = altaz_fig = figs[1]
         fig.add_trace(dict(trace_kw, **{
-            'x': traj_data['az'].to_value(u.deg),
-            'y': traj_data['alt'].to_value(u.deg),
+            'x': bs_traj_data['az'].to_value(u.deg),
+            'y': bs_traj_data['alt'].to_value(u.deg),
             }))
         fig.add_trace(dict(trace_kw, **{
-            'x': traj_data['target_az'].to_value(u.deg),
-            'y': traj_data['target_alt'].to_value(u.deg),
+            'x': bs_traj_data['target_az'].to_value(u.deg),
+            'y': bs_traj_data['target_alt'].to_value(u.deg),
             'line': {
                 'color': 'purple'
                 }
@@ -1885,8 +1879,8 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
         # icrs
         fig = icrs_fig = figs[2]
         fig.add_trace(dict(trace_kw, **{
-            'x': traj_data['ra'].to_value(u.deg),
-            'y': traj_data['dec'].to_value(u.deg),
+            'x': bs_traj_data['ra'].to_value(u.deg),
+            'y': bs_traj_data['dec'].to_value(u.deg),
             }))
         fig.update_xaxes(
             title_text="RA [deg]")
@@ -1896,7 +1890,8 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
         # all
         for fig in figs:
             fig.update_xaxes(
-                automargin=True)
+                automargin=True,
+                autorange='reversed')
             fig.update_yaxes(
                 automargin=True)
             fig.update_xaxes(
@@ -1905,6 +1900,16 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
                     scaleanchor='y1',
                     scaleratio=1.,
                     )
+            fig.update_layout(
+                legend=dict(
+                    orientation="h",
+                    x=0.5,
+                    y=1.02,
+                    yanchor="bottom",
+                    xanchor="center",
+                    bgcolor="#dfdfdf",
+                    )
+                )
         return {
             'offset': offset_fig,
             'altaz': altaz_fig,
