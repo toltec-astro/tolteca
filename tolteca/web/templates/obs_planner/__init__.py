@@ -1354,6 +1354,7 @@ elevation > {self._target_alt_min} during the night.
                     'valid'
                     )
             except Exception as e:
+                logger.debug(f'error parsing {name}', exc_info=True)
                 return (
                     None,
                     False, True,
