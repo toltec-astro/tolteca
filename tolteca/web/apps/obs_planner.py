@@ -94,7 +94,7 @@ def DASHA_SITE():
         'template': 'tolteca.web.templates.obs_planner:ObsPlanner',
         'THEME': dbc.themes.LUMEN,
         # 'ASSETS_IGNORE': 'bootstrap.*',
-        'DEBUG': True,
+        # 'DEBUG': True,
         "EXTERNAL_SCRIPTS": [JS9_SUPPORT],
         })
     return {

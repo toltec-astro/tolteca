@@ -1503,7 +1503,8 @@ class ObsPlannerExecConfig(object):
                 'sources': [
                     {
                         'type': 'toltec_power_loading',
-                        'atm_model_name': atm_model_name
+                        'atm_model_name': atm_model_name,
+                        'atm_cache_dir': None,
                         },
                     ],
                 }
