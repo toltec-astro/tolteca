@@ -139,6 +139,9 @@ class ToltecPowerLoadingModelConfig(DataclassNamespace):
                     atm_cache_dir.mkdir(parents=True, exist_ok=True)
 
     def __call__(self, cfg):
+        return self.get_power_loading_model()
+    
+    def get_power_loading_model(self):
         return ToltecPowerLoadingModel(
             atm_model_name=self.atm_model_name,
             atm_model_params=self.atm_model_params,

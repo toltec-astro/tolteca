@@ -7,7 +7,8 @@ from typing import ClassVar
 
 import astropy.units as u
 import numpy as np
-from astropy.coordinates import Longitude, Latitude, Angle
+from astropy.coordinates import Longitude, Latitude, Angle, SkyCoord
+from astropy.wcs import WCS
 
 from tollan.utils import rupdate
 from tollan.utils.fmt import pformat_yaml
@@ -188,3 +189,52 @@ def make_time_grid(t, f_smp, chunk_len=None):
             f"make time chunks with n_times_per_chunk={n_times_per_chunk}"
             f" n_times={n_times} n_chunks={n_chunks}")
     return t_chunks
+
+
+def make_wcs(
+        sky_bbox, pixscale,
+        crval=None,
+        n_pix_max=None,
+        adaptive_pixscale_factor=1):
+    """Return an `astropy.wcs.WCS` for the sky bbox and pixel scale.
+    
+    When `n_pix_max` is set, the pixscale is adapted so the number of pixels
+    is within the limit. In this case, the adopted pixel scale is
+    ``i * adpative_pixscale_factor * pixscale``, where ``i`` is some integer.
+    """
+    logger = get_logger()
+    pixsize = (1 << u.pix).to(u.arcsec, equivalencies=pixscale)
+    nx = (sky_bbox.width / pixsize).to_value(u.dimensionless_unscaled)
+    ny = (sky_bbox.height / pixsize).to_value(u.dimensionless_unscaled)
+    nx, ny = int(np.ceil(nx)), int(np.ceil(ny))
+    logger.debug(f"image wcs shape: {nx=} {ny=} {pixsize=}")
+    if n_pix_max is not None and  nx * ny > n_pix_max:
+        s = (nx * ny / n_pix_max) ** 0.5
+        # round s (to larger) so that is is int number of apf
+        s = np.ceil(s / adaptive_pixscale_factor) * adaptive_pixscale_factor
+        snx = nx / s
+        sny = ny / s
+        sps = pixsize * s
+        logger.debug(
+                f"adjusted pixel shape: nx={snx} ny={sny} pixsize={sps}")
+        nx, ny, pixsize = snx, sny, sps
+    wcsobj = WCS(naxis=2)
+    wcsobj.pixel_shape = (nx, ny)
+    wcsobj.wcs.crpix = [nx / 2, ny / 2]
+    wcsobj.wcs.cdelt = np.array([
+            -pixsize.to_value(u.deg),
+            pixsize.to_value(u.deg),
+            ])
+    wcsobj.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+    if crval is not None:
+        if isinstance(crval, SkyCoord):
+            crval = [crval.ra.degree, crval.dec.degree]
+        else:
+            crval = [
+                crval[0].to_value(u.degree),
+                crval[1].to_value(u.degree),
+                ]
+    else:
+        crval = [v.degree for v in sky_bbox.center]
+    wcsobj.wcs.crval = crval 
+    return wcsobj

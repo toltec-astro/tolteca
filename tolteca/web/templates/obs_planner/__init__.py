@@ -5,11 +5,14 @@ from dash import html, dcc, Input, Output, State
 from dash.exceptions import PreventUpdate
 import dash
 import dash_bootstrap_components as dbc
+import dash_aladin_lite as dal
+import dash_js9 as djs9
 
 from dasha.web.templates.common import (
         CollapseContent,
         LabeledChecklist,
         LabeledInput,
+        DownloadButton
         )
 from dasha.web.templates.utils import PatternMatchingId, make_subplots
 import astropy.units as u
@@ -22,15 +25,24 @@ from astropy.coordinates.erfa_astrom import (
 from astroplan import FixedTarget
 from astroplan import (AltitudeConstraint, AtNightConstraint)
 from astroplan import observability_table
+from astropy.table import QTable
+from astropy.modeling.functional_models import GAUSSIAN_SIGMA_TO_FWHM
+from astropy.convolution import Gaussian2DKernel
+from astropy.convolution import convolve_fft
+from astropy.io import fits
+from astropy.wcs import WCS
 
 from dataclasses import dataclass, field
 import numpy as np
 import functools
 import bisect
 from typing import Union
-from io import StringIO
+from io import StringIO, BytesIO
+from base64 import b64encode
 from schema import Or
-
+import jinja2
+import json
+import pandas as pd
 
 from tollan.utils.log import get_logger, timeit
 from tollan.utils.fmt import pformat_yaml
@@ -41,12 +53,18 @@ from tollan.utils.namespace import Namespace
 from ....utils import yaml_load, yaml_dump
 from ....simu.toltec.lmt import lmt_info
 from ....simu.toltec.toltec_info import toltec_info
+from ....simu.exports import LmtOTExporterConfig
+from ....simu.utils import SkyBoundingBox, make_wcs
 from ....simu import (
     mapping_registry,
     instrument_registry, SimulatorRuntime, ObsParamsConfig)
 from ....simu.mapping.utils import resolve_sky_coords_frame
 
 from .preset import PresetsConfig
+
+
+_j2env = jinja2.Environment()
+"""A jinja2 environment for generating clientside callbacks."""
 
 
 def _add_from_name_factory(cls):
@@ -74,11 +92,17 @@ def _add_from_name_factory(cls):
 class ObsPlannerModule(object):
     """Base class for modules in obsplanner."""
 
-    def make_controls(self, container):
-        return container.child(self.ControlPanel(self))
+    def make_results_display(self, container, **kwargs):
+        return container.child(self.ResultPanel(self, **kwargs))
 
-    def make_info_display(self, container):
-        return container.child(self.InfoPanel(self))
+    def make_results_controls(self, container, **kwargs):
+        return container.child(self.ResultControlPanel(self, **kwargs))
+
+    def make_controls(self, container, **kwargs):
+        return container.child(self.ControlPanel(self, **kwargs))
+
+    def make_info_display(self, container, **kwargs):
+        return container.child(self.InfoPanel(self, **kwargs))
 
     InfoPanel = NotImplemented
     """
@@ -96,6 +120,18 @@ class ObsPlannerModule(object):
 
     The data in info_store is typically consumed by `ObsplannerExecConfig` to
     create the exec config object.
+    """
+
+    ResultPanel = NotImplemented
+    """
+    Subclass should implement this as a `ComponentTemplate` to generate UI
+    for presenting the obs planning results.
+    """
+
+    ResultControlPanel = NotImplemented
+    """
+    Subclass should implement this as a `ComponentTemplate` to generate UI
+    for operating with the obs planning results.
     """
 
     display_name = NotImplemented
@@ -306,6 +342,208 @@ class Toltec(ObsInstru, name='toltec'):
     info = toltec_info
     display_name = info['name_long']
 
+    class ResultPanel(ComponentTemplate):
+        class Meta:
+            component_cls = dbc.Container
+
+        def __init__(self, instru, **kwargs):
+            kwargs.setdefault("fluid", True)
+            super().__init__(**kwargs)
+            self._instru = instru
+            container = self
+            fitsview_container, info_container = container.colgrid(1, 2)
+            self._fitsview_loading = fitsview_container.child(
+                dbc.Spinner,
+                show_initially=False, color='primary',
+                spinner_style={"width": "5rem", "height": "5rem"}
+                )
+            self._fitsview = self._fitsview_loading.child(
+                djs9.DashJS9, style={'width': '100%', 'min-height': '500px'})
+            self._info_loading = info_container.child(
+                dbc.Spinner,
+                show_initially=False, color='primary',
+                spinner_style={"width": "5rem", "height": "5rem"}
+                )
+
+        def make_callbacks(self, app, exec_info_store_id):
+            fitsview = self._fitsview
+            info = self._info_loading.child(html.Div, style={'min-height': '500px'})
+
+            app.clientside_callback(
+                '''
+                function(exec_info) {
+                    // console.log(exec_info);
+                    if (!exec_info) {
+                        return Array(1).fill(window.dash_clientside.no_update);
+                    }
+                    return [exec_info.instru.fits_images];
+                }
+                ''',
+                [
+                    Output(fitsview.id, 'data'),
+                    ],
+                [
+                    Input(exec_info_store_id, 'data'),
+                    ]
+                )
+            
+            app.clientside_callback(
+                '''
+                function(exec_info) {
+                    // console.log(exec_info);
+                    if (!exec_info) {
+                        return Array(1).fill(window.dash_clientside.no_update);
+                    }
+                    return [exec_info.instru.info];
+                }
+                ''',
+                [
+                    Output(info.id, 'children'),
+                    ],
+                [
+                    Input(exec_info_store_id, 'data'),
+                    ]
+                )
+            
+        @property
+        def loading_indicators(self):
+            return {
+                'outputs': [
+                    Output(self._fitsview_loading.id, 'color'),
+                    Output(self._info_loading.id, 'color')
+                    ],
+                'states': [
+                    State(self._fitsview_loading.id, 'color'),
+                    State(self._info_loading.id, 'color'),
+                    ]
+                }
+
+    class ResultControlPanel(ComponentTemplate):
+        class Meta:
+            component_cls = dbc.Container
+        
+        def __init__(self, instru, **kwargs):
+            kwargs.setdefault("fluid", True)
+            super().__init__(**kwargs)
+            container = self
+            dlbtn_props = {'disabled': True}
+        
+            self._lmtot_download = container.child(
+                DownloadButton(
+                    button_text='LMT OT Script',
+                    className='me-2',
+                    button_props=dlbtn_props,
+                    tooltip='Download LMT Observation Tool script to execute the observation at LMT.'
+                    ) 
+                )
+            self._simuconfig_download = container.child(
+                DownloadButton(
+                    button_text='Simu. Config',
+                    className='me-2',
+                    button_props=dlbtn_props,
+                    tooltip='Download tolteca.simu 60_simu.yaml config file to run the observation simulator.'
+                    ) 
+                )
+            self._fits_download = container.child(
+                DownloadButton(
+                    button_text='Coverage Map',
+                    className='me-2',
+                    button_props=dlbtn_props,
+                    tooltip='Download the generated FITS (approximate) coverage image for the observation.'
+                    ) 
+                )
+
+        def make_callbacks(self, app, exec_info_store_id):
+
+            for dl in [self._lmtot_download, self._simuconfig_download, self._fits_download]:
+                app.clientside_callback(
+                    '''
+                    function(exec_info) {
+                        if (!exec_info) {
+                            return true;
+                        }
+                        return false;
+                    }
+                    ''',
+                    Output(dl.button.id, 'disabled'),
+                    [
+                        Input(exec_info_store_id, 'data'),
+                        ]
+                    )
+
+            app.clientside_callback(
+                '''
+                function(n_clicks, exec_info) {
+                    // console.log(exec_info);
+                    if (!exec_info) {
+                        return window.dash_clientside.no_update;
+                    }
+                    target = exec_info.exec_config.mapping.target
+                    
+                    filename = ('target_' + target + '.lmtot').replace(/\s+/g, '-');
+                    return {
+                        content: exec_info.instru.lmtot,
+                        base64: false,
+                        filename: filename,
+                        type: 'text/plain;charset=UTF-8'
+                        };
+                }
+                ''',
+                Output(self._lmtot_download.download.id, 'data'),
+                [
+                    Input(self._lmtot_download.button.id, 'n_clicks'),
+                    State(exec_info_store_id, 'data'),
+                    ]
+                )
+
+            app.clientside_callback(
+                '''
+                function(n_clicks, exec_info) {
+                    // console.log(exec_info);
+                    if (!exec_info) {
+                        return window.dash_clientside.no_update;
+                    }
+                    filename = '60_simu.yaml'
+                    return {
+                        content: exec_info.instru.simu_config,
+                        base64: false,
+                        filename: filename,
+                        type: 'text/plain;charset=UTF-8'
+                        };
+                }
+                ''',
+                Output(self._simuconfig_download.download.id, 'data'),
+                [
+                    Input(self._simuconfig_download.button.id, 'n_clicks'),
+                    State(exec_info_store_id, 'data'),
+                    ]
+                )
+            
+            app.clientside_callback(
+                '''
+                function(n_clicks, exec_info) {
+                    // console.log(exec_info);
+                    if (!exec_info) {
+                        return window.dash_clientside.no_update;
+                    }
+                    im = exec_info.instru.fits_images[0]
+                    return {
+                        content: im.blob,
+                        base64: true,
+                        filename: im.options.file,
+                        type: 'application/fits'
+                        };
+                }
+                ''',
+                Output(self._fits_download.download.id, 'data'),
+                [
+                    Input(self._fits_download.button.id, 'n_clicks'),
+                    State(exec_info_store_id, 'data'),
+                    ]
+                )
+
+
+
     class ControlPanel(ComponentTemplate):
         class Meta:
             component_cls = dbc.Form
@@ -385,49 +623,390 @@ class Toltec(ObsInstru, name='toltec'):
                     State(self.info_store.id, 'data')
                     ]
                 )
+            
+    @staticmethod
+    def _hdulist_to_base64(hdulist):
+        fo = BytesIO()
+        hdulist.writeto(fo, overwrite=True)
+        return b64encode(fo.getvalue()).decode("utf-8")
 
     @classmethod
     def make_traj_data(cls, exec_config, bs_traj_data):
         logger = get_logger()
         logger.debug("make traj data for instru toltec")
-        # here we do it with the toltec simulator
+        # get observer from site name
+        observer = ObsSite.get_observer(exec_config.site_data['name'])
+        mapping_model = exec_config.mapping.get_model(observer=observer)
+
+
         instru = instrument_registry.schema.validate({
             'name': 'toltec',
             'polarized': False
             }, create_instance=True)
         simulator = instru.simulator
         array_name = exec_config.instru_data['array_name']
-
-        # make trace dicts for array overlay
         apt = simulator.array_prop_table
+        # apt_0 is the apt for the current selected array
         apt_0 = apt[apt['array_name'] == array_name]
+        # this is the apt including only detectors on the edge
+        # useful for making the footprint outline
+        ei = apt.meta[array_name]["edge_indices"]
+        
+        det_dlon = apt_0['x_t']
+        det_dlat = apt_0['y_t']
 
+        # apply the footprint on target
+        # to do so we find the closest poinit in the trajectory to
+        # the target and do the transformation
+        bs_coords_icrs = SkyCoord(
+                bs_traj_data['ra'], bs_traj_data['dec'], frame='icrs')
+        target_icrs = mapping_model.target.transform_to('icrs')
+        i_closest = np.argmin(
+                target_icrs.separation(bs_coords_icrs))
+        # the center of the array overlay in altaz
+        az1 = bs_traj_data['az'][i_closest]
+        alt1 = bs_traj_data['alt'][i_closest]
+        t1 = bs_traj_data['time_obs'][i_closest]
+        c1 = SkyCoord(
+                az=az1, alt=alt1, frame=observer.altaz(time=t1)
+                )
+        det_altaz = SkyCoord(
+                det_dlon, det_dlat,
+                frame=c1.skyoffset_frame()).transform_to(c1.frame)
+        det_icrs = det_altaz.transform_to("icrs")
+
+        det_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
+            det_icrs.ra,
+            det_icrs.dec
+            )
+        # make coverage fits image in s_per_pix
+        # we'll init the power loading model to estimate the conversion factor
+        # of this to mJy/beam
+        cov_hdulist_s_per_pix = cls._make_cov_hdulist(ctx=locals())
+        # overlay traces
         # each trace is for one polarimetry group
         offset_traces = list()
-
-        # dlon = bs_traj_data['dlon']
-        # dlat = bs_traj_data['dlat']
-
         for i, (pg, marker) in enumerate([(0, 'cross'), (1, 'x')]):
             mask = apt_0['pg'] == pg
             offset_traces.append({
-                'x': (apt_0[mask]['x_t']).to_value(u.arcmin),
-                'y': (apt_0[mask]['y_t']).to_value(u.arcmin),
+                'x': det_dlon[mask].to_value(u.arcmin),
+                'y': det_dlat[mask].to_value(u.arcmin),
                 'mode': 'markers',
                 'marker': {
                     'symbol': marker,
-                    'color': 'black',
-                    'size': 3,
+                    'color': 'gray',
+                    'size': 6,
                     },
                 'legendgroup': 'toltec_array_fov',
                 'showlegend': i == 0,
                 'name': f"Toggle FOV: {cls.info[array_name]['name_long']}"
                 })
+
+        # skyview layers
+        skyview_layers = list()
+        n_dets = len(det_icrs)
+        det_tbl = pd.DataFrame.from_dict({
+            "ra": det_icrs.ra.degree,
+            "dec": det_icrs.dec.degree,
+            "color": ["blue"] * n_dets,
+            "type": ["circle"] * n_dets, 
+            "radius": [cls.info[array_name]["a_fwhm"].to_value(u.deg) * 0.5] * n_dets,
+            })
+        skyview_layers.extend([
+            # {
+            #     'type': "catalog",
+            #     "data": det_tbl.to_dict(orient="records"),
+            #     "options": {
+            #         'name': f"Detectors: {cls.info[array_name]['name_long']}",
+            #         "color": "#3366cc",
+            #         "show": False,
+            #         }
+            #     },
+            {
+                "type": "overlay",
+                "data": det_tbl.to_dict(orient="records"),
+                "options": {
+                    'name': f"Detectors: {cls.info[array_name]['name_long']}",
+                    "show": False, 
+                }
+            },
+            {
+                'type': "overlay",
+                "data": [{
+                    "type": "polygon",
+                    "data": list(zip(det_icrs.ra.degree[ei], det_icrs.dec.degree[ei])), 
+                    }],
+                "options": {
+                    'name': f"FOV: {cls.info[array_name]['name_long']}",
+                    "color": "#cc66cc",
+                    "show": True,
+                    "lineWidth": 8,
+                    }
+                },
+            ])
+        
+        # tolteca.simu
+        simrt = exec_config.get_simulator_runtime()
+        simu_config = simrt.config
+        simu_config_yaml = yaml_dump(simrt.config.to_config_dict())
+        
+        
+        # use power loading model to infer the sensitivity
+        # this is rough esitmate based on the mean altitude of the observation.
+        tplm = simu_config.sources[0].get_power_loading_model()
+        target_alt = bs_traj_data['target_alt']
+        alt_mean = target_alt.mean()
+        t_exp = bs_traj_data['t_exp']
+        # for this purpose we generate the info for all the three arrays
+        sens_coeff = np.sqrt(2.)
+        sens_tbl = list()
+        array_names = cls.info['array_names']
+
+        for an in array_names:
+            # TODO fix the api
+            aplm = tplm._array_power_loading_models[an]
+            result = {
+                'array_name': an,
+                'alt_mean': alt_mean,
+                'P': aplm._get_P(alt_mean)
+                } 
+            result.update(aplm._get_noise(alt_mean, return_avg=True))
+            result['dsens'] = sens_coeff * result['nefd'].to(u.mJy * u.s ** 0.5)
+            sens_tbl.append(result)
+        sens_tbl = QTable(rows=sens_tbl)
+        logger.debug(f"summary table for all arrays:\n{sens_tbl}")
+
+        # for the current array we get the mapping area from the cov map
+        # and convert to mJy/beam if requested
+        def _get_entry(an):
+            return sens_tbl[sens_tbl['array_name'] == an][0]
+
+        sens_entry = _get_entry(array_name)
+        cov_data = cov_hdulist_s_per_pix[1].data
+        cov_wcs = WCS(cov_hdulist_s_per_pix[1].header)
+        cov_pixarea = cov_wcs.proj_plane_pixel_area()
+        cov_max = cov_data.max()
+        m_cov = (cov_data > 0.02 * cov_max)
+        m_cov_01 = (cov_data > 0.1 * cov_max)
+        map_area = (m_cov_01.sum() * cov_pixarea).to(u.deg ** 2)
+        a_stddev = cls.info[array_name]['a_fwhm'] / GAUSSIAN_SIGMA_TO_FWHM
+        b_stddev = cls.info[array_name]['b_fwhm'] / GAUSSIAN_SIGMA_TO_FWHM
+        beam_area = 2 * np.pi * a_stddev * b_stddev
+        beam_area_pix2 = (beam_area / cov_pixarea).to_value(u.dimensionless_unscaled)
+
+        cov_data_mJy_per_beam = np.zeros(cov_data.shape, dtype='d')
+        cov_data_mJy_per_beam[m_cov] = sens_coeff * sens_entry['nefd'] / np.sqrt(cov_data[m_cov] * beam_area_pix2)
+        # calculate rms depth from the depth map
+        depth_rms = np.median(cov_data_mJy_per_beam[m_cov_01]) << u.mJy
+        # scale the depth rms to all arrays and update the sens tbl
+        sens_tbl['depth_rms'] = depth_rms / sens_entry['nefd'] * sens_tbl['nefd']
+        sens_tbl['t_exp'] = t_exp
+        sens_tbl['map_area'] = map_area
+
+        # make cov hdulist depending on the instru_data cov unit settings
+        if exec_config.instru_data['coverage_map_type'] == 'depth':
+            cov_hdulist = cov_hdulist_s_per_pix.copy()
+            cov_hdulist[1].header['BUNIT'] = 'mJy / beam'
+            cov_hdulist[1].data = cov_data_mJy_per_beam
+        else:
+            cov_hdulist = cov_hdulist_s_per_pix
+
+        # create the layout to display the data
+        def _make_sens_tab_content(an):
+            entry = _get_entry(an) 
+            def _fmt(v):
+                if isinstance(v, str):
+                    return v
+                return f'{v.value:.3g} {v.unit:unicode}'
+            key_labels = {
+                'array_name': 'Array Name',
+                'alt_mean': 'Mean Alt.',
+                't_exp': 'Total Exp. Time',
+                'dsens': 'Detector Sens.',
+                'map_area': 'Map Area',
+                'depth_rms': 'Median RMS sens.'
+            }
+            data = {v: _fmt(entry[k]) for k, v in key_labels.items()}
+            data['Coverage Map Unit'] = cov_hdulist[1].header['BUNIT']
+            df = pd.DataFrame(data.items(), columns=['', ''])
+            return dbc.Card(
+                [
+                    dbc.CardBody(
+                        dbc.Table.from_dataframe(
+                            df, striped=True, bordered=True, hover=True, className='mx-0 my-0'),
+                        className='py-0 px-0',
+                        style={'border-width': '0px'}
+                    ),
+                ],
+            )
+        sens_tbl_layout = dbc.Tabs(
+            [
+                dbc.Tab(
+                    _make_sens_tab_content(an),
+                    label=str(cls.info[an]['wl_center']),
+                    tab_id=an,
+                    activeTabClassName="fw-bold",
+                    )
+                for an in array_names 
+                ],
+            active_tab=array_name
+            )
+        
+        # lmtot script export
+        lmtot_exporter = LmtOTExporterConfig(save=False)
+        lmtot_content = lmtot_exporter(simu_config)
         return {
+            "dlon": det_dlon,
+            "dlat": det_dlat,
+            "az": det_altaz.az,
+            "alt": det_altaz.alt,
+            "ra": det_icrs.ra,
+            "dec": det_icrs.dec,
+            "sky_bbox_icrs": det_sky_bbox_icrs,
             'overlay_traces': {
                 'offset': offset_traces
+                },
+            'skyview_layers': skyview_layers,
+            'results': {
+                'fits_images': [
+                    {
+                        'options': {
+                            'file': f"obsplanner_toltec_{array_name}_cov.fits",
+                            },
+                        'blob': cls._hdulist_to_base64(cov_hdulist),
+                        }                
+                    ],
+                'lmtot': lmtot_content,
+                'simu_config': simu_config_yaml,
+                'info': sens_tbl_layout,
                 }
             }
+
+    @classmethod
+    def _make_cov_hdu_approx(cls, ctx):
+        logger = get_logger()
+        # unpack the cxt
+        bs_traj_data = ctx['bs_traj_data']
+        det_icrs = ctx['det_icrs']
+        det_sky_bbox_icrs = ctx['det_sky_bbox_icrs']
+        dt_smp = bs_traj_data['time_obs'][1] - bs_traj_data['time_obs'][0]
+        array_name = ctx['array_name']
+       
+        # create the wcs
+        pixscale = u.pixel_scale(4. << u.arcsec / u.pix)
+        adaptive_pixscale_factor = 0.5  # the pixsize will be int factor of 2 arcsec.
+        n_pix_max = 1e6  # 8 MB of data
+        bs_sky_bbox_icrs = bs_traj_data['sky_bbox_icrs'] 
+        sky_bbox_wcs = bs_sky_bbox_icrs.pad_with(
+            det_sky_bbox_icrs.width + (2 << u.arcmin),
+            det_sky_bbox_icrs.height + (2 << u.arcmin),
+            )
+        wcsobj = make_wcs(
+            sky_bbox=sky_bbox_wcs, pixscale=pixscale, n_pix_max=n_pix_max,
+            adaptive_pixscale_factor=adaptive_pixscale_factor)
+
+        bs_xy = wcsobj.world_to_pixel_values(
+            bs_traj_data['ra'].degree,
+            bs_traj_data['dec'].degree,
+            )
+        det_xy = wcsobj.world_to_pixel_values(
+            det_icrs.ra.degree,
+            det_icrs.dec.degree,
+            )
+        # because these are bin edges, we add 1 at end to
+        # makesure the nx and ny are included in the range.
+        xbins = np.arange(wcsobj.pixel_shape[0] + 1)
+        ybins = np.arange(wcsobj.pixel_shape[1] + 1)
+        det_xbins = np.arange(
+                np.floor(det_xy[0].min()),
+                np.ceil(det_xy[0].max()) + 1 + 1
+                )
+        det_ybins = np.arange(
+                np.floor(det_xy[1].min()),
+                np.ceil(det_xy[1].max()) + 1 + 1
+                )
+        # note the axis order ij -> yx
+        bs_im, _, _ = np.histogram2d(
+                bs_xy[1],
+                bs_xy[0],
+                bins=[ybins, xbins])
+        bs_im *= dt_smp.to_value(u.s)  # scale to coverage image of unit s / pix
+
+        det_im, _, _ = np.histogram2d(
+                det_xy[1],
+                det_xy[0],
+                bins=[det_ybins, det_xbins]
+                )
+        # convolve boresignt image with the detector image
+        with timeit("convolve with array layout"):
+            cov_im = convolve_fft(
+                bs_im, det_im,
+                normalize_kernel=False, allow_huge=True)
+        with timeit("convolve with beam"):
+            a_stddev = cls.info[array_name]['a_fwhm'] / GAUSSIAN_SIGMA_TO_FWHM
+            b_stddev = cls.info[array_name]['b_fwhm'] / GAUSSIAN_SIGMA_TO_FWHM
+            g = Gaussian2DKernel(
+                    a_stddev.to_value(
+                        u.pix, equivalencies=pixscale),
+                    b_stddev.to_value(
+                        u.pix, equivalencies=pixscale),
+                   )
+            cov_im = convolve_fft(cov_im, g, normalize_kernel=False)
+        logger.debug(
+                f'total exp time on coverage map: {(cov_im.sum() / det_im.sum() << u.s).to(u.min)}')
+        logger.debug(
+                f'total time of observation: {bs_traj_data["t_exp"].to(u.min)}')
+        cov_hdr = wcsobj.to_header()
+        cov_hdr['BUNIT'] = 's / pix'
+        cov_hdr.append((
+            "ARRAYNAM", array_name,
+            "The name of the TolTEC array"))
+        cov_hdr.append((
+            "BAND", array_name,
+            "The name of the TolTEC array"))
+        return fits.ImageHDU(data=cov_im, header=cov_hdr)
+
+    @classmethod
+    def _make_cov_hdulist(cls, ctx):
+        bs_traj_data = ctx['bs_traj_data']
+        t_exp = bs_traj_data['t_exp']
+        target_alt = bs_traj_data['target_alt']
+        site_info = cls.info['site']
+        phdr = fits.Header()
+        phdr.append((
+            'ORIGIN', 'The TolTEC Project',
+            'Organization generating this FITS file'
+            ))
+        phdr.append((
+            'CREATOR', cls.__qualname__,
+            'The software used to create this FITS file'
+            ))
+        phdr.append((
+            'TELESCOP', site_info['name'],
+            site_info['name_long']
+            ))
+        phdr.append((
+            'INSTRUME', cls.info['name'],
+            cls.info['name_long']
+            ))
+        phdr.append((
+            'EXPTIME', f'{t_exp.to_value(u.s):.3g}',
+            'Exposure time (s)'
+            ))
+        phdr.append((
+            'OBSDUR', f'{t_exp.to_value(u.s):g}',
+            'Observation duration (s)'
+            ))
+        phdr.append((
+            'MEANALT', '{0:f}'.format(
+                  target_alt.mean().to_value(u.deg)),
+            'Mean altitude of the target during observation (deg)'))
+        hdulist = [
+            fits.PrimaryHDU(header=phdr),
+            cls._make_cov_hdu_approx(ctx)
+            ]
+        hdulist = fits.HDUList(hdulist)
+        return hdulist
 
 
 class ObsPlanner(ComponentTemplate):
@@ -448,6 +1027,7 @@ class ObsPlanner(ComponentTemplate):
             instru_name='toltec',
             pointing_catalog_path=None,
             presets_config_path=None,
+            js9_install_dir=None,
             title_text='Obs Planner',
             **kwargs):
         kwargs.setdefault('fluid', True)
@@ -459,9 +1039,14 @@ class ObsPlanner(ComponentTemplate):
         self._instru = ObsInstru.from_name(instru_name)
         self._pointing_catalog_path = pointing_catalog_path
         self._presets_config_path = presets_config_path
+        self._js9_install_dir = js9_install_dir
         self._title_text = title_text
 
     def setup_layout(self, app):
+
+        # this is required to locate the js9
+        djs9.setup_js9_helper(app, install_dir=self._js9_install_dir)
+
         container = self
         header, body = container.grid(2, 1)
         # Header
@@ -474,7 +1059,7 @@ class ObsPlanner(ComponentTemplate):
         app_details.child(html.Pre(pformat_yaml(self.__dict__)))
         header.child(html.Hr(className='mt-0 mb-3'))
         # Body
-        controls_panel, plots_panel = body.colgrid(1, 2, width_ratios=[1, 3])
+        controls_panel, results_panel = body.colgrid(1, 2, width_ratios=[1, 3])
         controls_panel.style = {
                     'width': '375px'
                     }
@@ -482,7 +1067,7 @@ class ObsPlanner(ComponentTemplate):
             'flex-wrap': 'nowrap'
             }
         # make the plotting area auto fill the available space.
-        plots_panel.style = {
+        results_panel.style = {
             'flex-grow': '1',
             'flex-shrink': '1',
             }
@@ -493,9 +1078,10 @@ class ObsPlanner(ComponentTemplate):
 
         target_container = target_container.child(self.Card(
             title_text='Target')).body_container
-        target_info_store = target_container.child(
+        target_select_panel = target_container.child(
             ObsPlannerTargetSelect(site=self._site, className='px-0')
-            ).info_store
+            )
+        target_info_store = target_select_panel.info_store
 
         mapping_container = mapping_container.child(self.Card(
             title_text='Mapping')).body_container
@@ -554,8 +1140,30 @@ class ObsPlanner(ComponentTemplate):
             obsinstru_container).info_store
 
         # Right panel, for plotting
-        mapping_plot_container, instru_plot_container = \
-            plots_panel.colgrid(2, 1, gy=3)
+        # mapping_plot_container, dal_container = \
+        # dal_container, mapping_plot_container, js9_container = \
+        #     plots_panel.colgrid(3, 1, gy=3)
+        dal_container, results_controls_container, mapping_plot_container, instru_results_container = \
+            results_panel.colgrid(4, 1, gy=3)
+        
+        instru_results_controls = self._instru.make_results_controls(results_controls_container, className='px-0 d-flex')
+
+        mapping_plot_container.className = 'my-0'
+        mapping_plot_collapse = instru_results_controls.child(
+            CollapseContent(
+                button_text='Show Trajs in Horizontal Coords...',
+                button_props={
+                    # 'color': 'primary',
+                    'disabled': True,
+                    'style': {
+                        'text-transform': 'none',
+                        }
+                    },
+                content=mapping_plot_container.child(dbc.Collapse, is_open=False, className='mt-3')),
+            )
+        mapping_plot_container = mapping_plot_collapse.content
+
+        instru_results = self._instru.make_results_display(instru_results_container, className='px-0')
 
         mapping_plotter_loading = mapping_plot_container.child(
             dbc.Spinner,
@@ -566,8 +1174,37 @@ class ObsPlanner(ComponentTemplate):
             ObsPlannerMappingPlotter(
                 site=self._site,
             ))
-
+            
+        skyview = dal_container.child(
+            dal.DashAladinLite,
+            survey='P/DSS2/color',
+            target='M1',
+            fov=(10 << u.arcmin).to_value(u.deg),
+            style={"width": "100%", "height": "40vh"},
+            options={
+                "showLayerBox": True,
+                "showSimbadPointerControl": True,
+                "showReticle": False,
+                }
+            )
+        
         super().setup_layout(app)
+
+        # connect the target name to the dal view
+        app.clientside_callback(
+            """
+            function(target_info) {
+                if (!target_info) {
+                    return window.dash_clientside.no_update;
+                }
+                var ra = target_info.ra_deg;
+                var dec = target_info.dec_deg;
+                return ra + ' ' + dec
+            }
+            """,
+            Output(skyview.id, "target"),
+            Input(target_select_panel.target_info_store.id, 'data')
+        )
 
         # this toggles the exec button enabled only when
         # user has provided valid mapping data and target data through
@@ -600,12 +1237,13 @@ class ObsPlanner(ComponentTemplate):
         # to create figure. The returned data is stored on
         # clientside and the graphs are updated with the figs
 
+        instru_results_loading = instru_results.loading_indicators
+
         @app.callback(
             [
                 Output(exec_info_store.id, 'data'),
-                # this is to trigger the loading state
                 Output(mapping_plotter_loading.id, 'color'),
-                ],
+                ] + instru_results_loading['outputs'],
             [
                 Input(exec_button.id, 'n_clicks'),
                 State(mapping_info_store.id, 'data'),
@@ -613,14 +1251,14 @@ class ObsPlanner(ComponentTemplate):
                 State(site_info_store.id, 'data'),
                 State(instru_info_store.id, 'data'),
                 State(mapping_plotter_loading.id, 'color'),
-                ]
+                ] + instru_results_loading['states']
             )
         def make_exec_info_data(
                 n_clicks, mapping_data, target_data, site_data, instru_data,
-                loading):
+                mapping_loading, *instru_loading):
             """Collect data for the planned observation."""
             if mapping_data is None or target_data is None:
-                return (None, loading)
+                return (None, mapping_loading) + instru_loading
             exec_config = ObsPlannerExecConfig.from_data(
                 mapping_data=mapping_data,
                 target_data=target_data,
@@ -633,36 +1271,81 @@ class ObsPlanner(ComponentTemplate):
             mapping_figs = mapping_plotter.make_figures(
                 exec_config=exec_config,
                 traj_data=traj_data)
-            # stores the figs to clientside
+            skyview_params = mapping_plotter.make_skyview_params(
+                exec_config=exec_config,
+                traj_data=traj_data
+                )
+
+            # copy the instru traj data results 
+            instru_results = None
+            if 'instru' in traj_data:
+                instru_results = traj_data['instru'].get('results', None)
+
+            # send the items to clientside for displaying 
             return (
                 {
-                    # the traj data needs to be transformed for json
-                    # serialization
-                    # 'mapping_traj_data': {
-                    #     'time_obs_mjd': traj_data['time_obs'].mjd,
-                    #     'ra_deg': traj_data['ra'].degree,
-                    #     'dec_deg': traj_data['dec'].degree,
-                    #     'az_deg': traj_data['az'].degree,
-                    #     'alt_deg': traj_data['alt'].degree,
-                    #     'target_az_deg': traj_data['target_az'].degree,
-                    #     'target_alt_deg': traj_data['target_alt'].degree,
-                    #     },
                     'mapping_figs': {
                         name: fig.to_dict()
                         for name, fig in mapping_figs.items()
                         },
-                    # need the juggling so all stuff become serializable
-                    'exec_config': yaml_load(
-                        StringIO(yaml_dump(exec_config.to_dict())))
-                    }, loading)
+                    "skyview_params": skyview_params,
+                    'exec_config': exec_config.to_yaml_dict(),
+                    # instru specific data, this is consumed by the instru results
+                    # display
+                    'instru': instru_results 
+                    }, mapping_loading) + instru_loading
+                
+        app.clientside_callback(
+            '''
+            function(exec_info) {
+                if (!exec_info) {
+                    return true;
+                }
+                return false;
+            }
+            ''',
+            Output(mapping_plot_collapse.button.id, 'disabled'),
+            [
+                Input(exec_info_store.id, 'data'),
+                ]
+            )
 
         app.clientside_callback(
             '''
             function(exec_info) {
-                return JSON.stringify(exec_info["exec_config"])
+                // console.log(exec_info)
+                return JSON.stringify(
+                    exec_info && exec_info.exec_config,
+                    null,
+                    2
+                    );
             }
             ''',
             Output(exec_details.id, 'children'),
+            [
+                Input(exec_info_store.id, 'data'),
+                ]
+            )
+        
+        # update the sky map layers
+        # with the traj data
+        app.clientside_callback(
+            '''
+            function(exec_info) {
+                // console.log(exec_info);
+                if (!exec_info) {
+                    return Array(2).fill(window.dash_clientside.no_update);
+                }
+                var svp = exec_info.skyview_params;
+                var fov = svp.fov || window.dash_clientside.no_update;
+                var layers = svp.layers || window.dash_clientside.no_update;
+                return [fov, layers]
+            }
+            ''',
+            [
+                Output(skyview.id, 'fov'),
+                Output(skyview.id, 'layers'),
+                ],
             [
                 Input(exec_info_store.id, 'data'),
                 ]
@@ -671,6 +1354,14 @@ class ObsPlanner(ComponentTemplate):
         # connect exec info with plotter
         mapping_plotter.make_mapping_plot_callbacks(
             app, exec_info_store_id=exec_info_store.id)
+        
+        # connect exec info with instru results
+        instru_results.make_callbacks(
+            app, exec_info_store_id=exec_info_store.id
+            )
+        instru_results_controls.make_callbacks(
+            app, exec_info_store_id=exec_info_store.id
+            )
 
     class Card(ComponentTemplate):
         class Meta:
@@ -770,31 +1461,38 @@ class ObsPlannerExecConfig(object):
         cfg.pop("t_exp", None)
         return cfg
 
+    def to_yaml_dict(self):
+        # this differes from to_dict in that it only have basic serializable types.
+        return yaml_load(StringIO(yaml_dump(self.to_dict())))
+
     def get_simulator_runtime(self):
         """Return a simulator runtime object from this config."""
         # dispatch site/instru to create parts of the simu config dict
-        if self._site.name == 'lmt' and self._instru.name == 'toltec':
+        if self.site_data['name'] == 'lmt' and self.instru_data['name'] == 'toltec':
             simu_cfg = self._make_lmt_toltec_simu_config_dict(
                 lmt_data=self.site_data, toltec_data=self.instru_data)
         else:
             raise ValueError("unsupported site/instruments for simu.")
         # add to simu cfg the mapping and obs_params
-        exec_cfg = self.to_dict()
+        exec_cfg = self.to_yaml_dict()
+        # TODO fix this hack
+        exec_cfg['mapping']['type'] = self.mapping.type
         rupdate(simu_cfg, {
             'simu': {
                 'obs_params': exec_cfg['obs_params'],
                 'mapping': exec_cfg['mapping'],
                 }
             })
+        print(simu_cfg)
         return SimulatorRuntime(simu_cfg)
 
     @staticmethod
     def _make_lmt_toltec_simu_config_dict(lmt_data, toltec_data):
         """Return simu config dict segment for LMT TolTEC."""
-        atm_q = lmt_data['atm_q']
-        atm_model_name = f'am_q{atm_q}'
+        atm_model_name = lmt_data['atm_model_name']
         return {
             'simu': {
+                'jobkey': 'obs_planner_simu',
                 'obs_params': {
                     'f_smp_probing': '122 Hz',
                     'f_smp_mapping': '20 Hz'
@@ -865,7 +1563,12 @@ class ObsPlannerExecConfig(object):
             target_coord = self.mapping.target_coord
             target_coords_altaz = target_coord.transform_to(altaz_frame)
 
+        bs_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
+            bs_coords_icrs.ra,
+            bs_coords_icrs.dec,
+            )
         bs_traj_data = {
+            't_exp': t_exp,
             'time_obs': time_obs,
             'dlon': dlon,
             'dlat': dlat,
@@ -875,6 +1578,7 @@ class ObsPlannerExecConfig(object):
             'alt': bs_coords_altaz.alt,
             'target_az': target_coords_altaz.az,
             'target_alt': target_coords_altaz.alt,
+            "sky_bbox_icrs": bs_sky_bbox_icrs,
             }
         # make instru specific traj data
         obsinstru = ObsInstru.from_name(self.instru_data['name'])
@@ -1205,7 +1909,12 @@ class ObsPlannerTargetSelect(ComponentTemplate):
         self._site = site
         self._target_alt_min = target_alt_min
         container = self
+        self._target_info_store = container.child(dcc.Store)
         self._info_store = container.child(dcc.Store)
+
+    @property
+    def target_info_store(self):
+        return self._target_info_store
 
     @property
     def info_store(self):
@@ -1237,7 +1946,6 @@ or "10h09m08s +20d19m18s".
             """,
             target=target_name_input.id)
 
-        target_resolved_store = controls_form_container.child(dcc.Store)
 
         # date picker
         date_picker_container = controls_form_container.child(html.Div)
@@ -1298,7 +2006,7 @@ elevation > {self._target_alt_min} during the night.
             """,
             target=time_picker_input.id)
         time_picker_feedback = time_picker_group.feedback
-        check_button_container = controls_form_container.child(
+        check_button_container = container.child(
             html.Div,
             className=(
                 'd-flex justify-content-end mt-2'
@@ -1317,7 +2025,7 @@ elevation > {self._target_alt_min} during the night.
 
         @app.callback(
             [
-                Output(target_resolved_store.id, 'data'),
+                Output(self.target_info_store.id, 'data'),
                 Output(target_name_input.id, 'valid'),
                 Output(target_name_input.id, 'invalid'),
                 Output(target_name_feedback.id, 'children'),
@@ -1377,7 +2085,7 @@ elevation > {self._target_alt_min} during the night.
                 ],
             [
                 Input(date_picker_input.id, 'value'),
-                Input(target_resolved_store.id, 'data')
+                Input(self.target_info_store.id, 'data')
              ]
             )
         def validate_date(date_value, data):
@@ -1429,7 +2137,7 @@ elevation > {self._target_alt_min} during the night.
             [
                 Input(time_picker_input.id, 'value'),
                 Input(date_picker_input.id, 'value'),
-                Input(target_resolved_store.id, 'data'),
+                Input(self.target_info_store.id, 'data'),
                 ]
             )
         def validate_time(time_value, date_value, data):
@@ -1489,7 +2197,7 @@ elevation > {self._target_alt_min} during the night.
                 Input(check_button.id, 'n_clicks'),
                 State(date_picker_input.id, 'value'),
                 State(time_picker_input.id, 'value'),
-                State(target_resolved_store.id, 'data'),
+                State(self.target_info_store.id, 'data'),
                 ],
             prevent_initial_call=True,
             )
@@ -1547,7 +2255,7 @@ elevation > {self._target_alt_min} during the night.
                 Input(date_picker_input.id, 'valid'),
                 Input(time_picker_input.id, 'value'),
                 Input(time_picker_input.id, 'valid'),
-                Input(target_resolved_store.id, 'data'),
+                Input(self.target_info_store.id, 'data'),
                 Input(target_name_input.id, 'valid'),
                 ])
 
@@ -1568,16 +2276,16 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
         container = self
         self._graphs = [
             c.child(dcc.Graph, figure=self._make_empty_figure())
-            for c in container.colgrid(2, 2,).ravel()
+            for c in container.colgrid(1, 4,).ravel()
             ]
 
     def make_mapping_plot_callbacks(self, app, exec_info_store_id):
         # update graph with figures in exec_info_store
         app.clientside_callback(
-            """
+            _j2env.from_string("""
             function(exec_data) {
                 if (exec_data === null) {
-                    return [None, None, None, None]
+                    return Array(4).fill({{empty_fig}});
                 }
                 figs = exec_data['mapping_figs']
                 return [
@@ -1587,7 +2295,7 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
                     figs["icrs"],
                     ]
             }
-            """,
+            """).render(empty_fig=json.dumps(self._make_empty_figure())),
             [
                 Output(graph.id, 'figure')
                 for graph in self._graphs
@@ -1605,6 +2313,63 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
             exec_config, traj_data)
         figs = dict(**mapping_figs, visibility=visibility_fig)
         return figs
+
+    @timeit
+    def make_skyview_params(self, exec_config, traj_data):
+        # return the dict that setup the skyview.
+        mapping_config = exec_config.mapping
+        bs_traj_data = traj_data['site']
+        instru_traj_data = traj_data['instru']
+        bs_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
+            bs_traj_data['ra'],
+            bs_traj_data['dec'],
+            )
+        fov_sky_bbox = bs_sky_bbox_icrs
+        if instru_traj_data is not None:
+            # figure out instru overlay layout bbox 
+            instru_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
+                instru_traj_data['ra'],
+                instru_traj_data['dec'],
+                )
+            fov_sky_bbox = fov_sky_bbox.pad_with(
+                instru_sky_bbox_icrs.width,
+                instru_sky_bbox_icrs.height,
+                )
+        fov = max(
+                fov_sky_bbox.width, fov_sky_bbox.height).to_value(u.deg)
+        # set the view fov larger
+        fov = fov / 0.618
+        layers = list()
+        # the mapping pattern layer
+        layers.append(
+            {
+                'type': "overlay",
+                "data": [{
+                    "data": list(zip(
+                        bs_traj_data['ra'].degree,
+                        bs_traj_data['dec'].degree)),
+                    "type": "polyline",
+                    "color": "red",
+                    "lineWidth": 1,
+                    }],
+                "options": {
+                    'name': f"Mapping Trajectory",
+                    "color": "red",
+                    "show": True,
+                    }
+                },
+            )
+        if instru_traj_data is not None:
+            layers.extend(instru_traj_data["skyview_layers"])
+        params = dict({
+            "target": exec_config.mapping.target,
+            "fov": fov,
+            "layers": layers,
+            "options": {
+                "showLayerBox": True
+                }
+            })
+        return params
 
     @staticmethod
     def _make_day_grid(day_start):
@@ -1869,7 +2634,7 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
             'x': bs_traj_data['target_az'].to_value(u.deg),
             'y': bs_traj_data['target_alt'].to_value(u.deg),
             'line': {
-                'color': 'purple'
+                'color': 'blue'
                 }
             }))
         fig.update_xaxes(

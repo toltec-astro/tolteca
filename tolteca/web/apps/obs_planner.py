@@ -69,6 +69,13 @@ class ObsPlannerConfig():
             'schema': Or(RelPathSchema(), None)
             }
         )
+    js9_install_dir: Union[None, Path] = field(
+        default=None,
+        metadata={
+            'description': 'The JS9 install path.',
+            'schema': Or(RelPathSchema(), None)
+            }
+        )
     title_text: str = field(
         default='Obs Planner',
         metadata={
@@ -80,12 +87,15 @@ class ObsPlannerConfig():
 def DASHA_SITE():
     """The dasha site entry point.
     """
+    from dash_js9 import JS9_SUPPORT
+
     dasha_config = get_app_config(ObsPlannerConfig).to_dict()
     dasha_config.update({
         'template': 'tolteca.web.templates.obs_planner:ObsPlanner',
         'THEME': dbc.themes.LUMEN,
         # 'ASSETS_IGNORE': 'bootstrap.*',
-        # 'DEBUG': True
+        'DEBUG': True,
+        "EXTERNAL_SCRIPTS": [JS9_SUPPORT],
         })
     return {
         'extensions': [
