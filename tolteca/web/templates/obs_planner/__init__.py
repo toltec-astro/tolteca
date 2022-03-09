@@ -1088,7 +1088,7 @@ class ObsPlanner(ComponentTemplate):
         # Header
         title_container = header.child(
             html.Div, className='d-flex align-items-baseline')
-        title_container.child(html.H1(self._title_text, className='display-3'))
+        title_container.child(html.H2(self._title_text, className='my-2'))
         app_details = title_container.child(
                 CollapseContent(button_text='Details ...', className='ms-4')
             ).content
