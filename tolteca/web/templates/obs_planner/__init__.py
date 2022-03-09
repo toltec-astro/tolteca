@@ -43,6 +43,7 @@ from schema import Or
 import jinja2
 import json
 import pandas as pd
+import cv2
 
 from tollan.utils.log import get_logger, timeit
 from tollan.utils.fmt import pformat_yaml
@@ -358,12 +359,17 @@ class Toltec(ObsInstru, name='toltec'):
                 spinner_style={"width": "5rem", "height": "5rem"}
                 )
             self._fitsview = self._fitsview_loading.child(
-                djs9.DashJS9, style={'width': '100%', 'min-height': '500px'})
+                djs9.DashJS9,
+                style={'width': '100%', 'min-height': '500px', 'height': '40vh'}
+                )
             self._info_loading = info_container.child(
                 dbc.Spinner,
                 show_initially=False, color='primary',
                 spinner_style={"width": "5rem", "height": "5rem"}
                 )
+            
+        def setup_layout(self, app):
+            return super().setup_layout(app)
 
         def make_callbacks(self, app, exec_info_store_id):
             fitsview = self._fitsview
@@ -811,7 +817,34 @@ class Toltec(ObsInstru, name='toltec'):
         else:
             cov_hdulist = cov_hdulist_s_per_pix
 
-        # create the layout to display the data
+        # from the cov image we can create a countour showing the outline of the observation
+        # on the skyview
+        cov_ctr = cov_hdulist[1].data.copy()
+        cov_ctr[~m_cov] = 0
+        im = cv2.normalize(
+            src=cov_ctr, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
+        cxy = cv2.findContours(im, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0][0]
+        cxy_s = cv2.approxPolyDP(cxy, 0.002 * cv2.arcLength(cxy, True), True).squeeze()
+        cra, cdec = cov_wcs.pixel_to_world_values(
+            cxy_s[:, 0], cxy_s[:, 1]
+            )
+        skyview_layers.extend([
+            {
+                'type': "overlay",
+                "data": [{
+                    "type": "polygon",
+                    "data": list(zip(cra, cdec)), 
+                    }],
+                "options": {
+                    'name': f"Coverage Outline",
+                    "color": "#66cccc",
+                    "show": True,
+                    "lineWidth": 4,
+                    }
+                },
+            ])
+ 
+        # create the layout to display the sensitivity info table 
         def _make_sens_tab_content(an):
             entry = _get_entry(an) 
             def _fmt(v):
@@ -829,11 +862,14 @@ class Toltec(ObsInstru, name='toltec'):
             data = {v: _fmt(entry[k]) for k, v in key_labels.items()}
             data['Coverage Map Unit'] = cov_hdulist[1].header['BUNIT']
             df = pd.DataFrame(data.items(), columns=['', ''])
+            t = dbc.Table.from_dataframe(
+                    df, striped=True, bordered=True, hover=True, className='mx-0 my-0')
+            # get rid of the first child which is the header
+            t.children = t.children[1:]
             return dbc.Card(
                 [
                     dbc.CardBody(
-                        dbc.Table.from_dataframe(
-                            df, striped=True, bordered=True, hover=True, className='mx-0 my-0'),
+                        t,
                         className='py-0 px-0',
                         style={'border-width': '0px'}
                     ),
@@ -1027,7 +1063,7 @@ class ObsPlanner(ComponentTemplate):
             instru_name='toltec',
             pointing_catalog_path=None,
             presets_config_path=None,
-            js9_install_dir=None,
+            js9_config_path=None,
             title_text='Obs Planner',
             **kwargs):
         kwargs.setdefault('fluid', True)
@@ -1039,13 +1075,13 @@ class ObsPlanner(ComponentTemplate):
         self._instru = ObsInstru.from_name(instru_name)
         self._pointing_catalog_path = pointing_catalog_path
         self._presets_config_path = presets_config_path
-        self._js9_install_dir = js9_install_dir
+        self._js9_config_path = js9_config_path 
         self._title_text = title_text
 
     def setup_layout(self, app):
 
         # this is required to locate the js9
-        djs9.setup_js9_helper(app, install_dir=self._js9_install_dir)
+        djs9.setup_js9(app, config_path=self._js9_config_path)
 
         container = self
         header, body = container.grid(2, 1)
@@ -1475,15 +1511,12 @@ class ObsPlannerExecConfig(object):
             raise ValueError("unsupported site/instruments for simu.")
         # add to simu cfg the mapping and obs_params
         exec_cfg = self.to_yaml_dict()
-        # TODO fix this hack
-        exec_cfg['mapping']['type'] = self.mapping.type
         rupdate(simu_cfg, {
             'simu': {
                 'obs_params': exec_cfg['obs_params'],
                 'mapping': exec_cfg['mapping'],
                 }
             })
-        print(simu_cfg)
         return SimulatorRuntime(simu_cfg)
 
     @staticmethod

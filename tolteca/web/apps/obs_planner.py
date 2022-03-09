@@ -69,10 +69,10 @@ class ObsPlannerConfig():
             'schema': Or(RelPathSchema(), None)
             }
         )
-    js9_install_dir: Union[None, Path] = field(
+    js9_config_path: Union[None, Path] = field(
         default=None,
         metadata={
-            'description': 'The JS9 install path.',
+            'description': 'The json config file for JS9.',
             'schema': Or(RelPathSchema(), None)
             }
         )
@@ -87,6 +87,7 @@ class ObsPlannerConfig():
 def DASHA_SITE():
     """The dasha site entry point.
     """
+
     from dash_js9 import JS9_SUPPORT
 
     dasha_config = get_app_config(ObsPlannerConfig).to_dict()
