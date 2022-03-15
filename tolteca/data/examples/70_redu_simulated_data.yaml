@@ -110,7 +110,7 @@ reduce:
           - hwp: 0
         timestream:
           output:
-            enabled: true
+            enabled: false
             format: netcdf
           chunking:
             length_sec: 10.0
