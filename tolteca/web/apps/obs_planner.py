@@ -48,11 +48,11 @@ class ObsPlannerConfig():
             'schema': Or("lmt", )
             }
         )
-    instru_name: str = field(
-        default='toltec',
+    instru_name: Union[None, str] = field(
+        default=None,
         metadata={
             'description': 'The observing instrument name.',
-            'schema': Or("toltec", )
+            'schema': Or("toltec", 'sequoia', None)
             }
         )
     pointing_catalog_path: Union[None, Path] = field(
