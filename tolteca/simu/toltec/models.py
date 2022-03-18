@@ -23,7 +23,7 @@ from contextlib import contextmanager, ExitStack
 from ...utils.common_schema import PhysicalTypeSchema
 from ...utils import get_pkg_data_path
 from .toltec_info import toltec_info
-from .lmt import get_lmt_atm_models
+from ..lmt import get_lmt_atm_models
 
 from ..base import ProjModel, LabelFrame
 from ..sources.base import PowerLoadingModel

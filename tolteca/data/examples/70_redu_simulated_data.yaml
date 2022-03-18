@@ -109,6 +109,9 @@ reduce:
           - toltec12: 0
           - hwp: 0
         timestream:
+          output:
+            enabled: false
+            format: netcdf
           chunking:
             length_sec: 10.0
           weighting:

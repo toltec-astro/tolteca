@@ -5,6 +5,7 @@ from dash import html, dcc, Input, Output, State
 from dash.exceptions import PreventUpdate
 import dash
 import dash_bootstrap_components as dbc
+import dash_aladin_lite as dal
 
 from dasha.web.templates.common import (
         CollapseContent,
@@ -12,6 +13,8 @@ from dasha.web.templates.common import (
         LabeledInput,
         )
 from dasha.web.templates.utils import PatternMatchingId, make_subplots
+import dash_js9 as djs9
+
 import astropy.units as u
 # from astropy.coordinates import get_icrs_coordinates
 from astroquery.utils import parse_coordinates
@@ -30,7 +33,8 @@ import bisect
 from typing import Union
 from io import StringIO
 from schema import Or
-
+import jinja2
+import json
 
 from tollan.utils.log import get_logger, timeit
 from tollan.utils.fmt import pformat_yaml
@@ -39,395 +43,18 @@ from tollan.utils.dataclass_schema import add_schema
 from tollan.utils.namespace import Namespace
 
 from ....utils import yaml_load, yaml_dump
-from ....simu.toltec.lmt import lmt_info
-from ....simu.toltec.toltec_info import toltec_info
+from ....simu.utils import SkyBoundingBox
 from ....simu import (
     mapping_registry,
-    instrument_registry, SimulatorRuntime, ObsParamsConfig)
+    SimulatorRuntime, ObsParamsConfig)
 from ....simu.mapping.utils import resolve_sky_coords_frame
 
 from .preset import PresetsConfig
+from .base import ObsSite, ObsInstru
 
 
-def _add_from_name_factory(cls):
-    """A helper decorator to add ``from_name`` factory method to class."""
-    cls._subclasses = dict()
-
-    def _init_subclass(cls, name):
-        cls._subclasses[name] = cls
-        cls.name = name
-
-    cls.__init_subclass__ = classmethod(_init_subclass)
-
-    def from_name(cls, name):
-        """Return the site instance for `name`."""
-        if name not in cls._subclasses:
-            raise ValueError(f"invalid obs site name {name}")
-        subcls = cls._subclasses[name]
-        return subcls()
-
-    cls.from_name = classmethod(from_name)
-
-    return cls
-
-
-class ObsPlannerModule(object):
-    """Base class for modules in obsplanner."""
-
-    def make_controls(self, container):
-        return container.child(self.ControlPanel(self))
-
-    def make_info_display(self, container):
-        return container.child(self.InfoPanel(self))
-
-    InfoPanel = NotImplemented
-    """
-    Subclass should implement this as a `ComponentTemplate` to generate UI
-    for display read-only custom info for this module.
-    """
-
-    ControlPanel = NotImplemented
-    """
-    Subclass should implement this class as a ComponentTemplate
-    to generate UI for collecting user inputs.
-
-    The template should have an attribute ``info_store`` of type
-    dcc.Store, which is updated when user input changes.
-
-    The data in info_store is typically consumed by `ObsplannerExecConfig` to
-    create the exec config object.
-    """
-
-    display_name = NotImplemented
-    """Name to display as title of the module."""
-
-
-@_add_from_name_factory
-class ObsSite(ObsPlannerModule):
-    """A module base class for an observation site"""
-
-    observer = NotImplemented
-    """The astroplan.Observer instance for the site."""
-
-    @classmethod
-    def get_observer(cls, name):
-        return cls._subclasses[name].observer
-
-
-@_add_from_name_factory
-class ObsInstru(ObsPlannerModule):
-    """A module base class for an observation instrument."""
-
-    @classmethod
-    def make_traj_data(cls, exec_config):
-        """Subclass should implement this to generate traj_data
-        as part of the result of `ObsPlannerExecConfig.make_traj_data`.
-        """
-        return NotImplemented
-
-
-class Lmt(ObsSite, name='lmt'):
-    """An `ObsSite` for LMT."""
-
-    info = lmt_info
-    display_name = info['name_long']
-    observer = info['observer']
-
-    class ControlPanel(ComponentTemplate):
-        class Meta:
-            component_cls = dbc.Form
-
-        _atm_q_values = [25, 50, 75]
-        _atm_q_default = 25
-        _tel_surface_rms_default = 76 << u.um
-
-        def __init__(self, site, **kwargs):
-            super().__init__(**kwargs)
-            self._site = site
-            container = self
-            self._info_store = container.child(dcc.Store, data={
-                'name': site.name
-                })
-
-        @property
-        def info_store(self):
-            return self._info_store
-
-        def setup_layout(self, app):
-            container = self.child(dbc.Row, className='gy-2')
-            atm_select = container.child(
-                    LabeledChecklist(
-                        label_text='Atm. Quantile',
-                        className='w-auto',
-                        size='sm',
-                        # set to true to allow multiple check
-                        multi=False
-                        )).checklist
-            atm_select.options = [
-                    {
-                        'label': f"{q} %",
-                        'value': q,
-                        }
-                    for q in self._atm_q_values]
-            atm_select.value = self._atm_q_default
-
-            tel_surface_input = container.child(
-                    LabeledInput(
-                        label_text='Tel. Surface RMS',
-                        className='w-auto',
-                        size='sm',
-                        input_props={
-                            # these are the dbc.Input kwargs
-                            'type': 'number',
-                            'min': 0,
-                            'max': 200,
-                            'placeholder': '0-200',
-                            'style': {
-                                'flex': '0 1 5rem'
-                                },
-                            },
-                        suffix_text='μm'
-                        )).input
-            tel_surface_input.value = self._tel_surface_rms_default.to_value(
-                u.um)
-            super().setup_layout(app)
-
-            # collect inputs to store
-            app.clientside_callback(
-                """
-                function(atm_select_value, tel_surface_value, data_init) {
-                    data = {...data_init}
-                    data['atm_model_name'] = 'am_q' + atm_select_value
-                    data['tel_surface_rms'] = tel_surface_value + ' um'
-                    return data
-                }
-                """,
-                Output(self.info_store.id, 'data'),
-                [
-                    Input(atm_select.id, 'value'),
-                    Input(tel_surface_input.id, 'value'),
-                    State(self.info_store.id, 'data')
-                    ]
-                )
-
-    class InfoPanel(ComponentTemplate):
-        class Meta:
-            component_cls = dbc.Container
-
-        def __init__(self, site, **kwargs):
-            kwargs.setdefault('fluid', True)
-            super().__init__(**kwargs)
-            self._site = site
-
-        def setup_layout(self, app):
-            container = self.child(
-                    CollapseContent(button_text='Current Site Info ...')
-                ).content
-            info = self._site.info
-            location = info['location']
-            timezone_local = info['timezone_local']
-            info_store = container.child(
-                dcc.Store, data={
-                    'name': self._site.name,
-                    'display_name': self._site.display_name,
-                    'lon': location.lon.degree,
-                    'lat': location.lat.degree,
-                    'height_m': location.height.to_value(u.m),
-                    'timezone_local': timezone_local.zone,
-                    })
-            pre_kwargs = {
-                'className': 'mb-0',
-                'style': {
-                    'font-size': '80%'
-                    }
-                }
-            loc_display = container.child(
-                html.Pre,
-                f'Location: {location.lon.to_string()} '
-                f'{location.lat.to_string()}',
-                # f' {location.height:.0f}'
-                **pre_kwargs)
-            loc_display.className += ' mb-0'
-            time_display = container.child(
-                html.Pre, **pre_kwargs)
-            timer = container.child(dcc.Interval, interval=500)
-            super().setup_layout(app)
-            app.clientside_callback(
-                """
-function(t_interval, info) {
-    // console.log(info)
-    // current datetime
-    var dt = new Date()
-    let ut_fmt = new Intl.DateTimeFormat(
-        'sv-SE', {
-            timeZone: 'UTC',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false,
-            timeZoneName: 'short'})
-    result = 'Time: ' + ut_fmt.format(dt)
-    let lmt_lt_fmt = new Intl.DateTimeFormat(
-        'sv-SE', {
-            timeZone: info["timezone_local"],
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false,
-            timeZoneName: 'short'})
-    result = result + '\\nLocal Time: ' + lmt_lt_fmt.format(dt)
-    // LST
-    var au = window.dash_clientside.astro_utils
-    var lst = au.getLST(dt, info["lon"])
-    // convert to hh:mm::ss
-    var n = new Date(0,0)
-    n.setSeconds(+lst * 60 * 60)
-    lmt_lst = n.toTimeString().slice(0, 8)
-    result = result + '\\nLST: ' + lmt_lst
-    return result
-}
-""",
-                Output(time_display.id, 'children'),
-                Input(timer.id, 'n_intervals'),
-                Input(info_store.id, 'data'),
-                prevent_initial_call=True
-                )
-
-
-class Toltec(ObsInstru, name='toltec'):
-    """An `ObsInstru` for TolTEC."""
-
-    info = toltec_info
-    display_name = info['name_long']
-
-    class ControlPanel(ComponentTemplate):
-        class Meta:
-            component_cls = dbc.Form
-
-        def __init__(self, instru, **kwargs):
-            super().__init__(**kwargs)
-            self._instru = instru
-            container = self
-            self._info_store = container.child(dcc.Store, data={
-                'name': instru.name
-                })
-
-        @property
-        def info_store(self):
-            return self._info_store
-
-        def setup_layout(self, app):
-            toltec_info = self._instru.info
-            container = self.child(dbc.Row, className='gy-2')
-            band_select = container.child(
-                    LabeledChecklist(
-                        label_text='TolTEC band',
-                        className='w-auto',
-                        size='sm',
-                        # set to true to allow multiple check
-                        multi=False,
-                        input_props={
-                            'style': {
-                                'text-transform': 'none'
-                                }
-                            }
-                        )).checklist
-            band_select.options = [
-                    {
-                        'label': str(toltec_info[a]['wl_center']),
-                        'value': a,
-                        }
-                    for a in toltec_info['array_names']
-                    ]
-            band_select.value = toltec_info['array_names'][0]
-
-            covtype_select = container.child(
-                    LabeledChecklist(
-                        label_text='Coverage Unit',
-                        className='w-auto',
-                        size='sm',
-                        # set to true to allow multiple check
-                        multi=False
-                        )).checklist
-            covtype_select.options = [
-                    {
-                        'label': 'mJy/beam',
-                        'value': 'depth',
-                        },
-                    {
-                        'label': 's/pixel',
-                        'value': 'time',
-                        },
-                    ]
-            covtype_select.value = 'depth'
-            super().setup_layout(app)
-
-            # collect inputs to store
-            app.clientside_callback(
-                """
-                function(band_select_value, covtype_select_value, data_init) {
-                    data = {...data_init}
-                    data['array_name'] = band_select_value
-                    data['coverage_map_type'] = covtype_select_value
-                    return data
-                }
-                """,
-                Output(self.info_store.id, 'data'),
-                [
-                    Input(band_select.id, 'value'),
-                    Input(covtype_select.id, 'value'),
-                    State(self.info_store.id, 'data')
-                    ]
-                )
-
-    @classmethod
-    def make_traj_data(cls, exec_config, bs_traj_data):
-        logger = get_logger()
-        logger.debug("make traj data for instru toltec")
-        # here we do it with the toltec simulator
-        instru = instrument_registry.schema.validate({
-            'name': 'toltec',
-            'polarized': False
-            }, create_instance=True)
-        simulator = instru.simulator
-        array_name = exec_config.instru_data['array_name']
-
-        # make trace dicts for array overlay
-        apt = simulator.array_prop_table
-        apt_0 = apt[apt['array_name'] == array_name]
-
-        # each trace is for one polarimetry group
-        offset_traces = list()
-
-        # dlon = bs_traj_data['dlon']
-        # dlat = bs_traj_data['dlat']
-
-        for i, (pg, marker) in enumerate([(0, 'cross'), (1, 'x')]):
-            mask = apt_0['pg'] == pg
-            offset_traces.append({
-                'x': (apt_0[mask]['x_t']).to_value(u.arcmin),
-                'y': (apt_0[mask]['y_t']).to_value(u.arcmin),
-                'mode': 'markers',
-                'marker': {
-                    'symbol': marker,
-                    'color': 'black',
-                    'size': 3,
-                    },
-                'legendgroup': 'toltec_array_fov',
-                'showlegend': i == 0,
-                'name': f"Toggle FOV: {cls.info[array_name]['name_long']}"
-                })
-        return {
-            'overlay_traces': {
-                'offset': offset_traces
-                }
-            }
+_j2env = jinja2.Environment()
+"""A jinja2 environment for generating clientside callbacks."""
 
 
 class ObsPlanner(ComponentTemplate):
@@ -445,9 +72,10 @@ class ObsPlanner(ComponentTemplate):
             lissajous_model_length_max=20 << u.deg,
             t_exp_max=1 << u.hour,
             site_name='lmt',
-            instru_name='toltec',
+            instru_name=None,
             pointing_catalog_path=None,
             presets_config_path=None,
+            js9_config_path=None,
             title_text='Obs Planner',
             **kwargs):
         kwargs.setdefault('fluid', True)
@@ -456,25 +84,34 @@ class ObsPlanner(ComponentTemplate):
         self._lissajous_model_length_max = lissajous_model_length_max,
         self._t_exp_max = t_exp_max,
         self._site = ObsSite.from_name(site_name)
-        self._instru = ObsInstru.from_name(instru_name)
+        self._instru = (
+            None if instru_name is None
+            else ObsInstru.from_name(instru_name))
         self._pointing_catalog_path = pointing_catalog_path
         self._presets_config_path = presets_config_path
+        self._js9_config_path = js9_config_path
         self._title_text = title_text
 
     def setup_layout(self, app):
+
+        if self._js9_config_path is not None:
+            # this is required to locate the js9 helper
+            # in case js9 is used
+            djs9.setup_js9(app, config_path=self._js9_config_path)
+
         container = self
         header, body = container.grid(2, 1)
         # Header
         title_container = header.child(
             html.Div, className='d-flex align-items-baseline')
-        title_container.child(html.H1(self._title_text, className='display-3'))
+        title_container.child(html.H2(self._title_text, className='my-2'))
         app_details = title_container.child(
                 CollapseContent(button_text='Details ...', className='ms-4')
             ).content
         app_details.child(html.Pre(pformat_yaml(self.__dict__)))
         header.child(html.Hr(className='mt-0 mb-3'))
         # Body
-        controls_panel, plots_panel = body.colgrid(1, 2, width_ratios=[1, 3])
+        controls_panel, results_panel = body.colgrid(1, 2, width_ratios=[1, 3])
         controls_panel.style = {
                     'width': '375px'
                     }
@@ -482,7 +119,7 @@ class ObsPlanner(ComponentTemplate):
             'flex-wrap': 'nowrap'
             }
         # make the plotting area auto fill the available space.
-        plots_panel.style = {
+        results_panel.style = {
             'flex-grow': '1',
             'flex-shrink': '1',
             }
@@ -493,9 +130,10 @@ class ObsPlanner(ComponentTemplate):
 
         target_container = target_container.child(self.Card(
             title_text='Target')).body_container
-        target_info_store = target_container.child(
+        target_select_panel = target_container.child(
             ObsPlannerTargetSelect(site=self._site, className='px-0')
-            ).info_store
+            )
+        target_info_store = target_select_panel.info_store
 
         mapping_container = mapping_container.child(self.Card(
             title_text='Mapping')).body_container
@@ -546,16 +184,49 @@ class ObsPlanner(ComponentTemplate):
         site_info_store = self._site.make_controls(
             obssite_container).info_store
 
-        # instru config panel
-        obsinstru_title = f'Instrument: {self._instru.display_name}'
-        obsinstru_container = obsinstru_container.child(self.Card(
-            title_text=obsinstru_title)).body_container
-        instru_info_store = self._instru.make_controls(
-            obsinstru_container).info_store
-
+        if self._instru is not None:
+            # instru config panel
+            obsinstru_title = f'Instrument: {self._instru.display_name}'
+            obsinstru_container = obsinstru_container.child(self.Card(
+                title_text=obsinstru_title)).body_container
+            instru_info_store = self._instru.make_controls(
+                obsinstru_container).info_store
+        else:
+            instru_info_store = obsinstru_container.child(dcc.Store)
         # Right panel, for plotting
-        mapping_plot_container, instru_plot_container = \
-            plots_panel.colgrid(2, 1, gy=3)
+        # mapping_plot_container, dal_container = \
+        # dal_container, mapping_plot_container, js9_container = \
+        #     plots_panel.colgrid(3, 1, gy=3)
+        dal_container, results_controls_container, \
+            mapping_plot_container, instru_results_container = \
+            results_panel.colgrid(4, 1, gy=3)
+
+        if self._instru is not None:
+            instru_results_controls = self._instru.make_results_controls(
+                results_controls_container, className='px-0 d-flex')
+            mapping_plot_controls_container = instru_results_controls
+            instru_results = self._instru.make_results_display(
+                instru_results_container, className='px-0')
+        else:
+            mapping_plot_controls_container = results_controls_container
+
+        mapping_plot_container.className = 'my-0'
+        mapping_plot_collapse = mapping_plot_controls_container.child(
+            CollapseContent(
+                button_text='Show Trajs in Horizontal Coords...',
+                button_props={
+                    # 'color': 'primary',
+                    'disabled': True,
+                    'style': {
+                        'text-transform': 'none',
+                        }
+                    },
+                content=mapping_plot_container.child(
+                    dbc.Collapse,
+                    is_open=self._instru is None,
+                    className='mt-3')),
+            )
+        mapping_plot_container = mapping_plot_collapse.content
 
         mapping_plotter_loading = mapping_plot_container.child(
             dbc.Spinner,
@@ -567,7 +238,37 @@ class ObsPlanner(ComponentTemplate):
                 site=self._site,
             ))
 
+        skyview_height = '50vh' if self._instru is None else '40vh'
+        skyview = dal_container.child(
+            dal.DashAladinLite,
+            survey='P/DSS2/color',
+            target='M1',
+            fov=(10 << u.arcmin).to_value(u.deg),
+            style={"width": "100%", "height": skyview_height},
+            options={
+                "showLayerBox": True,
+                "showSimbadPointerControl": True,
+                "showReticle": False,
+                }
+            )
+
         super().setup_layout(app)
+
+        # connect the target name to the dal view
+        app.clientside_callback(
+            """
+            function(target_info) {
+                if (!target_info) {
+                    return window.dash_clientside.no_update;
+                }
+                var ra = target_info.ra_deg;
+                var dec = target_info.dec_deg;
+                return ra + ' ' + dec
+            }
+            """,
+            Output(skyview.id, "target"),
+            Input(target_select_panel.target_info_store.id, 'data')
+        )
 
         # this toggles the exec button enabled only when
         # user has provided valid mapping data and target data through
@@ -600,12 +301,26 @@ class ObsPlanner(ComponentTemplate):
         # to create figure. The returned data is stored on
         # clientside and the graphs are updated with the figs
 
+        if self._instru is not None:
+            instru_results_loading = instru_results.loading_indicators
+            # connect exec info with instru results
+            instru_results.make_callbacks(
+                app, exec_info_store_id=exec_info_store.id
+                )
+            instru_results_controls.make_callbacks(
+                app, exec_info_store_id=exec_info_store.id
+                )
+        else:
+            instru_results_loading = {
+                'outputs': list(),
+                'states': list()
+                }
+
         @app.callback(
             [
                 Output(exec_info_store.id, 'data'),
-                # this is to trigger the loading state
                 Output(mapping_plotter_loading.id, 'color'),
-                ],
+                ] + instru_results_loading['outputs'],
             [
                 Input(exec_button.id, 'n_clicks'),
                 State(mapping_info_store.id, 'data'),
@@ -613,14 +328,14 @@ class ObsPlanner(ComponentTemplate):
                 State(site_info_store.id, 'data'),
                 State(instru_info_store.id, 'data'),
                 State(mapping_plotter_loading.id, 'color'),
-                ]
+                ] + instru_results_loading['states']
             )
         def make_exec_info_data(
                 n_clicks, mapping_data, target_data, site_data, instru_data,
-                loading):
+                mapping_loading, *instru_loading):
             """Collect data for the planned observation."""
             if mapping_data is None or target_data is None:
-                return (None, loading)
+                return (None, mapping_loading) + instru_loading
             exec_config = ObsPlannerExecConfig.from_data(
                 mapping_data=mapping_data,
                 target_data=target_data,
@@ -633,36 +348,82 @@ class ObsPlanner(ComponentTemplate):
             mapping_figs = mapping_plotter.make_figures(
                 exec_config=exec_config,
                 traj_data=traj_data)
-            # stores the figs to clientside
+            skyview_params = mapping_plotter.make_skyview_params(
+                exec_config=exec_config,
+                traj_data=traj_data
+                )
+
+            # copy the instru traj data results
+            instru_results = None
+            if traj_data['instru'] is not None:
+                instru_results = traj_data['instru'].get('results', None)
+
+            # send the items to clientside for displaying
             return (
                 {
-                    # the traj data needs to be transformed for json
-                    # serialization
-                    # 'mapping_traj_data': {
-                    #     'time_obs_mjd': traj_data['time_obs'].mjd,
-                    #     'ra_deg': traj_data['ra'].degree,
-                    #     'dec_deg': traj_data['dec'].degree,
-                    #     'az_deg': traj_data['az'].degree,
-                    #     'alt_deg': traj_data['alt'].degree,
-                    #     'target_az_deg': traj_data['target_az'].degree,
-                    #     'target_alt_deg': traj_data['target_alt'].degree,
-                    #     },
                     'mapping_figs': {
                         name: fig.to_dict()
                         for name, fig in mapping_figs.items()
                         },
-                    # need the juggling so all stuff become serializable
-                    'exec_config': yaml_load(
-                        StringIO(yaml_dump(exec_config.to_dict())))
-                    }, loading)
+                    "skyview_params": skyview_params,
+                    'exec_config': exec_config.to_yaml_dict(),
+                    # instru specific data,
+                    # this is consumed by the instru results
+                    # display
+                    'instru': instru_results
+                    }, mapping_loading) + instru_loading
 
         app.clientside_callback(
             '''
             function(exec_info) {
-                return JSON.stringify(exec_info["exec_config"])
+                if (!exec_info) {
+                    return true;
+                }
+                return false;
+            }
+            ''',
+            Output(mapping_plot_collapse.button.id, 'disabled'),
+            [
+                Input(exec_info_store.id, 'data'),
+                ]
+            )
+
+        app.clientside_callback(
+            '''
+            function(exec_info) {
+                // console.log(exec_info)
+                return JSON.stringify(
+                    exec_info && exec_info.exec_config,
+                    null,
+                    2
+                    );
             }
             ''',
             Output(exec_details.id, 'children'),
+            [
+                Input(exec_info_store.id, 'data'),
+                ]
+            )
+
+        # update the sky map layers
+        # with the traj data
+        app.clientside_callback(
+            '''
+            function(exec_info) {
+                // console.log(exec_info);
+                if (!exec_info) {
+                    return Array(2).fill(window.dash_clientside.no_update);
+                }
+                var svp = exec_info.skyview_params;
+                var fov = svp.fov || window.dash_clientside.no_update;
+                var layers = svp.layers || window.dash_clientside.no_update;
+                return [fov, layers]
+            }
+            ''',
+            [
+                Output(skyview.id, 'fov'),
+                Output(skyview.id, 'layers'),
+                ],
             [
                 Input(exec_info_store.id, 'data'),
                 ]
@@ -770,16 +531,22 @@ class ObsPlannerExecConfig(object):
         cfg.pop("t_exp", None)
         return cfg
 
+    def to_yaml_dict(self):
+        # this differes from to_dict in that it only have basic
+        # serializable types.
+        return yaml_load(StringIO(yaml_dump(self.to_dict())))
+
     def get_simulator_runtime(self):
         """Return a simulator runtime object from this config."""
         # dispatch site/instru to create parts of the simu config dict
-        if self._site.name == 'lmt' and self._instru.name == 'toltec':
+        if self.site_data['name'] == 'lmt' and \
+                self.instru_data['name'] == 'toltec':
             simu_cfg = self._make_lmt_toltec_simu_config_dict(
                 lmt_data=self.site_data, toltec_data=self.instru_data)
         else:
             raise ValueError("unsupported site/instruments for simu.")
         # add to simu cfg the mapping and obs_params
-        exec_cfg = self.to_dict()
+        exec_cfg = self.to_yaml_dict()
         rupdate(simu_cfg, {
             'simu': {
                 'obs_params': exec_cfg['obs_params'],
@@ -791,10 +558,10 @@ class ObsPlannerExecConfig(object):
     @staticmethod
     def _make_lmt_toltec_simu_config_dict(lmt_data, toltec_data):
         """Return simu config dict segment for LMT TolTEC."""
-        atm_q = lmt_data['atm_q']
-        atm_model_name = f'am_q{atm_q}'
+        atm_model_name = lmt_data['atm_model_name']
         return {
             'simu': {
+                'jobkey': 'obs_planner_simu',
                 'obs_params': {
                     'f_smp_probing': '122 Hz',
                     'f_smp_mapping': '20 Hz'
@@ -805,7 +572,8 @@ class ObsPlannerExecConfig(object):
                 'sources': [
                     {
                         'type': 'toltec_power_loading',
-                        'atm_model_name': atm_model_name
+                        'atm_model_name': atm_model_name,
+                        'atm_cache_dir': None,
                         },
                     ],
                 }
@@ -865,7 +633,12 @@ class ObsPlannerExecConfig(object):
             target_coord = self.mapping.target_coord
             target_coords_altaz = target_coord.transform_to(altaz_frame)
 
+        bs_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
+            bs_coords_icrs.ra,
+            bs_coords_icrs.dec,
+            )
         bs_traj_data = {
+            't_exp': t_exp,
             'time_obs': time_obs,
             'dlon': dlon,
             'dlat': dlat,
@@ -875,11 +648,14 @@ class ObsPlannerExecConfig(object):
             'alt': bs_coords_altaz.alt,
             'target_az': target_coords_altaz.az,
             'target_alt': target_coords_altaz.alt,
+            "sky_bbox_icrs": bs_sky_bbox_icrs,
             }
         # make instru specific traj data
-        obsinstru = ObsInstru.from_name(self.instru_data['name'])
-        instru_traj_data = obsinstru.make_traj_data(self, bs_traj_data)
-
+        if self.instru_data:
+            obsinstru = ObsInstru.from_name(self.instru_data['name'])
+            instru_traj_data = obsinstru.make_traj_data(self, bs_traj_data)
+        else:
+            instru_traj_data = None
         return {
             'site': bs_traj_data,
             'instru': instru_traj_data,
@@ -1205,7 +981,12 @@ class ObsPlannerTargetSelect(ComponentTemplate):
         self._site = site
         self._target_alt_min = target_alt_min
         container = self
+        self._target_info_store = container.child(dcc.Store)
         self._info_store = container.child(dcc.Store)
+
+    @property
+    def target_info_store(self):
+        return self._target_info_store
 
     @property
     def info_store(self):
@@ -1236,8 +1017,6 @@ for resolving the coordinates. Coordinates should be like "17.7d -2.1d"
 or "10h09m08s +20d19m18s".
             """,
             target=target_name_input.id)
-
-        target_resolved_store = controls_form_container.child(dcc.Store)
 
         # date picker
         date_picker_container = controls_form_container.child(html.Div)
@@ -1298,7 +1077,7 @@ elevation > {self._target_alt_min} during the night.
             """,
             target=time_picker_input.id)
         time_picker_feedback = time_picker_group.feedback
-        check_button_container = controls_form_container.child(
+        check_button_container = container.child(
             html.Div,
             className=(
                 'd-flex justify-content-end mt-2'
@@ -1317,7 +1096,7 @@ elevation > {self._target_alt_min} during the night.
 
         @app.callback(
             [
-                Output(target_resolved_store.id, 'data'),
+                Output(self.target_info_store.id, 'data'),
                 Output(target_name_input.id, 'valid'),
                 Output(target_name_input.id, 'invalid'),
                 Output(target_name_feedback.id, 'children'),
@@ -1377,7 +1156,7 @@ elevation > {self._target_alt_min} during the night.
                 ],
             [
                 Input(date_picker_input.id, 'value'),
-                Input(target_resolved_store.id, 'data')
+                Input(self.target_info_store.id, 'data')
              ]
             )
         def validate_date(date_value, data):
@@ -1429,7 +1208,7 @@ elevation > {self._target_alt_min} during the night.
             [
                 Input(time_picker_input.id, 'value'),
                 Input(date_picker_input.id, 'value'),
-                Input(target_resolved_store.id, 'data'),
+                Input(self.target_info_store.id, 'data'),
                 ]
             )
         def validate_time(time_value, date_value, data):
@@ -1489,7 +1268,7 @@ elevation > {self._target_alt_min} during the night.
                 Input(check_button.id, 'n_clicks'),
                 State(date_picker_input.id, 'value'),
                 State(time_picker_input.id, 'value'),
-                State(target_resolved_store.id, 'data'),
+                State(self.target_info_store.id, 'data'),
                 ],
             prevent_initial_call=True,
             )
@@ -1547,7 +1326,7 @@ elevation > {self._target_alt_min} during the night.
                 Input(date_picker_input.id, 'valid'),
                 Input(time_picker_input.id, 'value'),
                 Input(time_picker_input.id, 'valid'),
-                Input(target_resolved_store.id, 'data'),
+                Input(self.target_info_store.id, 'data'),
                 Input(target_name_input.id, 'valid'),
                 ])
 
@@ -1568,16 +1347,16 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
         container = self
         self._graphs = [
             c.child(dcc.Graph, figure=self._make_empty_figure())
-            for c in container.colgrid(2, 2,).ravel()
+            for c in container.colgrid(1, 4,).ravel()
             ]
 
     def make_mapping_plot_callbacks(self, app, exec_info_store_id):
         # update graph with figures in exec_info_store
         app.clientside_callback(
-            """
+            _j2env.from_string("""
             function(exec_data) {
                 if (exec_data === null) {
-                    return [None, None, None, None]
+                    return Array(4).fill({{empty_fig}});
                 }
                 figs = exec_data['mapping_figs']
                 return [
@@ -1587,7 +1366,7 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
                     figs["icrs"],
                     ]
             }
-            """,
+            """).render(empty_fig=json.dumps(self._make_empty_figure())),
             [
                 Output(graph.id, 'figure')
                 for graph in self._graphs
@@ -1605,6 +1384,63 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
             exec_config, traj_data)
         figs = dict(**mapping_figs, visibility=visibility_fig)
         return figs
+
+    @timeit
+    def make_skyview_params(self, exec_config, traj_data):
+        # return the dict that setup the skyview.
+        # mapping_config = exec_config.mapping
+        bs_traj_data = traj_data['site']
+        instru_traj_data = traj_data['instru']
+        bs_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
+            bs_traj_data['ra'],
+            bs_traj_data['dec'],
+            )
+        fov_sky_bbox = bs_sky_bbox_icrs
+        if instru_traj_data is not None:
+            # figure out instru overlay layout bbox
+            instru_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
+                instru_traj_data['ra'],
+                instru_traj_data['dec'],
+                )
+            fov_sky_bbox = fov_sky_bbox.pad_with(
+                instru_sky_bbox_icrs.width,
+                instru_sky_bbox_icrs.height,
+                )
+        fov = max(
+                fov_sky_bbox.width, fov_sky_bbox.height).to_value(u.deg)
+        # set the view fov larger
+        fov = fov / 0.618
+        layers = list()
+        # the mapping pattern layer
+        layers.append(
+            {
+                'type': "overlay",
+                "data": [{
+                    "data": list(zip(
+                        bs_traj_data['ra'].degree,
+                        bs_traj_data['dec'].degree)),
+                    "type": "polyline",
+                    "color": "red",
+                    "lineWidth": 1,
+                    }],
+                "options": {
+                    'name': "Mapping Trajectory",
+                    "color": "red",
+                    "show": True,
+                    }
+                },
+            )
+        if instru_traj_data is not None:
+            layers.extend(instru_traj_data["skyview_layers"])
+        params = dict({
+            "target": exec_config.mapping.target,
+            "fov": fov,
+            "layers": layers,
+            "options": {
+                "showLayerBox": True
+                }
+            })
+        return params
 
     @staticmethod
     def _make_day_grid(day_start):
@@ -1869,7 +1705,7 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
             'x': bs_traj_data['target_az'].to_value(u.deg),
             'y': bs_traj_data['target_alt'].to_value(u.deg),
             'line': {
-                'color': 'purple'
+                'color': 'blue'
                 }
             }))
         fig.update_xaxes(

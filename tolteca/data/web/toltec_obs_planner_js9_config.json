@@ -1,0 +1,8 @@
+{
+    "install_dir": "/home/toltec_umass_edu/toltec_astro/extern/var/www/htdocs/js9",
+    "js9prefs": {
+        "globalOpts": {
+            "helperPort": 80
+        }
+    }
+}

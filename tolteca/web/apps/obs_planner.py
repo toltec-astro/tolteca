@@ -48,11 +48,11 @@ class ObsPlannerConfig():
             'schema': Or("lmt", )
             }
         )
-    instru_name: str = field(
-        default='toltec',
+    instru_name: Union[None, str] = field(
+        default=None,
         metadata={
             'description': 'The observing instrument name.',
-            'schema': Or("toltec", )
+            'schema': Or("toltec", 'sequoia', None)
             }
         )
     pointing_catalog_path: Union[None, Path] = field(
@@ -69,6 +69,13 @@ class ObsPlannerConfig():
             'schema': Or(RelPathSchema(), None)
             }
         )
+    js9_config_path: Union[None, Path] = field(
+        default=None,
+        metadata={
+            'description': 'The json config file for JS9.',
+            'schema': Or(RelPathSchema(), None)
+            }
+        )
     title_text: str = field(
         default='Obs Planner',
         metadata={
@@ -80,12 +87,16 @@ class ObsPlannerConfig():
 def DASHA_SITE():
     """The dasha site entry point.
     """
+
+    from dash_js9 import JS9_SUPPORT
+
     dasha_config = get_app_config(ObsPlannerConfig).to_dict()
     dasha_config.update({
         'template': 'tolteca.web.templates.obs_planner:ObsPlanner',
         'THEME': dbc.themes.LUMEN,
         # 'ASSETS_IGNORE': 'bootstrap.*',
-        # 'DEBUG': True
+        # 'DEBUG': True,
+        "EXTERNAL_SCRIPTS": [JS9_SUPPORT],
         })
     return {
         'extensions': [

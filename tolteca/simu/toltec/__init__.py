@@ -8,7 +8,7 @@ from tollan.utils.log import get_logger, logit
 from astropy.table import Table
 from .. import instrument_registry, sources_registry
 from ...utils.common_schema import RelPathSchema
-from .lmt import lmt_info as site_info
+from ..lmt import lmt_info as site_info
 from ...cal import ToltecCalib
 from ...utils import get_pkg_data_path
 from .simulator import ToltecObsSimulator, ToltecHwpConfig
@@ -139,6 +139,9 @@ class ToltecPowerLoadingModelConfig(DataclassNamespace):
                     atm_cache_dir.mkdir(parents=True, exist_ok=True)
 
     def __call__(self, cfg):
+        return self.get_power_loading_model()
+    
+    def get_power_loading_model(self):
         return ToltecPowerLoadingModel(
             atm_model_name=self.atm_model_name,
             atm_model_params=self.atm_model_params,

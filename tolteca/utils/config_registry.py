@@ -4,6 +4,7 @@ from tollan.utils.registry import Registry
 from schema import Or, Literal, Optional
 from tollan.utils.fmt import pformat_list
 import textwrap
+from tollan.utils import rupdate
 # from tollan.utils.dataclass_schema import DataclassSchema
 
 
@@ -165,4 +166,13 @@ class ConfigRegistry(Registry):
         # make the dispatcher a readonly property on the class
         setattr(item, dispatcher_key, property(lambda self: dispatcher_value))
 
+        # hook the to_dict function so it includes the dispatcher key prop
+        old_to_dict = item.to_dict
+        
+        def _to_dict(self, *args, **kwargs):
+            result = {dispatcher_key: dispatcher_value}
+            rupdate(result, old_to_dict(self, *args, **kwargs))
+            return result
+        # use dispatcher_schema for deriving to_dict keys
+        item.to_dict = _to_dict
         return s

@@ -4,7 +4,7 @@
 from copy import deepcopy
 from tollan.utils import rupdate
 import astropy.units as u
-from .lmt import lmt_info
+from ..lmt import lmt_info
 from ...common.toltec import toltec_info as _toltec_info
 
 
