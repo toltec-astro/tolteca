@@ -101,7 +101,7 @@ class DictTemplateListSchema(schema.Schema):
         var_keys = jinja2.meta.find_undeclared_variables(ast)
         if not var_keys:
             # not a jinja2 template, return as is
-            return item
+            return [item]
         iter_item = dict()
         for key in var_keys:
             if key not in item:
