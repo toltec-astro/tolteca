@@ -536,11 +536,23 @@ class Toltec(ObsInstru, name='toltec'):
         cxy = cv2.findContours(
             im,
             cv2.RETR_EXTERNAL,
-            cv2.CHAIN_APPROX_SIMPLE)[0][0]
+            cv2.CHAIN_APPROX_SIMPLE)[0]
+        # the cxy is a tuple of multiple contours
+        # we select the first significant one to use
+        # hopefully this is the outline...
+        for c in cxy:
+            if c.shape[0] > 2:
+                cxy = c
+                break
+        else:
+            # no coutrous found, just set to the last one
+            # current one
+            logger.debug("unabled to generate outline contour")
+            cxy = c
         cxy_s = cv2.approxPolyDP(
             cxy,
             0.002 * cv2.arcLength(cxy, True), True
-            ).squeeze()
+            )[:, 0, :]
         cra, cdec = cov_wcs.pixel_to_world_values(
             cxy_s[:, 0], cxy_s[:, 1]
             )
