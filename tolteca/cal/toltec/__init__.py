@@ -168,28 +168,9 @@ class ToltecCalib(ToltecCalibBase, CalibStack):
     """A class to manage TolTEC calibration data."""
 
     def get_array_prop_table(self, **kwargs):
+        import pdb
+        pdb.set_trace()
         return self.index['array_prop_table'].get(**kwargs)
 
     def get_passband(self, **kwargs):
         return self.index['passband'].get(**kwargs)
-
-    @classmethod
-    def from_indexfile(cls, indexfile):
-        """Create calibration stack for TolTEC from index file.
-
-        The appropriate calibration object(s) will be created from the
-        specified index file by check the contents against the schema
-        of known subclasses of `ToltecCalibBase`.
-
-        """
-        with open(indexfile, 'r') as fo:
-            index = yaml.load(fo)
-
-        _index = dict()
-        for key, cls in _registry.items():
-            try:
-                calobj = cls(index=index)
-            except SchemaError:
-                continue
-            _index[key] = calobj
-        return cls(index=_index)

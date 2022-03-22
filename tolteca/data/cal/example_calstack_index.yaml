@@ -1,0 +1,25 @@
+# vim: et ts=2 sts=2 sw=2
+---
+# example calib stack index file
+
+
+cal:
+  sources:
+  - name: package_data
+    type: package_data
+  - name: user_data
+    type: user_data
+  - name: toltec_calib
+    type: git
+    repo: https://github.com/toltec-astro/toltec_calib.git
+    branch: 20220321.0
+  - name: my_calib_prod
+    type: dir
+    path: my_calib
+  items:
+  - package_data://cal/toltec/array_prop_table
+  - package_data://cal/toltec/passband
+  - toltec_calib://prod/array_prop_cube
+  - my_calib_prod://toltec/20220321.0/extinction_model
+  - file:///home/toltec/cal/some_cal
+  - https://toltec.lmtgtm.org/cal/some_cal.tar.gz
