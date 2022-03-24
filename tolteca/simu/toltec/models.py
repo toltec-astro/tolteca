@@ -5,6 +5,7 @@ from gwcs import coordinate_frames as cf
 import astropy.units as u
 from astropy.time import Time
 from astropy.modeling import models, Parameter, Model
+from astropy.modeling.functional_models import GAUSSIAN_SIGMA_TO_FWHM
 from astropy.coordinates import SkyCoord, Angle
 from astropy.table import Table
 from astropy.cosmology import default_cosmology
@@ -972,9 +973,28 @@ class ToltecArrayPowerLoadingModel(Model):
         if alt is None:
             alt = [50., 60., 70.] << u.deg
         result = dict()
+        result['alt'] = alt
         result['P'] = self._get_P(alt)
         result.update(self._get_noise(alt, return_avg=True))
         return Table(result)
+
+    def get_mapping_speed(self, alt, n_dets):
+
+        sens = self._get_noise(alt, return_avg=True)
+        array_name = self._array_name
+        a_stddev = toltec_info[array_name]['a_fwhm'] / GAUSSIAN_SIGMA_TO_FWHM
+        b_stddev = toltec_info[array_name]['b_fwhm'] / GAUSSIAN_SIGMA_TO_FWHM
+        beam_area = 2 * np.pi * a_stddev * b_stddev
+        mapping_speed = (
+            (1 / sens['nefd']) ** 2 * n_dets * beam_area
+            ).to(u.deg ** 2 / u.mJy ** 2 / u.hr)
+        return mapping_speed
+
+    def get_map_rms_depth(self, alt, n_dets, map_area, t_exp):
+
+        mapping_speed = self.get_mapping_speed(alt, n_dets)
+        rms_depth = np.sqrt(map_area / (t_exp * mapping_speed)).to(u.mJy)
+        return rms_depth
 
     def evaluate(self, alt):
         P = self._get_P(alt)
@@ -1033,7 +1053,7 @@ class ToltecArrayPowerLoadingModel(Model):
             ):
         """Return the array power loading along with the noise."""
 
-        if self._p_pW_interp is None:
+        if getattr(self, '_p_pW_interp', None) is None:
             # no interp, direct eval
             alt = np.ravel(det_alt)
             det_pwr = self._get_P(alt).to(u.pW).reshape(det_alt.shape),

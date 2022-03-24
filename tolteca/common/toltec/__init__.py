@@ -35,6 +35,7 @@ toltec_info = {
         'index': 0,
         'name': 'a1100',
         'name_long': 'TolTEC 1.1 mm array',
+        'n_dets': 4012,
         'wl_center': 1.1 << u.mm,
         'array_mounting_angle': 90. << u.deg
         },
@@ -42,6 +43,7 @@ toltec_info = {
         'index': 1,
         'name': 'a1400',
         'name_long': 'TolTEC 1.4 mm array',
+        'n_dets': 2534,
         'wl_center': 1.4 << u.mm,
         'array_mounting_angle': -90. << u.deg
         },
@@ -49,6 +51,7 @@ toltec_info = {
         'index': 2,
         'name': 'a2000',
         'name_long': 'TolTEC 2.0 mm array',
+        'n_dets': 1172,
         'wl_center': 2.0 << u.mm,
         'array_mounting_angle': -90. << u.deg
         },
