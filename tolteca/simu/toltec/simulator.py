@@ -852,10 +852,13 @@ class ToltecObsSimulator(object):
         p_sb_unity = np.squeeze(sky_sb_to_pwr(
             det_s=np.ones((len(det_array_name), 1)) << u.MJy / u.sr
             ))
-        p_norm = p_sb_unity + kids_p_tune
-        _, x_norm, _ = kids_probe_p(p_norm[:, np.newaxis])
-        x_norm = np.squeeze(x_norm)
-        flxscale = 1. / x_norm
+        # the flxscale is (p_sb_unity / responsivity)
+        flxscale = 1 / (p_sb_unity * apt['responsivity']).to_value(
+            u.dimensionless_unscaled)
+        # p_norm = p_sb_unity + kids_p_tune
+        # _, x_norm, _ = kids_probe_p(p_norm[:, np.newaxis])
+        # x_norm = np.squeeze(x_norm)
+        # flxscale = 1. / x_norm
         # update the apt
         apt['background'] = kids_p_tune
         apt['flxscale'] = flxscale
@@ -864,15 +867,15 @@ class ToltecObsSimulator(object):
             m = (det_array_name == array_name)
             _kids_p_tune = kids_p_tune[m].mean()
             _p_sb_unity = p_sb_unity[m].mean()
-            _p_norm = p_norm[m].mean()
-            _x_norm = x_norm[m].mean()
+            # _p_norm = p_norm[m].mean()
+            # _x_norm = x_norm[m].mean()
             _flxscale = flxscale[m].mean()
             self.logger.debug(
                 f"summary of probing setup for {array_name}:\n"
                 f"    kids_p_tune={_kids_p_tune}\n"
                 f"    p_sb_unity={_p_sb_unity}\n"
-                f"    p_norm={_p_norm}\n"
-                f"    x_norm={_x_norm}\n"
+                # f"    p_norm={_p_norm}\n"
+                # f"    x_norm={_x_norm}\n"
                 f"    flxscale={_flxscale}\n"
                 )
 
