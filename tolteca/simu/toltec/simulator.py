@@ -805,6 +805,13 @@ class ToltecObsSimulator(object):
         # figure out the tune power  and flxscale
         # we use the closest point on the boresight to the target
         # for the tune obs
+        # when each detector are tuned at different
+        # power, the time stream x values will have different
+        # zero point. The effect has to taken into account
+        # before making the map
+        # in the simulator, we simplify this effect by
+        # setting the tune power at the mean value for all the
+        # detectors
         bs_coords_icrs = mapping_info['bs_coords_altaz']
         target_icrs = mapping_model.target.transform_to('icrs')
         i_closest = np.argmin(
@@ -826,7 +833,7 @@ class ToltecObsSimulator(object):
             det_add_background_loading = kids_p_tune[:, np.newaxis]
         else:
             det_add_background_loading = None
-            kids_p_tune = power_loading_model.get_P(
+            kids_p_tune_det = power_loading_model.get_P(
                 det_array_name=det_array_name,
                 det_az=Angle(np.full(
                     len(det_array_name), det_az_tune.degree) << u.deg),
@@ -834,9 +841,11 @@ class ToltecObsSimulator(object):
                     len(det_array_name), det_alt_tune.degree) << u.deg),
                 time_obs=mapping_model.t0 + t_tune,
                 )
+        kids_p_tune = kids_p_tune_det.copy()
         for array_name in self.array_names:
             m = (det_array_name == array_name)
-            p = kids_p_tune[m].mean()
+            p = kids_p_tune_det[m].mean()
+            kids_p_tune[m] = p
             self.logger.debug(f"set tune of {array_name} at P={p}")
 
         # TODO allow adjust kids_fp
@@ -870,10 +879,15 @@ class ToltecObsSimulator(object):
             # _p_norm = p_norm[m].mean()
             # _x_norm = x_norm[m].mean()
             _flxscale = flxscale[m].mean()
+            if det_add_background_loading is not None:
+                _add_bkg_pwr = det_add_background_loading[m].mean()
+            else:
+                _add_kg_pwr = None
             self.logger.debug(
                 f"summary of probing setup for {array_name}:\n"
                 f"    kids_p_tune={_kids_p_tune}\n"
                 f"    p_sb_unity={_p_sb_unity}\n"
+                f"    add_bkg_pwr={_add_bkg_pwr}\n"
                 # f"    p_norm={_p_norm}\n"
                 # f"    x_norm={_x_norm}\n"
                 f"    flxscale={_flxscale}\n"
