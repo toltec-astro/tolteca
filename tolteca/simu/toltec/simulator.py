@@ -882,7 +882,7 @@ class ToltecObsSimulator(object):
             if det_add_background_loading is not None:
                 _add_bkg_pwr = det_add_background_loading[m].mean()
             else:
-                _add_kg_pwr = None
+                _add_bkg_pwr = None
             self.logger.debug(
                 f"summary of probing setup for {array_name}:\n"
                 f"    kids_p_tune={_kids_p_tune}\n"
