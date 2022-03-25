@@ -17,6 +17,7 @@ from tollan.utils.fmt import pformat_dict, pformat_fancy_index
 import warnings
 import kidsproc.kidsdata as kd
 from tollan.utils.np import to_complex
+from tollan.utils.nc import ncstr
 from astropy.nddata import StdDevUncertainty
 from copy import deepcopy
 
@@ -710,6 +711,34 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         iblock, _, _ = self._resolve_block_index(
                 block_index)
         return self._tone_axis_data[iblock]
+
+    @cached_property
+    def _model_params_tables(self):
+        """Return the model parameter tables.
+
+        This is a list of tables.
+        """
+        nc_node = self.nc_node
+        meta = self.meta
+        n_blocks = meta['n_blocks']
+
+        model_params_header = ncstr(
+            nc_node.variables['Header.Toltec.ModelParamsHeader'])
+        result = []
+        for i in range(n_blocks):
+            # note the first dim is to select the block.
+            model_params_data = (
+                nc_node.variables['Header.Toltec.ModelParams'][i, :, :])
+            model_params_table = QTable(
+                data=list(model_params_data), names=model_params_header)
+            result.append(model_params_table)
+        return result
+
+    def get_model_params_table(self, block_index=None):
+        """Return the model params table at `block_index`."""
+        iblock, _, _ = self._resolve_block_index(
+                block_index)
+        return self._model_params_tables[iblock]
 
     def _get_raw_sweep_sweep_axis_data(self):
         """Return the sweep steps.
