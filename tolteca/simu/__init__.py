@@ -87,7 +87,7 @@ class PerfParamsConfig(object):
         default=None,
         metadata={
             'description': 'Interp length to speed-up mapping evaluation.',
-            'schema': PhysicalTypeSchema("time"),
+            'schema': Or(None, PhysicalTypeSchema("time")),
             }
         )
     mapping_erfa_interp_len: u.Quantity = field(
@@ -120,12 +120,11 @@ class PerfParamsConfig(object):
         default=200,
         metadata={
             'description': 'Size of time grid used for pre-eval calculations.',
-            'schema': PhysicalTypeSchema("angle"),
             }
         )
 
     anim_frame_rate: u.Quantity = field(
-        default=300 << u.s,
+        default=1 << u.Hz,
         metadata={
             'description': 'Frame rate for plotting animation.',
             'schema': PhysicalTypeSchema("frequency"),

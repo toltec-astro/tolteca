@@ -62,15 +62,15 @@ class ToltecObsSimulatorConfig(DataclassNamespace):
         # TODO make this explicit, not fallback
         Optional(
             'calobj_index',
-            default='cal/default/index.yaml',
+            default=None,
             description='The calibration object index file path.'):
-        RelPathSchema(),
+        Or(None, RelPathSchema()),
         Optional(
             'array_prop_table',
             default=None,
             description='The array prop table to use instead of the one '
                         'provided in the calobj_index.'):
-        RelPathSchema(),
+        Or(None, RelPathSchema()),
         })
 
     _namespace_to_dict_schema = Schema({
@@ -140,7 +140,7 @@ class ToltecPowerLoadingModelConfig(DataclassNamespace):
 
     def __call__(self, cfg):
         return self.get_power_loading_model()
-    
+
     def get_power_loading_model(self):
         return ToltecPowerLoadingModel(
             atm_model_name=self.atm_model_name,
