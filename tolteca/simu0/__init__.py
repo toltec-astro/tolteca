@@ -325,10 +325,10 @@ def _register_mapping_model_factory(clspath):
         return m
 
 
-_register_mapping_model_factory('tolteca.simu:SkyRasterScanModel')
-_register_mapping_model_factory('tolteca.simu:SkyLissajousModel')
-_register_mapping_model_factory('tolteca.simu:SkyDoubleLissajousModel')
-_register_mapping_model_factory('tolteca.simu:SkyRastajousModel')
+_register_mapping_model_factory('tolteca.simu0:SkyRasterScanModel')
+_register_mapping_model_factory('tolteca.simu0:SkyLissajousModel')
+_register_mapping_model_factory('tolteca.simu0:SkyDoubleLissajousModel')
+_register_mapping_model_factory('tolteca.simu0:SkyRastajousModel')
 
 
 _simu_runtime_exporters = Registry.create()
@@ -1914,7 +1914,7 @@ class SimulatorResult(Namespace):
 def load_example_configs():
 
     example_dir = get_pkg_data_path().joinpath('examples')
-    files = ['toltec_point_source.yaml']
+    files = []
 
     def load_yaml(f):
         with open(f, 'r') as fo:
