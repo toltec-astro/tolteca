@@ -145,6 +145,9 @@ class ToastAtmosphereSimulation(object):
         z0_sigma, 
         zatm, 
         zmax,
+        w_sigma,
+        wdir_sigma,
+        T0_sigma,
         nelem_sim_max,
         median_weather,
         rmin,
@@ -210,13 +213,13 @@ class ToastAtmosphereSimulation(object):
                 lmax_center=lmax_center,
                 lmax_sigma =lmax_sigma,  
                 w_center=w_center,
-                w_sigma=0 * (u.km / u.second),
+                w_sigma=w_sigma, #0 * (u.km / u.second), # w_sigma
                 wdir_center=wdir_center,
-                wdir_sigma=0 * u.radian,
+                wdir_sigma=wdir_sigma, #0 * u.radian, #
                 z0_center=z0_center,  #,2000 * u.meter,
                 z0_sigma=z0_sigma,  #0 * u.meter,
                 T0_center=self.T0_center,
-                T0_sigma=10 * u.Kelvin,
+                T0_sigma=T0_sigma, #10 * u.Kelvin, # 
                 zatm=zatm, 
                 zmax=zmax, 
                 xstep=xstep,

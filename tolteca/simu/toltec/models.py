@@ -1311,6 +1311,24 @@ class ToastAtmConfig(object):
             'schema': PhysicalTypeSchema('length')
             }
         )
+    w_sigma: u.Quantity = field(
+        default= 0 << (u.km / u.second),
+        metadata = {
+            'description': 'w_sigma value: (w_center is set by the weather)'
+        }
+    )
+    wdir_sigma: u.Quantity = field(
+        default= 0 << u.radian,
+        metadata = {
+            'description': 'wdir_sigma value: (wdir_center is set by the weather)'
+        }
+    )
+    T0_sigma: u.Quantity = field(
+        default=10 * u.Kelvin, 
+        metadata = {
+            'description': 'T0_sigma value: (T0_center is set by the weather)'
+        }
+    )
     rmin: u.Quantity = field(
         default=0 << u.meter,
         metadata={
