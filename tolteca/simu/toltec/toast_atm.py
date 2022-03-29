@@ -130,6 +130,7 @@ class ToastAtmosphereSimulation(object):
 
     def _generate_toast_atm_slabs(
         self, 
+        median_weather,
         t0, 
         tmin, 
         tmax, 
@@ -157,16 +158,16 @@ class ToastAtmosphereSimulation(object):
         # toast_env.set_log_level('DEBUG')
 
         # Starting slab parameters (thank you Ted)
-        rmin  =  0 * u.meter
-        rmax  =  100 * u.meter
-        scale =  10.0
-        xstep =  5 * u.meter
-        ystep =  5 * u.meter
-        zstep =  5 * u.meter
+        # rmin  =  0 * u.meter
+        # rmax  =  100 * u.meter
+        # scale =  10.0
+        # xstep =  5 * u.meter
+        # ystep =  5 * u.meter
+        # zstep =  5 * u.meter
 
         # RNG state
-        key1     = 0
-        key2     = 0
+        # key1     = 0
+        # key2     = 0
         counter1 = 0
         counter2 = 0
 
