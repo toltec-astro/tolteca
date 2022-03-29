@@ -130,7 +130,6 @@ class ToastAtmosphereSimulation(object):
 
     def _generate_toast_atm_slabs(
         self, 
-        median_weather,
         t0, 
         tmin, 
         tmax, 
@@ -147,6 +146,15 @@ class ToastAtmosphereSimulation(object):
         zatm, 
         zmax,
         nelem_sim_max,
+        median_weather,
+        rmin,
+        rmax,
+        scale,
+        xstep,
+        ystep,
+        zstep,
+        key1,
+        key2,
         mpi_comm=None
     ):
         """Creates the atmosphere models using multiple slabs
@@ -174,7 +182,7 @@ class ToastAtmosphereSimulation(object):
         # obtain the weather information
         self.sim_weather = toast.weather.SimWeather(
             time = t0.to_datetime(timezone=datetime.timezone.utc),
-            name="LMT", median_weather=True
+            name="LMT", median_weather=median_weather
         )
         self.T0_center   = self.sim_weather.air_temperature
         self.wx          = self.sim_weather.west_wind
