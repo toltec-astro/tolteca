@@ -32,6 +32,7 @@ from ...utils import get_user_data_dir
 from ...utils.misc import get_nested_keys
 from ...utils.common_schema import RelPathSchema, PhysicalTypeSchema
 from ...utils.runtime_context import yaml_load
+from ...datamodels.toltec.data_prod import ToltecDataProd
 
 
 REMOTE_CITLALI_REPO_URL = 'https://github.com/toltec-astro/citlali.git'
@@ -452,7 +453,9 @@ class CitlaliProc(object):
         # TODO implement the logic to locate the generated output files
         # which will be used to create data prod object.
         if success:
-            return output_dir
+            # return output_dir
+            return ToltecDataProd.collect_from_dir(output_dir).select(
+                'id == id.max()')
         raise RuntimeError(
             f"failed to run {self.citlali} with config file {cfg_filepath}")
 

@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 
+import re
 from tollan.utils.log import get_logger, logit, timeit
 import sqlalchemy as sa
 import sqlalchemy.sql.expression as se
@@ -588,18 +589,32 @@ def init_orm(db):
 
     ClientInfo = c.client_info_model(Base)  # noqa: F841
 
+    # https://github.com/sqlalchemy/sqlalchemy/issues/7149
+    def to_snake_case(text):
+        return ''.join(
+            [f"_{i.lower()}" if i.isupper() else i for i in text]
+            ).lstrip('_')
+
+    def name_for_scalar_relationship(
+            _base, _local_cls, referred_cls, _constraint):
+        return to_snake_case(referred_cls.__name__)
+
     # this is need to resolve the many-to-many relation among the child
     # tables
     def name_for_collection_relationship(
             base, local_cls, referred_cls, constraint):
-        disc = '_'.join(col.name for col in constraint.columns)
-        return referred_cls.__name__.lower() + '_' + disc + "_collection"
+        desc = '_'.join(
+            re.sub(r'(_pk|_fk)', '', col.name)
+            for col in constraint.columns
+            )
+        return f'{to_snake_case(referred_cls.__name__)}_{desc}_collection'
 
     Base.prepare(
-        # name_for_scalar_relationship=name_for_scalar_relationship,
+        name_for_scalar_relationship=name_for_scalar_relationship,
         name_for_collection_relationship=name_for_collection_relationship)
 
-    db.models = [
-            {k: v}
-            for k, v in locals().items()
-            if isinstance(v, type) and issubclass(v, Base)]
+    db.models = {
+        k: v
+        for k, v in locals().items()
+        if isinstance(v, type) and issubclass(v, Base)
+        }

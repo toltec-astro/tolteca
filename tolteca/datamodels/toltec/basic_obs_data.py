@@ -47,8 +47,8 @@ class BasicObsData(DataFileIO):
 
         >>> kidsdata = BasicObsData.read('toltec0.nc')
 
-    When :attr:`file_loc` is a remote file, `file_obj` is ``None``, and
-    (of course) attempting to open the file will raise `DataFileIOError`.
+    When :attr:`file_loc` is a remote file, `file_obj` is set to ``None``,
+    in which case, attempting to open the file will raise `DataFileIOError`.
 
     In both cases, various information of the data is pulled and stored in
     :attr:`meta`. In particular, when :attr:`file_obj` is available (local
@@ -78,7 +78,7 @@ class BasicObsData(DataFileIO):
         self._file_obj = file_obj
         self._update_meta()
         if self.file_obj is not None:
-            # ensure that we automatically close the file
+            # ensure the file is closed
             # after the meta is updated.
             self.file_obj.close()
 

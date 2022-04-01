@@ -30,7 +30,7 @@ class SqlaBindConfig(object):
     uri: str = field(
         metadata={
             'description': 'The SQLAlchemy engine URI to connect.',
-            'schema': Regex(r'.+:\/\/.+')
+            'schema': Regex(r'.+:\/\/.*')
             })
 
     class Meta:
@@ -50,8 +50,13 @@ class SqlaBindConfig(object):
 class DBConfig(object):
     """The config for `tolteca.db`."""
 
+    _dpdb_bind_name: ClassVar = 'dpdb'
+
     binds: Sequence[SqlaBindConfig] = field(
-        default_factory=list,
+        default_factory=lambda: [SqlaBindConfig.from_dict({
+            'name': 'dpdb',
+            'uri': 'sqlite://',
+            })],
         metadata={
             'description': 'The list of database binds (connections).',
             'schema': [SqlaBindConfig.schema, ],
@@ -69,14 +74,19 @@ class DBConfig(object):
         # make a dict for accessing binds by name
         self._binds_by_name = odict_from_list(self.binds, key=lambda b: b.name)
 
-    _dpdb_bind_name: ClassVar = 'dpdb'
-
     @property
     def dpdb(self):
         """The bind config for data product database."""
         binds_by_name = self._binds_by_name
         dpdb_bind_name = self._dpdb_bind_name
-        return binds_by_name.get(dpdb_bind_name, None)
+        dpdb = binds_by_name.get(dpdb_bind_name, None)
+        if dpdb is None:
+            raise DatabaseRuntimeError(
+                "No DPDB bind defined in db.binds config. "
+                "To use DPDB, specify an entry in the db.binds with "
+                "name 'dpdb'."
+                )
+        return dpdb
 
 
 class DatabaseRuntimeError(RuntimeBaseError):
