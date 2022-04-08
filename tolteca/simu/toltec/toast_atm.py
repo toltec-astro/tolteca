@@ -145,7 +145,19 @@ class ToastAtmosphereSimulation(object):
         z0_sigma, 
         zatm, 
         zmax,
+        w_sigma,
+        wdir_sigma,
+        T0_sigma,
         nelem_sim_max,
+        median_weather,
+        rmin,
+        rmax,
+        scale,
+        xstep,
+        ystep,
+        zstep,
+        key1,
+        key2,
         mpi_comm=None
     ):
         """Creates the atmosphere models using multiple slabs
@@ -157,23 +169,23 @@ class ToastAtmosphereSimulation(object):
         # toast_env.set_log_level('DEBUG')
 
         # Starting slab parameters (thank you Ted)
-        rmin  =  0 * u.meter
-        rmax  =  100 * u.meter
-        scale =  10.0
-        xstep =  5 * u.meter
-        ystep =  5 * u.meter
-        zstep =  5 * u.meter
+        # rmin  =  0 * u.meter
+        # rmax  =  100 * u.meter
+        # scale =  10.0
+        # xstep =  5 * u.meter
+        # ystep =  5 * u.meter
+        # zstep =  5 * u.meter
 
         # RNG state
-        key1     = 0
-        key2     = 0
+        # key1     = 0
+        # key2     = 0
         counter1 = 0
         counter2 = 0
 
         # obtain the weather information
         self.sim_weather = toast.weather.SimWeather(
             time = t0.to_datetime(timezone=datetime.timezone.utc),
-            name="LMT", median_weather=True
+            name="LMT", median_weather=median_weather
         )
         self.T0_center   = self.sim_weather.air_temperature
         self.wx          = self.sim_weather.west_wind
@@ -201,13 +213,13 @@ class ToastAtmosphereSimulation(object):
                 lmax_center=lmax_center,
                 lmax_sigma =lmax_sigma,  
                 w_center=w_center,
-                w_sigma=0 * (u.km / u.second),
+                w_sigma=w_sigma, #0 * (u.km / u.second), # w_sigma
                 wdir_center=wdir_center,
-                wdir_sigma=0 * u.radian,
+                wdir_sigma=wdir_sigma, #0 * u.radian, #
                 z0_center=z0_center,  #,2000 * u.meter,
                 z0_sigma=z0_sigma,  #0 * u.meter,
                 T0_center=self.T0_center,
-                T0_sigma=10 * u.Kelvin,
+                T0_sigma=T0_sigma, #10 * u.Kelvin, # 
                 zatm=zatm, 
                 zmax=zmax, 
                 xstep=xstep,

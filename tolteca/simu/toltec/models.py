@@ -1249,6 +1249,12 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
 @dataclass
 class ToastAtmConfig(object):
     """The config class for TOAST atm model."""
+    median_weather: bool = field(
+        default=True,
+        metadata={
+            'description': 'use median weather information'
+        }
+    )
     lmin_center: u.Quantity = field(
         default=0.01 << u.meter,
         metadata={
@@ -1305,10 +1311,76 @@ class ToastAtmConfig(object):
             'schema': PhysicalTypeSchema('length')
             }
         )
+    w_sigma: u.Quantity = field(
+        default= 0 << (u.km / u.second),
+        metadata = {
+            'description': 'w_sigma value: (w_center is set by the weather)'
+        }
+    )
+    wdir_sigma: u.Quantity = field(
+        default= 0 << u.radian,
+        metadata = {
+            'description': 'wdir_sigma value: (wdir_center is set by the weather)'
+        }
+    )
+    T0_sigma: u.Quantity = field(
+        default=10 * u.Kelvin, 
+        metadata = {
+            'description': 'T0_sigma value: (T0_center is set by the weather)'
+        }
+    )
+    rmin: u.Quantity = field(
+        default=0 << u.meter,
+        metadata={
+            'description': 'The rmin value'
+        }
+    )
+    rmax: u.Quantity = field(
+        default=100 << u.meter,
+        metadata={
+            'description': 'The rmin value'
+        }
+    )
+    scale: np.float64 = field(
+        default=10.0,
+        metadata = {
+            'description': 'scale value'
+        }
+    )
+    xstep: u.Quantity = field(
+        default=5 << u.meter,
+        metadata={
+            'description': 'The xstep value'
+        }
+    )
+    ystep: u.Quantity = field(
+        default=5 << u.meter,
+        metadata={
+            'description': 'The ystep value'
+        }
+    )
+    zstep: u.Quantity = field(
+        default=5 << u.meter,
+        metadata={
+            'description': 'The zstep value'
+        }
+    )
     nelem_sim_max: np.int = field(
         default=20000,
         metadata={
             'description': 'The nelem_sim_max value',
+            }
+        )
+    key1: np.int = field(
+        default=0,
+        metadata={
+            'description': 'key1 randomization',
+            }
+        )
+    key2: np.int = field(
+        default=0,
+        metadata={
+            'description': 'key2 randomization',
             }
         )
 
