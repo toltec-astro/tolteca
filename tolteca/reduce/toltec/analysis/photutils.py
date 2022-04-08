@@ -41,6 +41,12 @@ class PhotUtilsStepConfig():
     The config class for the photutils analysis.
     '''
 
+    enabled: bool = field(
+        default=True,
+        metadata={
+            'description': 'Enable/disable this pipeline step.'
+            }
+        )
     input_source_catalog_path: Union[None, Path] = field(
         default=None,
         metadata={

@@ -18,6 +18,11 @@ class CitlaliStepConfig(DataclassNamespace):
 
     _namespace_from_dict_schema = Schema({
         Optional(
+            'enabled',
+            default=True,
+            description='Enable/disable this pipeline step.'):
+        bool,
+        Optional(
             'path',
             default=None,
             description='The path to find the executable.'):

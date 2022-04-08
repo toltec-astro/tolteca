@@ -78,7 +78,14 @@ class ReduConfig(object):
         # basis
         data_collection = list()
         data_loaders = set()
-        for input in self.inputs:
+        # we always add the output dir as input for post-processings
+        _inputs = self.inputs + [
+            inputs_registry.schema.validate(
+                {'path': self.jobkey},
+                create_instance=True
+                )
+            ]
+        for input in _inputs:
             data_collection.extend(input.load_all_data())
             data_loaders.update(input.get_data_loaders())
         aggregated_data_collection = list()
@@ -131,6 +138,9 @@ class PipelineRuntime(RuntimeBase):
         if len(cfg.steps) == 0:
             self.logger.warning("no pipeline steps found, nothing to do.")
         for i, step in enumerate(cfg.steps):
+            if not step.enabled:
+                self.logger.info(f"skip step [{i + 1}/{n_steps}] {step.name}")
+                continue
             with timeit(
                     f"run pipeline step [{i + 1}/{n_steps}] {step.name}",
                     level='INFO',
