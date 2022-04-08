@@ -46,6 +46,8 @@ class BasicObsDatasetLoader(object):
             select = default_select
         bods = BasicObsDataset.from_files(
                 source.path.glob('*'), open_=False)
+        if len(bods) == 0:
+            return list()
         # remove any file that does not have valid interface
         bods = bods.select(~np.equal(bods['interface'], None))
         if select is not None:

@@ -140,7 +140,11 @@ class PhotUtilsStepConfig():
                 hdu_kernel = hl[3]
                 corr = hdu_kernel.data.max()
                 catalog[f'flux_{array_name}'] = catalog['flux_fit'] / corr
-                catalog[f'fluxerr_{array_name}'] = catalog['flux_unc'] / corr
+                if 'flux_unc' in catalog:
+                    catalog[f'fluxerr_{array_name}'] = (
+                        catalog['flux_unc'] / corr)
+                else:
+                    catalog[f'fluxerr_{array_name}'] = 0.
                 catalog.meta['array_name'] = array_name
                 catalog.meta['image_filepath'] = filepath
                 results.append(catalog)
