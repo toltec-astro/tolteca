@@ -182,7 +182,7 @@ def _meta_from_simu_filename(file_loc):
     filename = path.name
 
     re_simu = re.compile(
-        r'^(?P<interface>tel|apt)_(?P<obsnum>\d+)_'
+        r'^(?P<interface>tel|apt|hwp)_(?P<obsnum>\d+)_'
         r'(?P<subobsnum>\d+)_(?P<scannum>\d+)_'
         r'(?P<ut>\d{4}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))'
         r'\.(?P<fileext>.+)$')

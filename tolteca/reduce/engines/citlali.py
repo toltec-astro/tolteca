@@ -498,6 +498,8 @@ class CitlaliProc(object):
                 c = data_items
             elif interface == 'lmt':
                 c = data_items
+            elif interface == 'hwp':
+                c = data_items
             elif interface == 'apt':
                 c = cal_items
                 # TODO implement in citlali the proper
@@ -538,6 +540,9 @@ def _fix_apt(source):
     tbl = Table.read(source, format='ascii.ecsv')
     tbl_new = Table()
     tbl_new['nw'] = np.array(tbl['nw'], dtype='d')
+    tbl_new['fg'] = np.array(tbl['fg'], dtype='d')
+    tbl_new['pg'] = np.array(tbl['pg'], dtype='d')
+    tbl_new['ori'] = np.array(tbl['ori'], dtype='d')
     tbl_new['array'] = np.array(tbl['array'], dtype='d')
     tbl_new['flxscale'] = np.array(tbl['flxscale'], dtype='d')
     tbl_new['x_t'] = tbl['x_t'].quantity.to_value(u.deg)

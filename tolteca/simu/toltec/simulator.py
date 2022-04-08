@@ -542,8 +542,12 @@ class ToltecObsSimulator(object):
 
         def get_hwp_pa_t(t):
             # return the hwp position angle at time t
-            return Angle(((hwp_cfg.f_rot * t).to_value(
-                u.dimensionless_unscaled) * 2. * np.pi) << u.rad)
+            # if enabled
+            if hwp_cfg.rotator_enabled:
+                return Angle(((hwp_cfg.f_rot * t).to_value(
+                    u.dimensionless_unscaled) * 2. * np.pi) << u.rad)
+            # just a constant
+            return np.full(t.shape, 0.) << u.rad
 
         # convert the catalog source model to image source model, if any
         source_models_for_eval = list()
@@ -829,8 +833,8 @@ class ToltecObsSimulator(object):
             # when power loading model is not set, we use the apt default
             # in this case we also need to add to the det power the
             # additional background loading
-            kids_p_tune = apt['background']
-            det_add_background_loading = kids_p_tune[:, np.newaxis]
+            kids_p_tune_det = apt['background']
+            det_add_background_loading = kids_p_tune_det[:, np.newaxis]
         else:
             det_add_background_loading = None
             kids_p_tune_det = power_loading_model.get_P(

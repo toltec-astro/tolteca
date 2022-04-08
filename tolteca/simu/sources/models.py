@@ -226,9 +226,11 @@ class ImageSourceModel(SurfaceBrightnessModel):
             # non polarized case
             return s_outs[data_key]
         # mix the I Q and U
-        I = s_outs['I']  # noqa: E741
-        Q = s_outs['Q']
-        U = s_outs['U']
+        self.logger.debug(f"mix s_outs for stokes_params {s_outs.keys()}")
+        sb_zero = 0 << u.MJy / u.sr
+        I = s_outs.get('I', sb_zero)  # noqa: E741
+        Q = s_outs.get('Q', sb_zero)
+        U = s_outs.get('U', sb_zero)
         if not eval_hwp:
             return 0.5 * (
                 I

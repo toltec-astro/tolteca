@@ -114,7 +114,14 @@ class DictTemplateListSchema(schema.Schema):
         # render the template for all combinations of iter_vars
         result = list()
         templ = env.from_string(templ_str)
+        static_item = {
+            k: v
+            for k, v in item.items()
+            if k not in var_keys and k != template_key
+            }
         for item in dict_product(**iter_item):
             item[template_key] = templ.render(**item)
+            # append any non-template keys as-is
+            item.update(static_item)
             result.append(item)
         return result
