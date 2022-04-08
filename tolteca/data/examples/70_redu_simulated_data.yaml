@@ -109,9 +109,12 @@ reduce:
           - toltec12: 0
           - hwp: 0
         timestream:
+          polariametry:
+            enabled: false
           output:
             enabled: false
             format: netcdf
+            chunk_type: rtc #ptc, both
           chunking:
             length_sec: 10.0
           weighting:
@@ -142,13 +145,14 @@ reduce:
             n_eig_to_cut: 3
         mapmaking:
           grouping: array_name #array, detector, polarization, nw
-          method: naive #jinc, maximum_likelihood (toast)?
+          method: naive #jinc
           pixel_axes: icrs #icrs, lb
           pixel_size_arcsec: 0.75
           crval1_J2000: 0 #absolute pointing_x
           crval2_J2000: 0 #absolute pointing_y
           crpix1: 0
           crpix2: 0
+          cunit: "MJy/Sr" # mJy/beam
           x_size_pix: 0 #null or value
           y_size_pix: 0 #null or value
         beammap:
