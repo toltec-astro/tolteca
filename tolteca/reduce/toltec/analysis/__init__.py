@@ -1,3 +1,4 @@
 #!/usr/bin/env python
 
-from .photutils import *  # noqa: F401, F403
+from . import photutils  # noqa: F401
+from . import minkasi  # noqa: F401
