@@ -166,7 +166,7 @@ class DataProd(object):
         return self.data_items.__iter__()
 
     def __len__(self):
-        return self.data_items.__len__()
+        return len(self.index_table)
 
     def copy(self):
         index_table = self.index_table.copy()

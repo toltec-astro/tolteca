@@ -80,7 +80,8 @@ class ScienceDataProd(ToltecDataProd):
                     ctod = ctod[-1]
                     data_items.append({
                         'array_name': None,
-                        'kind': DataItemKind.CalibratedTimeOrderedData
+                        'kind': DataItemKind.CalibratedTimeOrderedData,
+                        'filepath': ctod
                         })
                 index = {
                     'data_items': data_items,

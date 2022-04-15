@@ -17,37 +17,29 @@ from ....datamodels.toltec.data_prod import ScienceDataProd
 from ... import steps_registry
 
 
-def _make_minkasi_maps_mpi(minkasi_tod_paths, pixsize=1 << u.arcsec):
-    # call the minkasi map maker with mpi
-    # this is adapted from the minkasi_mpi_example.py
-    from minkasi_wrapper import minkasi
+def _make_minkasi_maps(tod_names, pixsize=1 << u.arcsec):
 
-    # if running MPI, you would want to split up files between processes
-    # one easy way is to say to this:
-    tod_names = minkasi_tod_paths[minkasi.myrank::minkasi.nproc]
-    # NB - minkasi checks to see if MPI is around, if not
-    # it sets rank to 0 an nproc to 1, so this would still
-    # run in a non-MPI environment
+    from minkasi_wrapper import minkasi
 
     todvec = minkasi.TodVec()
 
     for fname in tod_names:
         with timeit('read tod from fits'):
             dat = minkasi.read_tod_from_fits(fname)
-        with timeit("downsample tod"):
+        with timeit("guess common mode"):
             # truncate_tod chops samples from the end to make
             # the length happy for ffts
-            minkasi.truncate_tod(dat)
+            # minkasi.truncate_tod(dat)
             # sometimes we have faster sampled data than we need.
             # this fixes that.  You don't need to, though.
-            minkasi.downsample_tod(dat)
+            # minkasi.downsample_tod(dat)
             # since our length changed, make sure we have a happy length
-            minkasi.truncate_tod(dat)
+            # minkasi.truncate_tod(dat)
 
             # figure out a guess at common mode #and (assumed) linear detector
             # drifts/offset drifts/offsets are removed, which is important for
             # mode finding.  CM is *not* removed.
-            dd = minkasi.fit_cm_plus_poly(dat['dat_calib'])
+            dd, pred2, cm = minkasi.fit_cm_plus_poly(dat['dat_calib'], full_out=True)
             dat['dat_calib'] = dd
         tod = minkasi.Tod(dat)
         todvec.add_tod(tod)
@@ -68,11 +60,15 @@ def _make_minkasi_maps_mpi(minkasi_tod_paths, pixsize=1 << u.arcsec):
     for tod in todvec.tods:
         ipix = map.get_pix(tod)
         tod.info['ipix'] = ipix
-        tod.set_noise_smoothed_svd()
+        tod.set_noise(minkasi.NoiseSmoothedSVD)
+        # tod.set_noise(minkasi.NoiseCMWhite)
+        # tod.set_noise_smoothed_svd()
 
     # get the hit count map.  We use this as a preconditioner
     # which helps small-scale convergence quite a bit.
     hits = minkasi.make_hits(todvec, map)
+    hits_mapset = minkasi.Mapset()
+    hits_mapset.add_map(hits)
 
     # setup the mapset. In general this can have many things
     # in addition to map(s) of the sky, but for now we'll just
@@ -102,10 +98,8 @@ def _make_minkasi_maps_mpi(minkasi_tod_paths, pixsize=1 << u.arcsec):
     precon.maps[0].map[:] = tmp[:]
 
     # run PCG!
-    mapset_out = minkasi.run_pcg(rhs, x0, todvec, precon, maxiter=50)
-    return mapset_out
-    # if minkasi.myrank == 0:
-    #     mapset_out.maps[0].write('first_map_precon_mpi.fits')
+    mapset_out = minkasi.run_pcg(rhs, x0, todvec, precon, maxiter=30)
+    return (mapset_out, hits_mapset)
 
 
 class MinkasiExecutor():
@@ -120,17 +114,23 @@ class MinkasiExecutor():
             dp['kind'] == DataItemKind.CalibratedTimeOrderedData]
         if len(ctod) == 0:
             raise ValueError('data product has no calibrated tod item.')
-        ctod = ctod[0]
+        ctod = ctod.index_table[0]
         cache_dir = output_dir.joinpath('minkasi_cache')
+        if not cache_dir.exists():
+            cache_dir.mkdir()
         minkasi_tod_paths = self._convert_nc_to_fits(
             ctod['filepath'], cache_dir=cache_dir)
-
-        map_set = _make_minkasi_maps_mpi(list(minkasi_tod_paths.values()))
-        data_items = dict()
+        data_items = list() 
         for i, (array_name, tod_path) in enumerate(minkasi_tod_paths.items()):
-            image_path = (
+            image_name = (
                 f"{ctod['filepath'].stem}_{array_name}_minkasi_map.fits")
-            map_set.maps[i].write(image_path)
+            hits_image_name = (
+                f"{ctod['filepath'].stem}_{array_name}_minkasi_map_hits.fits")
+            image_path = output_dir.joinpath(image_name)
+            hits_image_path = output_dir.joinpath(hits_image_name)
+            mapset, hits_mapset = _make_minkasi_maps([tod_path])
+            mapset.maps[0].write(image_path)
+            hits_mapset.maps[0].write(hits_image_path)
             data_items.append({
                 'array_name': array_name,
                 'kind': DataItemKind.Image,
@@ -182,14 +182,21 @@ class MinkasiExecutor():
 
         for array_name in toltec_info['array_names']:
             array_index = toltec_info[array_name]['index']
-            array = nc_vars['array']
+            array = nc_vars['array'][:]
             m = (array == array_index)
             n_dets = m.sum()
             if n_dets == 0:
                 cls.logger.debug(f"no data for array_name={array_name}")
                 continue
             # load the data
-            tod_data = {k: v[..., m] for k, v in nc_vars.items()}
+            tod_data = {
+                    "data": nc_vars['data'][:, m],
+                    "dx": nc_vars['dx'][:, m],
+                    "dy": nc_vars['dy'][:, m],
+                    'elev': nc_vars['elev'][:],
+                    'pixid': nc_vars['pixid'][m],
+                    'time': nc_vars['time'][:],
+                    }
             minkasi_tod_path = minkasi_tod_paths[array_name]
             cls.logger.debug(
                 f'make minkasi tod file for array_name={array_name} '
@@ -199,6 +206,7 @@ class MinkasiExecutor():
         cls.logger.debug(
             f"finished making minkasi tod fits: "
             f"{pformat_yaml(minkasi_tod_paths)}")
+        return minkasi_tod_paths
 
     @classmethod
     def _make_minkasi_tod_fits(cls, tod_data):
