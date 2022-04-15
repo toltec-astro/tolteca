@@ -11,13 +11,14 @@ from tollan.utils.dataclass_schema import add_schema
 from tollan.utils.log import get_logger, timeit
 from tollan.utils.fmt import pformat_yaml
 
+from ....utils.common_schema import PhysicalTypeSchema
 from ....simu.toltec.toltec_info import toltec_info
 from ....datamodels.dp.base import DataProd, DataItemKind
 from ....datamodels.toltec.data_prod import ScienceDataProd
 from ... import steps_registry
 
 
-def _make_minkasi_maps(tod_names, pixsize=1 << u.arcsec):
+def _make_minkasi_maps(tod_names, pixel_size=1 << u.arcsec, max_iter=50):
 
     from minkasi_wrapper import minkasi
 
@@ -48,7 +49,7 @@ def _make_minkasi_maps(tod_names, pixsize=1 << u.arcsec):
     # todvec.lims() is MPI-aware and will return global limits, not just
     # the ones from private TODs
     lims = todvec.lims()
-    pixsize_rad = pixsize.to_value(u.rad)
+    pixsize_rad = pixel_size.to_value(u.rad)
     map = minkasi.SkyMap(lims, pixsize_rad)
 
     # once we have a map, we can figure out the pixellization of the data.
@@ -98,13 +99,17 @@ def _make_minkasi_maps(tod_names, pixsize=1 << u.arcsec):
     precon.maps[0].map[:] = tmp[:]
 
     # run PCG!
-    mapset_out = minkasi.run_pcg(rhs, x0, todvec, precon, maxiter=30)
+    mapset_out = minkasi.run_pcg(rhs, x0, todvec, precon, maxiter=max_iter)
     return (mapset_out, hits_mapset)
 
 
-class MinkasiExecutor():
+class MinkasiExecutor(object):
 
     logger = get_logger()
+
+    def __init__(self, pixel_size=1 << u.arcsec, max_iter=50):
+        self._pixel_size = pixel_size
+        self._max_iter = max_iter
 
     def __call__(self, dp, output_dir):
 
@@ -115,7 +120,7 @@ class MinkasiExecutor():
         if len(ctod) == 0:
             raise ValueError('data product has no calibrated tod item.')
         ctod = ctod.index_table[0]
-        cache_dir = output_dir.joinpath('minkasi_cache')
+        cache_dir = ctod['filepath'].parent.joinpath('minkasi_cache')
         if not cache_dir.exists():
             cache_dir.mkdir()
         minkasi_tod_paths = self._convert_nc_to_fits(
@@ -123,12 +128,16 @@ class MinkasiExecutor():
         data_items = list() 
         for i, (array_name, tod_path) in enumerate(minkasi_tod_paths.items()):
             image_name = (
-                f"{ctod['filepath'].stem}_{array_name}_minkasi_map.fits")
+                f"{ctod['filepath'].stem}_{array_name}_minkasi_map.fits"
+                ).replace("_timestream_", '_')
             hits_image_name = (
-                f"{ctod['filepath'].stem}_{array_name}_minkasi_map_hits.fits")
+                f"{ctod['filepath'].stem}_{array_name}_minkasi_map_hits.fits"
+                ).replace("_timestream_", '_')
             image_path = output_dir.joinpath(image_name)
             hits_image_path = output_dir.joinpath(hits_image_name)
-            mapset, hits_mapset = _make_minkasi_maps([tod_path])
+            mapset, hits_mapset = _make_minkasi_maps(
+                [tod_path], pixel_size=self._pixel_size,
+                max_iter=self._max_iter)
             mapset.maps[0].write(image_path)
             hits_mapset.maps[0].write(hits_image_path)
             data_items.append({
@@ -266,12 +275,25 @@ class MinkasiStepConfig():
             'description': 'Enable/disable this pipeline step.'
             }
         )
+    pixel_size: u.Quantity = field(
+        default=1. << u.arcsec,
+        metadata={
+            'description': 'The pixel size of image.',
+            'schema': PhysicalTypeSchema('angle')
+            }
+        )
+    max_iter: int = field(
+        default=50,
+        metadata={
+            'description': 'The max number of iteration of the PCG fitter.',
+            }
+        )
 
     def __post_init__(self):
         self.logger = get_logger()
 
     def __call__(self, cfg):
-        return MinkasiExecutor()
+        return MinkasiExecutor(pixel_size=self.pixel_size, max_iter=self.max_iter)
 
     def run(self, cfg, inputs=None):
         """Run this reduction step."""
