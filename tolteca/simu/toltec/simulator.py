@@ -43,7 +43,7 @@ class ToltecHwpConfig(object):
     """The config class for TolTEC half-wave plate and the rotator."""
 
     f_rot: u.Quantity = field(
-        default=4. << u.Hz,
+        default=2. << u.Hz,
         metadata={
             'description': 'The rotator frequency',
             'schema': PhysicalTypeSchema("frequency"),
