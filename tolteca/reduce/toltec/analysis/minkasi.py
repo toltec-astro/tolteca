@@ -3,6 +3,7 @@
 
 import numpy as np
 from dataclasses import dataclass, field
+from schema import Or
 
 from astropy.io import fits
 import astropy.units as u
@@ -18,25 +19,34 @@ from ....datamodels.toltec.data_prod import ScienceDataProd
 from ... import steps_registry
 
 
-def _make_minkasi_maps(tod_names, pixel_size=1 << u.arcsec, max_iter=50):
+def _make_minkasi_maps(tod_names, pixel_size=1 << u.arcsec, max_iter=50, down_sample=False, noise_model_name='smoothed_svd'):
 
     from minkasi_wrapper import minkasi
+
+    _dispatch_noise_models = {
+            'smoothed_svd': minkasi.NoiseSmoothedSVD,
+            'white': minkasi.NoiseWhite,
+            'cm_white': minkasi.NoiseCMWhite,
+            }
+
+    noise_model_cls = _dispatch_noise_models[noise_model_name]
 
     todvec = minkasi.TodVec()
 
     for fname in tod_names:
         with timeit('read tod from fits'):
             dat = minkasi.read_tod_from_fits(fname)
+        if down_sample:
+            with timeit("down sampling"):
+                # truncate_tod chops samples from the end to make
+                # the length happy for ffts
+                # minkasi.truncate_tod(dat)
+                # sometimes we have faster sampled data than we need.
+                # this fixes that.  You don't need to, though.
+                minkasi.downsample_tod(dat)
+                # since our length changed, make sure we have a happy length
+                # minkasi.truncate_tod(dat)
         with timeit("guess common mode"):
-            # truncate_tod chops samples from the end to make
-            # the length happy for ffts
-            # minkasi.truncate_tod(dat)
-            # sometimes we have faster sampled data than we need.
-            # this fixes that.  You don't need to, though.
-            # minkasi.downsample_tod(dat)
-            # since our length changed, make sure we have a happy length
-            # minkasi.truncate_tod(dat)
-
             # figure out a guess at common mode #and (assumed) linear detector
             # drifts/offset drifts/offsets are removed, which is important for
             # mode finding.  CM is *not* removed.
@@ -61,7 +71,7 @@ def _make_minkasi_maps(tod_names, pixel_size=1 << u.arcsec, max_iter=50):
     for tod in todvec.tods:
         ipix = map.get_pix(tod)
         tod.info['ipix'] = ipix
-        tod.set_noise(minkasi.NoiseSmoothedSVD)
+        tod.set_noise(noise_model_cls)
         # tod.set_noise(minkasi.NoiseCMWhite)
         # tod.set_noise_smoothed_svd()
 
@@ -107,9 +117,11 @@ class MinkasiExecutor(object):
 
     logger = get_logger()
 
-    def __init__(self, pixel_size=1 << u.arcsec, max_iter=50):
+    def __init__(self, pixel_size=1 << u.arcsec, max_iter=50, down_sample=False, noise_model_name='smoothed_svd'):
         self._pixel_size = pixel_size
         self._max_iter = max_iter
+        self._down_sample = down_sample
+        self._noise_model_name = noise_model_name
 
     def __call__(self, dp, output_dir):
 
@@ -136,8 +148,11 @@ class MinkasiExecutor(object):
             image_path = output_dir.joinpath(image_name)
             hits_image_path = output_dir.joinpath(hits_image_name)
             mapset, hits_mapset = _make_minkasi_maps(
-                [tod_path], pixel_size=self._pixel_size,
-                max_iter=self._max_iter)
+                [tod_path],
+                pixel_size=self._pixel_size,
+                max_iter=self._max_iter,
+                down_sample=self._down_sample,
+                noise_model_name=self._noise_model_name)
             mapset.maps[0].write(image_path)
             hits_mapset.maps[0].write(hits_image_path)
             data_items.append({
@@ -275,6 +290,12 @@ class MinkasiStepConfig():
             'description': 'Enable/disable this pipeline step.'
             }
         )
+    down_sample: bool = field(
+        default=False,
+        metadata={
+            'description': 'Enable/disable the minkasi down-sampling.'
+            }
+        )
     pixel_size: u.Quantity = field(
         default=1. << u.arcsec,
         metadata={
@@ -288,12 +309,23 @@ class MinkasiStepConfig():
             'description': 'The max number of iteration of the PCG fitter.',
             }
         )
-
+    noise_model_name: str = field(
+        default='smoothed_svd',
+        metadata={
+            'description': 'The noise model name.',
+            'schema': Or('smoothed_svd', 'cm_white', 'white'),
+            }
+        )
     def __post_init__(self):
         self.logger = get_logger()
 
     def __call__(self, cfg):
-        return MinkasiExecutor(pixel_size=self.pixel_size, max_iter=self.max_iter)
+        return MinkasiExecutor(
+                pixel_size=self.pixel_size,
+                max_iter=self.max_iter,
+                down_sample=self.down_sample,
+                noise_model_name=self.noise_model_name,
+                )
 
     def run(self, cfg, inputs=None):
         """Run this reduction step."""
