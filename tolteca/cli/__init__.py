@@ -31,11 +31,18 @@ A proxy to the `ConfigLoader` instance created via CLI.
 def main(args=None):
     """The CLI entry point."""
 
+    from mpi4py import MPI
+
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+
     prog_name = 'TolTECA'
     prog_desc = 'TolTEC Data Analysis All-in-one!'
     # prog_url = 'http://toltecdr.astro.umass.edu'
     description = f"{prog_name} v{version.version} - {prog_desc}"
-    banner = r"""
+
+    def print_banner():
+        banner = r"""
 .~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~
      _____  ____  _     _____  _____ ____  ____
     /__ __\/  _ \/ \   /__ __\/  __//   _\/  _ \
@@ -47,6 +54,10 @@ def main(args=None):
           http://toltecdr.astro.umass.edu
 ~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.
 """
+        if rank == 0:
+            print(banner)
+        comm.Barrier()
+        print(f"MPI started on rank {rank}/{comm.Get_size()}")
 
     # make a "pre-parser" without loading subcommands.
     # this is useful to speed things up for something like `tolteca -v`
@@ -69,10 +80,13 @@ def main(args=None):
         # generating the ascii art is too slow.
         # since it is static we just created that inline.
         # from ..utils.misc import make_ascii_banner
-        print(banner)
+        print_banner()
+
+    comm.barrier()
 
     if option.version:
-        print(version.version)
+        if rank == 0:
+            print(version.version)
         sys.exit(0)
 
     # now we create the actual parser with subcommands loaded

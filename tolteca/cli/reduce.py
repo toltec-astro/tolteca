@@ -53,7 +53,8 @@ def load_pipeline_runtime(
 
 @main_parser.register_action_parser(
         'reduce',
-        help="Run tolteca.reduce CLI."
+        help="Run tolteca.reduce CLI.",
+        mpi_passthrough=True
         )
 def cmd_reduce(parser):
 
