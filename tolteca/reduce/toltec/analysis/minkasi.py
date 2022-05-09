@@ -19,7 +19,10 @@ from ....datamodels.toltec.data_prod import ScienceDataProd
 from ... import steps_registry
 
 
-def _make_minkasi_maps(tod_names, pixel_size=1 << u.arcsec, max_iter=50, down_sample=False, noise_model_name='smoothed_svd'):
+def _make_minkasi_maps(
+        tod_names, pixel_size=1 << u.arcsec, max_iter=50,
+        down_sample=False,
+        noise_model_name='smoothed_svd'):
 
     from minkasi_wrapper import minkasi
 
@@ -50,10 +53,141 @@ def _make_minkasi_maps(tod_names, pixel_size=1 << u.arcsec, max_iter=50, down_sa
             # figure out a guess at common mode #and (assumed) linear detector
             # drifts/offset drifts/offsets are removed, which is important for
             # mode finding.  CM is *not* removed.
-            dd, pred2, cm = minkasi.fit_cm_plus_poly(dat['dat_calib'], full_out=True)
+            dd, pred2, cm = minkasi.fit_cm_plus_poly(
+                dat['dat_calib'], full_out=True)
             dat['dat_calib'] = dd
         tod = minkasi.Tod(dat)
         todvec.add_tod(tod)
+
+    # make a template map with desired pixel size an limits that cover the data
+    # todvec.lims() is MPI-aware and will return global limits, not just
+    # the ones from private TODs
+    lims = todvec.lims()
+    pixsize_rad = pixel_size.to_value(u.rad)
+    map = minkasi.SkyMap(lims, pixsize_rad)
+
+    # once we have a map, we can figure out the pixellization of the data.
+    # Save that so we don't have to recompute.  Also calculate a noise model.
+    # The one here (and currently the only supported one) is to rotate the data
+    # into SVD space, then smooth the power spectrum of each mode.  Other
+    # models would not be hard to implement.  The smoothing could do with a bit
+    # of tuning as well.
+    for tod in todvec.tods:
+        ipix = map.get_pix(tod)
+        tod.info['ipix'] = ipix
+        tod.set_noise(noise_model_cls)
+        # tod.set_noise(minkasi.NoiseCMWhite)
+        # tod.set_noise_smoothed_svd()
+
+    # get the hit count map.  We use this as a preconditioner
+    # which helps small-scale convergence quite a bit.
+    hits = minkasi.make_hits(todvec, map)
+    hits_mapset = minkasi.Mapset()
+    hits_mapset.add_map(hits)
+
+    # setup the mapset. In general this can have many things
+    # in addition to map(s) of the sky, but for now we'll just
+    # use a single skymap.
+    mapset = minkasi.Mapset()
+    mapset.add_map(map)
+
+    # make A^T N^1 d.  TODs need to understand what to do with maps but maps
+    # don't necessarily need to understand what to do with TODs, hence putting
+    # make_rhs in the vector of TODs. Again, make_rhs is MPI-aware, so this
+    # should do the right thing if you run with many processes.
+    rhs = mapset.copy()
+    todvec.make_rhs(rhs)
+
+    # this is our starting guess. Default to starting at 0,
+    # but you could start with a better guess if you have one.
+    x0 = rhs.copy()
+    x0.clear()
+
+    # preconditioner is 1/ hit count map.  helps a lot for
+    # convergence.
+    precon = mapset.copy()
+    tmp = hits.map.copy()
+    ii = tmp > 0
+    tmp[ii] = 1.0/tmp[ii]
+    # precon.maps[0].map[:]=numpy.sqrt(tmp)
+    precon.maps[0].map[:] = tmp[:]
+
+    # run PCG!
+    mapset_out = minkasi.run_pcg(rhs, x0, todvec, precon, maxiter=max_iter)
+    return (mapset_out, hits_mapset)
+
+
+def _make_minkasi_maps_by_chunk(
+        ctods, array_name,
+        pixel_size=1 << u.arcsec,
+        max_iter=50,
+        down_sample=False,
+        noise_model_name='smoothed_svd',
+        chunk_len=60 << u.s):
+
+    logger = get_logger()
+
+    from minkasi_wrapper import minkasi
+    from netCDF4 import Dataset
+
+    _dispatch_noise_models = {
+            'smoothed_svd': minkasi.NoiseSmoothedSVD,
+            'white': minkasi.NoiseWhite,
+            'cm_white': minkasi.NoiseCMWhite,
+            }
+
+    noise_model_cls = _dispatch_noise_models[noise_model_name]
+
+    todvec = minkasi.TodVec()
+
+    array_index = toltec_info[array_name]['index']
+
+    for ctod in ctods:
+        filepath = ctod['filepath']
+        ncfile = Dataset(filepath)
+        n_times = ncfile.dimensions['nsamples'].size
+        # load ctods by chunk
+        f_smp = (1 / np.median(np.diff(ncfile['TIME'][:100]))) << u.Hz
+        ncfile.close()
+        logger.debug(f"load ctod of f_smp = {f_smp} n_times={n_times}")
+        chunk_size = (chunk_len * f_smp).to_value(u.dimensionless_unscaled)
+        n_chunks = n_times // chunk_size + bool(
+            n_times % chunk_size)
+
+        chunk_slices = []
+        for i in range(n_chunks):
+            start = i * chunk_size
+            end = start + chunk_size
+            if end > n_times:
+                end = n_times
+            chunk_slices.append(slice(start, end))
+
+        for i, chunk_slice in enumerate(chunk_slices):
+            with timeit(
+                f'read [{i}/{n_chunks}] tod from nc file with'
+                f'slice={chunk_slice} array_index={array_index}'
+                    ):
+                dat = minkasi.read_tod_from_toltec_nc(
+                    filepath, array_index, sample_slice=chunk_slice)
+                if down_sample:
+                    with timeit("down sampling"):
+                        # truncate_tod chops samples from the end to make
+                        # the length happy for ffts
+                        # minkasi.truncate_tod(dat)
+                        # sometimes we have faster sampled data than we need.
+                        # this fixes that.  You don't need to, though.
+                        minkasi.downsample_tod(dat)
+                        # since our length changed, make sure we have a happy
+                        # length minkasi.truncate_tod(dat)
+                with timeit("guess common mode"):
+                    # figure out a guess at common mode #and (assumed) linear
+                    # detector drifts/offset drifts/offsets are removed, which
+                    # is important for mode finding.  CM is *not* removed.
+                    dd, pred2, cm = minkasi.fit_cm_plus_poly(
+                        dat['dat_calib'], full_out=True)
+                    dat['dat_calib'] = dd
+                tod = minkasi.Tod(dat)
+                todvec.add_tod(tod)
 
     # make a template map with desired pixel size an limits that cover the data
     # todvec.lims() is MPI-aware and will return global limits, not just
@@ -117,13 +251,63 @@ class MinkasiExecutor(object):
 
     logger = get_logger()
 
-    def __init__(self, pixel_size=1 << u.arcsec, max_iter=50, down_sample=False, noise_model_name='smoothed_svd'):
+    def __init__(
+            self, pixel_size=1 << u.arcsec, max_iter=50,
+            down_sample=False, noise_model_name='smoothed_svd',
+            chunk_len=60 << u.s):
         self._pixel_size = pixel_size
         self._max_iter = max_iter
         self._down_sample = down_sample
         self._noise_model_name = noise_model_name
+        self._chunk_len = chunk_len
 
-    def __call__(self, dp, output_dir):
+    def __call__(self, dps, output_dir):
+
+        self.logger.debug(
+            f"run minkasi for dps={dps}, output_dir={output_dir}")
+        # get all ctods from dps
+        ctods = list()
+        for dp in dps:
+            ctod = dp[
+                dp['kind'] == DataItemKind.CalibratedTimeOrderedData]
+            if len(ctod) > 0:
+                ctods.append(ctod.index_table[0])
+        if len(ctods) == 0:
+            raise ValueError('data products has no calibrated tod item.')
+        data_items = list()
+        for array_name in toltec_info['array_names']:
+            image_name = (
+                f"{ctod['filepath'].stem}_{array_name}_minkasi_map.fits"
+                ).replace("_timestream_", '_')
+            hits_image_name = (
+                f"{ctod['filepath'].stem}_{array_name}_minkasi_map_hits.fits"
+                ).replace("_timestream_", '_')
+            image_path = output_dir.joinpath(image_name)
+            hits_image_path = output_dir.joinpath(hits_image_name)
+            mapset, hits_mapset = _make_minkasi_maps_by_chunk(
+                ctods,
+                array_name,
+                pixel_size=self._pixel_size,
+                max_iter=self._max_iter,
+                down_sample=self._down_sample,
+                noise_model_name=self._noise_model_name,
+                chunk_len=self._chunk_len
+                )
+            mapset.maps[0].write(image_path)
+            hits_mapset.maps[0].write(hits_image_path)
+            data_items.append({
+                'array_name': array_name,
+                'kind': DataItemKind.Image,
+                'filepath': image_path
+                })
+        meta = dp.meta
+        index = {
+            'data_items': data_items,
+            'meta': meta
+            }
+        return ScienceDataProd(source=index)
+
+    def _call(self, dp, output_dir):
 
         self.logger.debug(
             f"run minkasi for dp={dp}, output_dir={output_dir}")
@@ -137,7 +321,7 @@ class MinkasiExecutor(object):
             cache_dir.mkdir()
         minkasi_tod_paths = self._convert_nc_to_fits(
             ctod['filepath'], cache_dir=cache_dir)
-        data_items = list() 
+        data_items = list()
         for i, (array_name, tod_path) in enumerate(minkasi_tod_paths.items()):
             image_name = (
                 f"{ctod['filepath'].stem}_{array_name}_minkasi_map.fits"
@@ -290,6 +474,14 @@ class MinkasiStepConfig():
             'description': 'Enable/disable this pipeline step.'
             }
         )
+    chunk_len: u.Quantity = field(
+        default=60 << u.s,
+        metadata={
+            'description': 'Chunk length to split the timestream to '
+                           'reduce memory footprint.',
+            'schema': PhysicalTypeSchema("time"),
+            }
+        )
     down_sample: bool = field(
         default=False,
         metadata={
@@ -316,6 +508,7 @@ class MinkasiStepConfig():
             'schema': Or('smoothed_svd', 'cm_white', 'white'),
             }
         )
+
     def __post_init__(self):
         self.logger = get_logger()
 
@@ -325,6 +518,7 @@ class MinkasiStepConfig():
                 max_iter=self.max_iter,
                 down_sample=self.down_sample,
                 noise_model_name=self.noise_model_name,
+                chunk_len=self.chunk_len,
                 )
 
     def run(self, cfg, inputs=None):
@@ -342,11 +536,9 @@ class MinkasiStepConfig():
             self.logger.debug("no valid input for this step, skip")
             return None
 
-        assert len(dps) == 1
-        dp = dps[0]
         output_dir = cfg.get_or_create_output_dir()
         minkasi_executor = self(cfg)
         return minkasi_executor(
-            dp=dp,
+            dps=dps,
             output_dir=output_dir,
             )
