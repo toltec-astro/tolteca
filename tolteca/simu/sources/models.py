@@ -237,7 +237,7 @@ class ImageSourceModel(SurfaceBrightnessModel):
                 + Q * np.cos(2. * det_pa_icrs)
                 + U * np.sin(2. * det_pa_icrs)
                 )
-        return 0.5 * (
+        return (
             I
             + Q * np.cos(4. * hwp_pa_icrs - 2. * det_pa_icrs)
             + U * np.sin(4. * hwp_pa_icrs - 2. * det_pa_icrs)
