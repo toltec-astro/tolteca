@@ -232,7 +232,7 @@ class ImageSourceModel(SurfaceBrightnessModel):
         Q = s_outs.get('Q', sb_zero)
         U = s_outs.get('U', sb_zero)
         if not eval_hwp:
-            return 0.5 * (
+            return (
                 I
                 + Q * np.cos(2. * det_pa_icrs)
                 + U * np.sin(2. * det_pa_icrs)
