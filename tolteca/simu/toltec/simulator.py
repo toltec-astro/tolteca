@@ -1132,6 +1132,9 @@ class ToltecSimuOutputContext(ExitStack):
                 'Header.Toltec.AccumLen', 524288, dtype='i4')
         nm_toltec.setscalar(
                 'Header.Toltec.MaxNumTones', 1000, dtype='i4')
+        nm_toltec.setscalar(
+                'Header.Toltec.FpgaFreq',
+                2.56e8)
 
         nc_toltec.createDimension('numSweeps', 1)
         nc_toltec.createDimension('toneFreqLen', len(mapt))
@@ -1316,7 +1319,35 @@ class ToltecSimuOutputContext(ExitStack):
                 f' {nc_toltec.filepath()}')
             m = (apt['nw'] == nw)
             nm_toltec.getvar('flo')[idx:] = 0
-            nm_toltec.getvar('time')[idx:, 0] = t_grid
+            # 0  ClockTime (sec)
+            # 1  PpsCount (pps ticks)
+            # 2  ClockCount (clock ticks)
+            # 3  PacketCount (packet ticks)
+            # 4  PpsTime (clock ticks)
+            # 5  ClockTimeNanoSec (nsec)
+            # The clock time and clock nanosec are the unix time stamp
+            # of the system startup, which is constant.
+            # The actual time stamp of each sample is to be computed
+            # with clock count and clock frequency.
+            t00 = time_obs[0].unix
+            nm_toltec.getvar('time')[idx:, 0] = np.full(
+                t_grid.shape, int(t00))
+            nm_toltec.getvar('time')[idx:, 5] = np.full(
+                t_grid.shape, int((t00 - int(t00)) * 1e9))
+            # package count, increment for each sample
+            nm_toltec.getvar('time')[idx:, 3] = range(len(t_grid))
+            # pps count and pps time
+            # since we set t00 to be the t0, this is just simple
+            # int sequence of t_grid
+            t_grid_sec = t_grid.to_value(u.s)
+            t_grid_sec_int = t_grid_sec.astype(int)
+            nm_toltec.getvar('time')[idx:, 1] = t_grid_sec_int
+            f_fpga_Hz = nm_toltec.getany('Header.Toltec.FpgaFreq')
+            # pps time is the clock count of the pps tick
+            nm_toltec.getvar('time')[idx:, 4] = (t_grid_sec_int * f_fpga_Hz)
+            # clock count
+            nm_toltec.getvar('time')[idx:, 2] = t_grid_sec * f_fpga_Hz
+
             nm_toltec.getvar('I')[idx:, :] = iqs.real[m, :].T
             nm_toltec.getvar('Q')[idx:, :] = iqs.imag[m, :].T
 
