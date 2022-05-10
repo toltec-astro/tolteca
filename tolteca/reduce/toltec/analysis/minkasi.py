@@ -150,7 +150,7 @@ def _make_minkasi_maps_by_chunk(
         f_smp = (1 / np.median(np.diff(ncfile['TIME'][:100]))) << u.Hz
         ncfile.close()
         logger.debug(f"load ctod of f_smp = {f_smp} n_times={n_times}")
-        chunk_size = (chunk_len * f_smp).to_value(u.dimensionless_unscaled)
+        chunk_size = int((chunk_len * f_smp).to_value(u.dimensionless_unscaled))
         n_chunks = n_times // chunk_size + bool(
             n_times % chunk_size)
 
@@ -164,7 +164,7 @@ def _make_minkasi_maps_by_chunk(
 
         for i, chunk_slice in enumerate(chunk_slices):
             with timeit(
-                f'read [{i}/{n_chunks}] tod from nc file with'
+                f'read [{i}/{n_chunks}] tod from nc file with '
                 f'slice={chunk_slice} array_index={array_index}'
                     ):
                 dat = minkasi.read_tod_from_toltec_nc(
@@ -277,10 +277,10 @@ class MinkasiExecutor(object):
         data_items = list()
         for array_name in toltec_info['array_names']:
             image_name = (
-                f"{ctod['filepath'].stem}_{array_name}_minkasi_map.fits"
+                f"{ctods[0]['filepath'].stem}_{array_name}_minkasi_map.fits"
                 ).replace("_timestream_", '_')
             hits_image_name = (
-                f"{ctod['filepath'].stem}_{array_name}_minkasi_map_hits.fits"
+                f"{ctods[0]['filepath'].stem}_{array_name}_minkasi_map_hits.fits"
                 ).replace("_timestream_", '_')
             image_path = output_dir.joinpath(image_name)
             hits_image_path = output_dir.joinpath(hits_image_name)
