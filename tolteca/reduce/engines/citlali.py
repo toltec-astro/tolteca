@@ -539,6 +539,11 @@ def _fix_apt(source):
     # apt
     tbl = Table.read(source, format='ascii.ecsv')
     tbl_new = Table()
+
+    def get_uid(uid):
+        return int('1' + uid.replace("_", ''))
+
+    tbl_new['uid'] = [get_uid(uid) for uid in tbl['uid']]
     tbl_new['nw'] = np.array(tbl['nw'], dtype='d')
     tbl_new['fg'] = np.array(tbl['fg'], dtype='d')
     tbl_new['pg'] = np.array(tbl['pg'], dtype='d')
@@ -549,6 +554,7 @@ def _fix_apt(source):
     tbl_new['y_t'] = tbl['y_t'].quantity.to_value(u.deg)
     tbl_new['a_fwhm'] = tbl['a_fwhm'].quantity.to_value(u.deg)
     tbl_new['b_fwhm'] = tbl['b_fwhm'].quantity.to_value(u.deg)
+
     source_new = source.replace('.ecsv', '_trimmed.ecsv')
     tbl_new.write(source_new, format='ascii.ecsv', overwrite=True)
     return source_new
