@@ -56,7 +56,13 @@ class TimeField(Time):
             raise ValueError('invalid time format')
 
 
-class ConfigInfo(BaseModel):
+class ImmutableBaseModel(BaseModel):
+    """Base model class for parse config dict."""
+    class Config:
+        allow_mutation = False
+
+
+class ConfigInfo(ImmutableBaseModel):
     """The config info."""
 
     env_files: Sequence[AbsFilePath] = Field(
@@ -72,11 +78,8 @@ class ConfigInfo(BaseModel):
         description='The path to load runtime context from.'
         )
 
-    class Config:
-        allow_mutation = False
 
-
-class SetupInfo(BaseModel):
+class SetupInfo(ImmutableBaseModel):
     """The info saved to setup file.
 
     """
@@ -90,11 +93,8 @@ class SetupInfo(BaseModel):
         description='The saved config.'
         )
 
-    class Config:
-        allow_mutation = False
 
-
-class RuntimeInfo(BaseModel):
+class RuntimeInfo(ImmutableBaseModel):
     """The runtime info.
 
     """
@@ -142,36 +142,29 @@ class RuntimeInfo(BaseModel):
         default_factory=SetupInfo,
         )
 
-    class Config:
-        allow_mutation = False
 
+class ConfigList(object):
+     """A base """
 
 class ConfigBackend(object):
-    """A base class for handling config dicts.
+    """A base class for loading config dicts and runtime info.
 
     This class manages three config dicts internally: ``_default_config``,
-    ``_config_impl``, and ``_override_config``, and the cached property
-    :attr:``config`` returns a merged dict of the three.
+    ``_config_impl``, and ``_override_config``. It also create the config
+    dict that is mapped to the runtime info.
 
+    The cached property :attr:``config`` returns a merged dict of them all.
     :meth:`reload` can be used to re-build the config dict.
+
     """
     def __init__(self):
         # build the config cache and runtime info.
         self.load()
 
-    _runtime_info_key = 'runtime_info'
-    """The runtime info dict key when serialized."""
-
-    _config_info_key = 'config_info'
-    """The config info dict key when serialized."""
-
-    _setup_info_key = 'setup_info'
-    """The setup info dict key when serialized."""
-
     @classmethod
-    def _get_runtime_info_from_config(cls, config):
-        return RuntimeInfo.schema.load(
-            config.get(cls._runtime_info_key, dict()))
+    def _parse_runtime_info_from_config(cls, config):
+        return RuntimeInfo.parse_object(
+            config.get('runtime_info', dict()))
 
     _default_config = NotImplemented
     """Config dict to set defaults.
