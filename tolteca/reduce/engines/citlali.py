@@ -543,7 +543,7 @@ def _fix_apt(source):
     def get_uid(uid):
         return int('1' + uid.replace("_", ''))
 
-    tbl_new['uid'] = [get_uid(uid) for uid in tbl['uid']]
+    tbl_new['uid'] = np.array([get_uid(uid) for uid in tbl['uid']], dtype='d')
     tbl_new['nw'] = np.array(tbl['nw'], dtype='d')
     tbl_new['fg'] = np.array(tbl['fg'], dtype='d')
     tbl_new['pg'] = np.array(tbl['pg'], dtype='d')
