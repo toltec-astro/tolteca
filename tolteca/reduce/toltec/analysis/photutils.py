@@ -91,7 +91,7 @@ class PhotUtilsStepConfig():
             cat_in_path = self.input_source_catalog_path
             if cat_in_path is not None:
                 cat_in = Table.read(
-                    cat_in_path, format='ascii.commented_header')
+                    cat_in_path, format='ascii')
             else:
                 cat_in = NotImplemented
             # do photometry
@@ -102,9 +102,16 @@ class PhotUtilsStepConfig():
                 filepath = Path(item['filepath'])
                 # TODO implement IO support for data items in data prod
                 hl = fits.open(filepath)
-                hdu = hl[1]  # signal
+                if len(hl) > 1:
+                    hdu = hl[1]  # signal
+                    # get normalization from kernel map
+                    hdu_kernel = hl[3]
+                    corr = hdu_kernel.data.max()
+                else:
+                    hdu = hl[0]
+                    corr = 1.
                 # hdu_wht = item.get_hdu(name='weight')
-                wcsobj = WCS(hdu.header)
+                wcsobj = WCS(hdu.header).sub(2)
                 # source catalog for extract flux
                 x_src, y_src = wcsobj.all_world2pix(
                     cat_in['ra'], cat_in['dec'], 0)
@@ -117,7 +124,7 @@ class PhotUtilsStepConfig():
                     fwhms[array_name] / GAUSSIAN_SIGMA_TO_FWHM) ** 2
                 beam_area_pix2 = 2 * np.pi * (
                     fwhm_pix / GAUSSIAN_SIGMA_TO_FWHM) ** 2
-                data = (hdu.data << u.MJy/u.sr).to_value(
+                data = (hdu.data.squeeze() << u.MJy/u.sr).to_value(
                     u.mJy / u.beam,
                     equivalencies=u.beam_angular_area(beam_area)
                     ) / beam_area_pix2
@@ -136,9 +143,6 @@ class PhotUtilsStepConfig():
                 catalog = photometry(
                     image=data,
                     init_guesses=xy)
-                # get normalization from kernel map
-                hdu_kernel = hl[3]
-                corr = hdu_kernel.data.max()
                 catalog[f'flux_{array_name}'] = catalog['flux_fit'] / corr
                 if 'flux_unc' in catalog:
                     catalog[f'fluxerr_{array_name}'] = (

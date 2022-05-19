@@ -9,7 +9,7 @@ from typing import ClassVar
 from schema import Or
 
 from tollan.utils.dataclass_schema import add_schema
-from tollan.utils.log import get_logger, logit, log_to_file
+from tollan.utils.log import get_logger, logit, log_to_file, timeit
 from tollan.utils.fmt import pformat_yaml
 from tollan.utils import rupdate
 
@@ -413,13 +413,25 @@ class SimulatorRuntime(RuntimeBase):
                     # save simulator meta
                     output_ctx.write_sim_meta(simu_config=cfg)
 
-                    # run simulator for each chunk and save the data
                     n_chunks = len(t_chunks)
-                    for ci, t in enumerate(t_chunks):
-                        self.logger.info(
-                            f"simulate chunk {ci}/{n_chunks} "
-                            f"t_min={t.min()} t_max={t.max()}")
-                        output_ctx.write_sim_data(iter_eval(t))
+                    # run simulator for each chunk and save the data
+                    with timeit("creating simulated data"):
+                        # from loky import set_loky_pickler
+                        # set_loky_pickler("dill")
+                        # from loky import get_reusable_executor
+                        # executor = get_reusable_executor(max_workers=4)
+                        # for ci, iter_data in enumerate(
+                        #         executor.map(iter_eval, t_chunks)):
+                        #     t = iter_data['t']
+                        #     self.logger.info(
+                        #         f"simulated chunk {ci}/{n_chunks} "
+                        #         f"t_min={t.min()} t_max={t.max()}")
+                        #     output_ctx.write_sim_data(iter_data)
+                        for ci, t in enumerate(t_chunks):
+                            self.logger.info(
+                                f"simulate chunk {ci}/{n_chunks} "
+                                f"t_min={t.min()} t_max={t.max()}")
+                            output_ctx.write_sim_data(iter_eval(t))
         return output_dir
 
     def plot(self, type, **kwargs):
