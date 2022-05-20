@@ -89,6 +89,7 @@ reduce:
           parallel_policy: seq # seq, omp, tbb
           n_threads: 1 # number of threads to parallelize over
           output_dir: null
+          use_subdir: true
           reduction_type: science #beammap, pointing, etc
           meta:
             version: tolteca...
