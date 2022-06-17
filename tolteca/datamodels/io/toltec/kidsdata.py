@@ -469,6 +469,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                 f"found obs_type -> {nm['obs_type']}: {obs_type}")
 
         data_kind = {
+                    0: KidsDataKind.RawTimeStream,
                     1: KidsDataKind.RawTimeStream,
                     2: KidsDataKind.VnaSweep,
                     3: KidsDataKind.TargetSweep,

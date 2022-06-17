@@ -80,12 +80,13 @@ class ReduConfig(object):
         data_loaders = set()
         # we always add the output dir as input for post-processings
         output_dir = self.get_or_create_output_dir()
-        _inputs = self.inputs + [
-            inputs_registry.schema.validate(
-                {'path': output_dir.as_posix()},
-                create_instance=True
-                )
-            ]
+        # _inputs = self.inputs + [
+        #     inputs_registry.schema.validate(
+        #         {'path': output_dir.as_posix()},
+        #         create_instance=True
+        #         )
+        #     ]
+        _inputs = self.inputs
         for input in _inputs:
             data_collection.extend(input.load_all_data())
             data_loaders.update(input.get_data_loaders())

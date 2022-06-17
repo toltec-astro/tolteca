@@ -124,6 +124,8 @@ class KidsModelParams(object):
             for k, kk, unit in dispatch:
                 if kk is None:
                     args.append(None)
+                elif tbl[kk].unit is not None:
+                    args.append(np.asanyarray(tbl[kk].quantity))
                 elif unit is None:
                     args.append(np.asanyarray(tbl[kk]))
                 else:
@@ -204,6 +206,17 @@ class TableIO(DataFileIO):
         else:
             data_loc = self._normalize_file_loc(source)
             data = Table.read(data_loc.path, format='ascii')
+        # attach unit to data column if not already
+        dispatch_unit = [
+                ('f_out', u.Hz),
+                ('f_in', u.Hz),
+                ('fp', u.Hz),
+                ('fr', u.Hz),
+                ('slopeI', u.s),
+                ('slopeQ', u.s),
+                ]
+        for c, unit in dispatch_unit:
+            data[c].unit = unit
         self._open_state = {
                 'data_loc': data_loc,
                 'data': data
@@ -273,6 +286,8 @@ class KidsModelParamsIO(TableIO):
             'obsnum': 'Header.Toltec.ObsNum',
             'subobsnum': 'Header.Toltec.SubObsNum',
             'scannum': 'Header.Toltec.ScanNum',
+            'roachid': 'Header.Toltec.RoachIndex',
+            'accumlen': 'Header.Toltec.AccumLen',
             }
 
     def read(self):
@@ -291,4 +306,6 @@ class KidsModelParamsIO(TableIO):
         result = super()._get_meta()
         for n, m in self._meta_mapper.items():
             result[n] = self.file_obj.meta.get(m, None)
+        result['nwid'] = result['roachid']
+        result['interface'] = f'toltec{result["nwid"]}'
         return result

@@ -59,7 +59,7 @@ class LocalFileDataStore(DataclassNamespace, DataLoaderRegistryMixin):
             default=None,
             description='The expression to select data to load.'
             ):
-        str
+        str,
         })
 
     _data_loader_registry = Registry.create()

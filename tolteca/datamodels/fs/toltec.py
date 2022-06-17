@@ -142,14 +142,14 @@ def _meta_from_lmt_tel_filename(file_loc):
     filename = path.name
 
     re_lmt_tel_file = (
-        r'^(?P<interface>tel)'
+        r'^(?P<interface>tel_toltec)'
         r'_(?P<ut>\d{4}-\d{2}-\d{2})'
         r'_(?P<obsnum>\d+)_(?P<subobsnum>\d+)_(?P<scannum>\d+)'
         r'\.(?P<fileext>.+)$')
 
     def parse_ut(v):
         result = Time(
-            datetime.strptime(v, '%Y_%m_%d_%H_%M_%S'),
+            datetime.strptime(v, '%Y-%m-%d'),
             scale='utc')
         result.format = 'isot'
         return result
@@ -160,7 +160,7 @@ def _meta_from_lmt_tel_filename(file_loc):
         'scannum': int,
         'ut': parse_ut,
         'fileext': lambda s: s.lower(),
-        'interface': lambda s: ('lmt' if s == 'tel' else s)
+        'interface': lambda s: ('lmt' if s == 'tel_toltec' else s)
         }
 
     meta = dict_from_regex_match(

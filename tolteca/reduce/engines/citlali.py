@@ -12,7 +12,7 @@ from copy import deepcopy
 from cached_property import cached_property
 from packaging.version import Version, InvalidVersion
 from packaging.specifiers import SpecifierSet
-from astropy.table import Table
+from astropy.table import Table, vstack
 from scalpl import Cut
 import numpy as np
 import astropy.units as u
@@ -33,6 +33,8 @@ from ...utils.misc import get_nested_keys
 from ...utils.common_schema import RelPathSchema, PhysicalTypeSchema
 from ...utils.runtime_context import yaml_load
 from ...datamodels.toltec.data_prod import ToltecDataProd
+from ...datamodels.toltec.basic_obs_data import BasicObsData
+from ...common.toltec import toltec_info
 
 
 REMOTE_CITLALI_REPO_URL = 'https://github.com/toltec-astro/citlali.git'
@@ -406,7 +408,7 @@ class CitlaliProc(object):
                     '*******'.format(**key))
             self.logger.debug(f'{group}\n')
         input_items = [
-            self._resolve_input_item(d) for d in grouped.groups]
+            self._resolve_input_item(d, output_dir, cal_items=self.config.cal_items) for d in grouped.groups]
         # create low level config object and dump to file
         # the low level has been resolved to a dict when __init__ is called
         cfg = deepcopy(self.config.low_level)
@@ -480,7 +482,7 @@ class CitlaliProc(object):
         return cfg.data
 
     @classmethod
-    def _resolve_input_item(cls, index_table):
+    def _resolve_input_item(cls, index_table, output_dir, cal_items=None):
         """Return an citlali input list entry from index table."""
         tbl = index_table
         d0 = tbl[0]
@@ -488,7 +490,8 @@ class CitlaliProc(object):
             'name': f'{d0["obsnum"]}_{d0["subobsnum"]}_{d0["scannum"]}'
             }
         data_items = list()
-        cal_items = list()
+        cal_items = cal_items or list()
+        has_apt = False
         for entry in tbl:
             instru = entry['instru']
             interface = entry['interface']
@@ -506,6 +509,7 @@ class CitlaliProc(object):
                 # ecsv handling
                 source = _fix_apt(source)
                 extra = {'type': 'array_prop_table'}
+                has_apt = True
             else:
                 continue
             c.append(dict({
@@ -515,6 +519,15 @@ class CitlaliProc(object):
                         }
                     }, **extra)
                     )
+        if not has_apt:
+            # build the apt with all network tones
+            cal_items.append({
+                'filepath': _make_apt(data_items, output_dir),
+                'meta': {
+                    'interface': 'apt'
+                    },
+                'type': 'array_prop_table'
+                })
         cls.logger.debug(
                 f"collected input item name={meta['name']} "
                 f"n_data_items={len(data_items)} "
@@ -560,6 +573,56 @@ def _fix_apt(source):
     return source_new
 
 
+def _make_apt(data_items, output_dir):
+
+    data_items_by_interface = {
+            data_item['meta']['interface']: data_item
+            for data_item in data_items
+            }
+
+    def _make_nw_apt(data_item):
+        interface = data_item['meta']['interface']
+        if not interface.startswith('toltec'):
+            return
+        nw = toltec_info[interface]['nw']
+        array_name = toltec_info[interface]['array_name']
+        filepath = data_item['filepath']
+        bod = BasicObsData(source=filepath).open()
+        kids_model = bod.get_model_params_table()
+        tbl = Table(kids_model)
+        # prefix all columns with kids_model_
+        for c in tbl.colnames:
+            tbl.rename_column(c, f'kids_model_{c}')
+        tbl['uid'] = -1.
+        tbl['nw'] = float(nw)
+        tbl['fg'] = -1.
+        tbl['pg'] = -1.
+        tbl['ori'] = -1.
+        tbl['array'] = float(toltec_info[array_name]['index'])
+        tbl['flxscale'] = 1.
+        tbl['x_t'] = 0.
+        tbl['y_t'] = 0.
+        tbl['a_fwhm'] = 0.
+        tbl['b_fwhm'] = 0.
+        return tbl
+
+    tbl = list()
+    for data_item in data_items:
+        t = _make_nw_apt(data_item)
+        if t is None:
+            continue
+        tbl.append(t)
+    tbl = sorted(
+            tbl,
+            key=lambda t: t[0]['nw']
+            )
+    tbl = vstack(tbl)
+    outname = Path(data_items_by_interface['toltec0']['filepath'].replace(data_items_by_interface['toltec0']['meta']['interface'], 'apt').replace('.nc', '.ecsv')).name
+    outname = output_dir.joinpath(outname)
+    tbl.write(outname, format='ascii.ecsv', overwrite=True)
+    return outname
+
+
 # High level config classes
 # TODO some of these config can be made more generic and does not needs to
 # be citlali specific.
@@ -597,7 +660,12 @@ class CitlaliConfig(object):
             'The params related to the output image data shape and WCS.'
             }
         )
-
+    cal_items: list = field(
+        default_factory=list,
+        metadata={
+            'description': 'Additional cal items passed to input.'
+            }
+        )
     class Meta:
         schema = {
             'ignore_extra_keys': False,

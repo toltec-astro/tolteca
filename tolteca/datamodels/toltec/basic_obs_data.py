@@ -495,11 +495,11 @@ class BasicObsDataset(object):
         return self.__class__(
                 index_table=unique(self.index_table, *args, **kwargs))
 
-    def join(self, other, *args, **kwargs):
+    def join(self, other, **kwargs):
         if isinstance(other, self.__class__):
             other_index_table = other.index_table
         else:
             other_index_table = other
         return self.__class__(
-                index_table=join(self.index_table, other_index_table),
-                *args, **kwargs)
+                index_table=join(self.index_table, other_index_table, **kwargs),
+                )

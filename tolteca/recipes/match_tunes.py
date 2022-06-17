@@ -12,7 +12,7 @@ for more information.
 """
 
 from tolteca.recipes import get_logger
-from tolteca.fs.toltec import ToltecDataset
+from tolteca.datamodels.toltec import BasicObsDataset
 from tollan.utils.wraps.stilts import stilts_match1d
 from tollan.utils.cli.multi_action_argparser import \
         MultiActionArgumentParser
@@ -37,33 +37,24 @@ def prepare_d21_data(dataset):
     logger.debug(f"load tones data from: {dataset}")
 
     # split the dataset for tunes and reduced files
-    targs = dataset.select('(kindstr=="targsweep") | (kindstr=="tune")')
+    targs = dataset.select('((filesuffix=="targsweep") | (filesuffix=="tune")) & (fileext=="nc")')
     calibs = dataset.select('fileext=="txt"')
-    # Read the sweep object from the file IO object. A TolTEC tune file
-    # contains multipe sweep blocks, and here we read the last one using the
-    # `sweeploc` method.
-    targs.load_data(
-            lambda fo: fo.sweeploc(index=-1)[:].read())
-    join_keys = ['nwid', 'obsid', 'subobsid', 'scanid']
-    targs = targs.right_join(
-            calibs.load_data(lambda fo: fo),
-            join_keys, [('data_obj', 'mdl_obj'), ], )
+    join_keys = ['nwid', 'obsnum', 'subobsnum', 'scannum']
+    targs = targs.join(
+            calibs,
+            keys=join_keys, join_type='left',
+            uniq_col_name='{col_name}{table_name}',
+            table_names=['', '_reduced']
+            )
     # join the mdls to swps
     logger.debug(f"targs: {targs}")
 
     # Compute the D21
-    d21_kwargs = dict(fstep=500, flim=(4.0e8, 1.0e9), smooth=0)
-    swps = targs.data_objs
-
-    import psutil
-    import concurrent
-    max_workers = psutil.cpu_count(logical=False)
-    with concurrent.futures.ProcessPoolExecutor(
-            max_workers=max_workers) as executor:
-        for i, d21 in executor.map(functools.partial(
-                _calc_d21_worker, **d21_kwargs), enumerate(swps)):
-            swps[i]._d21 = d21
-    targs.index_table['data_obj'] = swps
+    d21_kwargs = dict(fstep=500 << u.Hz, flim=(4.0e8 << u.Hz, 1.0e9 << u.Hz), smooth=2)
+    swps = targs.read_all()
+    for swp in swps:
+        swp.make_unified(**d21_kwargs)
+    targs.index_table['swp'] = swps
     return targs
 
 
@@ -341,19 +332,17 @@ if __name__ == "__main__":
             )
 
     @act_index.parser_action
-    def index_action(option):
+    def index_action(option, **kwargs):
         output = Path(option.output)
         if output.exists() and not option.overwrite:
             raise RuntimeError(
                     f"output file {output} exists, use -f to overwrite")
         # This function is called when `index` is specified in the cmd
         # Collect the dataset from the command line arguments
-        dataset = ToltecDataset.from_files(*option.files)
+        dataset = BasicObsDataset.from_files(option.files)
         # Apply any selection filtering
         if option.select:
-            dataset = dataset.select(option.select).open_files()
-        else:
-            dataset = dataset.open_files()
+            dataset = dataset.select(option.select)
         dataset = prepare_d21_data(dataset)
         # Dump the results.
         # dataset.write_index_table(
