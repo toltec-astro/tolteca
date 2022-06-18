@@ -141,10 +141,15 @@ def main(args):
                 dataset['source'], rsync_dest, **rsync_kwargs)
         logger.debug(f"local filepaths:\n{pformat_yaml(filepaths)}")
         # make a table with remote solource
-        ukeys = ['roachid', 'obsnum', 'subobsnum', 'scannum']
+        ukeys = ['obsnum', 'subobsnum', 'scannum']
+
+        local_tbl=BasicObsDataset.from_files(filepaths, open_=False)
+        ccols = set(dataset.colnames).intersection(set(local_tbl))
+        if 'roachid' in ccols:
+            ukeys.append('roachid')
         remote_source_tbl = dataset.index_table[ukeys + ['source', ]]
         remote_source_tbl.rename_column('source', 'source_remote')
-        dataset = BasicObsDataset.from_files(filepaths, open_=False).join(
+        dataset = local_tbl.join(
                 remote_source_tbl, keys=ukeys, join_type='outer'
                 )
     if option.output:
