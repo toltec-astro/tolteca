@@ -47,6 +47,7 @@ import sys
 from tolteca.recipes import get_logger
 from tolteca.datamodels.toltec import BasicObsDataset
 from tolteca.datamodels.fs.rsync import RsyncAccessor
+from tollan.utils.fmt import pformat_yaml
 from pathlib import Path
 import argparse
 
@@ -117,25 +118,33 @@ def main(args):
         # and build the dataset using downloaded files
         rsync_kwargs = {}
         if option.transfer_mode == 'mirror':
-            pass
+            rsync_dest = option.download_dir
         elif option.transfer_mode == 'lmt_archive':
             # insert the ./ in the source path at the master level
             def path_filter(p):
                 p = Path(p)
-                p0 = p.parents[2]  # upto the master   {}/ics/toltec0/tolte0.nc
+                for pp in p.parents:
+                    if pp.name == 'data_lmt':
+                        p0 = pp
+                        break
+                else:
+                    raise ValueError("not a valid data_lmt tree")
                 p1 = p.relative_to(p0)
+                # p0 = p.parents[3]  # upto the instru  {}toltec/ics/toltec0/tolte0.nc
+                # p1 = p.relative_to(p0)
                 return f'{p0}/./{p1}'
             rsync_kwargs['path_filter'] = path_filter
+            rsync_dest = Path(option.download_dir)
         else:
             raise NotImplementedError
         filepaths = accessor.rsync(
-                dataset['source'], option.download_dir, **rsync_kwargs)
-        logger.debug(f"local filepaths: {filepaths}")
+                dataset['source'], rsync_dest, **rsync_kwargs)
+        logger.debug(f"local filepaths:\n{pformat_yaml(filepaths)}")
         # make a table with remote solource
         ukeys = ['roachid', 'obsnum', 'subobsnum', 'scannum']
         remote_source_tbl = dataset.index_table[ukeys + ['source', ]]
         remote_source_tbl.rename_column('source', 'source_remote')
-        dataset = BasicObsDataset.from_files(filepaths).join(
+        dataset = BasicObsDataset.from_files(filepaths, open_=False).join(
                 remote_source_tbl, keys=ukeys, join_type='outer'
                 )
     if option.output:

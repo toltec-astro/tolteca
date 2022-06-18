@@ -94,6 +94,7 @@ class RsyncAccessor(FileStoreAccessor):
             with tempfile.NamedTemporaryFile('w') as fo:
                 for p in paths:
                     fo.write(f"{p}\n")
+                    logger.debug(f"rsync file path: {p}")
                 fo.flush()
                 # cmd_stats = [
                 #         'rsync', '--stats', '--dry-run',
@@ -111,8 +112,7 @@ class RsyncAccessor(FileStoreAccessor):
                 logger.debug("rsync with cmd: {}".format(' '.join(cmd)))
                 call_subprocess_with_live_output(cmd)
             for p in paths:
-                p = dest.joinpath(p.lstrip('/'))
-                print(p)
+                p = dest.joinpath(p.split('/./', 1)[1])
                 if p.exists():
                     result.add(p)
         return result

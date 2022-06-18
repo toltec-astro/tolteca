@@ -29,5 +29,12 @@ if ! findmnt -M ${nese_rw_mount} --noheadings |grep nese.rc.umass.edu > /dev/nul
     echo NESE rw drive is not properly mounted, abort!
     exit 1
 fi
-${pyexec} /home/toltec/toltec_astro/tolteca/tolteca/recipes/dataset_rsync2.py -s "obsnum>=$1" -m lmt_archive -d ${nese_data_lmt_dir} \
-    -fo nese_rsync_$(date +"%Y%m%dT%H%M%S").index /data/data_toltec/ics/toltec*/*.nc
+${pyexec} /home/toltec/toltec_astro/tolteca/tolteca/recipes/dataset_rsync2.py -s "obsnum>=$1 & master_name==\"$2\"" -m lmt_archive -d ${nese_data_lmt_dir} \
+    -fo nese_rsync_$(date +"%Y%m%dT%H%M%S").index \
+    '/data_lmt/toltec/ics' \
+    '/data_lmt/toltec/tcs' \
+    '/data_lmt/tel'
+    # '/data_lmt/toltec/ics/toltec*/*.nc' \
+    # '/data_lmt/toltec/ics/wyatt*/*.nc' \
+    # '/data_lmt/toltec/tcs/toltec*/*.nc' \
+    # '/data_lmt/tel/*.nc'
