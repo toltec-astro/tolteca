@@ -144,7 +144,7 @@ def main(args):
         ukeys = ['obsnum', 'subobsnum', 'scannum']
 
         local_tbl=BasicObsDataset.from_files(filepaths, open_=False)
-        ccols = set(dataset.colnames).intersection(set(local_tbl))
+        ccols = set(dataset.index_table.colnames).intersection(set(local_tbl.index_table.colnames))
         if 'roachid' in ccols:
             ukeys.append('roachid')
         remote_source_tbl = dataset.index_table[ukeys + ['source', ]]
