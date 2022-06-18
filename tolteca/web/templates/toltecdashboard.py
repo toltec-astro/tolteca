@@ -94,7 +94,7 @@ class ToltecDashboard(ComponentTemplate):
 
     def _setup_section_roach(self, app, container):
         timer, loading, error = self._setup_live_update_header(
-                app, container, 'ROACH', 1000)
+                app, container, 'ROACH', 2000)
         body = container.child(dbc.Row).child(dbc.Col)
         info_container = body.child(
                 dbc.Container, fluid=True, className='mx-0')
@@ -253,7 +253,7 @@ class ToltecDashboard(ComponentTemplate):
 
     def _setup_section_kids(self, app, container):
         timer, loading, error = self._setup_live_update_header(
-                app, container, 'KIDs', 2000)
+                app, container, 'KIDs', 4000)
         body = container.child(dbc.Row, className='mt-n2').child(dbc.Col)
         kids_info_graph = body.child(
                 dcc.Graph,

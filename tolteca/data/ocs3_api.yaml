@@ -1545,16 +1545,16 @@
     name: NumKids
     parent_type: ToltecBackendData
     type: int
-  - desc: AttenInput
+  - desc: AttenSense
     dims:
     - TOLTEC_NUM_ROACHES
-    name: AttenInput
+    name: AttenSense
     parent_type: ToltecBackendData
     type: double
-  - desc: AttenInputCmd
+  - desc: AttenSenseCmd
     dims:
     - TOLTEC_NUM_ROACHES
-    name: AttenInputCmd
+    name: AttenSenseCmd
     parent_type: ToltecBackendData
     type: double
   - desc: SampleFreq
@@ -1569,16 +1569,16 @@
     name: LoFreq
     parent_type: ToltecBackendData
     type: double
-  - desc: AttenOutput
+  - desc: AttenDrive
     dims:
     - TOLTEC_NUM_ROACHES
-    name: AttenOutput
+    name: AttenDrive
     parent_type: ToltecBackendData
     type: double
-  - desc: AttenOutputCmd
+  - desc: AttenDriveCmd
     dims:
     - TOLTEC_NUM_ROACHES
-    name: AttenOutputCmd
+    name: AttenDriveCmd
     parent_type: ToltecBackendData
     type: double
   - desc: BitwiseState

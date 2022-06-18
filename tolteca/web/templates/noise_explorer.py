@@ -493,8 +493,12 @@ def getPsdPlot(data, logx=0):
 
     colorsDark, colorsLight = get_color_pairs()
     maxf = 0.1
+    minf = 10.
     for i in np.arange(len(data)):
-        maxf = max(maxf, data[i]['fpsd'].max())
+        maf = np.array([j for j in data[i]['fpsd'] if j<2000.]).max()
+        maxf = max(maxf, maf)
+        mif = np.array([j for j in data[i]['fpsd'] if j>0.0001]).min()
+        minf = min(minf, mif)
         fig.add_trace(
             go.Scattergl(x=data[i]['fpsd'],
                          y=data[i]['medxPsd'],
@@ -511,7 +515,7 @@ def getPsdPlot(data, logx=0):
                          line=dict(color=colorsLight[i]),
                          ),
         )
-    fig.update_xaxes(range=[0.1, maxf])
+    fig.update_xaxes(range=[minf, maxf])
 
     # add horizontal line for blip at LMT
     blipLMT, text = getBlipLMT(data[i]['network'])

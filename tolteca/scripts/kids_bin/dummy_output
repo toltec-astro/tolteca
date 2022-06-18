@@ -1,0 +1,29 @@
+# %ECSV 0.9
+# ---
+# datatype:
+# - {name: f_centered, datatype: float64}
+# - {name: f_out, datatype: float64}
+# - {name: f_in, datatype: float64}
+# - {name: flag, datatype: float64}
+# - {name: fp, datatype: float64}
+# - {name: Qr, datatype: float64}
+# - {name: Qc, datatype: float64}
+# - {name: fr, datatype: float64}
+# - {name: A, datatype: float64}
+# - {name: normI, datatype: float64}
+# - {name: normQ, datatype: float64}
+# - {name: slopeI, datatype: float64}
+# - {name: slopeQ, datatype: float64}
+# - {name: interceptI, datatype: float64}
+# - {name: interceptQ, datatype: float64}
+# meta: !!omap
+# - {Header.Toltec.AccumLen: 524288}
+# - {Header.Toltec.ObsNum: 16205}
+# - {Header.Toltec.RoachIndex: 6}
+# - {Header.Toltec.ScanNum: 0}
+# - {Header.Toltec.SubObsNum: 0}
+# - {Header.Toltec.LoCenterFreq: 680910000.0}
+# schema: astropy-2.0
+f_centered f_out f_in flag fp Qr Qc fr A normI normQ slopeI slopeQ interceptI interceptQ
+-148653285.8388335 532256714.1611665 532254535.15625 4.0 532254535.15625 37544.90966584106 1.0 532256714.1611665 0.0 0.4377115125596897 -1.155246681882515 -0.2610865818920753 -0.1420260395865163 10629.6451531485 193835.8677128838
+-132715800.15837073 548194199.8416293 548222535.15625 4.0 548222535.15625 27719.25609300747 1.0 548194199.8416293 0.0 1.437019909789437 -0.1262181239551846 0.1698137030293553 -0.01525292273478629 -169636.3402368008 40857.3727262906

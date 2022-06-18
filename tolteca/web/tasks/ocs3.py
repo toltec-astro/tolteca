@@ -186,11 +186,16 @@ def update_ocs_info():
         d = json.loads(response)
         # walk done the tree to convert values to the correct type
         d = to_typed_json(d)
+        # print(d)
         ocs3_info_store.set(d)
 
 
 def to_typed_json(node):
     if isinstance(node, str):
+        if node in ['-nan', 'nan', '-inf', 'inf']:
+            # TODO this is not idea since inf and nan cannot be distinguished.
+            # need to look for a better workaround later.
+            return None
         return to_typed(node)
     if isinstance(node, list):
         return list(map(to_typed_json, node))

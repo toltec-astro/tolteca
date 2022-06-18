@@ -20,7 +20,7 @@ import re
 
 class obs:
     def __init__(self,obsnum=None,nrows=None,ncols=None,path=None,
-                 index=None,sampfreq=None,order=None,transpose=None,scale=False):
+                 index=None,sampfreq=None,order=None,transpose=None,scale=True):
 
         self.obsnum = str(obsnum)
         self.nrows = nrows
@@ -29,7 +29,7 @@ class obs:
         self.index = index
         self.sampfreq = sampfreq
         self.obsnum = obsnum
-        self.scale = scale
+        self.scale = False
         
         self.pnames = ['x','y','fwhmx','fwhmy','amps','snr']
         self.nc_pnames = ["amplitude", "FWHM_x", "FWHM_y", "offset_x", "offset_y"] #, "bolo_name"]
@@ -48,17 +48,31 @@ class obs:
             self.nws.append(str(nw))
             dx,dy,df = self.get_design(nw)
 
+            self.scalex = self.index['nw_path'][i]['scalex']
+            self.scaley = self.index['nw_path'][i]['scaley']
+
+            self.min_x = self.index['min_x']
+            self.min_y = self.index['min_y']
+
             f = self.index['nw_path'][nw]['path']
             print('reading in  %s' % (f))
             try:
                 nc = ncdata(f,self.obsnum,self.nrows,self.ncols, nw,
-                            self.sampfreq, order, transpose,dx, dy, df)
+                            self.sampfreq, order, transpose,dx, dy, df,self.scalex,self.scaley,self.min_x,self.min_y)
                 self.ncs.append(nc)
                 if self.scale==True:
                     try:
-                        scalex = self.index['nw_path'][nw]['scalex']
-                        scaley = self.index['nw_path'][nw]['scaley']
-                        self.ncs[-1].scale_data(scalex,scaley)
+                        self.min_x = self.index['min_x']
+                        self.min_y = self.index['min_y']
+                        self.max_x = self.index['max_x']
+                        self.max_y = self.index['max_y']
+
+                        self.mean_x = (self.max_x + self.min_x)/2
+                        self.mean_y = (self.max_y + self.min_y)/2
+
+                        self.scalex = self.index['nw_path'][nw]['scalex']
+                        self.scaley = self.index['nw_path'][nw]['scaley']
+                        #self.ncs[-1].scale_data(self.scalex,self.scaley)
                     except:
                         print('cannot scale')
                 '''nall = len(nc.ncfile.dimensions['nall'])
@@ -100,7 +114,7 @@ class obs:
             self.nws[int(nw[-1])] = nw[-1]
             print('on nw ' + self.nws[int(nw[-1])])
             dx,dy,df = self.get_design(int(self.nws[int(nw[-1])]))
-            nc = ncdata(f,self.obsnum,self.nrows,self.ncols,self.nws[int(nw[-1])],self.path,self.sampfreq,order,transpose,dx,dy,df)
+            nc = ncdata(f,self.obsnum,self.nrows,self.ncols,self.nws[int(nw[-1])],self.path,self.sampfreq,order,transpose,dx,dy,df,self.scalex,self.scaley)
             self.ncs[int(nw[-1])] = nc
             #self.tdets = self.tdets + self.ncs[int(nw[-1])].ndets
 
@@ -237,7 +251,7 @@ class obs:
 
              
 class ncdata:
-    def __init__(self, ncfile_name,obsnum,nrows,ncols,nw,sampfreq,order,transpose,dx,dy,df):
+    def __init__(self, ncfile_name,obsnum,nrows,ncols,nw,sampfreq,order,transpose,dx,dy,df,scalex,scaley,min_x,min_y):
         self.ncfile_name = ncfile_name
         self.obsnum = str(obsnum)
         self.nrows = nrows
@@ -248,6 +262,10 @@ class ncdata:
         self.dx = dx
         self.dy = dy
         self.df = df
+        self.scalex = scalex
+        self.scaley = scaley
+        self.min_x = min_x
+        self.min_y = min_y
         
         #self.beammap_files = np.sort(glob.glob(self.path+str(obsnum)+'/*toltec'+nw+'.nc'))
         #self.raw_files = np.sort(glob.glob(self.path[:-6]+'/data/'+str(obsnum)+'/toltec'+nw+'*.nc'))
@@ -285,7 +303,6 @@ class ncdata:
         self.nrows = len(self.ncfile.dimensions['nrows'])
         self.ncols = len(self.ncfile.dimensions['ncols'])
 
-
         self.ndets = len(self.ncfile.dimensions['ndet'])
         
         self.indices = list(range(self.ndets))
@@ -298,11 +315,15 @@ class ncdata:
         self.x_snr, self.x_snr_amp, self.x_std = self.get_snr(map_type='x')
         self.r_snr, self.r_snr_amp, self.r_std = self.get_snr(map_type='r')
 
-        self.scale_data(2.5, 2.5)
+        self.scale_data(self.scalex, self.scaley)
 
     def scale_data(self, sx, sy):
-        self.p['x'] = self.p['x']*sx
-        self.p['y'] = self.p['y']*sy
+        self.p['x'] = self.p['x']*sx + abs(self.min_x*100)#*np.ones(len(self.p['x']))
+        self.p['y'] = self.p['y']*sy + abs(self.min_y*100)#*np.ones(len(self.p['x']))
+
+        #self.p['x'] = self.p['x'] - 100*self.mean_x
+        #self.p['y'] = self.p['y'] - 100*self.mean_y
+
         self.p['fwhmx'] = self.p['fwhmx']*sx
         self.p['fwhmy'] = self.p['fwhmy']*sy
 

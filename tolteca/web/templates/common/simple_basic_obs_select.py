@@ -19,7 +19,7 @@ import dash_html_components as html
 import dash
 from dash.dependencies import Output, Input, State
 
-from astropy.table import Table
+from astropy.table import Table, vstack
 
 import json
 from schema import Schema, Optional, Or, Use
@@ -54,7 +54,7 @@ def _get_toltecdb_obsnum_latest():
 
     dbrt.ensure_connection('toltec')
     t = dbrt['toltec'].tables['toltec']
-    stmt = se.select([t.c.ObsNum]).order_by(se.desc(t.c.ObsNum)).limit(1)
+    stmt = se.select([t.c.ObsNum]).order_by(se.desc(t.c.id)).limit(1)
 
     with dbrt['toltec'].session_context as session:
         obsnum_latest = session.execute(stmt).scalar()
@@ -105,7 +105,7 @@ def _get_bods_index_from_toltecdb(
                         t[tname].c.ObsNum <= obsnum_latest,
                         t[tname].c.ObsNum >= obsnum_since,
                         t['obstype'].c.label == obs_type,
-                        t['master'].c.label == 'ICS'
+                        # t['master'].c.label == 'ICS'
                         )
                 ).group_by(
                     t[tname].c.ObsNum.label('obsnum'),
@@ -117,6 +117,9 @@ def _get_bods_index_from_toltecdb(
                         se.desc(t[tname].c.id)
                 ).limit(n_obs)
     df_group_ids = dataframe_from_db(stmt, session=dbrt['toltec'].session)
+    if len(df_group_ids) == 0:
+        # no recent timestream obs found
+        return
     id_min = df_group_ids['id_min'].min()
     id_max = df_group_ids['id_max'].max()
     logger.debug(
@@ -164,21 +167,22 @@ def _get_bods_index_from_toltecdb(
                                 t[tname].c.TargSweepScanNum == t_cal.c.ScanNum,
                                 t[tname].c.RoachIndex == t_cal.c.RoachIndex,
                                 t[tname].c.Master == t_cal.c.Master,
-                                ))
-                            )
+                                )),
+                        isouter=True,
+                    ),
                 ).where(
                     se.and_(
                         t[tname].c.id <= id_max,
                         t[tname].c.id >= id_min,
                         t['obstype'].c.label == obs_type,
-                        t['master'].c.label == 'ICS'
+                        # t['master'].c.label == 'ICS'
                         ))
 
     session = dbrt['toltec'].session
     # re_cal
     tbl_raw_obs = Table.from_pandas(
             dataframe_from_db(stmt, session=session))
-    # logger.debug(f"tbl_raw_obs: {tbl_raw_obs}")
+    logger.debug(f"tbl_raw_obs: {tbl_raw_obs}")
 
     # make the required columns for
     # tolteca.datamodels.toltec.BasicObsDataset
@@ -229,7 +233,15 @@ def query_basic_obs_data(**kwargs):
     logger.debug(f'query basic obs data kwargs={kwargs}')
 
     with timeit('query toltecdb'):
-        tbl_bods = _get_bods_index_from_toltecdb(**kwargs)
+        obs_type = kwargs.pop('obs_type')
+        if obs_type == 'Timestream':
+            tbl_bods = [
+                    _get_bods_index_from_toltecdb(obs_type='Timestream', **kwargs),
+                    _get_bods_index_from_toltecdb(obs_type='Nominal', **kwargs)
+                    ]
+            tbl_bods = vstack([t for t in tbl_bods if t is not None])
+        if tbl_bods is None:
+            return
 
     logger.debug(
             f'collect {len(tbl_bods)} entries from toltec files db'

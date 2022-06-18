@@ -11,5 +11,6 @@ if __name__ == "__main__":
             list(Path("/data/data_toltec").glob('toltec[0-9].nc'))
             + list(Path("/data/data_toltec").glob('toltec[0-9][0-9].nc')))
     dataset = BasicObsDataset.from_files([link.resolve() for link in links])
-    obsnum = max(dataset['obsnum'])
+    dataset.sort(['ut'])
+    obsnum = dataset[-1]['obsnum']
     print(obsnum)

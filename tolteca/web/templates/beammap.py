@@ -131,8 +131,8 @@ def get_limit_data_from_snr(p):
 # Get maxes and mins for an array or set to nrows, ncols
 def get_maxmin(axis, drp_value, ncobs):
     if (str(drp_value) == 'x') or (str(drp_value) == 'y'):
-        axismax = 1.25*max(ncobs.nrows*2.5, ncobs.ncols*2.5)
-        axismax = 1.25*25*2.5 #temp
+        axismax = 1.25*max(ncobs.nrows*ncobs.scalex, ncobs.ncols*ncobs.scaley)
+        axismax = 1.25*ncobs.nrows*ncobs.scalex #tem
         axismin = 0
     else:
         axismax = np.max(axis)
@@ -187,6 +187,7 @@ class beammap(ComponentTemplate):
 
         # Graph for array plot
         pl = p_container_col.child(dcc.Graph, figure={})
+        #pl = p_container_col.child(px.scatter, figure={})
 
         # Row for histograms in new column next to array plot
         hist_tab_row = container.child(dbc.Col).child(dbc.Row, width=3,className='mt-5 w-auto')
@@ -279,6 +280,13 @@ class beammap(ComponentTemplate):
             else:
                 title = ''
 
+            import plotly.express as px
+ 
+            if z_clr == 'NW':
+                colorscale = 'RdBu'
+                z = np.array(z).astype(str)
+            else:
+                colorscale = 'Inferno'
 
             # Define figure dict
             array_figure = {
@@ -289,6 +297,8 @@ class beammap(ComponentTemplate):
                     'mode': 'markers',
                     'marker': {
                         'color': z,
+                        'colorscale': colorscale,
+                        #color_discrete_sequence': px.colors.qualitative.Antique,
                         'line': {'color': 'k',
                                  'width': 1},
                         'showscale': True,
@@ -309,8 +319,8 @@ class beammap(ComponentTemplate):
                     'animate': True,
                     'uirevision': True,
                     'title': title,
-                    'xaxis': {'title': x_clr, 'range': [xmin, xmax]},
-                    'yaxis': {'title': y_clr, 'range': [ymin, ymax], 'scaleanchor': "x", 'scaleratio': xmax/ymax}
+                    'xaxis': {'title': x_clr, },#'range': [xmin, xmax]},
+                    'yaxis': {'title': y_clr, }#'range': [ymin, ymax], 'scaleanchor': "x", 'scaleratio': xmax/ymax}
                     }
                 }
             # Return figure object

@@ -50,6 +50,7 @@ toltec_datastore = ToltecDataFileStore(fs_toltec_rootpath)
 # site configs
 db_config = {
         "SQLALCHEMY_TRACK_MODIFICATIONS": False,
+        "SQLALCHEMY_ECHO": False,
         "SQLALCHEMY_BINDS": {
             'toltec': db_toltec_url,
             'toltec_userlog_tool': db_toltec_userlog_tool_url,
