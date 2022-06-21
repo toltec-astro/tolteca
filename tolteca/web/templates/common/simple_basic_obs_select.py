@@ -19,7 +19,7 @@ import dash_html_components as html
 import dash
 from dash.dependencies import Output, Input, State
 
-from astropy.table import Table, vstack
+from astropy.table import Table
 
 import json
 from schema import Schema, Optional, Or, Use
@@ -240,6 +240,8 @@ def query_basic_obs_data(**kwargs):
                     _get_bods_index_from_toltecdb(obs_type='Nominal', **kwargs)
                     ]
             tbl_bods = vstack([t for t in tbl_bods if t is not None])
+        else:
+            tbl_bods = _get_bods_index_from_toltecdb(obs_type=obs_type, **kwargs)
         if tbl_bods is None:
             return
 

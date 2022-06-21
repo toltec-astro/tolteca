@@ -60,11 +60,16 @@ echo "use scratch ${scratchdir}"
 echo "process ${type}: ${link}"
 echo "additional output to: ${scratchdir}"
 
-kidscppdir="${HOME}/toltec_astro/kidscpp"
+kidscppdir="${HOME}/toltec_astro_v1/kidscpp"
 kidspydir="${HOME}/zma_deprecated/kids_master/scripts"
 pyexec="${HOME}/toltec_astro/venvs/toltec/bin/python3"
-finder_thresh=10  # TODO need a better way to handle this
-fitter_Qr=13000  # TODO need a better way to handle this
+# finder_thresh=10  # TODO need a better way to handle this
+# fitter_Qr=13000  # TODO need a better way to handle this
+finder_thresh=1.5
+fitter_Qr=7500
+smooth_size=50
+clip_sigma=1.5
+
 if [[ ${type} == "vna" ]]; then
     echo "do ${type} ${runmode}"
     reportfile=$(basename ${link})
@@ -74,6 +79,8 @@ if [[ ${type} == "vna" ]]; then
     if [[ ${runmode} == "reduce" ]]; then
         ${kidscppdir}/build/bin/kids --finder_threshold ${finder_thresh} \
             --fitter_weight_window_Qr ${fitter_Qr} \
+            --finder_smooth_size ${smooth_size} \
+            --finder_stats_clip_sigma ${clip_sigma} \
 		    --output_d21 ${scratchdir}/'{stem}_d21.nc' \
 		    --output_processed ${scratchdir}/'{stem}_processed.nc' \
 		    --output "${reportfile}" \

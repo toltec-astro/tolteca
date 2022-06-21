@@ -193,9 +193,8 @@ def collect_data_prods(db, dataset):
         basic_reduced_obs = None
 
         if len(raw_obs_data_items) > 0:
-            raw_obs_source = OrderedDict(
-                **common,
-                **{
+            try:
+                d_kwargs = {
                     'data_items': [
                         {
                             'url': d.meta['file_loc'].uri,
@@ -219,7 +218,13 @@ def collect_data_prods(db, dataset):
                     'meta': {
                         'data_prod_type': 'raw_obs'
                         },
-                    },
+                    }
+            except Exception:
+                print(f'sky bad data: {raw_obs_data_items}')
+                continue
+            raw_obs_source = OrderedDict(
+                **common,
+                **d_kwargs,
                 )
             # raw_obs_type = dispatch_labels['dp_raw_obs_type'][
             #         raw_obs_source['type']]
