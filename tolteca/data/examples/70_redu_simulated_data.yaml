@@ -145,6 +145,7 @@ reduce:
             grouping: array_name
             n_eig_to_cut: 3
         mapmaking:
+          enabled: true
           grouping: array_name #array, detector, polarization, nw
           method: naive #jinc
           pixel_axes: icrs #icrs, lb
