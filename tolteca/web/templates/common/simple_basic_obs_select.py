@@ -361,6 +361,7 @@ class KidsDataSelect(ComponentTemplate):
             'label': name,
             'value': name
             } for name in ['ICS', 'TCS']]
+        ms.placeholder = 'Select ...'
         self._obsnum_select = obsnum_input_container.child(
                 LabeledDropdown(
                     label_text='Select ObsNum',

@@ -325,10 +325,16 @@ def getArrayAverageFig(data):
 
     # the histogram of fitted Qr values
     qrfig = go.Figure()
+    qr_values = data['Qr']
     qrfig.add_trace(
         go.Histogram(
             x=data['Qr'],
             bingroup=1,
+            xbins={
+                "start": 0,
+                "end": min(np.quantile(qr_values, 0.95), 30000),
+                "size": 500,
+                },
             marker_color=colorsDark[7],
         ),
     )
