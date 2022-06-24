@@ -50,7 +50,7 @@ class BeammapViewer(ComponentTemplate):
             }
         if config_path is not None:
             with open(config_path, 'r') as fo:
-                config.update(yaml.load(fo))
+                config.update(yaml.safe_load(fo))
         return config
 
     def setup_layout(self, app):
@@ -72,6 +72,7 @@ class BeammapViewer(ComponentTemplate):
         obs_select = controls_container.child(
                 KidsDataSelect(
                     multi=['nw', 'array'],
+                    processed_only=False,
                     reduced_file_search_paths=self._config[
                         'reduced_file_search_paths']
                     )
@@ -110,7 +111,7 @@ class BeammapViewer(ComponentTemplate):
                     }
                     for i in range(5)
                 ]
-            return str(obs_select_value), redu_options
+            return pformat_yaml(obs_select_value), redu_options
         
 
         # An example callback that consumes the inputs above

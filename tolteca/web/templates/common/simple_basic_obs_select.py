@@ -21,6 +21,7 @@ import dash_bootstrap_components as dbc
 
 from astropy.table import Table, vstack
 
+from pathlib import Path
 import json
 from wrapt import ObjectProxy
 
@@ -308,11 +309,12 @@ class KidsDataSelect(ComponentTemplate):
     logger = get_logger()
 
     def __init__(
-            self, reduced_file_search_paths, multi=('nw', 'array'), **kwargs):
+            self, reduced_file_search_paths, multi=('nw', 'array'), processed_only=True, **kwargs):
         super().__init__(**kwargs)
-        self._reduced_file_search_paths = tuple(reduced_file_search_paths)
+        self._reduced_file_search_paths = tuple(map(Path, reduced_file_search_paths))
         nw_multi = self._nw_multi = 'nw' in multi
         array_multi = self._array_multi = 'array' in multi
+        self._processed_only = processed_only
 
         container = self
         obsnum_input_container = container.child(
@@ -423,7 +425,7 @@ class KidsDataSelect(ComponentTemplate):
 
             enabled = set(
                     v['meta']['roachid']
-                    for v in obsnum_value if has_processed(v))
+                    for v in obsnum_value if not self._processed_only or has_processed(v))
             options = make_network_options(enabled=enabled)
             return options
 
