@@ -69,7 +69,8 @@ def DASHA_SITE():
     """The dasha site entry point.
     """
 
-    from dash_js9 import JS9_SUPPORT
+    # from dash_js9 import JS9_SUPPORT
+    from dash_aladin_lite import JQUERY
 
     dasha_config = get_app_config(LiveViewerConfig).to_dict()
     dasha_config.update({
@@ -77,7 +78,8 @@ def DASHA_SITE():
         # 'THEME': dbc.themes.LUMEN,
         # 'ASSETS_IGNORE': 'bootstrap.*',
         # 'DEBUG': True,
-        "EXTERNAL_SCRIPTS": [JS9_SUPPORT],
+        # "EXTERNAL_SCRIPTS": [JS9_SUPPORT],
+        "EXTERNAL_SCRIPTS": [JQUERY],
         })
     return {
         'extensions': [

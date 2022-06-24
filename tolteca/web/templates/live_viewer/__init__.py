@@ -162,9 +162,16 @@ class LiveViewer(ComponentTemplate):
             instru_info_store = obsinstru_container.child(dcc.Store)
 
         # Right panel, for plotting
-        dal_container, viewer_controls_container, \
-            site_viewer_container, instru_viewer_container = \
-            viewers_panel.colgrid(4, 1, gy=3)
+        # dal_container, viewer_controls_container, \
+        #     site_viewer_container, instru_viewer_container = \
+        #     viewers_panel.colgrid(4, 1, gy=3)
+        site_viewer_container, viewer_controls_container, \
+            instru_viewer_container = \
+                viewers_panel.colgrid(3, 1, gy=3)
+        dal_container, site_viewer_container = site_viewer_container.colgrid(1, 2, gx=3, width_ratios=[3, 1])
+
+        site_viewer =self._site.make_viewer(
+            site_viewer_container, className='px-0')
 
         if self._instru is not None:
             instru_viewer_controls = self._instru.make_viewer_controls(
@@ -175,23 +182,44 @@ class LiveViewer(ComponentTemplate):
             pass
 
         skyview_height = '40vh' if self._instru is None else '60vh'
+        
+        def _register_clientside_function(id, name, body):
+            _inline_clientside_template = """
+var clientside = window.dash_clientside = window.dash_clientside || {{}};
+var ns = clientside["{namespace}"] = clientside["{namespace}"] || {{}};
+ns["{function_name}"] = {clientside_function};
+"""
+            namespace = f"_dasha_clientside_func_{id}"
+            app._inline_scripts.append(_inline_clientside_template.format(
+                    namespace=namespace.replace('"', '\\"'),
+                    function_name=name.replace('"', '\\"'),
+                    clientside_function=body,
+                ))
+            return {
+                'variable': f'dash_clientside.{namespace}.{name}'
+            }
+            
+        site_data = self._site.get_ocs3_data()
         skyview = dal_container.child(
             dal.DashAladinLite,
             survey='P/DSS2/color',
-            target='M1',
+            target=(
+                f'{site_data["boresight"]["ra_deg"]} '
+                f'{site_data["boresight"]["dec_deg"]}'),
             fov=(10 << u.deg).to_value(u.deg),
             style={"width": "100%", "height": skyview_height},
             options={
                 "showLayerBox": True,
                 "showSimbadPointerControl": True,
                 "showReticle": True,
-                "showCooGrid": True
+                # "showCooGrid": True
                 },
             custom_scripts = { 
-                "animateTo": assign("""
+                "animateTo": _register_clientside_function(
+                    dal_container.id,
+                    'animateTo',
+                    """
                     function(aladinlite, data, props) {
-                        console.log("inside function")
-                        console.log("data:", data);
                         const {ra, dec} = data;
                         aladinlite.aladin.animateToRaDec(ra, dec);
                     }"""),
@@ -204,6 +232,9 @@ class LiveViewer(ComponentTemplate):
             app, timer_inputs=obssite_card.header.timer.inputs,
             )
 
+        site_viewer.make_callbacks(
+            app, site_info_store_id=site_info_store.id
+        )
         if self._instru is not None:
             instru_panel.make_callbacks(
                 app, timer_inputs=obsinstru_card.header.timer.inputs,
@@ -238,7 +269,7 @@ class LiveViewer(ComponentTemplate):
         # update the sky map layers and target
         app.clientside_callback(
             '''
-            function(site_info, instru_info) {
+            function(site_info, instru_info, traj_info) {
                 if (!site_info && !instru_info) {
                     return Array(2).fill(window.dash_clientside.no_update);
                 }
@@ -255,16 +286,25 @@ class LiveViewer(ComponentTemplate):
                 if (!layers) {
                     layers = window.dash_clientside.no_update;
                 }
-                return [target, layers];
+                if (traj_info) {
+                    layers = layers.concat(traj_info.skyview_layers);
+                }
+                var custom_script_call = {"animateTo": {
+                        "ra": ra,
+                        "dec": dec
+                        }
+                                      }
+                return [custom_script_call, layers];
             }
             ''',
             [
-                Output(skyview.id, 'target'),
+                Output(skyview.id, 'custom_script_calls'),
                 Output(skyview.id, 'layers'),
                 ],
             [
                 Input(site_info_store.id, 'data'),
                 Input(instru_info_store.id, 'data'),
+                Input(site_viewer.traj_info_store.id, 'data'),
                 ]
             )
 
