@@ -27,14 +27,14 @@ def _add_from_name_factory(cls):
     return cls
 
 
-class ObsPlannerModule(object):
-    """Base class for modules in obsplanner."""
+class LiveViewerModule(object):
+    """Base class for modules in live viewer."""
 
-    def make_results_display(self, container, **kwargs):
-        return container.child(self.ResultPanel(self, **kwargs))
+    def make_viewer(self, container, **kwargs):
+        return container.child(self.ViewerPanel(self, **kwargs))
 
-    def make_results_controls(self, container, **kwargs):
-        return container.child(self.ResultControlPanel(self, **kwargs))
+    def make_viewer_controls(self, container, **kwargs):
+        return container.child(self.ViewerControlPanel(self, **kwargs))
 
     def make_controls(self, container, **kwargs):
         return container.child(self.ControlPanel(self, **kwargs))
@@ -55,21 +55,18 @@ class ObsPlannerModule(object):
 
     The template should have an attribute ``info_store`` of type
     dcc.Store, which is updated when user input changes.
-
-    The data in info_store is typically consumed by `ObsplannerExecConfig` to
-    create the exec config object.
     """
 
-    ResultPanel = NotImplemented
+    ViewerPanel = NotImplemented
     """
     Subclass should implement this as a `ComponentTemplate` to generate UI
-    for presenting the obs planning results.
+    for presenting the live views.
     """
 
-    ResultControlPanel = NotImplemented
+    ViewerControlPanel = NotImplemented
     """
     Subclass should implement this as a `ComponentTemplate` to generate UI
-    for operating with the obs planning results.
+    for operating with the live views.
     """
 
     display_name = NotImplemented
@@ -77,7 +74,7 @@ class ObsPlannerModule(object):
 
 
 @_add_from_name_factory
-class ObsSite(ObsPlannerModule):
+class ObsSite(LiveViewerModule):
     """A module base class for an observation site"""
 
     observer = NotImplemented
@@ -89,7 +86,7 @@ class ObsSite(ObsPlannerModule):
 
 
 @_add_from_name_factory
-class ObsInstru(ObsPlannerModule):
+class ObsInstru(LiveViewerModule):
     """A module base class for an observation instrument."""
 
     @classmethod
