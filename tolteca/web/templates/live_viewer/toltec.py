@@ -48,7 +48,7 @@ class Toltec(Ocs3ConsumerMixin, ObsInstru, name='toltec'):
                 button_text='Details ...',
                 )).content.child(html.Pre)
             self._ocs3_details = container.child(CollapseContent(
-                button_text='OCS3 Details ...',
+                button_text='ICS Details ...',
                 )).content.child(html.Pre)
 
         @property
