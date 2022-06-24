@@ -208,6 +208,8 @@ class LiveViewer(ComponentTemplate):
             instru_panel.make_callbacks(
                 app, timer_inputs=obsinstru_card.header.timer.inputs,
                 )
+            instru_viewer.make_callbacks(
+                app, instru_info_store_id=instru_info_store.id)
    
         # connect tel pos to the alv
         # app.clientside_callback(

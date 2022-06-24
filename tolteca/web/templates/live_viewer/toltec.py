@@ -11,6 +11,8 @@ from dasha.web.templates.common import (
         LabeledChecklist,
         LabeledInput,
         )
+from dasha.web.templates.utils import make_subplots
+
 import json
 import cachetools.func
 import numpy as np
@@ -61,17 +63,27 @@ class Toltec(Ocs3ConsumerMixin, ObsInstru, name='toltec'):
             )
             def make_info(n_calls):
                 data = self._instru.get_ocs3_data()
+                if data is None:
+                    return dash.no_update
+
                 site_data = self._instru._site.get_ocs3_data()
                 telpos_icrs = SkyCoord(
                     ra=site_data['sky']['attrs']['RaAct'],
                     dec=site_data['sky']['attrs']['DecAct'],
                     unit=(u.hour, u.deg)
                     )
+                ut = Time(
+                    site_data['time_place']['attrs']['Systime'], format='unix')
 
-                if data is None:
-                    return dash.no_update
-                det = data['detectors']
+                det_data = np.array(data['detectors']['attrs']['Values'])
+                print(det_data.shape)
                 tb = data['toltec_backend']
+                nkids = tb['attrs']['NumKids']
+                # trim the det data to nkids
+                det_data = [
+                    d[:nkids[i]]
+                    for i, d in enumerate(
+                    det_data)]
                 
                 skyview_layers = list()
                 
@@ -98,7 +110,9 @@ class Toltec(Ocs3ConsumerMixin, ObsInstru, name='toltec'):
                 )
 
                 data = {
-                    'data': data,
+                    'det_data': det_data,
+                    'ut': ut.to_datetime(),
+                    'x': np.random.random(1)[0],
                     'skyview_layers': skyview_layers,
                 }
                 return data
@@ -157,8 +171,105 @@ class Toltec(Ocs3ConsumerMixin, ObsInstru, name='toltec'):
             self._instru = instru
             container = self
             
-            container.child(html.P("Some TolTEC view"))
+            def _make_timestream_figure():
+                fig = make_subplots(
+                    1, 1, fig_layout=self.fig_layout_default)   
+                trace_kw = {
+                    'type': 'scattergl',
+                    'mode': 'markers+lines',
+                    'marker': {
+                        # 'color': 'red',
+                        'size': 8
+                        },
+                    'x': [],
+                    'y': [],
+                    'showlegend': True,
+                }
+                for i in range(13):
+                    fig.add_trace(dict(trace_kw, name=f'Network {i}'))
+                fig.update_yaxes(
+                    title_text="Log S21 [ADU]",
+                    automargin=True,
+                    range=[1, 10])
+                return fig
 
+            self._timestream_graph = container.child(
+                dcc.Graph, figure=_make_timestream_figure(),
+                animate=True)
+            
+            container.child(html.P("Some TolTEC view"))
+           
+        def make_callbacks(self, app, instru_info_store_id):
+            @app.callback(
+                Output(self._timestream_graph.id, 'extendData'),
+                [Input(instru_info_store_id, 'data')]
+            )
+            def update_data(info_data):
+                ut = info_data['ut']
+                det_data = info_data['det_data']
+                x = []
+                y = []
+                t = []
+                j = 0
+                for i in range(13):
+                    x.append([ut])
+                    y.append([np.log10(det_data[i][j])])
+                    t.append(i)
+                return dict(x=x, y=y), t, 100
+            
+        fig_layout_default = {
+            'xaxis': dict(
+                showline=True,
+                showgrid=False,
+                showticklabels=True,
+                linecolor='black',
+                linewidth=4,
+                ticks='outside',
+                ),
+            'yaxis': dict(
+                showline=True,
+                showgrid=False,
+                showticklabels=True,
+                linecolor='black',
+                linewidth=4,
+                ticks='outside',
+                ),
+            'plot_bgcolor': 'white',
+            'margin': dict(
+                autoexpand=True,
+                l=0,
+                r=10,
+                b=0,
+                t=10,
+                ),
+            'modebar': {
+                'orientation': 'v',
+                },
+            }
+
+        def _make_empty_figure(self):
+            return {
+                "layout": {
+                    "xaxis": {
+                        "visible": False
+                        },
+                    "yaxis": {
+                        "visible": False
+                        },
+                    # "annotations": [
+                    #     {
+                    #         "text": "No matching data found",
+                    #         "xref": "paper",
+                    #         "yref": "paper",
+                    #         "showarrow": False,
+                    #         "font": {
+                    #             "size": 28
+                    #             }
+                    #         }
+                    #     ]
+                    }
+                }
+            
     class ViewerControlPanel(ComponentTemplate):
         class Meta:
             component_cls = dbc.Container
