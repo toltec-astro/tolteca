@@ -1,0 +1,7 @@
+description:
+  beammap_dasha configuration file
+inputs:
+  #- path: /Users/mmccrackan/toltec/data/lmt/220616/3c279/
+  #- path: /Users/mmccrackan/toltec/temp/3c345/redu_3c345_toast/redu00/
+  - path: /Users/mmccrackan/toltec/temp/debugging/saturn/
+    description: Path to search for obsnums
