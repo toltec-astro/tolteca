@@ -65,56 +65,6 @@ class Toltec(Ocs3ConsumerMixin, ObsInstru, name='toltec'):
                 data = self._instru.get_ocs3_data()
                 if data is None:
                     return dash.no_update
-
-                site_data = self._instru._site.get_ocs3_data()
-                telpos_icrs = SkyCoord(
-                    ra=site_data['sky']['attrs']['RaAct'],
-                    dec=site_data['sky']['attrs']['DecAct'],
-                    unit=(u.hour, u.deg)
-                    )
-                ut = Time(
-                    site_data['time_place']['attrs']['Systime'], format='unix')
-
-                det_data = np.array(data['detectors']['attrs']['Values'])
-                print(det_data.shape)
-                tb = data['toltec_backend']
-                nkids = tb['attrs']['NumKids']
-                # trim the det data to nkids
-                det_data = [
-                    d[:nkids[i]]
-                    for i, d in enumerate(
-                    det_data)]
-                
-                skyview_layers = list()
-                
-                fov_size = 4 << u.arcmin
-                
-                skyview_layers.append({
-                    "type": "overlay",
-                    "data": [
-                        {
-                            "type": "circle",
-                            "ra": telpos_icrs.ra.degree,
-                            "dec":  telpos_icrs.dec.degree,
-                            "radius": fov_size.to_value(u.deg) / 2,
-                            "color": 'red'
-                            },
-                        ],
-                    'options': {
-                        "show": True,
-                        "color": 'red',
-                        "lineWidth": 1,
-                        "name": "TolTEC FOV"
-                        }
-                    },
-                )
-
-                data = {
-                    'det_data': det_data,
-                    'ut': ut.to_datetime(),
-                    'x': np.random.random(1)[0],
-                    'skyview_layers': skyview_layers,
-                }
                 return data
 
             app.clientside_callback(
@@ -136,13 +86,14 @@ class Toltec(Ocs3ConsumerMixin, ObsInstru, name='toltec'):
                 ]
             )
 
-            @app.callback(
-                Output(self._ocs3_details.id, 'children'),
-                timer_inputs
-            )
-            def update_ocs3_details(n_calls):
-                data = self._instru.get_ocs3_data()
-                return json.dumps(data, indent=2)
+            if False:
+                @app.callback(
+                    Output(self._ocs3_details.id, 'children'),
+                    timer_inputs
+                )
+                def update_ocs3_details(n_calls):
+                    data = self._instru.get_ocs3_data()
+                    return json.dumps(data, indent=2)
 
     _ocs3_lock = threading.Lock()
            
@@ -159,7 +110,49 @@ class Toltec(Ocs3ConsumerMixin, ObsInstru, name='toltec'):
         if data is None:
             return None
         data = {k: data[v] for k, v in dispatch_objs.items()}
+
+        site_data = self._site.get_ocs3_data()
+        det_data = np.array(data['detectors']['attrs']['Values'])
+        tb = data['toltec_backend']
+        nkids = tb['attrs']['NumKids']
+        # trim the det data to nkids
+        det_data = [
+            d[:nkids[i]]
+            for i, d in enumerate(
+            det_data)]
+        
+        skyview_layers = list()
+        
+        fov_size = 4 << u.arcmin
+        
+        skyview_layers.append({
+            "type": "overlay",
+            "data": [
+                {
+                    "type": "circle",
+                    "ra": site_data['boresight']['ra_deg'],
+                    "dec": site_data['boresight']['dec_deg'],
+                    "radius": fov_size.to_value(u.deg) / 2,
+                    "color": 'red'
+                    },
+                ],
+            'options': {
+                "show": True,
+                "color": 'red',
+                "lineWidth": 1,
+                "name": "TolTEC FOV"
+                }
+            },
+        )
+
+        data = {
+            'det_data': det_data,
+            'ut': site_data['time']['ut'],
+            'x': np.random.random(1)[0],
+            'skyview_layers': skyview_layers,
+        }
         return data
+
     
     class ViewerPanel(ComponentTemplate):
         class Meta:
@@ -200,22 +193,43 @@ class Toltec(Ocs3ConsumerMixin, ObsInstru, name='toltec'):
             container.child(html.P("Some TolTEC view"))
            
         def make_callbacks(self, app, instru_info_store_id):
-            @app.callback(
+            # @app.callback(
+            #     Output(self._timestream_graph.id, 'extendData'),
+            #     [Input(instru_info_store_id, 'data')]
+            # )
+            # def update_data(info_data):
+            #     ut = info_data['ut']
+            #     det_data = info_data['det_data']
+            #     x = []
+            #     y = []
+            #     t = []
+            #     j = 0
+            #     for i in range(13):
+            #         x.append([ut])
+            #         y.append([np.log10(det_data[i][j])])
+            #         t.append(i)
+            #     return dict(x=x, y=y), t, 100
+
+            app.clientside_callback(
+                """
+                function(info_data) {
+                    var ut = info_data['ut']
+                    var det_data = info_data['det_data']
+                    x = []
+                    y = []
+                    t = []
+                    j = 0
+                    for (const i of Array(13).keys()) {
+                        x.push([ut])
+                        y.push([Math.log10(det_data[i][j])])
+                        t.push(i)
+                    }
+                    return [{'x': x, 'y': y}, t, 100]
+                }
+                """,
                 Output(self._timestream_graph.id, 'extendData'),
                 [Input(instru_info_store_id, 'data')]
             )
-            def update_data(info_data):
-                ut = info_data['ut']
-                det_data = info_data['det_data']
-                x = []
-                y = []
-                t = []
-                j = 0
-                for i in range(13):
-                    x.append([ut])
-                    y.append([np.log10(det_data[i][j])])
-                    t.append(i)
-                return dict(x=x, y=y), t, 100
             
         fig_layout_default = {
             'xaxis': dict(

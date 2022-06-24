@@ -280,7 +280,7 @@ class LiveViewer(ComponentTemplate):
                     title_component=html.H6(
                         title_text),
                     interval_options=[2000, 5000, 10000],
-                    interval_option_value=2000,
+                    interval_option_value=5000,
                     className='card-header'
                     ))
             self.body_container = container.child(dbc.CardBody)
