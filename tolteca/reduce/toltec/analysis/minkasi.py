@@ -146,8 +146,12 @@ def _make_minkasi_maps_by_chunk(
         filepath = ctod['filepath']
         ncfile = Dataset(filepath)
         n_times = ncfile.dimensions['nsamples'].size
+        if 'TIME' in ncfile.variables:
+            v_time = ncfile['TIME']
+        else:
+            v_time = ncfile['TelTime']
         # load ctods by chunk
-        f_smp = (1 / np.median(np.diff(ncfile['TIME'][:100]))) << u.Hz
+        f_smp = (1 / np.median(np.diff(v_time[:100]))) << u.Hz
         ncfile.close()
         logger.debug(f"load ctod of f_smp = {f_smp} n_times={n_times}")
         chunk_size = int((chunk_len * f_smp).to_value(u.dimensionless_unscaled))
