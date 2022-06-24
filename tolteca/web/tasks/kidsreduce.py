@@ -146,7 +146,7 @@ if celery_app is not None:
         raw = []
         for i, entry in info.iterrows():
             logger.debug(f"get entry [{i}] info {entry}")
-            f = dataset.files_from_info(entry, master='ics/**')
+            f = dataset.files_from_info(entry, master='?cs/**')
             fr = dataset.files_from_info(entry, master='reduced')
             f.extend(fr)
             logger.debug(f"found files {f}")

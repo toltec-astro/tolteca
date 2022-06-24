@@ -19,7 +19,7 @@ import dash_html_components as html
 import dash
 from dash.dependencies import Output, Input, State
 
-from astropy.table import Table
+from astropy.table import Table, vstack
 
 import json
 from schema import Schema, Optional, Or, Use
@@ -49,21 +49,62 @@ _processed_kidsdata_search_paths = list(map(
             env_registry.get(PROCESSED_KIDSDATA_SEARCH_PATH_ENV).split(':')))
 
 
-def _get_toltecdb_obsnum_latest():
+def _get_toltecdb_obsnum_latest(master=None):
     logger = get_logger()
-
     dbrt.ensure_connection('toltec')
-    t = dbrt['toltec'].tables['toltec']
-    stmt = se.select([t.c.ObsNum]).order_by(se.desc(t.c.id)).limit(1)
+    tname = 'toltec'
+    t = dbrt['toltec'].tables
+    if master is None:
+        where_clause = se.and_(True)
+    else:
+        where_clause = se.and_(t['master'].c.label == master)
+    stmt = se.select([
+        t[tname].c.ObsNum,
+        t['master'].c.label,
+        ]).select_from(
+                    t[tname]
+                    .join(
+                        t['master'],
+                        onclause=(
+                            t[tname].c.Master
+                            == t['master'].c.id
+                            )
+                        )
+                    ).where(where_clause).order_by(se.desc(t[tname].c.id)).limit(1)
 
     with dbrt['toltec'].session_context as session:
-        obsnum_latest = session.execute(stmt).scalar()
-    logger.debug(f"latest obsnum: {obsnum_latest}")
-    return obsnum_latest
+        obsnum_latest, master = session.execute(stmt).fetchone()
+    logger.debug(f"latest obsnum: {obsnum_latest} master: {master}")
+    return obsnum_latest, master
+
+
+def _get_toltecdb_obsnum_master(obsnum):
+    logger = get_logger()
+    dbrt.ensure_connection('toltec')
+    tname = 'toltec'
+    t = dbrt['toltec'].tables
+    stmt = se.select([
+        t['master'].c.label,
+        ]).select_from(
+                    t[tname]
+                    .join(
+                        t['master'],
+                        onclause=(
+                            t[tname].c.Master
+                            == t['master'].c.id
+                            )
+                        )
+                    ).where(
+                        se.and_(t[tname].c.ObsNum == obsnum)
+                        ).limit(1)
+    with dbrt['toltec'].session_context as session:
+        master = session.execute(stmt).scalar()
+    logger.debug(f"find master for obsnum: {obsnum_latest} master: {master}")
+    return master
 
 
 def _get_bods_index_from_toltecdb(
-        obs_type='VNA', n_obs=1, obsnum_latest=None):
+        obs_type='VNA', n_obs=1, obsnum_latest=None, master=None):
     logger = get_logger()
 
     tname = 'toltec_r1'
@@ -72,9 +113,12 @@ def _get_bods_index_from_toltecdb(
     t = dbrt['toltec'].tables
 
     if obsnum_latest is None:
-        obsnum_latest = _get_toltecdb_obsnum_latest()
+        obsnum_latest, master = _get_toltecdb_obsnum_latest(master=master)
+    elif master is None:
+        # fine the master of obsnum_latest
+        master = _get_toltecdb_obsnum_master(obsnum_latest)
 
-    logger.debug(f"latest obsnum: {obsnum_latest}")
+    logger.debug(f"latest obsnum: {obsnum_latest} master={master}")
     obsnum_since = obsnum_latest - n_obs + 1
     logger.debug(
             f"query toltecdb for obsnum [{obsnum_since}:{obsnum_latest}] to find id range")
@@ -105,7 +149,7 @@ def _get_bods_index_from_toltecdb(
                         t[tname].c.ObsNum <= obsnum_latest,
                         t[tname].c.ObsNum >= obsnum_since,
                         t['obstype'].c.label == obs_type,
-                        # t['master'].c.label == 'ICS'
+                        t['master'].c.label == master
                         )
                 ).group_by(
                     t[tname].c.ObsNum.label('obsnum'),
@@ -175,7 +219,7 @@ def _get_bods_index_from_toltecdb(
                         t[tname].c.id <= id_max,
                         t[tname].c.id >= id_min,
                         t['obstype'].c.label == obs_type,
-                        # t['master'].c.label == 'ICS'
+                        t['master'].c.label == master
                         ))
 
     session = dbrt['toltec'].session
@@ -239,7 +283,10 @@ def query_basic_obs_data(**kwargs):
                     _get_bods_index_from_toltecdb(obs_type='Timestream', **kwargs),
                     _get_bods_index_from_toltecdb(obs_type='Nominal', **kwargs)
                     ]
-            tbl_bods = vstack([t for t in tbl_bods if t is not None])
+            tbl_bods = [t for t in tbl_bods if t is not None]
+            if not tbl_bods:
+                return
+            tbl_bods = vstack(tbl_bods)
         else:
             tbl_bods = _get_bods_index_from_toltecdb(obs_type=obs_type, **kwargs)
         if tbl_bods is None:
@@ -304,6 +351,17 @@ class KidsDataSelect(ComponentTemplate):
         container = self
         obsnum_input_container = container.child(
             dbc.Form, inline=True)
+        ms = self._master_select = obsnum_input_container.child(
+                LabeledDropdown(
+                    label_text='Select Master',
+                    className='mt-3 w-auto mr-3',
+                    size='sm',
+                    )).dropdown
+        ms.options = [{
+            'label': name,
+            'value': name
+            } for name in ['ICS', 'TCS']]
+        ms.placeholder = 'Select ...'
         self._obsnum_select = obsnum_input_container.child(
                 LabeledDropdown(
                     label_text='Select ObsNum',
@@ -545,21 +603,22 @@ class KidsDataSelect(ComponentTemplate):
                 outputs,
                 [
                     timer_input,
+                    Input(self._master_select.id, 'value'),
                     ],
                 # prevent_initial_call=True
                 [
-                    State(self._obsnum_input.id, 'value')
+                    State(self._obsnum_input.id, 'value'),
                     ]
                 )
         @timeit
-        def update_obsnum_select(n_calls, obsnum_latest):
+        def update_obsnum_select(n_calls, master_value, obsnum_latest):
             self.logger.debug(
-                    f"update obsnum select with obsnum_latest={obsnum_latest}")
+                    f"update obsnum select with obsnum_latest={obsnum_latest} master={master_value}")
             error_content = dbc.Alert(
                     'Unable to get data file list', color='danger')
             try:
                 tbl_raw_obs = query_basic_obs_data(
-                        obsnum_latest=obsnum_latest, **query_kwargs)
+                        obsnum_latest=obsnum_latest, master=master_value, **query_kwargs)
             except Exception as e:
                 self.logger.debug(
                         f"error getting obs list: {e}", exc_info=True)

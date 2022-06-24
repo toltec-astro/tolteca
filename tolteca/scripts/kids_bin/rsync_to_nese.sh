@@ -3,7 +3,8 @@
 pyexec="${HOME}/toltec_astro/venvs/toltec/bin/python3"
 scriptdir=$(dirname "$(readlink -f "$0")")
 nese_rw_mount=${HOME}/nese_rw
-nese_data_lmt_dir=${nese_rw_mount}/test_rsync_data_lmt
+# nese_data_lmt_dir=${nese_rw_mount}/test_rsync_data_lmt
+nese_data_lmt_dir=${nese_rw_mount}/02_data_lmt
 
 if [[ $(hostname) == "clipa" ]]; then
     echo "rsync to nese from clipa"
@@ -14,7 +15,7 @@ elif [[ $(hostname) == "clipy" ]]; then
     this=$(basename $0)
     parallel -v ssh -t {} ${scriptdir}/${this} $@ ::: $hosts
     echo 'hosts all done'
-    exit 0
+    # exit 0
 else
     echo "invalid host"
     exit 1
