@@ -1,69 +1,98 @@
 #! /usr/bin/env python
 
 
-from dasha.web.templates import ComponentTemplate
+from dash_component_template import ComponentTemplate
+
 from dasha.web.templates.common import (
-        LabeledDropdown, LabeledChecklist,
+        LabeledDropdown,
+        LabeledChecklist,
         LabeledInput,
         CollapseContent)
+
 from dasha.web.extensions.db import dataframe_from_db
-from dasha.web.templates.utils import partial_update_at
 
 from tollan.utils.log import get_logger, timeit
 from tollan.utils.fmt import pformat_yaml
 from tollan.utils import fileloc, odict_from_list
 
-import dash_core_components as dcc
-import dash_bootstrap_components as dbc
-import dash_html_components as html
+from dash import dcc, html, Output, Input, State
 import dash
-from dash.dependencies import Output, Input, State
+import dash_bootstrap_components as dbc
 
-from astropy.table import Table
+from astropy.table import Table, vstack
 
 import json
-from schema import Schema, Optional, Or, Use
+from wrapt import ObjectProxy
 
-from pathlib import Path
 import cachetools.func
 import sqlalchemy.sql.expression as se
 from sqlalchemy.sql import alias
 from sqlalchemy.sql import func as sqla_func
 
-from ...tasks.dbrt import dbrt
-from ....datamodels.toltec.basic_obs_data import BasicObsDataset, BasicObsData
-from ... import env_registry, env_prefix
-from ....utils import get_user_data_dir
+from dasha.web.extensions.db import DatabaseRuntime
+from ....datamodels.toltec.basic_obs_data import BasicObsDataset
 
 
-PROCESSED_KIDSDATA_SEARCH_PATH_ENV = (
-        f"{env_prefix}_CUSTOM_PROCESSED_KIDSDATA_PATH")
-
-env_registry.register(
-        PROCESSED_KIDSDATA_SEARCH_PATH_ENV,
-        "The path to locate processed KIDs data.",
-        get_user_data_dir().as_posix())
-
-_processed_kidsdata_search_paths = list(map(
-            Path,
-            env_registry.get(PROCESSED_KIDSDATA_SEARCH_PATH_ENV).split(':')))
+dbrt = ObjectProxy(None)
+"""dbrt made available after with app setup."""
 
 
-def _get_toltecdb_obsnum_latest():
+def _get_toltecdb_obsnum_latest(master=None):
     logger = get_logger()
-
     dbrt.ensure_connection('toltec')
-    t = dbrt['toltec'].tables['toltec']
-    stmt = se.select([t.c.ObsNum]).order_by(se.desc(t.c.ObsNum)).limit(1)
+    tname = 'toltec'
+    t = dbrt['toltec'].tables
+    if master is None:
+        where_clause = se.and_(True)
+    else:
+        where_clause = se.and_(t['master'].c.label == master)
+    stmt = se.select([
+        t[tname].c.ObsNum,
+        t['master'].c.label,
+        ]).select_from(
+                    t[tname]
+                    .join(
+                        t['master'],
+                        onclause=(
+                            t[tname].c.Master
+                            == t['master'].c.id
+                            )
+                        )
+                    ).where(where_clause).order_by(se.desc(t[tname].c.id)).limit(1)
 
     with dbrt['toltec'].session_context as session:
-        obsnum_latest = session.execute(stmt).scalar()
-    logger.debug(f"latest obsnum: {obsnum_latest}")
-    return obsnum_latest
+        obsnum_latest, master = session.execute(stmt).fetchone()
+    logger.debug(f"latest obsnum: {obsnum_latest} master: {master}")
+    return obsnum_latest, master
+
+
+def _get_toltecdb_obsnum_master(obsnum):
+    logger = get_logger()
+    dbrt.ensure_connection('toltec')
+    tname = 'toltec'
+    t = dbrt['toltec'].tables
+    stmt = se.select([
+        t['master'].c.label,
+        ]).select_from(
+                    t[tname]
+                    .join(
+                        t['master'],
+                        onclause=(
+                            t[tname].c.Master
+                            == t['master'].c.id
+                            )
+                        )
+                    ).where(
+                        se.and_(t[tname].c.ObsNum == obsnum)
+                        ).limit(1)
+    with dbrt['toltec'].session_context as session:
+        master = session.execute(stmt).scalar()
+    logger.debug(f"find master for obsnum: {obsnum_latest} master: {master}")
+    return master
 
 
 def _get_bods_index_from_toltecdb(
-        obs_type='VNA', n_obs=1, obsnum_latest=None):
+        obs_type='VNA', n_obs=1, obsnum_latest=None, master=None):
     logger = get_logger()
 
     tname = 'toltec_r1'
@@ -72,9 +101,12 @@ def _get_bods_index_from_toltecdb(
     t = dbrt['toltec'].tables
 
     if obsnum_latest is None:
-        obsnum_latest = _get_toltecdb_obsnum_latest()
+        obsnum_latest, master = _get_toltecdb_obsnum_latest(master=master)
+    elif master is None:
+        # fine the master of obsnum_latest
+        master = _get_toltecdb_obsnum_master(obsnum_latest)
 
-    logger.debug(f"latest obsnum: {obsnum_latest}")
+    logger.debug(f"latest obsnum: {obsnum_latest} master={master}")
     obsnum_since = obsnum_latest - n_obs + 1
     logger.debug(
             f"query toltecdb for obsnum [{obsnum_since}:{obsnum_latest}] to find id range")
@@ -105,7 +137,7 @@ def _get_bods_index_from_toltecdb(
                         t[tname].c.ObsNum <= obsnum_latest,
                         t[tname].c.ObsNum >= obsnum_since,
                         t['obstype'].c.label == obs_type,
-                        t['master'].c.label == 'ICS'
+                        t['master'].c.label == master
                         )
                 ).group_by(
                     t[tname].c.ObsNum.label('obsnum'),
@@ -117,6 +149,9 @@ def _get_bods_index_from_toltecdb(
                         se.desc(t[tname].c.id)
                 ).limit(n_obs)
     df_group_ids = dataframe_from_db(stmt, session=dbrt['toltec'].session)
+    if len(df_group_ids) == 0:
+        # no recent timestream obs found
+        return
     id_min = df_group_ids['id_min'].min()
     id_max = df_group_ids['id_max'].max()
     logger.debug(
@@ -164,21 +199,22 @@ def _get_bods_index_from_toltecdb(
                                 t[tname].c.TargSweepScanNum == t_cal.c.ScanNum,
                                 t[tname].c.RoachIndex == t_cal.c.RoachIndex,
                                 t[tname].c.Master == t_cal.c.Master,
-                                ))
-                            )
+                                )),
+                        isouter=True,
+                    ),
                 ).where(
                     se.and_(
                         t[tname].c.id <= id_max,
                         t[tname].c.id >= id_min,
                         t['obstype'].c.label == obs_type,
-                        t['master'].c.label == 'ICS'
+                        t['master'].c.label == master
                         ))
 
     session = dbrt['toltec'].session
     # re_cal
     tbl_raw_obs = Table.from_pandas(
             dataframe_from_db(stmt, session=session))
-    # logger.debug(f"tbl_raw_obs: {tbl_raw_obs}")
+    logger.debug(f"tbl_raw_obs: {tbl_raw_obs}")
 
     # make the required columns for
     # tolteca.datamodels.toltec.BasicObsDataset
@@ -201,26 +237,6 @@ def _get_bods_index_from_toltecdb(
     return tbl_raw_obs
 
 
-@cachetools.func.ttl_cache(maxsize=None, ttl=1)
-def get_processed_file(raw_file_url):
-    logger = get_logger()
-
-    raw_filepath = fileloc(raw_file_url).path
-    processed_filename = f'{raw_filepath.name[:-3]}_processed.nc'
-
-    logger.debug(
-            f"search processed file in "
-            f"{list(map(str, _processed_kidsdata_search_paths))}")
-    for p in _processed_kidsdata_search_paths:
-        p = p.joinpath(processed_filename)
-        logger.debug(f"check {p}")
-        if p.exists():
-            logger.debug(f'use processed file {p}')
-            return fileloc(p).uri
-    logger.debug(f"unable to find processed file for {raw_filepath}")
-    return None
-
-
 @cachetools.func.ttl_cache(maxsize=1, ttl=2)
 def query_basic_obs_data(**kwargs):
 
@@ -229,7 +245,20 @@ def query_basic_obs_data(**kwargs):
     logger.debug(f'query basic obs data kwargs={kwargs}')
 
     with timeit('query toltecdb'):
-        tbl_bods = _get_bods_index_from_toltecdb(**kwargs)
+        obs_type = kwargs.pop('obs_type')
+        if obs_type == 'Timestream':
+            tbl_bods = [
+                    _get_bods_index_from_toltecdb(obs_type='Timestream', **kwargs),
+                    _get_bods_index_from_toltecdb(obs_type='Nominal', **kwargs)
+                    ]
+            tbl_bods = [t for t in tbl_bods if t is not None]
+            if not tbl_bods:
+                return
+            tbl_bods = vstack(tbl_bods)
+        else:
+            tbl_bods = _get_bods_index_from_toltecdb(obs_type=obs_type, **kwargs)
+        if tbl_bods is None:
+            return
 
     logger.debug(
             f'collect {len(tbl_bods)} entries from toltec files db'
@@ -273,23 +302,31 @@ def query_basic_obs_data(**kwargs):
 
 
 class KidsDataSelect(ComponentTemplate):
-
-    _component_cls = dbc.Form
-    _component_schema = Schema({
-        Optional('multi', default=lambda: ['nwid', ]): Or(
-            [str], Use(lambda v: list() if v is None else v)),
-        })
+    class Meta:
+        component_cls = dbc.Form
 
     logger = get_logger()
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # obsnum_multi = 'obsnum' in self.multi
-        nwid_multi = self._nwid_multi = 'nwid' in self.multi
+    def __init__(
+            self, reduced_file_search_paths, multi=('nw', 'array'), **kwargs):
+        super().__init__(**kwargs)
+        self._reduced_file_search_paths = tuple(reduced_file_search_paths)
+        nw_multi = self._nw_multi = 'nw' in multi
+        array_multi = self._array_multi = 'array' in multi
 
         container = self
         obsnum_input_container = container.child(
-            dbc.Form, inline=True)
+            dbc.Form).child(dbc.Row)
+        ms = self._master_select = obsnum_input_container.child(
+                LabeledDropdown(
+                    label_text='Select Master',
+                    className='mt-3 w-auto mr-3',
+                    size='sm',
+                    )).dropdown
+        ms.options = [{
+            'label': name,
+            'value': name
+            } for name in ['ICS', 'TCS']]
         self._obsnum_select = obsnum_input_container.child(
                 LabeledDropdown(
                     label_text='Select ObsNum',
@@ -308,18 +345,21 @@ class KidsDataSelect(ComponentTemplate):
                         'min': 0
                         },
                     )).input
-        self._nwid_select = container.child(
+        item_input_container = container.child(
+            dbc.Form).child(dbc.Row)
+        self._nwid_select = item_input_container.child(
                 LabeledChecklist(
+                    className='w-auto align-items-baseline',
                     label_text='Select Network',
                     checklist_props={
                         'options': make_network_options(),
                     },
-                    multi=nwid_multi
+                    multi=nw_multi
                     )).checklist
-        if nwid_multi:
-            array_multi = self._array_multi = 'array' in self.multi
-            self._array_select = container.child(
+        if nw_multi:
+            self._array_select = item_input_container.child(
                     LabeledChecklist(
+                        className='w-auto align-items-baseline',
                         label_text='Select by Array',
                         checklist_props={
                             'options': make_array_options(),
@@ -329,8 +369,30 @@ class KidsDataSelect(ComponentTemplate):
         else:
             self._array_select = None
         self._filepaths_store = container.child(dcc.Store, data=None)
+        
+    @cachetools.func.ttl_cache(maxsize=None, ttl=1)
+    def get_processed_file(self, raw_file_url):
+        logger = get_logger()
+        raw_filepath = fileloc(raw_file_url).path
+        processed_filename = f'{raw_filepath.name[:-3]}_processed.nc'
+
+        reduced_file_search_paths = self._reduced_file_search_paths
+        logger.debug(
+                f"search processed file in\n"
+                f"{pformat_yaml(reduced_file_search_paths)}")
+        for p in reduced_file_search_paths:
+            p = p.joinpath(processed_filename)
+            logger.debug(f"check {p}")
+            if p.exists():
+                logger.debug(f'use processed file {p}')
+                return fileloc(p).uri
+        logger.debug(f"unable to find processed file for {raw_filepath}")
+        return None
 
     def setup_layout(self, app):
+
+        if dbrt.__wrapped__ is None:
+            dbrt.__wrapped__ = DatabaseRuntime()
 
         details_container = self.child(
                 CollapseContent(button_text='Details ...')).content
@@ -341,8 +403,6 @@ class KidsDataSelect(ComponentTemplate):
                 Output(self.network_select.id, 'options'),
                 [
                     Input(self.obsnum_select.id, 'value'),
-                    ],
-                [
                     State(self.network_select.id, 'value'),
                     ],
                 )
@@ -353,13 +413,13 @@ class KidsDataSelect(ComponentTemplate):
             obsnum_value = json.loads(obsnum_value)
             if network_value is None:
                 network_value = []
-            elif not self._nwid_multi:
+            elif not self._nw_multi:
                 network_value = [network_value]
             network_value = set(network_value)
             # check processed state
 
             def has_processed(v):
-                return get_processed_file(v['url']) is not None
+                return self.get_processed_file(v['url']) is not None
 
             enabled = set(
                     v['meta']['roachid']
@@ -368,15 +428,17 @@ class KidsDataSelect(ComponentTemplate):
             return options
 
         def update_network_value_for_options(network_options, network_value):
-            enabled = set(o['value'] for o in network_options if not o['disabled'])
+            enabled = set(
+                o['value'] for o in network_options if not o['disabled'])
             if network_value is None:
                 network_value = []
-            if not self._nwid_multi:
-                if not isinstance(network_value, list):  # this happends somehow
+            if not self._nw_multi:
+                # this happends somehow
+                if not isinstance(network_value, list):
                     # make list of values
                     network_value = [network_value]
             network_value = list(set(network_value).intersection(enabled))
-            if self._nwid_multi:
+            if self._nw_multi:
                 pass
             elif len(network_value) > 0:
                 network_value = network_value[0]
@@ -385,7 +447,6 @@ class KidsDataSelect(ComponentTemplate):
             else:
                 network_value = None
             return network_value
-
 
         if self.array_select is not None:
             @app.callback(
@@ -417,7 +478,8 @@ class KidsDataSelect(ComponentTemplate):
                     network_select_value,
                     ):
                 value = get_networks_for_array(array_select_value)
-                return update_network_value_for_options(network_select_options, value)
+                return update_network_value_for_options(
+                    network_select_options, value)
         else:
             @app.callback(
                     Output(self.network_select.id, 'value'),
@@ -456,16 +518,17 @@ class KidsDataSelect(ComponentTemplate):
                 if nw not in d:
                     return None
                 return {
-                        'raw_obs': d[nw]['url'],
-                        'raw_obs_processed': get_processed_file(d[nw]['url']),
-                        'cal_obs': d[nw]['url_cal'],
-                        'cal_obs_processed': get_processed_file(d[nw]['url_cal']),
-                        }
+                    'raw_obs': d[nw]['url'],
+                    'raw_obs_processed': self.get_processed_file(d[nw]['url']),
+                    'cal_obs': d[nw]['url_cal'],
+                    'cal_obs_processed':
+                     self.get_processed_file(d[nw]['url_cal']),
+                    }
             filepaths = {
                     nw: make_filepaths(nw)
                     for nw in network_value
                     }
-            if not self._nwid_multi:
+            if not self._nw_multi:
                 # just return the single item
                 filepaths = next(iter(filepaths.values()))
 
@@ -504,18 +567,14 @@ class KidsDataSelect(ComponentTemplate):
             error_output=None,
             query_kwargs=None):
         """Setup live update.
-
         Parameters
         ----------
         timer_input : `~dash.dependencies.Input`
             The inputs of the live update callback.
-
         loading_output : `~dash.dependencies.Input`, optional
             The output of the live update indicator.
-
         error_outputs : `~dash.dependencies.Input`, optional
             The outputs for the error message.
-
         query_kwargs :
             Keyword arguments passed to the query function.
         """
@@ -531,28 +590,33 @@ class KidsDataSelect(ComponentTemplate):
                 outputs,
                 [
                     timer_input,
+                    Input(self._master_select.id, 'value'),
                     ],
                 # prevent_initial_call=True
                 [
-                    State(self._obsnum_input.id, 'value')
+                    State(self._obsnum_input.id, 'value'),
                     ]
                 )
         @timeit
-        def update_obsnum_select(n_calls, obsnum_latest):
+        def update_obsnum_select(n_calls, master_value, obsnum_latest):
             self.logger.debug(
-                    f"update obsnum select with obsnum_latest={obsnum_latest}")
+                    f"update obsnum select with obsnum_latest={obsnum_latest}"
+                    f" master={master_value}")
             error_content = dbc.Alert(
                     'Unable to get data file list', color='danger')
             try:
                 tbl_raw_obs = query_basic_obs_data(
-                        obsnum_latest=obsnum_latest, **query_kwargs)
+                    obsnum_latest=obsnum_latest,
+                     master=master_value, **query_kwargs)
             except Exception as e:
                 self.logger.debug(
                         f"error getting obs list: {e}", exc_info=True)
                 if error_output is not None:
                     return partial_update_at(
                             slice(-2, None), ["", error_content])
-
+            if not tbl_raw_obs:
+                return list(), "", ""
+ 
             def make_option_label(s):
                 return f'{s["obsnum"]}-{s["subobsnum"]}-{s["scannum"]}'
 
@@ -661,3 +725,24 @@ def get_networks_for_array(array_select_values):
     for k in array_select_values:
         checked = checked.union(set(_array_option_specs[k]['nwids']))
     return list(checked)
+
+        
+def partial_update_at(pos, elem):
+    """Return a tuple that only update the output at `pos`.
+    Parameters
+    ----------
+    pos : slice, int
+        The position of element(s) to update.
+    elem : object
+        The object to be updated at `pos`.
+    """
+    outputs_list = dash.callback_context.outputs_list
+    if isinstance(outputs_list, dict):
+        n_outputs = 1
+    else:
+        n_outputs = len(outputs_list)
+    results = [dash.no_update, ] * n_outputs
+    results[pos] = elem
+    if isinstance(outputs_list, dict):
+        return results[0]
+    return results
