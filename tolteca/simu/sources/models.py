@@ -98,7 +98,12 @@ class ImageSourceModel(SurfaceBrightnessModel):
         logger = get_logger()
         # check lon lat range of hdu and re-wrap longitude for proper
         # range check
-        s_out_unit = u.Unit(hdu.header.get('SIGUNIT', 'adu'))
+        if 'SIGUNIT' in hdu.header:
+            s_out_unit = u.Unit(hdu.header['SIGUNIT'])
+        elif 'BUNIT' in hdu.header:
+            s_out_unit = u.Unit(hdu.header['BUNIT'])
+        else:
+            s_out_unit = u.adu
         wcsobj = WCS(hdu.header)
         ny, nx = data_shape = hdu.data.shape
         sky_bbox = SkyBoundingBox.from_wcs(wcsobj, data_shape)
