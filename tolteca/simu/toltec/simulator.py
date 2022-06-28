@@ -1040,18 +1040,51 @@ class ToltecSimuOutputContext(ExitStack):
         m = dict()  # this get added to the node mapper
         m['time'] = nc_tel.createVariable(
                 'Data.TelescopeBackend.TelTime', 'f8', (d_time, ))
+        m['pps_time'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.PpsTime', 'f8', (d_time, ))
+
         v_ra = m['ra'] = nc_tel.createVariable(
                 'Data.TelescopeBackend.TelRaAct', 'f8', (d_time, ))
         v_ra.unit = 'rad'
         v_dec = m['dec'] = nc_tel.createVariable(
                 'Data.TelescopeBackend.TelDecAct', 'f8', (d_time, ))
         v_dec.unit = 'rad'
+
+        v_ra_src = m['ra_src'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.SourceRaAct', 'f8', (d_time, ))
+        v_ra_src.unit = 'rad'
+        v_dec_src = m['dec_src'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.SourceDecAct', 'f8', (d_time, ))
+        v_dec_src.unit = 'rad'
+
         v_alt = m['alt'] = nc_tel.createVariable(
                 'Data.TelescopeBackend.TelElAct', 'f8', (d_time, ))
         v_alt.unit = 'rad'
         v_az = m['az'] = nc_tel.createVariable(
                 'Data.TelescopeBackend.TelAzAct', 'f8', (d_time, ))
         v_az.unit = 'rad'
+
+        v_alt_cor = m['alt_cor'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.TelElCor', 'f8', (d_time, ))
+        v_alt_cor.unit = 'rad'
+        v_az_cor = m['az_cor'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.TelAzCor', 'f8', (d_time, ))
+        v_az_cor.unit = 'rad'
+
+        v_alt_des = m['alt_des'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.TelElDes', 'f8', (d_time, ))
+        v_alt_des.unit = 'rad'
+        v_az_des = m['az_des'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.TelAzDes', 'f8', (d_time, ))
+        v_az_des.unit = 'rad'
+
+        v_alt_map = m['alt_map'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.TelElMap', 'f8', (d_time, ))
+        v_alt_map.unit = 'rad'
+        v_az_map = m['az_map'] = nc_tel.createVariable(
+                'Data.TelescopeBackend.TelAzMap', 'f8', (d_time, ))
+        v_az_map.unit = 'rad'
+
         v_pa = m['pa'] = nc_tel.createVariable(
                 'Data.TelescopeBackend.ActParAng', 'f8', (d_time, ))
         v_pa.unit = 'rad'
@@ -1293,12 +1326,28 @@ class ToltecSimuOutputContext(ExitStack):
 
         idx = nc_tel.dimensions[d_time].size
         nm_tel.getvar('time')[idx:] = time_obs.unix
+
+        t_grid_sec = t_grid.to_value(u.s)
+        t_grid_sec_int = t_grid_sec.astype(int)
+        nm_tel.getvar('pps_time')[idx:] = t_grid_sec_int + time_obs.unix[0]
+
         nm_tel.getvar('ra')[idx:] = bs_coords_icrs.ra.radian
         nm_tel.getvar('dec')[idx:] = bs_coords_icrs.dec.radian
+
+        nm_tel.getvar('ra_src')[idx:] = bs_coords_icrs.ra.radian
+        nm_tel.getvar('dec_src')[idx:] = bs_coords_icrs.dec.radian
+
         nm_tel.getvar('az')[idx:] = bs_coords_altaz.az.radian
         nm_tel.getvar('alt')[idx:] = bs_coords_altaz.alt.radian
         nm_tel.getvar('pa')[idx:] = bs_parallactic_angle.radian
         # no pointing model
+        nm_tel.getvar('az_cor')[idx:] = 0.
+        nm_tel.getvar('alt_cor')[idx:] = 0.
+        nm_tel.getvar('az_des')[idx:] = bs_coords_altaz.az.radian
+        nm_tel.getvar('alt_des')[idx:] = bs_coords_altaz.alt.radian
+        nm_tel.getvar('az_map')[idx:] = 0.
+        nm_tel.getvar('alt_map')[idx:] = 0.
+
         nm_tel.getvar('az_sky')[idx:] = bs_coords_altaz.az.radian
         nm_tel.getvar('alt_sky')[idx:] = bs_coords_altaz.alt.radian
         nm_tel.getvar('pa_sky')[idx:] = bs_parallactic_angle.radian
