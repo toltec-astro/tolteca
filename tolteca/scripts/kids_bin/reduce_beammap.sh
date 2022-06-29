@@ -30,7 +30,7 @@ tel_file=${dataroot}/tel/tel_toltec*_${obsnum_str}_*.nc
 # echo ${tel_filename} '->' ${tel_filename/tel_toltec_/tel_}
 # ln -sf ${tel_file} ${rcdir}/data/${tel_filename/tel_toltec_/tel_}
 ln -sf $tel_file ${rcdir}/data/
-ln -sf ${dataroot}/toltec/tcs/toltec*/toltec*_${obsnum_str}_*.nc ${rcdir}/data/
+ln -sf ${dataroot}/toltec/tcs/toltec*/toltec[0-9]*_${obsnum_str}_*.nc ${rcdir}/data/
 # ${pybindir}/python3 ${scriptdir}/make_beammap_input_apt.py obsnum
 
 # run tolteca reduce

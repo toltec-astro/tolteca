@@ -116,7 +116,7 @@ if __name__ == "__main__":
             for filepath in dataset['source']:
                 if filepath.endswith('tune.nc'):
                     pty.spawn(shlex.split(f'{scriptdir}/reduce.sh {filepath}'))
-        if obs_goal == 'beammap':
+        if obs_goal == 'beammap' or obs_goal == 'azscan' or obs_goal == 'elscan':
             print('run beammap')
             pty.spawn(shlex.split(f'{scriptdir}/reduce_beammap.sh {obsnum}'))
         elif obs_goal == 'pointing':

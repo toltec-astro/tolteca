@@ -353,7 +353,7 @@ class KidsDataSelect(ComponentTemplate):
             dbc.Form, inline=True)
         ms = self._master_select = obsnum_input_container.child(
                 LabeledDropdown(
-                    label_text='Select Master',
+                    label_text='Select Source',
                     className='mt-3 w-auto mr-3',
                     size='sm',
                     )).dropdown
