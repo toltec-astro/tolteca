@@ -21,6 +21,7 @@ import itertools
 # from kneed import KneeLocator
 from astropy.table import Table, join
 import astropy.units as u
+from scipy.signal import savgol_filter
 
 
 def load_autodrive_data(dataset):
@@ -161,8 +162,8 @@ def autodrive(
         # TODO sort out the unit stuff here
         swp.S21_derot = swp.mdl.model.derotate(
                 swp.S21.to_value(u.adu), swp.frequency).to_value(u.dimensionless_unscaled) << u.adu
-        swp.adiqs_derot = np.abs(swp.diqs_df(
-            swp.S21_derot, swp.frequency, smooth=0))
+        # swp.adiqs_derot = np.abs(swp.diqs_df(
+        #    swp.S21_derot, swp.frequency, smooth=0))
 
     if toneloc is None or output is not None:
         toneloc = slice(None)
@@ -196,7 +197,11 @@ def autodrive(
         iqs_mdl = swp.S21_mdl[ti, :]
         iqs_derot = swp.S21_derot[ti, :].to_value(u.adu)
         # adiqs_derot = swp.adiqs_derot[ti, :]
-        adiqs_derot = np.abs(np.gradient(iqs_derot, fs))
+        # adiqs_derot = np.abs(np.gradient(iqs_derot, fs))
+        adiqs_derot = np.hypot(
+                savgol_filter(iqs_derot.real, window_length=15, polyorder=2, deriv=1, delta=fs[1] - fs[0]),
+                savgol_filter(iqs_derot.imag, window_length=15, polyorder=2, deriv=1, delta=fs[1] - fs[0]),
+                )
         # we only find the max within one fwhm of the resonance
         Qrs[i, j] = Qr = swp.mdl.model.Qr[ti]
         frs[i, j] = fr = swp.mdl.model.fr[ti]
