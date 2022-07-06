@@ -65,9 +65,32 @@ kidspydir="${HOME}/zma_deprecated/kids_master/scripts"
 pyexec="${HOME}/toltec_astro/venvs/toltec/bin/python3"
 # finder_thresh=10  # TODO need a better way to handle this
 # fitter_Qr=13000  # TODO need a better way to handle this
-finder_args=(--fitter_weight_window_Qr 7500 --finder_use_savgol_deriv --finder_smooth_size 15 --finder_threshold 3 --finder_stats_clip_sigma 2)
-fitter_args=(--fitter_weight_window_Qr 7500)
 
+filename=$(basename ${link})
+echo ${filename}
+if [[ "${filename}" =~ ^toltec([0-9][0-9]?)_.+ ]]; then
+  nw=${BASH_REMATCH[1]}
+else
+  nw=0
+fi
+echo "nw: ${nw}"
+if (( ${nw} >= 7 )); then
+    # 1.4 and 2.0mm
+    finder_args=( \
+        --fitter_weight_window_Qr 5000 \
+        --finder_use_savgol_deriv \
+        --finder_smooth_size 15 \
+        --finder_threshold 3 --finder_stats_clip_sigma 2 --fitter_lim_gain_min 0)
+    fitter_args=(--fitter_weight_window_Qr 5000)
+elif (( ${nw} <= 6 )); then
+    finder_args=( \
+        --fitter_weight_window_Qr 7500 \
+        --finder_use_savgol_deriv \
+        --finder_smooth_size 15 \
+        --finder_threshold 3 --finder_stats_clip_sigma 2 --fitter_lim_gain_min 1)
+    fitter_args=(--fitter_weight_window_Qr 7500)
+fi
+echo finder_args: ${finder_args[@]}
 
 if [[ ${type} == "vna" ]]; then
     echo "do ${type} ${runmode}"

@@ -121,9 +121,15 @@ class VnaExplorer(ComponentTemplate):
             return [zoomfig]
 
 
+def _cached(f):
+    import os
+    if int(os.environ.get("CACHE_ENABLED", 1)) > 0:
+        return cache.memoize(timeout=60 * 60 * 60)(f)
+    return f
+
 # Read data from netcdf files
 @timeit
-@cache.memoize(timeout=60 * 60 * 60)
+@_cached
 def _fetchVnaData(filepath):
 
     def makeS21(Is, Qs):
