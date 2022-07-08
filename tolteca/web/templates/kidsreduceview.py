@@ -31,7 +31,7 @@ class KidsReduceView(ComponentTemplate):
 
     def setup_layout(self, app):
 
-        self.interval = self.child(dcc.Interval, update_interval=2)
+        self.interval = self.child(dcc.Interval, interval=5000)
 
         _debug_datastore = self.child(html.Pre)
         _debug_reducestore = self.child(html.Pre)
@@ -84,7 +84,10 @@ class KidsReduceView(ComponentTemplate):
                 )
         def update_debug_datastore(n_intervals):
             ds = self.dataset._index_table_store
-            debug = ds.get_meta()
+            try:
+                debug = ds.get_meta()
+            except Exception:
+                debug = None
             debug = pformat_yaml(debug)
             return debug
 
@@ -99,7 +102,10 @@ class KidsReduceView(ComponentTemplate):
             # debug = {k: d[k] for k in [ds._revkey, ds._keykey]}
             # debug[ds._objkey] = {k: d[ds._objkey][k]['state']
             # for k in d[ds._objkey].keys()}
-            debug = ds.get_meta()
+            try:
+                debug = ds.get_meta()
+            except Exception:
+                debug = None
             debug = pformat_yaml(debug)
             return debug
 

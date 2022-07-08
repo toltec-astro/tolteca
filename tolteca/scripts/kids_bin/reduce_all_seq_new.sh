@@ -24,6 +24,7 @@ echo "reduce kids obsnum=${obsnum}"
 
 obsnum_str=$(printf "%06d" ${obsnum})
 
+shopt -s nullglob
 for i in ${dataroot}/toltec/{ics,tcs}/toltec*/toltec[0-9]*_${obsnum_str}_*.nc; do
     echo ${scriptdir}/reduce.sh $i -r --output dummy_output
     ${scriptdir}/reduce.sh $i -r --output dummy_output
