@@ -9,6 +9,13 @@ from tolteca.datamodels.toltec import BasicObsDataset
 from tolteca.datamodels.toltec.data_prod import ToltecDataProd, DataItemKind, ScienceDataProd
 
 
+QL_SEARCH_PATHS = [
+        '/home/toltec/work_toltec/220708/redu/focus/focus3',
+        'toltec/reduced_manual',
+        'toltec/reduced'
+        ]
+
+
 def collect_from_citlali_index(index_file):
     with open(index_file, 'r') as fo:
         index = yaml.safe_load(fo)
@@ -73,8 +80,10 @@ def get_dp_for_dataset(rootdir, dataset, reduced_dir='toltec/reduced'):
         return dp
 
 
-def get_quicklook_data(rootdir, bods):
-    for rd in ['toltec/reduced_manual', 'toltec/reduced']:
+def get_quicklook_data(rootdir, bods, search_paths=None):
+    if search_paths is None:
+        search_paths = ['toltec/reduced', ]
+    for rd in search_paths:
         dp = get_dp_for_dataset(rootdir, bods, reduced_dir=rd)
         if dp is not None:
             break
@@ -180,7 +189,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                     'message': f'No data found for obsnum={obsnum}'
                     }
         # print(bods)
-        ql_data, message = get_quicklook_data(rootdir, bods)
+        ql_data, message = get_quicklook_data(rootdir, bods, search_paths=QL_SEARCH_PATHS)
         if ql_data is None:
             return {
                     'exit_code': 1,
