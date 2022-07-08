@@ -119,7 +119,7 @@ if __name__ == "__main__":
         if obs_goal == 'beammap' or obs_goal == 'azscan' or obs_goal == 'elscan':
             print('run beammap')
             pty.spawn(shlex.split(f'{scriptdir}/reduce_beammap.sh {obsnum}'))
-        elif obs_goal == 'pointing':
+        elif obs_goal == 'pointing' or obs_goal == 'focus' or obs_goal == 'astigmatism':
             print('run pointing')
             pty.spawn(shlex.split(f'{scriptdir}/reduce_pointing.sh {obsnum}'))
         elif obs_goal == 'science':

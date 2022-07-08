@@ -139,7 +139,7 @@ if __name__ == '__main__':
             obsnum = args.obsnum.zfill(6)
             
         try:
-            source_name = img[0].header['source']
+            source_name = img[0].header['OBJECT']
         except:
             source_name = 'N/A'
             

@@ -81,14 +81,14 @@ if (( ${nw} >= 7 )); then
         --finder_use_savgol_deriv \
         --finder_smooth_size 15 \
         --finder_threshold 3 --finder_stats_clip_sigma 2 --fitter_lim_gain_min 0)
-    fitter_args=(--fitter_weight_window_Qr 5000)
+    fitter_args=(--fitter_weight_window_Qr 5000 --fitter_auto_global_shift)
 elif (( ${nw} <= 6 )); then
     finder_args=( \
         --fitter_weight_window_Qr 7500 \
         --finder_use_savgol_deriv \
         --finder_smooth_size 15 \
         --finder_threshold 3 --finder_stats_clip_sigma 2 --fitter_lim_gain_min 1)
-    fitter_args=(--fitter_weight_window_Qr 7500)
+    fitter_args=(--fitter_weight_window_Qr 7500 --fitter_auto_global_shift)
 fi
 echo finder_args: ${finder_args[@]}
 

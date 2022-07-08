@@ -3,13 +3,50 @@ import json
 import dispatch_reduction as dr
 from pathlib import Path
 from json import JSONEncoder
+import yaml
 
 from tolteca.datamodels.toltec import BasicObsDataset
-from tolteca.datamodels.toltec.data_prod import ToltecDataProd
+from tolteca.datamodels.toltec.data_prod import ToltecDataProd, DataItemKind, ScienceDataProd
 
 
-def get_dp_for_dataset(rootdir, dataset):
-    reduced_dir = rootdir.joinpath('toltec/reduced')
+def collect_from_citlali_index(index_file):
+    with open(index_file, 'r') as fo:
+        index = yaml.safe_load(fo)
+    # need to do some translation
+    data_items = list()
+    rootdir = Path(index_file).parent
+    for p in index['files']:
+        for a in ['a1100', 'a1400', 'a2000']:
+            if a in p:
+                array_name = a
+                break
+        else:
+            array_name = None
+        p = rootdir.joinpath(p).resolve()
+        if p.suffix == '.fits' and array_name is not None:
+            data_items.append({
+               'array_name': array_name,
+               'kind': DataItemKind.CalibratedImage,
+               'filepath': p,
+               })
+        elif p.suffix == '.nc' and 'timestream' in p.name:
+            data_items.append({
+                'array_name': array_name,
+                'kind': DataItemKind.CalibratedTimeOrderedData,
+                'filepath': p
+                })
+    index = {
+        'data_items': data_items,
+        'meta': {
+            'name': f'o{int(rootdir.name)}',
+            'id': 0,
+            }
+        }
+    return ToltecDataProd(source={'data_items': [ScienceDataProd(source=index)], 'meta': {'id': 0}})
+
+
+def get_dp_for_dataset(rootdir, dataset, reduced_dir='toltec/reduced'):
+    reduced_dir = rootdir.joinpath(reduced_dir)
     obsnum = dataset[0]['obsnum']
     if dataset[0]['master_name'] == 'ics':
         # toltec kids data
@@ -23,15 +60,24 @@ def get_dp_for_dataset(rootdir, dataset):
         dpdir = reduced_dir.joinpath(f'{obsnum}')
         if not dpdir.exists():
             return None
-        dps = ToltecDataProd.collect_from_dir(dpdir)
+        citlali_index = dpdir.joinpath("index.yaml")
+        if citlali_index.exists():
+            # translate the index to dp index
+            dps = collect_from_citlali_index(citlali_index)
+        else:
+            dps = ToltecDataProd.collect_from_dir(dpdir)
+        if not dps:
+            return None
         # get the one with largest id
         dp = sorted(dps.index['data_items'], key=lambda d: d.meta['id'])[-1]
         return dp
 
 
 def get_quicklook_data(rootdir, bods):
-    dp = get_dp_for_dataset(rootdir, bods)
-    print(dp)
+    for rd in ['toltec/reduced_manual', 'toltec/reduced']:
+        dp = get_dp_for_dataset(rootdir, bods, reduced_dir=rd)
+        if dp is not None:
+            break
     # extract quick look data from dp
     if dp is None:
         return None, 'No reduced files found.'
@@ -54,7 +100,7 @@ def get_quicklook_data(rootdir, bods):
         obs_goal = dr.get_obs_goal(bods)
         index = dp.index.copy()
         print(f'obs goal was {obs_goal}')
-        if obs_goal == 'test':
+        if obs_goal in ['test', 'pointing'] or 'pointing' in index['data_items'][0]['filepath'].name:
             pointing_reader_data = get_pointing_reader_data(dp)
             index['pointing_reader_data'] = pointing_reader_data
         print(index)
@@ -65,7 +111,7 @@ def get_quicklook_data(rootdir, bods):
 def get_pointing_reader_data(dp):
     print(f'collecting pointing reader data for {dp}')
     # get the data rootpath
-    datadir = dp.index['data_items'][0]['filepath'].parent
+    datadir = Path(dp.index['data_items'][0]['filepath']).parent
     result = {
             'meta': dp.meta,
             'data_items': list()
