@@ -202,8 +202,8 @@ class LmtOTComposer(object):
             YLength=y_length.quantity.to_value(u.arcmin),
             XOmega=x_omega.quantity.to_value(u.rad/u.s),
             YOmega=y_omega.quantity.to_value(u.rad/u.s),
-            XDelta=delta.quantity.to_value(u.rad),
-            TScan=t_exp,
+            XDelta=delta.quantity.to_value(u.deg),
+            TScan=t_exp.to_value(u.s),
             ScanRate=np.hypot(v_x, v_y).to_value(u.arcsec / u.s),
             )
 
