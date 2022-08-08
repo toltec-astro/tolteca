@@ -110,6 +110,7 @@ reduce:
           - toltec12: 0
           - hwp: 0
         timestream:
+          offset: 0.0
           polarimetry:
             enabled: false
           output:
