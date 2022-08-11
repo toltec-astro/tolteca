@@ -5,7 +5,7 @@ from scipy.interpolate import interp1d, RectBivariateSpline
 
 from pytz import timezone
 from astroplan import Observer
-from astropy.utils.data import download_file
+from astropy.utils.data import download_file, compute_hash
 import astropy.units as u
 from astropy import coordinates as coord
 
@@ -134,17 +134,42 @@ class LmtAtmosphereData(object):
     #     cls.logger.debug(f"download data {name} from url {url}")
     #     return np.load(download_file(url, cache=True))
 
+    # @classmethod
+    # def _load_data(cls, name):
+    #     base_url = 'https://drive.google.com/uc?export=download&id={id_}'
+    #     id_ = {
+    #             'am_q75': '1pPwjYVzP-PhH0wjH0lIR8CbCPudfuJ8q',
+    #             'am_q50': '19dn0ZrHegW7NL8nIZ5ahspYTE83ykjPA',
+    #             'am_q25': '1ZiM9KU0TfChKi1m8gCbuIztFJWLVqKUy',
+    #             }[name]
+    #     url = base_url.format(id_=id_)
+    #     # cls.logger.debug(f"download data {name} from url {url}")
+    #     return dict(np.load(download_file(url, cache=True)))
+
     @classmethod
     def _load_data(cls, name):
-        base_url = 'https://drive.google.com/uc?export=download&id={id_}'
-        id_ = {
-                'am_q75': '1pPwjYVzP-PhH0wjH0lIR8CbCPudfuJ8q',
-                'am_q50': '19dn0ZrHegW7NL8nIZ5ahspYTE83ykjPA',
-                'am_q25': '1ZiM9KU0TfChKi1m8gCbuIztFJWLVqKUy',
-                }[name]
-        url = base_url.format(id_=id_)
+        base_url = 'https://dp.lmtgtm.org/api/access/datafile/{id}'
+        dl_info = {
+            'am_q75': {
+                'id': '456',
+                'md5': 'd6cf4bb27008179ec491864388deac58',
+                },
+            'am_q50': {
+                'id': '455',
+                'md5': '6ec393672be8af4dfa06a3f4cf9aa32e',
+                },
+            'am_q25': {
+                'id': '454',
+                'md5': '008d7fa69aff187a9edf419f3d961b4c',
+                },
+            }[name]
+        url = base_url.format(id=dl_info['id'])
+        filepath = download_file(url, cache=True)
+        hash_ = compute_hash(filepath)
+        if hash_ != dl_info['md5']:
+            raise ValueError(f"MD5 missmatch for file {url}")
         # cls.logger.debug(f"download data {name} from url {url}")
-        return dict(np.load(download_file(url, cache=True)))
+        return dict(np.load(filepath))
 
 
 class LmtAtmosphereModel(Model):
