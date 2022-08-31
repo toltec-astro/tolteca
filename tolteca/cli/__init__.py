@@ -27,14 +27,23 @@ config_loader = ObjectProxy(None)
 A proxy to the `ConfigLoader` instance created via CLI.
 """
 
+def _mpi_disabled():
+    return int(os.environ.get("TOLTECA_NO_MPI", 0)) > 0
+
 
 def main(args=None):
     """The CLI entry point."""
 
-    from mpi4py import MPI
-
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
+    if _mpi_disabled():
+        use_mpi = False
+    else:
+        try:
+            from mpi4py import MPI
+            comm = MPI.COMM_WORLD
+            rank = comm.Get_rank()
+            use_mpi = True
+        except ModuleNotFoundError:
+            use_mpi = False
 
     prog_name = 'TolTECA'
     prog_desc = 'TolTEC Data Analysis All-in-one!'
@@ -54,10 +63,13 @@ def main(args=None):
           http://toltecdr.astro.umass.edu
 ~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.
 """
-        if rank == 0:
+        if use_mpi:
+            if rank == 0:
+                print(banner)
+            comm.Barrier()
+            print(f"MPI started on rank {rank}/{comm.Get_size()}")
+        else:
             print(banner)
-        comm.Barrier()
-        print(f"MPI started on rank {rank}/{comm.Get_size()}")
 
     # make a "pre-parser" without loading subcommands.
     # this is useful to speed things up for something like `tolteca -v`
@@ -82,10 +94,14 @@ def main(args=None):
         # from ..utils.misc import make_ascii_banner
         print_banner()
 
-    comm.barrier()
+    if use_mpi:
+        comm.barrier()
 
     if option.version:
-        if rank == 0:
+        if use_mpi:
+            if rank == 0:
+                print(version.version)
+        else:
             print(version.version)
         sys.exit(0)
 

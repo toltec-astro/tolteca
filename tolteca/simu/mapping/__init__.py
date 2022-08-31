@@ -28,7 +28,7 @@ class LmtTcsMappingConfig(DataclassNamespace):
         RelPathSchema(),
         })
 
-    def __call__(self):
+    def __call__(self, cfg):
         # return the model object
         return LmtTcsTrajMappingModel(self.filepath)
 

@@ -150,6 +150,10 @@ class LmtAtmosphereData(object):
     def _load_data(cls, name):
         base_url = 'https://dp.lmtgtm.org/api/access/datafile/{id}'
         dl_info = {
+            'am_q95': {
+                'id': '461',
+                'md5': '0ca7b331823237767d26016d19bffb3d',
+                },
             'am_q75': {
                 'id': '456',
                 'md5': 'd6cf4bb27008179ec491864388deac58',

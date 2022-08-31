@@ -2,7 +2,7 @@
 
 from tollan.utils.log import get_logger
 
-from . import main_parser, config_loader
+from . import main_parser, config_loader, _mpi_disabled
 from .utils import load_runtime
 from .check import (
     register_cli_checker,
@@ -54,7 +54,7 @@ def load_pipeline_runtime(
 @main_parser.register_action_parser(
         'reduce',
         help="Run tolteca.reduce CLI.",
-        mpi_passthrough=True
+        mpi_passthrough=not _mpi_disabled(),
         )
 def cmd_reduce(parser):
 
