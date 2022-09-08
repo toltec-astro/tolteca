@@ -1033,6 +1033,9 @@ class ToltecSimuOutputContext(ExitStack):
         ref_coord = mapping.target.transform_to('icrs')
         v_source_ra[:] = ref_coord.ra.radian
         v_source_dec[:] = ref_coord.dec.radian
+        # tau values
+        self._set_tel_tau(
+                nm_tel, tau_values={'tau225': 0., 'tau_a1100': 0., 'tau_a1400': 0., 'tau_a2000': 0.})
 
         # setup data variables for write_data
         d_time = 'time'
@@ -1304,6 +1307,22 @@ class ToltecSimuOutputContext(ExitStack):
             self._make_kidsdata_nc(apt, nw, simu_config)
         # hwp.nc
         self._make_hwp_nc(simu_config)
+        # tel.nc
+        nm_tel = self.nms['tel']
+        nc_tel = nm_tel.nc_node
+        power_loading_model = eval_ctx['power_loading_model']
+        if power_loading_model is not None:
+            self._set_tel_tau(self.nms['tel'], tau_values=power_loading_model._atm_model_tau)
+
+    def _set_tel_tau(self, nm_tel, tau_values):
+        nm_tel.setscalar(
+                'Header.Radiometer.Tau', tau_values['tau225'], dtype='f8', exist_ok=True)
+        nm_tel.setscalar(
+                'Header.Sim.Tau_a1100', tau_values['tau_a1100'], dtype='f8', exist_ok=True)
+        nm_tel.setscalar(
+                'Header.Sim.Tau_a1400', tau_values['tau_a1400'], dtype='f8', exist_ok=True)
+        nm_tel.setscalar(
+                'Header.Sim.Tau_a2000', tau_values['tau_a2000'], dtype='f8', exist_ok=True)
 
     def write_sim_data(self, data):
         eval_ctx = self._ensure_sim_eval_context()

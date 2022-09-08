@@ -593,6 +593,42 @@ def _get_default_passbands():
     return result
 
 
+def _get_atm_model_tau(atm_model_name):
+    data = {
+        'am_q25': {
+            'tau225': 0.051,
+            'tau_a1100': 0.072,
+            'tau_a1400': 0.047,
+            'tau_a2000': 0.026,
+            },
+        'am_q50': {
+            'tau225': 0.090,
+            'tau_a1100': 0.126,
+            'tau_a1400': 0.083,
+            'tau_a2000': 0.042,
+            },
+        'am_q75': {
+            'tau225': 0.161,
+            'tau_a1100': 0.227,
+            'tau_a1400': 0.149,
+            'tau_a2000': 0.072,
+            },
+        'am_q95': {
+            'tau225': 0.310,
+            'tau_a1100': 0.438,
+            'tau_a1400': 0.286,
+            'tau_a2000': 0.135,
+            },
+        'toast': {
+            'tau225': 0.,
+            'tau_a1100': 0.,
+            'tau_a1400': 0.,
+            'tau_a2000': 0.,
+            },
+        }
+    return data.get(atm_model_name, {'tau225': 0., 'tau_a1100': 0., 'tau_a1400': 0., 'tau_a2000': 0})
+
+
 class ToltecArrayPowerLoadingModel(Model):
     """
     A model of the LMT optical loading at the TolTEC arrays.
@@ -1118,6 +1154,7 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
         self.inputs = ('array_name', 'S', 'alt')
         self.outputs = ('P', )
         self._atm_model_name = atm_model_name
+        self._atm_model_tau = _get_atm_model_tau(atm_model_name)
 
     @property
     def atm_model_name(self):
