@@ -1001,6 +1001,9 @@ class ToltecSimuOutputContext(ExitStack):
                 'Header.File.Name',
                 nm_tel.file_loc.path.relative_to(rootpath).as_posix())
         nm_tel.setstr(
+                'Header.Sim.Jobkey',
+                simu_config.jobkey)
+        nm_tel.setstr(
                 'Header.Source.SourceName',
                 simu_config.jobkey)
         if isinstance(mapping, (LmtTcsTrajMappingModel, )):
