@@ -148,7 +148,7 @@ class LmtAtmosphereData(object):
 
     @classmethod
     def _load_data(cls, name):
-        base_url = 'http://10.20.1.11/api/access/datafile/{id}'
+        base_url = 'https://dp.lmtgtm.org/api/access/datafile/{id}'
         dl_info = {
             'am_q95': {
                 'id': '461',
