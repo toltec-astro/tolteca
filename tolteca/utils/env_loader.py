@@ -2,6 +2,7 @@
 
 from schema import Optional
 import functools
+import json
 
 from tollan.utils.log import get_logger
 from tollan.utils.env import EnvRegistry
@@ -46,6 +47,8 @@ class EnvLoader(object):
         for attr, env_name in env_name_map.items():
             v = self._registry.get(env_name, None)
             if v is not None:
+                if v.startswith('{') and v.endswith('}'):
+                    v = json.loads(v)
                 result[attr] = v
         self.logger.debug(
             f"collected attr dict from env:\n"

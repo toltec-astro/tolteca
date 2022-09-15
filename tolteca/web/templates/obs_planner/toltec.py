@@ -509,7 +509,7 @@ class Toltec(ObsInstru, name="toltec"):
         alt_mean = target_alt.mean()
         t_exp = bs_traj_data["t_exp"]
         # calcuate overhead
-        if simu_config.mapping.type in ["raster", "rasterjous"]:
+        if simu_config.mapping.type in ["raster", ]:
             t_exp_eff = t_exp - simu_config.mapping.t_turnaround * (
                 simu_config.mapping.n_scans - 1
             )

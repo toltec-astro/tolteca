@@ -38,6 +38,9 @@ presets:
     value: 5
     value_min: 0
     value_max: 20
+    component_kw:
+      input_props:
+        readonly: true
   - key: rot
     unit: deg
     value: 0
