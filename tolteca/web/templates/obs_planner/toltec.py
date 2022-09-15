@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from cgi import print_arguments
 import functools
 from dash_component_template import ComponentTemplate
 from dash import html, dcc, Input, Output, State
@@ -672,9 +673,9 @@ class Toltec(ObsInstru, name="toltec"):
                 "n_passes": "Number of Passes",
                 "depth_rms_coadd_actual": "Coadded Map RMS Sens.",
                 "proj_science_time": "Project Total Science Time",
-                "proj_n_nights": "Assumed Number of Obs. Nights",
-                "proj_total_time": "Project Total Time (w/ Overhead)",
                 "proj_science_overhead_time": "Science Time Overhead",
+                "proj_n_nights": "Assumed Number of Obs. Nights",
+                "proj_total_time": "Project Total Time (incl. Overhead)",
                 "proj_overhead_time": "Project Overhead",
                 "proj_overhead_percent": "Project Overhead %",
             }
@@ -686,6 +687,9 @@ class Toltec(ObsInstru, name="toltec"):
             )
             # get rid of the first child which is the header
             t.children = t.children[1:]
+            # get the index of the total time
+            i_total_time = list(key_labels.keys()).index("proj_total_time")
+            t.children[0].children[i_total_time].className = 'bg-info'
             return dbc.Card(
                 [
                     dbc.CardBody(
