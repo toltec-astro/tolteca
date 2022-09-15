@@ -169,7 +169,7 @@ class Toltec(ObsInstru, name="toltec"):
                     button_props=dlbtn_props,
                     tooltip=(
                         "Download the generated FITS (approximate) coverage "
-                        "image for the observation."
+                        "image for the SINGLE observation (NOT COADDED)."
                     ),
                 )
             )
@@ -571,6 +571,29 @@ class Toltec(ObsInstru, name="toltec"):
         sens_tbl["t_exp"] = t_exp
         sens_tbl["t_exp_eff"] = t_exp_eff
         sens_tbl["map_area"] = map_area
+        # calcuate the number of passes to achieve desired depth
+        desired_sens = exec_config.desired_sens
+        n_passes = int(np.ceil((_get_entry(array_name)['depth_rms'] / desired_sens) ** 2))
+        sens_tbl['n_passes'] = n_passes
+        sens_tbl['depth_rms_coadd_desired'] = desired_sens 
+        sens_tbl['depth_rms_coadd_actual'] = sens_tbl['depth_rms'] / (sens_tbl['n_passes'] ** 0.5)
+        # calcuate overhead
+        science_time = (n_passes * t_exp).to(u.h)
+        science_time_per_night = 4. << u.h
+        n_nights = int(np.ceil((science_time / science_time_per_night).to_value(u.dimensionless_unscaled)))
+        sens_tbl['proj_science_time'] = science_time
+        sens_tbl['proj_science_time_per_night'] = n_nights
+        sens_tbl['proj_n_nights'] = n_nights
+        overhead = OverheadCalculation(
+           map_type=simu_config.mapping.type,
+           science_time=science_time.to_value(u.s),
+           add_nights=n_nights,
+           science_time_overhead_fraction=(1 - t_exp_eff / t_exp).to_value(u.dimensionless_unscaled)
+        ).make_output_dict()
+        sens_tbl['proj_science_overhead_time'] = (overhead['science_overhead'] << u.s).to(u.h)
+        sens_tbl['proj_total_time'] = (overhead['total_time'] << u.s).to(u.h)
+        sens_tbl['proj_overhead_time'] = (overhead['overhead_time'] << u.s).to(u.h)
+        sens_tbl['proj_overhead_percent'] = f"{overhead['overhead_percent']:.1%}"
 
         # make cov hdulist depending on the instru_data cov unit settings
         if exec_config.instru_data["coverage_map_type"] == "depth":
@@ -632,23 +655,31 @@ class Toltec(ObsInstru, name="toltec"):
             entry = _get_entry(an)
 
             def _fmt(v):
-                if isinstance(v, str):
-                    return v
-                return f"{v.value:.3g} {v.unit:unicode}"
+                if isinstance(v, u.Quantity):
+                    return f"{v.value:.3g} {v.unit:unicode}"
+                return v
 
             key_labels = {
                 "array_name": "Array Name",
                 "alt_mean": "Mean Alt.",
-                "t_exp": "Total Exp. Time",
-                "t_exp_eff": "Effective On-target Time",
                 "dsens": "Detector Sens.",
                 "n_dets_info": "# of Detectors (Enabled / Total)",
                 "mapping_speed": "Mapping Speed",
                 "map_area": "Map Area",
-                "depth_rms": "Median RMS sens.",
+                "t_exp": "Exp. Time per Pass",
+                "t_exp_eff": "Effective On-target Time per Pass",
+                "depth_rms": "Median RMS Sens. per Pass",
+                "n_passes": "Number of Passes",
+                "depth_rms_coadd_actual": "Coadded Map RMS Sens.",
+                "proj_science_time": "Project Total Science Time",
+                "proj_n_nights": "Assumed Number of Obs. Nights",
+                "proj_total_time": "Project Total Time (w/ Overhead)",
+                "proj_science_overhead_time": "Science Time Overhead",
+                "proj_overhead_time": "Project Overhead",
+                "proj_overhead_percent": "Project Overhead %",
             }
             data = {v: _fmt(entry[k]) for k, v in key_labels.items()}
-            data["Coverage Map Unit"] = cov_hdulist[1].header["BUNIT"]
+            # data["Coverage Map Unit"] = cov_hdulist[1].header["BUNIT"]
             df = pd.DataFrame(data.items(), columns=["", ""])
             t = dbc.Table.from_dataframe(
                 df, striped=True, bordered=True, hover=True, className="mx-0 my-0"

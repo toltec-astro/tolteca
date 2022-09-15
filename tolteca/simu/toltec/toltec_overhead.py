@@ -4,7 +4,13 @@ import pandas as pd
 
 class OverheadCalculation:
     def __init__(
-        self, map_type, science_time, n_steps=None, add_nights=0, t_pattern=None
+        self,
+        map_type,
+        science_time,
+        n_steps=None,
+        add_nights=0,
+        t_pattern=None,
+        science_time_overhead_fraction=None,
     ):
         """
         map_type (string): raster, lissajous, rastajous, double_lissajous
@@ -19,6 +25,8 @@ class OverheadCalculation:
 
         t_pattern (float): how long is takes to complete 1 pass of the pattern
             units = s
+
+        science_time_overhead_fraction (float): specify overhead fraction for science time directly.
 
         The map_type determines if there is turnaround time in the map that
         should be accounted for. The science time determines how many pointings
@@ -38,6 +46,7 @@ class OverheadCalculation:
         # These only become relevant if map type is raster or rastajous
         self._n_steps = n_steps
         self._t_pattern = t_pattern
+        self._science_time_overhead_fraction = science_time_overhead_fraction
 
         # Estimate based on (tune = 30s) + (pointing obs = 60s) + (slew max = 20s)
         self._pointing_time = 110  # s
@@ -167,9 +176,18 @@ class OverheadCalculation:
         the pattern may be repeated multiple times, the fraction of overhead
         per pass is multiplied by the total map time.
         """
-        if self._map_type == "lissajous" or self._map_type == "double_lissajous":
+        if self._science_time_overhead_fraction is not None:
+            self._science_overhead = (
+                self._science_time_overhead_fraction * self._science_time
+            )
+            return
+        if self._map_type is None:
+            raise ValueError("map_type is required to calcuate science overhead")
+        if self._map_type in ["lissajous", "rastajous", "double_lissajous"]:
             self._science_overhead = 0
-        else:
+        elif self._map_type in [
+            "raster",
+        ]:
             if self._t_pattern is None or self._n_steps is None:
                 raise ValueError(
                     "t_pattern/n_steps is required to calcualte science overhead"
@@ -180,6 +198,8 @@ class OverheadCalculation:
                 self._science_overhead = percent_overhead * self._science_time
             else:
                 self._science_overhead = 0
+        else:
+            raise ValueError(f"invalid map_type: {self._map_type}")
 
     def _calc_n_pointings(self):
         """

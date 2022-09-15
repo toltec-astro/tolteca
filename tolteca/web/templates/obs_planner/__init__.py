@@ -149,9 +149,9 @@ class ObsPlanner(ComponentTemplate):
         # Left panel, these are containers for the input controls
         (
             target_container,
-            mapping_container,
             obssite_container,
             obsinstru_container,
+            mapping_container,
         ) = controls_panel.colgrid(4, 1, gy=3)
 
         target_container = target_container.child(
@@ -523,6 +523,11 @@ class ObsPlannerExecConfig(object):
             "description": "The dict contains the observation parameters.",
         }
     )
+    desired_sens: u.Quantity = field(
+        metadata={
+            "description": "The desired sensitivity",
+        }
+    )
     # TODO since we now only support LMT/TolTEC, we do not have a
     # good measure of the schema to use for the generic site and instru
     # we just save the raw data dict here.
@@ -555,6 +560,7 @@ class ObsPlannerExecConfig(object):
                 "obs_params": obs_params_dict,
                 "site_data": site_data,
                 "instru_data": instru_data,
+                "desired_sens": mapping_data['desired_sens_mJy'] << u.mJy
             }
         )
 
@@ -564,8 +570,9 @@ class ObsPlannerExecConfig(object):
         cfg = dict(**mapping_data)
         cfg["t0"] = f"{target_data['date']} {target_data['time']}"
         cfg["target"] = target_data["name"]
-        # for mapping config, we discard the t_exp.
+        # for mapping config, we discard the t_exp and desired_sens.
         cfg.pop("t_exp", None)
+        cfg.pop("desired_sens_mJy", None)
         return cfg
 
     def to_yaml_dict(self):
@@ -753,6 +760,39 @@ class ObsPlannerMappingPresetsSelect(ComponentTemplate):
         #         size='sm',
         #         placeholder='Select a mapping pattern template ...'
         #         )).dropdown
+        desired_sens_container = controls_form_container.child(html.Div)
+        desired_sens_group = desired_sens_container.child(
+            LabeledInput(
+                label_text="Desired Map RMS (mJy/beam)",
+                className="w-auto",
+                size="sm",
+                input_props={
+                    # these are the dbc.Input kwargs
+                    "type": "number",
+                    "min": 0.,
+                    "placeholder": "1.0",
+                    # 'style': {
+                    #     'flex': '0 1 7rem'
+                    #     },
+                    "debounce": True,
+                    "value": 1.0,
+                },
+            )
+        )
+        desired_sens_container.child(
+            dbc.Tooltip,
+            f"""
+The desired map RMS. This determines the number of passes the mapping
+pattern defined below being executed. Fractional numbers will be rounded
+up, and the reporting table will list the actual map RMS with the given passes
+and the overhead involved in carrying out the calculation.
+Therefore it is advertised to have integer number of passes,
+which can be achieved by either changing the mapping pattern time
+(per-pass execution time, via tweaking the t_exp (lissajous-like) or length/space/speed (raster)),
+or this value directly after getting the initial execution output for the per-pass map RMS.
+            """,
+            target=desired_sens_group.input.id,
+        )
         mapping_preset_select = controls_form_container.child(
             dbc.Select,
             size="sm",
@@ -833,19 +873,35 @@ class ObsPlannerMappingPresetsSelect(ComponentTemplate):
             feedback_content = f"Time to finish the pattern: {t_pattern:.2f}."
             return [True, False, feedback_content, "valid"]
 
+        @app.callback(
+            [
+                Output(desired_sens_group.input.id, "valid"),
+                Output(desired_sens_group.input.id, "invalid"),
+                Output(desired_sens_group.feedback.id, "children"),
+                Output(desired_sens_group.feedback.id, "type"),
+            ],
+            [Input(desired_sens_group.input.id, "value")],
+        )
+        def validate_desired_sens(desired_sens_value):
+            if desired_sens_value is None:
+                return [False, True, "Desired map RMS is required", "invalid"]
+            return [True, False, '', "valid"]
+
         app.clientside_callback(
             """
-            function(ref_frame_value, preset_data) {
+            function(desired_sens, ref_frame_value, preset_data) {
                 if (preset_data === null) {
                     return null
                 }
                 data = {...preset_data}
                 data['ref_frame'] = ref_frame_value
+                data['desired_sens_mJy'] = desired_sens
                 return data
             }
             """,
             output=Output(self.info_store.id, "data"),
             inputs=[
+                Input(desired_sens_group.input.id, "value"),
                 Input(mapping_ref_frame_select.id, "value"),
                 Input(mapping_preset_data_store.id, "data"),
             ],
