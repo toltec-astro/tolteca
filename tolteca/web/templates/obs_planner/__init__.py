@@ -8,22 +8,23 @@ import dash_bootstrap_components as dbc
 import dash_aladin_lite as dal
 
 from dasha.web.templates.common import (
-        CollapseContent,
-        LabeledChecklist,
-        LabeledInput,
-        )
+    CollapseContent,
+    LabeledChecklist,
+    LabeledInput,
+)
 from dasha.web.templates.utils import PatternMatchingId, make_subplots
 import dash_js9 as djs9
 
 import astropy.units as u
+from astropy.table import Table
+
 # from astropy.coordinates import get_icrs_coordinates
 from astroquery.utils import parse_coordinates
 from astropy.coordinates import SkyCoord
 from astropy.time import Time
-from astropy.coordinates.erfa_astrom import (
-        erfa_astrom, ErfaAstromInterpolator)
+from astropy.coordinates.erfa_astrom import erfa_astrom, ErfaAstromInterpolator
 from astroplan import FixedTarget
-from astroplan import (AltitudeConstraint, AtNightConstraint)
+from astroplan import AltitudeConstraint, AtNightConstraint
 from astroplan import observability_table
 
 from dataclasses import dataclass, field
@@ -44,9 +45,7 @@ from tollan.utils.namespace import Namespace
 
 from ....utils import yaml_load, yaml_dump
 from ....simu.utils import SkyBoundingBox
-from ....simu import (
-    mapping_registry,
-    SimulatorRuntime, ObsParamsConfig)
+from ....simu import mapping_registry, SimulatorRuntime, ObsParamsConfig
 from ....simu.mapping.utils import resolve_sky_coords_frame
 
 from .preset import PresetsConfig
@@ -59,6 +58,7 @@ _j2env = jinja2.Environment()
 
 class ObsPlanner(ComponentTemplate):
     """An observation Planner."""
+
     # TODO we should be able to generate the __init__ function
 
     class Meta:
@@ -67,30 +67,50 @@ class ObsPlanner(ComponentTemplate):
     logger = get_logger()
 
     def __init__(
-            self,
-            raster_model_length_max=3 << u.deg,
-            lissajous_model_length_max=20 << u.deg,
-            t_exp_max=1 << u.hour,
-            site_name='lmt',
-            instru_name=None,
-            pointing_catalog_path=None,
-            presets_config_path=None,
-            js9_config_path=None,
-            title_text='Obs Planner',
-            **kwargs):
-        kwargs.setdefault('fluid', True)
+        self,
+        raster_model_length_max=3 << u.deg,
+        lissajous_model_length_max=20 << u.deg,
+        t_exp_max=1 << u.hour,
+        site_name="lmt",
+        instru_name=None,
+        pointing_catalog_path=None,
+        presets_config_path=None,
+        js9_config_path=None,
+        lmt_tel_surface_rms=76 << u.um,
+        toltec_det_noise_factors=None,
+        toltec_apt_path=None,
+        title_text="Obs Planner",
+        subtitle_text=None,
+        **kwargs,
+    ):
+        kwargs.setdefault("fluid", True)
         super().__init__(**kwargs)
-        self._raster_model_length_max = raster_model_length_max,
-        self._lissajous_model_length_max = lissajous_model_length_max,
-        self._t_exp_max = t_exp_max,
+        self._raster_model_length_max = (raster_model_length_max,)
+        self._lissajous_model_length_max = (lissajous_model_length_max,)
+        self._t_exp_max = (t_exp_max,)
         self._site = ObsSite.from_name(site_name)
-        self._instru = (
-            None if instru_name is None
-            else ObsInstru.from_name(instru_name))
+        self._instru = None if instru_name is None else ObsInstru.from_name(instru_name)
         self._pointing_catalog_path = pointing_catalog_path
         self._presets_config_path = presets_config_path
         self._js9_config_path = js9_config_path
         self._title_text = title_text
+        self._subtitle_text = subtitle_text
+        if self._instru.name == "toltec":
+            # get designed apt for reporting yields
+            from .toltec import _get_apt_designed
+            apt_designed = _get_apt_designed()
+            # propagate some settings to the instru/site
+            if toltec_apt_path is None:
+                apt = apt_designed
+            else:
+                apt = Table.read(toltec_apt_path, format="ascii.ecsv")
+            self._instru._apt_path = toltec_apt_path
+            self._instru._apt_designed = apt_designed
+            self._instru._apt = apt
+            self._instru._det_noise_factors = toltec_det_noise_factors
+           
+        if self._site.name == "lmt":
+            self._site._tel_surface_rms = lmt_tel_surface_rms
 
     def setup_layout(self, app):
 
@@ -103,154 +123,167 @@ class ObsPlanner(ComponentTemplate):
         header, body = container.grid(2, 1)
         # Header
         title_container = header.child(
-            html.Div, className='d-flex align-items-baseline')
-        title_container.child(html.H2(self._title_text, className='my-2'))
-        app_details = title_container.child(
-                CollapseContent(button_text='Details ...', className='ms-4')
+            html.Div, className="d-flex align-items-baseline"
+        )
+        title_container.child(html.H2(self._title_text, className="my-2"))
+        if self._subtitle_text is not None:
+            title_container.child(
+                html.P(self._subtitle_text, className="text-secondary mx-2")
+            )
+
+        if False:
+            app_details = title_container.child(
+                CollapseContent(button_text="Details ...", className="ms-4")
             ).content
-        app_details.child(html.Pre(pformat_yaml(self.__dict__)))
-        header.child(html.Hr(className='mt-0 mb-3'))
+            app_details.child(html.Pre(pformat_yaml(self.__dict__)))
+        header.child(html.Hr(className="mt-0 mb-3"))
         # Body
         controls_panel, results_panel = body.colgrid(1, 2, width_ratios=[1, 3])
-        controls_panel.style = {
-                    'width': '375px'
-                    }
-        controls_panel.parent.style = {
-            'flex-wrap': 'nowrap'
-            }
+        controls_panel.style = {"width": "375px"}
+        controls_panel.parent.style = {"flex-wrap": "nowrap"}
         # make the plotting area auto fill the available space.
         results_panel.style = {
-            'flex-grow': '1',
-            'flex-shrink': '1',
-            }
+            "flex-grow": "1",
+            "flex-shrink": "1",
+        }
         # Left panel, these are containers for the input controls
-        target_container, mapping_container, \
-            obssite_container, obsinstru_container = \
-            controls_panel.colgrid(4, 1, gy=3)
+        (
+            target_container,
+            mapping_container,
+            obssite_container,
+            obsinstru_container,
+        ) = controls_panel.colgrid(4, 1, gy=3)
 
-        target_container = target_container.child(self.Card(
-            title_text='Target')).body_container
+        target_container = target_container.child(
+            self.Card(title_text="Target")
+        ).body_container
         target_select_panel = target_container.child(
-            ObsPlannerTargetSelect(site=self._site, className='px-0')
-            )
+            ObsPlannerTargetSelect(site=self._site, className="px-0")
+        )
         target_info_store = target_select_panel.info_store
 
-        mapping_container = mapping_container.child(self.Card(
-            title_text='Mapping')).body_container
+        mapping_container = mapping_container.child(
+            self.Card(title_text="Mapping")
+        ).body_container
         mapping_info_store = mapping_container.child(
             ObsPlannerMappingPresetsSelect(
-                presets_config_path=self._presets_config_path,
-                className='px-0')
-            ).info_store
+                presets_config_path=self._presets_config_path, className="px-0"
+            )
+        ).info_store
 
         # mapping execution
         exec_button_container = mapping_container.child(
             html.Div,
-            className=(
-                'd-flex justify-content-between align-items-start mt-2'
-                )
-            )
+            className=("d-flex justify-content-between align-items-start mt-2"),
+        )
         exec_details = exec_button_container.child(
-                CollapseContent(button_text='Details ...')
-            ).content.child(
-                html.Pre,
-                'N/A',
-                className='mb-0',
-                style={
-                    'font-size': '80%'
-                    })
+            CollapseContent(button_text="Details ...")
+        ).content.child(html.Pre, "N/A", className="mb-0", style={"font-size": "80%"})
 
         # mapping execute button and execute result data store
-        exec_button_disabled_color = 'primary'
-        exec_button_enabled_color = 'danger'
+        exec_button_disabled_color = "primary"
+        exec_button_enabled_color = "danger"
         # this is to save some configs to clientside for enable/disable
         # the exec button.
         exec_button_config_store = exec_button_container.child(
-            dcc.Store, data={
-                'disabled_color': exec_button_disabled_color,
-                'enabled_color': exec_button_enabled_color
-                })
+            dcc.Store,
+            data={
+                "disabled_color": exec_button_disabled_color,
+                "enabled_color": exec_button_enabled_color,
+            },
+        )
         exec_button = exec_button_container.child(
             dbc.Button,
             "Execute",
-            size='sm',
-            color=exec_button_disabled_color, disabled=True)
+            size="sm",
+            color=exec_button_disabled_color,
+            disabled=True,
+        )
         exec_info_store = exec_button_container.child(dcc.Store)
 
         # site config panel
-        obssite_title = f'Site: {self._site.display_name}'
-        obssite_container = obssite_container.child(self.Card(
-            title_text=obssite_title)).body_container
-        site_info_store = self._site.make_controls(
-            obssite_container).info_store
+        obssite_title = f"Site: {self._site.display_name}"
+        obssite_container = obssite_container.child(
+            self.Card(title_text=obssite_title)
+        ).body_container
+        site_info_store = self._site.make_controls(obssite_container).info_store
 
         if self._instru is not None:
             # instru config panel
-            obsinstru_title = f'Instrument: {self._instru.display_name}'
-            obsinstru_container = obsinstru_container.child(self.Card(
-                title_text=obsinstru_title)).body_container
+            obsinstru_title = f"Instrument: {self._instru.display_name}"
+            obsinstru_container = obsinstru_container.child(
+                self.Card(title_text=obsinstru_title)
+            ).body_container
             instru_info_store = self._instru.make_controls(
-                obsinstru_container).info_store
+                obsinstru_container
+            ).info_store
         else:
             instru_info_store = obsinstru_container.child(dcc.Store)
         # Right panel, for plotting
         # mapping_plot_container, dal_container = \
         # dal_container, mapping_plot_container, js9_container = \
         #     plots_panel.colgrid(3, 1, gy=3)
-        dal_container, results_controls_container, \
-            mapping_plot_container, instru_results_container = \
-            results_panel.colgrid(4, 1, gy=3)
+        (
+            dal_container,
+            results_controls_container,
+            mapping_plot_container,
+            instru_results_container,
+        ) = results_panel.colgrid(4, 1, gy=3)
 
         if self._instru is not None:
             instru_results_controls = self._instru.make_results_controls(
-                results_controls_container, className='px-0 d-flex')
+                results_controls_container, className="px-0 d-flex"
+            )
             mapping_plot_controls_container = instru_results_controls
             instru_results = self._instru.make_results_display(
-                instru_results_container, className='px-0')
+                instru_results_container, className="px-0"
+            )
         else:
             mapping_plot_controls_container = results_controls_container
 
-        mapping_plot_container.className = 'my-0'
+        mapping_plot_container.className = "my-0"
         mapping_plot_collapse = mapping_plot_controls_container.child(
             CollapseContent(
-                button_text='Show Trajs in Horizontal Coords...',
+                button_text="Show Trajs in Horizontal Coords...",
                 button_props={
                     # 'color': 'primary',
-                    'disabled': True,
-                    'style': {
-                        'text-transform': 'none',
-                        }
+                    "disabled": True,
+                    "style": {
+                        "text-transform": "none",
                     },
+                },
                 content=mapping_plot_container.child(
-                    dbc.Collapse,
-                    is_open=self._instru is None,
-                    className='mt-3')),
-            )
+                    dbc.Collapse, is_open=self._instru is None, className="mt-3"
+                ),
+            ),
+        )
         mapping_plot_container = mapping_plot_collapse.content
 
         mapping_plotter_loading = mapping_plot_container.child(
             dbc.Spinner,
-            show_initially=False, color='primary',
-            spinner_style={"width": "5rem", "height": "5rem"}
-            )
+            show_initially=False,
+            color="primary",
+            spinner_style={"width": "5rem", "height": "5rem"},
+        )
         mapping_plotter = mapping_plotter_loading.child(
             ObsPlannerMappingPlotter(
                 site=self._site,
-            ))
+            )
+        )
 
-        skyview_height = '50vh' if self._instru is None else '40vh'
+        skyview_height = "50vh" if self._instru is None else "40vh"
         skyview = dal_container.child(
             dal.DashAladinLite,
-            survey='P/DSS2/color',
-            target='M1',
+            survey="P/DSS2/color",
+            target="M1",
             fov=(10 << u.arcmin).to_value(u.deg),
             style={"width": "100%", "height": skyview_height},
             options={
                 "showLayerBox": True,
                 "showSimbadPointerControl": True,
                 "showReticle": False,
-                }
-            )
+            },
+        )
 
         super().setup_layout(app)
 
@@ -267,7 +300,7 @@ class ObsPlanner(ComponentTemplate):
             }
             """,
             Output(skyview.id, "target"),
-            Input(target_select_panel.target_info_store.id, 'data')
+            Input(target_select_panel.target_info_store.id, "data"),
         )
 
         # this toggles the exec button enabled only when
@@ -285,15 +318,15 @@ class ObsPlanner(ComponentTemplate):
             }
             """,
             [
-                Output(exec_button.id, 'color'),
-                Output(exec_button.id, 'disabled'),
-                ],
+                Output(exec_button.id, "color"),
+                Output(exec_button.id, "disabled"),
+            ],
             [
-                Input(mapping_info_store.id, 'data'),
-                Input(target_info_store.id, 'data'),
-                State(exec_button_config_store.id, 'data')
-                ]
-            )
+                Input(mapping_info_store.id, "data"),
+                Input(target_info_store.id, "data"),
+                State(exec_button_config_store.id, "data"),
+            ],
+        )
 
         # this callback collects all data from info stores and
         # create the exec config. The exec config is then used
@@ -304,35 +337,38 @@ class ObsPlanner(ComponentTemplate):
         if self._instru is not None:
             instru_results_loading = instru_results.loading_indicators
             # connect exec info with instru results
-            instru_results.make_callbacks(
-                app, exec_info_store_id=exec_info_store.id
-                )
+            instru_results.make_callbacks(app, exec_info_store_id=exec_info_store.id)
             instru_results_controls.make_callbacks(
                 app, exec_info_store_id=exec_info_store.id
-                )
+            )
         else:
-            instru_results_loading = {
-                'outputs': list(),
-                'states': list()
-                }
+            instru_results_loading = {"outputs": list(), "states": list()}
 
         @app.callback(
             [
-                Output(exec_info_store.id, 'data'),
-                Output(mapping_plotter_loading.id, 'color'),
-                ] + instru_results_loading['outputs'],
+                Output(exec_info_store.id, "data"),
+                Output(mapping_plotter_loading.id, "color"),
+            ]
+            + instru_results_loading["outputs"],
             [
-                Input(exec_button.id, 'n_clicks'),
-                State(mapping_info_store.id, 'data'),
-                State(target_info_store.id, 'data'),
-                State(site_info_store.id, 'data'),
-                State(instru_info_store.id, 'data'),
-                State(mapping_plotter_loading.id, 'color'),
-                ] + instru_results_loading['states']
-            )
+                Input(exec_button.id, "n_clicks"),
+                State(mapping_info_store.id, "data"),
+                State(target_info_store.id, "data"),
+                State(site_info_store.id, "data"),
+                State(instru_info_store.id, "data"),
+                State(mapping_plotter_loading.id, "color"),
+            ]
+            + instru_results_loading["states"],
+        )
         def make_exec_info_data(
-                n_clicks, mapping_data, target_data, site_data, instru_data,
-                mapping_loading, *instru_loading):
+            n_clicks,
+            mapping_data,
+            target_data,
+            site_data,
+            instru_data,
+            mapping_loading,
+            *instru_loading,
+        ):
             """Collect data for the planned observation."""
             if mapping_data is None or target_data is None:
                 return (None, mapping_loading) + instru_loading
@@ -340,56 +376,57 @@ class ObsPlanner(ComponentTemplate):
                 mapping_data=mapping_data,
                 target_data=target_data,
                 site_data=site_data,
-                instru_data=instru_data)
+                instru_data=instru_data,
+            )
             # generate the traj. Note that this is cached for performance.
             traj_data = _make_traj_data_cached(exec_config)
 
             # create figures to be displayed
             mapping_figs = mapping_plotter.make_figures(
-                exec_config=exec_config,
-                traj_data=traj_data)
+                exec_config=exec_config, traj_data=traj_data
+            )
             skyview_params = mapping_plotter.make_skyview_params(
-                exec_config=exec_config,
-                traj_data=traj_data
-                )
+                exec_config=exec_config, traj_data=traj_data
+            )
 
             # copy the instru traj data results
             instru_results = None
-            if traj_data['instru'] is not None:
-                instru_results = traj_data['instru'].get('results', None)
+            if traj_data["instru"] is not None:
+                instru_results = traj_data["instru"].get("results", None)
 
             # send the items to clientside for displaying
             return (
                 {
-                    'mapping_figs': {
-                        name: fig.to_dict()
-                        for name, fig in mapping_figs.items()
-                        },
+                    "mapping_figs": {
+                        name: fig.to_dict() for name, fig in mapping_figs.items()
+                    },
                     "skyview_params": skyview_params,
-                    'exec_config': exec_config.to_yaml_dict(),
+                    "exec_config": exec_config.to_yaml_dict(),
                     # instru specific data,
                     # this is consumed by the instru results
                     # display
-                    'instru': instru_results
-                    }, mapping_loading) + instru_loading
+                    "instru": instru_results,
+                },
+                mapping_loading,
+            ) + instru_loading
 
         app.clientside_callback(
-            '''
+            """
             function(exec_info) {
                 if (!exec_info) {
                     return true;
                 }
                 return false;
             }
-            ''',
-            Output(mapping_plot_collapse.button.id, 'disabled'),
+            """,
+            Output(mapping_plot_collapse.button.id, "disabled"),
             [
-                Input(exec_info_store.id, 'data'),
-                ]
-            )
+                Input(exec_info_store.id, "data"),
+            ],
+        )
 
         app.clientside_callback(
-            '''
+            """
             function(exec_info) {
                 // console.log(exec_info)
                 return JSON.stringify(
@@ -398,17 +435,17 @@ class ObsPlanner(ComponentTemplate):
                     2
                     );
             }
-            ''',
-            Output(exec_details.id, 'children'),
+            """,
+            Output(exec_details.id, "children"),
             [
-                Input(exec_info_store.id, 'data'),
-                ]
-            )
+                Input(exec_info_store.id, "data"),
+            ],
+        )
 
         # update the sky map layers
         # with the traj data
         app.clientside_callback(
-            '''
+            """
             function(exec_info) {
                 // console.log(exec_info);
                 if (!exec_info) {
@@ -419,19 +456,20 @@ class ObsPlanner(ComponentTemplate):
                 var layers = svp.layers || window.dash_clientside.no_update;
                 return [fov, layers]
             }
-            ''',
+            """,
             [
-                Output(skyview.id, 'fov'),
-                Output(skyview.id, 'layers'),
-                ],
+                Output(skyview.id, "fov"),
+                Output(skyview.id, "layers"),
+            ],
             [
-                Input(exec_info_store.id, 'data'),
-                ]
-            )
+                Input(exec_info_store.id, "data"),
+            ],
+        )
 
         # connect exec info with plotter
         mapping_plotter.make_mapping_plot_callbacks(
-            app, exec_info_store_id=exec_info_store.id)
+            app, exec_info_store_id=exec_info_store.id
+        )
 
     class Card(ComponentTemplate):
         class Meta:
@@ -440,7 +478,7 @@ class ObsPlanner(ComponentTemplate):
         def __init__(self, title_text, **kwargs):
             super().__init__(**kwargs)
             container = self
-            container.child(html.H6(title_text, className='card-header'))
+            container.child(html.H6(title_text, className="card-header"))
             self.body_container = container.child(dbc.CardBody)
 
 
@@ -451,7 +489,7 @@ def _collect_mapping_config_tooltips():
     result = dict()
     for key, info in mapping_registry._register_info.items():
         # get the underlying entry key and value schema
-        s = info['dispatcher_schema']
+        s = info["dispatcher_schema"]
         tooltips = dict()
         mapping_type = key
         for key_schema, value_schema in s._schema.items():
@@ -459,74 +497,73 @@ def _collect_mapping_config_tooltips():
             desc = key_schema.description
             tooltips[item_key] = desc
         result[mapping_type] = tooltips
-    logger.debug(
-        f"collected tooltips for mapping configs:\n{pformat_yaml(result)}")
-    result['common'] = {
-        't_exp': 'Exposure time of the observation.'
-        }
+    logger.debug(f"collected tooltips for mapping configs:\n{pformat_yaml(result)}")
+    result["common"] = {"t_exp": "Exposure time of the observation."}
     return result
 
 
 @add_schema
 @dataclass
 class ObsPlannerExecConfig(object):
-    """A class for obs planner execution config.
-    """
+    """A class for obs planner execution config."""
+
     # this class looks like the SimuConfig but it is actually independent
     # from it. The idea is that the obs planner template will define
     # components that fill in this object. And all actual planning functions
     # happens by consuming this object.
     mapping: dict = field(
         metadata={
-            'description': "The simulator mapping trajectory config.",
-            'schema': mapping_registry.schema,
-            'pformat_schema_type': f'<{mapping_registry.name}>'
-            }
-        )
+            "description": "The simulator mapping trajectory config.",
+            "schema": mapping_registry.schema,
+            "pformat_schema_type": f"<{mapping_registry.name}>",
+        }
+    )
     obs_params: ObsParamsConfig = field(
         metadata={
-            'description': 'The dict contains the observation parameters.',
-            })
+            "description": "The dict contains the observation parameters.",
+        }
+    )
     # TODO since we now only support LMT/TolTEC, we do not have a
     # good measure of the schema to use for the generic site and instru
     # we just save the raw data dict here.
     site_data: Union[None, dict] = field(
         default=None,
         metadata={
-            'description': "The data dict for the site.",
-            'schema': Or(dict, None)
-            }
-        )
+            "description": "The data dict for the site.",
+            "schema": Or(dict, None),
+        },
+    )
     instru_data: Union[None, dict] = field(
         default=None,
         metadata={
-            'description': "The data dict for the instrument.",
-            'schema': Or(dict, None)
+            "description": "The data dict for the instrument.",
+            "schema": Or(dict, None),
+        },
+    )
+
+    @classmethod
+    def from_data(cls, mapping_data, target_data, site_data=None, instru_data=None):
+        mapping_dict = cls._make_mapping_config_dict(mapping_data, target_data)
+        obs_params_dict = {
+            "f_smp_mapping": "10 Hz",
+            "f_smp_probing": "100 Hz",
+            "t_exp": mapping_data.pop("t_exp", None),
+        }
+        return cls.from_dict(
+            {
+                "mapping": mapping_dict,
+                "obs_params": obs_params_dict,
+                "site_data": site_data,
+                "instru_data": instru_data,
             }
         )
 
-    @classmethod
-    def from_data(
-            cls, mapping_data, target_data, site_data=None, instru_data=None):
-        mapping_dict = cls._make_mapping_config_dict(mapping_data, target_data)
-        obs_params_dict = {
-            'f_smp_mapping': '10 Hz',
-            'f_smp_probing': '100 Hz',
-            't_exp': mapping_data.pop('t_exp', None)
-            }
-        return cls.from_dict({
-            'mapping': mapping_dict,
-            'obs_params': obs_params_dict,
-            'site_data': site_data,
-            'instru_data': instru_data,
-            })
-
     @staticmethod
     def _make_mapping_config_dict(mapping_data, target_data):
-        '''Return mapping config dict from mapping and target data store.'''
+        """Return mapping config dict from mapping and target data store."""
         cfg = dict(**mapping_data)
-        cfg['t0'] = f"{target_data['date']} {target_data['time']}"
-        cfg['target'] = target_data['name']
+        cfg["t0"] = f"{target_data['date']} {target_data['time']}"
+        cfg["target"] = target_data["name"]
         # for mapping config, we discard the t_exp.
         cfg.pop("t_exp", None)
         return cfg
@@ -539,45 +576,51 @@ class ObsPlannerExecConfig(object):
     def get_simulator_runtime(self):
         """Return a simulator runtime object from this config."""
         # dispatch site/instru to create parts of the simu config dict
-        if self.site_data['name'] == 'lmt' and \
-                self.instru_data['name'] == 'toltec':
+        if self.site_data["name"] == "lmt" and self.instru_data["name"] == "toltec":
             simu_cfg = self._make_lmt_toltec_simu_config_dict(
-                lmt_data=self.site_data, toltec_data=self.instru_data)
+                lmt_data=self.site_data, toltec_data=self.instru_data
+            )
         else:
             raise ValueError("unsupported site/instruments for simu.")
         # add to simu cfg the mapping and obs_params
         exec_cfg = self.to_yaml_dict()
-        rupdate(simu_cfg, {
-            'simu': {
-                'obs_params': exec_cfg['obs_params'],
-                'mapping': exec_cfg['mapping'],
+        rupdate(
+            simu_cfg,
+            {
+                "simu": {
+                    "obs_params": exec_cfg["obs_params"],
+                    "mapping": exec_cfg["mapping"],
                 }
-            })
+            },
+        )
         return SimulatorRuntime(simu_cfg)
 
     @staticmethod
     def _make_lmt_toltec_simu_config_dict(lmt_data, toltec_data):
         """Return simu config dict segment for LMT TolTEC."""
-        atm_model_name = lmt_data['atm_model_name']
+        atm_model_name = lmt_data["atm_model_name"]
+        tel_surface_rms = f'{lmt_data["tel_surface_rms_um"]} um'
+        apt_path = toltec_data["apt_path"]
+        det_noise_factor = toltec_data["det_noise_factors"][atm_model_name]
         return {
-            'simu': {
-                'jobkey': 'obs_planner_simu',
-                'obs_params': {
-                    'f_smp_probing': '122 Hz',
-                    'f_smp_mapping': '20 Hz'
-                    },
-                'instrument': {
-                    'name': 'toltec',
-                    },
-                'sources': [
+            "simu": {
+                "jobkey": "obs_planner_simu",
+                "obs_params": {"f_smp_probing": "122 Hz", "f_smp_mapping": "20 Hz"},
+                "instrument": {
+                    "name": "toltec",
+                    "array_prop_table": apt_path,
+                },
+                "sources": [
                     {
-                        'type': 'toltec_power_loading',
-                        'atm_model_name': atm_model_name,
-                        'atm_cache_dir': None,
-                        },
-                    ],
-                }
+                        "type": "toltec_power_loading",
+                        "atm_model_name": atm_model_name,
+                        "atm_cache_dir": None,
+                        "tel_surface_rms": tel_surface_rms,
+                        "det_noise_factor": det_noise_factor
+                    },
+                ],
             }
+        }
 
     def __hash__(self):
         # allow this object to be hashed so we can cache it to avoid
@@ -588,19 +631,18 @@ class ObsPlannerExecConfig(object):
     @timeit
     def make_traj_data(self):
         logger = get_logger()
-        logger.info(f'make traj data for {pformat_yaml(self.to_dict())}')
+        logger.info(f"make traj data for {pformat_yaml(self.to_dict())}")
         if self.site_data is None:
             logger.warning("no site data found for generating trajectory.")
             return None
         # get observer from site name
-        observer = ObsSite.get_observer(self.site_data['name'])
+        observer = ObsSite.get_observer(self.site_data["name"])
         logger.debug(f"observer: {observer}")
 
         mapping_model = self.mapping.get_model(observer=observer)
 
         t_exp = self.obs_params.t_exp or mapping_model.t_pattern
-        dt_smp_s = (
-            1. / self.obs_params.f_smp_mapping).to_value(u.s)
+        dt_smp_s = (1.0 / self.obs_params.f_smp_mapping).to_value(u.s)
         t = np.arange(0, t_exp.to_value(u.s) + dt_smp_s, dt_smp_s) << u.s
         n_pts = t.size
         # ensure we at least have 100 points
@@ -620,13 +662,13 @@ class ObsPlannerExecConfig(object):
 
         # and we can convert the bs_coords to other frames if needed
         altaz_frame = resolve_sky_coords_frame(
-            'altaz', observer=observer, time_obs=time_obs
-            )
+            "altaz", observer=observer, time_obs=time_obs
+        )
         # this interpolator can speeds things up a bit
-        erfa_interp_len = 300. << u.s
+        erfa_interp_len = 300.0 << u.s
         with erfa_astrom.set(ErfaAstromInterpolator(erfa_interp_len)):
             # and we can convert the bs_coords to other frames if needed
-            bs_coords_icrs = bs_coords.transform_to('icrs')
+            bs_coords_icrs = bs_coords.transform_to("icrs")
 
             bs_coords_altaz = bs_coords.transform_to(altaz_frame)
             # also for the target coord
@@ -636,30 +678,30 @@ class ObsPlannerExecConfig(object):
         bs_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
             bs_coords_icrs.ra,
             bs_coords_icrs.dec,
-            )
+        )
         bs_traj_data = {
-            't_exp': t_exp,
-            'time_obs': time_obs,
-            'dlon': dlon,
-            'dlat': dlat,
-            'ra': bs_coords_icrs.ra,
-            'dec': bs_coords_icrs.dec,
-            'az': bs_coords_altaz.az,
-            'alt': bs_coords_altaz.alt,
-            'target_az': target_coords_altaz.az,
-            'target_alt': target_coords_altaz.alt,
+            "t_exp": t_exp,
+            "time_obs": time_obs,
+            "dlon": dlon,
+            "dlat": dlat,
+            "ra": bs_coords_icrs.ra,
+            "dec": bs_coords_icrs.dec,
+            "az": bs_coords_altaz.az,
+            "alt": bs_coords_altaz.alt,
+            "target_az": target_coords_altaz.az,
+            "target_alt": target_coords_altaz.alt,
             "sky_bbox_icrs": bs_sky_bbox_icrs,
-            }
+        }
         # make instru specific traj data
         if self.instru_data:
-            obsinstru = ObsInstru.from_name(self.instru_data['name'])
+            obsinstru = ObsInstru.from_name(self.instru_data["name"])
             instru_traj_data = obsinstru.make_traj_data(self, bs_traj_data)
         else:
             instru_traj_data = None
         return {
-            'site': bs_traj_data,
-            'instru': instru_traj_data,
-            }
+            "site": bs_traj_data,
+            "instru": instru_traj_data,
+        }
 
 
 @functools.lru_cache(maxsize=8)
@@ -668,7 +710,6 @@ def _make_traj_data_cached(exec_config):
 
 
 class ObsPlannerMappingPresetsSelect(ComponentTemplate):
-
     class Meta:
         component_cls = dbc.Container
 
@@ -679,9 +720,9 @@ class ObsPlannerMappingPresetsSelect(ComponentTemplate):
     _mapping_config_tooltips = _collect_mapping_config_tooltips()
 
     def __init__(self, presets_config_path=None, t_exp_max=1 << u.h, **kwargs):
-        kwargs.setdefault('fluid', True)
+        kwargs.setdefault("fluid", True)
         super().__init__(**kwargs)
-        with open(presets_config_path, 'r') as fo:
+        with open(presets_config_path, "r") as fo:
             self._presets = PresetsConfig.from_dict(yaml_load(fo))
         self._t_exp_max = t_exp_max
         container = self
@@ -698,17 +739,13 @@ class ObsPlannerMappingPresetsSelect(ComponentTemplate):
     def make_mapping_preset_options(self):
         result = []
         for preset in self.presets:
-            result.append({
-                'label': preset.label,
-                'value': preset.key
-                })
+            result.append({"label": preset.label, "value": preset.key})
         return result
 
     def setup_layout(self, app):
         container = self
         controls_form = container.child(dbc.Form)
-        controls_form_container = controls_form.child(
-            dbc.Row, className='gx-2 gy-2')
+        controls_form_container = controls_form.child(dbc.Row, className="gx-2 gy-2")
         # mapping_preset_select = controls_form_container.child(
         #     LabeledDropdown(
         #         label_text='Mapping Pattern',
@@ -718,94 +755,83 @@ class ObsPlannerMappingPresetsSelect(ComponentTemplate):
         #         )).dropdown
         mapping_preset_select = controls_form_container.child(
             dbc.Select,
-            size='sm',
-            placeholder='Choose a mapping pattern template to edit ...',
-            )
-        mapping_preset_feedback = controls_form_container.child(
-            dbc.FormFeedback)
+            size="sm",
+            placeholder="Choose a mapping pattern template to edit ...",
+        )
+        mapping_preset_feedback = controls_form_container.child(dbc.FormFeedback)
         mapping_preset_select.options = self.make_mapping_preset_options()
-        mapping_preset_tooltip = controls_form_container.child(
-            html.Div)
-        mapping_preset_form_container = controls_form_container.child(
-            html.Div)
+        mapping_preset_tooltip = controls_form_container.child(html.Div)
+        mapping_preset_form_container = controls_form_container.child(html.Div)
         mapping_preset_data_store = controls_form_container.child(dcc.Store)
         mapping_ref_frame_select = controls_form_container.child(
             LabeledChecklist(
-                label_text='Mapping Reference Frame',
-                className='w-auto',
-                size='sm',
+                label_text="Mapping Reference Frame",
+                className="w-auto",
+                size="sm",
                 # set to true to allow multiple check
                 multi=False,
                 checklist_props={
-                    'options': [
+                    "options": [
                         {
-                            'label': "AZ/Alt",
-                            'value': "altaz",
-                            },
+                            "label": "AZ/Alt",
+                            "value": "altaz",
+                        },
                         {
-                            'label': "RA/Dec",
-                            'value': "icrs",
-                            }
-                        ],
-                    'value': 'altaz'
-                    }
-                )).checklist
+                            "label": "RA/Dec",
+                            "value": "icrs",
+                        },
+                    ],
+                    "value": "altaz",
+                },
+            )
+        ).checklist
         super().setup_layout(app)
         self.make_mapping_preset_form_callbacks(
-            app, parent_id=mapping_preset_form_container.id,
+            app,
+            parent_id=mapping_preset_form_container.id,
             preset_select_id=mapping_preset_select.id,
-            datastore_id=mapping_preset_data_store.id
-            )
+            datastore_id=mapping_preset_data_store.id,
+        )
 
         @app.callback(
             [
-                Output(mapping_preset_select.id, 'valid'),
-                Output(mapping_preset_select.id, 'invalid'),
-                Output(mapping_preset_feedback.id, 'children'),
-                Output(mapping_preset_feedback.id, 'type'),
-                ],
-            [
-                Input(self.info_store.id, 'data')
-                ]
-            )
+                Output(mapping_preset_select.id, "valid"),
+                Output(mapping_preset_select.id, "invalid"),
+                Output(mapping_preset_feedback.id, "children"),
+                Output(mapping_preset_feedback.id, "type"),
+            ],
+            [Input(self.info_store.id, "data")],
+        )
         def validate_mapping(mapping_data):
             if mapping_data is None:
-                return [False, True, 'Invalid mapping settings.', 'invalid']
+                return [False, True, "Invalid mapping settings.", "invalid"]
             # we use some fake data to initialize the mapping config object
-            target_data = {
-                'name': '180d 0d',
-                'date': '2022-02-02',
-                'time': '06:00:00'
-                }
+            target_data = {"name": "180d 0d", "date": "2022-02-02", "time": "06:00:00"}
             # this should never fail since both mapping_data and the
             # target_data should be always correct at this point
-            exec_config = ObsPlannerExecConfig.from_data(
-                mapping_data, target_data
-                )
+            exec_config = ObsPlannerExecConfig.from_data(mapping_data, target_data)
             mapping_config = exec_config.mapping
             t_pattern = mapping_config.get_offset_model().t_pattern
             # for those have t_exp, we report the total exposure time
-            if 't_exp' in mapping_data:
-                t_exp = mapping_data['t_exp']
+            if "t_exp" in mapping_data:
+                t_exp = mapping_data["t_exp"]
                 feedback_content = (
-                    f' Total exposure time: {t_exp}. '
-                    f'Time to finish one pass: {t_pattern:.2f}.')
-                return [True, False, feedback_content, 'valid']
+                    f" Total exposure time: {t_exp}. "
+                    f"Time to finish one pass: {t_pattern:.2f}."
+                )
+                return [True, False, feedback_content, "valid"]
             # raster like patterns, we check the exp time to make sure
             # it is ok
             t_exp_max = self._t_exp_max
             if t_pattern > self._t_exp_max:
                 feedback_content = (
-                    f'The pattern takes {t_pattern:.2f} to finish, which '
-                    f'exceeds the required maximum value of {t_exp_max}.'
-                    )
-                return [
-                    False, True, feedback_content, 'invalid'
-                    ]
+                    f"The pattern takes {t_pattern:.2f} to finish, which "
+                    f"exceeds the required maximum value of {t_exp_max}."
+                )
+                return [False, True, feedback_content, "invalid"]
             # then we just report the exposure time
-            feedback_content = (
-                f'Time to finish the pattern: {t_pattern:.2f}.')
-            return [True, False, feedback_content, 'valid']
+            feedback_content = f"Time to finish the pattern: {t_pattern:.2f}."
+            return [True, False, feedback_content, "valid"]
 
         app.clientside_callback(
             """
@@ -818,165 +844,165 @@ class ObsPlannerMappingPresetsSelect(ComponentTemplate):
                 return data
             }
             """,
-            output=Output(self.info_store.id, 'data'),
+            output=Output(self.info_store.id, "data"),
             inputs=[
-                Input(mapping_ref_frame_select.id, 'value'),
-                Input(mapping_preset_data_store.id, 'data')
-                ])
+                Input(mapping_ref_frame_select.id, "value"),
+                Input(mapping_preset_data_store.id, "data"),
+            ],
+        )
 
         @app.callback(
-            Output(mapping_preset_tooltip.id, 'children'),
-            [
-                Input(mapping_preset_select.id, 'value')
-                ]
-            )
+            Output(mapping_preset_tooltip.id, "children"),
+            [Input(mapping_preset_select.id, "value")],
+        )
         def make_preset_tooltip(preset_name):
             if preset_name is None:
                 raise PreventUpdate
-            preset = self._presets.get(type='mapping', key=preset_name)
+            preset = self._presets.get(type="mapping", key=preset_name)
             header_text = preset.description
             if header_text is None:
-                type = preset.get_data_item('type').value
-                header_text = f'mapping type: {type}'
+                type = preset.get_data_item("type").value
+                header_text = f"mapping type: {type}"
             content_text = preset.description_long
             if content_text is not None:
                 content_text = html.P(content_text)
-            return dbc.Popover([
-                    dbc.PopoverBody(header_text),
-                    dbc.PopoverBody(content_text)
-                ],
+            return dbc.Popover(
+                [dbc.PopoverBody(header_text), dbc.PopoverBody(content_text)],
                 target=mapping_preset_select.id,
-                trigger='hover'
-                )
+                trigger="hover",
+            )
 
     def make_mapping_preset_form_callbacks(
-            self, app,
-            parent_id, preset_select_id, datastore_id):
+        self, app, parent_id, preset_select_id, datastore_id
+    ):
         # here we create dynamic layout for given selected preset
         # and define pattern matching layout to collect values
         # we turn off auto_index because we'll use the unique key
         # to identify each field
         pmid = PatternMatchingId(
-            container_id=parent_id, preset_name='', key='', auto_index=False)
+            container_id=parent_id, preset_name="", key="", auto_index=False
+        )
 
         # the callback to make preset form
         @app.callback(
-            Output(parent_id, 'children'),
+            Output(parent_id, "children"),
             [
-                Input(preset_select_id, 'value'),
-                ],
+                Input(preset_select_id, "value"),
+            ],
             # prevent_initial_call=True
-            )
+        )
         def make_mapping_preset_layout(preset_name):
             if preset_name is None:
                 return None
-            self.logger.debug(
-                f"generate form for mapping preset {preset_name}")
-            preset = self._presets.get(type='mapping', key=preset_name)
+            self.logger.debug(f"generate form for mapping preset {preset_name}")
+            preset = self._presets.get(type="mapping", key=preset_name)
             container = NullComponent(id=parent_id)
             form_container = container.child(dbc.Form).child(
-                        dbc.Row, className='gx-2 gy-2')
+                dbc.Row, className="gx-2 gy-2"
+            )
             # get default tooltip for mapping preset
-            mapping_type = preset.get_data_item('type').value
+            mapping_type = preset.get_data_item("type").value
             tooltips = self._mapping_config_tooltips[mapping_type]
-            tooltips.update(self._mapping_config_tooltips['common'])
+            tooltips.update(self._mapping_config_tooltips["common"])
             for entry in preset.data:
                 # make pattern matching id for all fields
                 vmin = entry.value_min
-                if entry.component_type == 'number':
+                if entry.component_type == "number":
                     if vmin is None:
-                        vmin = '-∞'
+                        vmin = "-∞"
                     vmax = entry.value_max
                     if vmax is None:
-                        vmax = '+∞'
-                    placeholder = f'{entry.value} [{vmin}, {vmax}]'
+                        vmax = "+∞"
+                    placeholder = f"{entry.value} [{vmin}, {vmax}]"
                 else:
-                    placeholder = f'{entry.value}'
+                    placeholder = f"{entry.value}"
                 input_props = {
-                    'type': entry.component_type,
-                    'id': pmid(preset_name=preset_name, key=entry.key),
-                    'value': entry.value,
-                    'min': entry.value_min,
-                    'max': entry.value_max,
-                    'placeholder': placeholder,
+                    "type": entry.component_type,
+                    "id": pmid(preset_name=preset_name, key=entry.key),
+                    "value": entry.value,
+                    "min": entry.value_min,
+                    "max": entry.value_max,
+                    "placeholder": placeholder,
                     # 'style': {
                     #     'max-width': '5rem'
                     #     }
-                    }
+                }
                 component_kw = {
-                    'label_text': entry.label or entry.key,
-                    'suffix_text': None if not entry.unit else entry.unit,
-                    'size': 'sm',
-                    'className': 'w-100',
-                    'input_props': input_props,
-                    }
+                    "label_text": entry.label or entry.key,
+                    "suffix_text": None if not entry.unit else entry.unit,
+                    "size": "sm",
+                    "className": "w-100",
+                    "input_props": input_props,
+                }
                 rupdate(component_kw, entry.component_kw)
                 # TODO use custom BS5 to set more sensible breakpoints.
-                entry_input = form_container.child(
-                    dbc.Col, xxl=12, width=12).child(
-                        LabeledInput(**component_kw)).input
+                entry_input = (
+                    form_container.child(dbc.Col, xxl=12, width=12)
+                    .child(LabeledInput(**component_kw))
+                    .input
+                )
                 # tooltip
                 tooltip_text = entry.description
                 if not tooltip_text:
                     tooltip_text = tooltips[entry.key]
-                tooltip_text += f' Preset default: {placeholder}'
+                tooltip_text += f" Preset default: {placeholder}"
                 if entry.unit is not None:
-                    tooltip_text += f' {entry.unit}'
-                form_container.child(
-                    dbc.Tooltip, tooltip_text,
-                    target=entry_input.id)
+                    tooltip_text += f" {entry.unit}"
+                form_container.child(dbc.Tooltip, tooltip_text, target=entry_input.id)
 
             return container.layout
 
         # the callback to collect form data
         # TODO may be make this as clientside
         @app.callback(
-            Output(datastore_id, 'data'),
+            Output(datastore_id, "data"),
             [
-                Input(pmid(
-                    container_id=parent_id,
-                    preset_name=dash.ALL,
-                    key=dash.ALL), 'value'),
-                State(pmid(
-                    container_id=parent_id,
-                    preset_name=dash.ALL,
-                    key=dash.ALL), 'invalid'),
-                ]
-            )
+                Input(
+                    pmid(container_id=parent_id, preset_name=dash.ALL, key=dash.ALL),
+                    "value",
+                ),
+                State(
+                    pmid(container_id=parent_id, preset_name=dash.ALL, key=dash.ALL),
+                    "invalid",
+                ),
+            ],
+        )
         def collect_data(input_values, invalid_values):
             logger = get_logger()
-            logger.debug(f'input_values: {input_values}')
-            logger.debug(f'invalid_values: {invalid_values}')
-            if not input_values or any((i is None for i in input_values)) \
-                    or any(invalid_values):
+            logger.debug(f"input_values: {input_values}")
+            logger.debug(f"invalid_values: {invalid_values}")
+            if (
+                not input_values
+                or any((i is None for i in input_values))
+                or any(invalid_values)
+            ):
                 # invalid form
                 return None
             # get keys from callback context
             result = dict()
             inputs = dash.callback_context.inputs_list[0]
             # get the preset data and the fields dict
-            preset_name = inputs[0]['id']['preset_name']
-            preset = self._presets.get('mapping', preset_name)
+            preset_name = inputs[0]["id"]["preset_name"]
+            preset = self._presets.get("mapping", preset_name)
 
             # here we extract the mapping config dict from preset data
             for input_ in inputs:
-                key = input_['id']['key']
+                key = input_["id"]["key"]
                 item = preset.get_data_item(key)
-                value = input_['value']
+                value = input_["value"]
                 value_text = f'{value} {item.unit or ""}'.strip()
                 result[key] = value_text
             return result
 
 
 class ObsPlannerTargetSelect(ComponentTemplate):
-
     class Meta:
         component_cls = dbc.Container
 
     logger = get_logger()
 
     def __init__(self, site, target_alt_min=20 << u.deg, **kwargs):
-        kwargs.setdefault('fluid', True)
+        kwargs.setdefault("fluid", True)
         super().__init__(**kwargs)
         self._site = site
         self._target_alt_min = target_alt_min
@@ -995,20 +1021,21 @@ class ObsPlannerTargetSelect(ComponentTemplate):
     def setup_layout(self, app):
         container = self
         controls_form_container = container.child(dbc.Form).child(
-                    dbc.Row, className='gx-2 gy-2')
+            dbc.Row, className="gx-2 gy-2"
+        )
         target_name_container = controls_form_container.child(html.Div)
         target_name_input = target_name_container.child(
             dbc.Input,
-            size='sm',
-            type='text',
-            placeholder=(
-                        'M1, NGC 1277, 17.7d -2.1d, 10h09m08s +20d19m18s'),
-            value='M1',
+            size="sm",
+            type="text",
+            placeholder=("M1, NGC 1277, 17.7d -2.1d, 10h09m08s +20d19m18s"),
+            value="M1",
             # autofocus=True,
             debounce=True,
-            )
+        )
         target_name_feedback = target_name_container.child(
-            dbc.FormFeedback, type='valid')
+            dbc.FormFeedback, type="valid"
+        )
         target_name_container.child(
             dbc.Tooltip,
             """
@@ -1016,29 +1043,31 @@ Enter source name or coordinates. Names are sent to a name lookup server
 for resolving the coordinates. Coordinates should be like "17.7d -2.1d"
 or "10h09m08s +20d19m18s".
             """,
-            target=target_name_input.id)
+            target=target_name_input.id,
+        )
 
         # date picker
         date_picker_container = controls_form_container.child(html.Div)
         date_picker_group = date_picker_container.child(
             LabeledInput(
-                label_text='Obs Date',
-                className='w-auto',
-                size='sm',
+                label_text="Obs Date",
+                className="w-auto",
+                size="sm",
                 input_props={
                     # these are the dbc.Input kwargs
-                    'type': 'text',
-                    'min': '1990-01-01',
-                    'max': '2099-12-31',
-                    'placeholder': 'yyyy-mm-dd',
+                    "type": "text",
+                    "min": "1990-01-01",
+                    "max": "2099-12-31",
+                    "placeholder": "yyyy-mm-dd",
                     # 'style': {
                     #     'flex': '0 1 7rem'
                     #     },
-                    'debounce': True,
-                    'value': '2022-01-01',
-                    'pattern': r'[1-2]\d\d\d-[0-1]\d-[0-3]\d',
-                    },
-                ))
+                    "debounce": True,
+                    "value": "2022-01-01",
+                    "pattern": r"[1-2]\d\d\d-[0-1]\d-[0-3]\d",
+                },
+            )
+        )
         date_picker_input = date_picker_group.input
         date_picker_container.child(
             dbc.Tooltip,
@@ -1046,28 +1075,30 @@ or "10h09m08s +20d19m18s".
 The date of observation. The visibility report is done by checking if
 the target elevation is > {self._target_alt_min} during the night time.
             """,
-            target=date_picker_input.id)
+            target=date_picker_input.id,
+        )
         date_picker_feedback = date_picker_group.feedback
 
         # time picker
         time_picker_container = controls_form_container.child(html.Div)
         time_picker_group = time_picker_container.child(
             LabeledInput(
-                label_text='Obs Start Time (UT)',
-                className='w-auto',
-                size='sm',
+                label_text="Obs Start Time (UT)",
+                className="w-auto",
+                size="sm",
                 input_props={
                     # these are the dbc.Input kwargs
-                    'type': 'text',
-                    'placeholder': 'HH:MM:SS',
+                    "type": "text",
+                    "placeholder": "HH:MM:SS",
                     # 'style': {
                     #     'flex': '0 1 7rem'
                     #     },
-                    'debounce': True,
-                    'value': '06:00:00',
-                    'pattern': r'[0-1]\d:[0-5]\d:[0-5]\d',
-                    },
-                ))
+                    "debounce": True,
+                    "value": "06:00:00",
+                    "pattern": r"[0-1]\d:[0-5]\d:[0-5]\d",
+                },
+            )
+        )
         time_picker_input = time_picker_group.input
         time_picker_container.child(
             dbc.Tooltip,
@@ -1075,20 +1106,21 @@ the target elevation is > {self._target_alt_min} during the night time.
 The time of observation. The target has to be at
 elevation > {self._target_alt_min} during the night.
             """,
-            target=time_picker_input.id)
+            target=time_picker_input.id,
+        )
         time_picker_feedback = time_picker_group.feedback
         check_button_container = container.child(
-            html.Div,
-            className=(
-                'd-flex justify-content-end mt-2'
-                )
-            )
+            html.Div, className=("d-flex justify-content-end mt-2")
+        )
         check_button = check_button_container.child(
-            dbc.Button, 'Plot Alt. vs Time',
-            color='primary', size='sm',
-            )
+            dbc.Button,
+            "Plot Alt. vs Time",
+            color="primary",
+            size="sm",
+        )
         check_result_modal = check_button_container.child(
-            dbc.Modal, is_open=False, centered=False)
+            dbc.Modal, is_open=False, centered=False
+        )
 
         self._site.make_info_display(container)
 
@@ -1096,146 +1128,129 @@ elevation > {self._target_alt_min} during the night.
 
         @app.callback(
             [
-                Output(self.target_info_store.id, 'data'),
-                Output(target_name_input.id, 'valid'),
-                Output(target_name_input.id, 'invalid'),
-                Output(target_name_feedback.id, 'children'),
-                Output(target_name_feedback.id, 'type'),
-                ],
+                Output(self.target_info_store.id, "data"),
+                Output(target_name_input.id, "valid"),
+                Output(target_name_input.id, "invalid"),
+                Output(target_name_feedback.id, "children"),
+                Output(target_name_feedback.id, "type"),
+            ],
             [
-                Input(target_name_input.id, 'value'),
-             ]
-            )
+                Input(target_name_input.id, "value"),
+            ],
+        )
         def resolve_target(name):
             logger = get_logger()
             logger.info(f"resolve target name {name}")
             if not name:
                 return (
                     None,
-                    False, True,
-                    'Enter the name or coordinate of target.',
-                    'invalid'
-                    )
+                    False,
+                    True,
+                    "Enter the name or coordinate of target.",
+                    "invalid",
+                )
             try:
                 coord = parse_coordinates(name)
-                coord_text = (
-                    f'{coord.ra.degree}d '
-                    f'{coord.dec.degree}d (J2000)'
-                    )
+                coord_text = f"{coord.ra.degree}d " f"{coord.dec.degree}d (J2000)"
                 return (
                     {
-                        'ra_deg': coord.ra.degree,
-                        'dec_deg': coord.dec.degree,
-                        'name': name,
-                     },
-                    True, False,
-                    f'Target coordinate resolved: {coord_text}.',
-                    'valid'
-                    )
+                        "ra_deg": coord.ra.degree,
+                        "dec_deg": coord.dec.degree,
+                        "name": name,
+                    },
+                    True,
+                    False,
+                    f"Target coordinate resolved: {coord_text}.",
+                    "valid",
+                )
             except Exception as e:
-                logger.debug(f'error parsing {name}', exc_info=True)
-                return (
-                    None,
-                    False, True,
-                    f'Unable to resolve target: {e}',
-                    'invalid'
-                    )
+                logger.debug(f"error parsing {name}", exc_info=True)
+                return (None, False, True, f"Unable to resolve target: {e}", "invalid")
 
         obs_constraints = [
-            AltitudeConstraint(self._target_alt_min, 91*u.deg),
-            AtNightConstraint()
-            ]
+            AltitudeConstraint(self._target_alt_min, 91 * u.deg),
+            AtNightConstraint(),
+        ]
         observer = self._site.observer
 
         @app.callback(
             [
-                Output(date_picker_input.id, 'valid'),
-                Output(date_picker_input.id, 'invalid'),
-                Output(date_picker_feedback.id, 'children'),
-                Output(date_picker_feedback.id, 'type'),
-                ],
+                Output(date_picker_input.id, "valid"),
+                Output(date_picker_input.id, "invalid"),
+                Output(date_picker_feedback.id, "children"),
+                Output(date_picker_feedback.id, "type"),
+            ],
             [
-                Input(date_picker_input.id, 'value'),
-                Input(self.target_info_store.id, 'data')
-             ]
-            )
+                Input(date_picker_input.id, "value"),
+                Input(self.target_info_store.id, "data"),
+            ],
+        )
         def validate_date(date_value, data):
             logger = get_logger()
             if data is None:
-                return [False, True, "", 'invalid']
+                return [False, True, "", "invalid"]
             try:
                 t0 = Time(date_value)
             except ValueError:
-                return (
-                    False, True, 'Invalid Date. Use yyyy-mm-dd.', 'invalid')
+                return (False, True, "Invalid Date. Use yyyy-mm-dd.", "invalid")
             target_coord = SkyCoord(
-                ra=data['ra_deg'] << u.deg, dec=data['dec_deg'] << u.deg)
-            target = FixedTarget(name=data['name'], coord=target_coord)
+                ra=data["ra_deg"] << u.deg, dec=data["dec_deg"] << u.deg
+            )
+            target = FixedTarget(name=data["name"], coord=target_coord)
             time_grid = t0 + (np.arange(0, 24, 0.5) << u.h)
             summary = observability_table(
-                    obs_constraints, observer, [target], times=time_grid)
-            logger.info(f'Visibility of targets on day of {t0}\n{summary}')
-            ever_observable = summary['ever observable'][0]
+                obs_constraints, observer, [target], times=time_grid
+            )
+            logger.info(f"Visibility of targets on day of {t0}\n{summary}")
+            ever_observable = summary["ever observable"][0]
             if ever_observable:
-                target_uptime = (
-                    summary['fraction of time observable'][0] * 24) << u.h
+                target_uptime = (summary["fraction of time observable"][0] * 24) << u.h
                 t_mt = observer.target_meridian_transit_time(
-                    t0, target, n_grid_points=48)
+                    t0, target, n_grid_points=48
+                )
                 feedback_content = (
                     f"Total up-time: {target_uptime:.1f}. "
-                    f"Highest at {t_mt.datetime.strftime('UT %H:%M:%S')}.")
-                return (
-                    ever_observable,
-                    not ever_observable,
-                    feedback_content, 'valid'
-                    )
-            feedback_content = (
-                'Target is not up at night. Pick another date.')
-            return (
-                ever_observable,
-                not ever_observable,
-                feedback_content,
-                'invalid'
+                    f"Highest at {t_mt.datetime.strftime('UT %H:%M:%S')}."
                 )
+                return (ever_observable, not ever_observable, feedback_content, "valid")
+            feedback_content = "Target is not up at night. Pick another date."
+            return (ever_observable, not ever_observable, feedback_content, "invalid")
 
         @app.callback(
             [
-                Output(time_picker_input.id, 'valid'),
-                Output(time_picker_input.id, 'invalid'),
-                Output(time_picker_feedback.id, 'children'),
-                Output(time_picker_feedback.id, 'type'),
-                ],
+                Output(time_picker_input.id, "valid"),
+                Output(time_picker_input.id, "invalid"),
+                Output(time_picker_feedback.id, "children"),
+                Output(time_picker_feedback.id, "type"),
+            ],
             [
-                Input(time_picker_input.id, 'value'),
-                Input(date_picker_input.id, 'value'),
-                Input(self.target_info_store.id, 'data'),
-                ]
-            )
+                Input(time_picker_input.id, "value"),
+                Input(date_picker_input.id, "value"),
+                Input(self.target_info_store.id, "data"),
+            ],
+        )
         def validate_time(time_value, date_value, data):
             if data is None:
-                return (False, True, '', 'invalid')
+                return (False, True, "", "invalid")
             # verify time value only.
             try:
-                _ = Time(f'2000-01-01 {time_value}')
+                _ = Time(f"2000-01-01 {time_value}")
             except ValueError:
-                return (
-                    False, True, 'Invalid time. Use HH:MM:SS.', 'invalid')
+                return (False, True, "Invalid time. Use HH:MM:SS.", "invalid")
             # verify target availability
-            t0 = Time(f'{date_value} {time_value}')
+            t0 = Time(f"{date_value} {time_value}")
             if not observer.is_night(t0):
-                sunrise_time_str = observer.sun_rise_time(
-                    t0, which="previous").iso
-                sunset_time_str = observer.sun_set_time(
-                    t0, which="next").iso
+                sunrise_time_str = observer.sun_rise_time(t0, which="previous").iso
+                sunset_time_str = observer.sun_set_time(t0, which="next").iso
                 feedback_content = (
-                    f'The time entered is not at night. Sunrise: '
-                    f'{sunrise_time_str}. '
-                    f'Sunset: {sunset_time_str}'
-                    )
-                return (False, True, feedback_content, 'invalid')
-            target_coord_icrs = SkyCoord(
-                ra=data['ra_deg'] << u.deg, dec=data['dec_deg'] << u.deg
+                    f"The time entered is not at night. Sunrise: "
+                    f"{sunrise_time_str}. "
+                    f"Sunset: {sunset_time_str}"
                 )
+                return (False, True, feedback_content, "invalid")
+            target_coord_icrs = SkyCoord(
+                ra=data["ra_deg"] << u.deg, dec=data["dec_deg"] << u.deg
+            )
             altaz_frame = observer.altaz(time=t0)
             target_coord_altaz = target_coord_icrs.transform_to(altaz_frame)
             target_az = target_coord_altaz.az
@@ -1243,35 +1258,31 @@ elevation > {self._target_alt_min} during the night.
             alt_min = self._target_alt_min
             if target_alt < self._target_alt_min:
                 feedback_content = (
-                        f'Target at Az = {target_az.degree:.4f}d '
-                        f'Alt ={target_alt.degree:.4f}d '
-                        f'is too low (< {alt_min}) to observer. '
-                        f'Pick another time.'
-                    )
-                return (False, True, feedback_content, 'invalid')
+                    f"Target at Az = {target_az.degree:.4f}d "
+                    f"Alt ={target_alt.degree:.4f}d "
+                    f"is too low (< {alt_min}) to observer. "
+                    f"Pick another time."
+                )
+                return (False, True, feedback_content, "invalid")
             feedback_content = (
-                f'Target Az = {target_az.degree:.4f}d '
-                f'Alt = {target_alt.degree:.4f}d.'
-                )
-            return (
-                True, False,
-                feedback_content,
-                'valid'
-                )
+                f"Target Az = {target_az.degree:.4f}d "
+                f"Alt = {target_alt.degree:.4f}d."
+            )
+            return (True, False, feedback_content, "valid")
 
         @app.callback(
             [
-                Output(check_result_modal.id, 'children'),
-                Output(check_result_modal.id, 'is_open'),
-                ],
+                Output(check_result_modal.id, "children"),
+                Output(check_result_modal.id, "is_open"),
+            ],
             [
-                Input(check_button.id, 'n_clicks'),
-                State(date_picker_input.id, 'value'),
-                State(time_picker_input.id, 'value'),
-                State(self.target_info_store.id, 'data'),
-                ],
+                Input(check_button.id, "n_clicks"),
+                State(date_picker_input.id, "value"),
+                State(time_picker_input.id, "value"),
+                State(self.target_info_store.id, "data"),
+            ],
             prevent_initial_call=True,
-            )
+        )
         def check_visibility(n_clicks, date_value, time_value, target_data):
             # composing a dummy exec config object so we can call
             # the plotter
@@ -1279,14 +1290,14 @@ elevation > {self._target_alt_min} during the night.
                 return [dbc.ModalBody(content), True]
 
             if target_data is None:
-                return make_output('Invalid target format.')
+                return make_output("Invalid target format.")
             t_exp = 0 << u.min
             try:
-                t0 = Time(f'{date_value}')
+                t0 = Time(f"{date_value}")
             except ValueError:
                 return make_output("Invalid date format.")
             try:
-                t0 = Time(f'{date_value} {time_value}')
+                t0 = Time(f"{date_value} {time_value}")
                 # this will show the target position
                 t_exp = 2 << u.min
             except ValueError:
@@ -1294,14 +1305,13 @@ elevation > {self._target_alt_min} during the night.
             plotter = ObsPlannerMappingPlotter(site=self._site)
             target_coord = SkyCoord(
                 f"{target_data['ra_deg']} {target_data['dec_deg']}",
-                unit=u.deg, frame='icrs')
+                unit=u.deg,
+                frame="icrs",
+            )
             exec_config = Namespace(
                 obs_params=Namespace(t_exp=t_exp),
-                mapping=Namespace(
-                    t0=t0,
-                    target_coord=target_coord
-                    )
-                )
+                mapping=Namespace(t0=t0, target_coord=target_coord),
+            )
             fig = plotter._plot_visibility(exec_config)
             return make_output(dcc.Graph(figure=fig))
 
@@ -1320,26 +1330,26 @@ elevation > {self._target_alt_min} during the night.
                 return null
             }
             """,
-            output=Output(self.info_store.id, 'data'),
+            output=Output(self.info_store.id, "data"),
             inputs=[
-                Input(date_picker_input.id, 'value'),
-                Input(date_picker_input.id, 'valid'),
-                Input(time_picker_input.id, 'value'),
-                Input(time_picker_input.id, 'valid'),
-                Input(self.target_info_store.id, 'data'),
-                Input(target_name_input.id, 'valid'),
-                ])
+                Input(date_picker_input.id, "value"),
+                Input(date_picker_input.id, "valid"),
+                Input(time_picker_input.id, "value"),
+                Input(time_picker_input.id, "valid"),
+                Input(self.target_info_store.id, "data"),
+                Input(target_name_input.id, "valid"),
+            ],
+        )
 
 
 class ObsPlannerMappingPlotter(ComponentTemplate):
-
     class Meta:
         component_cls = dbc.Container
 
     logger = get_logger()
 
     def __init__(self, site, target_alt_min=20 << u.deg, **kwargs):
-        kwargs.setdefault('fluid', True)
+        kwargs.setdefault("fluid", True)
         super().__init__(**kwargs)
         self._site = site
         self._target_alt_min = target_alt_min
@@ -1347,13 +1357,17 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
         container = self
         self._graphs = [
             c.child(dcc.Graph, figure=self._make_empty_figure())
-            for c in container.colgrid(1, 4,).ravel()
-            ]
+            for c in container.colgrid(
+                1,
+                4,
+            ).ravel()
+        ]
 
     def make_mapping_plot_callbacks(self, app, exec_info_store_id):
         # update graph with figures in exec_info_store
         app.clientside_callback(
-            _j2env.from_string("""
+            _j2env.from_string(
+                """
             function(exec_data) {
                 if (exec_data === null) {
                     return Array(4).fill({{empty_fig}});
@@ -1366,22 +1380,17 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
                     figs["icrs"],
                     ]
             }
-            """).render(empty_fig=json.dumps(self._make_empty_figure())),
-            [
-                Output(graph.id, 'figure')
-                for graph in self._graphs
-                ],
-            [
-                Input(exec_info_store_id, 'data')
-                ]
-            )
+            """
+            ).render(empty_fig=json.dumps(self._make_empty_figure())),
+            [Output(graph.id, "figure") for graph in self._graphs],
+            [Input(exec_info_store_id, "data")],
+        )
 
     @timeit
     def make_figures(self, exec_config, traj_data):
 
         visibility_fig = self._plot_visibility(exec_config)
-        mapping_figs = self._plot_mapping_pattern(
-            exec_config, traj_data)
+        mapping_figs = self._plot_mapping_pattern(exec_config, traj_data)
         figs = dict(**mapping_figs, visibility=visibility_fig)
         return figs
 
@@ -1389,57 +1398,58 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
     def make_skyview_params(self, exec_config, traj_data):
         # return the dict that setup the skyview.
         # mapping_config = exec_config.mapping
-        bs_traj_data = traj_data['site']
-        instru_traj_data = traj_data['instru']
+        bs_traj_data = traj_data["site"]
+        instru_traj_data = traj_data["instru"]
         bs_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
-            bs_traj_data['ra'],
-            bs_traj_data['dec'],
-            )
+            bs_traj_data["ra"],
+            bs_traj_data["dec"],
+        )
         fov_sky_bbox = bs_sky_bbox_icrs
         if instru_traj_data is not None:
             # figure out instru overlay layout bbox
             instru_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
-                instru_traj_data['ra'],
-                instru_traj_data['dec'],
-                )
+                instru_traj_data["ra"],
+                instru_traj_data["dec"],
+            )
             fov_sky_bbox = fov_sky_bbox.pad_with(
                 instru_sky_bbox_icrs.width,
                 instru_sky_bbox_icrs.height,
-                )
-        fov = max(
-                fov_sky_bbox.width, fov_sky_bbox.height).to_value(u.deg)
+            )
+        fov = max(fov_sky_bbox.width, fov_sky_bbox.height).to_value(u.deg)
         # set the view fov larger
         fov = fov / 0.618
         layers = list()
         # the mapping pattern layer
         layers.append(
             {
-                'type': "overlay",
-                "data": [{
-                    "data": list(zip(
-                        bs_traj_data['ra'].degree,
-                        bs_traj_data['dec'].degree)),
-                    "type": "polyline",
-                    "color": "red",
-                    "lineWidth": 1,
-                    }],
+                "type": "overlay",
+                "data": [
+                    {
+                        "data": list(
+                            zip(bs_traj_data["ra"].degree, bs_traj_data["dec"].degree)
+                        ),
+                        "type": "polyline",
+                        "color": "red",
+                        "lineWidth": 1,
+                    }
+                ],
                 "options": {
-                    'name': "Mapping Trajectory",
+                    "name": "Mapping Trajectory",
                     "color": "red",
                     "show": True,
-                    }
                 },
-            )
+            },
+        )
         if instru_traj_data is not None:
             layers.extend(instru_traj_data["skyview_layers"])
-        params = dict({
-            "target": exec_config.mapping.target,
-            "fov": fov,
-            "layers": layers,
-            "options": {
-                "showLayerBox": True
-                }
-            })
+        params = dict(
+            {
+                "target": exec_config.mapping.target,
+                "fov": fov,
+                "layers": layers,
+                "options": {"showLayerBox": True},
+            }
+        )
         return params
 
     @staticmethod
@@ -1451,48 +1461,43 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
     def _get_target_coords_altaz_for_day(self, target_coord_str, day_start):
         day_grid = self._make_day_grid(day_start)
         observer = self._site.observer
-        return SkyCoord(target_coord_str).transform_to(
-            observer.altaz(time=day_grid))
+        return SkyCoord(target_coord_str).transform_to(observer.altaz(time=day_grid))
 
     fig_layout_default = {
-        'xaxis': dict(
+        "xaxis": dict(
             showline=True,
             showgrid=False,
             showticklabels=True,
-            linecolor='black',
+            linecolor="black",
             linewidth=4,
-            ticks='outside',
-            ),
-        'yaxis': dict(
+            ticks="outside",
+        ),
+        "yaxis": dict(
             showline=True,
             showgrid=False,
             showticklabels=True,
-            linecolor='black',
+            linecolor="black",
             linewidth=4,
-            ticks='outside',
-            ),
-        'plot_bgcolor': 'white',
-        'margin': dict(
+            ticks="outside",
+        ),
+        "plot_bgcolor": "white",
+        "margin": dict(
             autoexpand=True,
             l=0,
             r=10,
             b=0,
             t=10,
-            ),
-        'modebar': {
-            'orientation': 'v',
-            },
-        }
+        ),
+        "modebar": {
+            "orientation": "v",
+        },
+    }
 
     def _make_empty_figure(self):
         return {
             "layout": {
-                "xaxis": {
-                    "visible": False
-                    },
-                "yaxis": {
-                    "visible": False
-                    },
+                "xaxis": {"visible": False},
+                "yaxis": {"visible": False},
                 # "annotations": [
                 #     {
                 #         "text": "No matching data found",
@@ -1504,8 +1509,8 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
                 #             }
                 #         }
                 #     ]
-                }
             }
+        }
 
     @timeit
     def _plot_visibility(self, exec_config):
@@ -1521,16 +1526,17 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
         observer = self._site.observer
         t0 = mapping_config.t0
         t1 = t0 + t_exp
-        day_start = Time(int(t0.mjd), format='mjd')
+        day_start = Time(int(t0.mjd), format="mjd")
         day_grid = self._make_day_grid(day_start)
         # day_end = day_start + (24 << u.h)
 
         target_coord = mapping_config.target_coord
         target_coords_altaz_for_day = self._get_target_coords_altaz_for_day(
-            target_coord.to_string('hmsdms'), day_start)
+            target_coord.to_string("hmsdms"), day_start
+        )
         # target_name = mapping_config.target
-        t_sun_rise = observer.sun_rise_time(day_start, which='next')
-        t_sun_set = observer.sun_set_time(day_start, which='next')
+        t_sun_rise = observer.sun_rise_time(day_start, which="next")
+        t_sun_set = observer.sun_set_time(day_start, which="next")
 
         # since day_grid is sorted we can use bisect to locate index
         # in the time grid.
@@ -1543,10 +1549,11 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
         i_t1 = bisect.bisect_right(day_grid, t1)
 
         logger.debug(
-            f'sun_rise: {t_sun_rise.iso}\n'
-            f'sun_set: {t_sun_set.iso}\n'
-            f'{i_sun_rise=} {i_sun_set=} '
-            f'{i_t0=} {i_t1=}')
+            f"sun_rise: {t_sun_rise.iso}\n"
+            f"sun_set: {t_sun_set.iso}\n"
+            f"{i_sun_rise=} {i_sun_set=} "
+            f"{i_t0=} {i_t1=}"
+        )
         # split the data into three segments at break points b0 and b1
         if i_sun_rise < i_sun_set:
             # middle is daytime
@@ -1558,33 +1565,25 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
             b0 = i_sun_set
             b1 = i_sun_rise
             seg_is_daytime = [True, False, True]
-        seg_slices = [
-            slice(None, b0),
-            slice(b0, b1 + 1),
-            slice(b1 + 1, None)
-            ]
+        seg_slices = [slice(None, b0), slice(b0, b1 + 1), slice(b1 + 1, None)]
 
         trace_kw_daytime = {
-            'line': {
-                'color': 'orange'
-                },
-            'name': 'Daytime',
-            'legendgroup': 'daytime'
-            }
+            "line": {"color": "orange"},
+            "name": "Daytime",
+            "legendgroup": "daytime",
+        }
         trace_kw_nighttime = {
-            'line': {
-                'color': 'blue'
-                },
-            'name': 'Night',
-            'legendgroup': 'nighttime'
-            }
+            "line": {"color": "blue"},
+            "name": "Night",
+            "legendgroup": "nighttime",
+        }
 
         fig = make_subplots(1, 1, fig_layout=self.fig_layout_default)
 
         trace_kw = {
-                'type': 'scattergl',
-                'mode': 'lines',
-                }
+            "type": "scattergl",
+            "mode": "lines",
+        }
         seg_showlegend = [True, True, False]
         # sometimes the first segment is empty so we put the legend on the
         # third one
@@ -1592,45 +1591,50 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
             seg_showlegend = [False, True, True]
         # make seg_trace kwargs and create trace for each segment
         for s, is_daytime, showlegend in zip(
-                seg_slices, seg_is_daytime, seg_showlegend):
+            seg_slices, seg_is_daytime, seg_showlegend
+        ):
             if is_daytime:
                 trace_kw_s = dict(trace_kw, **trace_kw_daytime)
             else:
                 trace_kw_s = dict(trace_kw, **trace_kw_nighttime)
             # create and add trace
             fig.add_trace(
-                dict(trace_kw_s, **{
-                    'x': day_grid[s].to_datetime(),
-                    'y': target_coords_altaz_for_day[s].alt.degree,
-                    'showlegend': showlegend
-                    }))
+                dict(
+                    trace_kw_s,
+                    **{
+                        "x": day_grid[s].to_datetime(),
+                        "y": target_coords_altaz_for_day[s].alt.degree,
+                        "showlegend": showlegend,
+                    },
+                )
+            )
         # obs period
         fig.add_trace(
-            dict(trace_kw, **{
-                'x': day_grid[i_t0:i_t1].to_datetime(),
-                'y': target_coords_altaz_for_day[i_t0:i_t1].alt.degree,
-                'mode': 'markers',
-                'marker': {
-                    'color': 'red',
-                    'size': 8
-                    },
-                'name': "Target"
-                })
+            dict(
+                trace_kw,
+                **{
+                    "x": day_grid[i_t0:i_t1].to_datetime(),
+                    "y": target_coords_altaz_for_day[i_t0:i_t1].alt.degree,
+                    "mode": "markers",
+                    "marker": {"color": "red", "size": 8},
+                    "name": "Target",
+                },
             )
+        )
         # shaded region for too low elevation
         fig.add_hrect(
             y0=-90,
             y1=self._target_alt_min.to_value(u.deg),
-            line_width=1, fillcolor="gray", opacity=0.2)
+            line_width=1,
+            fillcolor="gray",
+            opacity=0.2,
+        )
 
         # update some layout
-        fig.update_xaxes(
-            title_text="Time [UT]",
-            automargin=True)
+        fig.update_xaxes(title_text="Time [UT]", automargin=True)
         fig.update_yaxes(
-            title_text="Target Altitude [deg]",
-            automargin=True,
-            range=[-10, 90])
+            title_text="Target Altitude [deg]", automargin=True, range=[-10, 90]
+        )
         fig.update_layout(
             yaxis_autorange=False,
             legend=dict(
@@ -1640,103 +1644,106 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
                 yanchor="bottom",
                 xanchor="center",
                 bgcolor="#dfdfdf",
-                )
-            )
+            ),
+        )
         return fig
 
     @timeit
     def _plot_mapping_pattern(self, exec_config, traj_data):
         figs = [
-            make_subplots(1, 1, fig_layout=self.fig_layout_default)
-            for _ in range(3)]
+            make_subplots(1, 1, fig_layout=self.fig_layout_default) for _ in range(3)
+        ]
 
         trace_kw = {
-                'type': 'scattergl',
-                'mode': 'lines',
-                'line': {
-                    'color': 'red'
-                    },
-                'showlegend': False,
-                # 'marker': {
-                #     'color': 'black',
-                #     'size': 2
-                #     }
-                }
+            "type": "scattergl",
+            "mode": "lines",
+            "line": {"color": "red"},
+            "showlegend": False,
+            # 'marker': {
+            #     'color': 'black',
+            #     'size': 2
+            #     }
+        }
 
-        bs_traj_data = traj_data['site']
-        instru_traj_data = traj_data['instru']
+        bs_traj_data = traj_data["site"]
+        instru_traj_data = traj_data["instru"]
 
         # offset
         fig = offset_fig = figs[0]
-        fig.add_trace(dict(trace_kw, **{
-            'x': bs_traj_data['dlon'].to_value(u.arcmin),
-            'y': bs_traj_data['dlat'].to_value(u.arcmin),
-            }))
+        fig.add_trace(
+            dict(
+                trace_kw,
+                **{
+                    "x": bs_traj_data["dlon"].to_value(u.arcmin),
+                    "y": bs_traj_data["dlat"].to_value(u.arcmin),
+                },
+            )
+        )
         ref_frame_name = exec_config.mapping.ref_frame.name
 
-        if ref_frame_name == 'icrs':
-            fig.update_xaxes(
-                title_text="Delta-Source RA [arcmin]")
-            fig.update_yaxes(
-                title_text="Delta-Source Dec [arcmin]")
-        elif ref_frame_name == 'altaz':
-            fig.update_xaxes(
-                title_text="Delta-Source Az [arcmin]")
-            fig.update_yaxes(
-                title_text="Delta-Source Alt [arcmin]")
+        if ref_frame_name == "icrs":
+            fig.update_xaxes(title_text="Delta-Source RA [arcmin]")
+            fig.update_yaxes(title_text="Delta-Source Dec [arcmin]")
+        elif ref_frame_name == "altaz":
+            fig.update_xaxes(title_text="Delta-Source Az [arcmin]")
+            fig.update_yaxes(title_text="Delta-Source Alt [arcmin]")
         else:
-            fig.update_xaxes(
-                title_text="Delta-Source [arcmin]")
-            fig.update_yaxes(
-                title_text="Delta-Source [arcmin]")
+            fig.update_xaxes(title_text="Delta-Source [arcmin]")
+            fig.update_yaxes(title_text="Delta-Source [arcmin]")
         if instru_traj_data is not None:
             # add instru traj_data
-            overlay_traces = instru_traj_data['overlay_traces']
-            for t in overlay_traces['offset']:
+            overlay_traces = instru_traj_data["overlay_traces"]
+            for t in overlay_traces["offset"]:
                 fig.add_trace(dict(trace_kw, **t))
 
         # altaz
         fig = altaz_fig = figs[1]
-        fig.add_trace(dict(trace_kw, **{
-            'x': bs_traj_data['az'].to_value(u.deg),
-            'y': bs_traj_data['alt'].to_value(u.deg),
-            }))
-        fig.add_trace(dict(trace_kw, **{
-            'x': bs_traj_data['target_az'].to_value(u.deg),
-            'y': bs_traj_data['target_alt'].to_value(u.deg),
-            'line': {
-                'color': 'blue'
-                }
-            }))
-        fig.update_xaxes(
-            title_text="Azimuth [deg]")
-        fig.update_yaxes(
-            title_text="Altitude [deg]")
+        fig.add_trace(
+            dict(
+                trace_kw,
+                **{
+                    "x": bs_traj_data["az"].to_value(u.deg),
+                    "y": bs_traj_data["alt"].to_value(u.deg),
+                },
+            )
+        )
+        fig.add_trace(
+            dict(
+                trace_kw,
+                **{
+                    "x": bs_traj_data["target_az"].to_value(u.deg),
+                    "y": bs_traj_data["target_alt"].to_value(u.deg),
+                    "line": {"color": "blue"},
+                },
+            )
+        )
+        fig.update_xaxes(title_text="Azimuth [deg]")
+        fig.update_yaxes(title_text="Altitude [deg]")
 
         # icrs
         fig = icrs_fig = figs[2]
-        fig.add_trace(dict(trace_kw, **{
-            'x': bs_traj_data['ra'].to_value(u.deg),
-            'y': bs_traj_data['dec'].to_value(u.deg),
-            }))
-        fig.update_xaxes(
-            title_text="RA [deg]")
-        fig.update_yaxes(
-            title_text="Dec [deg]")
+        fig.add_trace(
+            dict(
+                trace_kw,
+                **{
+                    "x": bs_traj_data["ra"].to_value(u.deg),
+                    "y": bs_traj_data["dec"].to_value(u.deg),
+                },
+            )
+        )
+        fig.update_xaxes(title_text="RA [deg]")
+        fig.update_yaxes(title_text="Dec [deg]")
 
         # all
         for fig in figs:
+            fig.update_xaxes(automargin=True, autorange="reversed")
+            fig.update_yaxes(automargin=True)
             fig.update_xaxes(
-                automargin=True,
-                autorange='reversed')
-            fig.update_yaxes(
-                automargin=True)
-            fig.update_xaxes(
-                    row=1,
-                    col=1,
-                    scaleanchor='y1',
-                    scaleratio=1.,
-                    )
+                row=1,
+                col=1,
+                scaleanchor="y1",
+                scaleratio=1.0,
+            )
             fig.update_layout(
                 legend=dict(
                     orientation="h",
@@ -1745,10 +1752,6 @@ class ObsPlannerMappingPlotter(ComponentTemplate):
                     yanchor="bottom",
                     xanchor="center",
                     bgcolor="#dfdfdf",
-                    )
                 )
-        return {
-            'offset': offset_fig,
-            'altaz': altaz_fig,
-            'icrs': icrs_fig
-            }
+            )
+        return {"offset": offset_fig, "altaz": altaz_fig, "icrs": icrs_fig}

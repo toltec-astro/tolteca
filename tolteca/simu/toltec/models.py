@@ -649,7 +649,13 @@ class ToltecArrayPowerLoadingModel(Model):
     def input_units(self):
         return {self.inputs[0]: u.deg}
 
-    def __init__(self, array_name, atm_model_name='am_q50', *args, **kwargs):
+    def __init__(
+            self,
+            array_name,
+            atm_model_name='am_q50',
+            tel_surface_rms=None,
+            det_noise_factor=None,
+            *args, **kwargs):
         super().__init__(name=f'{array_name}_loading', *args, **kwargs)
         self._inputs = ('alt', )
         self._outputs = ('P', 'nep')
@@ -673,13 +679,21 @@ class ToltecArrayPowerLoadingModel(Model):
             # TODO revisit this
             _, self._atm_tx_model = get_lmt_atm_models(
                 name='am_q50')
+        self._internal_params = self._internal_params_default.copy()
+        if tel_surface_rms is None:
+            tel_surface_rms = 76. << u.um
+        self._internal_params['tel_surface_rms'] = tel_surface_rms
+        if det_noise_factor is None:
+            det_noise_factor = 0.334
+        self._internal_params['det_noise_factor'] = det_noise_factor 
+        self.logger.debug(f"power loading model internal parameters:\n{pformat_yaml(self._internal_params)}")
 
     @property
     def has_atm_model(self):
         return self._atm_model is not None
 
     @classproperty
-    def _internal_params(cls):
+    def _internal_params_default(cls):
         """Lower level instrument parameters for LMT/TolTEC.
 
         Note that all these values does not take into account the
@@ -688,10 +702,8 @@ class ToltecArrayPowerLoadingModel(Model):
         # TODO merge this to the instrument fact yaml file?
         p = {
                 'det_optical_efficiency': 0.8,
-                'det_noise_factor': 0.334,
                 'horn_aperture_efficiency': 0.35,
                 'tel_diameter': 48. << u.m,
-                'tel_surface_rms': 76. << u.um,
                 'tel_emissivity': 0.06,
                 'T_coldbox': 5.75 << u.K,
                 'T_tel': 273. << u.K,  # telescope ambient temperature
@@ -1130,7 +1142,9 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
 
     def __init__(
             self, atm_model_name, atm_model_params=None,
-            atm_cache_dir=None
+            atm_cache_dir=None,
+            tel_surface_rms=None,
+            det_noise_factor=None,
             ):
         if atm_model_name is None or atm_model_name == 'toast':
             # this will disable the atm component in the power loading model
@@ -1141,7 +1155,10 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
         self._array_power_loading_models = {
             array_name: ToltecArrayPowerLoadingModel(
                 array_name=array_name,
-                atm_model_name=_atm_model_name)
+                atm_model_name=_atm_model_name,
+                tel_surface_rms=tel_surface_rms,
+                det_noise_factor=det_noise_factor,
+                )
             for array_name in self.array_names
             }
         if atm_model_name == 'toast':

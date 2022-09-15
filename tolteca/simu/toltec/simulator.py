@@ -86,6 +86,7 @@ class ToltecObsSimulator(object):
 
         apt = self._array_prop_table = self._prepare_array_prop_table(
             array_prop_table)
+        self.logger.info(f"normalized apt:\n{apt}")
         self._polarized = polarized
         if hwp_config is None:
             hwp_config = ToltecHwpConfig()
@@ -162,8 +163,17 @@ class ToltecObsSimulator(object):
         # (both of row-wise and column-wise) of the full array_prop_table
         # of the TolTEC instrument. We check the column for the available
         # group names
+        if 'array_name' not in tbl.colnames:
+            # generate array_name from array
+            array_names = [toltec_info["array_names"][a] for a in tbl['array']]
+            tbl['array_name'] = array_names
         array_names = tbl.meta['array_names'] = np.unique(
             tbl['array_name']).tolist()
+        if 'f' not in tbl.colnames:
+            if 'kids_fr' in tbl.colnames:
+                tbl['f'] = tbl['kids_fr']
+            else:
+                raise ValueError("apt table missing KIDs frequency info.")
         # array props
         ap_to_cn_map = {
             'wl_center': 'wl_center',
@@ -217,7 +227,7 @@ class ToltecObsSimulator(object):
             tbl['sigma_readout'] = 10.
 
         # detector locations in toltec frame
-        if not {'x_t', 'y_t', 'pa_t'}.issubset(tbl.colnames):
+        if not {'x_t', 'y_t'}.issubset(tbl.colnames):
             x_t, y_t, pa_t = cls._m_array_proj(
                 tbl['x'].quantity,
                 tbl['y'].quantity,
@@ -228,6 +238,8 @@ class ToltecObsSimulator(object):
                 tbl['y_t'] = y_t
             if 'pa_t' not in tbl.colnames:
                 tbl['pa_t'] = pa_t
+        if 'pa_t' not in tbl.colnames:
+            tbl['pa_t'] = 0. << u.deg
         return QTable(tbl)
 
     def __str__(self):
