@@ -207,11 +207,15 @@ class ToltecSensitivityCalculator(ComponentTemplate):
                 if (data === null || x === null || y === null || t === null) {
                     return Array(3).fill("...");
                 }
+                var pol = data["polarized"]
                 const get_rms = function (e) { 
                     var m = e["mapping_speed_deg2_per_h_per_mJy2"];
                     var s = x * y / 3600.;
                     var h = t / 60.
                     var d = Math.sqrt(s / m / h);
+                    if ( pol ) {
+                        d = d * (Math.sqrt(2.) + 0.1)
+                    }
                     return d.toFixed(3) + ' mJy';
                 };
                 return [
@@ -242,10 +246,14 @@ class ToltecSensitivityCalculator(ComponentTemplate):
                 if (data === null || x === null || y === null || d === null) {
                     return Array(3).fill("...");
                 }
+                var pol = data["polarized"];
                 const get_time = function (e) { 
                     var m = e["mapping_speed_deg2_per_h_per_mJy2"];
                     var s = x * y / 3600.;
                     var t = s / m / d / d * 60;
+                    if (pol) {
+                        t = t * Math.pow((Math.sqrt(2.)+0.1), 2)
+                    }
                     return t.toFixed(3) + ' min';
                 };
                 return [
