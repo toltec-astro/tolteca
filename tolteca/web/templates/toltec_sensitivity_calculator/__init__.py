@@ -556,7 +556,7 @@ class ToltecSensitivityCalculator(ComponentTemplate):
                 """
 # Notes on this Calculator
 
-This calcualtor is powered by the
+This calculator is powered by the
 `tolteca.simu.toltec.ToltecArrayPowerLoadingModel` used in the TolTEC
 observation simulator, configured to use the latest instrument
 status/measurements from the commissioning data as of September 14, 2022
