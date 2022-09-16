@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
-from cgi import print_arguments
 import functools
 from dash_component_template import ComponentTemplate
 from dash import html, dcc, Input, Output, State
 import dash_bootstrap_components as dbc
+from io import StringIO
+from astropy.time import Time
 
 from dasha.web.templates.common import LabeledChecklist, DownloadButton
 import dash_js9 as djs9
@@ -174,6 +175,19 @@ class Toltec(ObsInstru, name="toltec"):
                     ),
                 )
             )
+            results_dlbtn_props = dlbtn_props.copy()
+            results_dlbtn_props['color'] = 'success'
+            self._results_download = container.child(
+                DownloadButton(
+                    button_text="Export Results for Proposal Submission",
+                    className="me-2",
+                    button_props=results_dlbtn_props,
+                    tooltip=(
+                        "Export the current state and calculation results as ECSV table "
+                        " to be used for proposal submission."
+                    ),
+                )
+            )
 
         def make_callbacks(self, app, exec_info_store_id):
 
@@ -181,6 +195,7 @@ class Toltec(ObsInstru, name="toltec"):
                 self._lmtot_download,
                 self._simuconfig_download,
                 self._fits_download,
+                self._results_download,
             ]:
                 app.clientside_callback(
                     """
@@ -265,6 +280,29 @@ class Toltec(ObsInstru, name="toltec"):
                 Output(self._fits_download.download.id, "data"),
                 [
                     Input(self._fits_download.button.id, "n_clicks"),
+                    State(exec_info_store_id, "data"),
+                ],
+            )
+
+            app.clientside_callback(
+                """
+                function(n_clicks, exec_info) {
+                    // console.log(exec_info);
+                    if (!exec_info) {
+                        return window.dash_clientside.no_update;
+                    }
+                    filename = 'toltec_obs_planner_results.ecsv'
+                    return {
+                        content: exec_info.instru.results,
+                        base64: false,
+                        filename: filename,
+                        type: 'text/plain;charset=UTF-8'
+                        };
+                }
+                """,
+                Output(self._results_download.download.id, "data"),
+                [
+                    Input(self._results_download.button.id, "n_clicks"),
                     State(exec_info_store_id, "data"),
                 ],
             )
@@ -714,6 +752,13 @@ class Toltec(ObsInstru, name="toltec"):
         # lmtot script export
         lmtot_exporter = LmtOTExporterConfig(save=False)
         lmtot_content = lmtot_exporter(simu_config)
+        # collect all results as ECSV
+        sens_tbl.meta['created_at'] = Time.now().isot
+        sens_tbl.meta['exec_config'] = exec_config.to_yaml_dict()
+        results_content = StringIO()
+        sens_tbl.write(results_content, format='ascii.ecsv', overwrite=True)
+        results_content = results_content.getvalue()
+
         return {
             "dlon": det_dlon,
             "dlat": det_dlat,
@@ -736,6 +781,7 @@ class Toltec(ObsInstru, name="toltec"):
                 "lmtot": lmtot_content,
                 "simu_config": simu_config_yaml,
                 "info": sens_tbl_layout,
+                "results": results_content,
             },
         }
 
