@@ -103,7 +103,7 @@ class ObsPlannerConfig:
         default="Obs Planner", metadata={"description": "The title text of the page."}
     )
     subtitle_text: str = field(
-        default="Obs Planner",
+        default="",
         metadata={"description": "The subtitle text of the page."},
     )
 
