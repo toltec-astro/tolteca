@@ -444,6 +444,7 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
                 function(poltype_select_value, band_select_value, covtype_select_value, data_init) {
                     data = {...data_init}
                     data['stokes_params'] = poltype_select_value
+                    data['polarized'] = (poltype_select_value === "QU")
                     data['array_name'] = band_select_value
                     data['coverage_map_type'] = covtype_select_value
                     return data

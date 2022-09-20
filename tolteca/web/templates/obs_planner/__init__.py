@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import functools
 import bisect
-from typing import Union
+from typing import ItemsView, Union
 from io import StringIO
 from schema import Or
 import jinja2
@@ -98,6 +98,7 @@ class ObsPlanner(ComponentTemplate):
         if self._instru.name == "toltec":
             # get designed apt for reporting yields
             from .toltec import _get_apt_designed
+
             apt_designed = _get_apt_designed()
             # propagate some settings to the instru/site
             if toltec_apt_path is None:
@@ -108,7 +109,7 @@ class ObsPlanner(ComponentTemplate):
             self._instru._apt_designed = apt_designed
             self._instru._apt = apt
             self._instru._det_noise_factors = toltec_det_noise_factors
-           
+
         if self._site.name == "lmt":
             self._site._tel_surface_rms = lmt_tel_surface_rms
 
@@ -165,11 +166,12 @@ class ObsPlanner(ComponentTemplate):
         mapping_container = mapping_container.child(
             self.Card(title_text="Mapping")
         ).body_container
-        mapping_info_store = mapping_container.child(
+        mapping_preset_select = mapping_container.child(
             ObsPlannerMappingPresetsSelect(
                 presets_config_path=self._presets_config_path, className="px-0"
             )
-        ).info_store
+        )
+        mapping_info_store = mapping_preset_select.info_store
 
         # mapping execution
         exec_button_container = mapping_container.child(
@@ -343,6 +345,28 @@ class ObsPlanner(ComponentTemplate):
             )
         else:
             instru_results_loading = {"outputs": list(), "states": list()}
+
+        @app.callback(
+            [
+                Output(mapping_preset_select.select.id, "options"),
+                Output(mapping_preset_select.select.id, "value"),
+            ],
+            [
+                Input(target_info_store.id, "data"),
+                Input(site_info_store.id, "data"),
+                Input(instru_info_store.id, "data"),
+            ],
+        )
+        def update_mapping_preset_select_options(target_data, site_data, instru_data):
+            condition_dict = {
+                k: v
+                for k, v in {**target_data, **site_data, **instru_data}.items()
+                if isinstance(v, bool)
+            }
+            options = mapping_preset_select.make_mapping_preset_options(
+                condition_dict=condition_dict
+            )
+            return options, None
 
         @app.callback(
             [
@@ -560,7 +584,7 @@ class ObsPlannerExecConfig(object):
                 "obs_params": obs_params_dict,
                 "site_data": site_data,
                 "instru_data": instru_data,
-                "desired_sens": mapping_data['desired_sens_mJy'] << u.mJy
+                "desired_sens": mapping_data["desired_sens_mJy"] << u.mJy,
             }
         )
 
@@ -623,7 +647,7 @@ class ObsPlannerExecConfig(object):
                         "atm_model_name": atm_model_name,
                         "atm_cache_dir": None,
                         "tel_surface_rms": tel_surface_rms,
-                        "det_noise_factor": det_noise_factor
+                        "det_noise_factor": det_noise_factor,
                     },
                 ],
             }
@@ -743,10 +767,18 @@ class ObsPlannerMappingPresetsSelect(ComponentTemplate):
     def presets(self):
         return self._presets
 
-    def make_mapping_preset_options(self):
+    def make_mapping_preset_options(self, condition_dict=None):
         result = []
         for preset in self.presets:
-            result.append({"label": preset.label, "value": preset.key})
+            option = {"label": preset.label, "value": preset.key}
+            if condition_dict is None:
+                disabled = False
+            else:
+                disabled = not set(preset.conditions.items()).issubset(
+                    set(condition_dict.items())
+                )
+            option["disabled"] = disabled
+            result.append(option)
         return result
 
     def setup_layout(self, app):
@@ -769,7 +801,7 @@ class ObsPlannerMappingPresetsSelect(ComponentTemplate):
                 input_props={
                     # these are the dbc.Input kwargs
                     "type": "number",
-                    "min": 0.,
+                    "min": 0.0,
                     "placeholder": "1.0",
                     # 'style': {
                     #     'flex': '0 1 7rem'
@@ -793,7 +825,7 @@ or this value directly after getting the initial execution output for the per-pa
             """,
             target=desired_sens_group.input.id,
         )
-        mapping_preset_select = controls_form_container.child(
+        mapping_preset_select = self.select = controls_form_container.child(
             dbc.Select,
             size="sm",
             placeholder="Choose a mapping pattern template to edit ...",
@@ -885,7 +917,7 @@ or this value directly after getting the initial execution output for the per-pa
         def validate_desired_sens(desired_sens_value):
             if desired_sens_value is None:
                 return [False, True, "Desired map RMS is required", "invalid"]
-            return [True, False, '', "valid"]
+            return [True, False, "", "valid"]
 
         app.clientside_callback(
             """
