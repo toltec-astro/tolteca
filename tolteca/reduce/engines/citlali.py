@@ -131,7 +131,7 @@ class CitlaliExec(object):
         else:
             m = m0.groupdict()
             version = m['version']
-        return cls._norm_ver(version)
+        return cls._norm_ver(version, with_rev=False)
 
     def get_default_config(self):
         """Get the default config of the Citlali."""
@@ -148,7 +148,7 @@ class CitlaliExec(object):
         # removes any non-standard suffix
         if with_rev:
             return re.sub(r'(-dirty)$', '', ver)
-        return re.sub(r'(-dirty|~\d+|-\d+-.+)$', '', ver)
+        return re.sub(r'(-dirty|-[0-9a-z]+|-[0-9a-z]+-.+)$', '', ver)
 
     @classmethod
     def _ver_to_semver(cls, ver):
