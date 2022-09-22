@@ -348,8 +348,10 @@ class ObsPlanner(ComponentTemplate):
 
         @app.callback(
             [
-                Output(mapping_preset_select.select.id, "options"),
-                Output(mapping_preset_select.select.id, "value"),
+                Output(mapping_preset_select.preset_select.id, "options"),
+                Output(mapping_preset_select.preset_select.id, "value"),
+                Output(mapping_preset_select.ref_frame_select.id, "options"),
+                Output(mapping_preset_select.ref_frame_select.id, "value"),
             ],
             [
                 Input(target_info_store.id, "data"),
@@ -363,10 +365,15 @@ class ObsPlanner(ComponentTemplate):
                 for k, v in {**target_data, **site_data, **instru_data}.items()
                 if isinstance(v, bool)
             }
-            options = mapping_preset_select.make_mapping_preset_options(
+            preset_select_options = mapping_preset_select.make_mapping_preset_options(
                 condition_dict=condition_dict
             )
-            return options, None
+            preset_select_value = None
+            ref_frame_select_options = mapping_preset_select.make_ref_frame_options(
+                condition_dict=condition_dict
+            )
+            ref_frame_select_value = next(o for o in ref_frame_select_options if not o.get('disabled', False))['value']
+            return preset_select_options, preset_select_value, ref_frame_select_options, ref_frame_select_value
 
         @app.callback(
             [
@@ -781,6 +788,36 @@ class ObsPlannerMappingPresetsSelect(ComponentTemplate):
             result.append(option)
         return result
 
+    def make_ref_frame_options(self, condition_dict=None):
+        if condition_dict is None:
+            polarized = None
+        else:
+            polarized = condition_dict.get('polarized', False)
+        if polarized:
+            options = [
+                        {
+                            "label": "AZ/Alt",
+                            "value": "altaz",
+                            "disabled": True,
+                        },
+                        {
+                            "label": "RA/Dec",
+                            "value": "icrs",
+                        },
+                    ]
+        else:
+            options = [
+                        {
+                            "label": "AZ/Alt",
+                            "value": "altaz",
+                        },
+                        {
+                            "label": "RA/Dec",
+                            "value": "icrs",
+                        },
+                    ]
+        return options
+
     def setup_layout(self, app):
         container = self
         controls_form = container.child(dbc.Form)
@@ -825,7 +862,7 @@ or this value directly after getting the initial execution output for the per-pa
             """,
             target=desired_sens_group.input.id,
         )
-        mapping_preset_select = self.select = controls_form_container.child(
+        mapping_preset_select = self.preset_select = controls_form_container.child(
             dbc.Select,
             size="sm",
             placeholder="Choose a mapping pattern template to edit ...",
@@ -835,7 +872,7 @@ or this value directly after getting the initial execution output for the per-pa
         mapping_preset_tooltip = controls_form_container.child(html.Div)
         mapping_preset_form_container = controls_form_container.child(html.Div)
         mapping_preset_data_store = controls_form_container.child(dcc.Store)
-        mapping_ref_frame_select = controls_form_container.child(
+        mapping_ref_frame_select = self.ref_frame_select = controls_form_container.child(
             LabeledChecklist(
                 label_text="Mapping Reference Frame",
                 className="w-auto",
@@ -843,16 +880,7 @@ or this value directly after getting the initial execution output for the per-pa
                 # set to true to allow multiple check
                 multi=False,
                 checklist_props={
-                    "options": [
-                        {
-                            "label": "AZ/Alt",
-                            "value": "altaz",
-                        },
-                        {
-                            "label": "RA/Dec",
-                            "value": "icrs",
-                        },
-                    ],
+                    "options": self.make_ref_frame_options,
                     "value": "altaz",
                 },
             )
