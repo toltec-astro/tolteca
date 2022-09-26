@@ -1152,12 +1152,17 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
             _atm_model_name = None
         else:
             _atm_model_name = atm_model_name
+        if isinstance(det_noise_factor, dict):
+            if not set(det_noise_factor.keys()) == set(self.array_names):
+                raise ValueError("invalid det noise factor.")
+        else:
+            det_noise_factor = {array_name: det_noise_factor for array_name in self.array_names}
         self._array_power_loading_models = {
             array_name: ToltecArrayPowerLoadingModel(
                 array_name=array_name,
                 atm_model_name=_atm_model_name,
                 tel_surface_rms=tel_surface_rms,
-                det_noise_factor=det_noise_factor,
+                det_noise_factor=det_noise_factor[array_name],
                 )
             for array_name in self.array_names
             }

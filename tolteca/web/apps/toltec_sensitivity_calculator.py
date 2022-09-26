@@ -30,7 +30,7 @@ class ToltecSensitivityCalculatorConfig:
         default=None,
         metadata={
             "description": "The TolTEC detector noise factor, per atm_model_name.",
-            "schema": Or({str: float}, None),
+            "schema": Or({str: float}, {str: {str: float}}, None),
         },
     )
     toltec_apt_path: Union[None, Path] = field(

@@ -122,7 +122,7 @@ class ToltecPowerLoadingModelConfig(DataclassNamespace):
                 "det_noise_factor",
                 default=None,
                 description="The detector noise factor.",
-            ): Or(None, float),
+            ): Or(None, float, dict),
             Optional(
                 "atm_model_params",
                 default=None,
