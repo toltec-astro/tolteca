@@ -109,6 +109,7 @@ class ObsPlanner(ComponentTemplate):
             self._instru._apt_designed = apt_designed
             self._instru._apt = apt
             self._instru._det_noise_factors = toltec_det_noise_factors
+            self._instru._revision = subtitle_text
 
         if self._site.name == "lmt":
             self._site._tel_surface_rms = lmt_tel_surface_rms

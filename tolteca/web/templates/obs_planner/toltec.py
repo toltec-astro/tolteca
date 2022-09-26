@@ -323,6 +323,7 @@ class Toltec(ObsInstru, name="toltec"):
                     "apt_path": instru._apt_path.as_posix()
                     if instru._apt_path is not None
                     else None,
+                    "revision": instru._revision
                 },
             )
 
