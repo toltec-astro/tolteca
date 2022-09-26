@@ -176,7 +176,7 @@ class Toltec(ObsInstru, name="toltec"):
                 )
             )
             results_dlbtn_props = dlbtn_props.copy()
-            results_dlbtn_props['color'] = 'success'
+            results_dlbtn_props["color"] = "success"
             self._results_download = container.child(
                 DownloadButton(
                     button_text="Export Results for Proposal Submission",
@@ -333,7 +333,43 @@ class Toltec(ObsInstru, name="toltec"):
         def setup_layout(self, app):
             toltec_info = self._instru.info
             container = self.child(dbc.Row, className="gy-2")
+            readme_btn = container.child(
+                dbc.Button,
+                "README Before Use: Notice of Shared Risks",
+                color="danger",
+                outline=True,
+                size="sm",
+            )
+            readme_content = [
+                dcc.Markdown(
+                    """
+** WARNING **
+
+The TolTEC team has made its best guesses about the sensitivity and mapping
+speed of the instrument based on 8 nights of commissioning data taken in July,
+2022.
+
+Users of this tool should be aware that these estimates are very uncertain. We
+have made some improvements to the camera since July, but we are still
+extrapolating the summer performance over a very wide range of observing
+conditions to predict the sensitivity in the much drier winter and spring
+months. Users are encouraged to use a very healthy safety margin in their
+requested time when writing their proposals.
+
+""",
+                    link_target="_blank",
+                )
+            ]
+            container.child(
+                dbc.Popover(
+                    readme_content,
+                    target=readme_btn.id,
+                    body=True,
+                    trigger="hover",
+                )
+            )
             # generate apt info
+
             container.child(
                 dbc.Label(
                     f'APT version: {self._instru._apt.meta.get("version", "designed")}',
@@ -369,7 +405,8 @@ class Toltec(ObsInstru, name="toltec"):
             ]
             poltype_select.value = "I"
             pol_readme_content = [
-                dcc.Markdown("""
+                dcc.Markdown(
+                    """
 ** Notes on Polarimetry **
 
 For polarimetry measurements, the relevant quantity is the 1-sigma uncertainty
@@ -389,14 +426,17 @@ Publications of the Astronomical Society of the Pacific, 112, 1215.
 
 Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/1405.0871.pdf))
 """,
-                link_target="_blank",
-                )]
-            container.child(dbc.Popover(
-                pol_readme_content,
-                target=poltype_select.id,
-                body=True,
-                trigger="hover",
-            ))
+                    link_target="_blank",
+                )
+            ]
+            container.child(
+                dbc.Popover(
+                    pol_readme_content,
+                    target=poltype_select.id,
+                    body=True,
+                    trigger="hover",
+                )
+            )
             band_select = container.child(
                 LabeledChecklist(
                     label_text="TolTEC band",
@@ -599,7 +639,9 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
         alt_mean = target_alt.mean()
         t_exp = bs_traj_data["t_exp"]
         # calcuate overhead
-        if simu_config.mapping.type in ["raster", ]:
+        if simu_config.mapping.type in [
+            "raster",
+        ]:
             t_exp_eff = t_exp - simu_config.mapping.t_turnaround * (
                 simu_config.mapping.n_scans - 1
             )
@@ -612,7 +654,7 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
         array_names = cls.info["array_names"]
 
         def _get_pol_noise_factor():
-            return 2 ** 0.5 + 0.1
+            return 2**0.5 + 0.1
 
         for an in array_names:
             # TODO fix the api
@@ -627,8 +669,8 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
                 "n_dets_info": n_dets_info,
             }
             result.update(aplm._get_noise(alt_mean, return_avg=True))
-            result['nefd_I'] = result['nefd']
-            result['nefd_QU'] =  _get_pol_noise_factor() * result['nefd_I']
+            result["nefd_I"] = result["nefd"]
+            result["nefd_QU"] = _get_pol_noise_factor() * result["nefd_I"]
             result["dsens_I"] = sens_coeff * result["nefd_I"].to(u.mJy * u.s**0.5)
             result["dsens_QU"] = sens_coeff * result["nefd_QU"].to(u.mJy * u.s**0.5)
             # format the mapping speed here because of the issue in unicode unit formatting
@@ -637,7 +679,7 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
             result["mapping_speed_I"] = f"{ms.value:.0f} {ms.unit:s}"
             result["mapping_speed_QU"] = f"{ms_pol.value:.0f} {ms_pol.unit:s}"
             sens_tbl.append(result)
-        
+
         if exec_config.instru_data["stokes_params"] == "I":
             polarized = False
         elif exec_config.instru_data["stokes_params"] == "QU":
@@ -666,44 +708,62 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
 
         cov_data_mJy_per_beam = np.zeros(cov_data.shape, dtype="d")
         if polarized:
-            nefd_key = 'nefd_QU'
+            nefd_key = "nefd_QU"
         else:
-            nefd_key = 'nefd_I'
+            nefd_key = "nefd_I"
         cov_data_mJy_per_beam[m_cov] = (
-            sens_coeff * sens_entry[nefd_key] / np.sqrt(cov_data[m_cov] * beam_area_pix2)
+            sens_coeff
+            * sens_entry[nefd_key]
+            / np.sqrt(cov_data[m_cov] * beam_area_pix2)
         )
         # calculate rms depth from the depth map
         depth_rms = np.median(cov_data_mJy_per_beam[m_cov_01]) << u.mJy
         # scale the depth rms to all arrays and update the sens tbl
-        sens_tbl['polarized'] = polarized
-        sens_tbl['depth_stokes_params'] = ("Total Intensity (I)" if not polarized else "Polarized (Q/U)")
+        sens_tbl["polarized"] = polarized
+        sens_tbl["depth_stokes_params"] = (
+            "Total Intensity (I)" if not polarized else "Polarized (Q/U)"
+        )
         sens_tbl["depth_rms"] = depth_rms / sens_entry[nefd_key] * sens_tbl[nefd_key]
         sens_tbl["t_exp"] = t_exp
         sens_tbl["t_exp_eff"] = t_exp_eff
         sens_tbl["map_area"] = map_area
         # calcuate the number of passes to achieve desired depth
         desired_sens = exec_config.desired_sens
-        n_passes = int(np.ceil((_get_entry(array_name)['depth_rms'] / desired_sens) ** 2))
-        sens_tbl['n_passes'] = n_passes
-        sens_tbl['depth_rms_coadd_desired'] = desired_sens 
-        sens_tbl['depth_rms_coadd_actual'] = sens_tbl['depth_rms'] / (sens_tbl['n_passes'] ** 0.5)
+        n_passes = int(
+            np.ceil((_get_entry(array_name)["depth_rms"] / desired_sens) ** 2)
+        )
+        sens_tbl["n_passes"] = n_passes
+        sens_tbl["depth_rms_coadd_desired"] = desired_sens
+        sens_tbl["depth_rms_coadd_actual"] = sens_tbl["depth_rms"] / (
+            sens_tbl["n_passes"] ** 0.5
+        )
         # calcuate overhead
         science_time = (n_passes * t_exp).to(u.h)
-        science_time_per_night = 4. << u.h
-        n_nights = int(np.ceil((science_time / science_time_per_night).to_value(u.dimensionless_unscaled)))
-        sens_tbl['proj_science_time'] = science_time
-        sens_tbl['proj_science_time_per_night'] = n_nights
-        sens_tbl['proj_n_nights'] = n_nights
+        science_time_per_night = 4.0 << u.h
+        n_nights = int(
+            np.ceil(
+                (science_time / science_time_per_night).to_value(
+                    u.dimensionless_unscaled
+                )
+            )
+        )
+        sens_tbl["proj_science_time"] = science_time
+        sens_tbl["proj_science_time_per_night"] = n_nights
+        sens_tbl["proj_n_nights"] = n_nights
         overhead = OverheadCalculation(
-           map_type=simu_config.mapping.type,
-           science_time=science_time.to_value(u.s),
-           add_nights=n_nights,
-           science_time_overhead_fraction=(1 - t_exp_eff / t_exp).to_value(u.dimensionless_unscaled)
+            map_type=simu_config.mapping.type,
+            science_time=science_time.to_value(u.s),
+            add_nights=n_nights,
+            science_time_overhead_fraction=(1 - t_exp_eff / t_exp).to_value(
+                u.dimensionless_unscaled
+            ),
         ).make_output_dict()
-        sens_tbl['proj_science_overhead_time'] = (overhead['science_overhead'] << u.s).to(u.h)
-        sens_tbl['proj_total_time'] = (overhead['total_time'] << u.s).to(u.h)
-        sens_tbl['proj_overhead_time'] = (overhead['overhead_time'] << u.s).to(u.h)
-        sens_tbl['proj_overhead_percent'] = f"{overhead['overhead_percent']:.1%}"
+        sens_tbl["proj_science_overhead_time"] = (
+            overhead["science_overhead"] << u.s
+        ).to(u.h)
+        sens_tbl["proj_total_time"] = (overhead["total_time"] << u.s).to(u.h)
+        sens_tbl["proj_overhead_time"] = (overhead["overhead_time"] << u.s).to(u.h)
+        sens_tbl["proj_overhead_percent"] = f"{overhead['overhead_percent']:.1%}"
 
         # make cov hdulist depending on the instru_data cov unit settings
         if exec_config.instru_data["coverage_map_type"] == "depth":
@@ -775,30 +835,36 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
                 "n_dets_info": "# of Detectors (Enabled / Total)",
             }
             if polarized:
-                key_labels.update({
-                    "dsens_QU": "Detector Sens. (Polarized Emission)",
-                    "mapping_speed_QU": "Mapping Speed (Polarized Emission)",
-                })
+                key_labels.update(
+                    {
+                        "dsens_QU": "Detector Sens. (Polarized Emission)",
+                        "mapping_speed_QU": "Mapping Speed (Polarized Emission)",
+                    }
+                )
             else:
-                key_labels.update({
-                    "dsens_I": "Detector Sens. (Total Intensity)",
-                    "mapping_speed_I": "Mapping Speed (Total Intensity)",
-                })
-            key_labels.update({
-                "map_area": "Map Area",
-                "t_exp": "Exp. Time per Pass",
-                "t_exp_eff": "Effective On-target Time per Pass",
-                "depth_stokes_params": "Stokes Params of Depth Values",
-                "depth_rms": "Median RMS Sens. per Pass",
-                "n_passes": "Number of Passes",
-                "depth_rms_coadd_actual": "Coadded Map RMS Sens.",
-                "proj_science_time": "Project Total Science Time",
-                "proj_science_overhead_time": "Science Time Overhead",
-                "proj_n_nights": "Assumed Number of Obs. Nights",
-                "proj_total_time": "Project Total Time (incl. Overhead)",
-                "proj_overhead_time": "Project Overhead",
-                "proj_overhead_percent": "Project Overhead %",
-            })
+                key_labels.update(
+                    {
+                        "dsens_I": "Detector Sens. (Total Intensity)",
+                        "mapping_speed_I": "Mapping Speed (Total Intensity)",
+                    }
+                )
+            key_labels.update(
+                {
+                    "map_area": "Map Area",
+                    "t_exp": "Exp. Time per Pass",
+                    "t_exp_eff": "Effective On-target Time per Pass",
+                    "depth_stokes_params": "Stokes Params of Depth Values",
+                    "depth_rms": "Median RMS Sens. per Pass",
+                    "n_passes": "Number of Passes",
+                    "depth_rms_coadd_actual": "Coadded Map RMS Sens.",
+                    "proj_science_time": "Project Total Science Time",
+                    "proj_science_overhead_time": "Science Time Overhead",
+                    "proj_n_nights": "Assumed Number of Obs. Nights",
+                    "proj_total_time": "Project Total Time (incl. Overhead)",
+                    "proj_overhead_time": "Project Overhead",
+                    "proj_overhead_percent": "Project Overhead %",
+                }
+            )
             data = {v: _fmt(entry[k]) for k, v in key_labels.items()}
             # data["Coverage Map Unit"] = cov_hdulist[1].header["BUNIT"]
             df = pd.DataFrame(data.items(), columns=["", ""])
@@ -809,7 +875,7 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
             t.children = t.children[1:]
             # get the index of the total time
             i_total_time = list(key_labels.keys()).index("proj_total_time")
-            t.children[0].children[i_total_time].className = 'bg-info'
+            t.children[0].children[i_total_time].className = "bg-info"
             return dbc.Card(
                 [
                     dbc.CardBody(
@@ -835,10 +901,10 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
         lmtot_exporter = LmtOTExporterConfig(save=False)
         lmtot_content = lmtot_exporter(simu_config)
         # collect all results as ECSV
-        sens_tbl.meta['created_at'] = Time.now().isot
-        sens_tbl.meta['exec_config'] = exec_config.to_yaml_dict()
+        sens_tbl.meta["created_at"] = Time.now().isot
+        sens_tbl.meta["exec_config"] = exec_config.to_yaml_dict()
         results_content = StringIO()
-        sens_tbl.write(results_content, format='ascii.ecsv', overwrite=True)
+        sens_tbl.write(results_content, format="ascii.ecsv", overwrite=True)
         results_content = results_content.getvalue()
 
         return {

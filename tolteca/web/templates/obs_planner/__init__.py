@@ -360,6 +360,9 @@ class ObsPlanner(ComponentTemplate):
             ],
         )
         def update_mapping_preset_select_options(target_data, site_data, instru_data):
+            target_data = target_data or dict()
+            site_data = site_data or dict()
+            instru_data = instru_data or dict()
             condition_dict = {
                 k: v
                 for k, v in {**target_data, **site_data, **instru_data}.items()
