@@ -358,9 +358,11 @@ class ObsPlanner(ComponentTemplate):
                 Input(target_info_store.id, "data"),
                 Input(site_info_store.id, "data"),
                 Input(instru_info_store.id, "data"),
+                State(mapping_preset_select.preset_select.id, "options"),
+                State(mapping_preset_select.ref_frame_select.id, "options"),
             ],
         )
-        def update_mapping_preset_select_options(target_data, site_data, instru_data):
+        def update_mapping_preset_select_options(target_data, site_data, instru_data, prev_preset_select_options, prev_ref_frame_select_options):
             target_data = target_data or dict()
             site_data = site_data or dict()
             instru_data = instru_data or dict()
@@ -372,11 +374,20 @@ class ObsPlanner(ComponentTemplate):
             preset_select_options = mapping_preset_select.make_mapping_preset_options(
                 condition_dict=condition_dict
             )
-            preset_select_value = None
+            # print(f"{preset_select_options=}" "{prev_preset_select_options}")
+            if preset_select_options == prev_preset_select_options:
+                # this is to avoid invalid the mapping pattern when the condition did not change.
+                preset_select_options = dash.no_update
+                preset_select_value = dash.no_update
+            else:
+                preset_select_value = ''
             ref_frame_select_options = mapping_preset_select.make_ref_frame_options(
                 condition_dict=condition_dict
             )
             ref_frame_select_value = next(o for o in ref_frame_select_options if not o.get('disabled', False))['value']
+            if ref_frame_select_options == prev_ref_frame_select_options:
+                ref_frame_select_options = dash.no_update
+                ref_frame_select_value = dash.no_update
             return preset_select_options, preset_select_value, ref_frame_select_options, ref_frame_select_value
 
         @app.callback(
@@ -976,7 +987,7 @@ or this value directly after getting the initial execution output for the per-pa
             [Input(mapping_preset_select.id, "value")],
         )
         def make_preset_tooltip(preset_name):
-            if preset_name is None:
+            if not preset_name:
                 raise PreventUpdate
             preset = self._presets.get(type="mapping", key=preset_name)
             header_text = preset.description
@@ -1012,7 +1023,7 @@ or this value directly after getting the initial execution output for the per-pa
             # prevent_initial_call=True
         )
         def make_mapping_preset_layout(preset_name):
-            if preset_name is None:
+            if not preset_name:
                 return None
             self.logger.debug(f"generate form for mapping preset {preset_name}")
             preset = self._presets.get(type="mapping", key=preset_name)
