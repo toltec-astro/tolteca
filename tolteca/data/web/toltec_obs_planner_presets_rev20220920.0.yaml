@@ -124,7 +124,7 @@ presets:
     unit: arcmin
     value: 10
     value_min: 5
-    value_max: 30
+    value_max: 45
   - key: space
     unit: arcmin
     value: 1

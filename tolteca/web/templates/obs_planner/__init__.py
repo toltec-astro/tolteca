@@ -311,10 +311,10 @@ class ObsPlanner(ComponentTemplate):
         # the forms
         app.clientside_callback(
             """
-            function (mapping_data, target_data, btn_cfg) {
+            function (mapping_pattern_feedback_type, mapping_data, target_data, btn_cfg) {
                 var disabled_color = btn_cfg['disabled_color']
                 var enabled_color = btn_cfg['enabled_color']
-                if ((mapping_data === null) || (target_data === null)){
+                if ((mapping_pattern_feedback_type === "invalid") || (mapping_data === null) || (target_data === null)){
                     return [disabled_color, true]
                 }
                 return [enabled_color, false]
@@ -325,6 +325,7 @@ class ObsPlanner(ComponentTemplate):
                 Output(exec_button.id, "disabled"),
             ],
             [
+                Input(mapping_preset_select.preset_feedback.id, "type"),
                 Input(mapping_info_store.id, "data"),
                 Input(target_info_store.id, "data"),
                 State(exec_button_config_store.id, "data"),
@@ -882,7 +883,7 @@ or this value directly after getting the initial execution output for the per-pa
             size="sm",
             placeholder="Choose a mapping pattern template to edit ...",
         )
-        mapping_preset_feedback = controls_form_container.child(dbc.FormFeedback)
+        mapping_preset_feedback = self.preset_feedback = controls_form_container.child(dbc.FormFeedback)
         mapping_preset_select.options = self.make_mapping_preset_options()
         mapping_preset_tooltip = controls_form_container.child(html.Div)
         mapping_preset_form_container = controls_form_container.child(html.Div)
