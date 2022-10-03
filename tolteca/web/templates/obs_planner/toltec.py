@@ -833,7 +833,7 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
             key_labels = {
                 "array_name": ("Array Name", "The TolTEC array name, e.g., a1100 for the 1.1mm array."),
                 "alt_mean": ("Mean Alt.", "The mean altitude of the mapping pattern."),
-                "n_dets_info": ("# of Detectors (Enabled / Total)", "Number of detectors configured for science data vs total."),
+                "n_dets_info": ("# of Detectors (Enabled / Total)", "Number of detectors configured for science data vs total. These numbers are likely to change following fall commissioning."),
             }
             if polarized:
                 key_labels.update(
@@ -855,9 +855,9 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
                     "t_exp": ("Exp. Time per Pass", "The time needed to completed one pass of the mapping pattern."),
                     "t_exp_eff": ("Effective On-target Time per Pass", "The effective time on target. This equals to \"Exp. Time\" except for raster maps where the turnaround time is excluded."),
                     "depth_stokes_params": ("Stokes Params of Depth Values", "Indicated whether the depth values reported in this table are for total intensity or polarimetry."),
-                    "depth_rms": ("Median RMS Sens. per Pass", "Median of the RMS sensitivity for a single pass"),
+                    "depth_rms": ("Median RMS Sens. per Pass", "Estimated median of the RMS sensitivity for a single pass"),
                     "n_passes": ("Number of Passes", "The number of passes to execute the mapping pattern for to reach the desired coadded map RMS."),
-                    "depth_rms_coadd_actual": ("Coadded Map RMS Sens.", "The coadded map RMS sensitivity with \"Number of Passes\" individual exposures."),
+                    "depth_rms_coadd_actual": ("Coadded Map RMS Sens.", "The estimated map RMS sensitivity after coadding \"Number of Passes\" individual exposures."),
                     "proj_science_time": ("Project Total Science Time", "The total time to finish all the observations"),
                     "proj_science_overhead_time": ("Science Time Overhead", "The time that is considered overhead within the \"Project Science Time\"."),
                     "proj_n_nights": ("Assumed Number of Obs. Nights", "Number of nights the project needs to finish, assuming 4h of up-time per night."),
