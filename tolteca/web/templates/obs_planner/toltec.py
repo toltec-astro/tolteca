@@ -831,52 +831,82 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
                 return v
 
             key_labels = {
-                "array_name": "Array Name",
-                "alt_mean": "Mean Alt.",
-                "n_dets_info": "# of Detectors (Enabled / Total)",
+                "array_name": ("Array Name", "The TolTEC array name, e.g., a1100 for the 1.1mm array."),
+                "alt_mean": ("Mean Alt.", "The mean altitude of the mapping pattern."),
+                "n_dets_info": ("# of Detectors (Enabled / Total)", "Number of detectors configured for science data vs total."),
             }
             if polarized:
                 key_labels.update(
                     {
-                        "dsens_QU": "Detector Sens. (Polarized Emission)",
-                        "mapping_speed_QU": "Mapping Speed (Polarized Emission)",
+                        "dsens_QU": ("Detector Sens. (Polarized Emission)", "Estimated detector sensitivity for polarized emission."),
+                        "mapping_speed_QU": ("Mapping Speed (Polarized Emission)", "Estimated mapping speed for polarized emission."),
                     }
                 )
             else:
                 key_labels.update(
                     {
-                        "dsens_I": "Detector Sens. (Total Intensity)",
-                        "mapping_speed_I": "Mapping Speed (Total Intensity)",
+                        "dsens_I": ("Detector Sens. (Total Intensity)", "Estimated detector sensitivity for total intensity."),
+                        "mapping_speed_I": ("Mapping Speed (Total Intensity)", "Estimated mapping speed for total intensity."),
                     }
                 )
             key_labels.update(
                 {
-                    "map_area": "Map Area",
-                    "t_exp": "Exp. Time per Pass",
-                    "t_exp_eff": "Effective On-target Time per Pass",
-                    "depth_stokes_params": "Stokes Params of Depth Values",
-                    "depth_rms": "Median RMS Sens. per Pass",
-                    "n_passes": "Number of Passes",
-                    "depth_rms_coadd_actual": "Coadded Map RMS Sens.",
-                    "proj_science_time": "Project Total Science Time",
-                    "proj_science_overhead_time": "Science Time Overhead",
-                    "proj_n_nights": "Assumed Number of Obs. Nights",
-                    "proj_total_time": "Project Total Time (incl. Overhead)",
-                    "proj_overhead_time": "Project Overhead",
-                    "proj_overhead_percent": "Project Overhead %",
+                    "map_area": ("Map Area", "Effective area of the mapping pattern."),
+                    "t_exp": ("Exp. Time per Pass", "The time needed to completed one pass of the mapping pattern."),
+                    "t_exp_eff": ("Effective On-target Time per Pass", "The effective time on target. This equals to \"Exp. Time\" except for raster maps where the turnaround time is excluded."),
+                    "depth_stokes_params": ("Stokes Params of Depth Values", "Indicated whether the depth values reported in this table are for total intensity or polarimetry."),
+                    "depth_rms": ("Median RMS Sens. per Pass", "Median of the RMS sensitivity for a single pass"),
+                    "n_passes": ("Number of Passes", "The number of passes to execute the mapping pattern for to reach the desired coadded map RMS."),
+                    "depth_rms_coadd_actual": ("Coadded Map RMS Sens.", "The coadded map RMS sensitivity with \"Number of Passes\" individual exposures."),
+                    "proj_science_time": ("Project Total Science Time", "The total time to finish all the observations"),
+                    "proj_science_overhead_time": ("Science Time Overhead", "The time that is considered overhead within the \"Project Science Time\"."),
+                    "proj_n_nights": ("Assumed Number of Obs. Nights", "Number of nights the project needs to finish, assuming 4h of up-time per night."),
+                    "proj_total_time": ("Project Total Time (incl. Overhead)", "The time to finish the project, including all overheads. Refer to this number for proposal sumission."),
+                    "proj_overhead_time": ("Project Overhead", "The time that is considered overhead within the \"Project Total Time\"."),
+                    "proj_overhead_percent": ("Project Overhead %", "The project overhead percentage."),
                 }
             )
-            data = {v: _fmt(entry[k]) for k, v in key_labels.items()}
+            data = {v[0]: _fmt(entry[k]) for k, v in key_labels.items()}
             # data["Coverage Map Unit"] = cov_hdulist[1].header["BUNIT"]
             df = pd.DataFrame(data.items(), columns=["", ""])
             t = dbc.Table.from_dataframe(
                 df, striped=True, bordered=True, hover=True, className="mx-0 my-0"
             )
+            # build the table
+            tbody = []
+            # this is to ensure unique id for the generated layout
+            id_base = f'trajdata-{id(exec_config)}'
+            for k, v in key_labels.items():
+                help_id = f"{id_base}-{k}"
+                if k == 'proj_total_time':
+                    tr_kw = {'className': 'bg-info'}
+                else:
+                    tr_kw = {}
+                trow = html.Tr([
+                    html.Td([
+                        v[0],
+                        html.Span(className='ms-2 fa-regular fa-circle-question', id=help_id),
+                        dbc.Popover(
+                            v[1],
+                            target=help_id,
+                            body=True,
+                            trigger="hover",
+                        )
+                        ]),
+                    html.Td(_fmt(entry[k]))
+                ], **tr_kw)
+                tbody.append(trow)
+            tbody = html.Tbody(tbody)
+            t = dbc.Table(
+                [tbody],
+                striped=True, bordered=True, hover=True,
+                className="mx-0 my-0"
+            )
             # get rid of the first child which is the header
-            t.children = t.children[1:]
+            # t.children = t.children[1:]
             # get the index of the total time
-            i_total_time = list(key_labels.keys()).index("proj_total_time")
-            t.children[0].children[i_total_time].className = "bg-info"
+            # i_total_time = list(key_labels.keys()).index("proj_total_time")
+            # t.children[0].children[i_total_time].className = "bg-info"
             return dbc.Card(
                 [
                     dbc.CardBody(
