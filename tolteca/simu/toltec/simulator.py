@@ -150,8 +150,8 @@ class ToltecObsSimulator(object):
         'f0': 'f',
         'k0': 0 / u.Hz,
         'k1': 0 / u.Hz,
-        'm0': 0,
-        'm1': 0
+        'm0': 2e6,
+        'm1': 2e6
             }
 
     @classmethod
