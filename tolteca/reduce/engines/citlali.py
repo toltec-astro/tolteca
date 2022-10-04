@@ -564,14 +564,21 @@ def _fix_apt(source):
     tbl_new['array'] = np.array(tbl['array'], dtype='d')
     tbl_new['flxscale'] = np.array(tbl['flxscale'], dtype='d')
     tbl_new['x_t'] = tbl['x_t'].quantity.to_value(u.arcsec)
+    tbl_new['x_t_err'] = 0.
     tbl_new['y_t'] = tbl['y_t'].quantity.to_value(u.arcsec)
+    tbl_new['y_t_err'] = 0.
     tbl_new['a_fwhm'] = tbl['a_fwhm'].quantity.to_value(u.arcsec)
+    tbl_new['a_fwhm_err'] = 0.
     tbl_new['b_fwhm'] = tbl['b_fwhm'].quantity.to_value(u.arcsec)
+    tbl_new['b_fwhm_err'] = 0.
     tbl_new['angle'] = 0.
+    tbl_new['angle_err'] = 0.
     tbl_new['responsivity'] = tbl['responsivity'].quantity.to_value(u.pW ** -1)
     tbl_new['flag'] = 1.
     tbl_new['sens'] = 1.
     tbl_new['sig2noise'] = 1.
+    tbl_new['converge_iter'] = 0.
+    tbl_new['derot_elev'] = 0.
 
     source_new = source.replace('.ecsv', '_trimmed.ecsv')
     tbl_new.write(source_new, format='ascii.ecsv', overwrite=True)
