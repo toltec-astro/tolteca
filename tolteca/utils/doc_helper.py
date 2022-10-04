@@ -58,7 +58,8 @@ def install_workdir_doc(rc):
             '60_simu_point_source_lissajous.yaml',
             '61_simu_blank_field_raster.yaml',
             # '62_simu_fits_input_rastajous.yaml',
-            '70_redu_simulated_data.yaml'
+            # '70_redu_simulated_data.yaml'
+            '70_redu_citlali_default.yaml',
             ]:
         shutil.copyfile(example_dir.joinpath(file), docdir.joinpath(file))
     # readme file in the rootpath
