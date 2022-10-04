@@ -573,6 +573,8 @@ def _fix_apt(source):
     tbl_new['b_fwhm_err'] = 0.
     tbl_new['angle'] = 0.
     tbl_new['angle_err'] = 0.
+    tbl_new['amp'] = 1.
+    tbl_new['amp_err'] = 0.
     tbl_new['responsivity'] = tbl['responsivity'].quantity.to_value(u.pW ** -1)
     tbl_new['flag'] = 1.
     tbl_new['sens'] = 1.
