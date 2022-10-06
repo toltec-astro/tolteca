@@ -77,11 +77,15 @@ class ToltecSensitivityCalculator(ComponentTemplate):
             else:
                 det_noise_factor = self._toltec_det_noise_factors[atm_model_name]
             for array_name in toltec_info["array_names"]:
+                if isinstance(det_noise_factor, dict):
+                    dnf = det_noise_factor[array_name]
+                else:
+                    dnf = det_noise_factor
                 aplms[(amq, array_name)] = ToltecArrayPowerLoadingModel(
                     array_name=array_name,
                     atm_model_name=atm_model_name,
                     tel_surface_rms=self._lmt_tel_surface_rms,
-                    det_noise_factor=det_noise_factor,
+                    det_noise_factor=dnf,
                 )
 
     @classmethod
