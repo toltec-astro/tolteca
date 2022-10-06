@@ -67,7 +67,7 @@ class ToltecSensitivityCalculator(ComponentTemplate):
         self._apt_designed = apt_designed
         self._apt = apt
         self._atm_q_values = [25, 50, 75]
-        self._atm_q_default = 50
+        self._atm_q_default = 25
 
         aplms = self._aplms = dict()
         for amq in self._atm_q_values:
