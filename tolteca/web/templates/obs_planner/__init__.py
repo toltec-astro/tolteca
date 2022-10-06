@@ -363,7 +363,13 @@ class ObsPlanner(ComponentTemplate):
                 State(mapping_preset_select.ref_frame_select.id, "options"),
             ],
         )
-        def update_mapping_preset_select_options(target_data, site_data, instru_data, prev_preset_select_options, prev_ref_frame_select_options):
+        def update_mapping_preset_select_options(
+            target_data,
+            site_data,
+            instru_data,
+            prev_preset_select_options,
+            prev_ref_frame_select_options,
+        ):
             target_data = target_data or dict()
             site_data = site_data or dict()
             instru_data = instru_data or dict()
@@ -381,15 +387,22 @@ class ObsPlanner(ComponentTemplate):
                 preset_select_options = dash.no_update
                 preset_select_value = dash.no_update
             else:
-                preset_select_value = ''
+                preset_select_value = ""
             ref_frame_select_options = mapping_preset_select.make_ref_frame_options(
                 condition_dict=condition_dict
             )
-            ref_frame_select_value = next(o for o in ref_frame_select_options if not o.get('disabled', False))['value']
+            ref_frame_select_value = next(
+                o for o in ref_frame_select_options if not o.get("disabled", False)
+            )["value"]
             if ref_frame_select_options == prev_ref_frame_select_options:
                 ref_frame_select_options = dash.no_update
                 ref_frame_select_value = dash.no_update
-            return preset_select_options, preset_select_value, ref_frame_select_options, ref_frame_select_value
+            return (
+                preset_select_options,
+                preset_select_value,
+                ref_frame_select_options,
+                ref_frame_select_value,
+            )
 
         @app.callback(
             [
@@ -713,6 +726,10 @@ class ObsPlannerExecConfig(object):
         # then evaluate the mapping model in mapping.ref_frame
         # to get the bore sight coords
         bs_coords = mapping_model.evaluate_coords(t)
+        if self.mapping.type == 'raster':
+            bs_coords_overheadmask = mapping_model.evaluate_holdflag(t) > 0
+        else:
+            bs_coords_overheadmask = np.zeros((len(bs_coords), ), dtype=bool)
 
         # and we can convert the bs_coords to other frames if needed
         altaz_frame = resolve_sky_coords_frame(
@@ -742,6 +759,11 @@ class ObsPlannerExecConfig(object):
             "dec": bs_coords_icrs.dec,
             "az": bs_coords_altaz.az,
             "alt": bs_coords_altaz.alt,
+            "ra_overhead": bs_coords_icrs.ra[bs_coords_overheadmask],
+            "dec_overhead": bs_coords_icrs.dec[bs_coords_overheadmask],
+            "az_overhead": bs_coords_altaz.az[bs_coords_overheadmask],
+            "alt_overhead": bs_coords_altaz.alt[bs_coords_overheadmask],
+            "overheadmask": bs_coords_overheadmask,
             "target_az": target_coords_altaz.az,
             "target_alt": target_coords_altaz.alt,
             "sky_bbox_icrs": bs_sky_bbox_icrs,
@@ -808,30 +830,30 @@ class ObsPlannerMappingPresetsSelect(ComponentTemplate):
         if condition_dict is None:
             polarized = None
         else:
-            polarized = condition_dict.get('polarized', False)
+            polarized = condition_dict.get("polarized", False)
         if polarized:
             options = [
-                        {
-                            "label": "AZ/Alt",
-                            "value": "altaz",
-                            "disabled": True,
-                        },
-                        {
-                            "label": "RA/Dec",
-                            "value": "icrs",
-                        },
-                    ]
+                {
+                    "label": "AZ/Alt",
+                    "value": "altaz",
+                    "disabled": True,
+                },
+                {
+                    "label": "RA/Dec",
+                    "value": "icrs",
+                },
+            ]
         else:
             options = [
-                        {
-                            "label": "AZ/Alt",
-                            "value": "altaz",
-                        },
-                        {
-                            "label": "RA/Dec",
-                            "value": "icrs",
-                        },
-                    ]
+                {
+                    "label": "AZ/Alt",
+                    "value": "altaz",
+                },
+                {
+                    "label": "RA/Dec",
+                    "value": "icrs",
+                },
+            ]
         return options
 
     def setup_layout(self, app):
@@ -883,12 +905,16 @@ or this value directly after getting the initial execution output for the per-pa
             size="sm",
             placeholder="Choose a mapping pattern template to edit ...",
         )
-        mapping_preset_feedback = self.preset_feedback = controls_form_container.child(dbc.FormFeedback)
+        mapping_preset_feedback = self.preset_feedback = controls_form_container.child(
+            dbc.FormFeedback
+        )
         mapping_preset_select.options = self.make_mapping_preset_options()
         mapping_preset_tooltip = controls_form_container.child(html.Div)
         mapping_preset_form_container = controls_form_container.child(html.Div)
         mapping_preset_data_store = controls_form_container.child(dcc.Store)
-        mapping_ref_frame_select = self.ref_frame_select = controls_form_container.child(
+        mapping_ref_frame_select = (
+            self.ref_frame_select
+        ) = controls_form_container.child(
             LabeledChecklist(
                 label_text="Mapping Reference Frame",
                 className="w-auto",

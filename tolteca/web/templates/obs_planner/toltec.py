@@ -323,7 +323,7 @@ class Toltec(ObsInstru, name="toltec"):
                     "apt_path": instru._apt_path.as_posix()
                     if instru._apt_path is not None
                     else None,
-                    "revision": instru._revision
+                    "revision": instru._revision,
                 },
             )
 
@@ -706,17 +706,21 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
         b_stddev = cls.info[array_name]["b_fwhm"] / GAUSSIAN_SIGMA_TO_FWHM
         beam_area = 2 * np.pi * a_stddev * b_stddev
         beam_area_pix2 = (beam_area / cov_pixarea).to_value(u.dimensionless_unscaled)
-
-        cov_data_mJy_per_beam = np.zeros(cov_data.shape, dtype="d")
         if polarized:
             nefd_key = "nefd_QU"
         else:
             nefd_key = "nefd_I"
-        cov_data_mJy_per_beam[m_cov] = (
-            sens_coeff
-            * sens_entry[nefd_key]
-            / np.sqrt(cov_data[m_cov] * beam_area_pix2)
-        )
+
+        def _get_cov_data_mJy_per_beam(cov_data):
+            cov_data_mJy_per_beam = np.zeros(cov_data.shape, dtype="d")
+            cov_data_mJy_per_beam[m_cov] = (
+                sens_coeff
+                * sens_entry[nefd_key]
+                / np.sqrt(cov_data[m_cov] * beam_area_pix2)
+            )
+            return cov_data_mJy_per_beam
+
+        cov_data_mJy_per_beam = _get_cov_data_mJy_per_beam(cov_data)
         # calculate rms depth from the depth map
         depth_rms = np.median(cov_data_mJy_per_beam[m_cov_01]) << u.mJy
         # scale the depth rms to all arrays and update the sens tbl
@@ -769,15 +773,19 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
         # make cov hdulist depending on the instru_data cov unit settings
         if exec_config.instru_data["coverage_map_type"] == "depth":
             cov_hdulist = cov_hdulist_s_per_pix.copy()
-            cov_hdulist[1].header["BUNIT"] = "mJy / beam"
-            cov_hdulist[1].data = cov_data_mJy_per_beam
+            for i in range(1, 3):
+                cov_hdulist[i].header["BUNIT"] = "mJy / beam"
+                cov_hdulist[i].data = _get_cov_data_mJy_per_beam(cov_hdulist[i].data)
         else:
             cov_hdulist = cov_hdulist_s_per_pix
 
         # from the cov image we can create a countour showing the outline of
         # the observation on the skyview
         cov_ctr = cov_hdulist[1].data.copy()
-        cov_ctr[~m_cov] = 0
+        cov_ctr[~m_cov_01] = 1
+        cov_ctr[m_cov_01] = 0
+        # get the largest connected component from the center
+        # then use that to derive the contour
         im = cv2.normalize(
             src=cov_ctr,
             dst=None,
@@ -786,7 +794,11 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
             norm_type=cv2.NORM_MINMAX,
             dtype=cv2.CV_8UC1,
         )
-        cxy = cv2.findContours(im, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]
+        h, w = im.shape[:2]
+        im_mask = np.zeros((h + 2, w + 2), np.uint8)
+        cv2.floodFill(im, im_mask, (w // 2, h // 2), 255, flags=4 | (255 << 8))
+        im_mask = im_mask[1:-1, 1:-1]
+        cxy = cv2.findContours(im_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]
         # the cxy is a tuple of multiple contours
         # we select the first significant one to use
         # hopefully this is the outline...
@@ -831,39 +843,93 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
                 return v
 
             key_labels = {
-                "array_name": ("Array Name", "The TolTEC array name, e.g., a1100 for the 1.1mm array."),
+                "array_name": (
+                    "Array Name",
+                    "The TolTEC array name, e.g., a1100 for the 1.1mm array.",
+                ),
                 "alt_mean": ("Mean Alt.", "The mean altitude of the mapping pattern."),
-                "n_dets_info": ("# of Detectors (Enabled / Total)", "Number of detectors configured for science data vs total. These numbers are likely to change following fall commissioning."),
+                "n_dets_info": (
+                    "# of Detectors (Enabled / Total)",
+                    "Number of detectors configured for science data vs total. These numbers are likely to change following fall commissioning.",
+                ),
             }
             if polarized:
                 key_labels.update(
                     {
-                        "dsens_QU": ("Detector Sens. (Polarized Emission)", "Estimated detector sensitivity for polarized emission."),
-                        "mapping_speed_QU": ("Mapping Speed (Polarized Emission)", "Estimated mapping speed for polarized emission."),
+                        "dsens_QU": (
+                            "Detector Sens. (Polarized Emission)",
+                            "Estimated detector sensitivity for polarized emission.",
+                        ),
+                        "mapping_speed_QU": (
+                            "Mapping Speed (Polarized Emission)",
+                            "Estimated mapping speed for polarized emission.",
+                        ),
                     }
                 )
             else:
                 key_labels.update(
                     {
-                        "dsens_I": ("Detector Sens. (Total Intensity)", "Estimated detector sensitivity for total intensity."),
-                        "mapping_speed_I": ("Mapping Speed (Total Intensity)", "Estimated mapping speed for total intensity."),
+                        "dsens_I": (
+                            "Detector Sens. (Total Intensity)",
+                            "Estimated detector sensitivity for total intensity.",
+                        ),
+                        "mapping_speed_I": (
+                            "Mapping Speed (Total Intensity)",
+                            "Estimated mapping speed for total intensity.",
+                        ),
                     }
                 )
             key_labels.update(
                 {
                     "map_area": ("Map Area", "Effective area of the mapping pattern."),
-                    "t_exp": ("Exp. Time per Pass", "The time needed to completed one pass of the mapping pattern."),
-                    "t_exp_eff": ("Effective On-target Time per Pass", "The effective time on target. This equals to \"Exp. Time\" except for raster maps where the turnaround time is excluded."),
-                    "depth_stokes_params": ("Stokes Params of Depth Values", "Indicated whether the depth values reported in this table are for total intensity or polarimetry."),
-                    "depth_rms": ("Median RMS Sens. per Pass", "Estimated median of the RMS sensitivity for a single pass"),
-                    "n_passes": ("Number of Passes", "The number of passes to execute the mapping pattern for to reach the desired coadded map RMS."),
-                    "depth_rms_coadd_actual": ("Coadded Map RMS Sens.", "The estimated map RMS sensitivity after coadding \"Number of Passes\" individual exposures."),
-                    "proj_science_time": ("Project Total Science Time", "The total time to finish all the observations"),
-                    "proj_science_overhead_time": ("Science Time Overhead", "The time that is considered overhead within the \"Project Science Time\"."),
-                    "proj_n_nights": ("Assumed Number of Obs. Nights", "Number of nights the project needs to finish, assuming 4h of up-time per night."),
-                    "proj_total_time": ("Project Total Time (incl. Overhead)", "The time to finish the project, including all overheads. Refer to this number for proposal sumission."),
-                    "proj_overhead_time": ("Project Overhead", "The time that is considered overhead within the \"Project Total Time\"."),
-                    "proj_overhead_percent": ("Project Overhead %", "The project overhead percentage."),
+                    "t_exp": (
+                        "Exp. Time per Pass",
+                        "The time needed to completed one pass of the mapping pattern.",
+                    ),
+                    "t_exp_eff": (
+                        "Effective On-target Time per Pass",
+                        'The effective time on target. This equals to "Exp. Time" except for raster maps where the turnaround time is excluded.',
+                    ),
+                    "depth_stokes_params": (
+                        "Stokes Params of Depth Values",
+                        "Indicated whether the depth values reported in this table are for total intensity or polarimetry.",
+                    ),
+                    "depth_rms": (
+                        "Median RMS Sens. per Pass",
+                        "Estimated median of the RMS sensitivity for a single pass",
+                    ),
+                    "n_passes": (
+                        "Number of Passes",
+                        "The number of passes to execute the mapping pattern for to reach the desired coadded map RMS.",
+                    ),
+                    "depth_rms_coadd_actual": (
+                        "Coadded Map RMS Sens.",
+                        'The estimated map RMS sensitivity after coadding "Number of Passes" individual exposures.',
+                    ),
+                    "proj_science_time": (
+                        "Project Total Science Time",
+                        "The total time to finish all the observations",
+                    ),
+                    "proj_science_overhead_time": (
+                        "Science Time Overhead",
+                        'The time that is considered overhead within the "Project Science Time".',
+                    ),
+                    "proj_n_nights": (
+                        "Assumed Number of Obs. Nights",
+                        "Number of nights the project needs to finish, assuming 4h of up-time per night.",
+                    ),
+                    "proj_total_time": (
+                        "Project Total Time (incl. Overhead)",
+                        "The time to finish the project, including all overheads. Refer to this number for proposal sumission.",
+                    ),
+                    "proj_overhead_time": (
+                        "Project Overhead",
+                        'The time that is considered overhead within the "Project Total Time".',
+                    ),
+                    "proj_overhead_percent": (
+                        "Project Overhead %",
+                        "The project overhead percentage.",
+                    ),
                 }
             )
             data = {v[0]: _fmt(entry[k]) for k, v in key_labels.items()}
@@ -875,32 +941,38 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
             # build the table
             tbody = []
             # this is to ensure unique id for the generated layout
-            id_base = f'trajdata-{id(exec_config)}'
+            id_base = f"trajdata-{id(exec_config)}"
             for k, v in key_labels.items():
                 help_id = f"{id_base}-{k}"
-                if k == 'proj_total_time':
-                    tr_kw = {'className': 'bg-info'}
+                if k == "proj_total_time":
+                    tr_kw = {"className": "bg-info"}
                 else:
                     tr_kw = {}
-                trow = html.Tr([
-                    html.Td([
-                        v[0],
-                        html.Span(className='ms-2 fa-regular fa-circle-question', id=help_id),
-                        dbc.Popover(
-                            v[1],
-                            target=help_id,
-                            body=True,
-                            trigger="hover",
-                        )
-                        ]),
-                    html.Td(_fmt(entry[k]))
-                ], **tr_kw)
+                trow = html.Tr(
+                    [
+                        html.Td(
+                            [
+                                v[0],
+                                html.Span(
+                                    className="ms-2 fa-regular fa-circle-question",
+                                    id=help_id,
+                                ),
+                                dbc.Popover(
+                                    v[1],
+                                    target=help_id,
+                                    body=True,
+                                    trigger="hover",
+                                ),
+                            ]
+                        ),
+                        html.Td(_fmt(entry[k])),
+                    ],
+                    **tr_kw,
+                )
                 tbody.append(trow)
             tbody = html.Tbody(tbody)
             t = dbc.Table(
-                [tbody],
-                striped=True, bordered=True, hover=True,
-                className="mx-0 my-0"
+                [tbody], striped=True, bordered=True, hover=True, className="mx-0 my-0"
             )
             # get rid of the first child which is the header
             # t.children = t.children[1:]
@@ -995,6 +1067,10 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
             bs_traj_data["ra"].degree,
             bs_traj_data["dec"].degree,
         )
+        bs_xy_overhead = wcsobj.world_to_pixel_values(
+            bs_traj_data["ra_overhead"].degree,
+            bs_traj_data["dec_overhead"].degree,
+        )
         det_xy = wcsobj.world_to_pixel_values(
             det_icrs.ra.degree,
             det_icrs.dec.degree,
@@ -1003,31 +1079,52 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
         # makesure the nx and ny are included in the range.
         xbins = np.arange(wcsobj.pixel_shape[0] + 1)
         ybins = np.arange(wcsobj.pixel_shape[1] + 1)
-        det_xbins = np.arange(
-            np.floor(det_xy[0].min()), np.ceil(det_xy[0].max()) + 1 + 1
-        )
-        det_ybins = np.arange(
-            np.floor(det_xy[1].min()), np.ceil(det_xy[1].max()) + 1 + 1
-        )
+        det_x_min = int(np.floor(det_xy[0].min()))
+        det_x_max = int(np.ceil(det_xy[0].max()))
+        if (det_x_max + 1 - det_x_min) % 2 == 1:
+            det_x_max += 1
+        det_y_min = int(np.floor(det_xy[1].min()))
+        det_y_max = int(np.ceil(det_xy[1].max()))
+        if (det_y_max + 1 - det_y_min) % 2 == 1:
+            det_y_max += 1
+        det_xbins = np.arange(det_x_min, det_x_max + 1)
+        det_ybins = np.arange(det_y_min, det_y_max + 1)
         # note the axis order ij -> yx
         bs_im, _, _ = np.histogram2d(bs_xy[1], bs_xy[0], bins=[ybins, xbins])
+        bs_im_overhead, _, _ = np.histogram2d(
+            bs_xy_overhead[1], bs_xy_overhead[0], bins=[ybins, xbins]
+        )
+        logger.debug(f"number pixels in bs_im: {(bs_im > 0).sum()}")
+        logger.debug(f"number pixels in bs_im_overhead: {(bs_im_overhead > 0).sum()}")
         # scale to coverage image of unit s / pix
         bs_im *= dt_smp.to_value(u.s)
-
+        # generate image with only non-overhead section
+        bs_im_nooverhead = bs_im.copy()
+        bs_im_nooverhead[bs_im_overhead > 0] = 0
         det_im, _, _ = np.histogram2d(det_xy[1], det_xy[0], bins=[det_ybins, det_xbins])
         # convolve boresignt image with the detector image
         with timeit("convolve with array layout"):
             cov_im = convolve_fft(
                 bs_im, det_im, normalize_kernel=False, allow_huge=True
             )
+            cov_im_nooverhead = convolve_fft(
+                bs_im_nooverhead, det_im, normalize_kernel=False, allow_huge=True
+            )
+
         with timeit("convolve with beam"):
             a_stddev = cls.info[array_name]["a_fwhm"] / GAUSSIAN_SIGMA_TO_FWHM
             b_stddev = cls.info[array_name]["b_fwhm"] / GAUSSIAN_SIGMA_TO_FWHM
-            g = Gaussian2DKernel(
-                a_stddev.to_value(u.pix, equivalencies=pixscale),
-                b_stddev.to_value(u.pix, equivalencies=pixscale),
-            )
-            cov_im = convolve_fft(cov_im, g, normalize_kernel=False)
+            a_stddev_pix = a_stddev.to_value(u.pix, equivalencies=pixscale)
+            b_stddev_pix = b_stddev.to_value(u.pix, equivalencies=pixscale)
+            if a_stddev_pix > 1:
+                g = Gaussian2DKernel(
+                    a_stddev_pix,
+                    b_stddev_pix,
+                )
+                cov_im = convolve_fft(cov_im, g, normalize_kernel=False)
+                cov_im_nooverhead = convolve_fft(
+                    cov_im_nooverhead, g, normalize_kernel=False
+                )
         logger.debug(
             f"total exp time on coverage map: "
             f"{(cov_im.sum() / det_im.sum() << u.s).to(u.min)}"
@@ -1039,7 +1136,15 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
         cov_hdr["BUNIT"] = "s / pix"
         cov_hdr.append(("ARRAYNAM", array_name, "The name of the TolTEC array"))
         cov_hdr.append(("BAND", array_name, "The name of the TolTEC array"))
-        return fits.ImageHDU(data=cov_im, header=cov_hdr)
+        cov_hdr_nooverhead = cov_hdr.copy()
+        cov_hdr.append(("EXTNAME", "cov_raw", "The name of this extension"))
+        cov_hdr_nooverhead.append(
+            ("EXTNAME", "cov_nooverhead", "The name of this extension")
+        )
+        return [
+            fits.ImageHDU(data=cov_im_nooverhead, header=cov_hdr_nooverhead),
+            fits.ImageHDU(data=cov_im, header=cov_hdr),
+        ]
 
     @classmethod
     def _make_cov_hdulist(cls, ctx):
@@ -1065,6 +1170,6 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
                 "Mean altitude of the target during observation (deg)",
             )
         )
-        hdulist = [fits.PrimaryHDU(header=phdr), cls._make_cov_hdu_approx(ctx)]
+        hdulist = [fits.PrimaryHDU(header=phdr), *cls._make_cov_hdu_approx(ctx)]
         hdulist = fits.HDUList(hdulist)
         return hdulist
