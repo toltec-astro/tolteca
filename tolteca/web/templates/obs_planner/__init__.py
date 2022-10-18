@@ -47,6 +47,7 @@ from ....utils import yaml_load, yaml_dump
 from ....simu.utils import SkyBoundingBox
 from ....simu import mapping_registry, SimulatorRuntime, ObsParamsConfig
 from ....simu.mapping.utils import resolve_sky_coords_frame
+from ....utils.common_schema import PhysicalTypeSchema
 
 from .preset import PresetsConfig
 from .base import ObsSite, ObsInstru
@@ -586,6 +587,7 @@ class ObsPlannerExecConfig(object):
     desired_sens: u.Quantity = field(
         metadata={
             "description": "The desired sensitivity",
+            "schema": PhysicalTypeSchema("spectral flux density")
         }
     )
     # TODO since we now only support LMT/TolTEC, we do not have a
