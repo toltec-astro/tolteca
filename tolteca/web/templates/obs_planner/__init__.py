@@ -14,9 +14,11 @@ from dasha.web.templates.common import (
 )
 from dasha.web.templates.utils import PatternMatchingId, make_subplots
 import dash_js9 as djs9
+import base64
+from pathlib import Path
 
 import astropy.units as u
-from astropy.table import Table
+from astropy.table import Table, QTable
 
 # from astropy.coordinates import get_icrs_coordinates
 from astroquery.utils import parse_coordinates
@@ -150,12 +152,27 @@ class ObsPlanner(ComponentTemplate):
             "flex-shrink": "1",
         }
         # Left panel, these are containers for the input controls
+        # make two layers of controls, for for planning
+        # one for re-producing
+        controls_tabs = controls_panel.child(dbc.Tabs, className="nav-pills btn-sm")
+        planning_controls_panel = controls_tabs.child(
+            dbc.Tab,
+            label="Plan",
+            labelClassName="py-0 my-2",
+            activeLabelClassName="my-2",
+        )
+        verifying_controls_panel = controls_tabs.child(
+            dbc.Tab,
+            label="Verify",
+            labelClassName="py-0 my-2",
+            activeLabelClassName="my-2",
+        )
         (
             target_container,
             obssite_container,
             obsinstru_container,
             mapping_container,
-        ) = controls_panel.colgrid(4, 1, gy=3)
+        ) = planning_controls_panel.colgrid(4, 1, gy=3)
 
         target_container = target_container.child(
             self.Card(title_text="Target")
@@ -223,6 +240,54 @@ class ObsPlanner(ComponentTemplate):
             ).info_store
         else:
             instru_info_store = obsinstru_container.child(dcc.Store)
+
+        # verify controls
+        (
+            verify_input_container,
+            verify_details_container,
+        ) = verifying_controls_panel.colgrid(2, 1, gy=3)
+
+        verify_input_container = verify_input_container.child(
+            self.Card(title_text="Upload Result to Verify")
+        ).body_container
+        verify_input_upload = verify_input_container.child(
+            dcc.Upload,
+            ["Drag and Drop or ", html.A("Select a File", className="color-primary")],
+            style={
+                "width": "100%",
+                "height": "60px",
+                "lineHeight": "60px",
+                "borderWidth": "1px",
+                "borderStyle": "dashed",
+                "borderRadius": "5px",
+                "textAlign": "center",
+            },
+        )
+        upload_content_store = verify_input_container.child(dcc.Store)
+
+        verify_details_container = verify_details_container.child(
+            self.Card(title_text="Details")
+        ).body_container
+
+        # upload execution
+        verify_details = verify_details_container.child(
+            html.Div,
+        )
+        upload_exec_button_container = verify_details_container.child(
+            html.Div,
+            className=("d-flex justify-content-between align-items-start mt-2"),
+        )
+        # this is to save some configs to clientside for enable/disable
+        # the exec button.
+        upload_exec_button_container.child(html.Div)
+        upload_exec_button = upload_exec_button_container.child(
+            dbc.Button,
+            "Execute",
+            size="sm",
+            color=exec_button_disabled_color,
+            disabled=True,
+        )
+
         # Right panel, for plotting
         # mapping_plot_container, dal_container = \
         # dal_container, mapping_plot_container, js9_container = \
@@ -292,19 +357,61 @@ class ObsPlanner(ComponentTemplate):
         super().setup_layout(app)
 
         # connect the target name to the dal view
+        # this need to also handle the 
+        @app.callback(
+            Output(skyview.id, 'target'),
+            [
+                Input(target_select_panel.target_info_store.id, "data"),
+                Input(upload_content_store.id, "data"),
+            ]
+        )
+        def set_dal_target(target_info, upload_data):
+            triggered_id = dash.callback_context.triggered_id
+            if triggered_id == target_select_panel.id:
+                if target_info is None: 
+                    return dash.no_update
+                return "{} {}".format(target_info['ra_deg'], target_info['dec_deg'])
+            if triggered_id == upload_content_store.id:
+                return "{} {}".format(upload_data['ra_deg'], upload_data['dec_deg'])
+            return dash.no_update
+
+        # connect the target name to the dal view
+        # app.clientside_callback(
+        #     """
+        #     function(target_info) {
+        #         if (!target_info) {
+        #             return window.dash_clientside.no_update;
+        #         }
+        #         var ra = target_info.ra_deg;
+        #         var dec = target_info.dec_deg;
+        #         return ra + ' ' + dec
+        #     }
+        #     """,
+        #     Output(skyview.id, "target"),
+        #     Input(target_select_panel.target_info_store.id, "data"),
+        # )
+
+        # this toggles the upload exec button enabled only when
+        # user has provided valid upload content
         app.clientside_callback(
             """
-            function(target_info) {
-                if (!target_info) {
-                    return window.dash_clientside.no_update;
+            function (content_data, btn_cfg) {
+                var disabled_color = btn_cfg['disabled_color']
+                var enabled_color = btn_cfg['enabled_color']
+                if (content_data === null) {
+                    return [disabled_color, true]
                 }
-                var ra = target_info.ra_deg;
-                var dec = target_info.dec_deg;
-                return ra + ' ' + dec
+                return [enabled_color, false]
             }
             """,
-            Output(skyview.id, "target"),
-            Input(target_select_panel.target_info_store.id, "data"),
+            [
+                Output(upload_exec_button.id, "color"),
+                Output(upload_exec_button.id, "disabled"),
+            ],
+            [
+                Input(upload_content_store.id, "data"),
+                State(exec_button_config_store.id, "data"),
+            ],
         )
 
         # this toggles the exec button enabled only when
@@ -407,12 +514,103 @@ class ObsPlanner(ComponentTemplate):
 
         @app.callback(
             [
+                Output(upload_content_store.id, "data"),
+                Output(verify_details.id, "children"),
+            ],
+            [
+                Input(verify_input_upload.id, "contents"),
+                State(verify_input_upload.id, "filename"),
+                State(verify_input_upload.id, "last_modified"),
+            ],
+        )
+        def parse_upload_content(
+            content,
+            filename,
+            last_modified,
+        ):
+            """Parse the uploaded input."""
+            if content is None:
+                return None, html.Pre("N/A")
+
+            error_msgs = []
+
+            def make_error_report():
+                return html.Div([dbc.Alert(msg, color="danger") for msg in error_msgs])
+
+            try:
+                _, content_string = content.split(",")
+                content = base64.b64decode(content_string).decode()
+                # print(content)
+                tbl = QTable.read(content, format="ascii.ecsv")
+            except Exception:
+                error_msgs.append("Unable to parse the uploaded file.")
+                return None, make_error_report()
+
+            m = tbl.meta.copy()
+            ecfg = m["exec_config"]
+            # apt needs to be checked if they match
+            apt_name = Path(ecfg["instru_data"]["apt_path"]).name
+            current_apt_name = self._instru._apt_path.name
+            if apt_name != current_apt_name:
+                error_msgs.append(
+                    f"Mismatch APT version: {apt_name} != {current_apt_name}"
+                )
+            # updated apt path
+            ecfg["instru_data"]["apt_path"] = self._instru._apt_path.parent.joinpath(
+                apt_name
+            ).as_posix()
+            last_modified = Time(last_modified, format="unix").isot
+            revision = (
+                m["exec_config"]["instru_data"]["revision"].split(":")[-1].strip()
+            )
+            current_revision = self._instru._revision.split(":")[-1].strip()
+            # compare revision:
+            if float(current_revision) > float(revision):
+                error_msgs.append(
+                    f"The result is generated from an earlier revision: {revision} < {current_revision}"
+                )
+            mapping = json.dumps(ecfg["mapping"], indent=2)
+            t_exp = ecfg["obs_params"]["t_exp"]
+            target_coord = parse_coordinates(ecfg['mapping']['target'])
+            details_content = f"""
+ECSV_filename: {filename}
+last_modified: {last_modified}
+created_at   : {m["created_at"]}
+revision     : {revision}
+apt_name     : {apt_name}
+instru_name  : {m['exec_config']['instru_data']['name']}
+polarized    : {m['exec_config']['instru_data']['polarized']}
+atm_mdl_name : {m['exec_config']['site_data']['atm_model_name']}
+desired_sens : {m['exec_config']['desired_sens']}
+mapping      : {mapping}
+t_exp        : {t_exp}
+depth_rms_coadd_actual:
+    a1100    : {tbl['depth_rms_coadd_actual'][0]}
+    a1400    : {tbl['depth_rms_coadd_actual'][1]}
+    a2000    : {tbl['depth_rms_coadd_actual'][2]}
+proj_tot_time: {tbl['proj_total_time'][0]}
+            """
+# - {name: depth_rms_coadd_actual, unit: mJy, datatype: float64}
+# - {name: proj_science_time, unit: h, datatype: float64}
+# - {name: proj_science_time_per_night, datatype: int64}
+# - {name: proj_n_nights, datatype: int64}
+# - {name: proj_science_overhead_time, unit: h, datatype: float64}
+# - {name: proj_total_time, unit: h, datatype: float64}
+# - {name: proj_overhead_time, unit: h, datatype: float64}
+# - {name: proj_overhead_percent, datatype: string}
+
+            return {"exec_config": ecfg, "ra_deg": target_coord.ra.degree, 'dec_deg': target_coord.dec.degree}, html.Div([make_error_report(), html.Pre(details_content)])
+
+        @app.callback(
+            [
                 Output(exec_info_store.id, "data"),
                 Output(mapping_plotter_loading.id, "color"),
             ]
             + instru_results_loading["outputs"],
             [
                 Input(exec_button.id, "n_clicks"),
+                Input(upload_exec_button.id, "n_clicks"),
+                State(upload_content_store.id, "data"),
                 State(mapping_info_store.id, "data"),
                 State(target_info_store.id, "data"),
                 State(site_info_store.id, "data"),
@@ -420,9 +618,12 @@ class ObsPlanner(ComponentTemplate):
                 State(mapping_plotter_loading.id, "color"),
             ]
             + instru_results_loading["states"],
+            prevent_initial_call=True,
         )
         def make_exec_info_data(
             n_clicks,
+            upload_n_clicks,
+            upload_data,
             mapping_data,
             target_data,
             site_data,
@@ -431,14 +632,23 @@ class ObsPlanner(ComponentTemplate):
             *instru_loading,
         ):
             """Collect data for the planned observation."""
-            if mapping_data is None or target_data is None:
-                return (None, mapping_loading) + instru_loading
-            exec_config = ObsPlannerExecConfig.from_data(
-                mapping_data=mapping_data,
-                target_data=target_data,
-                site_data=site_data,
-                instru_data=instru_data,
-            )
+            triggered_id = dash.callback_context.triggered_id
+            if triggered_id == exec_button.id:
+                if mapping_data is None or target_data is None:
+                    return (None, mapping_loading) + instru_loading
+                exec_config = ObsPlannerExecConfig.from_data(
+                    mapping_data=mapping_data,
+                    target_data=target_data,
+                    site_data=site_data,
+                    instru_data=instru_data,
+                )
+            elif triggered_id == upload_exec_button.id:
+                if upload_data is None:
+                    return (None, mapping_loading) + instru_loading
+                exec_config = ObsPlannerExecConfig.from_dict(upload_data["exec_config"])
+
+            else:
+                return dash.no_update
             # generate the traj. Note that this is cached for performance.
             traj_data = _make_traj_data_cached(exec_config)
 
@@ -587,7 +797,7 @@ class ObsPlannerExecConfig(object):
     desired_sens: u.Quantity = field(
         metadata={
             "description": "The desired sensitivity",
-            "schema": PhysicalTypeSchema("spectral flux density")
+            "schema": PhysicalTypeSchema("spectral flux density"),
         }
     )
     # TODO since we now only support LMT/TolTEC, we do not have a
@@ -728,10 +938,10 @@ class ObsPlannerExecConfig(object):
         # then evaluate the mapping model in mapping.ref_frame
         # to get the bore sight coords
         bs_coords = mapping_model.evaluate_coords(t)
-        if self.mapping.type == 'raster':
+        if self.mapping.type == "raster":
             bs_coords_overheadmask = mapping_model.evaluate_holdflag(t) > 0
         else:
-            bs_coords_overheadmask = np.zeros((len(bs_coords), ), dtype=bool)
+            bs_coords_overheadmask = np.zeros((len(bs_coords),), dtype=bool)
 
         # and we can convert the bs_coords to other frames if needed
         altaz_frame = resolve_sky_coords_frame(
