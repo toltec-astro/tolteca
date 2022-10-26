@@ -62,7 +62,10 @@ class LmtTelFileIO(SimpleNcFileIO):
         m = dict()
         m['file_loc'] = self.file_loc
         m['mapping_type'] = self.getstr('mapping_type')
-        m['obs_goal'] = self.getstr('obs_goal').lower()
+        if self.hasvar('obs_goal'):
+            m['obs_goal'] = self.getstr('obs_goal').lower()
+        else:
+            m['obs_goal'] = 'unknown'
         m['master'] = 0
         m['master_name'] = 'tcs'
         m['interface'] = 'lmt'
@@ -70,8 +73,12 @@ class LmtTelFileIO(SimpleNcFileIO):
         # target info
         t_ra, t_ra_off = self.getvar('target_ra')[:]
         t_dec, t_dec_off = self.getvar('target_dec')[:]
-        t_az, t_az_off = self.getvar('target_az')[:]
-        t_alt, t_alt_off = self.getvar('target_alt')[:]
+        if self.hasvar("target_az"):
+            t_az, t_az_off = self.getvar('target_az')[:]
+            t_alt, t_alt_off = self.getvar('target_alt')[:]
+        else:
+            # TODO fix this in simu tel
+            pass
 
         t0 = Time(self.getvar('time')[0], format='unix')
         t0.format = 'isot'
