@@ -372,6 +372,8 @@ class ObsPlanner(ComponentTemplate):
                     return dash.no_update
                 return "{} {}".format(target_info['ra_deg'], target_info['dec_deg'])
             if triggered_id == upload_content_store.id:
+                if upload_data is None:
+                    return dash.no_update
                 return "{} {}".format(upload_data['ra_deg'], upload_data['dec_deg'])
             return dash.no_update
 
@@ -832,7 +834,7 @@ class ObsPlannerExecConfig(object):
                 "obs_params": obs_params_dict,
                 "site_data": site_data,
                 "instru_data": instru_data,
-                "desired_sens": mapping_data["desired_sens_mJy"] << u.mJy,
+                "desired_sens": str(mapping_data["desired_sens_mJy"] << u.mJy),
             }
         )
 
