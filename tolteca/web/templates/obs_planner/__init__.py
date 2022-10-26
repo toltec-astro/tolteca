@@ -88,9 +88,9 @@ class ObsPlanner(ComponentTemplate):
     ):
         kwargs.setdefault("fluid", True)
         super().__init__(**kwargs)
-        self._raster_model_length_max = (raster_model_length_max,)
-        self._lissajous_model_length_max = (lissajous_model_length_max,)
-        self._t_exp_max = (t_exp_max,)
+        self._raster_model_length_max = raster_model_length_max
+        self._lissajous_model_length_max = lissajous_model_length_max
+        self._t_exp_max = t_exp_max
         self._site = ObsSite.from_name(site_name)
         self._instru = None if instru_name is None else ObsInstru.from_name(instru_name)
         self._pointing_catalog_path = pointing_catalog_path
@@ -187,7 +187,8 @@ class ObsPlanner(ComponentTemplate):
         ).body_container
         mapping_preset_select = mapping_container.child(
             ObsPlannerMappingPresetsSelect(
-                presets_config_path=self._presets_config_path, className="px-0"
+                presets_config_path=self._presets_config_path, className="px-0",
+                t_exp_max = self._t_exp_max
             )
         )
         mapping_info_store = mapping_preset_select.info_store
@@ -252,7 +253,10 @@ class ObsPlanner(ComponentTemplate):
         ).body_container
         verify_input_upload = verify_input_container.child(
             dcc.Upload,
-            ["Drag and Drop or ", html.A("Select a File", className="color-primary")],
+            [
+                "Drag and Drop or ",
+                html.A("Select a File", className="color-primary"),
+                ],
             style={
                 "width": "100%",
                 "height": "60px",
@@ -262,6 +266,7 @@ class ObsPlanner(ComponentTemplate):
                 "borderRadius": "5px",
                 "textAlign": "center",
             },
+            max_size=20000 # 20KB
         )
         upload_content_store = verify_input_container.child(dcc.Store)
 
@@ -521,7 +526,7 @@ class ObsPlanner(ComponentTemplate):
             ],
             [
                 Input(verify_input_upload.id, "contents"),
-                State(verify_input_upload.id, "filename"),
+                Input(verify_input_upload.id, "filename"),
                 State(verify_input_upload.id, "last_modified"),
             ],
         )
@@ -532,7 +537,7 @@ class ObsPlanner(ComponentTemplate):
         ):
             """Parse the uploaded input."""
             if content is None:
-                return None, html.Pre("N/A")
+                return None, html.Pre('...')
 
             error_msgs = []
 
@@ -571,10 +576,28 @@ class ObsPlanner(ComponentTemplate):
                 error_msgs.append(
                     f"The result is generated from an earlier revision: {revision} < {current_revision}"
                 )
-            mapping = json.dumps(ecfg["mapping"], indent=2)
-            t_exp = ecfg["obs_params"]["t_exp"]
-            target_coord = parse_coordinates(ecfg['mapping']['target'])
-            details_content = f"""
+            try:
+                mapping = json.dumps(ecfg["mapping"], indent=2)
+                t_exp = ecfg["obs_params"]["t_exp"]
+                    
+                target_coord = parse_coordinates(ecfg['mapping']['target'])
+                # valid mapping this requires creating the exec config
+                exec_config = ObsPlannerExecConfig.from_dict(ecfg)
+                mapping_config = exec_config.mapping
+                if t_exp is None:
+                    t_exp = mapping_config.get_offset_model().t_pattern
+                else:
+                    t_exp = u.Quantity(t_exp)
+                # print(t_exp)
+                t_exp_max = self._t_exp_max
+                # print(t_exp_max)
+                if t_exp > t_exp_max:
+                    error_msgs.append(
+                        f"The pattern takes {t_exp:.2f} to finish, which "
+                        f"exceeds the required maximum value of {t_exp_max}."
+                    )
+                    return None, make_error_report()
+                details_content = f"""
 ECSV_filename: {filename}
 last_modified: {last_modified}
 created_at   : {m["created_at"]}
@@ -592,16 +615,10 @@ depth_rms_coadd_actual:
     a2000    : {tbl['depth_rms_coadd_actual'][2]}
 proj_tot_time: {tbl['proj_total_time'][0]}
             """
-# - {name: depth_rms_coadd_actual, unit: mJy, datatype: float64}
-# - {name: proj_science_time, unit: h, datatype: float64}
-# - {name: proj_science_time_per_night, datatype: int64}
-# - {name: proj_n_nights, datatype: int64}
-# - {name: proj_science_overhead_time, unit: h, datatype: float64}
-# - {name: proj_total_time, unit: h, datatype: float64}
-# - {name: proj_overhead_time, unit: h, datatype: float64}
-# - {name: proj_overhead_percent, datatype: string}
-
-            return {"exec_config": ecfg, "ra_deg": target_coord.ra.degree, 'dec_deg': target_coord.dec.degree}, html.Div([make_error_report(), html.Pre(details_content)])
+                return {"exec_config": ecfg, "ra_deg": target_coord.ra.degree, 'dec_deg': target_coord.dec.degree}, html.Div([make_error_report(), html.Pre(details_content)])
+            except Exception as e:
+                error_msgs.append("Invalid content in the file.")
+                return None, make_error_report()
 
         @app.callback(
             [
