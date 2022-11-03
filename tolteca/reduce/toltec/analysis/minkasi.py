@@ -154,16 +154,20 @@ def _make_minkasi_maps_by_chunk(
         f_smp = (1 / np.median(np.diff(v_time[:100]))) << u.Hz
         ncfile.close()
         logger.debug(f"load ctod of f_smp = {f_smp} n_times={n_times}")
-        chunk_size = int((chunk_len * f_smp).to_value(u.dimensionless_unscaled))
-        n_chunks = n_times // chunk_size + bool(
-            n_times % chunk_size)
+        chunk_size_desired = int((chunk_len * f_smp).to_value(u.dimensionless_unscaled))
+        # n_chunks = n_times // chunk_size_desired + bool(
+        #     n_times % chunk_size)
+        # because the minkasi requires equal length of chunks, we update
+        # chunk length here
+        n_chunks_desired = int(np.round(n_times / chunk_size_desired))
+        chunk_size = n_times // n_chunks_desired
+        n_chunks = n_times // chunk_size
 
         chunk_slices = []
         for i in range(n_chunks):
             start = i * chunk_size
             end = start + chunk_size
-            if end > n_times:
-                end = n_times
+            assert end <= n_times  # end should never be longer than n_times
             chunk_slices.append(slice(start, end))
 
         for i, chunk_slice in enumerate(chunk_slices):
