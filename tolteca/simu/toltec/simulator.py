@@ -616,7 +616,7 @@ class ToltecObsSimulator(object):
                     target_altaz = mapping.target.transform_to(
                         bs_coords_altaz.frame)
                     hwp_pa_altaz = hwp_pa_t + bs_coords_altaz.alt
-                    hwp_pa_icrs = hwp_pa_altaz + bs_parallactic_angle
+                    hwp_pa_icrs = hwp_pa_altaz - bs_parallactic_angle
                     bs_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
                         bs_coords_icrs.ra, bs_coords_icrs.dec)
                     bs_sky_bbox_altaz = SkyBoundingBox.from_lonlat(

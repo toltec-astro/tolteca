@@ -470,7 +470,7 @@ class ToltecSkyProjModel(ProjModel):
                     observer=self.observer,
                     coords_altaz=coords_altaz,
                     coords_icrs=coords_icrs)
-                pa_icrs = pa_altaz + dpa_altaz_icrs
+                pa_icrs = pa_altaz - dpa_altaz_icrs
             eval_ctx['pa_icrs'] = pa_icrs
             eval_ctx['coords_icrs'] = coords_icrs
             eval_ctx['dpa_altaz_icrs'] = dpa_altaz_icrs
