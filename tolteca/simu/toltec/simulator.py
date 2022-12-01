@@ -58,9 +58,15 @@ class ToltecHwpConfig(object):
             }
         )
     rotator_enabled: bool = field(
-        default=False,
+        default=True,
         metadata={
-            'description': 'True if use HWPR.'
+            'description': 'True if rotate the HWPR.'
+            }
+        )
+    installed: bool = field(
+        default=True,
+        metadata={
+            'description': 'True if HWP installed in the beam.'
             }
         )
 
@@ -616,7 +622,7 @@ class ToltecObsSimulator(object):
                     target_altaz = mapping.target.transform_to(
                         bs_coords_altaz.frame)
                     hwp_pa_altaz = hwp_pa_t + bs_coords_altaz.alt
-                    hwp_pa_icrs = hwp_pa_altaz - bs_parallactic_angle
+                    hwp_pa_icrs = hwp_pa_altaz + bs_parallactic_angle
                     bs_sky_bbox_icrs = SkyBoundingBox.from_lonlat(
                         bs_coords_icrs.ra, bs_coords_icrs.dec)
                     bs_sky_bbox_altaz = SkyBoundingBox.from_lonlat(
@@ -680,7 +686,7 @@ class ToltecObsSimulator(object):
                             source_eval_kw = dict()
                             if self.polarized:
                                 source_eval_kw['det_pa_icrs'] = det_pa_icrs
-                                if hwp_cfg.rotator_enabled:
+                                if hwp_cfg.installed:
                                     source_eval_kw['hwp_pa_icrs'] = hwp_pa_icrs
                             s = m_source.evaluate_tod_icrs(
                                 apt['array_name'],
@@ -1293,6 +1299,9 @@ class ToltecSimuOutputContext(ExitStack):
         nm_hwp.setscalar(
                 'Header.Hwp.RotatorEnabled',
                 hwp_cfg.rotator_enabled, dtype='i4')
+        nm_hwp.setscalar(
+                'Header.Hwp.Installed',
+                hwp_cfg.installed, dtype='i4')
         # data variables
         m = dict()
         nc_hwp.createDimension('tlen', 6)
@@ -1352,7 +1361,9 @@ class ToltecSimuOutputContext(ExitStack):
         bs_coords_altaz = data['mapping_info']['bs_coords_altaz']
         bs_parallactic_angle = data['mapping_info']['bs_parallactic_angle']
         target_altaz = data['mapping_info']['target_altaz']
-        hwp_pa_altaz = data['mapping_info']['hwp_pa_altaz']
+        # hwp_pa_altaz = data['mapping_info']['hwp_pa_altaz']
+        # hwp_pa_t = data['mapping_info']['hwp_pa_t']
+        hwp_pa_icrs = data['mapping_info']['hwp_pa_icrs']
         time_obs = data['mapping_info']['time_obs']
         holdflag = data['mapping_info']['holdflag']
         t_grid = data['t']
@@ -1443,7 +1454,9 @@ class ToltecSimuOutputContext(ExitStack):
             f'[{idx}:{idx + len(time_obs)}] to'
             f' {nc_hwp.filepath()}')
         nm_hwp.getvar('time')[idx:, 0] = time_obs.unix
-        nm_hwp.getvar('pa')[idx:] = hwp_pa_altaz.radian
+        # nm_hwp.getvar('pa')[idx:] = hwp_pa_altaz.radian
+        # nm_hwp.getvar('pa')[idx:] = hwp_pa_t.radian
+        nm_hwp.getvar('pa')[idx:] = hwp_pa_icrs.radian
 
     def open(self, overwrite=False):
         """Open files to save data.

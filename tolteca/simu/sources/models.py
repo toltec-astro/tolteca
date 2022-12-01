@@ -239,8 +239,8 @@ class ImageSourceModel(SurfaceBrightnessModel):
         if not eval_hwp:
             return (
                 I
-                + Q * np.cos(-2. * det_pa_icrs)
-                + U * np.sin(-2. * det_pa_icrs)
+                + Q * np.cos(2. * det_pa_icrs)
+                + U * np.sin(2. * det_pa_icrs)
                 )
         return (
             I

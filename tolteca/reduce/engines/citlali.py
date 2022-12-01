@@ -567,6 +567,8 @@ def _fix_apt(source):
     tbl_new['x_t_err'] = 0.
     tbl_new['y_t'] = tbl['y_t'].quantity.to_value(u.arcsec)
     tbl_new['y_t_err'] = 0.
+    tbl_new['pa_t'] = tbl['pa_t'].quantity.to_value(u.radian)
+    tbl_new['pa_t_err'] = 0.
     tbl_new['a_fwhm'] = tbl['a_fwhm'].quantity.to_value(u.arcsec)
     tbl_new['a_fwhm_err'] = 0.
     tbl_new['b_fwhm'] = tbl['b_fwhm'].quantity.to_value(u.arcsec)
