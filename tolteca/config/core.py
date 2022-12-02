@@ -2,11 +2,11 @@
 
 import sys
 import shlex
-from typing import Sequence, Optional
+from typing import List, Dict, Optional, Union
 from pathlib import Path
 
 from pydantic import (
-    FilePath, DirectoryPath, BaseModel, Field
+    FilePath, DirectoryPath, BaseModel, Field, root_validator
     )
 
 
@@ -57,7 +57,7 @@ class TimeField(Time):
 
 
 class ImmutableBaseModel(BaseModel):
-    """Base model class for parse config dict."""
+    """Base model class with mutation disabled."""
     class Config:
         allow_mutation = False
 
@@ -65,11 +65,11 @@ class ImmutableBaseModel(BaseModel):
 class ConfigInfo(ImmutableBaseModel):
     """The config info."""
 
-    env_files: Sequence[AbsFilePath] = Field(
+    env_files: List[AbsFilePath] = Field(
         default_factory=list,
         description='The list of env files.',
         )
-    config_files: Sequence[AbsFilePath] = Field(
+    config_files: List[AbsFilePath] = Field(
         default_factory=list,
         description='The list of config files.',
         )
@@ -88,7 +88,7 @@ class SetupInfo(ImmutableBaseModel):
         default_factory=Time.now,
         description='The time of setup.',
         )
-    config: dict = Field(
+    config: Dict = Field(
         default_factory=dict,
         description='The saved config.'
         )
@@ -100,7 +100,7 @@ class RuntimeInfo(ImmutableBaseModel):
     """
 
     version: str = Field(
-        default=current_version,
+        default_factory=lambda: current_version,
         description='The version.'
         )
     created_at: TimeField = Field(
@@ -116,15 +116,15 @@ class RuntimeInfo(ImmutableBaseModel):
         description='The system hostname.',
         )
     python_prefix: AbsDirectoryPath = Field(
-        default=sys.prefix,
+        default_factory=lambda: sys.prefix,
         description='The path to the python installation.'
         )
     exec_path: AbsFilePath = Field(
-        default=sys.argv[0],
+        default_factory=lambda: sys.argv[0],
         description='Path to the command-line executable.'
         )
     cmd: str = Field(
-        default=shlex.join(sys.argv),
+        default_factory=lambda: shlex.join(sys.argv),
         description='The invoked command.'
         )
     bindir: Optional[AbsDirectoryPath] = Field(
@@ -143,8 +143,42 @@ class RuntimeInfo(ImmutableBaseModel):
         )
 
 
-class ConfigList(object):
-     """A base """
+class ConfigSource(ImmutableBaseModel):
+    """The config source."""
+
+    order: int = Field(
+        description='The order of this config dict when merged with others.'
+        )
+    source: Union[None, AbsFilePath, dict] = Field(
+        description='The config dict or filepath.'
+        )
+
+
+class ConfigSourceList(ImmutableBaseModel):
+    """A base class to manage multiple config sources. """
+
+    __root__: List[ConfigSource]
+
+    @root_validator(pre=True)
+    def check_order_and_sort(cls, values):
+        # print(f"{values}")
+        sources = values.get('__root__')
+        orders = [source.get('order') for source in sources]
+        if len(set(orders)) != len(orders):
+            raise ValueError(
+                f'order of config sources is ambiguous:\n{sources}'
+                )
+        # sort by orders
+        sources_sorted = sorted(sources, key=lambda s: s.get('order'))
+        values['__root__'] = sources_sorted
+        return values
+
+    def __iter__(self):
+        return iter(self.__root__)
+
+    def __getitem__(self, item):
+        return self.__root__[item]
+
 
 class ConfigBackend(object):
     """A base class for loading config dicts and runtime info.

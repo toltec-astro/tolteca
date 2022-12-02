@@ -28,6 +28,21 @@ A proxy to the `ConfigLoader` instance created via CLI.
 """
 
 
+def _add_pre_parser_arguments(parser):
+    # arguments that does not require loading subcommands such as tolteca -v
+    # this is useful to speed things up
+    parser.add_argument(
+            "--no_banner",
+            help="If set, the banner will not be shown.",
+            action='store_true',
+            )
+    parser.add_argument(
+            '-v', '--version', action='store_true',
+            help='Print the version info and exit.'
+            )
+    return parser
+
+
 def main(args=None):
     """The CLI entry point."""
 
@@ -44,31 +59,16 @@ def main(args=None):
       \_/  \____/\____/  \_/  \____\\____/\_/ \|
 
 
-          http://toltecdr.astro.umass.edu
+          https://toltec.lmtgtm.org
 ~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.
 """
 
-    # make a "pre-parser" without loading subcommands.
-    # this is useful to speed things up for something like `tolteca -v`
-    def _add_pre_parser_arguments(parser):
-        parser.add_argument(
-                "--no_banner",
-                help="If set, the banner will not be shown.",
-                action='store_true',
-                )
-        parser.add_argument(
-                '-v', '--version', action='store_true',
-                help='Print the version info and exit.'
-                )
-        return parser
     parser = _add_pre_parser_arguments(
         argparse.ArgumentParser(
             description=description, add_help=False))
     option, unknown_args = parser.parse_known_args(args or sys.argv[1:])
+
     if not option.no_banner:
-        # generating the ascii art is too slow.
-        # since it is static we just created that inline.
-        # from ..utils.misc import make_ascii_banner
         print(banner)
 
     if option.version:
@@ -83,7 +83,7 @@ def main(args=None):
     from pathlib import Path
 
     from tollan.utils.log import init_log, get_logger
-    from ..utils import ConfigLoader
+    from ..config.config_loader import ConfigLoader
     from tollan.utils.fmt import pformat_yaml
 
     parser = main_parser.__wrapped__ = _add_pre_parser_arguments(
