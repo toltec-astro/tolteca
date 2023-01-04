@@ -347,9 +347,9 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                 KidsDataKind.SolvedTimeStream: {
                     "r": 'Data.Kids.rs',
                     "x": 'Data.Kids.xs',
-                    'It': 'Data.Kids.its',
-                    'Qt': 'Data.Kids.qts',
-                    'phi': 'Data.Kids.phs',
+                    # 'It': 'Data.Kids.its',
+                    # 'Qt': 'Data.Kids.qts',
+                    # 'phi': 'Data.Kids.phs',
                     },
                 },
             # these are ancillary data items
