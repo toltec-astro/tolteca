@@ -109,7 +109,7 @@ def _meta_from_wyatt_filename(file_loc):
 
     def parse_ut(v):
         result = Time(
-            datetime.strptime(v, '%Y_%m_%d_%H_%M_%S'),
+            datetime.strptime(v, '%Y-%m-%d'),
             scale='utc')
         result.format = 'isot'
         return result
@@ -131,7 +131,100 @@ def _meta_from_wyatt_filename(file_loc):
     meta['file_loc'] = file_loc
     meta['interface'] = 'wyatt'
     meta['instru'] = 'wyatt'
+    meta['master_name'] = 'ics'
     return meta
+
+
+
+@register_to(_filepath_meta_parsers, 'toltec_hk')
+def _meta_from_hk_filename(file_loc):
+    """Return the meta data parsed from the HK filename."""
+
+    path = file_loc.path
+    filename = path.name
+
+    re_hk_file = (
+        r'^(?P<interface>toltec_hk)'
+        r'_(?P<ut>\d{4}-\d{2}-\d{2})'
+        r'_(?P<obsnum>\d+)_(?P<subobsnum>\d+)_(?P<scannum>\d+)'
+        r'\.(?P<fileext>.+)$')
+
+    def parse_ut(v):
+        result = Time(
+            datetime.strptime(v, '%Y-%m-%d'),
+            scale='utc')
+        result.format = 'isot'
+        return result
+
+    type_dispatcher = {
+        'obsnum': int,
+        'subobsnum': int,
+        'scannum': int,
+        'ut': parse_ut,
+        'fileext': lambda s: s.lower()
+        }
+
+    meta = dict_from_regex_match(
+            re_hk_file, filename, type_dispatcher)
+    if meta is None:
+        return None
+
+    # add more items to the meta
+    meta['file_loc'] = file_loc
+    meta['interface'] = 'hk'
+    meta['instru'] = 'toltec'
+    meta['master_name'] = 'ics'
+    return meta
+
+
+@register_to(_filepath_meta_parsers, 'hwpr')
+def _meta_from_hwpr_filename(file_loc):
+    """Return the meta data parsed from the HWPR filename."""
+
+    path = file_loc.path
+    filename = path.name
+
+    re_hwpr_file = (
+        r'^(?P<interface>hwpr)'
+        r'_(?P<obsnum>\d+)_(?P<subobsnum>\d+)_(?P<scannum>\d+)'
+        r'_(?P<ut>\d{4}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))'
+        r'(?:_(?P<filesuffix>[^\/.]+))?'
+        r'\.(?P<fileext>.+)$')
+
+    def parse_ut(v):
+        result = Time(
+            datetime.strptime(v, '%Y_%m_%d_%H_%M_%S'),
+            scale='utc')
+        result.format = 'isot'
+        return result
+
+    type_dispatcher = {
+        'obsnum': int,
+        'subobsnum': int,
+        'scannum': int,
+        'ut': parse_ut,
+        'fileext': lambda s: s.lower()
+        }
+
+    meta = dict_from_regex_match(
+            re_hwpr_file, filename, type_dispatcher)
+    if meta is None:
+        return None
+
+    # add more items to the meta
+    meta['file_loc'] = file_loc
+    meta['interface'] = 'hwpr'
+    meta['instru'] = 'toltec'
+
+    # one can infer the master if the immediate parent of the file is
+    # the interface
+    if path.parent.name == meta['interface']:
+        master_name = path.parent.parent.name
+        if master_name in ['ics', 'tcs', 'clip']:
+            meta['master_name'] = master_name
+
+    return meta
+
 
 
 @register_to(_filepath_meta_parsers, 'lmt_tel')
@@ -142,7 +235,7 @@ def _meta_from_lmt_tel_filename(file_loc):
     filename = path.name
 
     re_lmt_tel_file = (
-        r'^(?P<interface>tel_toltec)'
+        r'^(?P<interface>tel_\w+)'
         r'_(?P<ut>\d{4}-\d{2}-\d{2})'
         r'_(?P<obsnum>\d+)_(?P<subobsnum>\d+)_(?P<scannum>\d+)'
         r'\.(?P<fileext>.+)$')
@@ -160,7 +253,7 @@ def _meta_from_lmt_tel_filename(file_loc):
         'scannum': int,
         'ut': parse_ut,
         'fileext': lambda s: s.lower(),
-        'interface': lambda s: ('lmt' if s == 'tel_toltec' else s)
+        'interface': lambda s: ('lmt' if s == 'tel' else s)
         }
 
     meta = dict_from_regex_match(
@@ -171,6 +264,7 @@ def _meta_from_lmt_tel_filename(file_loc):
     # add more items to the meta
     meta['file_loc'] = file_loc
     meta['instru'] = 'lmt'
+    meta['master_name'] = 'tcs'
     return meta
 
 
@@ -182,7 +276,7 @@ def _meta_from_simu_filename(file_loc):
     filename = path.name
 
     re_simu = re.compile(
-        r'^(?P<interface>tel|apt|hwp)_(?P<obsnum>\d+)_'
+        r'^(?P<interface>tel|apt)_(?P<obsnum>\d+)_'
         r'(?P<subobsnum>\d+)_(?P<scannum>\d+)_'
         r'(?P<ut>\d{4}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))'
         r'\.(?P<fileext>.+)$')
