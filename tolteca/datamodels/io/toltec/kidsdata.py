@@ -931,6 +931,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             # we have ensured the time_loc arg is always slice
             # in _KidsDataAxisSlicer
             time_slice = ops['time']
+            _sample_slice = ops['sample']
             if time_slice is not None:
                 sample_slice = list(map(
                     _t_to_sample,
@@ -940,6 +941,12 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                         time_slice.step,
                         ],
                     ))
+            elif _sample_slice is not None:
+                sample_slice = [
+                        _sample_slice.start,
+                        _sample_slice.stop,
+                        _sample_slice.step,
+                        ]
             else:
                 sample_slice = [None, None, None]
             # make sure the step at least 1
@@ -949,9 +956,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         else:
             # read from the sample loc
             sample_slice = ops['sample'] or slice(None, None, None)
-
         result['sample_slice'] = sample_slice
-
         return result
 
     def _read_sliced(self, slicer):
