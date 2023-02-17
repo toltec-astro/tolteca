@@ -253,7 +253,7 @@ def _meta_from_lmt_tel_filename(file_loc):
         'scannum': int,
         'ut': parse_ut,
         'fileext': lambda s: s.lower(),
-        'interface': lambda s: ('lmt' if s == 'tel' else s)
+        'interface': lambda s: ('lmt' if s == 'tel' or s.startswith('tel_') else s)
         }
 
     meta = dict_from_regex_match(

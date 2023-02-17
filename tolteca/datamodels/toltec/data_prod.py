@@ -71,7 +71,7 @@ class ScienceDataProd(ToltecDataProd):
                             'array_name': array_name,
                             'kind': DataItemKind.CalibratedImage,
                             'filepath': list(
-                                p.glob(f'toltec_*_{array_name}*.fits'))[-1],
+                                p.glob(f'raw/toltec_*_{array_name}*.fits'))[-1],
                             }
                         for array_name in toltec_info['array_names']
                         ]

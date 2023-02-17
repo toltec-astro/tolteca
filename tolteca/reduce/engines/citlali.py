@@ -490,7 +490,7 @@ class CitlaliProc(object):
             'name': f'{d0["obsnum"]}_{d0["subobsnum"]}_{d0["scannum"]}'
             }
         data_items = list()
-        cal_items = cal_items or list()
+        cal_items = cal_items.copy() or list()
         has_apt = False
         for entry in tbl:
             instru = entry['instru']
@@ -551,6 +551,9 @@ def _fix_apt(source):
     # this is a temporary fix to make citlali work with the
     # apt
     tbl = Table.read(source, format='ascii.ecsv')
+    if all(tbl[c].dtype == float for c in tbl.colnames):
+        # by-pass it when it is already all float
+        return source
     tbl_new = Table()
 
     def get_uid(uid):
