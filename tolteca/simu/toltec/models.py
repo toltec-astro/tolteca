@@ -1424,19 +1424,19 @@ class ToastAtmConfig(object):
             'description': 'The zstep value'
         }
     )
-    nelem_sim_max: np.int = field(
+    nelem_sim_max: int = field(
         default=20000,
         metadata={
             'description': 'The nelem_sim_max value',
             }
         )
-    key1: np.int = field(
+    key1: int = field(
         default=0,
         metadata={
             'description': 'key1 randomization',
             }
         )
-    key2: np.int = field(
+    key2: int = field(
         default=0,
         metadata={
             'description': 'key2 randomization',

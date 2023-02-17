@@ -501,6 +501,7 @@ class CitlaliProc(object):
                 c = data_items
             elif interface == 'lmt':
                 c = data_items
+                source = _fix_tel(source)
             elif interface == 'hwp':
                 c = data_items
             elif interface == 'apt':
@@ -545,6 +546,57 @@ class CitlaliProc(object):
                 'data_items': data_items,
                 'cal_items': cal_items,
                 }
+
+def _fix_tel(source):
+    # This is to recompute the ParAngAct, SourceRaAct and SourceDecAct from the tel.nc file
+    logger = get_logger()
+    from netCDF4 import Dataset
+    from astropy.time import Time
+    from astropy.coordinates import SkyCoord
+    from tollan.utils.fmt import pformat_yaml
+    from tolteca.simu.toltec.toltec_info import toltec_info
+    source_new = source.replace('.nc', '_recomputed.nc')
+    if source_new != source:
+        try:
+            shutil.copy(source, source_new)
+        except Exception:
+            raise ValueError("unable to create recomputed tel.nc")
+    else:
+        raise ValueError("invalid tel.nc filename")
+
+    observer = toltec_info['site']['observer']
+    tnc = Dataset(source_new, mode='a')
+    tel_time = Time(tnc['Data.TelescopeBackend.TelTime'][:], format='unix')
+    tel_t0 = tel_time[0]
+    tel_t = tel_time - tel_t0
+
+    tel_az = tnc['Data.TelescopeBackend.TelAzAct'][:] << u.rad
+    tel_alt = tnc['Data.TelescopeBackend.TelElAct'][:] << u.rad
+    tel_az_cor = tnc['Data.TelescopeBackend.TelAzCor'][:] << u.rad
+    tel_alt_cor = tnc['Data.TelescopeBackend.TelElCor'][:] << u.rad
+    tel_az_tot = tel_az - (tel_az_cor) / np.cos(tel_alt)
+    tel_alt_tot = tel_alt - (tel_alt_cor)
+    altaz_frame = observer.altaz(time=tel_time)
+    tel_icrs_astropy = SkyCoord(tel_az_tot, tel_alt_tot, frame=altaz_frame).transform_to('icrs')
+    # update variables and save
+    pa = observer.parallactic_angle(time=tel_time, target=tel_icrs_astropy)
+    pa_orig = tnc['Data.TelescopeBackend.ActParAng'][:] << u.rad
+    ra_orig = tnc['Data.TelescopeBackend.SourceRaAct'][:] << u.rad
+    dec_orig = tnc['Data.TelescopeBackend.SourceDecAct'][:] << u.rad
+
+    tnc['Data.TelescopeBackend.ActParAng'][:] = pa.radian
+    tnc['Data.TelescopeBackend.SourceRaAct'][:] = tel_icrs_astropy.ra.radian
+    tnc['Data.TelescopeBackend.SourceDecAct'][:] = tel_icrs_astropy.dec.radian
+    tnc.sync()
+    tnc.close()
+    # make some diagnostic info
+    def stat_change(d, d_orig, unit, name):
+        dd = (d - d_orig).to_value(unit)
+        logger.info(f"{name} changed with diff ({unit}): min={dd.max()} max={dd.min()} mean={dd.mean()} std={np.std(dd)}")
+    stat_change(pa, pa_orig, u.deg, 'ActParAng') 
+    stat_change(tel_icrs_astropy.ra, ra_orig, u.arcsec, 'SourceRaAct') 
+    stat_change(tel_icrs_astropy.dec, dec_orig, u.arcsec, 'SourceDecAct') 
+    return source_new 
 
 
 def _fix_apt(source):
