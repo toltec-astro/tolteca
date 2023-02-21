@@ -501,14 +501,14 @@ class CitlaliProc(object):
                 c = data_items
             elif interface == 'lmt':
                 c = data_items
-                source = _fix_tel(source)
+                source = _fix_tel(source, output_dir)
             elif interface == 'hwp':
                 c = data_items
             elif interface == 'apt':
                 c = cal_items
                 # TODO implement in citlali the proper
                 # ecsv handling
-                source = _fix_apt(source)
+                source = _fix_apt(source, output_dir)
                 extra = {'type': 'array_prop_table'}
                 has_apt = True
             else:
@@ -547,7 +547,7 @@ class CitlaliProc(object):
                 'cal_items': cal_items,
                 }
 
-def _fix_tel(source):
+def _fix_tel(source, output_dir):
     # This is to recompute the ParAngAct, SourceRaAct and SourceDecAct from the tel.nc file
     logger = get_logger()
     from netCDF4 import Dataset
@@ -555,7 +555,7 @@ def _fix_tel(source):
     from astropy.coordinates import SkyCoord
     from tollan.utils.fmt import pformat_yaml
     from tolteca.simu.toltec.toltec_info import toltec_info
-    source_new = source.replace('.nc', '_recomputed.nc')
+    source_new = output_dir.joinpath(Path(source).name.replace('.nc', '_recomputed.nc')).as_posix()
     if source_new != source:
         try:
             shutil.copy(source, source_new)
@@ -599,7 +599,7 @@ def _fix_tel(source):
     return source_new 
 
 
-def _fix_apt(source):
+def _fix_apt(source, output_dir):
     # this is a temporary fix to make citlali work with the
     # apt
     tbl = Table.read(source, format='ascii.ecsv')
@@ -640,7 +640,7 @@ def _fix_apt(source):
     tbl_new['converge_iter'] = 0.
     tbl_new['derot_elev'] = 0.
 
-    source_new = source.replace('.ecsv', '_trimmed.ecsv')
+    source_new = output_dir.joinpath(Path(source).name.replace('.ecsv', '_trimmed.ecsv')).as_posix()
     tbl_new.write(source_new, format='ascii.ecsv', overwrite=True)
     return source_new
 
