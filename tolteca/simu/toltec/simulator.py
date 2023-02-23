@@ -246,6 +246,10 @@ class ToltecObsSimulator(object):
                 tbl['pa_t'] = pa_t
         if 'pa_t' not in tbl.colnames:
             tbl['pa_t'] = 0. << u.deg
+        # add more columns for citlali v2:
+        for c in ["tone_freq", "x_t_raw", "y_t_raw", "x_t_derot", "y_t_derot"]:
+            if c not in tbl.colnames:
+                tbl[c] = 0.
         return QTable(tbl)
 
     def __str__(self):

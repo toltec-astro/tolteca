@@ -639,6 +639,9 @@ def _fix_apt(source, output_dir):
     tbl_new['sig2noise'] = 1.
     tbl_new['converge_iter'] = 0.
     tbl_new['derot_elev'] = 0.
+    tbl_new['loc'] = -1.
+    if 'loc' in tbl.colnames:
+        tbl_new['loc'] = np.array(tbl['loc'], dtype='d')
 
     source_new = output_dir.joinpath(Path(source).name.replace('.ecsv', '_trimmed.ecsv')).as_posix()
     tbl_new.write(source_new, format='ascii.ecsv', overwrite=True)
@@ -670,10 +673,12 @@ def _make_apt(data_items, output_dir):
         tbl['fg'] = -1.
         tbl['pg'] = -1.
         tbl['ori'] = -1.
+        tbl['loc'] = -1.
         tbl['array'] = float(toltec_info[array_name]['index'])
         tbl['flxscale'] = 1.
         tbl['x_t'] = 0.
         tbl['y_t'] = 0.
+        tbl['pa_t'] = 0.
         tbl['a_fwhm'] = 0.
         tbl['b_fwhm'] = 0.
         return tbl
