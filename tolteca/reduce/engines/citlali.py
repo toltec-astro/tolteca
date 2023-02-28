@@ -642,6 +642,11 @@ def _fix_apt(source, output_dir):
     tbl_new['loc'] = -1.
     if 'loc' in tbl.colnames:
         tbl_new['loc'] = np.array(tbl['loc'], dtype='d')
+    for c in ["tone_freq", "x_t_raw", "y_t_raw", "x_t_derot", "y_t_derot"]:
+        if c not in tbl.colnames:
+            tbl_new[c] = 0.
+        else:
+            tbl_new[c] = np.array(tbl[c], dtype='d')
 
     source_new = output_dir.joinpath(Path(source).name.replace('.ecsv', '_trimmed.ecsv')).as_posix()
     tbl_new.write(source_new, format='ascii.ecsv', overwrite=True)

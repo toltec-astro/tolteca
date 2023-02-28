@@ -1459,8 +1459,8 @@ class ToltecSimuOutputContext(ExitStack):
             f' {nc_hwp.filepath()}')
         nm_hwp.getvar('time')[idx:, 0] = time_obs.unix
         # nm_hwp.getvar('pa')[idx:] = hwp_pa_altaz.radian
-        # nm_hwp.getvar('pa')[idx:] = hwp_pa_t.radian
-        nm_hwp.getvar('pa')[idx:] = hwp_pa_icrs.radian
+        nm_hwp.getvar('pa')[idx:] = hwp_pa_t.radian
+        # nm_hwp.getvar('pa')[idx:] = hwp_pa_icrs.radian
 
     def open(self, overwrite=False):
         """Open files to save data.
