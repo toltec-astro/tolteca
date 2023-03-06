@@ -482,6 +482,40 @@ class CitlaliProc(object):
         return cfg.data
 
     @classmethod
+    def _resolve_cal_items(cls, index_table, cal_items):
+        """Build list of cal_items that are applicable to index_table
+        """
+        df = index_table[[c for c in index_table.colnames if len(index_table[c].shape) == 1]].to_pandas()
+        if not cal_items:
+            # a list of empty lists
+            return [dict() for _ in range(len(df))]
+        check = np.zeros((len(df), len(cal_items)), dtype=bool)
+        for j, cal_item in enumerate(cal_items):
+            # check the "select" against the index_table
+            cond = cal_item.get("select", None)
+            if cond is not None:
+                is_applicable = df.eval(cond).to_numpy(dtype=bool)
+            else:
+                is_applicable = np.ones((len(df), ), dtype=bool)
+            check[:, j] = is_applicable
+        # build the list for each entry, note that we run rupdate
+        # to merge the same type of cal_items
+        result = list()
+        for i in range(len(df)):
+            resolved_cal_items = dict()
+            for j, cal_item in enumerate(cal_items):
+                cal_item = cal_item.copy()
+                cal_item.pop("select", None)
+                cal_item_type = cal_item['type']
+                if check[i, j]:
+                    if cal_item_type not in resolved_cal_items:
+                        resolved_cal_items[cal_item_type] = dict()
+                    rupdate(resolved_cal_items[cal_item_type], cal_item)
+            # convert to list
+            result.append(resolved_cal_items)
+        return result
+
+    @classmethod
     def _resolve_input_item(cls, index_table, output_dir, cal_items=None):
         """Return an citlali input list entry from index table."""
         tbl = index_table
@@ -490,8 +524,10 @@ class CitlaliProc(object):
             'name': f'{d0["obsnum"]}_{d0["subobsnum"]}_{d0["scannum"]}'
             }
         data_items = list()
-        cal_items = cal_items.copy() or list()
-        has_apt = False
+        # note there we just build the calitem for the first entry
+        # since all entries are the same
+        cal_items = cls._resolve_cal_items(
+            index_table[:1], cal_items.copy() or list())[0]
         for entry in tbl:
             instru = entry['instru']
             interface = entry['interface']
@@ -510,25 +546,29 @@ class CitlaliProc(object):
                 # ecsv handling
                 source = _fix_apt(source, output_dir)
                 extra = {'type': 'array_prop_table'}
-                has_apt = True
             else:
                 continue
-            c.append(dict({
+            item = dict({
                     'filepath': source,
                     'meta': {
                         'interface': interface
                         }
                     }, **extra)
-                    )
-        if not has_apt:
+            if isinstance(c, list):
+                c.append(item)
+            elif isinstance(c, dict):
+                c[item['type']] = item
+            else:
+                raise ValueError("invalid item list to construct")
+        if 'array_prop_table' not in cal_items:
             # build the apt with all network tones
-            cal_items.append({
+            cal_items['array_prop_table'] = {
                 'filepath': _make_apt(data_items, output_dir),
                 'meta': {
                     'interface': 'apt'
                     },
                 'type': 'array_prop_table'
-                })
+                }
         cls.logger.debug(
                 f"collected input item name={meta['name']} "
                 f"n_data_items={len(data_items)} "
@@ -544,7 +584,8 @@ class CitlaliProc(object):
         return {
                 'meta': meta,
                 'data_items': data_items,
-                'cal_items': cal_items,
+                # make cal_items a list as expected by the citlali
+                'cal_items': list(cal_items.values()),
                 }
 
 def _fix_tel(source, output_dir):
