@@ -1,11 +1,13 @@
-#!/bin/bash
-
+#/bin/bash
+echo "reduce beammap recipe"
 pybindir="${HOME}/toltec_astro/extern/pyenv/versions/tolteca_v1/bin"
 toltecaexec=${pybindir}/tolteca
 scriptdir=$(dirname "$(readlink -f "$0")")
 dataroot=/data/data_lmt
 scratchdir=${dataroot}/toltec/reduced
 rcdir=$HOME/toltec_astro/run/tolteca/beammap
+prcdir=$HOME/toltec_astro/run/tolteca/pointing
+srcdir=$HOME/toltec_astro/run/tolteca/science
 
 if [[ -e ${SCRATCHDIR} ]]; then
     scratchdir=${SCRATCHDIR}
@@ -19,6 +21,9 @@ if [[ ! $1 ]]; then
 else
     obsnum=$1
 fi
+
+scannum=$(${pybindir}/python3 ${scriptdir}/get_latest_scannum.py ${obsnum})
+echo found latest scannum ${scannum}
 
 echo "reduce beammap obsnum=${obsnum}"
 
@@ -34,4 +39,20 @@ ln -sf ${dataroot}/toltec/tcs/toltec*/toltec[0-9]*_${obsnum_str}_*.nc ${rcdir}/d
 # ${pybindir}/python3 ${scriptdir}/make_beammap_input_apt.py obsnum
 
 # run tolteca reduce
-$toltecaexec -g -d ${rcdir} -- reduce --jobkey reduced/${obsnum} --inputs.0.select "(obsnum == ${obsnum}) & (scannum == scannum.max())"
+$toltecaexec -g -d ${rcdir} -- reduce --jobkey reduced/${obsnum} --inputs.0.select "(obsnum == ${obsnum}) & (scannum == ${scannum})"
+
+# run the pointing script
+resultdir=${rcdir}/reduced/${obsnum}
+redudir=$(${pybindir}/python3 ${scriptdir}/get_largest_redu_dir_for_obsnum.py $resultdir $obsnum)
+if [[ $? != 0 ]]; then
+    exit 0
+fi
+# prepare the apt table and put it in the apt folder
+aptdir=${HOME}/toltec_astro/run/apt
+apt_output_file=${redudir}/${obsnum}/raw/apt_*.ecsv
+${pybindir}/python3 ${scriptdir}/cleanup_beammap_apt.py --obsnum ${obsnum} ${apt_output_file} --output_dir ${aptdir}
+echo "run beammap reader in ${redudir}"
+ln -sf ${aptdir}/apt_${obsnum}_cleaned.ecsv ${rcdir}/apt.ecsv
+ln -sf ${aptdir}/apt_${obsnum}_cleaned.ecsv ${prcdir}/apt.ecsv
+ln -sf ${aptdir}/apt_${obsnum}_cleaned.ecsv ${srcdir}/apt.ecsv
+${pybindir}/python3 $scriptdir/beammap_reader_v1.py -p ${redudir}/${obsnum}/raw --obsnum ${obsnum} -s -o ${redudir}/${obsnum}/raw

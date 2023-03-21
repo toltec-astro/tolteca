@@ -1,5 +1,5 @@
 #!/bin/bash
-source /home/toltec/toltec_astro/dotbashrc
+# source /home/toltec/toltec_astro/dotbashrc
 
 file=${@: 1:1}
 args_all=${@: 2:$#-1}
@@ -63,7 +63,6 @@ echo "additional output to: ${scratchdir}"
 kidscppdir="${HOME}/toltec_astro_v1/kidscpp"
 kidspydir="${HOME}/zma_deprecated/kids_master/scripts"
 pyexec="${HOME}/toltec_astro/venvs/toltec/bin/python3"
-pyexec_v1="${HOME}/toltec_astro/extern/pyenv/versions/tolteca_v1/bin/python3"
 # finder_thresh=10  # TODO need a better way to handle this
 # fitter_Qr=13000  # TODO need a better way to handle this
 
@@ -78,23 +77,23 @@ echo "nw: ${nw}"
 if (( ${nw} >= 7 )); then
     # 1.4 and 2.0mm
     finder_args=( \
-        --fitter_weight_window_Qr 6500 \
+        --fitter_weight_window_Qr 5000 \
         --finder_use_savgol_deriv \
         --finder_smooth_size 15 \
         --finder_threshold 3 --finder_stats_clip_sigma 2 --fitter_lim_gain_min 0)
     fitter_args=( \
-        --fitter_weight_window_Qr 6500 \
+        --fitter_weight_window_Qr 5000 \
         --finder_use_savgol_deriv \
         --finder_smooth_size 15 \
         --fitter_auto_global_shift)
 elif (( ${nw} <= 6 )); then
     finder_args=( \
-        --fitter_weight_window_Qr 10000 \
+        --fitter_weight_window_Qr 7500 \
         --finder_use_savgol_deriv \
         --finder_smooth_size 15 \
         --finder_threshold 3 --finder_stats_clip_sigma 2 --fitter_lim_gain_min 0)
     fitter_args=( \
-        --fitter_weight_window_Qr 10000 \
+        --fitter_weight_window_Qr 7500 \
         --finder_use_savgol_deriv \
         --finder_smooth_size 15 \
         --fitter_auto_global_shift)
@@ -117,10 +116,6 @@ if [[ ${type} == "vna" ]]; then
         if [[ $outfile ]]; then
             ${pyexec} ${scriptdir}/fix_lo.py ${file} "${reportfile}" "${outfile}"
         fi
-        # build the refdata
-        ${pyexec_v1} ${scriptdir}/make_ref_data.py ${file} ${reportfile}
-        ref_file=${reportfile%.*}.refdata
-        ln -sf ${ref_file} ${scratchdir}/toltec${nw}_vnasweep.refdata
     elif [[ ${runmode} == "plot" ]]; then
         ${pyexec} ${kidspydir}/kidsdetect.py ${file} --plot_d21 ${scratchdir}/'{stem}_d21.nc' ${args} &
     elif [[ ${runmode} == "fg" ]]; then
@@ -134,11 +129,9 @@ elif [[ ${type} == "targ" ]]; then
     reportfile="${scratchdir}/${reportfile}"
     if [[ ${runmode} == "reduce" ]]; then
         ${kidscppdir}/build/bin/kids \
-           ${fitter_args[@]} \
-           --output_processed ${scratchdir}/'{stem}_processed.nc' \
-           --output "${reportfile}"  "${file}" ${args}
-        cp ${reportfile} ${reportfile}.kidscpp
-        bash ${scriptdir}/reduce_tune.sh ${file}
+            ${fitter_args[@]} \
+            --output_processed ${scratchdir}/'{stem}_processed.nc' \
+            --output "${reportfile}"  "${file}" ${args}
     if [[ $outfile ]]; then
         ${pyexec} ${scriptdir}/fix_lo.py ${file} "${reportfile}" "${outfile}"
     fi

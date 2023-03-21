@@ -663,8 +663,10 @@ class BasicObsSelectView(ComponentTemplate):
                 source_keys = source_keys.union(set(k))
 
             def make_network_options(source_key):
+                print(source_key)
                 value = int(source_key.replace('toltec', ''))
                 for r in df_raw_obs.itertuples():
+                    # print(r)
                     if r.raw_obs_type == 'VNA':
                         continue
                     if r.source is None:
@@ -683,11 +685,15 @@ class BasicObsSelectView(ComponentTemplate):
                                     f'({m["n_tones"]}/{m["n_tones_design"]})'),
                                 'value': value,
                                 }
+                print("no source key")
+                return None
 
-            network_options = sorted([
+            network_options = sorted(filter(
+                 lambda v: v is not None,
+                [
                     make_network_options(source_key)
                     for source_key in source_keys
-                    ], key=lambda v: v['value'])
+                    ],), key=lambda v: v['value'])
 
             df_toltec_userlog = query_toltec_userlog(
                     min(df_raw_obs['obsnum']),

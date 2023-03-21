@@ -112,6 +112,9 @@ def get_quicklook_data(rootdir, bods, search_paths=None):
         if obs_goal in ['test', 'pointing'] or 'pointing' in index['data_items'][0]['filepath'].name:
             pointing_reader_data = get_pointing_reader_data(dp)
             index['pointing_reader_data'] = pointing_reader_data
+        elif obs_goal in ['beammap', ] or 'beammap' in index['data_items'][0]['filepath'].name:
+            beammap_reader_data = get_beammap_reader_data(dp)
+            index['beammap_reader_data'] = beammap_reader_data
         print(index)
         return index, None
     return None, "Unkown type of data product."
@@ -142,6 +145,21 @@ def get_pointing_reader_data(dp):
             'quicklook_files': quicklook_files
             })
     return result
+
+
+def get_beammap_reader_data(dp):
+    print(f'collecting beammap reader data for {dp}')
+    # get the data rootpath
+    datadir = Path(dp.index['data_items'][0]['filepath']).parent
+    result = {
+            'meta': dp.meta,
+            'data_items': list()
+            }
+    result['data_items'].append({
+        'quicklook_files': list(datadir.glob(f'toltec_beammap_*_image.png'))
+        })
+    return result
+
 
 
 class MyEncoder(JSONEncoder):

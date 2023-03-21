@@ -20,7 +20,7 @@ from tollan.utils.log import timeit, get_logger
 from dasha.web.extensions.cache import cache
 from dash.exceptions import PreventUpdate
 import scipy.interpolate as interpolate
-# import functools
+import functools
 from .common import HeaderWithToltecLogo
 from .common.simple_basic_obs_select import KidsDataSelect
 from dasha.web.templates.common import LiveUpdateSection
@@ -238,8 +238,9 @@ class NoiseExplorer(ComponentTemplate):
 
 
 # Read data from netcdf files
+# @cache.memoize(timeout=60 * 60 * 60)
 @timeit
-@cache.memoize(timeout=60 * 60 * 60)
+@functools.lru_cache()
 def _fetchPsdData(filepath):
 
     with timeit(f"read in solved timestream from {filepath}"):
