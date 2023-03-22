@@ -1,0 +1,45 @@
+load:
+   # need to change these to correspond to your folders
+   home_dir:   /data_lmt/toltec/
+   save_dir:   /data_lmt/toltec/reduced/
+   fig_dir:    /data_lmt/toltec/reduced/
+   sweep_name:
+
+save: 
+   # can run these all in the same instance,
+   # set to True (False) to turn each option on (off)
+   use_save_fig:  False
+   use_save_pdf:  False
+   use_save_file: True
+   save_name:     test
+   
+preview:
+   # set to True (False) to turn each option on (off)
+   # note: probably want to turn off if fitting a lot of resonators (tone_range)
+   show_plots: False
+
+weight:
+   window_Qr: 12000 # int or float, window to applying weighting to in fit, default is 12000
+   
+   # optional, options are lorentz OR
+   # gauss, OR
+   # leave blank to turn option off
+   weight_type:
+
+flag_settings:
+   a_predict_guess:     0.15 # float, desired nonlinearity parameter, default is 0.2
+   a_predict_threshold: 0.25 # float, percent that a_predict_guess is off from data, default is 0.2
+   pherr_threshold:     0.25 # float, percent that the phase fit is off from data, default is 0.2
+   pherr_threshold_num: 10   # int, number of points allowed above pherr_threshold, default is 10
+   
+   
+fit_settings:
+   # leave powlist_start(end) blank to fit all drive attenuations
+   powlist_start: 9 # int
+   powlist_end:  -1 # int, negative
+   numspan:       1 # int, number of linewidths to fit, default is 2
+   
+   # options: all # for all tones  OR 
+   # any list of tones/integers OR 
+   # a single tone/integer
+   tone_range: all #[0,1,2,3,4,5,6,7,8,9,10] #all

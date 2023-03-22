@@ -133,14 +133,19 @@ elif [[ ${type} == "targ" ]]; then
     echo "reportfile: ${reportfile}"
     reportfile="${scratchdir}/${reportfile}"
     if [[ ${runmode} == "reduce" ]]; then
+        # this is legacy kids reduce tune.txt
         ${kidscppdir}/build/bin/kids \
            ${fitter_args[@]} \
            --output_processed ${scratchdir}/'{stem}_processed.nc' \
            --output "${reportfile}"  "${file}" ${args}
-        cp ${reportfile} ${reportfile}.kidscpp
-        bash ${scriptdir}/reduce_tune.sh ${file}
+        cp ${reportfile} ${reportfile}.kidscpp_v0
+        # run the new reduce tune to generate all tables
+        bash ${scriptdir}/reduce_tune.sh $(readlink -f ${file})
     if [[ $outfile ]]; then
-        ${pyexec} ${scriptdir}/fix_lo.py ${file} "${reportfile}" "${outfile}"
+        # ${pyexec} ${scriptdir}/fix_lo.py ${file} "${reportfile}" "${outfile}"
+        # the targ freqs.txt is compatible to what ICS expect.
+        targ_freqs_file=${reportfile%.*}_targ_freqs.txt
+        cp ${targ_freqs_file} "${outfile}"
     fi
     elif [[ ${runmode} == "plot" ]]; then
         ${pyexec} ${kidspydir}/kidsvis.py ${file} --fitreport "${reportfile}" --use_derotate ${args} --grid 8 8 &

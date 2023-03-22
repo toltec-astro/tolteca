@@ -29,5 +29,5 @@ echo "tune reduce for ${filepath} ${output_filepath}"
 
 # locate ref_data
 ref_file=${scratchdir}/toltec${nw}_vnasweep.refdata
-${pybindir}/python ${scriptdir}/reduce_tune.py -r ${ref_file} ${filepath} > ${log_filepath}
+${pybindir}/python ${scriptdir}/reduce_tune_v20230321.py -r ${ref_file} ${filepath} # > ${log_filepath}
 # ${scriptdir}/reduce.sh ${filepath} -r --output ${output_filepath} > ${log_filepath}
