@@ -18,6 +18,9 @@ from astropy.table import vstack
 import lmfit
 import tqdm
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
+import pyximport
+pyximport.install(setup_args={"script_args" : ["--verbose"]})
+from cpeakdetect import peakdetect
 
 
 @timeit
@@ -151,6 +154,7 @@ def despike(swp, debug_plot_kw=None, **kwargs):
 
 def _make_group_1d(x, dist):
     """return a list of list of indices that are groups of the x based on dist."""
+    logger = get_logger()
     i_sorted = np.argsort(x)
     x_sorted = x[i_sorted]
     dx_sorted = np.diff(x_sorted)
@@ -174,7 +178,7 @@ def _make_group_1d(x, dist):
 
 
 @timeit
-def find_peak_fp(fs, y, Qrs, exclude_edge=5e3 << u.Hz, min_height=0.01):
+def find_peak_fp_fast(fs, y, Qrs, exclude_edge=5e3 << u.Hz, min_height=0.01):
     """Return a list of frequencies by looking for peaks in y.
 
     y has the same shape as fs.
@@ -182,13 +186,80 @@ def find_peak_fp(fs, y, Qrs, exclude_edge=5e3 << u.Hz, min_height=0.01):
     logger = get_logger()
     # make a copy of y since we'll modify it
     # flip y to make it S21 peaks
+    fstep = (fs[1] - fs[0])
     y = y.copy()
     # pad max value at side otherwise the function does not work for some
     # reason
     m = y.max()
     y[0] = m
     y[-1] = m
-    fwhm = fs.mean() / np.mean(Qrs) / (fs[1] - fs[0])
+    fwhm = fs.mean() / np.mean(Qrs) / fstep
+    exclude_edge_samples = exclude_edge / fstep
+    if np.isnan(fwhm):
+        import pdb
+        pdb.set_trace()
+    lookahead = int(fwhm * 0.5)
+    min_lookahead, max_lookahead = 10, (len(y) // 5)
+    if lookahead < min_lookahead:
+        logger.debug(f"use {min_lookahead=}")
+        lookahead = min_lookahead
+    if lookahead > max_lookahead:
+        logger.debug(f"use {max_lookahead=}")
+        lookahead = max_lookahead
+    logger.debug(f"Qrs={Qrs.tolist()} {lookahead=} {min_height=} {exclude_edge_samples=}")
+    peaks, labx, peaks_good, peak_is_good = peakdetect(
+        y,
+        lookahead=lookahead,
+        offset_for_height=lookahead,
+        min_height=min_height,
+        exclude_edge=exclude_edge_samples
+        )
+    if False:
+        x = np.arange(len(y))
+        for ll in np.unique(labx):
+            plt.plot(x[labx==ll], y[labx==ll], marker='.')
+
+        for i in range(len(peaks)):
+            ip, yp, h, i0, i1, i2, i3 = peaks[i]
+            if peak_is_good[i]:
+                plt.plot(x[ip], y[ip], color='green', marker='o')
+            else:
+                plt.plot(x[ip], y[ip], color='red', marker='x')
+            plt.plot([i0, i3], [y[i0], y[i3]], linestyle=':')
+            plt.plot([i1, i2], [y[i1], y[i2]], linestyle='--', color='blue')
+            ih = 0.5 * (i1 + i2)
+            mh = 0.5 * (y[i1] + y[i2])
+            plt.plot(ih, mh, marker='*')
+            plt.text(x[ip], y[ip], f'{yp=:.2f}\n{h=:.2f}', ha='center', va='bottom')
+            plt.text(ih, mh, f'{mh=:.2f}', ha='center', va='bottom')
+        plt.show()
+
+    if len(peaks_good) == 0:
+        f_peaks = [] << u.Hz
+        return locals()
+    results_i = [p[0] for p in peaks_good]
+    f_peaks = fs[results_i]
+    return locals()
+
+
+@timeit
+def find_peak_fp_slow(fs, y, Qrs, exclude_edge=5e3 << u.Hz, min_height=0.01):
+    """Return a list of frequencies by looking for peaks in y.
+
+    y has the same shape as fs.
+    """
+    logger = get_logger()
+    # make a copy of y since we'll modify it
+    # flip y to make it S21 peaks
+    fstep = (fs[1] - fs[0])
+    y = y.copy()
+    # pad max value at side otherwise the function does not work for some
+    # reason
+    m = y.max()
+    y[0] = m
+    y[-1] = m
+    fwhm = fs.mean() / np.mean(Qrs) / fstep
+    exclude_edge_samples = exclude_edge / fstep
     if np.isnan(fwhm):
         import pdb
         pdb.set_trace()
@@ -202,9 +273,9 @@ def find_peak_fp(fs, y, Qrs, exclude_edge=5e3 << u.Hz, min_height=0.01):
         lookahead = max_lookahead
     logger.debug(f"Qrs={Qrs.tolist()} {lookahead=}")
     fp = findpeaks(method='peakdetect', lookahead=lookahead, interpolate=None, verbose=2)
+
     results = fp.fit(y)
     d = results['df']
-    # calcuate peak hight
     if np.all(np.isnan(d['labx'])):
         # no peak found
         f_peaks = [] << u.Hz
@@ -295,7 +366,7 @@ def _make_tone_list_old(swp, dis, model_group_table, fp_method='fp', include_f_i
         fp = fp_cwt
     if fp_method == 'fp':
         fp_fp = [
-            find_peak_fp(fs=swp.frequency[i], y=-swp.despike['y_med'][i], Qrs=Qrs)
+            find_peak_fp_fast(fs=swp.frequency[i], y=-swp.despike['y_med'][i], Qrs=Qrs)
             for i in dis
             ]
         fp = fp_fp
@@ -344,7 +415,7 @@ def _make_tone_list(swp, dis, Qrs, fp_method='fp', include_d21_peaks=True, add_f
                 )
     elif fp_method == 'fp':
         def fp_func(fs, y, **kwargs):
-            return find_peak_fp(
+            return find_peak_fp_fast(
                 fs=fs,
                 y=y,
                 Qrs=Qrs,
@@ -373,7 +444,8 @@ def _make_tone_list(swp, dis, Qrs, fp_method='fp', include_d21_peaks=True, add_f
         # some sensible guess of edge
         exclude_edge_samples=d21_exclude_edge_samples
         )
-    fp_d21_ctx = fp_func(d21.frequency, d21.D21.value, min_height=2)
+    # mask out no data region
+    fp_d21_ctx = fp_func(d21.frequency[d21.d21_cov > 0], d21.D21.value[d21.d21_cov > 0], min_height=2)
 
     # merge all found peaks
 
@@ -805,6 +877,7 @@ def export_tone_list(tone_list_ctx):
     """Dump a table of all model fitting info for external usage
 
     """
+    logger = get_logger()
     model_group_ctxs = tone_list_ctx['model_group_ctxs']
 
     tlt = []
@@ -1657,7 +1730,7 @@ def do_fit(swp, model_group_ctxs, debug_plot_kw=None, n_procs=4):
     return locals()
 
 
-if __name__ == "__main__":
+def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -1741,7 +1814,7 @@ if __name__ == "__main__":
         _post_proc_and_save(ctx['chk_out'], '_tonecheck.ecsv')
 
     if option.no_fit:
-        sys.exit(0)
+        return
 
     # model data
     ctx = timeit(do_fit)(swp=ctx['swp'], model_group_ctxs=ctx['model_group_ctxs'], debug_plot_kw=debug_plot_kw, n_procs=option.n_procs)
@@ -1753,3 +1826,12 @@ if __name__ == "__main__":
     kmt.meta['Header.Toltec.ScanNum'] = sweep_data.meta['scannum']
     kmt.meta['Header.Toltec.RoachIndex'] = sweep_data.meta['roachid']
     kmt.write(output_file, overwrite=True, format='ascii.ecsv')
+    return
+
+
+if __name__ == "__main__":
+    # import cProfile
+    # with cProfile.Profile() as pr:
+    if True:
+        main()
+        # pr.print_stats(sort='cumtime')
