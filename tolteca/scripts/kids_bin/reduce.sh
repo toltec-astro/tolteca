@@ -117,10 +117,12 @@ if [[ ${type} == "vna" ]]; then
         if [[ $outfile ]]; then
             ${pyexec} ${scriptdir}/fix_lo.py ${file} "${reportfile}" "${outfile}"
         fi
+        bash ${scriptdir}/reduce_sweep.sh $(readlink -f ${file})
         # build the refdata
-        ${pyexec_v1} ${scriptdir}/make_ref_data.py ${file} ${reportfile}
-        ref_file=${reportfile%.*}.refdata
-        ln -sf ${ref_file} ${scratchdir}/toltec${nw}_vnasweep.refdata
+        # bash ${scriptdir}/reduce_vna.sh $(readlink -f ${file})
+        # ${pyexec_v1} ${scriptdir}/make_ref_data.py ${file} ${reportfile}
+        # ref_file=${reportfile%.*}.refdata
+        # ln -sf ${ref_file} ${scratchdir}/toltec${nw}_vnasweep.refdata
     elif [[ ${runmode} == "plot" ]]; then
         ${pyexec} ${kidspydir}/kidsdetect.py ${file} --plot_d21 ${scratchdir}/'{stem}_d21.nc' ${args} &
     elif [[ ${runmode} == "fg" ]]; then
@@ -140,11 +142,11 @@ elif [[ ${type} == "targ" ]]; then
            --output "${reportfile}"  "${file}" ${args}
         cp ${reportfile} ${reportfile}.kidscpp_v0
         # run the new reduce tune to generate all tables
-        bash ${scriptdir}/reduce_tune.sh $(readlink -f ${file})
+        bash ${scriptdir}/reduce_sweep.sh $(readlink -f ${file})
     if [[ $outfile ]]; then
         # ${pyexec} ${scriptdir}/fix_lo.py ${file} "${reportfile}" "${outfile}"
         # the targ freqs.txt is compatible to what ICS expect.
-        targ_freqs_file=${reportfile%.*}_targ_freqs.txt
+        targ_freqs_file=${reportfile%.*}_targfreqs.txt
         cp ${targ_freqs_file} "${outfile}"
     fi
     elif [[ ${runmode} == "plot" ]]; then

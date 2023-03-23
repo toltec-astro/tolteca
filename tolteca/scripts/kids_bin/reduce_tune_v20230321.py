@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import sys
 import numexpr as ne
 from numpy.polynomial import Polynomial
 from numba import njit
@@ -188,6 +189,9 @@ def find_peak_fp(fs, y, Qrs, exclude_edge=5e3 << u.Hz, min_height=0.01):
     y[0] = m
     y[-1] = m
     fwhm = fs.mean() / np.mean(Qrs) / (fs[1] - fs[0])
+    if np.isnan(fwhm):
+        import pdb
+        pdb.set_trace()
     lookahead = int(fwhm * 0.5)
     min_lookahead, max_lookahead = 10, (len(y) // 5)
     if lookahead < min_lookahead:
@@ -197,7 +201,7 @@ def find_peak_fp(fs, y, Qrs, exclude_edge=5e3 << u.Hz, min_height=0.01):
         logger.debug(f"use {max_lookahead=}")
         lookahead = max_lookahead
     logger.debug(f"Qrs={Qrs.tolist()} {lookahead=}")
-    fp = findpeaks(method='peakdetect', lookahead=lookahead, interpolate=None)
+    fp = findpeaks(method='peakdetect', lookahead=lookahead, interpolate=None, verbose=2)
     results = fp.fit(y)
     d = results['df']
     # calcuate peak hight
@@ -511,12 +515,16 @@ def make_tone_list(ref_data, sweep_data, debug_plot_kw=None):
     fs_max = fs.max(axis=1)
     fs_center = fs.mean(axis=1)
     fs_range = fs_max - fs_min
+    # import pdb
+    # pdb.set_trace()
     fs_stats = {
         'n_tones': n_tones,
         'n_sweepsteps': n_sweepsteps,
         'min': fs_min,
         'max': fs_max,
         'center': fs_center,
+        'tone_axis_data': swp.meta['tone_axis_data'],
+        'sweep_axis_data': swp.meta['sweep_axis_data'],
         'range': fs_range,
         'df': fs[1] - fs[0],
         }
@@ -557,6 +565,8 @@ def make_tone_list(ref_data, sweep_data, debug_plot_kw=None):
         di_refs = list(set(di_refs))
         kmt_ref = kmt[di_refs]
         Qrs = kmt_ref['Qr']
+        if len(kmt_ref) == 0:
+            Qrs = np.array([np.median(kmt['Qr'])])
         # add_fs = kmt_ref['fr_ref'].quantity
         ctx = _make_tone_list(
             swp, dis, Qrs,
@@ -863,7 +873,7 @@ def export_tone_list(tone_list_ctx):
         tune_txt[p] = 0.
     logger.debug(f'output tune_txt:\n{tune_txt}')
 
-    # generate perchannel index file for visualization
+    # generate perchannel index file for checking
     fs_stats = tone_list_ctx['fs_stats']
     cols = id_cols
     rows = []
@@ -876,28 +886,31 @@ def export_tone_list(tone_list_ctx):
                 m[i] = False
         subtbl = subtbl[m]
         s_tone_id = None
+        fc = fs_stats['tone_axis_data']['f_center']
         if len(subtbl) == 0:
             d = {c: -1 for c in cols}
-            d['fr_init'] = np.nan
+            d['fr_init'] = np.nan << u.Hz
+            d['chan_id'] = chan_id
         elif len(subtbl) == 1:
             d = {c: subtbl[0][c] for c in cols}
             s_tone_id = subtbl[0]['tone_id']
-            d['fr_init'] = subtbl[0]['fr_init'].to_value(u.Hz)
+            d['fr_init'] = subtbl[0]['fr_init']
         else:
             # select the closest one to the center
             imin = np.argmin(np.abs(fs_stats['center'][chan_id] - subtbl['fr_init']))
             logger.debug(f"select closest (imin={imin}) from {len(subtbl)} tones")
             d = {c: subtbl[imin][c] for c in cols}
             s_tone_id = subtbl[imin]['tone_id']
-            d['fr_init'] = subtbl[imin]['fr_init'].to_value(u.Hz)
+            d['fr_init'] = subtbl[imin]['fr_init']
         d['n_tones'] = len(subtbl)
+        d['f_center'] = fc[chan_id]
         if s_tone_id is not None:
             unique_tone.remove(s_tone_id)
         rows.append(d)
-    chk = Table(rows=rows, names=['n_tones', 'fr_init'] + cols)
+    chk = Table(rows=rows, names=['n_tones', 'f_center', 'fr_init'] + cols)
     chk_out = Table()
     chk_out['f_out'] = chk['fr_init']
-    chk_out['f_in'] = fs_stats['center']
+    chk_out['f_in'] = chk['f_center']
     for p in chk.colnames:
         chk_out[p] = chk[p]
     logger.info(f"output tone check:\n{chk_out}")
@@ -1419,7 +1432,7 @@ def _fit_worker(arg):
         )# , max_nfev=1000)
 
 
-def do_fit(swp, model_group_ctxs, debug_plot_kw=None):
+def do_fit(swp, model_group_ctxs, debug_plot_kw=None, n_procs=4):
     """Generate models for fitting all groups."""
     dbk = debug_plot_kw or {}
     nw = swp.meta['nwid']
@@ -1484,8 +1497,9 @@ def do_fit(swp, model_group_ctxs, debug_plot_kw=None):
     # now ready to do fit
     from multiprocessing import Pool
 
+    logger.info(f"fitting with {n_procs=}")
     with timeit("run fitting"):
-        with Pool(processes=4) as pool:
+        with Pool(processes=n_procs) as pool:
             fit_outs = list(tqdm.tqdm(
                 pool.imap(
                 _fit_worker, [(fit_ctx['params'], fit_ctx['dataset']) for fit_ctx in fit_ctxs]
@@ -1503,7 +1517,7 @@ def do_fit(swp, model_group_ctxs, debug_plot_kw=None):
         #     args=(fit_ctx['dataset'],)
         #     )
         fit_out = fit_ctx['fit_out'] = fit_outs[gi]
-        lmfit.report_fit(fit_out.params)
+        # lmfit.report_fit(fit_out.params)
     if dbk.get("checkfit_enabled", False):
         gi0 = dbk.get('gi0', 0)
         nrows, ncols = _get_plot_grid(dbk, gi0, len(fit_ctxs))
@@ -1660,6 +1674,12 @@ if __name__ == "__main__":
     parser.add_argument(
         '--no_fit', action='store_true',
         )
+    parser.add_argument(
+        '--save_fit_only', action='store_true',
+        )
+    parser.add_argument(
+        '--n_procs', default=4, type=int,
+        )
 
     parser.add_argument("sweep_file", help='sweep data for fitting.')
     # parser.add_argument("--config", "-c", help='YAML config file.')
@@ -1667,8 +1687,6 @@ if __name__ == "__main__":
 
     init_log(level=option.log_level)
     logger = get_logger()
-
-    logging.getLogger('findpeaks').setLevel(logging.OFF)
 
     ref_file = Path(option.ref_file)
     with open(ref_file, 'rb') as fo:
@@ -1704,7 +1722,7 @@ if __name__ == "__main__":
         debug_plot_kw=debug_plot_kw)
 
     stem = sweep_file.resolve().stem
-    if option.no_fit:
+    if not option.save_fit_only:
         # dump the fit ctx for external usage
         ctx = export_tone_list(ctx)
 
@@ -1718,17 +1736,20 @@ if __name__ == "__main__":
             tbl.write(output_file, overwrite=True, format='ascii.ecsv')
             logger.info(f"saved file {output_file}")
         _post_proc_and_save(ctx['tlt'], '_tonelist.ecsv')
-        _post_proc_and_save(ctx['targ_out'], '_targ_freqs.ecsv')
-        _post_proc_and_save(ctx['tune_txt'], '_targ_freqs.txt')
+        _post_proc_and_save(ctx['targ_out'], '_targfreqs.ecsv')
+        _post_proc_and_save(ctx['tune_txt'], '_targfreqs.txt')
         _post_proc_and_save(ctx['chk_out'], '_tonecheck.ecsv')
-    else:
 
-        ctx = timeit(do_fit)(swp=ctx['swp'], model_group_ctxs=ctx['model_group_ctxs'], debug_plot_kw=debug_plot_kw)
-        kmt = ctx['kmt_out']
-        kmt = Table(kmt)
-        output_file = output_dir.joinpath(stem + '_kmt.txt')
-        kmt.meta['Header.Toltec.ObsNum'] = sweep_data.meta['obsnum']
-        kmt.meta['Header.Toltec.SubObsNum'] = sweep_data.meta['subobsnum']
-        kmt.meta['Header.Toltec.ScanNum'] = sweep_data.meta['scannum']
-        kmt.meta['Header.Toltec.RoachIndex'] = sweep_data.meta['roachid']
-        kmt.write(output_file, overwrite=True, format='ascii.ecsv')
+    if option.no_fit:
+        sys.exit(0)
+
+    # model data
+    ctx = timeit(do_fit)(swp=ctx['swp'], model_group_ctxs=ctx['model_group_ctxs'], debug_plot_kw=debug_plot_kw, n_procs=option.n_procs)
+    kmt = ctx['kmt_out']
+    kmt = Table(kmt)
+    output_file = output_dir.joinpath(stem + '_kmt.txt')
+    kmt.meta['Header.Toltec.ObsNum'] = sweep_data.meta['obsnum']
+    kmt.meta['Header.Toltec.SubObsNum'] = sweep_data.meta['subobsnum']
+    kmt.meta['Header.Toltec.ScanNum'] = sweep_data.meta['scannum']
+    kmt.meta['Header.Toltec.RoachIndex'] = sweep_data.meta['roachid']
+    kmt.write(output_file, overwrite=True, format='ascii.ecsv')
