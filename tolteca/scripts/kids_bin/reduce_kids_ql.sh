@@ -19,4 +19,4 @@ filepaths="$@"
 output_dir=${scratchdir}
 echo "kids ql reduce for ${filepaths} ${output_dir}"
 
-${pybindir}/python3 ${scriptdir}/reduce_kids_ql.py ${filepaths} --output_dir ${output_dir}
+${pybindir}/python3 ${scriptdir}/reduce_kids_ql.py ${filepaths} --output_dir ${output_dir} --log_level INFO

@@ -45,7 +45,9 @@ def _collect_kids_info(entry, search_paths):
 
     def _load_table(t):
         if t is not None:
+            logger.info(f"load table {t}")
             return QTable.read(t, format='ascii')
+        logger.warning("missing table")
         return None
     tonelist_table = _load_table(_find_file([
         f"{prefix}*_tonelist.ecsv"
@@ -59,7 +61,7 @@ def _collect_kids_info(entry, search_paths):
         f"{prefix}*_tune.txt",
         ], search_paths))
     targfreqs_table = _load_table(_find_file([
-        f"{prefix}*_targ_freqs.ecsv"
+        f"{prefix}*_targfreqs.ecsv"
         ], search_paths))
     kidsmodel_table = _load_table(_find_file([
         f"{prefix}*_kmt.ecsv",
@@ -183,6 +185,7 @@ def _plot_finding_ratio_nw(ax_nw, ax_array, data, phi_lim=5 << u.deg):
     apt = data.get('apt', None)
     tct = data.get("checktone_table", None)
     kct = data.get("kidscpp_table", None)
+    logger.debug(f"{data=}")
     if any([
             tft is None,
             apt is None,
@@ -354,6 +357,7 @@ def _make_kids_plot(bods, apt_design=None, show_plot=True, output_dir=None, sear
 
     nw_ctxs_per_array = {array_name: [] for array_name in toltec_info['array_names']}
     for interface in fctx['interfaces']:
+        logger.debug(f"working on {interface=}")
         array_name = toltec_info[interface]['array_name']
         nw = toltec_info[interface]['nw']
         ax_nw = fctx['axes'][interface]
@@ -361,6 +365,7 @@ def _make_kids_plot(bods, apt_design=None, show_plot=True, output_dir=None, sear
         d = kids_info.get(nw, None)
         phi_lim = 5 << u.deg
         if d is None:
+            logger.debug(f"no date found for {interface=}")
             ax = ax_nw['ax']
             cmap = ax_nw['cmap']
             ax.text(
@@ -375,6 +380,8 @@ def _make_kids_plot(bods, apt_design=None, show_plot=True, output_dir=None, sear
                 )
             if ctx is not None:
                 nw_ctxs_per_array[array_name].append(ctx)
+            else:
+                logger.debug(f"no finding ratio nw plot generated for {interface=}")
         ax = ax_nw['ax']
         ax.text(1, 1, f'{interface}', ha='right', va='top', transform=ax.transAxes)
         if ax_nw['is_label_ax']:
