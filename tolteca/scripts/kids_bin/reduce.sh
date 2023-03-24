@@ -148,6 +148,9 @@ elif [[ ${type} == "targ" ]]; then
         # the targ freqs.txt is compatible to what ICS expect.
         targ_freqs_file=${reportfile%.*}_targfreqs.txt
         cp ${targ_freqs_file} "${outfile}"
+        ampcor_file=${reportfile%.*}_ampcor.txt
+        etcdir=$(dirname ${outfile})
+        cp ${ampcor_file} "${etcdir}/default_targ_amps.dat"
     fi
     elif [[ ${runmode} == "plot" ]]; then
         ${pyexec} ${kidspydir}/kidsvis.py ${file} --fitreport "${reportfile}" --use_derotate ${args} --grid 8 8 &

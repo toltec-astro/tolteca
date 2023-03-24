@@ -1046,10 +1046,17 @@ def export_tone_list(tone_list_ctx):
     targ_out = Table()
     targ_out['f_out'] = targ['fr_init']
     targ_out['f_in'] = targ['f_fit']
-    targ_out['ampcor'] = 1.
     id_cols = ['model_id', 'group_id', 'chan_id', 'tone_id']
     for c in id_cols:
         targ_out[c] = targ[c]
+    # add the ampcor values from the header
+    sweep_data = tone_list_ctx['sweep_data']
+    chan_tone_amps = sweep_data.nc_node.variables['Header.Toltec.ToneAmps'][:]
+    # import pdb
+    # pdb.set_trace()
+    # plt.plot(tone_amps)
+    # plt.show()
+    targ_out['ampcor'] = chan_tone_amps[targ_out['chan_id']]
     # sort in fft order
     swp = tone_list_ctx['swp']
     # import pdb
@@ -1057,6 +1064,7 @@ def export_tone_list(tone_list_ctx):
     lofreq = swp.meta['flo_center']
     logger.info(f"subtract lo_freq = {lofreq}")
     dfs = targ_out['f_out'] - lofreq
+
     targ_out.add_column(Column(dfs, name='f_centered'), 0)
     targ_out.meta['Header.Toltec.LoCenterFreq'] = lofreq
     tones = targ_out['f_centered']
@@ -1074,6 +1082,8 @@ def export_tone_list(tone_list_ctx):
     for p in ['flag', 'fp', 'Qr', 'Qc', 'fr', 'A', 'normI', 'normQ', 'slopeI', 'slopeQ', 'interceptI', 'interceptQ']:
         tune_txt[p] = 0.
     logger.debug(f'output tune_txt:\n{tune_txt}')
+    # also for the ampcor file:
+    ampcor_txt = targ_out[['ampcor']]
 
     # generate perchannel index file for checking
     fs_stats = tone_list_ctx['fs_stats']
@@ -1928,18 +1938,19 @@ def main():
         # dump the fit ctx for external usage
         ctx = export_tone_list(ctx)
 
-        def _post_proc_and_save(tbl, suffix):
+        def _post_proc_and_save(tbl, suffix, format='ascii.ecsv'):
             tbl = Table(tbl)
             output_file = output_dir.joinpath(stem + suffix)
             tbl.meta['Header.Toltec.ObsNum'] = sweep_data.meta['obsnum']
             tbl.meta['Header.Toltec.SubObsNum'] = sweep_data.meta['subobsnum']
             tbl.meta['Header.Toltec.ScanNum'] = sweep_data.meta['scannum']
             tbl.meta['Header.Toltec.RoachIndex'] = sweep_data.meta['roachid']
-            tbl.write(output_file, overwrite=True, format='ascii.ecsv')
+            tbl.write(output_file, overwrite=True, format=format)
             logger.info(f"saved file {output_file}")
         _post_proc_and_save(ctx['tlt'], '_tonelist.ecsv')
         _post_proc_and_save(ctx['targ_out'], '_targfreqs.ecsv')
         _post_proc_and_save(ctx['tune_txt'], '_targfreqs.txt')
+        _post_proc_and_save(ctx['ampcor_txt'], '_ampcor.txt', format='ascii.no_header')
         _post_proc_and_save(ctx['chk_out'], '_tonecheck.ecsv')
 
     if option.no_fit:
