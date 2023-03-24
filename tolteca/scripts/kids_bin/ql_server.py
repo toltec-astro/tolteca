@@ -55,18 +55,21 @@ def collect_from_citlali_index(index_file):
 def get_dp_for_dataset(rootdir, dataset, reduced_dir='toltec/reduced'):
     reduced_dir = rootdir.joinpath(reduced_dir)
     obsnum = dataset[0]['obsnum']
+    dpdir = reduced_dir.joinpath(f'{obsnum}')
+    if not dpdir.exists():
+        dpdir = None
     if dataset[0]['master_name'] == 'ics':
         # toltec kids data
         data_files = list(reduced_dir.glob(f'toltec[0-9]?_{obsnum:06d}_*'))
         if not data_files:
             return None
         bods = BasicObsDataset.from_files(data_files)
+        bods.meta['dpdir'] = dpdir
         return bods
     if dataset[0]['master_name'] == 'tcs':
         # reduction is on per obsnum directory basis
-        dpdir = reduced_dir.joinpath(f'{obsnum}')
-        if not dpdir.exists():
-            return None
+        if dpdir is None:
+            return
         citlali_index = dpdir.joinpath("index.yaml")
         if citlali_index.exists():
             # translate the index to dp index
@@ -102,7 +105,8 @@ def get_quicklook_data(rootdir, bods, search_paths=None):
                         'filepath': entry['source']
                         }
                     for entry in dp.index_table
-                    ]
+                    ],
+                'kids_ql_data': get_kids_ql_data(dp),
                 }, None
     if isinstance(dp, ToltecDataProd):
         # handle pointing reader outputs
@@ -118,6 +122,18 @@ def get_quicklook_data(rootdir, bods, search_paths=None):
         print(index)
         return index, None
     return None, "Unkown type of data product."
+
+
+def get_kids_ql_data(dp):
+    print(f'collecting kids ql data for {dp}')
+    dpdir = dp.meta['dpdir']
+    quicklook_files = []
+    if dpdir is not None:
+        quicklook_files += list(dpdir.glob("ql_*.png"))
+    result = {
+            'quicklook_files': quicklook_files,
+            }
+    return result
 
 
 def get_pointing_reader_data(dp):
