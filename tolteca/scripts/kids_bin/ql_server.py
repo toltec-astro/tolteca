@@ -176,7 +176,7 @@ def get_quicklook_data(rootdir, bods, search_paths=None):
 
 def get_kids_ql_data(dp):
     print(f'collecting kids ql data for {dp}')
-    dpdir = dp.meta['dpdir']
+    dpdir = dp.meta['context']['dpdir']
     quicklook_files = []
     if dpdir is not None:
         quicklook_files += list(dpdir.glob("ql_*.png"))
