@@ -1949,8 +1949,8 @@ def main():
             logger.info(f"saved file {output_file}")
         _post_proc_and_save(ctx['tlt'], '_tonelist.ecsv')
         _post_proc_and_save(ctx['targ_out'], '_targfreqs.ecsv')
-        _post_proc_and_save(ctx['tune_txt'], '_targfreqs.txt')
-        _post_proc_and_save(ctx['ampcor_txt'], '_ampcor.txt', format='ascii.no_header')
+        _post_proc_and_save(ctx['tune_txt'], '_targfreqs.dat')
+        _post_proc_and_save(ctx['ampcor_txt'], '_ampcor.dat', format='ascii.no_header')
         _post_proc_and_save(ctx['chk_out'], '_tonecheck.ecsv')
 
     if option.no_fit:
