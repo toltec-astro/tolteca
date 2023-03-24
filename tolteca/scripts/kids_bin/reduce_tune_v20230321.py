@@ -5,6 +5,7 @@ from numpy.polynomial import Polynomial
 from numba import njit
 from astropy.table import QTable, Table, unique, Column
 import dill
+from astropy.stats import sigma_clipped_stats
 from pathlib import Path
 from tolteca.datamodels.io.toltec import NcFileIO
 import numpy as np
@@ -214,7 +215,8 @@ def find_peak_fp_fast(fs, y, Qrs, exclude_edge=5e3 << u.Hz, min_height=0.01):
         min_height=min_height,
         exclude_edge=exclude_edge_samples
         )
-    if False:
+    if True:
+    # if False:
         x = np.arange(len(y))
         for ll in np.unique(labx):
             plt.plot(x[labx==ll], y[labx==ll], marker='.')
@@ -242,24 +244,83 @@ def find_peak_fp_fast(fs, y, Qrs, exclude_edge=5e3 << u.Hz, min_height=0.01):
     return locals()
 
 
+def _peakdetect_slow(y, lookahead, offset_for_height, min_height, exclude_edge, min_peak_pts=2):
+    logger = get_logger()
+    fp = findpeaks(method='peakdetect', lookahead=lookahead, interpolate=None, verbose=2)
+
+    results = fp.fit(y)
+    d = results['df']
+    if np.all(np.isnan(d['labx'])):
+        # no peak found
+        f_peaks = [] << u.Hz
+        return [], [], [], []
+    lab = labx = d['labx'].astype(int)
+    # get peak lables
+    lab_values = np.unique(lab[d['peak']])
+    heights = []
+    peaks = []
+    peak_is_good = []
+    for ll in lab_values:
+        # yy = y[lab == ll]
+        # print(d['peak'][lab==ll])
+        # print(d['valley'][lab==ll])
+        ip = np.where(d['peak'] & (lab == ll))[0][0]
+        ip0 = int(ip - offset_for_height)
+        ip1 = int(ip + offset_for_height)
+        il = np.where(lab == ll)[0]
+        if ip0 < il[0]:
+            ip0 = il[0]
+        if ip1 > il[-1]:
+            ip1 = il[-1]
+        ymin = 0.5 * (y[ip0] + y[ip1])
+        ymax = y[ip]
+        yh = ymax - ymin
+        heights.append(ymax - ymin)
+        peaks.append((ip, y[ip], yh, il[0], ip0, ip1, il[-1]))
+        # check minimum number of peak points above min_height + ymin
+        yc = ymin + min_height
+        n_peak_pts = (y[lab == ll] >= yc).sum()
+        # exclude edge
+        pts_good = n_peak_pts >= min_peak_pts
+        pos_good = (ip > exclude_edge) or (ip < len(y) - exclude_edge)
+        peak_is_good.append((yh >= min_height) and pos_good and pts_good)
+    heights = np.array(heights)
+    peak_is_good = np.array(peak_is_good)
+    logger.debug(f"peak heights: {heights} {peak_is_good=}")
+    # lab_good = heights >= min_height
+    peaks_good = [p for i, p in enumerate(peaks) if peak_is_good[i]]
+
+    return peaks, labx, peaks_good, peak_is_good
+    # get mask to select the good peak
+    # m = np.zeros_like(lab)
+    # for i, ll in enumerate(lab_values):
+    #     if lab_good[i]:
+    #         m[lab == ll] = True
+    # results_i = d['x'][d['peak'] & m]
+    # f_peaks_all = fs[results_i]
+    # # exclude edge
+    # m = (f_peaks_all > fs.min() + exclude_edge) & (f_peaks_all < fs.max() - exclude_edge)
+    # f_peaks = f_peaks_all[m]
+    # import pdb
+    # pdb.set_trace()
+
+
+    # return peaks, labx, peaks_good, peak_is_good
+
+
 @timeit
-def find_peak_fp_slow(fs, y, Qrs, exclude_edge=5e3 << u.Hz, min_height=0.01):
+def find_peak_fp(fs, y, Qrs, exclude_edge=5e3 << u.Hz, min_height_value=None, min_height_n_sigma=None, plot=False):
     """Return a list of frequencies by looking for peaks in y.
 
     y has the same shape as fs.
     """
+    # peakdetect_func = _peakdetect_slow
+    peakdetect_func = peakdetect
     logger = get_logger()
     # make a copy of y since we'll modify it
     # flip y to make it S21 peaks
     fstep = (fs[1] - fs[0])
-    y = y.copy()
-    # pad max value at side otherwise the function does not work for some
-    # reason
-    m = y.max()
-    y[0] = m
-    y[-1] = m
-    fwhm = fs.mean() / np.mean(Qrs) / fstep
-    exclude_edge_samples = exclude_edge / fstep
+    fwhm = fs.mean() / np.median(Qrs) / fstep
     if np.isnan(fwhm):
         import pdb
         pdb.set_trace()
@@ -271,51 +332,134 @@ def find_peak_fp_slow(fs, y, Qrs, exclude_edge=5e3 << u.Hz, min_height=0.01):
     if lookahead > max_lookahead:
         logger.debug(f"use {max_lookahead=}")
         lookahead = max_lookahead
-    logger.debug(f"Qrs={Qrs.tolist()} {lookahead=}")
-    fp = findpeaks(method='peakdetect', lookahead=lookahead, interpolate=None, verbose=2)
+    exclude_edge_samples = exclude_edge / fstep
 
-    results = fp.fit(y)
-    d = results['df']
-    if np.all(np.isnan(d['labx'])):
-        # no peak found
-        f_peaks = [] << u.Hz
-        return locals()
-    lab = d['labx'].astype(int)
-    # get peak lables
-    lab_values = np.unique(lab[d['peak']])
-    heights = []
-    for ll in lab_values:
-        # yy = y[lab == ll]
-        # print(d['peak'][lab==ll])
-        # print(d['valley'][lab==ll])
-        ip = np.where(d['peak'] & (lab == ll))[0][0]
-        ip0 = int(ip - fwhm * 0.5)
-        ip1 = int(ip + fwhm * 0.5)
-        il = np.where(lab == ll)[0]
-        if ip0 < il[0]:
-            ip0 = il[0]
-        if ip1 > il[-1]:
-            ip1 = il[-1]
-        ymin = 0.5 * (y[ip0] + y[ip1])
-        ymax = y[ip]
-        heights.append(ymax - ymin)
-    heights = np.array(heights)
-    logger.debug(f"peak heights: {heights}")
-    lab_good = heights > min_height
+    logger.debug(f"lookahead={lookahead} {exclude_edge_samples=}")
+    y = y.copy()
+    # calculate y stddev with a linear trend subtraced
+    # ny =  len(y)
+    # y_lin = np.interp(np.arange(ny), [0, ny-1], [y[0], y[-1]])
+    # yy = y - y_lin
+    # calculate y stddev with a slow baseline subtraced
+    y_slow = median_filter(y, size=(lookahead * 2, ))
+    yy = y - y_slow
+    yy_mean0, yy_med0, yy_std0 = sigma_clipped_stats(yy, sigma=2)
+    if min_height_n_sigma is not None:
+        min_height = min_height_n_sigma * yy_std0
+    if min_height_value is not None:
+        min_height = max(min_height_value, min_height)
+    # pad max value at side otherwise the function does not work for some
+    # reason
+    m = y.max()
+    y[0] = m
+    y[-1] = m
+
+    # run a predetect to identify prominant peaks and mask out
+    logger.debug(f"predetect with {min_height=} * 2 {min_height_n_sigma=}")
+    peaks, labx, peaks_good, peak_is_good = peakdetect_func(
+        y,
+        lookahead=lookahead,
+        offset_for_height=lookahead,
+        min_height=min_height * 2,
+        exclude_edge=exclude_edge_samples
+        )
+
+    pm = np.ones((len(y), ), dtype=bool)
+    if len(peaks_good) > 0:
+        for i in np.where(peak_is_good)[0]:
+            p = peaks[i]
+            ip, yp, h, i0, i1, i2, i3 = p
+            pm[i1:i2 + 1] = False
+        logger.debug(f"mask {len(peaks_good)} peaks. n_masked={(~pm).sum()}")
+        yy_mean, yy_med, yy_std = sigma_clipped_stats(yy[pm], sigma=2)
+        logger.debug(
+            f"changed stats: yy_mean={yy_mean0} -> {yy_mean}\n"
+            f"changed stats: yy_med={yy_med0} -> {yy_med}\n"
+            f"changed stats: yy_std={yy_std0} -> {yy_std}"
+            )
+    else:
+        logger.debug("no prominant peaks found")
+        yy_mean = yy_mean0
+        yy_med = yy_med0
+        yy_std = yy_std0
+    if min_height_n_sigma is not None:
+        min_height = min_height_n_sigma * yy_std
+    if min_height_value is not None:
+        min_height = max(min_height_value, min_height)
+    # now the actual detection with proper std
+    # here we require the number of peak points to be half of the lookahead
+    logger.debug(f"Qrs={Qrs.tolist()} {lookahead=} {min_height=} {min_height_n_sigma=} {exclude_edge_samples=}")
+    peaks, labx, peaks_good, peak_is_good = peakdetect_func(
+        y,
+        lookahead=lookahead,
+        offset_for_height=lookahead,
+        min_height=min_height,
+        min_peak_pts=lookahead // 2,
+        exclude_edge=exclude_edge_samples
+        )
     # print(f"select {lab_good.sum()} out of {lab_good.size} peaks")
-    # fp.plot()
-    # get mask to select the good peak
-    m = np.zeros_like(lab)
-    for i, ll in enumerate(lab_values):
-        if lab_good[i]:
-            m[lab == ll] = True
-    results_i = d['x'][d['peak'] & m]
-    f_peaks_all = fs[results_i]
-    # exclude edge
-    m = (f_peaks_all > fs.min() + exclude_edge) & (f_peaks_all < fs.max() - exclude_edge)
-    f_peaks = f_peaks_all[m]
+    if plot:
+    # if False:
+    # if len(peaks_good) > 0 and any(p[2] < 2 * min_height for p in peaks_good):
+        # fp.plot()
+        fig, axes = plt.subplots(2, 1, figsize=(20, 10), sharex=True)
+        x = np.arange(len(y))
+        for ll in np.unique(labx):
+            axes[0].plot(x[labx==ll], y[labx==ll], marker='.')
+            axes[0].plot(x[labx==ll], y_slow[labx==ll], linestyle='--')
+            axes[1].plot(x[labx==ll], yy[labx==ll], linestyle='-')
+        axes[1].axhline(yy_mean, color='gray', linestyle='--')
+        axes[1].axhline(yy_med, color='black', linestyle='-')
+        axes[1].axhline(yy_med + yy_std, linestyle=':')
+        axes[1].axhline(yy_med - yy_std, linestyle=':')
+        axes[1].axhline(yy_med + yy_std * min_height_n_sigma, color='black', linestyle='--')
+
+        for i in range(len(peaks)):
+            ip, yp, h, i0, i1, i2, i3 = peaks[i]
+            if peak_is_good[i]:
+                axes[0].plot(x[ip], y[ip], color='green', marker='o')
+            else:
+                axes[0].plot(x[ip], y[ip], color='red', marker='x')
+            axes[0].plot([i0, i3], [y[i0], y[i3]], linestyle=':')
+            axes[0].plot([i1, i2], [y[i1], y[i2]], linestyle='--', color='blue')
+            ih = 0.5 * (i1 + i2)
+            mh = 0.5 * (y[i1] + y[i2])
+            axes[0].plot(ih, mh, marker='*')
+            axes[0].text(x[ip], y[ip], f'{yp=:.2f}\n{h=:.2f}', ha='center', va='bottom')
+            axes[0].text(ih, mh, f'{mh=:.2f}', ha='center', va='bottom')
+
+            mmh = 0.5 * (yy[i1] + yy[i2])
+            yyc = mmh + min_height
+            yyp = yy[ip]
+            hh = yyp - mmh
+            sig = hh / yy_std
+            sig2 = (yyp - yyc) / yy_std
+            nyyp = (yy[labx == labx[ip]] >= yyc).sum()
+            axes[1].plot(ih, yyc, marker='x')
+            axes[1].plot(ih, mmh, marker='*')
+            axes[1].text(x[ip], yyp, f'{yyp=:.2f}\n{hh=:.2f}\n{sig=:.2f}\n{sig2=:.2f}\n{nyyp=}', ha='center', va='bottom')
+            axes[1].text(ih, mmh, f'{mmh=:.2f}', ha='center', va='bottom')
+
+        plt.show()
+
+    # # get mask to select the good peak
+    # m = np.zeros_like(lab)
+    # for i, ll in enumerate(lab_values):
+    #     if lab_good[i]:
+    #         m[lab == ll] = True
+    # results_i = d['x'][d['peak'] & m]
+    # f_peaks_all = fs[results_i]
+    # # exclude edge
+    # m = (f_peaks_all > fs.min() + exclude_edge) & (f_peaks_all < fs.max() - exclude_edge)
+    # f_peaks = f_peaks_all[m]
     # import pdb
     # pdb.set_trace()
+
+    if len(peaks_good) == 0:
+        f_peaks = [] << u.Hz
+        return locals()
+    results_i = [p[0] for p in peaks_good]
+    f_peaks = fs[results_i]
     return locals()
 
 
@@ -350,44 +494,6 @@ def find_peak_cwt(fs, y, Qrs):
 
 
 @timeit
-def _make_tone_list_old(swp, dis, model_group_table, fp_method='fp', include_f_init=True):
-    """Make the list of tones to use for a given model group table."""
-    logger = get_logger()
-    Qrs = model_group_table['Qr']
-    fs = swp.frequency[dis]
-    S21 = swp.S21[dis]
-
-    # run find peak on sweep data
-    if fp_method == 'cwt':
-        fp_cwt = [
-            find_peak_cwt(fs=swp.frequency[i], y=-swp.despike['y_med'][i], Qrs=Qrs)
-            for i in dis
-            ]
-        fp = fp_cwt
-    if fp_method == 'fp':
-        fp_fp = [
-            find_peak_fp_fast(fs=swp.frequency[i], y=-swp.despike['y_med'][i], Qrs=Qrs)
-            for i in dis
-            ]
-        fp = fp_fp
-
-    # merge the model group f_init with the found peaks
-    f_init = []
-    if include_f_init:
-        f_init += model_group_table['f_init'].quantity.to_value(u.Hz).tolist()
-    for ctx in fp:
-        f_init += ctx['f_peaks'].to_value(u.Hz).tolist()
-    f_init = np.array(f_init)
-    # group the f_init by some minimum distance
-    dist_min = np.mean(f_init) / np.mean(Qrs) * 0.5
-    igroups = _make_group_1d(f_init, np.full_like(f_init, dist_min))['igroups']
-    # take the mean of each group as the tone list
-    tone_list = [np.mean(f_init[ig]) for ig in igroups] << u.Hz
-    logger.debug(f"found {len(tone_list)} {tone_list=}")
-    return locals()
-
-
-@timeit
 def _make_groups_by_channel(swp, fs_stats):
     """Return list of list of di that have the frequency overlap."""
     dist = fs_stats['range'].to_value(u.Hz)
@@ -395,14 +501,18 @@ def _make_groups_by_channel(swp, fs_stats):
     return _make_group_1d(fc, dist)
 
 
-def _make_tone_list(swp, dis, Qrs, fp_method='fp', include_d21_peaks=True, add_fs=None, min_dist_n_fwhm =0.5, find_peak_kw=None, min_group_size=1):
+def _make_tone_list(swp, dis, Qrs, fp_method='fp', include_d21_peaks=True, d21_find_peak_kw=None, add_fs=None, min_dist_n_fwhm =0.5, find_peak_kw=None, min_group_size=1):
     """Make the list of tones to use for a set of tone indices
 
     Qrs : A list of Qrs to passes to the find peak algorithm
     add_fs : A list of positions to include to the detected peak list.
     min_dist_n_fwhm: number of fwhms to consider duplicates in final peak list.
     """
+    d21_Qrs = Qrs * 1.5
     find_peak_kw = find_peak_kw or {}
+    find_peak_kw.setdefault('Qrs', Qrs)
+    d21_find_peak_kw = d21_find_peak_kw or {}
+    d21_find_peak_kw.setdefault('Qrs', d21_Qrs)  # d21 peak are narrower
     logger = get_logger()
     # run find peak on sweep data
     if fp_method == 'cwt':
@@ -410,20 +520,23 @@ def _make_tone_list(swp, dis, Qrs, fp_method='fp', include_d21_peaks=True, add_f
             return find_peak_cwt(
                 fs=fs,
                 y=y,
-                Qrs=Qrs,
-                **dict(find_peak_kw, **kwargs)
+                **kwargs
                 )
     elif fp_method == 'fp':
         def fp_func(fs, y, **kwargs):
-            return find_peak_fp_fast(
+            return find_peak_fp(
                 fs=fs,
                 y=y,
-                Qrs=Qrs,
-                **dict(find_peak_kw, **kwargs)
+                **kwargs
                 )
     else:
         raise ValueError()
-    fp_ctxs = [fp_func(swp.frequency[di], -swp.despike['y_med'][di]) for di in dis]
+    check_dis = [
+        # 466, 467
+        # 642, 643
+        # 618
+        ]
+    fp_ctxs = [fp_func(swp.frequency[di], -swp.despike['y_med'][di], plot=(di in check_dis), **find_peak_kw) for di in dis]
     if fp_method == 'cwt':
         fp_cwt_ctxs = fp_ctxs
     elif fp_method == 'fp':
@@ -445,7 +558,8 @@ def _make_tone_list(swp, dis, Qrs, fp_method='fp', include_d21_peaks=True, add_f
         exclude_edge_samples=d21_exclude_edge_samples
         )
     # mask out no data region
-    fp_d21_ctx = fp_func(d21.frequency[d21.d21_cov > 0], d21.D21.value[d21.d21_cov > 0], min_height=2)
+    fp_d21_ctx = fp_func(
+        d21.frequency[d21.d21_cov > 0], d21.D21.value[d21.d21_cov > 0], plot=(len(set(dis).intersection(check_dis)) > 0), **d21_find_peak_kw)
 
     # merge all found peaks
 
@@ -461,9 +575,9 @@ def _make_tone_list(swp, dis, Qrs, fp_method='fp', include_d21_peaks=True, add_f
         tone_list = [] << u.Hz
     else:
         # group all tones and unify them
-        dist_min = f_tones / np.median(Qrs) * min_dist_n_fwhm
+        dist_min = f_tones / np.median(d21_Qrs) * min_dist_n_fwhm
         tone_list = _make_unique(f_tones, dist_min, min_group_size=min_group_size) << u.Hz
-        logger.debug(f"found {len(tone_list)} {tone_list=}")
+        logger.debug(f"found {len(tone_list)} {tone_list=} {dist_min=}")
     return locals()
 
 
@@ -479,6 +593,8 @@ def _get_plot_grid(dbk, i, n):
     ncols = dbk.get("ncols", 5)
     if nrows * ncols >= n - i:
         npanels = n - i
+        if npanels < 0:
+            return 1, 1
         nrows, ncols = int(np.sqrt(npanels)) + 1, int(np.sqrt(npanels))
         if nrows * ncols - npanels >= ncols:
             nrows -= 1
@@ -621,12 +737,22 @@ def make_tone_list(ref_data, sweep_data, debug_plot_kw=None):
     min_dist_n_fwhm = 0.5
     if swp.meta['data_kind'].name == 'VnaSweep':
         find_peak_kw = {
-            'min_height': 0.05 / 20  # 0.1 db half peak depth
+            'min_height_value': 0.1 / 20,  # 0.1 db half peak depth
+            'min_height_n_sigma': 20
+            }
+        d21_find_peak_kw = {
+            'min_height_n_sigma': 10,
+            'min_height_value': 2.
             }
         min_group_size = 1
     else:
         find_peak_kw = {
-            'min_height': 0.2 / 20  # 0.2 db half peak depth
+            'min_height_value': 0.1 / 20,  # 0.2 db half peak depth
+            'min_height_n_sigma': 20
+            }
+        d21_find_peak_kw = {
+            'min_height_n_sigma': 10,
+            'min_height_value': 2.
             }
         min_group_size = 1
     for dis in di_groups:
@@ -646,6 +772,7 @@ def make_tone_list(ref_data, sweep_data, debug_plot_kw=None):
             add_fs=None,
             min_dist_n_fwhm=min_dist_n_fwhm,
             find_peak_kw=find_peak_kw,
+            d21_find_peak_kw=d21_find_peak_kw,
             min_group_size=min_group_size
             )
         ctx['di_refs'] = di_refs
@@ -689,8 +816,9 @@ def make_tone_list(ref_data, sweep_data, debug_plot_kw=None):
     for tone_list_ctx in tone_list_groups:
         f_tones_fit_Hz += tone_list_ctx['tone_list'].to_value(u.Hz).tolist()
     # just to make sure, we uniquefy this list by min_dist_n_fwhm
+    min_dist_n_fwhm_uniquefy = min_dist_n_fwhm / 1.5  # to account for the closeby d21 tones
     f_tones_fit_Hz = np.array(f_tones_fit_Hz)
-    min_dist = f_tones_fit_Hz / np.median(kmt['Qr']) * min_dist_n_fwhm
+    min_dist = f_tones_fit_Hz / np.median(kmt['Qr']) * min_dist_n_fwhm_uniquefy
     f_tones_fit = _make_unique(f_tones_fit_Hz, min_dist=min_dist, min_group_size=1) << u.Hz
     n_tones_fit = len(f_tones_fit)
     logger.debug(f"final list of tones for fit: n_tones_fit={n_tones_fit}")
@@ -708,7 +836,7 @@ def make_tone_list(ref_data, sweep_data, debug_plot_kw=None):
         nrows, ncols = _get_plot_grid(dbk, gi0, len(tone_list_groups))
         fig, axes = plt.subplots(
                 nrows, ncols,
-                figsize=(15, 15),
+                figsize=(3 * ncols, 3 * nrows),
                 constrained_layout=True,
                 squeeze=False,
                 )
@@ -775,6 +903,7 @@ def make_tone_list(ref_data, sweep_data, debug_plot_kw=None):
             fig.set_size_inches(3 * ncols, 3 * nrows)
             fig.savefig(dbk['tonelist_save'])
         else:
+            fig.tight_layout()
             plt.show()
 
     # now re-group the f_tones_fit for model fits
@@ -1785,7 +1914,7 @@ def main():
             'gi0': 0,
             'di0': 0,
             'nrows': 5,
-            'ncols': 5
+            'ncols': 10
             }
     else:
         debug_plot_kw = None

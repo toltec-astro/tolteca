@@ -14,6 +14,7 @@ def peakdetect(
         int offset_for_height=0,
         double min_height=0,
         int exclude_edge=0,
+        int min_peak_pts=2,
         ):
 
     cdef int length = y_axis.shape[0]
@@ -111,14 +112,14 @@ def peakdetect(
 
     # for each segment, calcualte indices and derive peak height
     # left index, right index, offset left index, offset right index,
-    cdef int label_id, il, ip, i0=0, i1=0, i2=length-1, i3=length-1
-    cdef double yp, y0, y1, y2, y3,
+    cdef int label_id, il, ip, i0=0, i1=0, i2=length-1, i3=length-1, n_peak_pts
+    cdef double yp, y0, y1, y2, y3, yh
     cdef h_offset = offset_for_height
     if h_offset <= 0:
         h_offset = lookahead
     cdef np.ndarray heights = np.zeros_like(y_axis, dtype=np.double)
     cdef double height
-    cdef int height_good=0, pos_good=0
+    cdef int height_good=0, pos_good=0, npts_good=0, peak_pos_good=0
     cdef np.ndarray peak_is_good = np.zeros(len(max_peaks), dtype=bool)
     cdef list peaks_out = []
     cdef list peaks_good_out = []
@@ -127,7 +128,7 @@ def peakdetect(
         ip = max_peaks[index][0]
         yp = max_peaks[index][1]
         label_id = labx[ip]
-        print(f"peak at ip={ip} label_id={label_id} yp={yp}")
+        # print(f"peak at ip={ip} label_id={label_id} yp={yp}")
         i0, i3 = np.where(labx == label_id)[0][[0, -1]]
         # remove edge point as those can be bad
         if i0 < 1:
@@ -140,7 +141,7 @@ def peakdetect(
             i1 = i0
         if i2 > i3:
             i2 = i3
-        print(f"peak info h_offset={h_offset} i0={i0} i1={i1} i2={i2} i3={i3} ip={ip}")
+        # print(f"peak info h_offset={h_offset} i0={i0} i1={i1} i2={i2} i3={i3} ip={ip}")
         # calculate height
         y0 = y_axis[i0]
         y1 = y_axis[i1]
@@ -148,20 +149,33 @@ def peakdetect(
         y3 = y_axis[i3]
         height = yp - 0.5 * (y1 + y2)
         heights[index] = height
-        print(f"y0={y0} y1={y1} y2={y2} y3={y3} yp={yp} min_height={min_height} height={height}")
+        yh = 0.5 * (y1 + y2) + min_height
+        # n_peak_pts = (y_axis[i0:i3 + 1] >= yh).sum()
+        n_peak_pts = (i2 - i1 + 1)
+        # print(f"y0={y0} y1={y1} y2={y2} y3={y3} yp={yp} yh={yh} min_peak_pts={min_peak_pts} n_peak_pts={n_peak_pts} min_height={min_height} height={height}")
 
         if height < min_height:
             height_good = 0
         else:
             height_good = 1
-
+        if n_peak_pts < min_peak_pts:
+            npts_good = 0
+        else:
+            npts_good = 1
         # check if close to edge
         if ip < exclude_edge or ip >= length - exclude_edge:
             pos_good = 0
         else:
             pos_good = 1
+        # make sure at lease there is some point around the peak before
+        # it fall off
+        if ip + (n_peak_pts // 3) > i3 or ip - (n_peak_pts // 3) < i0:
+            peak_pos_good = 0
+        else:
+            peak_pos_good = 1
+        # print(f"peak check: pos={pos_good} height={height_good} npts={npts_good} peak_pos={peak_pos_good}")
         peaks_out.append((ip, yp, height, i0, i1, i2, i3))
-        if pos_good > 0 and height_good > 0:
+        if pos_good > 0 and height_good > 0 and npts_good > 0 and peak_pos_good > 0:
             peaks_good_out.append((ip, yp, height, i0, i1, i2, i3))
             peak_is_good[index] = True
     return peaks_out, labx, peaks_good_out, peak_is_good
