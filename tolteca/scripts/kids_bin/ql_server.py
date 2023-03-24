@@ -56,6 +56,9 @@ def get_dp_for_dataset(rootdir, dataset, reduced_dir='toltec/reduced'):
     reduced_dir = rootdir.joinpath(reduced_dir)
     obsnum = dataset[0]['obsnum']
     dpdir = reduced_dir.joinpath(f'{obsnum}')
+    context = {
+            'dpdir': dpdir
+            }
     if not dpdir.exists():
         dpdir = None
     if dataset[0]['master_name'] == 'ics':
@@ -64,7 +67,7 @@ def get_dp_for_dataset(rootdir, dataset, reduced_dir='toltec/reduced'):
         if not data_files:
             return None
         bods = BasicObsDataset.from_files(data_files)
-        bods.meta['dpdir'] = dpdir
+        bods.meta['context'] = context
         return bods
     if dataset[0]['master_name'] == 'tcs':
         # reduction is on per obsnum directory basis
@@ -80,7 +83,44 @@ def get_dp_for_dataset(rootdir, dataset, reduced_dir='toltec/reduced'):
             return None
         # get the one with largest id
         dp = sorted(dps.index['data_items'], key=lambda d: d.meta['id'])[-1]
+        dp.meta['context'] = context
         return dp
+
+
+def _vstack_images(files):
+    from PIL import Image
+    images = [Image.open(file) for file in files]
+
+    # Get the maximum width and total height of the images
+    max_width = max(image.size[0] for image in images)
+    total_height = sum(image.size[1] for image in images)
+
+    # Create a new image with the maximum width and total height
+    new_image = Image.new('RGBA', (max_width, total_height))
+
+    # Paste each image into the new image vertically
+    y_offset = 0
+    for image in images:
+        new_image.paste(image, (0, y_offset))
+        y_offset += image.size[1]
+    return new_image
+
+
+def get_quicklook_response(ql_files, save_path):
+
+    print(f"make summary for ql_files={ql_files}")
+    summary_image_path = Path(save_path).joinpath('lmt_tcs_quicklook_summary.png')
+    if ql_files:
+        summary_image = _vstack_images(ql_files)
+        if not summary_image_path.exists():
+            summary_image.save(summary_image_path)
+    return {
+            "lmt_tcs": {
+                "quicklook": {
+                    "summary_image": summary_image_path.as_posix(),
+                    }
+                }
+            }
 
 
 def get_quicklook_data(rootdir, bods, search_paths=None):
@@ -93,12 +133,17 @@ def get_quicklook_data(rootdir, bods, search_paths=None):
     # extract quick look data from dp
     if dp is None:
         return None, 'No reduced files found.'
+    dpdir = dp.meta['context']['dpdir']
     if isinstance(dp, BasicObsDataset):
         # just report the number of reduced files
+        kids_ql_data = get_kids_ql_data(dp)
+        ql_response = get_quicklook_response(kids_ql_data['quicklook_files'], save_path=dpdir)
+        meta = {
+                'name': f'{dp!r}',
+                }
+        meta.update(ql_response)
         return {
-                'meta': {
-                    'name': f'{dp!r}',
-                    },
+                'meta': meta,
                 # 'n_data_items': len(dp),
                 'data_items': [
                     {
@@ -113,12 +158,17 @@ def get_quicklook_data(rootdir, bods, search_paths=None):
         obs_goal = dr.get_obs_goal(bods)
         index = dp.index.copy()
         print(f'obs goal was {obs_goal}')
+        ql_files = []
         if obs_goal in ['test', 'pointing'] or 'pointing' in index['data_items'][0]['filepath'].name:
-            pointing_reader_data = get_pointing_reader_data(dp)
+            d = pointing_reader_data = get_pointing_reader_data(dp)
             index['pointing_reader_data'] = pointing_reader_data
         elif obs_goal in ['beammap', ] or 'beammap' in index['data_items'][0]['filepath'].name:
-            beammap_reader_data = get_beammap_reader_data(dp)
+            d = beammap_reader_data = get_beammap_reader_data(dp)
             index['beammap_reader_data'] = beammap_reader_data
+        for item in d['data_items']:
+            ql_files.extend(item['quicklook_files'])
+        ql_response = get_quicklook_response(ql_files, save_path=dpdir)
+        index['meta'].update(ql_response)
         print(index)
         return index, None
     return None, "Unkown type of data product."
