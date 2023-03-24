@@ -146,9 +146,9 @@ elif [[ ${type} == "targ" ]]; then
     if [[ $outfile ]]; then
         # ${pyexec} ${scriptdir}/fix_lo.py ${file} "${reportfile}" "${outfile}"
         # the targ freqs.txt is compatible to what ICS expect.
-        targ_freqs_file=${reportfile%.*}_targfreqs.txt
+        targ_freqs_file=${reportfile%.*}_targfreqs.dat
         cp ${targ_freqs_file} "${outfile}"
-        ampcor_file=${reportfile%.*}_ampcor.txt
+        ampcor_file=${reportfile%.*}_ampcor.dat
         etcdir=$(dirname ${outfile})
         cp ${ampcor_file} "${etcdir}/default_targ_amps.dat"
     fi
