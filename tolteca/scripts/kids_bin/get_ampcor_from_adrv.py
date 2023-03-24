@@ -8,7 +8,14 @@ from pathlib import Path
 
 def make_ampcor(adrv_file, perc, plot=False):
     perc = float(perc)  # the percnetile goes from 0 to 100
-    a_drv_bests = Table.read(adrv_file, format='ascii.no_header')['col1']
+    if str(adrv_file).endswith('_adrv.csv'):
+        a_drv_tbl = Table.read(adrv_file, format='ascii.csv')
+        a_drv_tbl.sort('tone_num')
+        print(a_drv_tbl)
+        a_drv_bests = a_drv_tbl['drive_atten']
+        a_drv_bests[a_drv_bests == 0] = np.nan
+    else:
+        a_drv_bests = Table.read(adrv_file, format='ascii.no_header')['col1']
     m = np.isnan(a_drv_bests)
     print(f'{np.sum(m)}/{len(m)} has no a_drv_best')
     med = np.nanmedian(a_drv_bests)

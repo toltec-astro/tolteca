@@ -11,7 +11,7 @@ save:
    use_save_fig:  False
    use_save_pdf:  False
    use_save_file: True
-   save_name:     test
+   save_name:     adrv
    
 preview:
    # set to True (False) to turn each option on (off)
@@ -35,8 +35,10 @@ flag_settings:
    
 fit_settings:
    # leave powlist_start(end) blank to fit all drive attenuations
-   powlist_start: 9 # int
-   powlist_end:  -1 # int, negative
+   # powlist_start: 9 # int
+   # powlist_end:  -1 # int, negative
+   powlist_start:
+   powlist_end:
    numspan:       1 # int, number of linewidths to fit, default is 2
    
    # options: all # for all tones  OR 
