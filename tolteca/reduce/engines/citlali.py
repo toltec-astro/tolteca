@@ -644,7 +644,7 @@ def _fix_apt(source, output_dir):
     # this is a temporary fix to make citlali work with the
     # apt
     tbl = Table.read(source, format='ascii.ecsv')
-    if all(tbl[c].dtype == float for c in tbl.colnames):
+    if all(tbl[c].dtype in [float, np.float32] for c in tbl.colnames):
         # by-pass it when it is already all float
         return source
     tbl_new = Table()
