@@ -6,7 +6,7 @@ import numpy as np
 from pathlib import Path
 
 
-def make_ampcor(adrv_file, perc, plot=False):
+def make_ampcor(adrv_file, perc, plot=False, cutoff_max=30., cutoff_min=0):
     perc = float(perc)  # the percnetile goes from 0 to 100
     if str(adrv_file).endswith('_adrv.csv'):
         a_drv_tbl = Table.read(adrv_file, format='ascii.csv')
@@ -18,7 +18,11 @@ def make_ampcor(adrv_file, perc, plot=False):
         a_drv_bests = Table.read(adrv_file, format='ascii.no_header')['col1']
     m = np.isnan(a_drv_bests)
     print(f'{np.sum(m)}/{len(m)} has no a_drv_best')
-    med = np.nanmedian(a_drv_bests)
+    mm = (a_drv_bests > cutoff_max) | (a_drv_bests < cutoff_min)
+    print(f'{np.sum(mm)}/{len(mm)} has out of range a_drv_best')
+
+    m = mm & m
+    med = np.nanmedian(a_drv_bests[~m])
     print(f'replace with a_drv_med = {med}')
     a_drv_bests[m] = med
     a_drv_ref = np.nanpercentile(a_drv_bests, perc)
@@ -36,12 +40,18 @@ def make_ampcor(adrv_file, perc, plot=False):
     np.savetxt(outfile, ampcors)
     if plot:
         import matplotlib.pyplot as plt
-        fig, (ax, bx, cx) = plt.subplots(1, 3)
-        ax.hist(a_drv_bests)
-        ax.axvline(a_drv_ref)
+        fig, (ax, bx, cx) = plt.subplots(1, 3, tight_layout=True, figsize=(8, 4))
+        bins =  np.arange(cutoff_min - 5, cutoff_max + 5, 0.5)
+        ax.hist(a_drv_bests, bins=bins)
+        ax.set_xlabel("a_drv_best")
+        ax.axvline(a_drv_ref, color='red')
         bx.hist(ampcors)
-        bx.axvline(1)
+        bx.set_xlabel("ampcor")
+        bx.axvline(1, color='red')
         cx.plot(ampcors)
+        cx.set_xlabel("tone id")
+        cx.set_ylabel("ampcor")
+        fig.suptitle(f"{outfile}")
         plt.show()
 
 
