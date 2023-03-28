@@ -554,9 +554,11 @@ def _fix_apt(source):
     tbl_new = Table()
 
     def get_uid(uid):
-        return int('1' + uid.replace("_", ''))
+        # return int('1' + uid.replace("_", ''))
+        return int('1' + str(uid).replace("_", '').replace("-", ""))
 
-    tbl_new['uid'] = np.array([get_uid(uid) for uid in tbl['uid']], dtype='d')
+    # tbl_new['uid'] = np.array([get_uid(uid) for uid in tbl['uid']], dtype='d')
+    tbl_new['uid'] = np.arange(len(tbl), dtype='d')
     tbl_new['nw'] = np.array(tbl['nw'], dtype='d')
     tbl_new['fg'] = np.array(tbl['fg'], dtype='d')
     tbl_new['pg'] = np.array(tbl['pg'], dtype='d')
@@ -567,8 +569,10 @@ def _fix_apt(source):
     tbl_new['x_t_err'] = 0.
     tbl_new['y_t'] = tbl['y_t'].quantity.to_value(u.arcsec)
     tbl_new['y_t_err'] = 0.
-    tbl_new['pa_t'] = tbl['pa_t'].quantity.to_value(u.radian)
-    tbl_new['pa_t_err'] = 0.
+
+    if 'pa_t' in tbl.colnames:
+        tbl_new['pa_t'] = tbl['pa_t'].quantity.to_value(u.radian)
+        tbl_new['pa_t_err'] = 0.
     tbl_new['a_fwhm'] = tbl['a_fwhm'].quantity.to_value(u.arcsec)
     tbl_new['a_fwhm_err'] = 0.
     tbl_new['b_fwhm'] = tbl['b_fwhm'].quantity.to_value(u.arcsec)
@@ -578,7 +582,10 @@ def _fix_apt(source):
     tbl_new['amp'] = 1.
     tbl_new['amp_err'] = 0.
     tbl_new['responsivity'] = tbl['responsivity'].quantity.to_value(u.pW ** -1)
-    tbl_new['flag'] = 1.
+    flag = tbl['flag']
+    if hasattr(flag, 'filled'):
+        flag = flag.filled(0.)
+    tbl_new['flag'] = 1. * flag
     tbl_new['sens'] = 1.
     tbl_new['sig2noise'] = 1.
     tbl_new['converge_iter'] = 0.
@@ -616,10 +623,35 @@ def _make_apt(data_items, output_dir):
         tbl['ori'] = -1.
         tbl['array'] = float(toltec_info[array_name]['index'])
         tbl['flxscale'] = 1.
+        tbl['responsivity'] = 1.
+        tbl['sens'] = 1.
+        tbl['derot_elev'] = 0.
         tbl['x_t'] = 0.
+        tbl['x_t_err'] = 0.
         tbl['y_t'] = 0.
+        tbl['y_t_err'] = 0.
         tbl['a_fwhm'] = 0.
+        tbl['a_fwhm_err'] = 0.
         tbl['b_fwhm'] = 0.
+        tbl['b_fwhm_err'] = 0.
+        tbl['amp'] = 0.
+        tbl['amp_err'] = 0.
+        tbl['angle'] = 0.
+        tbl['angle_err'] = 0.
+        tbl['converge_iter'] = 1.
+        tbl['flag'] = 0.
+        tbl['sig2noise'] = 1.
+
+        tbl['x_t_raw'] = 0.
+        tbl['x_t_raw_err'] = 0.
+        tbl['y_t_raw'] = 0.
+        tbl['y_t_raw_err'] = 0.
+        tbl['x_t_derot'] = 0.
+        tbl['x_t_derot_err'] = 0.
+        tbl['y_t_derot'] = 0.
+        tbl['y_t_derot_err'] = 0.
+
+
         return tbl
 
     tbl = list()

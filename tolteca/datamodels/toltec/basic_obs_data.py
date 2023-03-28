@@ -215,6 +215,7 @@ class BasicObsDataset(object):
             try:
                 bod = BasicObsData(source, **kwargs)
             except Exception as e:
+                raise
                 cls.logger.debug(f"unable to create bod: {e}")
                 bod = None
             bods.append(bod)

@@ -629,7 +629,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                 self.logger.warning(
                     f"missing data in sweep blocks {incompleted_sweeps} "
                     f"sizes={sweep_sizes[incompleted_sweeps]}.")
-
+                print(meta)
         # populate block meta
         # this is the maximum number of blocks, as indicated by the
         # dimension of the tones
