@@ -47,12 +47,12 @@ if __name__ == "__main__":
     fig, axes = plt.subplots(
         n_rows, n_cols,
         constrained_layout=True,
-        figsize=(panel_size * n_rows, panel_size * n_cols),
+        figsize=(panel_size * n_cols, panel_size * n_rows),
         squeeze=False,
         sharex='col')
 
     for j, (nw, adrvs) in enumerate(data.items()):
-        for i, obsnum in enumerate(range(n_rows)):
+        for i, obsnum in enumerate(obsnums):
             ax = axes[i, j]
             adrv = adrvs[i]
             if adrv is not None:
@@ -67,6 +67,11 @@ if __name__ == "__main__":
                     v = np.nanpercentile(adrv, p)
                     ax.axvline(v, label=f"p{p}={v:.1f}", color=c)
                 ax.legend()
+                if j == 0:
+                    ax.set_title(f"{obsnum=}")
+                if i == 0:
+                    ax.text(0.5, 1, f"nw={nw}", transform=ax.transAxes, ha='center', va='top')
+
 
     axes[-1, 0].set_xlabel("Best A_drv (dB)")
     axes[-1, 0].set_ylabel("Counts")
