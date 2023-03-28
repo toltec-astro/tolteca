@@ -596,6 +596,7 @@ def _fix_tel(source, output_dir):
     from astropy.coordinates import SkyCoord
     from tollan.utils.fmt import pformat_yaml
     from tolteca.simu.toltec.toltec_info import toltec_info
+    from tolteca.simu.toltec.models import pa_from_coords
     source_new = output_dir.joinpath(Path(source).name.replace('.nc', '_recomputed.nc')).as_posix()
     if source_new != source:
         try:
@@ -618,9 +619,19 @@ def _fix_tel(source, output_dir):
     tel_az_tot = tel_az - (tel_az_cor) / np.cos(tel_alt)
     tel_alt_tot = tel_alt - (tel_alt_cor)
     altaz_frame = observer.altaz(time=tel_time)
-    tel_icrs_astropy = SkyCoord(tel_az_tot, tel_alt_tot, frame=altaz_frame).transform_to('icrs')
+    tel_altaz = SkyCoord(tel_az_tot, tel_alt_tot, frame=altaz_frame)
+    tel_icrs_astropy = tel_altaz.transform_to('icrs')
+
+    # 20230328 It seems that there are some rotation in final maps.
+    # we switch the pa from using astroplan observer to that used in the
+    # simulator, directly computating with the RA Dec Az and Alt.
     # update variables and save
-    pa = observer.parallactic_angle(time=tel_time, target=tel_icrs_astropy)
+    # pa = observer.parallactic_angle(time=tel_time, target=tel_icrs_astropy)
+    pa = pa_from_coords(
+        observer=observer,
+        coords_altaz=tel_altaz,
+        coords_icrs=tel_icrs_astropy)
+
     pa_orig = tnc['Data.TelescopeBackend.ActParAng'][:] << u.rad
     ra_orig = tnc['Data.TelescopeBackend.SourceRaAct'][:] << u.rad
     dec_orig = tnc['Data.TelescopeBackend.SourceDecAct'][:] << u.rad
