@@ -18,14 +18,16 @@ from tolteca.utils import get_pkg_data_path
 
 
 def _find_file(patterns, search_paths, unique=True):
+    logger = get_logger()
+    logger.debug(f"search patterns: {patterns}")
     files = []
     for path in search_paths:
         for pattern in patterns:
             files += list(Path(path).glob(pattern))
-    if unique:
-        if len(files) == 1:
-            return files[0]
-        return None
+            logger.debug(f"found files: {files}")
+            if unique:
+                if len(files) == 1:
+                    return files[0]
     if files:
         return files
     return None
@@ -64,9 +66,6 @@ def _collect_kids_info(entry, search_paths):
         f"{prefix}*_targfreqs.ecsv"
         ], search_paths))
     kidsmodel_table = _load_table(_find_file([
-        f"{prefix}*_kmt.ecsv",
-        ], search_paths))
-    tone_table = _load_table(_find_file([
         f"{prefix}*_kmt.ecsv",
         ], search_paths))
     context_data = _find_file([
@@ -175,7 +174,7 @@ def _make_kids_figure(layouts):
 
 
 
-def _plot_finding_ratio_nw(ax_nw, ax_array, data, phi_lim=5 << u.deg):
+def _plot_finding_ratio_nw(ax_nw, ax_array, data, phi_lim=5 << u.deg, phi_lim2=15 << u.deg):
     logger = get_logger()
     # make a path outline the 
     edge_indices = data['edge_indices']
@@ -192,6 +191,8 @@ def _plot_finding_ratio_nw(ax_nw, ax_array, data, phi_lim=5 << u.deg):
             tct is None,
             kct is None,
             ]):
+        msg = [tft is None, apt is None, tct is None, kct is None]
+        logger.debug(f"skip plot: [tft, apt, tct, kct]: {msg}")
         return
     n_found = len(tft)
     # import pdb
@@ -205,6 +206,10 @@ def _plot_finding_ratio_nw(ax_nw, ax_array, data, phi_lim=5 << u.deg):
     # print(phi_off)
     m_good = np.abs(phi_off) < phi_lim
     n_good = np.sum(m_good)
+
+    m_ok = np.abs(phi_off) < phi_lim2
+    n_ok = np.sum(m_ok)
+
     m_single = tct['n_tones'] == 1
     n_single = np.sum(m_single)
     m_dup = tct['n_tones'] > 1
@@ -225,8 +230,12 @@ def _plot_finding_ratio_nw(ax_nw, ax_array, data, phi_lim=5 << u.deg):
     # print(phi_off_v[m_miss])
     ax = ax_nw['ax']
     cmap = ax_nw['cmap']
-    ax.axvspan(-90, -phi_lim.to_value(u.deg), color='gray', alpha=0.2)
-    ax.axvspan(phi_lim.to_value(u.deg), 90, color='gray', alpha=0.2)
+    ax.axvspan(-90, -phi_lim2.to_value(u.deg), color='gray', alpha=0.2)
+    ax.axvspan(phi_lim2.to_value(u.deg), 90, color='gray', alpha=0.2)
+
+    ax.axvspan(-phi_lim2.to_value(u.deg), -phi_lim.to_value(u.deg), color='#cdcdcd', alpha=0.2)
+    ax.axvspan(phi_lim.to_value(u.deg), phi_lim2.to_value(u.deg), color='#cdcdcd', alpha=0.2)
+
     ax.axvline(0., linestyle='-', color='black', linewidth=1)
     ax.hist(
         [
@@ -246,6 +255,7 @@ f"""
   Design: {n_design:3d}
    Found: {n_found:3d}
  In-tune: {n_good:3d}
+ OK-tune: {n_ok:3d}
   Single: {n_single:3d}
 Multiple: {n_dup:3d}
   Missed: {n_miss:3d}
@@ -282,18 +292,22 @@ def _plot_finding_ratio_array(ax_array, nw_ctxs):
     n_design = 0
     n_found = 0
     n_good = 0
+    n_ok = 0
     for ctx in nw_ctxs:
         n_design += ctx['n_design']
         n_found += ctx['n_found']
         n_good += ctx['n_good']
+        n_ok += ctx['n_ok']
     frac_found = n_found / n_design
     frac_in_tune = n_good / n_design
+    frac_ok_tune = n_ok / n_design
 
     ax.text(
         0.5, 0.5,
         f"""
 Found: {n_found:3d} / {n_design:3d} {frac_found:4.1%}
 In-tune: {n_good:3d}/ {n_design:3d} {frac_in_tune:4.1%}
+OK-tune: {n_ok:3d}/ {n_design:3d} {frac_ok_tune:4.1%}
 """.strip('\n'), ha='center', va='center',
         # fontsize=20,
         fontfamily='monospace',
