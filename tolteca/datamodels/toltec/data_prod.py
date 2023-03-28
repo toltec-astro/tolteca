@@ -77,9 +77,12 @@ class ScienceDataProd(ToltecDataProd):
                         {
                             'array_name': array_name,
                             'kind': DataItemKind.CalibratedImage,
-                            'filepath': image_file,
-                            })
-                ctod = list(p.glob('raw/toltec_*_timestream_*.nc'))
+                            'filepath': list(
+                                p.glob(f'raw/toltec_*_{array_name}*.fits'))[-1],
+                            }
+                        for array_name in toltec_info['array_names']
+                        ]
+                ctod = list(p.glob('toltec_*_timestream_*.nc'))
                 if ctod:
                     ctod = ctod[-1]
                     data_items.append({

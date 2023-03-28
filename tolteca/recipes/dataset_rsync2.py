@@ -122,7 +122,15 @@ def main(args):
             # insert the ./ in the source path at the master level
             def path_filter(p):
                 p = Path(p)
-                p0 = p.parents[2]  # upto the master   {}/ics/toltec0/tolte0.nc
+                for i in range(4):
+                    p0 = p.parents[i]  # upto the master   {}/ics/toltec0/tolte0.nc
+                    if p0.name in ['toltec', 'tel']:
+                        # include instrument level directory
+                        p0 = p0.parent
+                        break
+                else:
+                    # fallback to use flat list of files
+                    p0 = p.parents[0]
                 p1 = p.relative_to(p0)
                 return f'{p0}/./{p1}'
             rsync_kwargs['path_filter'] = path_filter
@@ -131,8 +139,8 @@ def main(args):
         filepaths = accessor.rsync(
                 dataset['source'], option.download_dir, **rsync_kwargs)
         logger.debug(f"local filepaths: {filepaths}")
-        # make a table with remote solource
-        ukeys = ['roachid', 'obsnum', 'subobsnum', 'scannum']
+        # make a table with remote source
+        ukeys = ['interface', 'obsnum', 'subobsnum', 'scannum']
         remote_source_tbl = dataset.index_table[ukeys + ['source', ]]
         remote_source_tbl.rename_column('source', 'source_remote')
         dataset = BasicObsDataset.from_files(filepaths).join(

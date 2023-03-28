@@ -482,6 +482,40 @@ class CitlaliProc(object):
         return cfg.data
 
     @classmethod
+    def _resolve_cal_items(cls, index_table, cal_items):
+        """Build list of cal_items that are applicable to index_table
+        """
+        df = index_table[[c for c in index_table.colnames if len(index_table[c].shape) == 1]].to_pandas()
+        if not cal_items:
+            # a list of empty lists
+            return [dict() for _ in range(len(df))]
+        check = np.zeros((len(df), len(cal_items)), dtype=bool)
+        for j, cal_item in enumerate(cal_items):
+            # check the "select" against the index_table
+            cond = cal_item.get("select", None)
+            if cond is not None:
+                is_applicable = df.eval(cond).to_numpy(dtype=bool)
+            else:
+                is_applicable = np.ones((len(df), ), dtype=bool)
+            check[:, j] = is_applicable
+        # build the list for each entry, note that we run rupdate
+        # to merge the same type of cal_items
+        result = list()
+        for i in range(len(df)):
+            resolved_cal_items = dict()
+            for j, cal_item in enumerate(cal_items):
+                cal_item = cal_item.copy()
+                cal_item.pop("select", None)
+                cal_item_type = cal_item['type']
+                if check[i, j]:
+                    if cal_item_type not in resolved_cal_items:
+                        resolved_cal_items[cal_item_type] = dict()
+                    rupdate(resolved_cal_items[cal_item_type], cal_item)
+            # convert to list
+            result.append(resolved_cal_items)
+        return result
+
+    @classmethod
     def _resolve_input_item(cls, index_table, output_dir, cal_items=None):
         """Return an citlali input list entry from index table."""
         tbl = index_table
@@ -490,8 +524,10 @@ class CitlaliProc(object):
             'name': f'{d0["obsnum"]}_{d0["subobsnum"]}_{d0["scannum"]}'
             }
         data_items = list()
-        cal_items = cal_items or list()
-        has_apt = False
+        # note there we just build the calitem for the first entry
+        # since all entries are the same
+        cal_items = cls._resolve_cal_items(
+            index_table[:1], cal_items.copy() or list())[0]
         for entry in tbl:
             instru = entry['instru']
             interface = entry['interface']
@@ -501,33 +537,38 @@ class CitlaliProc(object):
                 c = data_items
             elif interface == 'lmt':
                 c = data_items
+                source = _fix_tel(source, output_dir)
             elif interface == 'hwp':
                 c = data_items
             elif interface == 'apt':
                 c = cal_items
                 # TODO implement in citlali the proper
                 # ecsv handling
-                source = _fix_apt(source)
+                source = _fix_apt(source, output_dir)
                 extra = {'type': 'array_prop_table'}
-                has_apt = True
             else:
                 continue
-            c.append(dict({
+            item = dict({
                     'filepath': source,
                     'meta': {
                         'interface': interface
                         }
                     }, **extra)
-                    )
-        if not has_apt:
+            if isinstance(c, list):
+                c.append(item)
+            elif isinstance(c, dict):
+                c[item['type']] = item
+            else:
+                raise ValueError("invalid item list to construct")
+        if 'array_prop_table' not in cal_items:
             # build the apt with all network tones
-            cal_items.append({
+            cal_items['array_prop_table'] = {
                 'filepath': _make_apt(data_items, output_dir),
                 'meta': {
                     'interface': 'apt'
                     },
                 'type': 'array_prop_table'
-                })
+                }
         cls.logger.debug(
                 f"collected input item name={meta['name']} "
                 f"n_data_items={len(data_items)} "
@@ -543,18 +584,83 @@ class CitlaliProc(object):
         return {
                 'meta': meta,
                 'data_items': data_items,
-                'cal_items': cal_items,
+                # make cal_items a list as expected by the citlali
+                'cal_items': list(cal_items.values()),
                 }
 
+def _fix_tel(source, output_dir):
+    # This is to recompute the ParAngAct, SourceRaAct and SourceDecAct from the tel.nc file
+    logger = get_logger()
+    from netCDF4 import Dataset
+    from astropy.time import Time
+    from astropy.coordinates import SkyCoord
+    from tollan.utils.fmt import pformat_yaml
+    from tolteca.simu.toltec.toltec_info import toltec_info
+    from tolteca.simu.toltec.models import pa_from_coords
+    source_new = output_dir.joinpath(Path(source).name.replace('.nc', '_recomputed.nc')).as_posix()
+    if source_new != source:
+        try:
+            shutil.copy(source, source_new)
+        except Exception:
+            raise ValueError("unable to create recomputed tel.nc")
+    else:
+        raise ValueError("invalid tel.nc filename")
 
-def _fix_apt(source):
+    observer = toltec_info['site']['observer']
+    tnc = Dataset(source_new, mode='a')
+    tel_time = Time(tnc['Data.TelescopeBackend.TelTime'][:], format='unix')
+    tel_t0 = tel_time[0]
+    tel_t = tel_time - tel_t0
+
+    tel_az = tnc['Data.TelescopeBackend.TelAzAct'][:] << u.rad
+    tel_alt = tnc['Data.TelescopeBackend.TelElAct'][:] << u.rad
+    tel_az_cor = tnc['Data.TelescopeBackend.TelAzCor'][:] << u.rad
+    tel_alt_cor = tnc['Data.TelescopeBackend.TelElCor'][:] << u.rad
+    tel_az_tot = tel_az - (tel_az_cor) / np.cos(tel_alt)
+    tel_alt_tot = tel_alt - (tel_alt_cor)
+    altaz_frame = observer.altaz(time=tel_time)
+    tel_altaz = SkyCoord(tel_az_tot, tel_alt_tot, frame=altaz_frame)
+    tel_icrs_astropy = tel_altaz.transform_to('icrs')
+
+    # 20230328 It seems that there are some rotation in final maps.
+    # we switch the pa from using astroplan observer to that used in the
+    # simulator, directly computating with the RA Dec Az and Alt.
+    # update variables and save
+    # pa = observer.parallactic_angle(time=tel_time, target=tel_icrs_astropy)
+    pa = pa_from_coords(
+        observer=observer,
+        coords_altaz=tel_altaz,
+        coords_icrs=tel_icrs_astropy)
+
+    pa_orig = tnc['Data.TelescopeBackend.ActParAng'][:] << u.rad
+    ra_orig = tnc['Data.TelescopeBackend.SourceRaAct'][:] << u.rad
+    dec_orig = tnc['Data.TelescopeBackend.SourceDecAct'][:] << u.rad
+
+    tnc['Data.TelescopeBackend.ActParAng'][:] = pa.radian
+    tnc['Data.TelescopeBackend.SourceRaAct'][:] = tel_icrs_astropy.ra.radian
+    tnc['Data.TelescopeBackend.SourceDecAct'][:] = tel_icrs_astropy.dec.radian
+    tnc.sync()
+    tnc.close()
+    # make some diagnostic info
+    def stat_change(d, d_orig, unit, name):
+        dd = (d - d_orig).to_value(unit)
+        logger.info(f"{name} changed with diff ({unit}): min={dd.max()} max={dd.min()} mean={dd.mean()} std={np.std(dd)}")
+    stat_change(pa, pa_orig, u.deg, 'ActParAng') 
+    stat_change(tel_icrs_astropy.ra, ra_orig, u.arcsec, 'SourceRaAct') 
+    stat_change(tel_icrs_astropy.dec, dec_orig, u.arcsec, 'SourceDecAct') 
+    return source_new 
+
+
+def _fix_apt(source, output_dir):
     # this is a temporary fix to make citlali work with the
     # apt
     tbl = Table.read(source, format='ascii.ecsv')
+    if all(tbl[c].dtype in [float, np.float32] for c in tbl.colnames):
+        # by-pass it when it is already all float
+        return source
     tbl_new = Table()
 
     def get_uid(uid):
-        # return int('1' + uid.replace("_", ''))
         return int('1' + str(uid).replace("_", '').replace("-", ""))
 
     # tbl_new['uid'] = np.array([get_uid(uid) for uid in tbl['uid']], dtype='d')
@@ -590,8 +696,16 @@ def _fix_apt(source):
     tbl_new['sig2noise'] = 1.
     tbl_new['converge_iter'] = 0.
     tbl_new['derot_elev'] = 0.
+    tbl_new['loc'] = -1.
+    if 'loc' in tbl.colnames:
+        tbl_new['loc'] = np.array(tbl['loc'], dtype='d')
+    for c in ["tone_freq", "x_t_raw", "y_t_raw", "x_t_derot", "y_t_derot"]:
+        if c not in tbl.colnames:
+            tbl_new[c] = 0.
+        else:
+            tbl_new[c] = np.array(tbl[c], dtype='d')
 
-    source_new = source.replace('.ecsv', '_trimmed.ecsv')
+    source_new = output_dir.joinpath(Path(source).name.replace('.ecsv', '_trimmed.ecsv')).as_posix()
     tbl_new.write(source_new, format='ascii.ecsv', overwrite=True)
     return source_new
 
@@ -621,6 +735,7 @@ def _make_apt(data_items, output_dir):
         tbl['fg'] = -1.
         tbl['pg'] = -1.
         tbl['ori'] = -1.
+        tbl['loc'] = -1.
         tbl['array'] = float(toltec_info[array_name]['index'])
         tbl['flxscale'] = 1.
         tbl['responsivity'] = 1.
@@ -630,6 +745,7 @@ def _make_apt(data_items, output_dir):
         tbl['x_t_err'] = 0.
         tbl['y_t'] = 0.
         tbl['y_t_err'] = 0.
+        tbl['pa_t'] = 0.
         tbl['a_fwhm'] = 0.
         tbl['a_fwhm_err'] = 0.
         tbl['b_fwhm'] = 0.
