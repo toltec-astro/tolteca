@@ -21,7 +21,7 @@ def make_ampcor(adrv_file, perc, plot=False, cutoff_max=30., cutoff_min=0):
     mm = (a_drv_bests > cutoff_max) | (a_drv_bests < cutoff_min)
     print(f'{np.sum(mm)}/{len(mm)} has out of range a_drv_best')
 
-    m = mm & m
+    m = mm | m
     med = np.nanmedian(a_drv_bests[~m])
     print(f'replace with a_drv_med = {med}')
     a_drv_bests[m] = med

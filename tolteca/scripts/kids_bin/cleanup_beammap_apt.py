@@ -36,6 +36,10 @@ def fix_apt_cols(apt):
             'dtype': int,
             'unit': None,
             },
+        'loc': {
+            'dtype': int,
+            'unit': None,
+            },
         'responsivity': {
             'dtype': float,
             'unit': 1 / u.pW,

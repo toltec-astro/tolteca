@@ -14,7 +14,11 @@ if __name__ == "__main__":
 
     tone_amps_lut = tune.variables['Header.Toltec.ToneAmps'][:]
 
+    tone_amps_lut[tone_amps_lut <= 0] = 1.
+    # print(tone_amps_lut)
     tone_amps = Table.read(sys.argv[2], names=['amp'], format='ascii.no_header')['amp']
+
+    # print(tone_amps)
 
     tone_amps = tone_amps * tone_amps_lut
     tone_amps_norm = np.max(tone_amps)
@@ -23,4 +27,4 @@ if __name__ == "__main__":
     tone_amps = tone_amps / tone_amps_norm
 
     # print(tone_amps)
-    Table([tone_amps]).write(sys.argv[2].replace('.txt', '.lut.txt'), format='ascii.no_header')
+    Table([tone_amps]).write(sys.argv[2].replace('.txt', '.lut.txt'), format='ascii.no_header', overwrite=True)

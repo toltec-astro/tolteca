@@ -29,8 +29,24 @@ perc=3
 obsnum_str=$(printf "%06d" ${obsnum})
 
 for i in $(seq 0 12); do
-    # ${pyexec} ${bin} -p ${perc} -- ${scratchdir}/toltec${i}_${obsnum_str}_autodrive.a_drv > ${scratchdir}/toltec${i}_${obsnum_str}_autodrive.log
-    ${pybindir}/python ${bin} -p ${perc} -- ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_adrv.csv > ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_adrv.log
-    ${pybindir}/python ${bin_lut} ${dataroot}/toltec/ics/toltec${i}/toltec${i}_${obsnum_str}_000*_targsweep.nc ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_autodrive.p${perc}.txt
-    cp ${scratchdir}/toltec${i}_${obsnum_str}_autodrive.p${perc}.lut.txt ${scratchdir}/toltec${i}/drive_atten_toltec${i}_${obsnum_str}_default_targ_amps.dat
+    adrv_file=${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_adrv.csv
+    adrv_log=${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_adrv.log
+    if ! [ -f ${adrv_file} ]; then
+        echo "skip nw=${i}, no adrv.csv file found."
+        continue
+    fi
+
+    set -x
+    ${pybindir}/python ${bin} -p ${perc} -- ${adrv_file} > ${adrv_log}
+    ${pybindir}/python ${bin_lut} \
+        ${dataroot}/toltec/ics/toltec${i}/toltec${i}_${obsnum_str}_000*_targsweep.nc  ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_adrv.p${perc}.txt
+    cp ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_adrv.p${perc}.lut.txt ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_default_targ_amps.dat
+    set +x
+    if (( i <= 6 )); then
+        dest=clipa
+    else
+        dest=clipo
+    fi
+    scp ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_default_targ_amps.dat clipa:/home/toltec/tlaloc/etc/toltec${i}/
+    echo "~~~~~~~ neo autodrive result commited to dest=${dest} nw=${i}"
 done
