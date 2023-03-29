@@ -1,0 +1,21 @@
+
+## nominal workflow
+
+1. Run drivefit OT script to collect a set of 10 targsweeps, record the obsnums. Note this will set the amp mode to LUT
+
+2. Run reduce_drivefit.sh <obsnum>
+
+3. Run reduce_drivefit_commit.sh <obsnum>
+
+4. Set amp mode to FILE and run TUNE to check the tones.
+
+
+## Verify
+
+After the drivefit_commit.sh, one may verify the result with:
+
+1. Run drivefit_confirm OT script to collect a set of 10 targsweeps, record the obsnums. Note this set the amp mode to FILE
+
+2. Run reduce_drivefit.sh <obsnum>,
+
+3. Run `plot_drivefit.sh obsnum0 obsnum1` to see the comparison of the results.

@@ -48,5 +48,5 @@ for i in $(seq 0 12); do
         dest=clipo
     fi
     scp ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_default_targ_amps.dat clipa:/home/toltec/tlaloc/etc/toltec${i}/
-    echo "~~~~~~~ neo autodrive result commited to dest=${dest} nw=${i}"
+    echo "~~~~~~~ drivefit result commited to dest=${dest} nw=${i}"
 done

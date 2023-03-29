@@ -19,7 +19,7 @@ else
     obsnum=$1
 fi
 
-echo "reduce neoAutoDrive obsnum=${obsnum}"
+echo "reduce DriveFit obsnum=${obsnum}"
 
 # obsnum_str=$(printf "%06d" ${obsnum})
 
