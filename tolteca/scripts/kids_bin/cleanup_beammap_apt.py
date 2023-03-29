@@ -46,7 +46,7 @@ def fix_apt_cols(apt):
             },
         'flxscale': {
             'dtype': float,
-            'unit': u.MJy/u.sr
+            'unit': u.mJy / u.beam
             },
         'sens': {
             'dtype': float,
@@ -58,11 +58,11 @@ def fix_apt_cols(apt):
             },
         'amp': {
             'dtype': float,
-            'unit': u.mJy / u.beam
+            'unit': None #u.mJy / u.beam
             },
         'amp_err': {
             'dtype': float,
-            'unit': u.mJy / u.beam
+            'unit': None #u.mJy / u.beam
             },
         'x_t': {
             'dtype': float,
@@ -128,7 +128,7 @@ def fix_apt_cols(apt):
             'dtype': float,
             'unit': u.arcsec
             },
-        'x_t_derot': {
+        'y_t_derot': {
             'dtype': float,
             'unit': u.arcsec
             },
