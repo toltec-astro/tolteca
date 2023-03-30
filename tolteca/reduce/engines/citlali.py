@@ -17,7 +17,7 @@ from scalpl import Cut
 import numpy as np
 import astropy.units as u
 from pathlib import Path
-from schema import Or
+from schema import Or, Optional, Schema
 from dataclasses import dataclass, field, replace
 from typing import Union
 from tollan.utils.dataclass_schema import add_schema
@@ -34,7 +34,9 @@ from ...utils.common_schema import RelPathSchema, PhysicalTypeSchema
 from ...utils.runtime_context import yaml_load
 from ...datamodels.toltec.data_prod import ToltecDataProd
 from ...datamodels.toltec.basic_obs_data import BasicObsData
+from ...datamodels.io.toltec.tel import LmtTelFileIO
 from ...common.toltec import toltec_info
+
 
 
 REMOTE_CITLALI_REPO_URL = 'https://github.com/toltec-astro/citlali.git'
@@ -396,7 +398,7 @@ class CitlaliProc(object):
 
     def __call__(
             self, dataset, output_dir,
-            log_level='INFO', logger_func=None):
+            log_level='INFO', logger_func=None, dry_run=False):
         # resolve the dataset to input items
         tbl = dataset.index_table
         grouped = tbl.group_by(
@@ -408,7 +410,7 @@ class CitlaliProc(object):
                     '*******'.format(**key))
             self.logger.debug(f'{group}\n')
         input_items = [
-            self._resolve_input_item(d, output_dir, cal_items=self.config.cal_items) for d in grouped.groups]
+            self._resolve_input_item(d, output_dir, cal_items_low_level=self.config.cal_items, cal_objs=self.config.cal_objs) for d in grouped.groups]
         # create low level config object and dump to file
         # the low level has been resolved to a dict when __init__ is called
         cfg = deepcopy(self.config.low_level)
@@ -450,6 +452,10 @@ class CitlaliProc(object):
         with open(cfg_filepath, 'w') as fo:
             fo.write(pformat_yaml(cfg))
             # yaml_dump(cfg, fo)
+        if dry_run:
+            logger_func(f"** DRY RUN **: citlali low level config: {cfg_filepath}")
+            logger_func(f"dry run's done.")
+            return None
         success = self._citlali.run(
             cfg_filepath, log_level=log_level, logger_func=logger_func)
         # TODO implement the logic to locate the generated output files
@@ -481,27 +487,154 @@ class CitlaliProc(object):
                 'mapmaking.pixel_size_arcsec', pixel_size.to_value(u.arcsec))
         return cfg.data
 
+
     @classmethod
-    def _resolve_cal_items(cls, index_table, cal_items):
-        """Build list of cal_items that are applicable to index_table
-        """
+    def _resolve_pointing_offsets(cls, ppts, teldata):
+        logger = get_logger()
+
+        obsnum = teldata.nc_node.variables['Header.Dcs.ObsNum'][:].item()
+        def _get_obsnum(ppt):
+            return int(ppt.meta['obsnum'])
+        # sort ppts by obsnum and get the closest ones to the current
+        ppts = sorted(ppts, key=_get_obsnum)
+        cal_obsnums = np.array(list(map(_get_obsnum, ppts)))
+        logger.debug(f"resolve pointing offsets for {teldata} {obsnum=} using ppt of obsnums={cal_obsnums}")
+
+        idx_pre = np.where(cal_obsnums < obsnum)[0]
+        if len(idx_pre) == 0:
+            obsnum_pre = None
+            ppt_pre = None
+        else:
+            obsnum_pre = cal_obsnums[idx_pre[-1]]
+            ppt_pre = ppts[idx_pre[-1]]
+
+        idx_post = np.where(cal_obsnums > obsnum)[0]
+        if len(idx_post) == 0:
+            obsnum_post = None
+            ppt_post = None
+        else:
+            obsnum_post = cal_obsnums[idx_post[0]]
+            ppt_post = ppts[idx_post[0]]
+        logger.debug(f"pointing offset for {obsnum=}: {obsnum_pre=} {obsnum_post=}")
+
+
+        daz_tel_user = ((
+                teldata.nc_node.variables['Header.PointModel.AzUserOff'][:].item()
+                + teldata.nc_node.variables['Header.PointModel.AzPaddleOff'][:].item()
+                ) << u.rad).to(u.arcsec)
+        dalt_tel_user = ((
+                teldata.nc_node.variables['Header.PointModel.ElUserOff'][:].item()
+                + teldata.nc_node.variables['Header.PointModel.ElPaddleOff'][:].item()
+                ) << u.rad).to(u.arcsec)
+
+        logger.debug(f"tel {obsnum=} {daz_tel_user=!s} {dalt_tel_user=!s}")
+
+        def _get_altaz_cor_arcsec(ppt, teldata):
+            obsnum = _get_obsnum(ppt)
+            daz_raw = np.mean(ppt['x_t'] << u.arcsec)
+            dalt_raw = np.mean(ppt['y_t'] << u.arcsec)
+            daz_user = ((
+                    ppt.meta['Header.PointModel.AzUserOff']
+                    + ppt.meta['Header.PointModel.AzPaddleOff']) << u.rad).to(u.arcsec)
+            dalt_user = ((
+                    ppt.meta['Header.PointModel.ElUserOff']
+                    + ppt.meta['Header.PointModel.ElPaddleOff']) << u.rad).to(u.arcsec)
+            logger.debug(f"ppt {obsnum=} {daz_raw=!s} {dalt_raw=!s} {daz_user=!s} {dalt_user=!s}")
+            daz_adjust = daz_user - daz_tel_user
+            dalt_adjust = dalt_user - dalt_tel_user
+            logger.debug(f"adjust ppt offset {daz_adjust=!s} {dalt_adjust=!s}")
+            # note here is a sign flip to go from measured offsets to
+            # offset corrections.
+            az_cor = -(daz_raw + daz_adjust)
+            alt_cor = -(dalt_raw + dalt_adjust)
+            logger.debug(f"pointing offset correction to use: {az_cor=!s} {alt_cor=!s}")
+            return az_cor.to_value(u.arcsec), alt_cor.to_value(u.arcsec)
+
+        # compose the dict
+        altaz_cor_arcsec = []
+        if ppt_pre is not None:
+            altaz_cor_arcsec.append(_get_altaz_cor_arcsec(ppt_pre, teldata))
+        if ppt_post is not None:
+            altaz_cor_arcsec.append(_get_altaz_cor_arcsec(ppt_post, teldata))
+        az_cor_arcsec, alt_cor_arcsec = zip(*altaz_cor_arcsec)
+        result = {
+                'pointing_offsets': [
+                    {'axes_name': 'az', 'value_arcsec': az_cor_arcsec},
+                    {'axes_name': 'alt', 'value_arcsec': alt_cor_arcsec},
+                    ],
+                'type': 'astrometry',
+                'select': f'obsnum == {obsnum}'
+                }
+        logger.info(f"resolved pointing offset for {obsnum=} from {obsnum_pre=} {obsnum_post=}:\n{pformat_yaml(result)}")
+        return [result]
+
+    @classmethod
+    def _resolve_cal_objs(cls, tel_index, cal_objs):
+        if cal_objs is None:
+            # resolve to a list of empty items
+            return [dict() for _ in range(len(tel_index))]
+        check = cls._check_select(
+                tel_index,
+                [cal_obj.select for cal_obj in cal_objs]
+                )
+        # load all cal_objs, this is a nested list
+        # we need to keep this way to apply the select cond.
+        caldata_objs_list = [cal_obj.load_data_objs() for cal_obj in cal_objs]
+        # build the list for each entry, note that we run rupdate
+        # to merge the same type of cal_items
+        resolvers = {
+                "ppt": cls._resolve_pointing_offsets
+                }
+        result = list()
+        for i in range(len(tel_index)):
+            teldata = LmtTelFileIO(tel_index[i]['source'])
+            # this is a flat list of all applicable data objs
+            caldata_objs_applicable = []
+            for j, caldata_objs in enumerate(caldata_objs_list):
+                if check[i, j]:
+                    caldata_objs_applicable.extend(caldata_objs)
+            for resolver_key, resolver_func in resolvers.items():
+                # filter the applicable list with the resolver type
+                caldata_items = [d['data'] for j, d in enumerate(caldata_objs_applicable) if d['type'] == resolver_key]
+                if not caldata_items:
+                    # no applicable caldata, skip
+                    continue
+                result.extend(resolver_func(caldata_items, teldata))
+        return result
+
+    @classmethod
+    def _check_select(cls, index_table, conds):
+        # build a n_entry x n_cond matrix recording the applicable status
+        # of the select conds.
         df = index_table[[c for c in index_table.colnames if len(index_table[c].shape) == 1]].to_pandas()
-        if not cal_items:
-            # a list of empty lists
-            return [dict() for _ in range(len(df))]
-        check = np.zeros((len(df), len(cal_items)), dtype=bool)
-        for j, cal_item in enumerate(cal_items):
+        check = np.zeros((len(df), len(conds)), dtype=bool)
+        for j, cond in enumerate(conds):
             # check the "select" against the index_table
-            cond = cal_item.get("select", None)
             if cond is not None:
                 is_applicable = df.eval(cond).to_numpy(dtype=bool)
             else:
                 is_applicable = np.ones((len(df), ), dtype=bool)
             check[:, j] = is_applicable
+        return check
+
+    @classmethod
+    def _resolve_cal_items(cls, tel_index, cal_items):
+        """Build list of cal_items that are applicable to index_table
+        """
+        logger = get_logger()
+        if cal_items is None:
+            # resolve to a list of empty items
+            return [dict() for _ in range(len(tel_index))]
+
+        # logger.debug(f'resolve cal_items:\n{pformat_yaml(cal_items)}')
+        check = cls._check_select(
+                tel_index,
+                [cal_item.get('select', None) for cal_item in cal_items]
+                )
         # build the list for each entry, note that we run rupdate
         # to merge the same type of cal_items
         result = list()
-        for i in range(len(df)):
+        for i in range(len(tel_index)):
             resolved_cal_items = dict()
             for j, cal_item in enumerate(cal_items):
                 cal_item = cal_item.copy()
@@ -516,18 +649,19 @@ class CitlaliProc(object):
         return result
 
     @classmethod
-    def _resolve_input_item(cls, index_table, output_dir, cal_items=None):
+    def _resolve_input_item(cls, index_table, output_dir, cal_items_low_level=None, cal_objs=None):
         """Return an citlali input list entry from index table."""
+        logger = get_logger()
         tbl = index_table
         d0 = tbl[0]
         meta = {
             'name': f'{d0["obsnum"]}_{d0["subobsnum"]}_{d0["scannum"]}'
             }
+        # resolve data items first
+        # any cal items resolved in data items will override
+        # cal items
         data_items = list()
-        # note there we just build the calitem for the first entry
-        # since all entries are the same
-        cal_items = cls._resolve_cal_items(
-            index_table[:1], cal_items.copy() or list())[0]
+        cal_items_override = []
         for entry in tbl:
             instru = entry['instru']
             interface = entry['interface']
@@ -538,10 +672,10 @@ class CitlaliProc(object):
             elif interface == 'lmt':
                 c = data_items
                 source = _fix_tel(source, output_dir)
-            elif interface == 'hwp':
+            elif interface == 'hwpr':
                 c = data_items
             elif interface == 'apt':
-                c = cal_items
+                c = cal_items_override
                 # TODO implement in citlali the proper
                 # ecsv handling
                 source = _fix_apt(source, output_dir)
@@ -560,6 +694,27 @@ class CitlaliProc(object):
                 c[item['type']] = item
             else:
                 raise ValueError("invalid item list to construct")
+
+        # resolve cal items
+        # for this we need the tel file index
+        tel_index = index_table[index_table['interface'] == 'lmt']
+        cal_items =[]
+        # first we resolve the cal_objs
+        if cal_objs is not None:
+            cal_items.extend(cls._resolve_cal_objs(tel_index, cal_objs))
+        # now resolve all the low level cal_items
+        # note these cal_items overrides the resolved calobjs
+        if cal_items_low_level is not None:
+            cal_items.extend(cal_items_low_level)
+        # don't forget the cal_items resolved from data_items
+        cal_items.extend(cal_items_override)
+
+        # finally for all of them combined
+        # note this resovles to list of one dict
+        cal_items = cls._resolve_cal_items(tel_index, cal_items)[0]
+        logger.debug(f"all resolved cal_items:\n{pformat_yaml(cal_items)}")
+
+        # validate the calitems.
         if 'array_prop_table' not in cal_items:
             # build the apt with all network tones
             cal_items['array_prop_table'] = {
@@ -598,6 +753,8 @@ def _fix_tel(source, output_dir):
     from tolteca.simu.toltec.toltec_info import toltec_info
     from tolteca.simu.toltec.models import pa_from_coords
     source_new = output_dir.joinpath(Path(source).name.replace('.nc', '_recomputed.nc')).as_posix()
+    if Path(source_new).exists():
+        return source_new
     if source_new != source:
         try:
             shutil.copy(source, source_new)
@@ -648,7 +805,7 @@ def _fix_tel(source, output_dir):
     stat_change(pa, pa_orig, u.deg, 'ActParAng') 
     stat_change(tel_icrs_astropy.ra, ra_orig, u.arcsec, 'SourceRaAct') 
     stat_change(tel_icrs_astropy.dec, dec_orig, u.arcsec, 'SourceDecAct') 
-    return source_new 
+    return source_new
 
 
 def _fix_apt(source, output_dir):
@@ -807,6 +964,43 @@ class ImageFrameParams(object):
 
 @add_schema
 @dataclass
+class CalObj(object):
+    """Calibration Object."""
+    path: Path = field(
+            metadata={
+                "description": "Calobj path.",
+                "schema": RelPathSchema(),
+                })
+    select: Union[None, str] = field(
+        default=None,
+        metadata={
+            "desription": "The expression to select data this cal file is applicable to",
+            })
+
+    def load_data_objs(self):
+        path = self.path
+        if path.is_dir():
+            # todo properly handle the loading of calobj from data prod folder
+            cal_patterns = {
+                    'ppt': '**/ppt_*.ecsv',
+                    }
+            caldata_objs = list()
+            for caldata_obj_key, cal_pattern in cal_patterns.items():
+                f = list(path.glob(cal_pattern))
+                if len(f) != 1:
+                    raise ValueError(f"invalid calobj path {path}")
+                f = f[0]
+                caldata_objs.append({
+                        'data': Table.read(f, format='ascii.ecsv'),
+                        'type': caldata_obj_key,
+                        'select': self.select
+                        })
+            return caldata_objs
+        raise NotImplementedError()
+
+
+@add_schema
+@dataclass
 class CitlaliConfig(object):
     """The high-level config for Citlali."""
 
@@ -830,6 +1024,12 @@ class CitlaliConfig(object):
             'description': 'Additional cal items passed to input.'
             }
         )
+    cal_objs: list = field(
+        default_factory=list,
+        metadata={
+            'description': 'Additional calibration objects passed to input.',
+            'schema': Schema([CalObj.schema]),
+            })
     class Meta:
         schema = {
             'ignore_extra_keys': False,
