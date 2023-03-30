@@ -193,9 +193,9 @@ class LmtOTComposer(object):
             x_length, y_length, x_omega, y_omega,
             delta, t_exp
             ):
-        v_x = x_length * x_omega.quantity.to(
+        v_x = 2 * x_length * x_omega.quantity.to(
                 u.Hz, equivalencies=[(u.cy/u.s, u.Hz)])
-        v_y = y_length * y_omega.quantity.to(
+        v_y = 2 * y_length * y_omega.quantity.to(
                 u.Hz, equivalencies=[(u.cy/u.s, u.Hz)])
         return dict(
             XLength=x_length.quantity.to_value(u.arcmin),

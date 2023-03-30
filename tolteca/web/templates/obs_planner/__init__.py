@@ -49,6 +49,7 @@ from ....utils import yaml_load, yaml_dump
 from ....simu.utils import SkyBoundingBox
 from ....simu import mapping_registry, SimulatorRuntime, ObsParamsConfig
 from ....simu.mapping.utils import resolve_sky_coords_frame
+from ....simu.mapping.lissajous import LissajousModelMeta
 from ....utils.common_schema import PhysicalTypeSchema
 
 from .preset import PresetsConfig
@@ -579,7 +580,7 @@ class ObsPlanner(ComponentTemplate):
             try:
                 mapping = json.dumps(ecfg["mapping"], indent=2)
                 t_exp = ecfg["obs_params"]["t_exp"]
-                    
+
                 target_coord = parse_coordinates(ecfg['mapping']['target'])
                 # valid mapping this requires creating the exec config
                 exec_config = ObsPlannerExecConfig.from_dict(ecfg)
@@ -819,6 +820,14 @@ class ObsPlannerExecConfig(object):
             "schema": PhysicalTypeSchema("spectral flux density"),
         }
     )
+    speed_lissajous: Union[None, u.Quantity] = field(
+        default=None,
+        metadata={
+            "description": "The lissajous pattern speed to enforce.",
+            "schema": Or(None, PhysicalTypeSchema("angular speed")),
+        }
+    )
+
     # TODO since we now only support LMT/TolTEC, we do not have a
     # good measure of the schema to use for the generic site and instru
     # we just save the raw data dict here.
@@ -843,8 +852,9 @@ class ObsPlannerExecConfig(object):
         obs_params_dict = {
             "f_smp_mapping": "10 Hz",
             "f_smp_probing": "100 Hz",
-            "t_exp": mapping_data.pop("t_exp", None),
+            "t_exp": mapping_data.get("t_exp", None),
         }
+        speed_lissajous = mapping_data.get("speed_lissajous")
         return cls.from_dict(
             {
                 "mapping": mapping_dict,
@@ -852,18 +862,53 @@ class ObsPlannerExecConfig(object):
                 "site_data": site_data,
                 "instru_data": instru_data,
                 "desired_sens": str(mapping_data["desired_sens_mJy"] << u.mJy),
+                "speed_lissajous": speed_lissajous,
             }
         )
 
     @staticmethod
     def _make_mapping_config_dict(mapping_data, target_data):
         """Return mapping config dict from mapping and target data store."""
+        logger = get_logger()
         cfg = dict(**mapping_data)
         cfg["t0"] = f"{target_data['date']} {target_data['time']}"
         cfg["target"] = target_data["name"]
         # for mapping config, we discard the t_exp and desired_sens.
         cfg.pop("t_exp", None)
         cfg.pop("desired_sens_mJy", None)
+        # for lissajous like patterns, we build the pattern and then rescale
+        # the omega values
+        speed_lissajous = cfg.pop("speed_lissajous", None)
+
+        if speed_lissajous is not None:
+            m = mapping_registry.schema.validate(cfg, create_instance=True).get_offset_model()
+            # here we always get the major pattern speed
+            if hasattr(m, 'x_omega') and hasattr(m, 'y_omega'):
+                avg_lissajous_speed_major = LissajousModelMeta.calc_avg_speed(m)
+            elif hasattr(m, 'x_omega_0') and hasattr(m, 'y_omega_0'):
+                avg_lissajous_speed_major = LissajousModelMeta._calc_avg_speed(
+                        m.x_length_0, m.y_length_0, m.x_omega_0, m.y_omega_0)
+            else:
+                # this should not happen. If happened, just return the cfg as is
+                return cfg
+            # now derive the scaling factor to apply to omega values
+            # the factor of 20 is hard-coded in the LMTOT. we'll enforce this
+            # for a match to the actual system.
+            scale_0 = (speed_lissajous / avg_lissajous_speed_major).to_value(u.dimensionless_unscaled)
+            scale_1 = (speed_lissajous / avg_lissajous_speed_major / 20).to_value(u.dimensionless_unscaled)
+            # update the entries
+            logger.debug(f"scale major lissajous speed {avg_lissajous_speed_major} to {speed_lissajous}")
+            logger.debug(f"scale_major={scale_0} scale_minor={scale_1}")
+            if hasattr(m, 'x_omega') and hasattr(m, 'y_omega'):
+                cfg['x_omega'] = str((m.x_omega * scale_0).to(u.rad/u.s))
+                cfg['y_omega'] = str((m.y_omega * scale_0).to(u.rad/u.s))
+            elif hasattr(m, 'x_omega_0') and hasattr(m, 'y_omega_0'):
+                cfg['x_omega_0'] = str((m.x_omega_0 * scale_0).to(u.rad/u.s))
+                cfg['y_omega_0'] = str((m.y_omega_0 * scale_0).to(u.rad/u.s))
+                cfg['x_omega_1'] = str((m.x_omega_1 * scale_1).to(u.rad/u.s))
+                cfg['y_omega_1'] = str((m.y_omega_1 * scale_1).to(u.rad/u.s))
+            else:
+                return cfg
         return cfg
 
     def to_yaml_dict(self):
@@ -1193,7 +1238,7 @@ or this value directly after getting the initial execution output for the per-pa
                     f"Time to finish one pass: {t_pattern:.2f}."
                 )
                 return [True, False, feedback_content, "valid"]
-            # raster like patterns, we check the exp time to make sure
+            # raster like patterns, we check the pattern time to make sure
             # it is ok
             t_exp_max = self._t_exp_max
             if t_pattern > self._t_exp_max:
