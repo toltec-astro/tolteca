@@ -250,12 +250,12 @@ presets:
     unit: arcmin
     value: 3.5
     value_min: 2
-    value_max: 6
+    value_max: 15
   - key: y_length_0
     unit: arcmin
     value: 3.5
     value_min: 2
-    value_max: 6
+    value_max: 15
   - key: x_omega_0
     unit: rad/s
     value: 5.2

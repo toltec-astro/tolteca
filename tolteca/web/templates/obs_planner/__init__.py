@@ -372,7 +372,7 @@ class ObsPlanner(ComponentTemplate):
         )
         def set_dal_target(target_info, upload_data):
             triggered_id = dash.callback_context.triggered_id
-            if triggered_id == target_select_panel.id:
+            if triggered_id == target_select_panel.target_info_store.id:
                 if target_info is None: 
                     return dash.no_update
                 return "{} {}".format(target_info['ra_deg'], target_info['dec_deg'])
