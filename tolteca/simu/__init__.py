@@ -298,13 +298,19 @@ class SimuConfig(object):
         It equals `obs_params.t_exp` when set, otherwise ``t_pattern``
         of the mapping pattern is used.
         """
+        from .mapping import PatternKind
         t_simu = self.obs_params.t_exp
+        t_pattern = self.mapping_model.t_pattern
         if t_simu is None:
-            t_pattern = self.mapping_model.t_pattern
             self.logger.debug(f"mapping pattern time: {t_pattern}")
             t_simu = t_pattern
             self.logger.info(f"use t_simu={t_simu} from mapping pattern")
         else:
+            # check if t_exp is longer than t_pattern and raise error
+            # if the mapping pattern is raster-like
+            if t_simu > t_pattern and \
+                    self.mapping_model.pattern_kind & PatternKind.raster_like:
+                raise ValueError(f"obs_params.t_exp cannot be larger than pattern time {t_pattern} for raster-like maps.")
             self.logger.info(f"use t_simu={t_simu} from obs_params")
         return t_simu
 

@@ -17,7 +17,7 @@ from scalpl import Cut
 import numpy as np
 import astropy.units as u
 from pathlib import Path
-from schema import Or
+from schema import Or, Optional, Schema
 from dataclasses import dataclass, field, replace
 from typing import Union
 from tollan.utils.dataclass_schema import add_schema
@@ -34,7 +34,9 @@ from ...utils.common_schema import RelPathSchema, PhysicalTypeSchema
 from ...utils.runtime_context import yaml_load
 from ...datamodels.toltec.data_prod import ToltecDataProd
 from ...datamodels.toltec.basic_obs_data import BasicObsData
+from ...datamodels.io.toltec.tel import LmtTelFileIO
 from ...common.toltec import toltec_info
+
 
 
 REMOTE_CITLALI_REPO_URL = 'https://github.com/toltec-astro/citlali.git'
@@ -396,7 +398,7 @@ class CitlaliProc(object):
 
     def __call__(
             self, dataset, output_dir,
-            log_level='INFO', logger_func=None):
+            log_level='INFO', logger_func=None, dry_run=False):
         # resolve the dataset to input items
         tbl = dataset.index_table
         grouped = tbl.group_by(
@@ -408,7 +410,7 @@ class CitlaliProc(object):
                     '*******'.format(**key))
             self.logger.debug(f'{group}\n')
         input_items = [
-            self._resolve_input_item(d, output_dir, cal_items=self.config.cal_items) for d in grouped.groups]
+            self._resolve_input_item(d, output_dir, cal_items_low_level=self.config.cal_items, cal_objs=self.config.cal_objs) for d in grouped.groups]
         # create low level config object and dump to file
         # the low level has been resolved to a dict when __init__ is called
         cfg = deepcopy(self.config.low_level)
@@ -450,6 +452,10 @@ class CitlaliProc(object):
         with open(cfg_filepath, 'w') as fo:
             fo.write(pformat_yaml(cfg))
             # yaml_dump(cfg, fo)
+        if dry_run:
+            logger_func(f"** DRY RUN **: citlali low level config: {cfg_filepath}")
+            logger_func(f"dry run's done.")
+            return None
         success = self._citlali.run(
             cfg_filepath, log_level=log_level, logger_func=logger_func)
         # TODO implement the logic to locate the generated output files
@@ -481,17 +487,181 @@ class CitlaliProc(object):
                 'mapmaking.pixel_size_arcsec', pixel_size.to_value(u.arcsec))
         return cfg.data
 
+
     @classmethod
-    def _resolve_input_item(cls, index_table, output_dir, cal_items=None):
+    def _resolve_pointing_offsets(cls, ppts, teldata):
+        logger = get_logger()
+
+        obsnum = teldata.nc_node.variables['Header.Dcs.ObsNum'][:].item()
+        def _get_obsnum(ppt):
+            return int(ppt.meta['obsnum'])
+        # sort ppts by obsnum and get the closest ones to the current
+        ppts = sorted(ppts, key=_get_obsnum)
+        cal_obsnums = np.array(list(map(_get_obsnum, ppts)))
+        logger.debug(f"resolve pointing offsets for {teldata} {obsnum=} using ppt of obsnums={cal_obsnums}")
+
+        idx_pre = np.where(cal_obsnums < obsnum)[0]
+        if len(idx_pre) == 0:
+            obsnum_pre = None
+            ppt_pre = None
+        else:
+            obsnum_pre = cal_obsnums[idx_pre[-1]]
+            ppt_pre = ppts[idx_pre[-1]]
+
+        idx_post = np.where(cal_obsnums > obsnum)[0]
+        if len(idx_post) == 0:
+            obsnum_post = None
+            ppt_post = None
+        else:
+            obsnum_post = cal_obsnums[idx_post[0]]
+            ppt_post = ppts[idx_post[0]]
+        logger.debug(f"pointing offset for {obsnum=}: {obsnum_pre=} {obsnum_post=}")
+
+
+        daz_tel_user = ((
+                teldata.nc_node.variables['Header.PointModel.AzUserOff'][:].item()
+                + teldata.nc_node.variables['Header.PointModel.AzPaddleOff'][:].item()
+                ) << u.rad).to(u.arcsec)
+        dalt_tel_user = ((
+                teldata.nc_node.variables['Header.PointModel.ElUserOff'][:].item()
+                + teldata.nc_node.variables['Header.PointModel.ElPaddleOff'][:].item()
+                ) << u.rad).to(u.arcsec)
+
+        logger.debug(f"tel {obsnum=} {daz_tel_user=!s} {dalt_tel_user=!s}")
+
+        def _get_altaz_cor_arcsec(ppt, teldata):
+            obsnum = _get_obsnum(ppt)
+            daz_raw = np.mean(ppt['x_t'] << u.arcsec)
+            dalt_raw = np.mean(ppt['y_t'] << u.arcsec)
+            daz_user = ((
+                    ppt.meta['Header.PointModel.AzUserOff']
+                    + ppt.meta['Header.PointModel.AzPaddleOff']) << u.rad).to(u.arcsec)
+            dalt_user = ((
+                    ppt.meta['Header.PointModel.ElUserOff']
+                    + ppt.meta['Header.PointModel.ElPaddleOff']) << u.rad).to(u.arcsec)
+            logger.debug(f"ppt {obsnum=} {daz_raw=!s} {dalt_raw=!s} {daz_user=!s} {dalt_user=!s}")
+            daz_adjust = daz_user - daz_tel_user
+            dalt_adjust = dalt_user - dalt_tel_user
+            logger.debug(f"adjust ppt offset {daz_adjust=!s} {dalt_adjust=!s}")
+            # note here is a sign flip to go from measured offsets to
+            # offset corrections.
+            az_cor = -(daz_raw + daz_adjust)
+            alt_cor = -(dalt_raw + dalt_adjust)
+            logger.debug(f"pointing offset correction to use: {az_cor=!s} {alt_cor=!s}")
+            return az_cor.to_value(u.arcsec), alt_cor.to_value(u.arcsec)
+
+        # compose the dict
+        altaz_cor_arcsec = []
+        if ppt_pre is not None:
+            altaz_cor_arcsec.append(_get_altaz_cor_arcsec(ppt_pre, teldata))
+        if ppt_post is not None:
+            altaz_cor_arcsec.append(_get_altaz_cor_arcsec(ppt_post, teldata))
+        az_cor_arcsec, alt_cor_arcsec = zip(*altaz_cor_arcsec)
+        result = {
+                'pointing_offsets': [
+                    {'axes_name': 'az', 'value_arcsec': az_cor_arcsec},
+                    {'axes_name': 'alt', 'value_arcsec': alt_cor_arcsec},
+                    ],
+                'type': 'astrometry',
+                'select': f'obsnum == {obsnum}'
+                }
+        logger.info(f"resolved pointing offset for {obsnum=} from {obsnum_pre=} {obsnum_post=}:\n{pformat_yaml(result)}")
+        return [result]
+
+    @classmethod
+    def _resolve_cal_objs(cls, tel_index, cal_objs):
+        if cal_objs is None:
+            # resolve to a list of empty items
+            return [dict() for _ in range(len(tel_index))]
+        check = cls._check_select(
+                tel_index,
+                [cal_obj.select for cal_obj in cal_objs]
+                )
+        # load all cal_objs, this is a nested list
+        # we need to keep this way to apply the select cond.
+        caldata_objs_list = [cal_obj.load_data_objs() for cal_obj in cal_objs]
+        # build the list for each entry, note that we run rupdate
+        # to merge the same type of cal_items
+        resolvers = {
+                "ppt": cls._resolve_pointing_offsets
+                }
+        result = list()
+        for i in range(len(tel_index)):
+            teldata = LmtTelFileIO(tel_index[i]['source'])
+            # this is a flat list of all applicable data objs
+            caldata_objs_applicable = []
+            for j, caldata_objs in enumerate(caldata_objs_list):
+                if check[i, j]:
+                    caldata_objs_applicable.extend(caldata_objs)
+            for resolver_key, resolver_func in resolvers.items():
+                # filter the applicable list with the resolver type
+                caldata_items = [d['data'] for j, d in enumerate(caldata_objs_applicable) if d['type'] == resolver_key]
+                if not caldata_items:
+                    # no applicable caldata, skip
+                    continue
+                result.extend(resolver_func(caldata_items, teldata))
+        return result
+
+    @classmethod
+    def _check_select(cls, index_table, conds):
+        # build a n_entry x n_cond matrix recording the applicable status
+        # of the select conds.
+        df = index_table[[c for c in index_table.colnames if len(index_table[c].shape) == 1]].to_pandas()
+        check = np.zeros((len(df), len(conds)), dtype=bool)
+        for j, cond in enumerate(conds):
+            # check the "select" against the index_table
+            if cond is not None:
+                is_applicable = df.eval(cond).to_numpy(dtype=bool)
+            else:
+                is_applicable = np.ones((len(df), ), dtype=bool)
+            check[:, j] = is_applicable
+        return check
+
+    @classmethod
+    def _resolve_cal_items(cls, tel_index, cal_items):
+        """Build list of cal_items that are applicable to index_table
+        """
+        logger = get_logger()
+        if cal_items is None:
+            # resolve to a list of empty items
+            return [dict() for _ in range(len(tel_index))]
+
+        # logger.debug(f'resolve cal_items:\n{pformat_yaml(cal_items)}')
+        check = cls._check_select(
+                tel_index,
+                [cal_item.get('select', None) for cal_item in cal_items]
+                )
+        # build the list for each entry, note that we run rupdate
+        # to merge the same type of cal_items
+        result = list()
+        for i in range(len(tel_index)):
+            resolved_cal_items = dict()
+            for j, cal_item in enumerate(cal_items):
+                cal_item = cal_item.copy()
+                cal_item.pop("select", None)
+                cal_item_type = cal_item['type']
+                if check[i, j]:
+                    if cal_item_type not in resolved_cal_items:
+                        resolved_cal_items[cal_item_type] = dict()
+                    rupdate(resolved_cal_items[cal_item_type], cal_item)
+            # convert to list
+            result.append(resolved_cal_items)
+        return result
+
+    @classmethod
+    def _resolve_input_item(cls, index_table, output_dir, cal_items_low_level=None, cal_objs=None):
         """Return an citlali input list entry from index table."""
+        logger = get_logger()
         tbl = index_table
         d0 = tbl[0]
         meta = {
             'name': f'{d0["obsnum"]}_{d0["subobsnum"]}_{d0["scannum"]}'
             }
+        # resolve data items first
+        # any cal items resolved in data items will override
+        # cal items
         data_items = list()
-        cal_items = cal_items or list()
-        has_apt = False
+        cal_items_override = []
         for entry in tbl:
             instru = entry['instru']
             interface = entry['interface']
@@ -501,33 +671,59 @@ class CitlaliProc(object):
                 c = data_items
             elif interface == 'lmt':
                 c = data_items
-            elif interface == 'hwp':
+                source = _fix_tel(source, output_dir)
+            elif interface == 'hwpr':
                 c = data_items
             elif interface == 'apt':
-                c = cal_items
+                c = cal_items_override
                 # TODO implement in citlali the proper
                 # ecsv handling
-                source = _fix_apt(source)
+                source = _fix_apt(source, output_dir)
                 extra = {'type': 'array_prop_table'}
-                has_apt = True
             else:
                 continue
-            c.append(dict({
+            item = dict({
                     'filepath': source,
                     'meta': {
                         'interface': interface
                         }
                     }, **extra)
-                    )
-        if not has_apt:
+            if isinstance(c, list):
+                c.append(item)
+            elif isinstance(c, dict):
+                c[item['type']] = item
+            else:
+                raise ValueError("invalid item list to construct")
+
+        # resolve cal items
+        # for this we need the tel file index
+        tel_index = index_table[index_table['interface'] == 'lmt']
+        cal_items =[]
+        # first we resolve the cal_objs
+        if cal_objs is not None:
+            cal_items.extend(cls._resolve_cal_objs(tel_index, cal_objs))
+        # now resolve all the low level cal_items
+        # note these cal_items overrides the resolved calobjs
+        if cal_items_low_level is not None:
+            cal_items.extend(cal_items_low_level)
+        # don't forget the cal_items resolved from data_items
+        cal_items.extend(cal_items_override)
+
+        # finally for all of them combined
+        # note this resovles to list of one dict
+        cal_items = cls._resolve_cal_items(tel_index, cal_items)[0]
+        logger.debug(f"all resolved cal_items:\n{pformat_yaml(cal_items)}")
+
+        # validate the calitems.
+        if 'array_prop_table' not in cal_items:
             # build the apt with all network tones
-            cal_items.append({
+            cal_items['array_prop_table'] = {
                 'filepath': _make_apt(data_items, output_dir),
                 'meta': {
                     'interface': 'apt'
                     },
                 'type': 'array_prop_table'
-                })
+                }
         cls.logger.debug(
                 f"collected input item name={meta['name']} "
                 f"n_data_items={len(data_items)} "
@@ -543,20 +739,89 @@ class CitlaliProc(object):
         return {
                 'meta': meta,
                 'data_items': data_items,
-                'cal_items': cal_items,
+                # make cal_items a list as expected by the citlali
+                'cal_items': list(cal_items.values()),
                 }
 
+def _fix_tel(source, output_dir):
+    # This is to recompute the ParAngAct, SourceRaAct and SourceDecAct from the tel.nc file
+    logger = get_logger()
+    from netCDF4 import Dataset
+    from astropy.time import Time
+    from astropy.coordinates import SkyCoord
+    from tollan.utils.fmt import pformat_yaml
+    from tolteca.simu.toltec.toltec_info import toltec_info
+    from tolteca.simu.toltec.models import pa_from_coords
+    source_new = output_dir.joinpath(Path(source).name.replace('.nc', '_recomputed.nc')).as_posix()
+    if Path(source_new).exists():
+        return source_new
+    if source_new != source:
+        try:
+            shutil.copy(source, source_new)
+        except Exception:
+            raise ValueError("unable to create recomputed tel.nc")
+    else:
+        raise ValueError("invalid tel.nc filename")
 
-def _fix_apt(source):
+    observer = toltec_info['site']['observer']
+    tnc = Dataset(source_new, mode='a')
+    tel_time = Time(tnc['Data.TelescopeBackend.TelTime'][:], format='unix')
+    tel_t0 = tel_time[0]
+    tel_t = tel_time - tel_t0
+
+    tel_az = tnc['Data.TelescopeBackend.TelAzAct'][:] << u.rad
+    tel_alt = tnc['Data.TelescopeBackend.TelElAct'][:] << u.rad
+    tel_az_cor = tnc['Data.TelescopeBackend.TelAzCor'][:] << u.rad
+    tel_alt_cor = tnc['Data.TelescopeBackend.TelElCor'][:] << u.rad
+    tel_az_tot = tel_az - (tel_az_cor) / np.cos(tel_alt)
+    tel_alt_tot = tel_alt - (tel_alt_cor)
+    altaz_frame = observer.altaz(time=tel_time)
+    tel_altaz = SkyCoord(tel_az_tot, tel_alt_tot, frame=altaz_frame)
+    tel_icrs_astropy = tel_altaz.transform_to('icrs')
+
+    # 20230328 It seems that there are some rotation in final maps.
+    # we switch the pa from using astroplan observer to that used in the
+    # simulator, directly computating with the RA Dec Az and Alt.
+    # update variables and save
+    # pa = observer.parallactic_angle(time=tel_time, target=tel_icrs_astropy)
+    pa = pa_from_coords(
+        observer=observer,
+        coords_altaz=tel_altaz,
+        coords_icrs=tel_icrs_astropy)
+
+    pa_orig = tnc['Data.TelescopeBackend.ActParAng'][:] << u.rad
+    ra_orig = tnc['Data.TelescopeBackend.SourceRaAct'][:] << u.rad
+    dec_orig = tnc['Data.TelescopeBackend.SourceDecAct'][:] << u.rad
+
+    tnc['Data.TelescopeBackend.ActParAng'][:] = pa.radian
+    tnc['Data.TelescopeBackend.SourceRaAct'][:] = tel_icrs_astropy.ra.radian
+    tnc['Data.TelescopeBackend.SourceDecAct'][:] = tel_icrs_astropy.dec.radian
+    tnc.sync()
+    tnc.close()
+    # make some diagnostic info
+    def stat_change(d, d_orig, unit, name):
+        dd = (d - d_orig).to_value(unit)
+        logger.info(f"{name} changed with diff ({unit}): min={dd.max()} max={dd.min()} mean={dd.mean()} std={np.std(dd)}")
+    stat_change(pa, pa_orig, u.deg, 'ActParAng') 
+    stat_change(tel_icrs_astropy.ra, ra_orig, u.arcsec, 'SourceRaAct') 
+    stat_change(tel_icrs_astropy.dec, dec_orig, u.arcsec, 'SourceDecAct') 
+    return source_new
+
+
+def _fix_apt(source, output_dir):
     # this is a temporary fix to make citlali work with the
     # apt
     tbl = Table.read(source, format='ascii.ecsv')
+    if all(tbl[c].dtype in [float, np.float32] for c in tbl.colnames):
+        # by-pass it when it is already all float
+        return source
     tbl_new = Table()
 
     def get_uid(uid):
-        return int('1' + uid.replace("_", ''))
+        return int('1' + str(uid).replace("_", '').replace("-", ""))
 
-    tbl_new['uid'] = np.array([get_uid(uid) for uid in tbl['uid']], dtype='d')
+    # tbl_new['uid'] = np.array([get_uid(uid) for uid in tbl['uid']], dtype='d')
+    tbl_new['uid'] = np.arange(len(tbl), dtype='d')
     tbl_new['nw'] = np.array(tbl['nw'], dtype='d')
     tbl_new['fg'] = np.array(tbl['fg'], dtype='d')
     tbl_new['pg'] = np.array(tbl['pg'], dtype='d')
@@ -567,6 +832,10 @@ def _fix_apt(source):
     tbl_new['x_t_err'] = 0.
     tbl_new['y_t'] = tbl['y_t'].quantity.to_value(u.arcsec)
     tbl_new['y_t_err'] = 0.
+
+    if 'pa_t' in tbl.colnames:
+        tbl_new['pa_t'] = tbl['pa_t'].quantity.to_value(u.radian)
+        tbl_new['pa_t_err'] = 0.
     tbl_new['a_fwhm'] = tbl['a_fwhm'].quantity.to_value(u.arcsec)
     tbl_new['a_fwhm_err'] = 0.
     tbl_new['b_fwhm'] = tbl['b_fwhm'].quantity.to_value(u.arcsec)
@@ -576,13 +845,24 @@ def _fix_apt(source):
     tbl_new['amp'] = 1.
     tbl_new['amp_err'] = 0.
     tbl_new['responsivity'] = tbl['responsivity'].quantity.to_value(u.pW ** -1)
-    tbl_new['flag'] = 1.
+    flag = tbl['flag']
+    if hasattr(flag, 'filled'):
+        flag = flag.filled(0.)
+    tbl_new['flag'] = 1. * flag
     tbl_new['sens'] = 1.
     tbl_new['sig2noise'] = 1.
     tbl_new['converge_iter'] = 0.
     tbl_new['derot_elev'] = 0.
+    tbl_new['loc'] = -1.
+    if 'loc' in tbl.colnames:
+        tbl_new['loc'] = np.array(tbl['loc'], dtype='d')
+    for c in ["tone_freq", "x_t_raw", "y_t_raw", "x_t_derot", "y_t_derot"]:
+        if c not in tbl.colnames:
+            tbl_new[c] = 0.
+        else:
+            tbl_new[c] = np.array(tbl[c], dtype='d')
 
-    source_new = source.replace('.ecsv', '_trimmed.ecsv')
+    source_new = output_dir.joinpath(Path(source).name.replace('.ecsv', '_trimmed.ecsv')).as_posix()
     tbl_new.write(source_new, format='ascii.ecsv', overwrite=True)
     return source_new
 
@@ -612,12 +892,39 @@ def _make_apt(data_items, output_dir):
         tbl['fg'] = -1.
         tbl['pg'] = -1.
         tbl['ori'] = -1.
+        tbl['loc'] = -1.
         tbl['array'] = float(toltec_info[array_name]['index'])
         tbl['flxscale'] = 1.
+        tbl['responsivity'] = 1.
+        tbl['sens'] = 1.
+        tbl['derot_elev'] = 0.
         tbl['x_t'] = 0.
+        tbl['x_t_err'] = 0.
         tbl['y_t'] = 0.
+        tbl['y_t_err'] = 0.
+        tbl['pa_t'] = 0.
         tbl['a_fwhm'] = 0.
+        tbl['a_fwhm_err'] = 0.
         tbl['b_fwhm'] = 0.
+        tbl['b_fwhm_err'] = 0.
+        tbl['amp'] = 0.
+        tbl['amp_err'] = 0.
+        tbl['angle'] = 0.
+        tbl['angle_err'] = 0.
+        tbl['converge_iter'] = 1.
+        tbl['flag'] = 0.
+        tbl['sig2noise'] = 1.
+
+        tbl['x_t_raw'] = 0.
+        tbl['x_t_raw_err'] = 0.
+        tbl['y_t_raw'] = 0.
+        tbl['y_t_raw_err'] = 0.
+        tbl['x_t_derot'] = 0.
+        tbl['x_t_derot_err'] = 0.
+        tbl['y_t_derot'] = 0.
+        tbl['y_t_derot_err'] = 0.
+
+
         return tbl
 
     tbl = list()
@@ -657,6 +964,43 @@ class ImageFrameParams(object):
 
 @add_schema
 @dataclass
+class CalObj(object):
+    """Calibration Object."""
+    path: Path = field(
+            metadata={
+                "description": "Calobj path.",
+                "schema": RelPathSchema(),
+                })
+    select: Union[None, str] = field(
+        default=None,
+        metadata={
+            "desription": "The expression to select data this cal file is applicable to",
+            })
+
+    def load_data_objs(self):
+        path = self.path
+        if path.is_dir():
+            # todo properly handle the loading of calobj from data prod folder
+            cal_patterns = {
+                    'ppt': '**/ppt_*.ecsv',
+                    }
+            caldata_objs = list()
+            for caldata_obj_key, cal_pattern in cal_patterns.items():
+                f = list(path.glob(cal_pattern))
+                if len(f) != 1:
+                    raise ValueError(f"invalid calobj path {path}")
+                f = f[0]
+                caldata_objs.append({
+                        'data': Table.read(f, format='ascii.ecsv'),
+                        'type': caldata_obj_key,
+                        'select': self.select
+                        })
+            return caldata_objs
+        raise NotImplementedError()
+
+
+@add_schema
+@dataclass
 class CitlaliConfig(object):
     """The high-level config for Citlali."""
 
@@ -680,6 +1024,12 @@ class CitlaliConfig(object):
             'description': 'Additional cal items passed to input.'
             }
         )
+    cal_objs: list = field(
+        default_factory=list,
+        metadata={
+            'description': 'Additional calibration objects passed to input.',
+            'schema': Schema([CalObj.schema]),
+            })
     class Meta:
         schema = {
             'ignore_extra_keys': False,

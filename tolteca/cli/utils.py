@@ -65,6 +65,7 @@ def load_runtime(
                 ignored = [f'{key_prefix}.{k}' for k in ignored]
                 if len(ignored) > 0:
                     raise argparse.ArgumentError(
+                        None,
                         f"Invalid config items specified in "
                         f"the commandline: {ignored}")
                 for k in set(d.keys()).intersection(c.keys()):

@@ -85,7 +85,7 @@ class PhotUtilsStepConfig():
 
     def __call__(self, cfg):
         # create the photometry executor
-        def photutils_executor(dp, output_dir):
+        def photutils_executor(dp, output_dir, return_context=False):
 
             # do detection, if needed
             cat_in_path = self.input_source_catalog_path
@@ -97,6 +97,7 @@ class PhotUtilsStepConfig():
             # do photometry
             fwhms = self._fwhms
             results = list()
+            context = list()
             for i, item in enumerate(dp.index_table):
                 array_name = item['array_name']
                 filepath = Path(item['filepath'])
@@ -128,6 +129,7 @@ class PhotUtilsStepConfig():
                     u.mJy / u.beam,
                     equivalencies=u.beam_angular_area(beam_area)
                     ) / beam_area_pix2
+                print(f"{fwhm_pix=} {beam_area=} n_sources={len(xy)}")
                 psf_model = IntegratedGaussianPRF(
                     sigma=fwhm_pix / GAUSSIAN_SIGMA_TO_FWHM)
                 daogroup = DAOGroup(0.5 * fwhm_pix)
@@ -144,7 +146,7 @@ class PhotUtilsStepConfig():
                     image=data,
                     init_guesses=xy)
                 catalog[f'flux_{array_name}'] = catalog['flux_fit'] / corr
-                if 'flux_unc' in catalog:
+                if 'flux_unc' in catalog.colnames:
                     catalog[f'fluxerr_{array_name}'] = (
                         catalog['flux_unc'] / corr)
                 else:
@@ -152,6 +154,10 @@ class PhotUtilsStepConfig():
                 catalog.meta['array_name'] = array_name
                 catalog.meta['image_filepath'] = filepath
                 results.append(catalog)
+                context.append({
+                    'photometry': photometry,
+                    'data': data
+                    })
             # prepare output catalog, which is merged
             cat_out = cat_in[['name', 'ra', 'dec']]
             for cat in results:
@@ -169,7 +175,9 @@ class PhotUtilsStepConfig():
                 output_path,
                 overwrite=True, format='ascii.ecsv')
             self.logger.info(f"output catalog written to: {output_path}")
-            return cat_out
+            if not return_context:
+                return cat_out
+            return cat_out, context
         return photutils_executor
 
     def run(self, cfg, inputs=None):

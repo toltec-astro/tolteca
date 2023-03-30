@@ -25,8 +25,11 @@ def _get_skyoffset_frame(c):
     the cached origin frame attribute is the correct instance.
     """
     frame = c.skyoffset_frame()
-    frame_transform_graph._cached_frame_attributes['origin'] = \
-        frame.frame_attributes['origin']
+    # frame_transform_graph.frame_attributes['origin'] = \
+    #         frame.frame_attributes['origin']
+    if frame_transform_graph._cached_frame_attributes is not None:
+        frame_transform_graph._cached_frame_attributes['origin'] = \
+            frame.frame_attributes['origin']
     return frame
 
 

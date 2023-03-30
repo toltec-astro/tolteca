@@ -66,16 +66,20 @@ class ScienceDataProd(ToltecDataProd):
             if p.is_dir() and re.match(r'\d{6}', p.name):
                 # per-obs reduction
                 # build the index
-                data_items = [
+                data_items = list()
+                for array_name in toltec_info['array_names']:
+                    image_file = list(
+                        p.glob(f'raw/toltec_*_{array_name}*.fits'))
+                    if not image_file:
+                        continue
+                    image_file = image_file[-1]
+                    data_items.append(
                         {
                             'array_name': array_name,
                             'kind': DataItemKind.CalibratedImage,
-                            'filepath': list(
-                                p.glob(f'toltec_*_{array_name}*.fits'))[-1],
-                            }
-                        for array_name in toltec_info['array_names']
-                        ]
-                ctod = list(p.glob('toltec_*_timestream_*.nc'))
+                            'filepath': image_file,
+                            })
+                ctod = list(p.glob('raw/toltec_*_timestream_*.nc'))
                 if ctod:
                     ctod = ctod[-1]
                     data_items.append({

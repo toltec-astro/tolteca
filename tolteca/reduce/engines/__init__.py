@@ -43,7 +43,13 @@ class CitlaliStepConfig(DataclassNamespace):
             default=CitlaliConfig,
             description='The config dict passed to Citlali.'
             ):
-        CitlaliConfig.schema
+        CitlaliConfig.schema,
+        Optional(
+            'dry_run',
+            default=False,
+            description='Check config file generation only without running the pipeline.'
+            ):
+        bool
         })
 
     logger = get_logger()
@@ -114,4 +120,5 @@ class CitlaliStepConfig(DataclassNamespace):
                 dataset=bods,
                 output_dir=output_dir,
                 log_level=self.log_level,
-                logger_func=logger.info)
+                logger_func=logger.info,
+                dry_run=self.dry_run)

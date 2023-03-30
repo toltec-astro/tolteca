@@ -166,6 +166,90 @@ class LmtAtmosphereData(object):
                 'id': '454',
                 'md5': '008d7fa69aff187a9edf419f3d961b4c',
                 },
+            # per season data
+            'am_djf_q05': {
+                'id': '463',
+                'md5': '91545dca93d0e9300718b049893b8eea',
+                },
+            'am_djf_q25': {
+                'id': '466',
+                'md5': '3abe83329e39baa734b62f0e87db5a9c',
+                },
+            'am_djf_q50': {
+                'id': '465',
+                'md5': '004cb342896210fd23d81b329d0246f0',
+                },
+            'am_djf_q75': {
+                'id': '462',
+                'md5': 'e2478719dd67fdbe6ea0d1fb753ab267',
+                },
+            'am_djf_q95': {
+                'id': '464',
+                'md5': 'dc8e9e15e5df3238d9e5ecdb39e17dd4',
+                },
+
+            'am_jja_q05': {
+                'id': '474',
+                'md5': '5eae399cba2948630164230c461e24e6',
+                },
+            'am_jja_q25': {
+                'id': '483',
+                'md5': '0e677b7ce7f52718584c25c0fbd801c1',
+                },
+            'am_jja_q50': {
+                'id': '478',
+                'md5': 'c866c558d1c6c1d20e323927dde1df6c',
+                },
+            'am_jja_q75': {
+                'id': '471',
+                'md5': 'e0139e6760b2e45f2768bea572b3c081',
+                },
+            'am_jja_q95': {
+                'id': '468',
+                'md5': '91473b3fbb2fd50fa8ae8afb76fea8c0',
+                },
+
+            'am_mam_q05': {
+                'id': '480',
+                'md5': 'b0347815c968aea4873fdff8d1d0258e',
+                },
+            'am_mam_q25': {
+                'id': '482',
+                'md5': '074009197665f6c642ca8a9659f6f650',
+                },
+            'am_mam_q50': {
+                'id': '469',
+                'md5': '1c0b684bb540ddc13bef67e27a8c15bc',
+                },
+            'am_mam_q75': {
+                'id': '473',
+                'md5': '72d39cbcd474622f2ac3874efe0b882b',
+                },
+            'am_mam_q95': {
+                'id': '467',
+                'md5': 'd24a7e89e50033de830fe9fbb4627bbf',
+                },
+
+            'am_son_q05': {
+                'id': '472',
+                'md5': 'e587b429e123adde3c77f524d59e71e2',
+                },
+            'am_son_q25': {
+                'id': '475',
+                'md5': '6c4384ff61fa00efc59e624946f4e6b6',
+                },
+            'am_son_q50': {
+                'id': '485',
+                'md5': '5d8b89c054e8b9dd6279cad6d1f33854',
+                },
+            'am_son_q75': {
+                'id': '481',
+                'md5': 'd047c7f6bebfc01242ee9a7898af3165',
+                },
+            'am_son_q95': {
+                'id': '477',
+                'md5': '072078db4d8ad0fc2f56e51c39c42034',
+                },
             }[name]
         url = base_url.format(id=dl_info['id'])
         filepath = download_file(url, cache=True)
