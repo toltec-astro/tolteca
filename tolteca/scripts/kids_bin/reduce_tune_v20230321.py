@@ -314,8 +314,8 @@ def find_peak_fp(fs, y, Qrs, exclude_edge=5e3 << u.Hz, min_height_value=None, mi
 
     y has the same shape as fs.
     """
-    # peakdetect_func = _peakdetect_slow
-    peakdetect_func = peakdetect
+    peakdetect_func = _peakdetect_slow
+    # peakdetect_func = peakdetect
     logger = get_logger()
     # make a copy of y since we'll modify it
     # flip y to make it S21 peaks
