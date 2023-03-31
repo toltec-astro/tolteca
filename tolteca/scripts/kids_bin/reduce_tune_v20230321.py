@@ -546,9 +546,15 @@ def _make_tone_list(swp, dis, Qrs, fp_method='fp', include_d21_peaks=True, d21_f
     subswp_fs_min = subswp.frequency.min()
     subswp_fs_max = subswp.frequency.max()
     subswp_fstep = subswp.frequency[0][1] - subswp.frequency[0][0]
-    d21_exclude_edge_samples = int(min_dist_n_fwhm * 0.5 * (subswp_fs_min + subswp_fs_max) / np.median(Qrs) / subswp_fstep)
-    # d21_exclude_edge_samples = 5
+    Qr_med = np.median(Qrs)
+    d21_n_steps_total = (subswp_fs_max - subswp_fs_min) / subswp_fstep
+    logger.debug(f"{min_dist_n_fwhm=} {subswp_fs_min=} {subswp_fs_max=} {Qr_med=} {subswp_fstep=} {d21_n_steps_total=}")
+    d21_exclude_edge_samples = int(min_dist_n_fwhm * 0.5 * (subswp_fs_min + subswp_fs_max) / Qr_med / subswp_fstep)
     logger.debug(f"{d21_exclude_edge_samples=}")
+    if d21_exclude_edge_samples > 0.1 * d21_n_steps_total:
+        d21_exclude_edge_samples = int(0.1 * d21_n_steps_total)
+        logger.debug(f"adjusted {d21_exclude_edge_samples=}")
+    # d21_exclude_edge_samples = 5
     d21 = subswp.make_unified(
         flim=(subswp_fs_min, subswp_fs_max),
         resample=1,
