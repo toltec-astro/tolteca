@@ -177,6 +177,56 @@ def _meta_from_hk_filename(file_loc):
     return meta
 
 
+@register_to(_filepath_meta_parsers, 'hwpr')
+def _meta_from_hwpr_filename(file_loc):
+    """Return the meta data parsed from the HWPR filename."""
+
+    path = file_loc.path
+    filename = path.name
+
+    re_hwpr_file = (
+        r'^(?P<interface>hwpr)'
+        r'_(?P<obsnum>\d+)_(?P<subobsnum>\d+)_(?P<scannum>\d+)'
+        r'_(?P<ut>\d{4}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))'
+        r'(?:_(?P<filesuffix>[^\/.]+))?'
+        r'\.(?P<fileext>.+)$')
+
+    def parse_ut(v):
+        result = Time(
+            datetime.strptime(v, '%Y_%m_%d_%H_%M_%S'),
+            scale='utc')
+        result.format = 'isot'
+        return result
+
+    type_dispatcher = {
+        'obsnum': int,
+        'subobsnum': int,
+        'scannum': int,
+        'ut': parse_ut,
+        'fileext': lambda s: s.lower()
+        }
+
+    meta = dict_from_regex_match(
+            re_hwpr_file, filename, type_dispatcher)
+    if meta is None:
+        return None
+
+    # add more items to the meta
+    meta['file_loc'] = file_loc
+    meta['interface'] = 'hwpr'
+    meta['instru'] = 'toltec'
+
+    # one can infer the master if the immediate parent of the file is
+    # the interface
+    if path.parent.name == meta['interface']:
+        master_name = path.parent.parent.name
+        if master_name in ['ics', 'tcs', 'clip']:
+            meta['master_name'] = master_name
+
+    return meta
+
+
+
 @register_to(_filepath_meta_parsers, 'lmt_tel')
 def _meta_from_lmt_tel_filename(file_loc):
     """Return the meta data parsed from the LMT telescope filename."""
@@ -203,7 +253,7 @@ def _meta_from_lmt_tel_filename(file_loc):
         'scannum': int,
         'ut': parse_ut,
         'fileext': lambda s: s.lower(),
-        'interface': lambda s: ('lmt' if s == 'tel' else s)
+        'interface': lambda s: ('lmt' if s == 'tel' or s.startswith('tel_') else s)
         }
 
     meta = dict_from_regex_match(
