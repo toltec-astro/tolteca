@@ -520,7 +520,7 @@ def main(args):
                     [nw, Path(filepath).stem, ] + [np.quantile(a, p) for p in ps])
             data.append(a)
         result = Table(rows=result, names=colnames)
-        result.write(option.output, format='ascii.commented_header')
+        result.write(option.output, format='ascii.commented_header', overwrite=True)
         cmd_file = Path(option.output).with_suffix('.cmd').as_posix()
         with open(cmd_file, 'w') as fo:
             args = []
