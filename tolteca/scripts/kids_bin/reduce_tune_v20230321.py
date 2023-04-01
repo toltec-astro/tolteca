@@ -2136,6 +2136,9 @@ def main():
     parser.add_argument(
         '--n_procs', default=4, type=int,
         )
+    parser.add_argument(
+        '--first_block_only', action='store_true',
+        )
 
     parser.add_argument("sweep_file", help='sweep data for fitting.')
     # parser.add_argument("--config", "-c", help='YAML config file.')
@@ -2153,6 +2156,11 @@ def main():
     logger.info(f"Reduce {sweep_file} with {ref_file}")
 
     sweep_data = NcFileIO(sweep_file).open()
+
+    # skip for second tune
+    if sweep_data.meta['n_blocks'] == 2 and option.first_block_only:
+        logger.info(f"Skip 2nd sweep in tune")
+        return
 
     output_dir = option.output_dir or ref_file.parent
     output_dir = Path(output_dir)

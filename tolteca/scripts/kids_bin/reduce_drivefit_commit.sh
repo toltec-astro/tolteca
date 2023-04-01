@@ -39,7 +39,7 @@ for i in $(seq 0 12); do
     set -x
     ${pybindir}/python ${bin} -p ${perc} -- ${adrv_file} > ${adrv_log}
     ${pybindir}/python ${bin_lut} \
-        ${dataroot}/toltec/ics/toltec${i}/toltec${i}_${obsnum_str}_000*_targsweep.nc  ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_adrv.p${perc}.txt
+        ${dataroot}/toltec/*/toltec${i}/toltec${i}_${obsnum_str}_001*_targsweep.nc  ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_adrv.p${perc}.txt
     cp ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_adrv.p${perc}.lut.txt ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_default_targ_amps.dat
     set +x
     if (( i <= 6 )); then

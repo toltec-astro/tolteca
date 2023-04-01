@@ -50,6 +50,6 @@ fi
 # locate ref_data
 ref_file=${scratchdir}/toltec${nw}_vnasweep.refdata
 set -x
-${pybindir}/python ${scriptdir}/reduce_tune_v20230321.py -r ${ref_file} ${filepath} --no_fit # > ${log_filepath}
+${pybindir}/python ${scriptdir}/reduce_tune_v20230321.py -r ${ref_file} ${filepath} --no_fit --first_block_only # > ${log_filepath}
 set +x
 # ${scriptdir}/reduce.sh ${filepath} -r --output ${output_filepath} > ${log_filepath}
