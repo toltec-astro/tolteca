@@ -2137,7 +2137,7 @@ def main():
         '--n_procs', default=4, type=int,
         )
     parser.add_argument(
-        '--first_block_only', action='store_true',
+        '--last_block_only', action='store_true',
         )
 
     parser.add_argument("sweep_file", help='sweep data for fitting.')
@@ -2158,8 +2158,8 @@ def main():
     sweep_data = NcFileIO(sweep_file).open()
 
     # skip for second tune
-    if sweep_data.meta['n_blocks'] == 2 and option.first_block_only:
-        logger.info(f"Skip 2nd sweep in tune")
+    if sweep_data.meta['n_blocks'] == 1 and sweep_data.meta['data_kind'].name == 'TUNE' and option.last_block_only:
+        logger.info(f"Skip 1st sweep in tune")
         return
 
     output_dir = option.output_dir or ref_file.parent
