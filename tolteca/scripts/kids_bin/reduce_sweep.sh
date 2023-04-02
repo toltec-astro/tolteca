@@ -23,7 +23,7 @@ reportfile=${reportfile%.*}.txt
 reportfile=${scratchdir}/${reportfile}
 
 # echo ${filename}
-if [[ "${filename}" =~ ^toltec([0-9][0-9]?)_.+_(tune|vnasweep|targsweeep).nc ]]; then
+if [[ "${filename}" =~ ^toltec([0-9][0-9]?)_.+_(tune|vnasweep|targsweep).nc ]]; then
   nw=${BASH_REMATCH[1]}
   kind_str=${BASH_REMATCH[2]}
 else
