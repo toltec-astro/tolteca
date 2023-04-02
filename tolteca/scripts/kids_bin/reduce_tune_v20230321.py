@@ -1365,8 +1365,8 @@ def export_tone_list(tone_list_ctx, debug_plot_kw=None, vary_n_tones=True):
             else:
                 # padd targ list
                 npad = n_chans - n_tones
-                targ_out_padded = vstack(targ_out, targ_out[-npad:])
-                targ_out_padded['f_out'][-npad:] = targ_out['f_out'][-1] + fs_stats['range'][-1]
+                targ_out_padded = vstack([targ_out, targ_out[-npad:]])
+                targ_out_padded['f_out'][-npad:] = targ_out['f_out'].quantity[-1] + fs_stats['range'][-1]
                 targ_out_padded['f_in'][-npad:] = targ_out['f_in'][-1]
                 targ_out_padded['ampcor'][-npad:] = 0.
                 targ_out_orig = targ_out
