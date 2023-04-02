@@ -343,7 +343,7 @@ def getResonanceTable(data):
         ]
     )
     fig.update_layout(
-        title={'text': "# of Found Resonators", },
+        title={'text': "# of Found Resonators, Asense={0:}, Adrive={1:}".format(data['SenseAtten'], data['DriveAtten']), },
         height=100,
         autosize=False,
         margin=dict(
