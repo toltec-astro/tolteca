@@ -3,7 +3,7 @@ import sys
 import numexpr as ne
 from numpy.polynomial import Polynomial
 from numba import njit
-from astropy.table import QTable, Table, unique, Column
+from astropy.table import QTable, Table, unique, Column, vstack
 import dill
 from astropy.stats import sigma_clipped_stats
 from pathlib import Path
@@ -15,7 +15,6 @@ import astropy.units as u
 import matplotlib.pyplot as plt
 from tollan.utils.log import init_log, get_logger, timeit
 from findpeaks import findpeaks
-from astropy.table import vstack
 import lmfit
 import tqdm
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
@@ -1043,7 +1042,7 @@ def _match_tonelists(tl_0, tl_1, Qr_at_500MHz):
         roi=None, return_locals=True)
 
 
-def export_tone_list(tone_list_ctx, debug_plot_kw=None):
+def export_tone_list(tone_list_ctx, debug_plot_kw=None, vary_n_tones=True):
     """Dump table of all info for next step processing.
 
     """
@@ -1137,37 +1136,6 @@ def export_tone_list(tone_list_ctx, debug_plot_kw=None):
     # pdb.set_trace()
     # plt.plot(tone_amps)
     # plt.show()
-
-    # sort in fft order as required by the ROACH system
-    swp = tone_list_ctx['swp']
-    lofreq = swp.meta['flo_center']
-    logger.info(f"subtract lo_freq = {lofreq}")
-    dfs = targ_out['f_out'] - lofreq
-
-    targ_out.add_column(Column(dfs, name='f_centered'), 0)
-    targ_out.meta['Header.Toltec.LoCenterFreq'] = lofreq
-    tones = targ_out['f_centered']
-    max_ = 3 * np.max(tones)  # this is to shift the native tones to positive side
-    isort = sorted(
-        range(len(tones)),
-        key=lambda i: tones[i] + max_ if tones[i] < 0 else tones[i]
-        )
-    targ_out = targ_out[isort]
-    logger.info(f'output targ:\n{targ_out}')
-
-    # plt.plot(targ_out['f_centered'])
-    # plt.show()
-
-    # expand this to a dummy tune.txt file for compatibility
-    # TODO this will be phased out when we update tlaloc.
-    compat_targ_freqs_dat = targ_out[['f_centered', 'f_out', 'f_in']]
-    for p in ['flag', 'fp', 'Qr', 'Qc', 'fr', 'A', 'normI', 'normQ', 'slopeI', 'slopeQ', 'interceptI', 'interceptQ']:
-        compat_targ_freqs_dat[p] = 0.
-    logger.debug(f'output compat_targ_freqs.dat:\n{compat_targ_freqs_dat}')
-
-    # also for the ampcor file:
-    compat_targ_amps_dat = targ_out[['ampcor']]
-    logger.debug(f'output compat_targ_amps.dat:\n{compat_targ_amps_dat}')
 
     # generate per chan_id table for checking shift in fr
     # note that there might be channels that don't enter the tlt.
@@ -1370,6 +1338,70 @@ def export_tone_list(tone_list_ctx, debug_plot_kw=None):
     # for p in chk.colnames:
     #     chk_out[p] = chk[p]
     logger.info(f"output tone check:\n{chk_out}")
+
+    # here we need to further process the targ_out
+    if not vary_n_tones:
+        # check if we need to trim or pad the tone list
+        # to maintain the same number of tones
+        n_tones = len(targ_out)
+        n_chans = len(chk_out)
+        if n_tones != n_chans:
+            logger.info("adjust tone list to match the channel list")
+            if n_tones > n_chans:
+                targ_out_mask = np.ones(n_tones, dtype=bool)
+                n_trim = n_tones - n_chans
+                for mtid in chk_out['main_tone_id']:
+                    if mtid < 0:
+                        targ_out_mask[mtid] = False
+                        n_trim -= 1
+                        if n_trim == 0:
+                            break
+                targ_out_trimmed = targ_out[targ_out_mask]
+                if len(targ_out_trimmed) > n_chans:
+                    targ_out_trimmed = targ_out_trimmed[:n_chans]
+                targ_out_orig = targ_out
+                targ_out = targ_out_trimmed
+            else:
+                # padd targ list
+                npad = n_chans - n_tones
+                targ_out_padded = vstack(targ_out, targ_out[-npad:])
+                targ_out_padded['f_out'][-npad:] = targ_out['f_out'][-1] + fs_stats['range'][-1]
+                targ_out_padded['f_in'][-npad:] = targ_out['f_in'][-1]
+                targ_out_padded['ampcor'][-npad:] = 0.
+                targ_out_orig = targ_out
+                targ_out = targ_out_padded
+
+    # sort in fft order as required by the ROACH system
+    swp = tone_list_ctx['swp']
+    lofreq = swp.meta['flo_center']
+    logger.info(f"subtract lo_freq = {lofreq}")
+    dfs = targ_out['f_out'] - lofreq
+
+    targ_out.add_column(Column(dfs, name='f_centered'), 0)
+    targ_out.meta['Header.Toltec.LoCenterFreq'] = lofreq
+    tones = targ_out['f_centered']
+    max_ = 3 * np.max(tones)  # this is to shift the native tones to positive side
+    isort = sorted(
+        range(len(tones)),
+        key=lambda i: tones[i] + max_ if tones[i] < 0 else tones[i]
+        )
+    targ_out = targ_out[isort]
+    logger.info(f'output targ:\n{targ_out}')
+
+    # plt.plot(targ_out['f_centered'])
+    # plt.show()
+
+    # expand this to a dummy tune.txt file for compatibility
+    # TODO this will be phased out when we update tlaloc.
+    compat_targ_freqs_dat = targ_out[['f_centered', 'f_out', 'f_in']]
+    for p in ['flag', 'fp', 'Qr', 'Qc', 'fr', 'A', 'normI', 'normQ', 'slopeI', 'slopeQ', 'interceptI', 'interceptQ']:
+        compat_targ_freqs_dat[p] = 0.
+    logger.debug(f'output compat_targ_freqs.dat:\n{compat_targ_freqs_dat}')
+
+    # also for the ampcor file:
+    compat_targ_amps_dat = targ_out[['ampcor']]
+    logger.debug(f'output compat_targ_amps.dat:\n{compat_targ_amps_dat}')
+
     return locals()
 
 
@@ -2137,7 +2169,7 @@ def main():
         '--n_procs', default=4, type=int,
         )
     parser.add_argument(
-        '--last_block_only', action='store_true',
+        '--tune_mode', action='store_true',
         )
 
     parser.add_argument("sweep_file", help='sweep data for fitting.')
@@ -2157,10 +2189,12 @@ def main():
 
     sweep_data = NcFileIO(sweep_file).open()
 
-    # skip for second tune
-    if sweep_data.meta['n_blocks'] == 1 and sweep_data.meta['data_kind'].name == 'TUNE' and option.last_block_only:
-        logger.info(f"Skip 1st sweep in tune")
-        return
+    # check if tune mode is applicable
+    if sweep_data.meta['data_kind'].name == 'TUNE' and option.tune_mode:
+        logger.info(f"Running in tune mode, number of tones are fixed")
+        vary_n_tones = False
+    else:
+        vary_n_tones = True
 
     output_dir = option.output_dir or ref_file.parent
     output_dir = Path(output_dir)
@@ -2190,7 +2224,7 @@ def main():
     stem = sweep_file.resolve().stem
     if not option.save_fit_only:
         # dump the fit ctx for external usage
-        ctx = export_tone_list(ctx, debug_plot_kw=debug_plot_kw)
+        ctx = export_tone_list(ctx, debug_plot_kw=debug_plot_kw, vary_n_tones=vary_n_tones)
 
         def _post_proc_and_save(tbl, suffix, format='ascii.ecsv'):
             tbl = Table(tbl)
