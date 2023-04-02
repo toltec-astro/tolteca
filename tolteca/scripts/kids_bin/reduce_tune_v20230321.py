@@ -1128,6 +1128,7 @@ def export_tone_list(tone_list_ctx, debug_plot_kw=None, vary_n_tones=True):
 
     # propagate the ampcor values from the header
     sweep_data = tone_list_ctx['sweep_data']
+    swp = tone_list_ctx['swp']
     chan_tone_amps = sweep_data.nc_node.variables['Header.Toltec.ToneAmps'][:]
     # TODO check interpolate on main_chan_id_f_center works better
     targ_out['ampcor'] = chan_tone_amps[targ_out['main_chan_id']]
@@ -2190,7 +2191,7 @@ def main():
     sweep_data = NcFileIO(sweep_file).open()
 
     # check if tune mode is applicable
-    if sweep_data.meta['data_kind'].name == 'TUNE' and option.tune_mode:
+    if sweep_data.meta['data_kind'].name == 'Tune' and option.tune_mode:
         logger.info(f"Running in tune mode, number of tones are fixed")
         vary_n_tones = False
     else:

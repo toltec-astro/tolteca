@@ -24,7 +24,7 @@ echo "commit autodrive results obsnum=${obsnum}"
 bin=${scriptdir}/get_ampcor_from_adrv.py
 bin_lut=${scriptdir}/add_lut.py
 bin_targ_amps=${scriptdir}/get_amps_for_freqs.py
-perc=3
+perc=50
 
 obsnum_str=$(printf "%06d" ${obsnum})
 
