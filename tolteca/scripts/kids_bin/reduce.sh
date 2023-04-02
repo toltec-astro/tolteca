@@ -123,6 +123,15 @@ if [[ ${type} == "vna" ]]; then
         # ${pyexec_v1} ${scriptdir}/make_ref_data.py ${file} ${reportfile}
         # ref_file=${reportfile%.*}.refdata
         # ln -sf ${ref_file} ${scratchdir}/toltec${nw}_vnasweep.refdata
+        if [[ $outfile ]]; then
+            # ${pyexec} ${scriptdir}/fix_lo.py ${file} "${reportfile}" "${outfile}"
+            # the targ freqs.txt is compatible to what ICS expect.
+            targ_freqs_file=${reportfile%.*}_targfreqs.dat
+            cp ${targ_freqs_file} "${outfile}"
+            ampcor_file=${reportfile%.*}_ampcor.dat
+            etcdir=$(dirname ${outfile})
+            cp ${ampcor_file} "${etcdir}/default_targ_amps.dat"
+        fi
     elif [[ ${runmode} == "plot" ]]; then
         ${pyexec} ${kidspydir}/kidsdetect.py ${file} --plot_d21 ${scratchdir}/'{stem}_d21.nc' ${args} &
     elif [[ ${runmode} == "fg" ]]; then
