@@ -1152,6 +1152,37 @@ def export_tone_list(tone_list_ctx, debug_plot_kw=None, vary_n_tones=True):
         chk_out['f_out'] = targ['fr_init']
         chk_out['f_in'] = targ['f_fit']
         chk_out['n_tones'] = 1
+
+        # sort in fft order as required by the ROACH system
+        swp = tone_list_ctx['swp']
+        lofreq = swp.meta['flo_center']
+        logger.info(f"subtract lo_freq = {lofreq}")
+        dfs = targ_out['f_out'] - lofreq
+
+        targ_out.add_column(Column(dfs, name='f_centered'), 0)
+        targ_out.meta['Header.Toltec.LoCenterFreq'] = lofreq
+        tones = targ_out['f_centered']
+        max_ = 3 * np.max(tones)  # this is to shift the native tones to positive side
+        isort = sorted(
+            range(len(tones)),
+            key=lambda i: tones[i] + max_ if tones[i] < 0 else tones[i]
+            )
+        targ_out = targ_out[isort]
+        logger.info(f'output targ:\n{targ_out}')
+
+        # plt.plot(targ_out['f_centered'])
+        # plt.show()
+
+        # expand this to a dummy tune.txt file for compatibility
+        # TODO this will be phased out when we update tlaloc.
+        compat_targ_freqs_dat = targ_out[['f_centered', 'f_out', 'f_in']]
+        for p in ['flag', 'fp', 'Qr', 'Qc', 'fr', 'A', 'normI', 'normQ', 'slopeI', 'slopeQ', 'interceptI', 'interceptQ']:
+            compat_targ_freqs_dat[p] = 0.
+        logger.debug(f'output compat_targ_freqs.dat:\n{compat_targ_freqs_dat}')
+
+        # also for the ampcor file:
+        compat_targ_amps_dat = targ_out[['ampcor']]
+        logger.debug(f'output compat_targ_amps.dat:\n{compat_targ_amps_dat}')
         return locals()
     # TUNE or targsweep
     f_in = fs_stats['center']
