@@ -643,10 +643,12 @@ def getKidSetGrid(data):
     fig.update_yaxes(showticklabels=False,
                      showgrid=False,
                      showline=False)
-    tt = "Network {0:}, {1:} Resonators: ({2:3.1f}% in tune)"
+    tt = "Network {0:}, {1:} Resonators, Asense={2:}dB, Adrive={3:}dB: ({4:3.1f}% in tune)"
     fig.update_layout(
         title={'text': tt.format(network,
                                  nResonators,
+                                 data["SenseAtten"],
+                                 data["DriveAtten"],
                                  100.*tunedCount/nResonators)},
         height=100,
         autosize=True,
