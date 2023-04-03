@@ -1382,7 +1382,7 @@ def export_tone_list(tone_list_ctx, debug_plot_kw=None, vary_n_tones=True):
             if n_tones > n_chans:
                 targ_out_mask = np.ones(n_tones, dtype=bool)
                 n_trim = n_tones - n_chans
-                for mtid in chk_out['main_tone_id']:
+                for mtid in chk_out['group_id']:
                     if mtid < 0:
                         targ_out_mask[mtid] = False
                         n_trim -= 1
@@ -1399,7 +1399,7 @@ def export_tone_list(tone_list_ctx, debug_plot_kw=None, vary_n_tones=True):
                 targ_out_padded = vstack([targ_out, targ_out[-npad:]])
                 targ_out_padded['f_out'][-npad:] = targ_out['f_out'].quantity[-1] + fs_stats['range'][-1]
                 targ_out_padded['f_in'][-npad:] = targ_out['f_in'][-1]
-                targ_out_padded['ampcor'][-npad:] = 0.
+                targ_out_padded['ampcor'][-npad:] = 1.
                 targ_out_orig = targ_out
                 targ_out = targ_out_padded
 

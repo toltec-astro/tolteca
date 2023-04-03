@@ -109,13 +109,15 @@ if __name__ == "__main__":
         obs_goal = get_obs_goal(dataset)
         print(obs_goal)
         if obs_goal is None:
-            print('run general reduction')
-            pty.spawn(shlex.split(f'{scriptdir}/reduce_all_seq_new.sh {obsnum}'))
+            pass
+            # print('run general reduction')
+            # pty.spawn(shlex.split(f'{scriptdir}/reduce_all_seq_new.sh {obsnum}'))
         else:
             # need to get all tune files reduced
             for filepath in dataset['source']:
                 if filepath.endswith('tune.nc'):
-                    pty.spawn(shlex.split(f'{scriptdir}/reduce.sh {filepath}'))
+                    pass
+                    # pty.spawn(shlex.split(f'{scriptdir}/reduce.sh {filepath}'))
         if obs_goal == 'beammap' or obs_goal == 'azscan' or obs_goal == 'elscan':
             print('run beammap')
             pty.spawn(shlex.split(f'bash {scriptdir}/reduce_beammap.sh {obsnum}'))
