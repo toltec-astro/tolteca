@@ -90,7 +90,7 @@ def get_dp_for_dataset(rootdir, dataset, reduced_dir='toltec/reduced'):
 
 def _vstack_images(files):
     from PIL import Image
-    images = [Image.open(file) for file in files]
+    images = [Image.open(file) for file in files if file.name.endswith('.png')]
 
     # Get the maximum width and total height of the images
     max_width = max(image.size[0] for image in images)

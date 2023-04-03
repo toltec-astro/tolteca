@@ -1376,9 +1376,9 @@ def export_tone_list(tone_list_ctx, debug_plot_kw=None, vary_n_tones=True):
         # check if we need to trim or pad the tone list
         # to maintain the same number of tones
         n_tones = len(targ_out)
-        n_chans = len(chk_out)
+        n_chans = fs_stats['n_tones']
         if n_tones != n_chans:
-            logger.info("adjust tone list to match the channel list")
+            logger.info(f"adjust tone list to match the channel list {n_tones=} {n_chans=}")
             if n_tones > n_chans:
                 targ_out_mask = np.ones(n_tones, dtype=bool)
                 n_trim = n_tones - n_chans
@@ -1388,6 +1388,7 @@ def export_tone_list(tone_list_ctx, debug_plot_kw=None, vary_n_tones=True):
                         n_trim -= 1
                         if n_trim == 0:
                             break
+                logger.info(f"trimmed tones: {np.where(~targ_out_mask)[0]}")
                 targ_out_trimmed = targ_out[targ_out_mask]
                 if len(targ_out_trimmed) > n_chans:
                     targ_out_trimmed = targ_out_trimmed[:n_chans]
@@ -1396,9 +1397,12 @@ def export_tone_list(tone_list_ctx, debug_plot_kw=None, vary_n_tones=True):
             else:
                 # padd targ list
                 npad = n_chans - n_tones
+                pad_tbl = chk_out[chk_out['main_tone_id'] < 0]
+                logger.info(f"pad {npad} tones from\n{pad_tbl}")
+                pad_tbl = pad_tbl[-npad:]
                 targ_out_padded = vstack([targ_out, targ_out[-npad:]])
-                targ_out_padded['f_out'][-npad:] = targ_out['f_out'].quantity[-1] + fs_stats['range'][-1]
-                targ_out_padded['f_in'][-npad:] = targ_out['f_in'][-1]
+                targ_out_padded['f_out'][-npad:] = pad_tbl['f_in']
+                targ_out_padded['f_in'][-npad:] = pad_tbl['f_in']
                 targ_out_padded['ampcor'][-npad:] = 1.
                 targ_out_orig = targ_out
                 targ_out = targ_out_padded

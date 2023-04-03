@@ -18,15 +18,23 @@ if [[ ! $1 ]]; then
 else
     obsnum=$1
 fi
+if [[ ! $2 ]]; then
+    obsnum_current=$(${pybindir}/python3 ${scriptdir}/get_latest_obsnum.py)
+    echo found latest obsnum ${obsnum_current}
+else
+    obsnum_current=${obsnum}
+fi
 
 echo "commit autodrive results obsnum=${obsnum}"
 
 bin=${scriptdir}/get_ampcor_from_adrv.py
-bin_lut=${scriptdir}/add_lut.py
+# bin_lut=${scriptdir}/add_lut.py
+bin_lut_interp=${scriptdir}/add_lut_interp.py
 bin_targ_amps=${scriptdir}/get_amps_for_freqs.py
 perc=50
 
 obsnum_str=$(printf "%06d" ${obsnum})
+obsnum_str_current=$(printf "%06d" ${obsnum_current})
 
 for i in $(seq 0 12); do
     adrv_file=${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_adrv.csv
@@ -38,8 +46,14 @@ for i in $(seq 0 12); do
 
     set -x
     ${pybindir}/python ${bin} -p ${perc} -- ${adrv_file} > ${adrv_log}
-    ${pybindir}/python ${bin_lut} \
-        ${dataroot}/toltec/*/toltec${i}/toltec${i}_${obsnum_str}_001*_targsweep.nc  ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_adrv.p${perc}.txt
+    # ${pybindir}/python ${bin_lut} \
+    #    ${dataroot}/toltec/*/toltec${i}/toltec${i}_${obsnum_str}_001*_targsweep.nc  ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_adrv.p${perc}.txt
+
+    ${pybindir}/python ${bin_lut_interp} \
+       ${dataroot}/toltec/*/toltec${i}/toltec${i}_${obsnum_str}_001*_targsweep.nc \
+       ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_adrv.p${perc}.txt \
+       ${dataroot}/toltec/reduced/toltec${i}_${obsnum_str_current}_*_targfreqs.dat \
+
     cp ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_adrv.p${perc}.lut.txt ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_default_targ_amps.dat
     set +x
     if (( i <= 6 )); then
