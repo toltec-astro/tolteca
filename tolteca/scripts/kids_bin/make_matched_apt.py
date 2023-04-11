@@ -431,7 +431,8 @@ def make_matched_apt(apt_left, apt_right, debug_plot_kw=None, n_procs=4):
         table_names=['', '_matched'],
         )
     apt_matched.sort('det_id')
-    apt_matched.remove_column('det_id_matched')
+    for c in ['det_id_matched', 'array_matched', 'nw_matched']:
+        apt_matched.remove_column(c)
     for c in beammap_cols:
         if hasattr(apt_matched[c], 'filled'):
             apt_matched[c] = apt_matched[c].filled(0.)
@@ -502,6 +503,8 @@ if __name__ == '__main__':
     for c in apt_matched.colnames:
         if apt_matched[c].dtype == np.int64:
             apt_matched[c] = apt_matched[c].astype(float)
+            if hasattr(apt_matched[c], 'filled'):
+                apt_matched[c] = apt_matched[c].filled(-1.)
 
     logger.debug(f"apt_matched:\n{apt_matched}")
     apt_out_name = f'apt_{obsnum}_matched.ecsv'
