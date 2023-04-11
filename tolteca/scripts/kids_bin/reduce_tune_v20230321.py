@@ -1130,6 +1130,8 @@ def export_tone_list(tone_list_ctx, debug_plot_kw=None, vary_n_tones=True):
     sweep_data = tone_list_ctx['sweep_data']
     swp = tone_list_ctx['swp']
     chan_tone_amps = sweep_data.nc_node.variables['Header.Toltec.ToneAmps'][:]
+    # logger.info(f"{chan_tone_amps=}")
+    # print(chan_tone_amps)
     # TODO check interpolate on main_chan_id_f_center works better
     targ_out['ampcor'] = chan_tone_amps[targ_out['main_chan_id']]
 

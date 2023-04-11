@@ -43,7 +43,7 @@ ln -sf ${dataroot}/toltec/tcs/toltec*/toltec*_${obsnum_str}_*.nc ${rcdir}/data/
 
 # run tolteca reduce
 # $toltecaexec -d ${rcdir} -- reduce --jobkey reduced/${obsnum} --inputs.0.select "obsnum == ${obsnum}"
-$toltecaexec -g -d ${rcdir} -- reduce --jobkey reduced/${obsnum} --inputs.0.select "(obsnum == ${obsnum}) & (scannum == scannum.max())"
+$toltecaexec -g -d ${rcdir} -- reduce --jobkey reduced/${obsnum} --inputs.0.select "(obsnum == ${obsnum}) & (scannum == scannum.max()) & (interface != \"toltec0\") & (interface != \"toltec7\") & (interface != \"toltec8\") & (interface != \"toltec9\")"
 # run the science script
 # resultdir=${rcdir}/reduced/${obsnum}
 # redudir=$(${pybindir}/python3 ${scriptdir}/get_largest_redu_dir_for_obsnum.py $resultdir $obsnum)

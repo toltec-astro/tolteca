@@ -431,8 +431,10 @@ def make_matched_apt(apt_left, apt_right, debug_plot_kw=None, n_procs=4):
         table_names=['', '_matched'],
         )
     apt_matched.sort('det_id')
+    apt_matched.remove_column('det_id_matched')
     for c in beammap_cols:
         apt_matched[c].fill(0.)
+    apt_matched['tone_freq'] = apt_matched['kids_f_out']
     logger.debug(f"joined apt:\n{apt_matched}")
     return apt_matched
 
@@ -494,6 +496,12 @@ if __name__ == '__main__':
     apt_left = _make_init_apt(kmp_index)
     apt_right = apt_in
     apt_matched = make_matched_apt(apt_left, apt_right, debug_plot_kw=debug_plot_kw)
+
+    # change the dtype of int columns for compatibility with citlali
+    for c in apt_matched.colnames:
+        if apt_matched[c].dtype == np.int64:
+            apt_matched[c] = apt_matched[c].astype(float)
+
     logger.debug(f"apt_matched:\n{apt_matched}")
     apt_out_name = f'apt_{obsnum}_matched.ecsv'
     apt_out_filepath = option.output_dir.joinpath(apt_out_name)
