@@ -433,7 +433,8 @@ def make_matched_apt(apt_left, apt_right, debug_plot_kw=None, n_procs=4):
     apt_matched.sort('det_id')
     apt_matched.remove_column('det_id_matched')
     for c in beammap_cols:
-        apt_matched[c].fill(0.)
+        if hasattr(apt_matched[c], 'filled'):
+            apt_matched[c] = apt_matched[c].filled(0.)
     apt_matched['tone_freq'] = apt_matched['kids_f_out']
     logger.debug(f"joined apt:\n{apt_matched}")
     return apt_matched
