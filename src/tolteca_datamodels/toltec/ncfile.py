@@ -8,7 +8,7 @@ from astropy.nddata import StdDevUncertainty
 from .kidsdata import (
     KidsDataAxisSlicer,
     KidsDataAxisSlicerMeta,
-    KidsDataKind,
+    ToltecDataKind,
     KidsDataAxis,
 )
 from ..base import DataFileIO, DataFileIOError
@@ -16,8 +16,8 @@ from tollan.utils.nc import NcNodeMapper, NcNodeMapperError, ncstr
 from tollan.utils.general import add_to_dict
 from tollan.utils.fmt import pformat_yaml, pformat_fancy_index
 from tollan.utils.np import make_complex
-from ...kidsproc.kidsdata.sweep import MultiSweep, Sweep
-from ...kidsproc.kidsdata.timestream import TimeStream
+from tolteca_kidsproc.kidsdata.sweep import MultiSweep, Sweep
+from tolteca_kidsproc.kidsdata.timestream import TimeStream
 
 
 class _NcFileIOKidsDataAxisSlicerMixin(object, metaclass=KidsDataAxisSlicerMeta):
@@ -160,18 +160,18 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         "ncopen": {},
         # this is mapper to use when data_kind is called
         "identify": {
-            KidsDataKind.ReducedKidsData: {
+            ToltecDataKind.ReducedKidsData: {
                 "kind_str": "Header.Kids.kind",
                 "obs_type": "Header.Toltec.ObsType",
             },
-            KidsDataKind.RawKidsData: {
+            ToltecDataKind.RawKidsData: {
                 "kind_str": "Header.Kids.kind",
                 "obs_type": "Header.Toltec.ObsType",
             },
         },
         # this is mapper to use when meta is called
         "meta": {
-            KidsDataKind.KidsData: {
+            ToltecDataKind.KidsData: {
                 "fsmp": "Header.Toltec.SampleFreq",
                 "flo_center": "Header.Toltec.LoCenterFreq",
                 "atten_drive": "Header.Toltec.DriveAtten",
@@ -186,7 +186,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                 "cal_subobsnum": "Header.Toltec.TargSweepSubObsNum",
                 "cal_scannum": "Header.Toltec.TargSweepScanNum",
             },
-            KidsDataKind.RawKidsData: {
+            ToltecDataKind.RawKidsData: {
                 "n_kids_design": "loclen",
                 "n_chans_max": "Header.Toltec.MaxNumTones",
                 "filename_orig": "Header.Toltec.Filename",
@@ -196,18 +196,18 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                 "n_times": "time",
                 "n_chans": "iqlen",
             },
-            KidsDataKind.RawSweep: {
+            ToltecDataKind.RawSweep: {
                 "n_sweepreps": "Header.Toltec.NumSamplesPerSweepStep",
                 "n_sweepsteps": "Header.Toltec.NumSweepSteps",
                 "n_sweeps_max": "numSweeps",
             },
-            KidsDataKind.ReducedKidsData: {
+            ToltecDataKind.ReducedKidsData: {
                 "n_chans": "n_chans",
             },
-            KidsDataKind.ReducedSweep: {
+            ToltecDataKind.ReducedSweep: {
                 "n_sweepsteps": "nsweeps",
             },
-            KidsDataKind.SolvedTimeStream: {
+            ToltecDataKind.SolvedTimeStream: {
                 "n_times": "ntimes",
             },
         },
@@ -216,15 +216,15 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             "flos": "Data.Toltec.LoFreq",
         },
         "data": {
-            KidsDataKind.RawKidsData: {
+            ToltecDataKind.RawKidsData: {
                 "I": "Data.Toltec.Is",
                 "Q": "Data.Toltec.Qs",
             },
-            KidsDataKind.ReducedSweep: {
+            ToltecDataKind.ReducedSweep: {
                 "I": "Data.Kids.Is",
                 "Q": "Data.Kids.Qs",
             },
-            KidsDataKind.SolvedTimeStream: {
+            ToltecDataKind.SolvedTimeStream: {
                 "r": "Data.Kids.rs",
                 "x": "Data.Kids.xs",
             },
@@ -267,7 +267,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     """A registry to store all data kind identifiers."""
 
     @classmethod
-    @add_to_dict(_data_kind_identifiers, KidsDataKind.RawKidsData)
+    @add_to_dict(_data_kind_identifiers, ToltecDataKind.RawKidsData)
     def _identify_raw_kids_data(cls, node_mapper):
         # this returns a tuple of (valid, meta)
         nm = node_mapper
@@ -278,12 +278,12 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         logger.debug(f"found obs_type -> {nm['obs_type']}: {obs_type}")
 
         data_kind = {
-            0: KidsDataKind.RawTimeStream,
-            1: KidsDataKind.RawTimeStream,
-            2: KidsDataKind.VnaSweep,
-            3: KidsDataKind.TargetSweep,
-            4: KidsDataKind.Tune,
-        }.get(obs_type, KidsDataKind.RawUnknown)
+            0: ToltecDataKind.RawTimeStream,
+            1: ToltecDataKind.RawTimeStream,
+            2: ToltecDataKind.VnaSweep,
+            3: ToltecDataKind.TargetSweep,
+            4: ToltecDataKind.Tune,
+        }.get(obs_type, ToltecDataKind.RawUnknown)
         # here we allow identification of unknown kids data
         # but in this case only minimal meta data will be available
         return True, {
@@ -292,7 +292,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         }
 
     @classmethod
-    @add_to_dict(_data_kind_identifiers, KidsDataKind.ReducedKidsData)
+    @add_to_dict(_data_kind_identifiers, ToltecDataKind.ReducedKidsData)
     def _identify_reduced_kids_data(cls, node_mapper):
         nm = node_mapper
         if not nm.hasvar("kind_str") and not nm.hasvar("kind_str_deprecated"):
@@ -305,11 +305,11 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         logger.debug(f"found kind_str={kind_str} from {nm['kind_str']}")
 
         data_kind = {
-            "d21": KidsDataKind.D21,
-            "processed_sweep": KidsDataKind.ReducedSweep,
-            "processed_timestream": KidsDataKind.SolvedTimeStream,
-            "SolvedTimeStream": KidsDataKind.SolvedTimeStream,
-        }.get(kind_str, KidsDataKind.ReducedUnknown)
+            "d21": ToltecDataKind.D21,
+            "processed_sweep": ToltecDataKind.ReducedSweep,
+            "processed_timestream": ToltecDataKind.SolvedTimeStream,
+            "SolvedTimeStream": ToltecDataKind.SolvedTimeStream,
+        }.get(kind_str, ToltecDataKind.ReducedUnknown)
         return True, {"kind_str": kind_str, "data_kind": data_kind}
 
     @cached_property
@@ -349,7 +349,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     # a registry to metadata updaters
     _meta_updaters = {}
 
-    @add_to_dict(_meta_updaters, KidsDataKind.KidsData)
+    @add_to_dict(_meta_updaters, ToltecDataKind.KidsData)
     def _update_derived_info(self):
         meta = self._meta_cached
         meta["file_loc"] = self.file_loc
@@ -360,7 +360,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         meta["repeat"] = meta.get("repeatvar", 1)
         meta["nw"] = meta["roachid"]
 
-    @add_to_dict(_meta_updaters, KidsDataKind.ReducedSweep)
+    @add_to_dict(_meta_updaters, ToltecDataKind.ReducedSweep)
     def _update_reduced_sweep_block_info(self):
         meta = self._meta_cached
         result = dict()
@@ -372,7 +372,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         result["block_slices"] = result["sweep_slices"]
         meta.update(result)
 
-    @add_to_dict(_meta_updaters, KidsDataKind.RawSweep)
+    @add_to_dict(_meta_updaters, ToltecDataKind.RawSweep)
     def _update_raw_sweep_block_info(self):
         # This function is to populate raw sweep block info to meta
         # The block info is a set of meta data that indicate
@@ -413,7 +413,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             result["sweep_slices"] = [slice(0, meta["n_times"])]
         else:
             # this can only happend to tune files
-            assert data_kind == KidsDataKind.Tune
+            assert data_kind == ToltecDataKind.Tune
             # the blocks are partitioned by the break indices
             result["n_sweeps"] = break_indices.size + 1
             sweep_starts = (
@@ -445,7 +445,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         result["block_slices"] = result["sweep_slices"]
         meta.update(result)
 
-    @add_to_dict(_meta_updaters, KidsDataKind.ReducedKidsData | KidsDataKind.TimeStream)
+    @add_to_dict(_meta_updaters, ToltecDataKind.ReducedKidsData | ToltecDataKind.TimeStream)
     def _update_raw_timestream_block_info(self):
         result = dict()
         result["n_blocks_max"] = 1
@@ -638,7 +638,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         """
         if KidsDataAxis.Sweep not in self.axis_types:  # type: ignore[attr-defined]
             return None
-        if self.data_kind & KidsDataKind.RawSweep:
+        if self.data_kind & ToltecDataKind.RawSweep:
             return self._get_raw_sweep_sweep_axis_data()
         return self._get_reduced_sweep_sweep_axis_data()
 
@@ -824,14 +824,14 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                     ].T
 
         # for reduced sweep it may have d21 data
-        if data_kind & KidsDataKind.ReducedSweep:
+        if data_kind & ToltecDataKind.ReducedSweep:
             m = self.node_mappers["data_extra"]["d21"]
             logger.debug(f"read extra data {m.nc_node_map.keys()}")
             for key in m.nc_node_map.keys():
                 if m.hasvar(key):
                     data[key] = m.getvar(key)[:]
         # for vna sweep we can load the candidates list
-        if data_kind & KidsDataKind.ReducedVnaSweep:
+        if data_kind & ToltecDataKind.ReducedVnaSweep:
             m = self.node_mappers["data_extra"]["candidates"]
             logger.debug(f"read extra data {m.nc_node_map.keys()}")
             for key in m.nc_node_map.keys():
@@ -840,7 +840,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
 
         # for the solved timestreams we also load the psd info if they
         # are available
-        if data_kind & KidsDataKind.SolvedTimeStream:
+        if data_kind & ToltecDataKind.SolvedTimeStream:
             m = self.node_mappers["data_extra"]["psd"]
             logger.debug(
                 f"read extra data {m.nc_node_map.keys()}"
@@ -860,7 +860,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                         v = v[:, s["chan_slice"]].T
                     data[key] = v
         # for the raw sweeps we do the reduction for each step
-        if data_kind & KidsDataKind.RawSweep:
+        if data_kind & ToltecDataKind.RawSweep:
             sweep_axis_data = s["sweep_axis_data"]
             b0 = s["sample_slice"].start  # this is the ref index
             for k in ("I", "Q"):
@@ -886,7 +886,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     """A registry to store the data obj makers."""
 
     @classmethod
-    @add_to_dict(_kidsdata_obj_makers, KidsDataKind.Sweep)
+    @add_to_dict(_kidsdata_obj_makers, ToltecDataKind.Sweep)
     def _make_kidsdata_sweep(cls, data_kind, meta, data):
         f_chans = meta["chan_axis_data"]["f_chan"]
         f_sweeps = meta["sweep_axis_data"]["f_sweep"]
@@ -923,7 +923,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         return result
 
     @classmethod
-    @add_to_dict(_kidsdata_obj_makers, KidsDataKind.RawTimeStream)
+    @add_to_dict(_kidsdata_obj_makers, ToltecDataKind.RawTimeStream)
     def _make_kidsdata_rts(cls, data_kind, meta, data):
         f_chans = meta["chan_axis_data"]["f_chan"]
         return TimeStream(
@@ -934,7 +934,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         )
 
     @classmethod
-    @add_to_dict(_kidsdata_obj_makers, KidsDataKind.SolvedTimeStream)
+    @add_to_dict(_kidsdata_obj_makers, ToltecDataKind.SolvedTimeStream)
     def _make_kidsdata_sts(cls, data_kind, meta, data):
         f_chans = meta["chan_axis_data"]["f_chan"]
         # add the psd data to the meta

@@ -3,9 +3,8 @@
 import os
 from loguru import logger
 from tollan.config.types import ImmutableBaseModel
-from .utils import DebugConfig
-from ..datamodels.io.toltec import NcFileIO
-from kidsproc.kidsdata.Sweep import MultiSweep
+from tolteca_datamodels.toltec.ncfile import NcFileIO
+from tolteca_kidsproc.kidsdata.sweep import MultiSweep
 
 
 class SweepCheckerConfig(ImmutableBaseModel):
