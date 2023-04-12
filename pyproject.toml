@@ -1,0 +1,60 @@
+
+[project]
+name="tolteca_v2"
+description = "Development version of tolteca v2."
+readme = "README.md"
+requires-python = ">=3.8"
+dynamic = ["version"]
+license = {file = "LICENSE"}
+keywords = ["toltec", "tolteca", "tolteca2"]
+authors = [
+  {name="Zhiyuan Ma", email="zhiyuanma@umass.edu"},
+]
+classifiers = [
+  'Development Status :: 2 - Pre-Alpha',
+  'Intended Audience :: Developers',
+  'Natural Language :: English',
+  'License :: OSI Approved :: BSD License',
+  'Programming Language :: Python :: 3',
+  'Programming Language :: Python :: 3.8',
+  'Programming Language :: Python :: 3.9',
+  'Programming Language :: Python :: 3.10',
+  'Programming Language :: Python :: 3.11',
+]
+
+dependencies = [
+]
+
+[tool.setuptools.package-data]
+"*" = [
+    "data/*",
+    "data/*/*",
+    "data/*/*/*",
+    "data/*/*/*/*",
+    "data/*/*/*/*/*",
+    "data/*/*/*/*/*/*"
+]
+
+[build-system]
+requires = ["setuptools",
+            "wheel"]
+build-backend = 'setuptools.build_meta'
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["tolteca_*"]
+namespaces = false
+
+[tool.setuptools.dynamic]
+version = {attr = "tolteca_datamodels.__version__"}
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+extend_skip_glob = [
+    "docs/*",
+    "src/tollan/_version.py"
+]
+group_by_package = true
