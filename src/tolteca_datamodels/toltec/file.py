@@ -1,11 +1,15 @@
-import re
 import functools
 import operator
+import re
+from datetime import datetime, timezone
+
+from astropy.time import Time
 from tollan.utils.fileloc import FileLoc
 from tollan.utils.general import dict_from_regex_match
-from astropy.time import Time
-from datetime import datetime
+
 from .types import ToltecDataKind
+
+__all__ = ["guess_meta_from_source"]
 
 
 _file_suffix_ext_to_toltec_data_kind = {
@@ -46,7 +50,7 @@ _filename_parser_defs = [
             r"(?P<subobsnum>\d+)_(?P<scannum>\d+)_"
             r"(?P<ut>\d{4}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))"
             r"(?:_(?P<filesuffix>[^\/.]+))?"
-            r"\.(?P<fileext>.+)$"
+            r"\.(?P<fileext>.+)$",
         ),
         "add_meta": {
             "instru": "toltec",
@@ -59,7 +63,7 @@ _filename_parser_defs = [
             r"(?P<subobsnum>\d+)_(?P<scannum>\d+)_"
             r"(?P<ut>\d{4}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))"
             r"(?:_(?P<filesuffix>[^\/.]+))?"
-            r"\.(?P<fileext>.+)$"
+            r"\.(?P<fileext>.+)$",
         ),
         "add_meta": {
             "instru": "toltec",
@@ -72,7 +76,7 @@ _filename_parser_defs = [
             r"(?P<subobsnum>\d+)_(?P<scannum>\d+)_"
             r"(?P<ut>\d{4}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))"
             r"(?:_(?P<filesuffix>[^\/.]+))?"
-            r"\.(?P<fileext>.+)$"
+            r"\.(?P<fileext>.+)$",
         ),
         "add_meta": {
             "instru": "toltec",
@@ -84,7 +88,7 @@ _filename_parser_defs = [
             r"^(?P<interface>tel_toltec|tel_toltec2)"
             r"_(?P<ut>\d{4}-\d{2}-\d{2})"
             r"_(?P<obsnum>\d+)_(?P<subobsnum>\d+)_(?P<scannum>\d+)"
-            r"\.(?P<fileext>.+)$"
+            r"\.(?P<fileext>.+)$",
         ),
         "add_meta": {
             "instru": "lmt",
@@ -96,7 +100,7 @@ _filename_parser_defs = [
             r"^(?P<interface>wyatt)"
             r"_(?P<ut>\d{4}-\d{2}-\d{2})"
             r"_(?P<obsnum>\d+)_(?P<subobsnum>\d+)_(?P<scannum>\d+)"
-            r"\.(?P<fileext>.+)$"
+            r"\.(?P<fileext>.+)$",
         ),
         "add_meta": {
             "instru": "toltec",
@@ -108,13 +112,15 @@ _filename_parser_defs = [
 
 def _parse_ut_str(v):
     # there are two formats YYYY_mm_dd_HH_MM_SS and YYYY-mm-dd
-    if v.count("_") == 5:
+    n_sep_long = 5
+    n_sep_short = 2
+    if v.count("_") == n_sep_long:
         fmt = "%Y_%m_%d_%H_%M_%S"
-    elif v.count("-") == 2:
+    elif v.count("-") == n_sep_short:
         fmt = "%Y-%m-%d"
     else:
         raise ValueError("invalid UT time string.")
-    result = Time(datetime.strptime(v, fmt), scale="utc")
+    result = Time(datetime.strptime(v, fmt).astimezone(timezone.utc), scale="utc")
     result.format = "isot"
     return result
 

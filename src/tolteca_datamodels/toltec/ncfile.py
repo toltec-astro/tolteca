@@ -1,26 +1,35 @@
-from loguru import logger
-import numpy as np
 import warnings
 from functools import cached_property
-from astropy.table import QTable, Column
+from typing import Any, cast
+
 import astropy.units as u
+import numpy as np
 from astropy.nddata import StdDevUncertainty
-from .kidsdata import (
-    KidsDataAxisSlicer,
-    KidsDataAxisSlicerMeta,
-    ToltecDataKind,
-    KidsDataAxis,
-)
-from ..base import DataFileIO, DataFileIOError
-from tollan.utils.nc import NcNodeMapper, NcNodeMapperError, ncstr
+from astropy.table import Column, QTable
+from loguru import logger
+from tollan.utils.fileloc import FileLoc
+from tollan.utils.fmt import pformat_fancy_index, pformat_yaml
 from tollan.utils.general import add_to_dict
-from tollan.utils.fmt import pformat_yaml, pformat_fancy_index
+from tollan.utils.nc import NcNodeMapper, NcNodeMapperError, ncstr
 from tollan.utils.np import make_complex
+
 from tolteca_kidsproc.kidsdata.sweep import MultiSweep, Sweep
 from tolteca_kidsproc.kidsdata.timestream import TimeStream
 
+from ..base import DataFileIO, DataFileIOError
+from .kidsdata import (
+    KidsDataAxis,
+    KidsDataAxisInfoMixin,
+    KidsDataAxisSlicer,
+    KidsDataAxisSlicerMeta,
+    ToltecDataKind,
+)
 
-class _NcFileIOKidsDataAxisSlicerMixin(object, metaclass=KidsDataAxisSlicerMeta):
+
+class _NcFileIOKidsDataAxisSlicerMixin(
+    KidsDataAxisInfoMixin,
+    metaclass=KidsDataAxisSlicerMeta,
+):
     """A helper class to enable slicer interface to `NcFileIO`."""
 
     _slicer_cls = KidsDataAxisSlicer
@@ -45,7 +54,11 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     """
 
     def __init__(
-        self, loc=None, open_=True, load_meta_on_open=True, auto_close_on_pickle=True
+        self,
+        loc=None,
+        open=True,
+        load_meta_on_open=True,
+        auto_close_on_pickle=True,
     ):
         loc = self._validate_file_loc(loc)
         if loc is None:
@@ -63,7 +76,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         # setup the mapper for read meta data
         self._node_mappers = self._create_node_mappers(self._node_maps)
         # if source is given, we just open it right away
-        if self.source is not None and open_:
+        if self.source is not None and open:
             self.open()
 
     @property
@@ -79,6 +92,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
 
     @property
     def io_obj(self):
+        """The underlying netcdf Dataset."""
         # we expose the raw netcdf dataset as the low level file object.
         # this returns None if no dataset is open.
         try:
@@ -88,12 +102,15 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
 
     @property
     def file_loc(self):
+        """The data file location."""
+        # note that this is different from base class flie_loc which
+        # in that this is alwasy the local file path.
         # here we return the _source if it is passed to the constructor
         # we had ensured in open that if self._source is given,
         # the source passed to open can only be None.
         # so that source is always the same as self.nc_node.file_loc
         if self._source is not None:
-            return self._source
+            return FileLoc(self._source)
         # if no dataset is open, we just return None
         if self._io_obj is None:
             return None
@@ -136,7 +153,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         _open_sub_node(self.node_mappers)
         # trigger loading the meta on open if requested
         if self._load_meta_on_open:
-            _ = self.meta  # noqa: F841
+            _ = self.meta
         return self
 
     def __repr__(self):
@@ -154,6 +171,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     # the second level maps to the data object class,
     # the inner most level maps to the netcdf dataset.
     _node_mappers: dict
+
     _node_maps = {
         # this is a dummy mapper to hold the actual opened dataset.
         # this is not used for reading the dataset.
@@ -256,12 +274,12 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     def _create_node_mappers(node_maps) -> dict:
         """Create node mappers for the inner most level of dict of node_maps."""
 
-        def _get_sub_node(n):
+        def _get_sub_node(n) -> Any:
             if all(not isinstance(v, dict) for v in n.values()):
                 return NcNodeMapper(nc_node_map=n)
             return {k: _get_sub_node(v) for k, v in n.items()}
 
-        return _get_sub_node(node_maps)  # type: ignore
+        return _get_sub_node(node_maps)
 
     _data_kind_identifiers = {}
     """A registry to store all data kind identifiers."""
@@ -271,10 +289,10 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     def _identify_raw_kids_data(cls, node_mapper):
         # this returns a tuple of (valid, meta)
         nm = node_mapper
-        if not nm.hasvar("obs_type") or nm.hasvar("kind_str"):
-            return False, dict()
+        if not nm.has_var("obs_type") or nm.has_var("kind_str"):
+            return False, {}
 
-        obs_type = nm.getscalar("obs_type")
+        obs_type = nm.get_scalar("obs_type")
         logger.debug(f"found obs_type -> {nm['obs_type']}: {obs_type}")
 
         data_kind = {
@@ -283,7 +301,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             2: ToltecDataKind.VnaSweep,
             3: ToltecDataKind.TargetSweep,
             4: ToltecDataKind.Tune,
-        }.get(obs_type, ToltecDataKind.RawUnknown)
+        }.get(obs_type, ToltecDataKind.Unknown)
         # here we allow identification of unknown kids data
         # but in this case only minimal meta data will be available
         return True, {
@@ -295,13 +313,10 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     @add_to_dict(_data_kind_identifiers, ToltecDataKind.ReducedKidsData)
     def _identify_reduced_kids_data(cls, node_mapper):
         nm = node_mapper
-        if not nm.hasvar("kind_str") and not nm.hasvar("kind_str_deprecated"):
-            return False, dict()
+        if not nm.has_var("kind_str") and not nm.has_var("kind_str_deprecated"):
+            return False, {}
 
-        if nm.hasvar("kind_str"):
-            kind_str = nm.getstr("kind_str")
-        else:
-            kind_str = "unknown"
+        kind_str = nm.get_str("kind_str") if nm.has_var("kind_str") else "unknown"
         logger.debug(f"found kind_str={kind_str} from {nm['kind_str']}")
 
         data_kind = {
@@ -309,7 +324,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             "processed_sweep": ToltecDataKind.ReducedSweep,
             "processed_timestream": ToltecDataKind.SolvedTimeStream,
             "SolvedTimeStream": ToltecDataKind.SolvedTimeStream,
-        }.get(kind_str, ToltecDataKind.ReducedUnknown)
+        }.get(kind_str, ToltecDataKind.Unknown)
         return True, {"kind_str": kind_str, "data_kind": data_kind}
 
     @cached_property
@@ -325,25 +340,26 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             if valid:
                 self._meta_cached.update(meta)
                 return meta["data_kind"]
-        else:
-            # none of the identify mappers work
-            raise DataFileIOError("invalid file or data format.")
+        # none of the identify mappers work
+        raise DataFileIOError("invalid file or data format.")
 
     @cached_property
     def meta(self):
+        """The metadata."""
         data_kind = self.data_kind
         # load data kind specific meta
         _meta = self._meta_cached
         for k, m in self.node_mappers["meta"].items():
             if k & data_kind:
                 # read all entries in mapper
-                for kk in m.nc_node_map.keys():
-                    _meta[kk] = m.getany(kk)
+                for kk in m.nc_node_map:
+                    _meta[kk] = m.get_value(kk)
 
         # update meta using the per type registered updater.
         for k, _meta_updater in self._meta_updaters.items():
             if data_kind & k:
                 _meta_updater(self)
+        logger.debug(f"loaded meta data:\n{pformat_yaml(_meta)}")
         return _meta
 
     # a registry to metadata updaters
@@ -363,7 +379,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     @add_to_dict(_meta_updaters, ToltecDataKind.ReducedSweep)
     def _update_reduced_sweep_block_info(self):
         meta = self._meta_cached
-        result = dict()
+        result = {}
         result["n_sweeps"] = 1
         result["sweep_slices"] = [slice(0, meta["n_sweepsteps"])]
         result["n_blocks_max"] = 1
@@ -384,14 +400,14 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
 
         data_kind = meta["data_kind"]
 
-        result = dict()
+        result = {}
 
         # this is the theoretical number of samples per sweep block.
         result["n_timespersweep"] = meta["n_sweepsteps"] * meta["n_sweepreps"]
         # we need to load flos to properly handle the sweeps with potentially
         # missing samples
         nm = self.node_mappers["axis_data"]
-        flos_Hz = nm.getvar("flos")[:]
+        flos_Hz = nm.get_var("flos")[:]
         result["flos"] = flos_Hz << u.Hz
 
         # for tune file, we expect multiple sweep blocks
@@ -433,8 +449,10 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                     0
                 ].tolist()
                 logger.warning(
-                    f"missing data in sweep blocks {incompleted_sweeps} "
-                    f"sizes={sweep_sizes[incompleted_sweeps]}."
+                    (
+                        f"missing data in sweep blocks {incompleted_sweeps} "
+                        f"sizes={sweep_sizes[incompleted_sweeps]}."
+                    ),
                 )
 
         # populate block meta
@@ -445,9 +463,12 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         result["block_slices"] = result["sweep_slices"]
         meta.update(result)
 
-    @add_to_dict(_meta_updaters, ToltecDataKind.ReducedKidsData | ToltecDataKind.TimeStream)
+    @add_to_dict(
+        _meta_updaters,
+        ToltecDataKind.ReducedKidsData | ToltecDataKind.TimeStream,
+    )
     def _update_raw_timestream_block_info(self):
-        result = dict()
+        result = {}
         result["n_blocks_max"] = 1
         result["n_blocks"] = 1
         self._meta_cached.update(result)
@@ -470,8 +491,10 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         else:
             iblock = range(0, n_blocks_max)[block_index]
         logger.debug(
-            f"resolve block_index {block_index} -> iblock={iblock} "
-            f"n_blocks={n_blocks} (n_blocks_max={meta['n_blocks_max']})"
+            (
+                f"resolve block_index {block_index} -> iblock={iblock} "
+                f"n_blocks={n_blocks} (n_blocks_max={meta['n_blocks_max']})"
+            ),
         )
         return iblock, n_blocks, n_blocks_max
 
@@ -485,7 +508,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         meta = self.meta
         n_blocks = meta["n_blocks"]
         n_chans = meta["n_chans"]
-        v = nm.getvar("chans")
+        v = nm.get_var("f_tones")
         # for multi block data, v should be of 2-dimensional
         # and for single block data, v could be of 2-dimensional or one
         if n_blocks == 1 and len(v.shape) == 1:
@@ -499,17 +522,19 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         for i in range(n_blocks):
             chan_axis_data = QTable()
             chan_axis_data["id"] = Column(
-                range(n_chans), description="The channel index"
+                range(n_chans),
+                description="The channel index",
             )
             chan_axis_data["f_tone"] = Column(
-                data[i], description="The ROACH tone frequency as used in the FFT comb"
+                data[i],
+                description="The ROACH tone frequency as used in the FFT comb",
             )
             chan_axis_data["f_chan"] = Column(
                 data[i] + (meta["flo_center"] << u.Hz),
                 description="The channel reference frequency.",
             )
-            chan_axis_data.meta.update(meta)  #  type: ignore
-            chan_axis_data.meta["block_index"] = i  # type: ignore
+            cast(dict, chan_axis_data.meta).update(meta)
+            cast(dict, chan_axis_data.meta)["block_index"] = i
             result.append(chan_axis_data)
         return result
 
@@ -529,14 +554,15 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         n_blocks = meta["n_blocks"]
 
         model_params_header = ncstr(
-            nc_node.variables["Header.Toltec.ModelParamsHeader"]
+            nc_node.variables["Header.Toltec.ModelParamsHeader"],
         )
         result = []
         for i in range(n_blocks):
             # note the first dim is to select the block.
             model_params_data = nc_node.variables["Header.Toltec.ModelParams"][i, :, :]
             model_params_table = QTable(
-                data=list(model_params_data), names=model_params_header
+                data=list(model_params_data),
+                names=model_params_header,
             )
             result.append(model_params_table)
         return result
@@ -547,10 +573,11 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         return self._model_params_tables[iblock]
 
     @staticmethod
-    def _populate_sweep_axis_data(
+    def _populate_sweep_axis_data(  # noqa: PLR0913
         sweep_axis_data,
         id,
         f_sweeps,
+        f_los,
         n_samples,
         sample_start,
         sample_end,
@@ -558,20 +585,28 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         block_index,
     ):
         sweep_axis_data["id"] = Column(id, description="The sweep step index")
+        sweep_axis_data["f_lo"] = Column(
+            f_los,
+            description="The sweeping LO frequency",
+        )
         sweep_axis_data["f_sweep"] = Column(
-            f_sweeps, description="The sweep step frequency"
+            f_sweeps,
+            description="The sweep step frequency",
         )
         sweep_axis_data["n_samples"] = Column(
-            n_samples, description="The number of repeats in a sweep step"
+            n_samples,
+            description="The number of repeats in a sweep step",
         )
         sweep_axis_data["sample_start"] = Column(
-            sample_start, description="The sample index at the start of sweep step."
+            sample_start,
+            description="The sample index at the start of sweep step.",
         )
         sweep_axis_data["sample_end"] = Column(
-            sample_end, description="The sample index after the end of sweep step."
+            sample_end,
+            description="The sample index after the end of sweep step.",
         )
-        sweep_axis_data.meta.update(meta)  # type: ignore
-        sweep_axis_data.meta["block_index"] = block_index  # type: ignore
+        cast(dict, sweep_axis_data.meta).update(meta)
+        cast(dict, sweep_axis_data.meta)["block_index"] = block_index
 
     def _get_raw_sweep_sweep_axis_data(self):
         """Return the sweep steps.
@@ -586,14 +621,18 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             # the raw sweep axis is constructed from checking the
             # flo frequencies
             uflos, uiflos, urflos = np.unique(
-                flos_Hz[block_slice], return_index=True, return_counts=True
+                flos_Hz[block_slice],
+                return_index=True,
+                return_counts=True,
             )
             # pad the index with block slice start
             uiflos = uiflos + block_slice.start
+            f_sweeps = uflos - meta["flo_center"]
             self._populate_sweep_axis_data(
                 sweep_axis_data,
                 id=range(len(uflos)),
-                f_sweeps=uflos << u.Hz,
+                f_sweeps=f_sweeps << u.Hz,
+                f_los=uflos << u.Hz,
                 n_samples=urflos,
                 sample_start=uiflos,
                 sample_end=uiflos + urflos,
@@ -612,14 +651,15 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         nm = self.node_mappers["axis_data"]
         meta = self.meta
 
-        f_sweeps = nm.getvar("sweeps")[:] + meta["flo_center"]
-
+        f_sweeps = nm.get_var("sweeps")[:]
+        f_los = f_sweeps + meta["flo_center"]
         sweep_axis_data = QTable()
         sweep_id = np.arange(len(f_sweeps))
         self._populate_sweep_axis_data(
             sweep_axis_data,
             id=sweep_id,
             f_sweeps=f_sweeps << u.Hz,
+            f_los=f_los << u.Hz,
             n_samples=1,
             sample_start=sweep_id,
             sample_end=sweep_id + 1,
@@ -636,15 +676,14 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         is of shape (n_sweepsteps, 2), specifying the start and
         end sample indices.
         """
-        if KidsDataAxis.Sweep not in self.axis_types:  # type: ignore[attr-defined]
+        if KidsDataAxis.Sweep not in self.axis_types:
             return None
         if self.data_kind & ToltecDataKind.RawSweep:
             return self._get_raw_sweep_sweep_axis_data()
         return self._get_reduced_sweep_sweep_axis_data()
 
     def get_sweep_axis_data(self, block_index=None):
-        """Return the tones at `block_index`."""
-
+        """Return the sweep axis data at `block_index`."""
         data = self._sweep_axis_data
         if data is None:
             raise RuntimeError(f"no sweep axis for data kind of {self.data_kind}")
@@ -662,18 +701,18 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             block, chan, sweep, time, or sample.
         """
         # create the slicer object
-        slicer = self.block_loc(None)  # type: ignore[attr-defined]
+        slicer = self.block_loc(None)
         for t, arg in slicer_args.items():
             slicer = getattr(slicer, f"{t}_loc")(arg)
         return self._read_sliced(slicer)
 
-    def _resolve_slice(self, slicer):
+    def _resolve_slice(self, slicer):  # noqa: C901, PLR0915
         """Read the file for data specified by the `slicer`."""
-
-        result = dict()
+        result = {}
         # parse the slicer args and get the data.
-        result["ops"] = ops = dict()
-        for t in self.axis_types:  # type: ignore[attr-defined]
+        ops: dict[KidsDataAxis, Any] = {}
+        result["ops"] = ops
+        for t in self.axis_types:
             ops[t] = slicer.get_slice_op(t)
 
         # do some check
@@ -682,17 +721,20 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                 [
                     ops.get(KidsDataAxis.Sample, None) is not None,
                     ops.get(KidsDataAxis.Sweep, None) is not None,
-                ]
+                ],
             )
-            == 2
+            == 2  # noqa: PLR2004
         ):
             raise ValueError("can only slice on one of sample or sweep.")
 
         if (
             sum(
-                [ops.get("sample", None) is not None, ops.get("time", None) is not None]
+                [
+                    ops.get(KidsDataAxis.Sample, None) is not None,
+                    ops.get(KidsDataAxis.Time, None) is not None,
+                ],
             )
-            == 2
+            == 2  # noqa: PLR2004
         ):
             raise ValueError("can only slice on one of sample or time.")
 
@@ -708,26 +750,27 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                     # this is to supress the ufunc size warning
                     # and the numexpr
                     warnings.simplefilter("ignore")
-                    df = tbl.to_pandas()
-                    op = df.eval(op).to_numpy(dtype=bool)
+                    tbl_df = tbl.to_pandas()
+                    op = tbl_df.eval(op).to_numpy(dtype=bool)
             tbl = tbl[op]
             tbl.meta["_slice_op"] = op
             return tbl, op
 
-        block_index = result["block_index"] = ops["block"]
+        block_index = result["block_index"] = ops[KidsDataAxis.Block]
         chan_axis_data, chan_op = slice_table(
-            self.get_chan_axis_data(block_index=block_index), ops[KidsDataAxis.Chan]
+            self.get_chan_axis_data(block_index=block_index),
+            ops[KidsDataAxis.Chan],
         )
         # logger.debug(f"sliced chan axis data:\n{chan_axis_data}")
         logger.debug(
-            f"sliced {len(chan_axis_data)} " f"chans out of {self.meta['n_chans']}"
+            f"sliced {len(chan_axis_data)} chans out of {self.meta['n_chans']}",
         )
 
         result["chan_axis_data"] = chan_axis_data
         # this will be used to load the data
         result["chan_slice"] = chan_op
 
-        if KidsDataAxis.Sweep in self.axis_types:  # type: ignore[attr-defined]
+        if KidsDataAxis.Sweep in self.axis_types:
             # in this case,
             # we re-build the sample slice from the range of the sliced
             # sweep table
@@ -737,8 +780,10 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             )
             # logger.debug(f"sliced sweep axis data:\n{sweep_axis_data}")
             logger.debug(
-                f"sliced {len(sweep_axis_data)} "
-                f"sweep steps out of {self.meta['n_sweepsteps']}"
+                (
+                    f"sliced {len(sweep_axis_data)} "
+                    f"sweep steps out of {self.meta['n_sweepsteps']}"
+                ),
             )
             # this will be used to load the data
             # this data will be reduced for each sweep step later
@@ -749,7 +794,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                 np.max(sweep_axis_data["sample_end"]),
             )
             result["sweep_axis_data"] = sweep_axis_data
-        elif KidsDataAxis.Time in self.axis_types:  # type: ignore[attr-defined]
+        elif KidsDataAxis.Time in self.axis_types:
             # in this case,
             # we build the sample slice from the range of time,
             fsmp_Hz = self.meta["fsmp"]
@@ -759,7 +804,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                     return None
                 if not isinstance(t, u.Quantity):
                     t = t << u.s
-                if t.unit.is_equivalent(u.s):  # type: ignore[attr-defined]
+                if t.unit is not None and t.unit.is_equivalent(u.s):
                     return int(t.to_value(u.s) * fsmp_Hz)
                 raise ValueError("invalid time loc argument.")
 
@@ -776,7 +821,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                             time_slice.stop,
                             time_slice.step,
                         ],
-                    )
+                    ),
                 )
             elif _sample_slice is not None:
                 sample_slice = [
@@ -796,7 +841,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         result["sample_slice"] = sample_slice
         return result
 
-    def _read_sliced(self, slicer):
+    def _read_sliced(self, slicer):  # noqa: C901, PLR0912
         """Read the file for data specified by the `slicer`."""
         s = self._resolve_slice(slicer)
         # now that we have the chan slice and sample slice
@@ -805,20 +850,22 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         # we create a copy of meta data here to store the slicer info
         meta = self.meta.copy()
         meta.update(s)
-        data = dict()
+        data = {}
         for k, m in self.node_mappers["data"].items():
             if data_kind & k:
                 logger.debug(
-                    f"read data {m.nc_node_map.keys()} sample_slice="
-                    f"{pformat_fancy_index(s['sample_slice'])}"
-                    f" chan_slice="
-                    f"{pformat_fancy_index(s['chan_slice'])}"
+                    (
+                        f"read data {m.nc_node_map.keys()} sample_slice="
+                        f"{pformat_fancy_index(s['sample_slice'])}"
+                        " chan_slice="
+                        f"{pformat_fancy_index(s['chan_slice'])}"
+                    ),
                 )
-                for key in m.nc_node_map.keys():
+                for key in m.nc_node_map:
                     # we arrange the data so that the data
                     # chan axis is first, as required by the
                     # kidsproc.kidsdata containers
-                    data[key] = m.getvar(key)[
+                    data[key] = m.get_var(key)[
                         s["sample_slice"],
                         s["chan_slice"],
                     ].T
@@ -827,37 +874,36 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         if data_kind & ToltecDataKind.ReducedSweep:
             m = self.node_mappers["data_extra"]["d21"]
             logger.debug(f"read extra data {m.nc_node_map.keys()}")
-            for key in m.nc_node_map.keys():
-                if m.hasvar(key):
-                    data[key] = m.getvar(key)[:]
+            for key in m.nc_node_map:
+                if m.has_var(key):
+                    data[key] = m.get_var(key)[:]
         # for vna sweep we can load the candidates list
         if data_kind & ToltecDataKind.ReducedVnaSweep:
             m = self.node_mappers["data_extra"]["candidates"]
             logger.debug(f"read extra data {m.nc_node_map.keys()}")
-            for key in m.nc_node_map.keys():
-                if m.hasvar(key):
-                    data[key] = m.getvar(key)[:]
+            for key in m.nc_node_map:
+                if m.has_var(key):
+                    data[key] = m.get_var(key)[:]
 
         # for the solved timestreams we also load the psd info if they
         # are available
         if data_kind & ToltecDataKind.SolvedTimeStream:
             m = self.node_mappers["data_extra"]["psd"]
             logger.debug(
-                f"read extra data {m.nc_node_map.keys()}"
-                f" chan_slice="
-                f"{pformat_fancy_index(s['chan_slice'])}"
+                (
+                    f"read extra data {m.nc_node_map.keys()}"
+                    " chan_slice="
+                    f"{pformat_fancy_index(s['chan_slice'])}"
+                ),
             )
-            for key in m.nc_node_map.keys():
+            for key in m.nc_node_map:
                 # we arrange the data so that the data
                 # chan axis is first, as required by the
                 # kidsproc.kidsdata containers
-                if m.hasvar(key):
-                    v = m.getvar(key)
-                    if len(v.shape) == 1:
-                        # the psd_fs is vector so skip the slice
-                        v = v[:]
-                    else:
-                        v = v[:, s["chan_slice"]].T
+                if m.has_var(key):
+                    v = m.get_var(key)
+                    # the psd_fs is vector so skip the slice
+                    v = v[:] if len(v.shape) == 1 else v[:, s["chan_slice"]].T
                     data[key] = v
         # for the raw sweeps we do the reduction for each step
         if data_kind & ToltecDataKind.RawSweep:
@@ -865,7 +911,9 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             b0 = s["sample_slice"].start  # this is the ref index
             for k in ("I", "Q"):
                 a = np.full(
-                    (len(s["chan_axis_data"]), len(sweep_axis_data)), np.nan, dtype="d"
+                    (len(s["chan_axis_data"]), len(sweep_axis_data)),
+                    np.nan,
+                    dtype="d",
                 )
                 unc_a = np.full(a.shape, np.nan, dtype="d")
                 for i, row in enumerate(sweep_axis_data):
@@ -878,16 +926,15 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         for k, m in self._kidsdata_obj_makers.items():
             if data_kind & k:
                 return m(self.__class__, data_kind, meta, data)
-        else:
-            # generic maker, this is just to return the things as a dict
-            return {"data_kind": data_kind, "meta": meta, "data": data}
+        # generic maker, this is just to return the things as a dict
+        return {"data_kind": data_kind, "meta": meta, "data": data}
 
     _kidsdata_obj_makers = {}
     """A registry to store the data obj makers."""
 
     @classmethod
     @add_to_dict(_kidsdata_obj_makers, ToltecDataKind.Sweep)
-    def _make_kidsdata_sweep(cls, data_kind, meta, data):
+    def _make_kidsdata_sweep(cls, _data_kind, meta, data):
         f_chans = meta["chan_axis_data"]["f_chan"]
         f_sweeps = meta["sweep_axis_data"]["f_sweep"]
         # we need to pack the I and Q
@@ -918,24 +965,24 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                         "D21_std": data["d21_std"] << d21_unit,
                     },
                     meta={"candidates": data["candidates"] << u.Hz},
-                )
+                ),
             )
         return result
 
     @classmethod
     @add_to_dict(_kidsdata_obj_makers, ToltecDataKind.RawTimeStream)
-    def _make_kidsdata_rts(cls, data_kind, meta, data):
+    def _make_kidsdata_rts(cls, _data_kind, meta, data):
         f_chans = meta["chan_axis_data"]["f_chan"]
         return TimeStream(
             meta=meta,
             f_chans=f_chans,
-            I=data["I"],  # noqa: E741
+            I=data["I"],
             Q=data["Q"],
         )
 
     @classmethod
     @add_to_dict(_kidsdata_obj_makers, ToltecDataKind.SolvedTimeStream)
-    def _make_kidsdata_sts(cls, data_kind, meta, data):
+    def _make_kidsdata_sts(cls, _data_kind, meta, data):
         f_chans = meta["chan_axis_data"]["f_chan"]
         # add the psd data to the meta
         meta = meta.copy()

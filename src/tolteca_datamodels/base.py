@@ -1,14 +1,14 @@
-from tollan.utils.fileloc import FileLoc
-from typing import Any, Union
 from contextlib import ExitStack
-
 from pathlib import Path
+from typing import Any
+
+from tollan.utils.fileloc import FileLoc
 
 __all__ = ["DataFileIOError", "DataFileIO"]
 
 
 class DataFileIOError(RuntimeError):
-    pass
+    """An exception class related to data file IO."""
 
 
 class DataFileIO(ExitStack):
@@ -32,13 +32,12 @@ class DataFileIO(ExitStack):
 
     """
 
-    _file_loc: Union[None, FileLoc]
-    _source: Union[None, Path]
+    _file_loc: None | FileLoc
+    _source: None | Path
     _io_obj: Any
     _meta: dict
 
     def __init__(self, file_loc=None, source=None, io_obj=None, meta=None):
-        """Setup the instance."""
         self._file_loc = self._validate_file_loc(file_loc)
         self._source = source
         self._io_obj = io_obj
@@ -54,7 +53,7 @@ class DataFileIO(ExitStack):
         return FileLoc(file_loc)
 
     def _resolve_source_arg(self, source, remote_ok=False):
-        """A helper to resolve source argument passed to methods.
+        """Resolve source argument passed to methods.
 
         This helper is need to allow supporting specifying source at
         construction time or when ``open`` is called.
@@ -62,8 +61,10 @@ class DataFileIO(ExitStack):
         # ensure that we don't have source set twice.
         if source is not None and self._source is not None:
             raise ValueError(
-                "source needs to be None for "
-                "object with source set at construction time."
+                (
+                    "source needs to be None for "
+                    "object with source set at construction time."
+                ),
             )
         # use the constructor source
         if source is None:
@@ -77,7 +78,7 @@ class DataFileIO(ExitStack):
         elif isinstance(source, (str, Path)):
             source = Path(source)
         else:
-            raise ValueError("invalid source.")
+            raise TypeError(f"invalid source type {type(source)}.")
         return source
 
     @property
@@ -115,8 +116,7 @@ class DataFileIO(ExitStack):
         return self._meta
 
     def __repr__(self):
-        r = f"{self.__class__.__name__}({self.file_loc})"
-        return r
+        return f"{self.__class__.__name__}({self.file_loc})"
 
     def open(self):
         """Return the context for access the `file_obj`."""

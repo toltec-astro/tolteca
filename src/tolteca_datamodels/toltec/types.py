@@ -1,5 +1,6 @@
+from enum import Flag, IntEnum, auto
 
-from enum import IntEnum, Flag, auto
+__all__ = ["ToltecDataKind", "DB_RawObsMaster", "DB_RawObsType"]
 
 
 class ToltecDataKind(Flag):
@@ -56,13 +57,13 @@ class ToltecDataKind(Flag):
 
     ChanPropTable = auto()
     """The table listing channel properties, derived from KPT."""
-    
+
     ArrayPropTable = auto()
     """The array property table derived from beammapping."""
-   
+
     PointingTable = auto()
     """The pointing property table derived from pointing observation."""
-   
+
     # Raw infrastructural kinds
     Hwpr = auto()
     """The half wave place rotation data."""
@@ -75,19 +76,22 @@ class ToltecDataKind(Flag):
 
     LmtTel2 = auto()
     """Suplementary LMT telescope file with data at their original sample rate."""
-    
+
     HouseKeeping = auto()
     """The house keeping data."""
 
     # settings and configurations.
     LmtOtScript = auto()
     """LMT OT script."""
-    
+
     ToltecaConfig = auto()
     """TolTECA Yaml config."""
-    
 
-class DB_RawObsMaster(IntEnum):
+    Unknown = auto()
+    """Unknown data."""
+
+
+class DB_RawObsMaster(IntEnum):  # noqa: N801
     """The is in line with the ``toltec/master`` table in the toltec db."""
 
     TCS = 0
@@ -100,7 +104,7 @@ class DB_RawObsMaster(IntEnum):
     """The ROACH manager."""
 
 
-class DB_RawObsType(IntEnum):
+class DB_RawObsType(IntEnum):  # noqa: N801
     """The is in line with the ``toltec/obstype`` table in the toltec db."""
 
     Nominal = 0

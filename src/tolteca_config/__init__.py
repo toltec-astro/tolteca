@@ -1,4 +1,4 @@
-"""Top-level package for tolteca."""
+"""A module for managing tolteca config."""
 
 from . import _version
 

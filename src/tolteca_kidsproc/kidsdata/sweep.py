@@ -1,12 +1,13 @@
-from typing import Any
-from astropy.nddata import NDDataRef, NDUncertainty
-import astropy.units as u
-from .utils import ExtendedNDDataRef, FrequencyDivisionMultiplexingDataRef
-import numpy as np
-from tollan.utils.log import timeit, logger
-from tollan.utils.np import make_complex
-from scipy.ndimage.filters import uniform_filter1d
+from typing import Any, cast
 
+import astropy.units as u
+import numpy as np
+from astropy.nddata import NDDataRef, NDUncertainty
+from scipy.ndimage.filters import uniform_filter1d
+from tollan.utils.log import logger, timeit
+from tollan.utils.np import make_complex
+
+from .utils import ExtendedNDDataRef, FrequencyDivisionMultiplexingDataRef
 
 __all__ = [
     "Sweep",
@@ -14,7 +15,7 @@ __all__ = [
 ]
 
 
-class SweepMixin(object):
+class SweepMixin:
     """A mixin class for frequency sweep data."""
 
     uncertainty: NDUncertainty
@@ -27,7 +28,7 @@ class SweepMixin(object):
         return self.data << self.unit  # type: ignore
 
     @property
-    def I(self):
+    def I(self):  # noqa: E743
         """The In-phase data."""
         return self.S21.real
 
@@ -89,7 +90,7 @@ class SweepMixin(object):
     @staticmethod
     def _validate_D21(D21):
         if not isinstance(D21, u.Quantity):
-            raise ValueError("D21 has to be a quantity with unit.")
+            raise TypeError("D21 has to be a quantity with unit.")
         if not D21.unit.is_equivalent(u.adu / u.Hz):  # type: ignore
             raise ValueError("invalid unit for D21.")
         return NDDataRef(data=D21.value, unit=D21.unit)
@@ -142,7 +143,14 @@ class Sweep(ExtendedNDDataRef, SweepMixin):
                 result[a] = getattr(self, a)[item]
         return result
 
-    def __init__(self, S21=None, frequency=None, D21=None, extra_attrs=None, **kwargs):
+    def __init__(  # noqa: C901, PLR0912
+        self,
+        S21=None,
+        frequency=None,
+        D21=None,
+        extra_attrs=None,
+        **kwargs,
+    ):
         if "data" in kwargs:
             # In cases of slicing, new objects will be initialized with `data`
             # instead of ``S21``. Ensure we grab the `data` argument.
@@ -152,8 +160,7 @@ class Sweep(ExtendedNDDataRef, SweepMixin):
                 # by the _slice_extra call at the end of the slice
                 # automatically
                 return
-            else:
-                raise ValueError("data should not be specified.")
+            raise ValueError("data should not be specified.")
 
         # this is for normal construction
         # we expect S21 and frequency to be always set
@@ -164,9 +171,12 @@ class Sweep(ExtendedNDDataRef, SweepMixin):
                 raise ValueError("S21 requires frequency.")
             if frequency.ndim > 0 and frequency.shape[-1] != S21.shape[-1]:
                 raise ValueError("shape of frequency does not match S21.")
-            if D21 is not None:
-                if frequency.ndim > 0 and frequency.shape[-1] != D21.shape[-1]:
-                    raise ValueError("shape of frequency does not match D21.")
+            if (
+                D21 is not None
+                and frequency.ndim > 0
+                and frequency.shape[-1] != D21.shape[-1]
+            ):
+                raise ValueError("shape of frequency does not match D21.")
 
         if frequency is not None:
             frequency = self._validate_frequency(frequency)
@@ -189,9 +199,9 @@ class Sweep(ExtendedNDDataRef, SweepMixin):
         # handle extra attrs
         if extra_attrs is not None:
             # add extra data objects
-            if any(hasattr(self, a) for a in extra_attrs.keys()):
+            if any(hasattr(self, a) for a in extra_attrs):
                 raise ValueError("name of extra_attrs conflicts with existing attts.")
-            extra_attrs_to_slice = list()
+            extra_attrs_to_slice = []
             for k, v in extra_attrs.items():
                 if v.shape != self.data.shape:
                     raise ValueError("invalid shape of extra attr")
@@ -228,24 +238,34 @@ class _MultiSweepDataRef(FrequencyDivisionMultiplexingDataRef):
     _f_sweeps: Any
 
     def __init__(
-        self, f_chans=None, f_sweeps=None, frequency=None, data=None, **kwargs
+        self,
+        f_chans=None,
+        f_sweeps=None,
+        frequency=None,
+        data=None,
+        **kwargs,
     ):
         if frequency is None:
             if sum([f_chans is None, f_sweeps is None]) == 1:
                 raise ValueError("must specify both f_chans and f_sweeps.")
             # create the frequency grid
-            if f_chans is not None:
+            if f_chans is not None and f_sweeps is not None:
                 frequency = self._make_frequency_grid(f_chans, f_sweeps)
         else:
-            frequency = SweepMixin._validate_frequency(frequency)
+            frequency = SweepMixin._validate_frequency(frequency)  # noqa: SLF001
 
         # check lengths of axis
-        if data is not None and frequency is not None:
-            if data.shape != frequency.data.shape:
-                raise ValueError(
+        if (
+            data is not None
+            and frequency is not None
+            and data.shape != frequency.data.shape
+        ):
+            raise ValueError(
+                (
                     f"data of shape {data.shape} does not match the shape of"
-                    f" the frequency grid {frequency.shape}."  # type: ignore
-                )
+                    f" the frequency grid {frequency.data.shape}."
+                ),
+            )
 
         super().__init__(f_chans=f_chans, data=data, **kwargs)
         self._f_sweeps = f_sweeps
@@ -259,7 +279,7 @@ class _MultiSweepDataRef(FrequencyDivisionMultiplexingDataRef):
 
     @property
     def f_sweeps(self):
-        """The sweep frequencies"""
+        """The sweep frequencies."""
         return self._f_sweeps
 
 
@@ -296,7 +316,7 @@ class MultiSweep(_MultiSweepDataRef, SweepMixin):
             item = (item,)
         if len(item) == 1:
             (chan_slice,) = item
-        elif len(item) == 2:
+        elif len(item) == 2:  # noqa: PLR2004
             chan_slice, sweep_slice = item
         else:
             raise ValueError("too many slices.")
@@ -320,8 +340,7 @@ class MultiSweep(_MultiSweepDataRef, SweepMixin):
                 # by the _slice_extra call at the end of the slice
                 # automatically
                 return
-            else:
-                raise ValueError("data should not be specified.")
+            raise ValueError("data should not be specified.")
 
         # this is for normal construction
         if S21 is not None:
@@ -330,7 +349,10 @@ class MultiSweep(_MultiSweepDataRef, SweepMixin):
             kwargs["unit"] = S21.unit
 
         super().__init__(
-            f_chans=f_chans, f_sweeps=f_sweeps, frequency=frequency, **kwargs
+            f_chans=f_chans,
+            f_sweeps=f_sweeps,
+            frequency=frequency,
+            **kwargs,
         )
 
     @property
@@ -363,7 +385,7 @@ class MultiSweep(_MultiSweepDataRef, SweepMixin):
         return self.unified
 
     @timeit
-    def _make_unified(
+    def _make_unified(  # noqa: PLR0913
         self,
         flim=None,
         fstep=None,
@@ -395,7 +417,7 @@ class MultiSweep(_MultiSweepDataRef, SweepMixin):
             The method for D21 compuatation.
         """
         if fstep is None and resample is None:
-            fstep = 1000.0 << u.Hz  # type: ignore
+            fstep = u.Quantity(1000.0, u.Hz)
         if sum([fstep is not None, resample is not None]) != 1:
             raise ValueError("only one of fstep or resample can be specified")
 
@@ -407,16 +429,27 @@ class MultiSweep(_MultiSweepDataRef, SweepMixin):
             fstep = (fs[0, 1] - fs[0, 0]) / resample
 
         logger.debug(
-            f"build D21 with fs=[{fmin}, {fmax}, {fstep}]"
-            f" exclude_edge_samples={exclude_edge_samples}"
-            f" original fs=[{fs.min()}, {fs.max()}] smooth={smooth} method={method}"
+            (
+                f"build D21 with fs=[{fmin}, {fmax}, {fstep}]"
+                f" exclude_edge_samples={exclude_edge_samples}"
+                f" original fs=[{fs.min()}, {fs.max()}] smooth={smooth} method={method}"
+            ),
         )
         fs = (
-            np.arange(fmin.to_value(u.Hz), fmax.to_value(u.Hz), fstep.to_value(u.Hz))  # type: ignore
+            np.arange(
+                fmin.to_value(u.Hz),
+                fmax.to_value(u.Hz),
+                cast(u.Quantity, fstep).to_value(u.Hz),
+            )
             << u.Hz
         )
         adiqs0 = np.abs(
-            self.diqs_df(self.S21, self.frequency, smooth=smooth, method=method)
+            self.diqs_df(
+                self.S21,
+                self.frequency,
+                smooth=smooth,
+                method=method,
+            ),
         )
         adiqs = np.zeros(fs.shape, dtype=np.double) << u.adu / u.Hz  # type: ignore
         adiqscov = np.zeros(fs.shape, dtype=int)
@@ -444,7 +477,7 @@ class MultiSweep(_MultiSweepDataRef, SweepMixin):
         m = adiqscov > 0
         adiqs[m] /= adiqscov[m]
         adiqs[np.isnan(adiqs)] = 0
-        unified = Sweep(
+        return Sweep(
             S21=None,
             D21=adiqs,
             frequency=fs,
@@ -452,16 +485,19 @@ class MultiSweep(_MultiSweepDataRef, SweepMixin):
                 "d21_cov": adiqscov,
             },
         )
-        return unified
 
     @staticmethod
     def diqs_df(iqs, fs, smooth=5, method="savgol"):
-        if smooth in (None, 0):
-            if method != "gradient":
-                raise ValueError("no-smooth only works for gradient")
-            else:
-                pass
-        diqs = np.full(iqs.shape, np.nan, dtype=iqs.dtype) << (u.adu / u.Hz)  # type: ignore
+        """Return the dirrivative of S21 with respect to the frequency."""
+        if smooth in (None, 0) and method != "gradient":
+            raise ValueError("no-smooth only works for gradient")
+        diqs = np.full(
+            iqs.shape,
+            np.nan,
+            dtype=iqs.dtype,
+        ) << (
+            u.adu / u.Hz
+        )  # type: ignore
         if method == "gradient":
             if smooth is not None and smooth > 0:
                 iqs = _csmooth(iqs, size=smooth, mode="mirror") << u.adu
@@ -471,20 +507,20 @@ class MultiSweep(_MultiSweepDataRef, SweepMixin):
             from scipy.signal import savgol_filter
 
             for i in range(iqs.shape[0]):
-                df = (fs[i][1] - fs[i][0]).to_value(u.Hz)
+                deltaf = (fs[i][1] - fs[i][0]).to_value(u.Hz)
                 xx = savgol_filter(
                     iqs[i].real.to_value(u.adu),
                     window_length=smooth,
                     polyorder=2,
                     deriv=1,
-                    delta=df,
+                    delta=deltaf,
                 )
                 yy = savgol_filter(
                     iqs[i].imag.to_value(u.adu),
                     window_length=smooth,
                     polyorder=2,
                     deriv=1,
-                    delta=df,
+                    delta=deltaf,
                 )
                 diqs[i] = make_complex(xx, yy) << (u.adu / u.Hz)  # type: ignore
         return diqs
@@ -499,10 +535,7 @@ class MultiSweep(_MultiSweepDataRef, SweepMixin):
         )
 
     def __str__(self):
-        if self.data is None:
-            shape = "(empty)"
-        else:
-            shape = self.data.shape
+        shape = "(empty)" if self.data is None else self.data.shape
         return f"{self.__class__.__name__}{shape}"
 
 

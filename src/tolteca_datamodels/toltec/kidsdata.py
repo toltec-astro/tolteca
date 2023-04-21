@@ -1,14 +1,25 @@
-from collections import namedtuple
-from enum import Enum, Flag, auto
 import abc
-from collections import defaultdict
-from functools import cached_property
 import functools
+from collections import defaultdict
+from enum import Enum
+from functools import cached_property
+from typing import Any
+
 from loguru import logger
+
 from .types import ToltecDataKind
+
+__all__ = [
+    "KidsDataAxis",
+    "KidsDataAxisSlicerMeta",
+    "KidsDataAxisInfoMixin",
+    "KidsDataAxisSlicer",
+]
 
 
 class KidsDataAxis(Enum):
+    """The KIDs data axis."""
+
     Block = "block"
     Chan = "chan"
     Sample = "sample"
@@ -55,7 +66,7 @@ class KidsDataAxisSlicerMeta(abc.ABCMeta):
                     result = result.union(types)
             return result
 
-        cls.axis_types = cached_property(_get_axis_types)
+        cls._get_axis_types = _get_axis_types
 
         # the below makes available the *_loc methods so
         # that is returns an instance of slicer_cls
@@ -67,26 +78,45 @@ class KidsDataAxisSlicerMeta(abc.ABCMeta):
             else:
                 # inst is the underlying obj
                 slicer = slicer_cls(inst)
-                io_obj = inst.io_obj
+                io_obj = inst
             if axis_type not in io_obj.axis_types:
                 raise ValueError(
-                    f"{axis_type} axis is not available"
-                    f" for data kind {io_obj.data_kind}"
+                    (
+                        f"{axis_type} axis is not available"
+                        f" for data kind {io_obj.data_kind}"
+                    ),
                 )
-            slicer._axis_type = axis_type
+            slicer._axis_type = axis_type  # noqa: SLF001
             return slicer
 
         for t in functools.reduce(
-            lambda a, b: a.union(b), cls._axis_types_map.values()
+            lambda a, b: a.union(b),
+            cls._axis_types_map.values(),
         ):
             func = functools.partial(_axis_loc, axis_type=t)
-            name = f"{t}_loc"
+            name = f"{t.value}_loc"
             prop = property(func)
             prop.__doc__ = f"The axis slicer for locating {t}."
             setattr(cls, name, prop)
 
 
-class KidsDataAxisSlicer(object, metaclass=KidsDataAxisSlicerMeta):
+class KidsDataAxisInfoMixin:
+    """A helper that defines some common KIDs data axis properties."""
+
+    _get_axis_types: Any
+    block_loc: Any
+    chan_loc: Any
+    sample_loc: Any
+    sweep_loc: Any
+    time_loc: Any
+
+    @cached_property
+    def axis_types(self):
+        """The axis types."""
+        return self._get_axis_types()
+
+
+class KidsDataAxisSlicer(KidsDataAxisInfoMixin, metaclass=KidsDataAxisSlicerMeta):
     """A helper class to provide sliced view of `DataIO` for KIDs data.
 
     The class follows the builder pattern to collect arguments
@@ -107,40 +137,54 @@ class KidsDataAxisSlicer(object, metaclass=KidsDataAxisSlicerMeta):
             # arg is io_obj
             self._io_obj = arg
         self._args = defaultdict(lambda: [(), {}])
+        self._axis_type = None
 
     def __getitem__(self, *args):
-        # store the positional args
-        self._args[self._axis_type][0] = args  # type: ignore
+        """Set slicer args."""
+        self._args[self._axis_type][0] = args
         return self
 
     def __call__(self, *args, **kwargs):
-        # store all args
-        self._args[self._axis_type][0] = args  # type: ignore
-        self._args[self._axis_type][1] = kwargs  # type: ignore
+        """Set slicer args and kwargs."""
+        self._args[self._axis_type][0] = args
+        self._args[self._axis_type][1] = kwargs
         return self
 
+    @property
     def io_obj(self):
+        """The underlying io object."""
         return self._io_obj
 
+    @property
+    def args(self):
+        """The slicer args."""
+        return self._args
+
+    @property
+    def axis_type(self):
+        """The axis type."""
+        return self._axis_type
+
     def read(self):
-        # call the data reader
-        return self.io_obj._read_sliced(self)
+        """Invoke the io_obj reader with this slicer."""
+        return self.io_obj.read_sliced(self)
 
     def get_slice_op(self, axis_type):
-        # this returns the actual slice operator to be applied to the data
+        """Return the actual slice operator to be applied to the data."""
         dispatch_validator = {
             KidsDataAxis.Block: self._validate_slicer_index_only,
             KidsDataAxis.Time: self._validate_slicer_slice_only,
         }
         result = dispatch_validator.get(axis_type, self._validate_slicer_args_only)(
-            self, axis_type
+            self,
+            axis_type,
         )
         logger.debug(f"resolved {axis_type} slice obj: {result}")
         return result
 
     @staticmethod
     def _validate_slicer_index_only(slicer, axis_type):
-        args, kwargs = slicer._args[axis_type]
+        args, kwargs = slicer.args[axis_type]
         if len(kwargs) > 0:
             raise ValueError(f"{axis_type} loc does not accept keyword arguments.")
         if len(args) == 0:
@@ -155,7 +199,7 @@ class KidsDataAxisSlicer(object, metaclass=KidsDataAxisSlicerMeta):
 
     @staticmethod
     def _validate_slicer_slice_only(slicer, axis_type):
-        args, kwargs = slicer._args[axis_type]
+        args, kwargs = slicer.args[axis_type]
         if len(kwargs) > 0:
             raise ValueError(f"{axis_type} loc does not accept keyword arguments.")
         if len(args) == 0:
@@ -170,7 +214,7 @@ class KidsDataAxisSlicer(object, metaclass=KidsDataAxisSlicerMeta):
 
     @staticmethod
     def _validate_slicer_args_only(slicer, axis_type):
-        args, kwargs = slicer._args[axis_type]
+        args, kwargs = slicer.args[axis_type]
         if len(kwargs) > 0:
             raise ValueError(f"{axis_type} loc does not accept keyword arguments.")
         if len(args) > 1:
@@ -179,3 +223,4 @@ class KidsDataAxisSlicer(object, metaclass=KidsDataAxisSlicerMeta):
             return None
         if len(args) == 1:
             return args[0]
+        return None

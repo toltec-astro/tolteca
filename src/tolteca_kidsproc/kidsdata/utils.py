@@ -1,7 +1,7 @@
-from typing import Callable, Any
-from astropy.nddata import NDDataRef
-import astropy.units as u
+from typing import Any, Callable
 
+import astropy.units as u
+from astropy.nddata import NDDataRef
 
 __all__ = [
     "ExtendedNDDataRef",
@@ -15,6 +15,7 @@ class ExtendedNDDataRef(NDDataRef):
     """
 
     _slice_extra: Callable
+    meta: dict
 
     def __repr__(self):
         data = getattr(self, "_data", None)

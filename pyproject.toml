@@ -28,7 +28,8 @@ classifiers = [
 ]
 
 dependencies = [
-    "scipy"
+    "scipy",
+    "appdirs",
 ]
 
 [project.scripts]
@@ -122,6 +123,10 @@ extend-ignore = [
   "A001", "A002", "A003",  # shadowning builtin
   "ERA001",  # commented-out code
   "G004",  # logging with f-string
+  "N806",  # variable name upper case
+  "N802",  # function name upper case
+  "N803",  # argument upper case
+  "N815",  # class member upper case
 ]
 
 [tool.ruff.per-file-ignores]
