@@ -31,7 +31,7 @@ obsnum_str=$(printf "%06d" ${obsnum})
 # link files to input folder
 tel_file=${dataroot}/tel/tel_toltec*_${obsnum_str}_*.nc
 apt_file=${rcdir}/apt.ecsv
-apt_in_file=${rcdir}/apt_GW_v6_2.ecsv
+apt_in_file=${rcdir}/apt_GW_v8_with_fg_pg_loc_ori.ecsv #apt_GW_v6_2.ecsv
 # run match apt with current obs
 set -x
 ${pybindir}/python3 ${scriptdir}/make_matched_apt.py \
@@ -50,8 +50,8 @@ ln -sf ${apt_matched_file} ${rcdir}/data/${apt_filename}
 ln -sf ${dataroot}/toltec/tcs/toltec*/toltec*_${obsnum_str}_*.nc ${rcdir}/data/
 
 # run tolteca reduce
-$toltecaexec -d ${rcdir} -- reduce --jobkey reduced/${obsnum} --inputs.0.select "obsnum == ${obsnum} & (scannum == ${scannum})"
-# $toltecaexec -d ${rcdir} -- reduce --jobkey reduced/${obsnum} --inputs.0.select "obsnum == ${obsnum} & (scannum == ${scannum}) & (interface != \"toltec6\")"
+# $toltecaexec -d ${rcdir} -- reduce --jobkey reduced/${obsnum} --inputs.0.select "obsnum == ${obsnum} & (scannum == ${scannum})"
+$toltecaexec -d ${rcdir} -- reduce --jobkey reduced/${obsnum} --inputs.0.select "obsnum == ${obsnum} & (scannum == ${scannum}) & (interface != \"toltec6\")"
 # $toltecaexec -g -d ${rcdir} -- reduce --jobkey reduced/${obsnum} --inputs.0.select "(obsnum == ${obsnum}) & (scannum == ${scannum}) & (interface != \"toltec0\") & (interface != \"toltec7\")
 # & (interface != \"toltec9\") & (interface != \"toltec8\") & (interface != \"toltec2\") & (interface != \"toltec3\") " #& (interface != \"toltec1\") & (interface != \"toltec4\") & (interface != \"toltec6\")"
 # run the pointing script

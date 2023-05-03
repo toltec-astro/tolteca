@@ -36,13 +36,14 @@ echo "link: ${link}"
 echo "outfile: ${outfile}"
 echo "args: ${args}"
 
-
+upload_tones=1
 if [[ ${link} == *"vnasweep"* ]]; then
     type="vna"
 elif [[ ${link} == *"targsweep"* ]]; then
     type="targ"
 elif [[ ${link} == *"tune"* ]]; then
     type="targ"
+    upload_tones=0
 elif [[ ${link} == *"timestream"* ]]; then
     type="timestream"
 else
@@ -153,13 +154,17 @@ elif [[ ${type} == "targ" ]]; then
         # run the new reduce tune to generate all tables
         bash ${scriptdir}/reduce_sweep.sh $(readlink -f ${file})
     if [[ $outfile ]]; then
-        # ${pyexec} ${scriptdir}/fix_lo.py ${file} "${reportfile}" "${outfile}"
-        # the targ freqs.txt is compatible to what ICS expect.
-        targ_freqs_file=${reportfile%.*}_targfreqs.dat
-        cp ${targ_freqs_file} "${outfile}"
-        ampcor_file=${reportfile%.*}_ampcor.dat
-        etcdir=$(dirname ${outfile})
-        cp ${ampcor_file} "${etcdir}/default_targ_amps.dat"
+        if (( $upload_tones == 0 )); then
+            echo "skip upload tones during TUNE."
+        else
+            # ${pyexec} ${scriptdir}/fix_lo.py ${file} "${reportfile}" "${outfile}"
+            # the targ freqs.txt is compatible to what ICS expect.
+            targ_freqs_file=${reportfile%.*}_targfreqs.dat
+            cp ${targ_freqs_file} "${outfile}"
+            ampcor_file=${reportfile%.*}_ampcor.dat
+            etcdir=$(dirname ${outfile})
+            cp ${ampcor_file} "${etcdir}/default_targ_amps.dat"
+        fi
     fi
     elif [[ ${runmode} == "plot" ]]; then
         ${pyexec} ${kidspydir}/kidsvis.py ${file} --fitreport "${reportfile}" --use_derotate ${args} --grid 8 8 &
