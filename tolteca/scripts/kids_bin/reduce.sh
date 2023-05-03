@@ -51,6 +51,7 @@ else
     echo "unrecognized type ${file}, exit."
     # exit 1
 fi
+echo "running $type reduction, upload_tones=${upload_tones}"
 
 scriptdir=$(dirname "$(readlink -f "$0")")
 scratchdir=/data/data_toltec/reduced
@@ -154,7 +155,7 @@ elif [[ ${type} == "targ" ]]; then
         # run the new reduce tune to generate all tables
         bash ${scriptdir}/reduce_sweep.sh $(readlink -f ${file})
     if [[ $outfile ]]; then
-        if (( $upload_tones == 0 )); then
+        if (( ${upload_tones} == 0 )); then
             echo "skip upload tones during TUNE."
         else
             # ${pyexec} ${scriptdir}/fix_lo.py ${file} "${reportfile}" "${outfile}"
@@ -164,6 +165,7 @@ elif [[ ${type} == "targ" ]]; then
             ampcor_file=${reportfile%.*}_ampcor.dat
             etcdir=$(dirname ${outfile})
             cp ${ampcor_file} "${etcdir}/default_targ_amps.dat"
+            echo "updated ${etcdir} with targ freqs and amps"
         fi
     fi
     elif [[ ${runmode} == "plot" ]]; then
