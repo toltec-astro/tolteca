@@ -2230,6 +2230,10 @@ def main():
     # check if tune mode is applicable
     if sweep_data.meta['data_kind'].name == 'Tune' and option.tune_mode:
         logger.info(f"Running in tune mode, number of tones are fixed")
+        # check block index
+        if sweep_data.meta['n_blocks'] == 1:
+            logger.info(f"Skip processing in the middle of TUNE.")
+            sys.exit(0)
         vary_n_tones = False
     else:
         vary_n_tones = True
