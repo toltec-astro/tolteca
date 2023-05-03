@@ -530,3 +530,32 @@ if __name__ == "__main__":
         bods,
         show_plot=option.show_plot,
         output_dir=ql_output_dir, search_paths=[output_dir], apt_design=apt)
+
+    # call Nat's vna checker
+    if tbl['filesuffix'][0] == 'vnasweep':
+        from vnasweep_plotter_v2 import vna_rms
+        year = 2303 #2011 #2101
+        # testing out the class
+        v = vna_rms(bods=bods, year=year)
+
+        # plotting
+        rms_plot = 1
+        wf_plot = 1
+
+        # make save path
+        obsnum = bods.index_table['obsnum'][0]
+        subobsnum = bods.index_table['subobsnum'][0]
+        scannum = bods.index_table['scannum'][0]
+        outname = f"sweepcheck_{obsnum:06d}_{subobsnum:03d}_{scannum:04d}"
+        # rms plot
+        if rms_plot:
+            ctx = v.medS21_plot()
+            save_filepath=ql_output_dir.joinpath(outname + "_rms.png")
+            ctx['fig'].savefig(save_filepath)
+
+        # noise plot at each frequency
+        if wf_plot:
+            # make plot
+            ctx = v.noise_plot()
+            save_filepath=ql_output_dir.joinpath(outname + "_noise.png")
+            ctx['fig'].savefig(save_filepath)

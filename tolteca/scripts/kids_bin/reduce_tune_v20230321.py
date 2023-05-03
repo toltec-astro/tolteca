@@ -199,7 +199,7 @@ def find_peak_fp_fast(fs, y, Qrs, exclude_edge=5e3 << u.Hz, min_height=0.01):
         import pdb
         pdb.set_trace()
     lookahead = int(fwhm * 0.5)
-    min_lookahead, max_lookahead = 10, (len(y) // 5)
+    min_lookahead, max_lookahead = (len(y) // 10), (len(y) // 2)
     if lookahead < min_lookahead:
         logger.debug(f"use {min_lookahead=}")
         lookahead = min_lookahead
@@ -701,6 +701,8 @@ def make_tone_list(ref_data, sweep_data, debug_plot_kw=None):
     kmt = ref_data['kmp'].table
     kmt['di_ref'] = range(len(kmt))
     kmt['fr_ref'] = kmt['fr'].quantity + shift
+    Qr_med = np.median(kmt['Qr'])
+    kmt['Qr'][kmt["Qr"] > Qr_med] = Qr_med
 
     # generate some statistics of the frquency grid
     fs = swp.frequency
@@ -753,8 +755,8 @@ def make_tone_list(ref_data, sweep_data, debug_plot_kw=None):
         min_group_size = 1
     else:
         find_peak_kw = {
-            'min_height_value': 0.1 / 20,  # 0.2 db half peak depth
-            'min_height_n_sigma': 20
+            'min_height_value': 0.05 / 20,  # 0.2 db half peak depth
+            'min_height_n_sigma': 5
             }
         d21_find_peak_kw = {
             'min_height_n_sigma': 10,
@@ -2245,13 +2247,13 @@ def main():
             # 'despike_enabled': True,
             # 'd21shift_enabled': True,
             # 'channelgroups_enabled': True,
-            # 'tonelist_enabled': True,
+            'tonelist_enabled': True,
             # 'tonelist_save': output_dir.joinpath(sweep_file.stem + '_tonelist.png'),
             # 'modelgroups_enabled': True,
             # "prepfit_enabled": True,
             # 'f_shift_enabled': True,
             "checkfit_enabled": True,
-            'gi0': 0,
+            'gi0': 300,
             'di0': 0,
             'nrows': 5,
             'ncols': 10
