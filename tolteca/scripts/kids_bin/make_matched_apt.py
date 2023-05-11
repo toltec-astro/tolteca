@@ -198,7 +198,7 @@ def _make_matched_apt_nw(apt_left, apt_right, Qr_at_500MHz=None, debug_plot_kw=N
     logger.debug(f"found {shift=} for {nw=}")
     # apply shift
     fr_left_shifted = fr_left + shift
-    eps = 50 << u.kHz
+    eps = 200 << u.kHz
     # here we match the good kids only first, then fill in the rest with bad
     good = apt_right['flag'] > 0
     id_matched = _match1d(

@@ -113,8 +113,8 @@ def get_quicklook_response(ql_files, save_path):
     summary_image_path = Path(save_path).joinpath('lmt_tcs_quicklook_summary.png')
     if ql_files:
         summary_image = _vstack_images(ql_files)
-        if not summary_image_path.exists():
-            summary_image.save(summary_image_path)
+        # if not summary_image_path.exists():
+        summary_image.save(summary_image_path)
     return {
             "lmt_tcs": {
                 "quicklook": {

@@ -10,12 +10,13 @@ from netCDF4 import Dataset
 if __name__ == "__main__":
     import sys
 
-    tune = Dataset(sys.argv[1])
+    tune_path = sys.argv[1]
+    tune = Dataset(tune_path)
 
     tone_amps_lut = tune.variables['Header.Toltec.ToneAmps'][:]
 
     tone_amps_lut[tone_amps_lut <= 0] = 1.
-    # print(tone_amps_lut)
+    print(tone_amps_lut)
     tone_amps = Table.read(sys.argv[2], names=['amp'], format='ascii.no_header')['amp']
 
     # print(tone_amps)
@@ -43,4 +44,4 @@ if __name__ == "__main__":
 
     print(current_tone_amps)
     # print(tone_amps)
-    # Table([tone_amps]).write(sys.argv[2].replace('.txt', '.lut.txt'), format='ascii.no_header', overwrite=True)
+    Table([tone_amps]).write(sys.argv[2].replace('.txt', '.lut.txt'), format='ascii.no_header', overwrite=True)

@@ -1179,13 +1179,14 @@ def export_tone_list(tone_list_ctx, debug_plot_kw=None, vary_n_tones=True):
 
         # expand this to a dummy tune.txt file for compatibility
         # TODO this will be phased out when we update tlaloc.
-        compat_targ_freqs_dat = targ_out[['f_centered', 'f_out', 'f_in']]
+        # also limit this to maximum 1000 entries
+        compat_targ_freqs_dat = targ_out[['f_centered', 'f_out', 'f_in']][:1000]
         for p in ['flag', 'fp', 'Qr', 'Qc', 'fr', 'A', 'normI', 'normQ', 'slopeI', 'slopeQ', 'interceptI', 'interceptQ']:
             compat_targ_freqs_dat[p] = 0.
         logger.debug(f'output compat_targ_freqs.dat:\n{compat_targ_freqs_dat}')
 
         # also for the ampcor file:
-        compat_targ_amps_dat = targ_out[['ampcor']]
+        compat_targ_amps_dat = targ_out[['ampcor']][:1000]
         logger.debug(f'output compat_targ_amps.dat:\n{compat_targ_amps_dat}')
         return locals()
     # TUNE or targsweep

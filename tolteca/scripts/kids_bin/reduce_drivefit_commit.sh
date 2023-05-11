@@ -50,7 +50,7 @@ for i in $(seq 0 12); do
     #    ${dataroot}/toltec/*/toltec${i}/toltec${i}_${obsnum_str}_001*_targsweep.nc  ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_adrv.p${perc}.txt
 
     ${pybindir}/python ${bin_lut_interp} \
-       ${dataroot}/toltec/*/toltec${i}/toltec${i}_${obsnum_str}_001*_targsweep.nc \
+       ${dataroot}/toltec/?cs/toltec${i}/toltec${i}_${obsnum_str}_001*_targsweep.nc \
        ${scratchdir}/drive_atten_toltec${i}_${obsnum_str}_adrv.p${perc}.txt \
        ${dataroot}/toltec/reduced/toltec${i}_${obsnum_str_current}_*_targfreqs.dat \
 
