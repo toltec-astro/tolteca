@@ -33,11 +33,8 @@ presets:
   - key: speed
     unit: arcsec/s
     value: 8
-    value_min: 2
+    value_min: 0
     value_max: 8
-    component_kw:
-      input_props:
-        readonly: true
   - key: t_turnaround
     unit: s
     value: 5
@@ -72,7 +69,7 @@ presets:
     unit: deg
     value: 3
     value_min: 0
-    value_max: 10
+    value_max: 8
   - key: space
     unit: arcmin
     value: 2
@@ -85,7 +82,7 @@ presets:
     unit: arcmin/s
     value: 8
     value_min: 2
-    value_max: 10
+    value_max: 8
   - key: t_turnaround
     unit: s
     value: 5
@@ -137,6 +134,7 @@ presets:
     unit: arcsec/s
     value: 5
     value_min: 2
+    value_max: 180
   - key: t_turnaround
     unit: s
     value: 12
@@ -151,6 +149,12 @@ presets:
     value: 0
     value_min: 0
     value_max: 360
+  - key: speed_lissajous
+    unit: arcsec/s
+    value: 50
+    value_min: 0
+    value_max: 180
+    description: 'The lissajous scan rate.'
   - key: delta
     unit: deg
     value: 0
@@ -168,15 +172,15 @@ presets:
     value_max: 6
   - key: x_omega_0
     unit: rad/s
-    value: 5.2
+    value: 4.
     value_min: 0
   - key: y_omega_0
     unit: rad/s
-    value: 4
+    value: 3.
     value_min: 0
   - key: delta_0
     unit: deg
-    value: 45
+    value: 60.
     value_min: 0
     value_max: 360
   - key: x_length_1
@@ -201,7 +205,7 @@ presets:
 
   - key: x_omega_1
     unit: rad/s
-    value: 0.46
+    value: 1.
     value_min: 0
     component_kw:
       className: "d-none"
@@ -210,7 +214,7 @@ presets:
 
   - key: y_omega_1
     unit: rad/s
-    value: 0.4
+    value: 1.
     value_min: 0
     component_kw:
       className: "d-none"
@@ -219,7 +223,7 @@ presets:
 
   - key: delta_1
     unit: deg
-    value: 45
+    value: 90.
     value_min: 0
     value_max: 360
     component_kw:
@@ -229,16 +233,14 @@ presets:
 
 - type: mapping
   key: toltec_blank_field_double_lissajous
-  label: "TolTEC: Small - 6 x 6 arcmin² double_lissajous, 10min"
+  label: "TolTEC: Small - 10 x 10 arcmin² double_lissajous, 30min"
   conditions:
     polarized: false
   description: 'A double lissajous pattern with more controls for small-sized field observation using TolTEC'
   description_long: |
     This is the advanced lissajous pattern which simply sums to other lissajous
     patterns.  The general idea is to have a small, slow lissajous run
-    underneath a larger lissajous pattern.  We haven't optimized the parameters
-    for these yet but eventually we will and then we'll set them as the
-    defaults here.
+    underneath a larger lissajous pattern.
   data:
   - key: type
     value: double_lissajous
@@ -246,55 +248,61 @@ presets:
     component_kw:
       input_props:
         readonly: true
+  - key: speed_lissajous
+    unit: arcsec/s
+    value: 50
+    value_min: 0
+    value_max: 180
+    description: 'The lissajous scan rate.'
   - key: x_length_0
     unit: arcmin
-    value: 3.5
+    value: 6.0
     value_min: 2
     value_max: 15
   - key: y_length_0
     unit: arcmin
-    value: 3.5
+    value: 6.0
     value_min: 2
     value_max: 15
   - key: x_omega_0
     unit: rad/s
-    value: 5.2
+    value: 5.0
     value_min: 0
   - key: y_omega_0
     unit: rad/s
-    value: 4
+    value: 4.0
     value_min: 0
   - key: delta_0
     unit: deg
-    value: 45
+    value: 45.
     value_min: 0
     value_max: 360
   - key: x_length_1
     unit: arcmin
-    value: 0.5
+    value: 2.0
     value_min: 0
-    value_max: 2
+    value_max: 4
   - key: y_length_1
     unit: arcmin
-    value: 0.5
+    value: 2.0
     value_min: 0
-    value_max: 2
+    value_max: 4
   - key: x_omega_1
     unit: rad/s
-    value: 0.46
+    value: 1.
     value_min: 0
   - key: y_omega_1
     unit: rad/s
-    value: 0.4
+    value: 1.
     value_min: 0
   - key: delta_1
     unit: deg
-    value: 45
+    value: 90.
     value_min: 0
     value_max: 360
   - key: delta
     unit: deg
-    value: 22.5
+    value: 18.
     value_min: 0
     value_max: 360
   - key: rot
@@ -304,7 +312,7 @@ presets:
     value_max: 360
   - key: t_exp
     unit: min
-    value: 10
+    value: 30
     value_min: 1
     value_max: 60
     description: 'Exposure time of observation.'
@@ -326,6 +334,12 @@ presets:
     component_kw:
       input_props:
         readonly: true
+  - key: speed_lissajous
+    unit: arcsec/s
+    value: 50
+    value_min: 0
+    value_max: 180
+    description: 'The lissajous scan rate.'
   - key: x_length
     unit: arcmin
     value: 4.0

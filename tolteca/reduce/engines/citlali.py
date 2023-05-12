@@ -811,6 +811,7 @@ def _fix_tel(source, output_dir):
 def _fix_apt(source, output_dir):
     # this is a temporary fix to make citlali work with the
     # apt
+    logger = get_logger()
     tbl = Table.read(source, format='ascii.ecsv')
     if all(tbl[c].dtype in [float, np.float32] for c in tbl.colnames):
         # by-pass it when it is already all float
@@ -826,42 +827,52 @@ def _fix_apt(source, output_dir):
     tbl_new['fg'] = np.array(tbl['fg'], dtype='d')
     tbl_new['pg'] = np.array(tbl['pg'], dtype='d')
     tbl_new['ori'] = np.array(tbl['ori'], dtype='d')
+    tbl_new['loc'] = np.array(tbl['loc'], dtype='d')
     tbl_new['array'] = np.array(tbl['array'], dtype='d')
-    tbl_new['flxscale'] = np.array(tbl['flxscale'], dtype='d')
     tbl_new['x_t'] = tbl['x_t'].quantity.to_value(u.arcsec)
-    tbl_new['x_t_err'] = 0.
     tbl_new['y_t'] = tbl['y_t'].quantity.to_value(u.arcsec)
-    tbl_new['y_t_err'] = 0.
 
-    if 'pa_t' in tbl.colnames:
-        tbl_new['pa_t'] = tbl['pa_t'].quantity.to_value(u.radian)
-        tbl_new['pa_t_err'] = 0.
-    tbl_new['a_fwhm'] = tbl['a_fwhm'].quantity.to_value(u.arcsec)
-    tbl_new['a_fwhm_err'] = 0.
-    tbl_new['b_fwhm'] = tbl['b_fwhm'].quantity.to_value(u.arcsec)
-    tbl_new['b_fwhm_err'] = 0.
-    tbl_new['angle'] = 0.
-    tbl_new['angle_err'] = 0.
-    tbl_new['amp'] = 1.
-    tbl_new['amp_err'] = 0.
-    tbl_new['responsivity'] = tbl['responsivity'].quantity.to_value(u.pW ** -1)
+    # these are items that does not show up in the some apt
+    for c, unit, defval in [
+            ("tone_freq", u.Hz, 0.),
+            ('responsivity', u.pW  ** -1, 1.),
+            ('flxscale', u.mJy / u.beam, 1.),
+            ("x_t_err", u.arcsec, 0.),
+            ("y_t_err", u.arcsec, 0.),
+            ("x_t_raw", u.arcsec, 0.),
+            ("y_t_raw", u.arcsec, 0.),
+            ("x_t_derot", u.arcsec, 0.),
+            ("y_t_derot", u.arcsec, 0.),
+            ("pa_t", u.radian, 0.),
+            ("pa_t_err", u.radian, 0.),
+            ("a_fwhm", u.arcsec, 0.),
+            ("a_fwhm_err", u.arcsec, 0.),
+            ("b_fwhm", u.arcsec, 0.),
+            ("b_fwhm_err", u.arcsec, 0.),
+            ("angle", u.radian, 0.),
+            ("angle_err", u.radian, 0.),
+            ("amp", None, 1.),
+            ("amp_err", None, 0.),
+            ("sens", u.mJy * u.s ** (1/2), 1.),
+            ("derot_elev", u.radian, 0.),
+            ("sig2noise", None, 0.),
+            ("converge_iter", None, 0.),
+            ]:
+        if c not in tbl.colnames:
+            tbl_new[c] = 0.
+        else:
+            if unit is not None:
+                c_value = tbl[c].quantity.to_value(unit)
+            else:
+                c_value = tbl[c]
+            tbl_new[c] = np.array(c_value, dtype='d')
+        if unit is not None:
+            tbl_new[c].unit = unit
+
     flag = tbl['flag']
     if hasattr(flag, 'filled'):
         flag = flag.filled(0.)
     tbl_new['flag'] = 1. * flag
-    tbl_new['sens'] = 1.
-    tbl_new['sig2noise'] = 1.
-    tbl_new['converge_iter'] = 0.
-    tbl_new['derot_elev'] = 0.
-    tbl_new['loc'] = -1.
-    if 'loc' in tbl.colnames:
-        tbl_new['loc'] = np.array(tbl['loc'], dtype='d')
-    for c in ["tone_freq", "x_t_raw", "y_t_raw", "x_t_derot", "y_t_derot"]:
-        if c not in tbl.colnames:
-            tbl_new[c] = 0.
-        else:
-            tbl_new[c] = np.array(tbl[c], dtype='d')
-
     source_new = output_dir.joinpath(Path(source).name.replace('.ecsv', '_trimmed.ecsv')).as_posix()
     tbl_new.write(source_new, format='ascii.ecsv', overwrite=True)
     return source_new

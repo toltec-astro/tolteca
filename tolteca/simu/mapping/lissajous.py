@@ -62,6 +62,7 @@ class LissajousModelMeta(OffsetMappingModel.__class__):
 
         attrs['evaluate_holdflag'] = evaluate_holdflag
         attrs['t_pattern'] = property(meta.calc_t_pattern)
+        attrs['avg_speed'] = property(meta.calc_avg_speed)
         return attrs
 
     pattern_name = 'lissajous'
@@ -98,10 +99,23 @@ class LissajousModelMeta(OffsetMappingModel.__class__):
         r = np.lcm(int(r * s), s) / s
         return (t_x * r).to(u.s)
 
+    @staticmethod
+    def _calc_avg_speed(x_length, y_length, x_omega, y_omega):
+        v_x_avg = 2 * x_length * x_omega.quantity.to(
+                u.Hz, equivalencies=[(u.cy/u.s, u.Hz)])
+        v_y_avg = 2 * y_length * y_omega.quantity.to(
+                u.Hz, equivalencies=[(u.cy/u.s, u.Hz)])
+        # TODO this is not accurate
+        return np.hypot(v_x_avg, v_y_avg).to(u.arcsec / u.s)
+
     @classmethod
     def calc_t_pattern(cls, m):
         """Compute the time to execute the full pattern for model."""
         return cls._calc_t_pattern(m.x_omega, m.y_omega)
+
+    @classmethod
+    def calc_avg_speed(cls, m):
+        return cls._calc_avg_speed(m.x_length, m.y_length, m.x_omega, m.y_omega)
 
 
 class SkyLissajousModel(
@@ -188,6 +202,7 @@ class DoubleLissajousModelMeta(OffsetMappingModel.__class__):
 
         attrs['evaluate_holdflag'] = evaluate_holdflag
         attrs['t_pattern'] = property(meta.calc_t_pattern)
+        attrs['avg_speed'] = property(meta.calc_avg_speed)
         return attrs
 
     pattern_name = 'double_lissajous'
@@ -224,9 +239,21 @@ class DoubleLissajousModelMeta(OffsetMappingModel.__class__):
     @staticmethod
     def calc_t_pattern(m):
         """Compute the time to execute the full pattern for model."""
-        t0 = LissajousModelMeta._calc_t_pattern(m.x_omega_0, m.y_omega_0)
-        t1 = LissajousModelMeta._calc_t_pattern(m.x_omega_1, m.y_omega_1)
+        if m.x_length_0 != 0 and m.y_length_0 != 0:
+            t0 = LissajousModelMeta._calc_t_pattern(m.x_omega_0, m.y_omega_0)
+        else:
+            t0 = 0.
+        if m.x_length_1 != 0 and m.y_length_0 != 1:
+            t1 = LissajousModelMeta._calc_t_pattern(m.x_omega_1, m.y_omega_1)
+        else:
+            t1 = 0.
         return t0 if t0 > t1 else t1
+
+    @classmethod
+    def calc_avg_speed(cls, m):
+        v0 = LissajousModelMeta._calc_avg_speed(m.x_length_0, m.y_length_0, m.x_omega_0, m.y_omega_0)
+        v1 = LissajousModelMeta._calc_avg_speed(m.x_length_1, m.y_length_1, m.x_omega_1, m.y_omega_1)
+        return np.hypot(v0, v1)
 
 
 class SkyDoubleLissajousModel(
@@ -328,6 +355,7 @@ class RastajousModelMeta(OffsetMappingModel.__class__):
 
         attrs['evaluate_holdflag'] = evaluate_holdflag
         attrs['t_pattern'] = property(meta.calc_t_pattern)
+        attrs['avg_speed'] = property(meta.calc_avg_speed)
         return attrs
 
     pattern_name = 'rastajous'
@@ -375,6 +403,11 @@ class RastajousModelMeta(OffsetMappingModel.__class__):
         """Compute the time to execute the full pattern for model."""
         # total pattern time is based on the raster pattern
         return RasterScanModelMeta.calc_t_pattern(m)
+
+    @classmethod
+    def calc_avg_speed(cls, m):
+        v = DoubleLissajousModelMeta.calc_avg_speed(m)
+        return np.hypot(m.speed, v)
 
 
 class SkyRastajousModel(
