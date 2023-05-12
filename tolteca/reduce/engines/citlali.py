@@ -606,7 +606,7 @@ class CitlaliProc(object):
     def _check_select(cls, index_table, conds):
         # build a n_entry x n_cond matrix recording the applicable status
         # of the select conds.
-        df = index_table[[c for c in index_table.colnames if len(index_table[c].shape) == 1]].to_pandas()
+        df = index_table[[c for c in index_table.colnames if len(index_table[c].shape) == 1 and c != 'ut']].to_pandas()
         check = np.zeros((len(df), len(conds)), dtype=bool)
         for j, cond in enumerate(conds):
             # check the "select" against the index_table

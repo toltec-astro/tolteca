@@ -540,7 +540,13 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             if k & data_kind:
                 # read all entries in mapper
                 for kk in m.nc_node_map.keys():
-                    _meta[kk] = m.getany(kk)
+                    if kk in ['repeatvar']:
+                        if m.hasname(kk):
+                            _meta[kk] = m.getany(kk)
+                        else:
+                            _meta[kk] = 0
+                    else:
+                        _meta[kk] = m.getany(kk)
 
         # update meta using the per type registered updater.
         for k, _meta_updater in self._meta_updaters.items():
