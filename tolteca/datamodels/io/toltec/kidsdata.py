@@ -329,7 +329,10 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                 },
             'axis_data': {
                 "tones": "Header.Toltec.ToneFreq",
-                'flos': "Data.Toltec.LoFreq",
+                'flos': [
+                    "Data.Toltec.LoFreq",
+                    "Data.Toltec.SweepFreq",
+                    ],
                 "tone_centers": "Header.Kids.tones",
                 "sweeps": "Header.Kids.sweeps",
                 },
