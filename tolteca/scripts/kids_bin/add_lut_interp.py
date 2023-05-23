@@ -22,6 +22,10 @@ if __name__ == "__main__":
     # print(tone_amps)
 
     tone_amps = tone_amps * tone_amps_lut
+    # limit the range such that it does not increate the dyanmic range
+    lims = tone_amps_lut.min(), tone_amps_lut.max()
+    tone_amps[tone_amps < lims[0]] = lims[0]
+    tone_amps[tone_amps > lims[1]] = lims[1]
     tone_amps_norm = np.max(tone_amps)
     tone_amps_norm_db = -10 * np.log10(tone_amps_norm)
     print(f'norm factor {tone_amps_norm} ({tone_amps_norm_db} db)')

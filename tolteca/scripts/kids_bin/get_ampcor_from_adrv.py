@@ -37,9 +37,9 @@ def make_ampcor(adrv_file, perc, plot=False, cutoff_max=30., cutoff_min=0):
         ampcor = 10 ** ((a_drv_ref - a) / 20.)
         ampcors.append(ampcor)
     ampcors = np.array(ampcors)
-    m = ampcors > 1.0
-    print(f'{np.sum(m)}/{len(m)} has ampcor cutoff at 1.0')
-    ampcors[m] = 1
+    # m = ampcors > 1.0
+    # print(f'{np.sum(m)}/{len(m)} has ampcor cutoff at 1.0')
+    # ampcors[m] = 1
     outfile = Path(adrv_file).with_suffix(f'.p{perc:.0f}.txt')
     print(f"save to file {outfile}")
     np.savetxt(outfile, ampcors)
