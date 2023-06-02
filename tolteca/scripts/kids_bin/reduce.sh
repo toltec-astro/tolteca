@@ -160,7 +160,7 @@ elif [[ ${type} == "targ" ]]; then
             # this update the header so they are properly propagated
             ${pyexec} ${scriptdir}/skip_upload_tones.py ${file} "${outfile}"
             # this enables the kidscpp tones
-            ${pyexec} ${scriptdir}/fix_lo.py ${file} "${reportfile}" "${outfile}"
+            # ${pyexec} ${scriptdir}/fix_lo.py ${file} "${reportfile}" "${outfile}"
         else
             # ${pyexec} ${scriptdir}/fix_lo.py ${file} "${reportfile}" "${outfile}"
             # the targ freqs.txt is compatible to what ICS expect.
