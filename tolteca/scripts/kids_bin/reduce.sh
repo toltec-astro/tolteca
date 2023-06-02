@@ -157,6 +157,8 @@ elif [[ ${type} == "targ" ]]; then
     if [[ $outfile ]]; then
         if (( ${upload_tones} == 0 )); then
             echo "skip upload tones during TUNE."
+            # this update the header so they are properly propagated
+            ${pyexec} ${scriptdir}/skip_upload_tones.py ${file} "${outfile}"
         else
             # ${pyexec} ${scriptdir}/fix_lo.py ${file} "${reportfile}" "${outfile}"
             # the targ freqs.txt is compatible to what ICS expect.

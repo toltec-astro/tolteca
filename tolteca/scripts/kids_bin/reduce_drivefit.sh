@@ -24,7 +24,7 @@ echo "reduce DriveFit obsnum=${obsnum}"
 # obsnum_str=$(printf "%06d" ${obsnum})
 
 config_file=${scriptdir}/kid_phase_fit/config_20230321.yaml
-for nw in $(seq 0 13); do
+for nw in $(seq 0 12); do
     ${pybindir}/python ${scriptdir}/kid_phase_fit/kid_phase_fit.py $config_file --network ${nw} --obsnum ${obsnum}
 done
 

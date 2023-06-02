@@ -31,7 +31,7 @@ obsnum_str=$(printf "%06d" ${obsnum})
 # link files to input folder
 tel_file=${dataroot}/tel/tel_toltec*_${obsnum_str}_*.nc
 apt_file=${rcdir}/apt.ecsv
-apt_in_file=${rcdir}/apt_GW_v8_with_fg_pg_loc_ori.ecsv #apt_GW_v6_2.ecsv
+apt_in_file=${rcdir}/apt_GW_v8_with_fg_pg_loc_ori_flipped_flag.ecsv #apt_GW_v6_2.ecsv
 #apt_in_file=${rcdir}/apt_GW_v6_2.ecsv
 # run match apt with current obs
 set -x

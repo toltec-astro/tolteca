@@ -117,7 +117,7 @@ if __name__ == '__main__':
         pix_scale_arcsec = abs(wcs.wcs.cdelt[0])
         crpix1, crpix2 = wcs.wcs.crpix
         n1,n2,n3,n4 = img[1].data.shape
-        zoom_size_arcsec = 100#min(n3,n4)
+        zoom_size_arcsec = 200#min(n3,n4)
         zoom_size_pix = np.floor(zoom_size_arcsec/pix_scale_arcsec)
         
         # image plotting
@@ -226,7 +226,7 @@ if __name__ == '__main__':
                                      float(ppt_dict["y_t"]["value"]),0)
             
             #im = axi.imshow(img[img.index_of(args.images[ci])].data)
-            im = axi.imshow(cutout.data)
+            im = axi.imshow(cutout.data,vmax=ppt_dict["amp"]["value"])
             
             '''p1 = axi.get_position()
             ax_in = fig.add_axes([0, 0, .3*p1.width, .3*p1.height], projection=wcs)
