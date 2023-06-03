@@ -52,7 +52,7 @@ ln -sf ${dataroot}/toltec/tcs/toltec*/toltec*_${obsnum_str}_*.nc ${rcdir}/data/
 
 # run tolteca reduce
 # $toltecaexec -d ${rcdir} -- reduce --jobkey reduced/${obsnum} --inputs.0.select "obsnum == ${obsnum} & (scannum == ${scannum})"
-$toltecaexec -d ${rcdir} -g -- reduce --jobkey reduced/${obsnum} --inputs.0.select "obsnum == ${obsnum} & (scannum == ${scannum}) & (interface != \"toltec6\")" \
+$toltecaexec -d ${rcdir} -g -- reduce --jobkey reduced/${obsnum} --inputs.0.select "obsnum == ${obsnum} & (scannum == ${scannum}) & (interface != \"toltec6\") & (interface !=\"toltec2\")" \
     --steps.0.path ~/toltec_astro/citlali/build/bin/citlali
 # $toltecaexec -g -d ${rcdir} -- reduce --jobkey reduced/${obsnum} --inputs.0.select "(obsnum == ${obsnum}) & (scannum == ${scannum}) & (interface != \"toltec0\") & (interface != \"toltec6\")"
 # & (interface != \"toltec4\") & (interface != \"toltec6\") " #& (interface != \"toltec2\") & (interface != \"toltec3\") " #& (interface != \"toltec1\") & (interface != \"toltec4\") & (interface != \"toltec6\")"

@@ -12,6 +12,7 @@ from tollan.utils.log import get_logger, init_log, timeit
 from tollan.utils.wraps.stilts import stilts_match1d
 from tolteca.common.toltec import toltec_info
 from tolteca.datamodels.io.toltec.table import KidsModelParamsIO
+from tolteca.datamodels.toltec import BasicObsData
 
 matplotlib.use("QtAgg")
 import matplotlib.pyplot as plt
@@ -114,9 +115,27 @@ def _get_apt_obsnum(apt):
     return meta.get('Header.Toltec.Obsnum', meta.get('obsnum', None))
 
 
-def _get_kmp_files(data_rootpath, obsnum):
+def _get_tune_obsnum(data_rootpath, obsnum):
+    logger = get_logger()
     files = []
     obsnum_str = f'{obsnum:06d}'
+    for p in [
+        f'toltec/tcs/toltec*[0-9]/toltec*[0-9]_{obsnum_str}_*.nc',
+        f'toltec/ics/toltec*[0-9]/toltec*[0-9]_{obsnum_str}_*.nc',
+    ]:
+        files.extend(data_rootpath.glob(p))
+    if not files:
+        raise ValueError("unable to locate data file")
+    with BasicObsData(files[0]).open() as bod:
+        tune_obsnum = bod.meta['cal_obsnum']
+        logger.info(f"found {tune_obsnum=} for {obsnum=}")
+        return tune_obsnum
+
+
+def _get_kmp_files(data_rootpath, obsnum):
+    files = []
+    tune_obsnum = _get_tune_obsnum(data_rootpath, obsnum)
+    obsnum_str = f'{tune_obsnum:06d}'
     for p in [
         # f'toltec/tcs/toltec*[0-9]/toltec*[0-9]_{obsnum_str}_*.nc',
         # f'toltec/ics/toltec*[0-9]/toltec*[0-9]_{obsnum_str}_*.nc',
@@ -434,8 +453,12 @@ def make_matched_apt(apt_left, apt_right, debug_plot_kw=None, n_procs=4):
     for c in ['det_id_matched', 'array_matched', 'nw_matched']:
         apt_matched.remove_column(c)
     for c in beammap_cols:
+        if c == 'flag':
+            fill_value = 1.
+        else:
+            fill_value = 0.
         if hasattr(apt_matched[c], 'filled'):
-            apt_matched[c] = apt_matched[c].filled(0.)
+            apt_matched[c] = apt_matched[c].filled(fill_value)
     apt_matched['tone_freq'] = apt_matched['kids_f_out']
     logger.debug(f"joined apt:\n{apt_matched}")
     return apt_matched

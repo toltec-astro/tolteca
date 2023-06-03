@@ -224,10 +224,10 @@ if __name__ == '__main__':
             # get pixel coordinates of fitted positions
             x,y = wcs.all_world2pix(float(ppt_dict["x_t"]["value"]), 
                                      float(ppt_dict["y_t"]["value"]),0)
-            
+            i
             #im = axi.imshow(img[img.index_of(args.images[ci])].data)
-            im = axi.imshow(cutout.data,vmax=ppt_dict["amp"]["value"])#,vmin=-ppt_dict["amp"]["value"])
-            
+            im = axi.imshow(cutout.data,vmax=float(ppt_dict["amp"]["value"]),vmin=-0.25*float(ppt_dict["amp"]["value"]))
+            axi.invert_xaxis()
             '''p1 = axi.get_position()
             ax_in = fig.add_axes([0, 0, .3*p1.width, .3*p1.height], projection=wcs)
             p2 = ax_in.get_position()

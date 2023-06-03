@@ -27,7 +27,7 @@ weight:
    weight_type: lorentz
 
 flag_settings:
-   a_predict_guess:     0.15 # float, desired nonlinearity parameter, default is 0.2
+   a_predict_guess:     0.10 # float, desired nonlinearity parameter, default is 0.2
    a_predict_threshold: 0.25 # float, percent that a_predict_guess is off from data, default is 0.2
    pherr_threshold:     0.25 # float, percent that the phase fit is off from data, default is 0.2
    pherr_threshold_num: 10   # int, number of points allowed above pherr_threshold, default is 10
