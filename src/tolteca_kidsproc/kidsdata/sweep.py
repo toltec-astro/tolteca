@@ -3,7 +3,7 @@ from typing import Any, cast
 import astropy.units as u
 import numpy as np
 from astropy.nddata import NDDataRef, NDUncertainty
-from scipy.ndimage.filters import uniform_filter1d
+from scipy.ndimage import uniform_filter1d
 from tollan.utils.log import logger, timeit
 from tollan.utils.np import make_complex
 

@@ -50,7 +50,7 @@ class ToltecDataKind(Flag):
     """The legacy kids model fitting result from kidscpp."""
 
     KidsPropTable = auto()
-    """The KIDs finding results."""
+    """The KIDs finding/fitting results."""
 
     TonePropTable = auto()
     """The table listing tone properties, derived from KPT."""

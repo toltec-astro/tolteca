@@ -4,7 +4,12 @@ from pathlib import Path
 from tollan.utils.log import logger
 
 from tolteca_config import __version__
-from tolteca_config.core import RuntimeContext, WorkflowBase, WorkflowConfigBase
+from tolteca_config.core import (
+    RuntimeContext,
+    ConfigModel,
+    ConfigHandler,
+    SubConfigKeyTransformer,
+)
 
 
 def _create_sample_config_file(filepath):
@@ -38,7 +43,7 @@ def test_runtime_context():
     logger.debug(f"config:\n{rc.config.model_dump_yaml()}")
 
 
-class SimpleWorkflowConfig(WorkflowConfigBase):
+class SimpleWorkflowConfig(ConfigModel):
     """A simple workflow config for testing."""
 
     a: int
@@ -46,14 +51,11 @@ class SimpleWorkflowConfig(WorkflowConfigBase):
     c: None | str = None
 
 
-class SimpleWorkflow(WorkflowBase):
+class SimpleWorkflow(
+    SubConfigKeyTransformer["workflow"],
+    ConfigHandler[SimpleWorkflowConfig],
+):
     """A simple workflow for testing."""
-
-    runtime_config_key = "workflow"
-    """The runtime config key for this workflow."""
-
-    config_model_cls = SimpleWorkflowConfig
-    """The workflow config model class."""
 
 
 def test_simple_workflow():

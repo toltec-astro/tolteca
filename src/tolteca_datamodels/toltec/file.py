@@ -13,8 +13,8 @@ __all__ = ["guess_meta_from_source"]
 
 
 _file_suffix_ext_to_toltec_data_kind = {
-    ("toltec", "vnasweep", "nc"): ToltecDataKind.VnaSweep,
-    ("toltec", "targsweep", "nc"): ToltecDataKind.TargetSweep,
+    ("vnasweep", "nc"): ToltecDataKind.VnaSweep,
+    ("targsweep", "nc"): ToltecDataKind.TargetSweep,
     ("tune", "nc"): ToltecDataKind.Tune,
     ("timestream", "nc"): ToltecDataKind.RawTimeStream,
     ("vnasweep_processed", "nc"): ToltecDataKind.ReducedSweep,
@@ -26,10 +26,11 @@ _file_suffix_ext_to_toltec_data_kind = {
     ("tune", "txt"): ToltecDataKind.KidsModelParamsTable,
     ("targfreqs", "dat"): ToltecDataKind.TargFreqsDat,
     ("targamps", "dat"): ToltecDataKind.TargAmpsDat,
+    ("chanflag", "ecsv"): ToltecDataKind.ChanPropTable,
+    ("kidslist", "ecsv"): ToltecDataKind.KidsPropTable,
     ("kidsprop", "ecsv"): ToltecDataKind.KidsPropTable,
     ("toneprop", "ecsv"): ToltecDataKind.TonePropTable,
     ("chanprop", "ecsv"): ToltecDataKind.ChanPropTable,
-    ("kidsmodelprop", "ecsv"): ToltecDataKind.KidsPropTable,
 }
 
 _file_interface_ext_to_toltec_data_kind = {

@@ -30,6 +30,7 @@ class RunState(Enum):
 
     Success = auto()
     Failure = auto()
+    Skipped = auto()
 
 
 @dataclasses.dataclass
@@ -51,7 +52,6 @@ class WorkflowStepBase(ImmutableBaseModel):
 
     # these are for external flow control, and is not consumed by this step.
     enabled: bool = Field(default=True, description="Whether this step is enabled.")
-    plot_enabled: bool = Field(default=False, description="Wether to make plot")
 
     _run_context: RunContext = PrivateAttr(
         default_factory=lambda: RunContext(
@@ -59,7 +59,7 @@ class WorkflowStepBase(ImmutableBaseModel):
             input=None,
             context={},
             state=None,
-        )
+        ),
     )
 
     def prepare_input(self, *args, **kwargs):
@@ -76,6 +76,11 @@ class WorkflowStepBase(ImmutableBaseModel):
             raise ValueError(f"Unable to load data from {args}")
         return dctx.data
 
+    def _should_skip(self):
+        # when invoking with parent workflow, check if this step
+        # is enable
+        return self.run_context.parent_workflow is not None and not self.enabled
+
     def _mark_start(self, parent_workflow):
         self.run_context.parent_workflow = parent_workflow
 
@@ -87,6 +92,12 @@ class WorkflowStepBase(ImmutableBaseModel):
 
     def _mark_failure(self, ctx=None):
         self.run_context.state = RunState.Failure
+        if ctx is not None:
+            self.run_context.context.update(ctx)
+        return self.run_context
+
+    def _mark_skipped(self, ctx=None):
+        self.run_context.state = RunState.Skipped
         if ctx is not None:
             self.run_context.context.update(ctx)
         return self.run_context
@@ -118,7 +129,7 @@ class WorkflowStepBase(ImmutableBaseModel):
         key = self._make_sub_context_key(arg=func)
         if isinstance(default, _MissingType):
             if key not in self.run_context.context:
-                raise ValueError(f"no context for {arg} is found.")
+                raise ValueError(f"no context for {key} is found.")
             return self.run_context.context[key]
         return self.run_context.context.get(key, default)
 
@@ -127,7 +138,8 @@ class WorkflowStepBase(ImmutableBaseModel):
         if key not in self.run_context.context:
             if not callable(func):
                 raise TypeError(
-                    f"cannot create sub context with non-callable func type {type(func)}"
+                    "cannot create sub context with non-callable func type"
+                    f" {type(func)}"
                 )
             logger.debug(f"create sub context for {key} with {arg=}")
             func(arg)

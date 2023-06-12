@@ -1,6 +1,6 @@
 from pydantic import Field
 
-from tolteca_config.core import WorkflowBase, WorkflowConfigBase
+from tolteca_config.core import ConfigModel, ConfigHandler, SubConfigKeyTransformer
 
 from .sweep_check import SweepChecker
 
@@ -10,7 +10,7 @@ from .sweep_check import SweepChecker
 __all__ = ["Kids"]
 
 
-class KidsConfig(WorkflowConfigBase):
+class KidsConfig(ConfigModel):
     """The config for KIDs data handling workflow."""
 
     sweep_checker: SweepChecker = Field(default_factory=dict)
@@ -18,11 +18,8 @@ class KidsConfig(WorkflowConfigBase):
     # sweep_fitter: SweepFitter = Field(default_factory=dict)
 
 
-class Kids(WorkflowBase):
+class Kids(SubConfigKeyTransformer["kids"], ConfigHandler[KidsConfig]):
     """The class to work with KIDs data."""
-
-    runtime_config_key = "kids"
-    config_model_cls = KidsConfig
 
     @property
     def sweep_checker(self):

@@ -9,6 +9,7 @@ from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 from pydantic import Field
 from scipy.ndimage import median_filter
 from tollan.utils.log import logger, timeit
+from functools import lru_cache
 
 from tolteca_kidsproc.kidsdata import MultiSweep
 
@@ -21,6 +22,7 @@ __all__ = ["SweepChecker"]
 class SweepDataBitMask(IntFlag):
     """A bit mask for sweep data."""
 
+    s21_high_rms = auto()
     s21_small_range = auto()
     s21_spike = auto()
 
@@ -31,7 +33,7 @@ class DespikeStep(WorkflowStepBase):
     min_spike_height_frac: float = Field(
         default=0.1,
         description=(
-            "The minimum range of spike, " "measured as fraction to the S21 range."
+            "The minimum range of spike, measured as fraction to the S21 range."
         ),
     )
     min_S21_range_db: float = Field(
@@ -44,13 +46,16 @@ class DespikeStep(WorkflowStepBase):
         description="options passed to plotter.",
     )
 
-    def find_spike_S21(self, arg):
-        """Find spike in S21."""
-        swp = cast(MultiSweep, self.ensure_input_data(arg))
-        min_spike_height_frac = self.min_spike_height_frac
-        min_S21_range_db = self.min_S21_range_db
+    @staticmethod
+    def calc_y(swp):
+        """Return the proxy value to run the algorithms on."""
+        S21 = swp.S21.to_value(u.adu)
+        return 20.0 * np.log10(np.abs(S21))
 
-        y = self.calc_y(swp)
+    @lru_cache
+    @classmethod
+    def _find_spike_S21(cls, swp: MultiSweep, min_spike_height_frac, min_S21_range_db):
+        y = cls.calc_y(swp)
         y_med = median_filter(y, size=(1, 5))
         y_range = np.max(y_med, axis=-1) - np.min(y_med, axis=-1)
         s_spike = spike_height_frac = (y - y_med) / y_range[:, np.newaxis]
@@ -70,19 +75,27 @@ class DespikeStep(WorkflowStepBase):
         # create spike mask, which is all spikes found in good channel.
         mask = m_data_spike & (~m_data_small_range)
         logger.debug(f"masked spike {mask.sum()}/{mask.size}")
+        return locals()
 
-        return self._mark_sub_context(locals())
+    def find_spike_S21(self, arg):
+        """Find spike in S21."""
+        swp = cast(MultiSweep, self.ensure_input_data(arg))
+        return self._mark_sub_context(
+            self._find_spike_S21(
+                swp,
+                min_spike_height_frac=self.min_spike_height_frac,
+                min_S21_range_db=self.min_S21_range_db,
+            ),
+        )
 
-    @staticmethod
-    def calc_y(swp):
-        """Return the proxy value to run the algorithms on."""
-        S21 = swp.S21.to_value(u.adu)
-        return 20.0 * np.log10(np.abs(S21))
-
-    def despike(self, arg):
-        """Apply spike mask on data."""
-        # locate finder ctx
-        ctx_spike = self._get_or_create_sub_context(self.find_spike_S21, arg)
+    @lru_cache
+    @classmethod
+    def _despike(cls, swp: MultiSweep, min_spike_height_frac, min_S21_range_db):
+        ctx_spike = cls._find_spike_S21(
+            swp,
+            min_spike_height_frac=min_spike_height_frac,
+            min_S21_range_db=min_S21_range_db,
+        )
         swp = ctx_spike["swp"]
         spike_mask = ctx_spike["mask"]
         goodmask = ~spike_mask
@@ -92,13 +105,26 @@ class DespikeStep(WorkflowStepBase):
             m = goodmask[ci]
             swp.S21[ci] = np.interp(fs_Hz[ci], fs_Hz[ci][m], S21_adu[ci][m]) << u.adu
         # make despiked y
-        y_nospike = self.calc_y(swp)
-        return self._mark_sub_context(locals())
+        y_nospike = cls.calc_y(swp)
+        return locals()
+
+    def despike(self, arg):
+        """Apply spike mask on data."""
+        swp = cast(MultiSweep, self.ensure_input_data(arg))
+        return self._mark_sub_context(
+            self._despike(
+                swp,
+                min_spike_height_frac=self.min_spike_height_frac,
+                min_S21_range_db=self.min_S21_range_db,
+            ),
+        )
 
     @timeit
     def run(self, arg, parent_workflow=None):
         """Return sweep data that have spikes identified and interpolated away."""
         self._mark_start(parent_workflow=parent_workflow)
+        if self._should_skip():
+            return self._mark_skipped()
         # run
         self.despike(
             self.find_spike_S21(arg),
@@ -226,7 +252,8 @@ class DespikeStep(WorkflowStepBase):
         kph.plot_grid(plot_page_func)
         if save_filepath is None:
             kph.show()
-        kph.save(save_filepath)
+        else:
+            kph.save(save_filepath)
 
 
 class SweepChecker(WorkflowStepBase):
@@ -237,6 +264,11 @@ class SweepChecker(WorkflowStepBase):
         description="Despike step.",
     )
 
+    s21_rms_thresh: float = Field(
+        default=3,
+        description="Threshold to flag high rms data.",
+    )
+
     def run(self, arg, parent_workflow=None):
         """Run checking of sweep data."""
         self._mark_start(parent_workflow=parent_workflow)
@@ -244,20 +276,35 @@ class SweepChecker(WorkflowStepBase):
         swp_filepath = dctx.filepath
         swp = dctx.data
         logger.debug(f"check sweep {swp_filepath=} {swp}")
-        # do deskipe
         if self.despike.enabled:
-            self.check_spike(dctx)
+            ctx_despike = self.despike.run(arg, parent_workflow=self)
+            if self.despike.plot_enabled if plot is None else plot
+        ctx_check = self.check(dctx)
+        ctx_spike = self._get_sub_context(self.despike.find_spike_S21)
         return self._mark_success(locals())
 
-    def check_spike(self, arg, plot=None):
-        """Check spikes in `swp`."""
-        self.despike.run(arg, parent_workflow=self)
+    def run_despike(self, arg, plot=None):
+        """Run despikes."""
+        ctx = self.despike.run(arg, parent_workflow=self)
+        if plot:
+            self.despike.plot()
+        return self._mark_sub_context(ctx)
+
+    def check(self, arg, plot=None):
+        """Run despikes."""
+        # locate despike finder ctx
+        ctx_spike = self._get_or_create_sub_context(self.despike.find_spike_S21, arg)
+
+        ctx = self.despike.run(arg, parent_workflow=self)
         plot = self.despike.plot_enabled if plot is None else plot
         if plot:
             self.despike.plot()
+        return self._mark_sub_context(ctx)
 
-    def check_stats(self, arg):
-        """Check stats of `swp`."""
+    def check_data(self, arg):
+        """Check sweep data."""
+        swp = cast(MultiSweep, self.ensure_input_data(arg))
+        return self._mark_sub_context(locals())
 
     def check_noise(self, arg):
         """Check noise of `swp`."""

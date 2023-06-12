@@ -7,16 +7,17 @@ import numpy as np
 from astropy.nddata import StdDevUncertainty
 from astropy.table import Column, QTable
 from loguru import logger
-from tollan.utils.fileloc import FileLoc
 from tollan.utils.fmt import pformat_fancy_index, pformat_yaml
 from tollan.utils.general import add_to_dict
 from tollan.utils.nc import NcNodeMapper, NcNodeMapperError, ncstr
 from tollan.utils.np import make_complex
+import netCDF4
 
 from tolteca_kidsproc.kidsdata.sweep import MultiSweep, Sweep
 from tolteca_kidsproc.kidsdata.timestream import TimeStream
 
 from ..base import DataFileIO, DataFileIOError
+from .file import guess_meta_from_source
 from .kidsdata import (
     KidsDataAxis,
     KidsDataAxisInfoMixin,
@@ -40,43 +41,37 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
 
     Parameters
     ----------
-    loc : str, `pathlib.Path`, `FileLoc`, `netCDF4.Dataset`
+    source : str, `pathlib.Path`, `FileLoc`, `netCDF4.Dataset`
         The data file location or netCDF dataset.
         This is passed to `~tollan.utils.nc.NcNodeMapper`.
-
     open : bool
-        If True and `source` is set, open the file at constuction time.
+        If True, open file at constuction time.
     load_meta_on_open : bool
         If True, the meta data will be loaded upon opening of the file.
-    auto_close_on_pickle : bool
-        If True, the dataset is automatically closed when pickling.
-        This is ignored if `source` is None.
     """
 
     def __init__(
         self,
-        loc=None,
+        source,
         open=True,
         load_meta_on_open=True,
-        auto_close_on_pickle=True,
     ):
-        loc = self._validate_file_loc(loc)
-        if loc is None:
-            source = None
-        else:
-            if loc.is_remote:
-                raise ValueError("remote source is not supported yet.")
-            source = loc.path
-        super().__init__(file_loc=loc, source=source, io_obj=None, meta=None)
+        file_loc = (
+            source.filepath()
+            if isinstance(source, netCDF4.Dataset)
+            else source  # type: ignore
+        )
+        file_loc = self._validate_file_loc(file_loc)
+        if file_loc.is_remote:
+            raise ValueError("remote file is not supported.")
+        super().__init__(file_loc=file_loc, file_loc_orig=None, io_obj=None)
+
         # this hold the cached metadata.
         self._meta_cached = {}
 
         self._load_meta_on_open = load_meta_on_open
-        self._auto_close_on_pickle = auto_close_on_pickle
-        # setup the mapper for read meta data
         self._node_mappers = self._create_node_mappers(self._node_maps)
-        # if source is given, we just open it right away
-        if self.source is not None and open:
+        if open:
             self.open()
 
     @property
@@ -100,40 +95,16 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         except NcNodeMapperError:
             return None
 
-    @property
-    def file_loc(self):
-        """The data file location."""
-        # note that this is different from base class flie_loc which
-        # in that this is alwasy the local file path.
-        # here we return the _source if it is passed to the constructor
-        # we had ensured in open that if self._source is given,
-        # the source passed to open can only be None.
-        # so that source is always the same as self.nc_node.file_loc
-        if self._source is not None:
-            return FileLoc(self._source)
-        # if no dataset is open, we just return None
-        if self._io_obj is None:
-            return None
-        # the opened dataset file loc.
-        return self.node_mappers["ncopen"].file_loc
-
-    def open(self, source=None):
-        """Return a context to operate on `source`.
-
-        Parameters
-        ----------
-        source : str, `pathlib.Path`, `FileLoc`, `netCDF4.Dataset`, optional
-            The data file location or netCDF dataset. If None, the
-            source passed to constructor is used. Noe that source has to
-            be None if it has been specified in the constructor.
-        """
-        source = self._resolve_source_arg(source, remote_ok=False)
+    def open(self):
+        """Return the context for data IO."""
         # we just use one of the node_mapper to open the dataset, and
         # set the rest via set_nc_node
         # the node_mapper.open will handle the different types of source
         if self.io_obj is not None:
             # the file is already open
             return self
+        # reset the state so we load the meta from file header
+        self._reset_instance_state()
         nc_node = None
 
         def _open_sub_node(n):
@@ -141,7 +112,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             for _, v in n.items():
                 if isinstance(v, NcNodeMapper):
                     if nc_node is None:
-                        v.open(source)
+                        v.open(self.filepath)
                         nc_node = v.nc_node
                     else:
                         v.set_nc_node(nc_node)
@@ -165,6 +136,9 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     def _reset_instance_state(self):
         """Reset the instance state."""
         self._meta_cached.clear()
+        for k in ["meta", "data_kind"]:
+            if k in self.__dict__:
+                del self.__dict__[k]
 
     # maps of the data record for various types
     # the first level maps to the method of this class,
@@ -334,6 +308,15 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         # netCDF dataset.
         # here we reset various cache in order to have a clean start
         self._reset_instance_state()
+
+        # do guess if not open
+        if self.io_obj is None:
+            meta = guess_meta_from_source(self.file_loc)
+            if "data_kind" in meta:
+                self._meta_cached.update(meta)
+                return meta["data_kind"]
+            raise DataFileIOError("invalid file.")
+
         for k, m in self.node_mappers["identify"].items():
             valid, meta = self._data_kind_identifiers[k](self.__class__, m)
             logger.debug(f"check data kind as {k}: {valid} {meta}")
@@ -346,9 +329,12 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     @cached_property
     def meta(self):
         """The metadata."""
-        data_kind = self.data_kind
-        # load data kind specific meta
         _meta = self._meta_cached
+        data_kind = self.data_kind
+        if self.io_obj is None:
+            # stop if file is not open
+            return _meta
+        # load data kind specific meta
         for k, m in self.node_mappers["meta"].items():
             if k & data_kind:
                 # read all entries in mapper
@@ -998,24 +984,19 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
 
     def __getstate__(self):
         # need to reset the object before pickling
-        if self._auto_close_on_pickle and self._source is not None:
-            is_open = self.io_obj is not None
-            self.close()
-            return {
-                "_auto_close_on_pickle_wrapped": self.__dict__,
-                "_auto_close_on_pickle_is_open": is_open,
-            }
-        return self.__dict__
+        is_open = self.io_obj is not None
+        self.close()
+        return {
+            "_auto_close_on_pickle_wrapped": self.__dict__,
+            "_auto_close_on_pickle_is_open": is_open,
+        }
 
     def __setstate__(self, state):
-        if "_auto_close_on_pickle_wrapped" in state:
-            state, is_open = (
-                state["_auto_close_on_pickle_wrapped"],
-                state["_auto_close_on_pickle_is_open"],
-            )
-            self.__dict__.update(state)
-            if is_open:
-                # try open the object
-                self.open()
-            return
+        state, is_open = (
+            state["_auto_close_on_pickle_wrapped"],
+            state["_auto_close_on_pickle_is_open"],
+        )
         self.__dict__.update(state)
+        if is_open:
+            # try open the object
+            self.open()

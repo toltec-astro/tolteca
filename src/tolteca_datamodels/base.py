@@ -15,31 +15,31 @@ class DataFileIO(ExitStack):
     """A base class to help access data file contents.
 
     This class provide a common interface to work with data read and write.
-    It manages the properties  ``file_loc``, ``source``, and ``io_obj``:
+    It manages the properties  ``file_loc_orig``, ``file_loc``, and ``io_obj``:
 
-    * ``file_loc``. This is ``FileLoc`` instance that describe the origing of the file.
+    * ``file_loc_orig``. This is ``FileLoc`` instance of the origin of the file.
 
-    * ``source``. This is the actual local data source (file) to be opened.
+    * ``file_loc``. This is ``FileLoc`` instance of local file location to be opened.
 
-    * ``io_obj``. This is the object returned by opening the source.
+    * ``io_obj``. This is the data IO object after openning ``file_loc``.
 
     * ``meta``. Arbitury data.
 
-    Subclass should implement ``_file_loc``, ``_source`` and ``_io_obj``.
+    Subclass should implement ``_file_loc_orig``, ``_file_loc`` and ``_io_obj``.
 
     This class is also a subclass of `~contextlib.ExitStack`, which can be
     used to manage context objects such as opened files.
 
     """
 
+    _file_loc_orig: None | FileLoc
     _file_loc: None | FileLoc
-    _source: None | Path
     _io_obj: Any
     _meta: dict
 
-    def __init__(self, file_loc=None, source=None, io_obj=None, meta=None):
+    def __init__(self, file_loc_orig=None, file_loc=None, io_obj=None, meta=None):
+        self._file_loc_orig = self._validate_file_loc(file_loc_orig)
         self._file_loc = self._validate_file_loc(file_loc)
-        self._source = source
         self._io_obj = io_obj
         self._meta = {}
         if meta is not None:
@@ -52,34 +52,15 @@ class DataFileIO(ExitStack):
             return file_loc
         return FileLoc(file_loc)
 
-    def _resolve_source_arg(self, source, remote_ok=False):
-        """Resolve source argument passed to methods.
+    @property
+    def file_loc_orig(self):
+        """The original file location.
 
-        This helper is need to allow supporting specifying source at
-        construction time or when ``open`` is called.
+        Fallback to ``file_loc`` is not specified
         """
-        # ensure that we don't have source set twice.
-        if source is not None and self._source is not None:
-            raise ValueError(
-                (
-                    "source needs to be None for "
-                    "object with source set at construction time."
-                ),
-            )
-        # use the constructor source
-        if source is None:
-            source = self._source
-        if source is None:
-            raise ValueError("source is not specified")
-        if isinstance(source, FileLoc):
-            if source.is_remote and not remote_ok:
-                raise ValueError("source should point to a local file.")
-            source = source.path
-        elif isinstance(source, (str, Path)):
-            source = Path(source)
-        else:
-            raise TypeError(f"invalid source type {type(source)}.")
-        return source
+        if self._file_loc_orig is None:
+            return self.file_loc
+        return self._file_loc_orig
 
     @property
     def file_loc(self):
@@ -101,11 +82,6 @@ class DataFileIO(ExitStack):
         return self.file_loc.path
 
     @property
-    def source(self):
-        """The data source path."""
-        return self._source
-
-    @property
     def io_obj(self):
         """The low level data io object."""
         return self._io_obj
@@ -119,7 +95,5 @@ class DataFileIO(ExitStack):
         return f"{self.__class__.__name__}({self.file_loc})"
 
     def open(self):
-        """Return the context for access the `file_obj`."""
-        if self.io_obj is None:
-            raise DataFileIOError(f"file object not available for {self}")
-        return self.io_obj.open()
+        """Open the data IO."""
+        return NotImplemented
