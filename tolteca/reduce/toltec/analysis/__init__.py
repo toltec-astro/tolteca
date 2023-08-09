@@ -2,3 +2,4 @@
 
 from . import photutils  # noqa: F401
 from . import minkasi  # noqa: F401
+from . import simu # noqa: F401

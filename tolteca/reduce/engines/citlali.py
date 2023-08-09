@@ -397,8 +397,35 @@ class CitlaliProc(object):
         pass
 
     def __call__(
-            self, dataset, output_dir,
+        self, dataset, output_dir,
             log_level='INFO', logger_func=None, dry_run=False):
+        cfg = self._prepare_citlali_config(dataset, output_dir)
+        input_items = cfg['inputs']
+        name = input_items[0]['meta']['name']
+        output_name = f'citlali_o{name}_c{len(input_items)}.yaml'
+        cfg_filepath = output_dir.joinpath(output_name)
+        with open(cfg_filepath, 'w') as fo:
+            fo.write(pformat_yaml(cfg))
+            # yaml_dump(cfg, fo)
+        if dry_run:
+            logger_func(f"** DRY RUN **: citlali low level config: {cfg_filepath}")
+            logger_func(f"dry run's done.")
+            return None
+        success = self._citlali.run(
+            cfg_filepath, log_level=log_level, logger_func=logger_func)
+        # TODO implement the logic to locate the generated output files
+        # which will be used to create data prod object.
+        if success:
+            # return output_dir
+            return ToltecDataProd.collect_from_dir(output_dir).select(
+                'id == id.max()')
+        raise RuntimeError(
+            f"failed to run {self.citlali} with config file {cfg_filepath}")
+
+    def _prepare_citlali_config(
+            self, dataset, output_dir,
+            ):
+        
         # resolve the dataset to input items
         tbl = dataset.index_table
         grouped = tbl.group_by(
@@ -446,31 +473,14 @@ class CitlaliProc(object):
                 f"low level config entries overwitten by "
                 f"high level config:\n\n"
                 f"{updated_entries}\n")
-        name = input_items[0]['meta']['name']
-        output_name = f'citlali_o{name}_c{len(input_items)}.yaml'
-        cfg_filepath = output_dir.joinpath(output_name)
-        with open(cfg_filepath, 'w') as fo:
-            fo.write(pformat_yaml(cfg))
-            # yaml_dump(cfg, fo)
-        if dry_run:
-            logger_func(f"** DRY RUN **: citlali low level config: {cfg_filepath}")
-            logger_func(f"dry run's done.")
-            return None
-        success = self._citlali.run(
-            cfg_filepath, log_level=log_level, logger_func=logger_func)
-        # TODO implement the logic to locate the generated output files
-        # which will be used to create data prod object.
-        if success:
-            # return output_dir
-            return ToltecDataProd.collect_from_dir(output_dir).select(
-                'id == id.max()')
-        raise RuntimeError(
-            f"failed to run {self.citlali} with config file {cfg_filepath}")
+        return cfg
 
     def _resolve_low_level_config(self, low_level):
         """Return a low-level config dict from low_level config entry."""
         if low_level is None:
-            return self.citlali.get_default_config()
+            if self.citlali is not None:
+                return self.citlali.get_default_config()
+            return {}
         if isinstance(low_level, Path):
             with open(low_level, 'r') as fo:
                 return yaml_load(fo)
