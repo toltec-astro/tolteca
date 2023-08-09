@@ -110,8 +110,9 @@ class SimuExecutor(object):
         citlali_proc = CitlaliProc(citlali=None, config=self._citlali_config)
         citlali_cfg = citlali_proc._prepare_citlali_config(dataset, output_dir)
         input_items = citlali_cfg['inputs']
+        simu_output_dir = self.get_or_create_simu_output_dir(rootpath=output_dir)
         for item in input_items:
-            self._run_simu(item, output_dir)
+            self._run_simu(item, simu_output_dir)
 
     def get_or_create_simu_output_dir(self, rootpath):
         logger = get_logger()
@@ -156,16 +157,15 @@ class SimuExecutor(object):
             self.logger.warning(f"ignored sources:\n{sources_unknown}")
         return sources_sb
 
-    def _run_simu(self, input, output_dir):
+    def _run_simu(self, input, simu_output_dir):
         name = input['meta']['name']
         self.logger.debug(
-            f"run simulated source injection for {name}, output_dir={output_dir}")
+            f"run simulated source injection for {name}, output_dir={simu_output_dir}")
         tel_filepath = Path([d['filepath'] for d in input['data_items'] if d['meta']['interface'] == "lmt"][0])
         perf_params = self._perf_params
         source_models = self._get_source_models()        
         mapping_model = LmtTcsTrajMappingModel(tel_filepath)
         t_simu = mapping_model.t_pattern
-        simu_output_dir = self.get_or_create_simu_output_dir(rootpath=output_dir)
         
         # copy over input files and setup the nc node mapper
         output = self._create_output_files(simu_output_dir, input)
@@ -250,9 +250,13 @@ class SimuExecutor(object):
             beam_area = 2 * np.pi * (fwhm / GAUSSIAN_SIGMA_TO_FWHM) ** 2
             conv = (1 << u.mJy/u.beam).to_value(u.MJy / u.sr, equivalencies=u.beam_angular_area(beam_area))
             apt['mJybeam_per_MJysr'][apt['array_name'] == array_name] = 1 / conv
-        simu = ToltecObsSimulator(array_prop_table=apt)
+        # only extract good detectors for computation
+        apt_full = apt.copy()
+        gmask = apt['flag'] == 0
+        simu = ToltecObsSimulator(array_prop_table=apt_full[gmask])
         apt = simu.array_prop_table
-        self.logger.debug(f"apt:\n{apt}")
+        self.logger.debug(f"apt_full:\n{apt_full}")
+        self.logger.debug(f"use {gmask.sum()} out of {len(gmask)} detectors.")
 
         self.logger.debug(
             f'run {simu} with:{{}}\n'.format(
@@ -362,19 +366,23 @@ class SimuExecutor(object):
                         open_files[nw] = netCDF4.Dataset(item['filepath_out'], mode='a')
                     nc = open_files[nw]
                     m = apt['nw'] == nw
+                    m_full = apt_full['nw'] == nw
+                    m_nw = gmask[m_full]
                     nw_iq_raw = (
-                        nc['Data.Toltec.Is'][nw_i0:nw_i1, :]
-                         + 1.j * nc['Data.Toltec.Qs'][nw_i0:nw_i1, :]
+                        nc['Data.Toltec.Is'][nw_i0:nw_i1, m_nw]
+                         + 1.j * nc['Data.Toltec.Qs'][nw_i0:nw_i1, m_nw]
                          ) / norm
-                    km = item['kids_model'].model
+                    kmp_full = item['kids_model']
+                    kmp = kmp_full.__class__(table=kmp_full.table[m_nw], meta=kmp_full.meta)
+                    km = kmp.model
                     nw_iq_raw_derot = km.derotate(nw_iq_raw.T, km.f0.quantity).T
                     nw_rx_raw = 0.5 / nw_iq_raw_derot
                     nw_rx_tot = nw_rx_raw + 1.j * det_x_simu[m].T
                     nw_iq_tot = 0.5 / nw_rx_tot
                     nw_iq_readout = km.rotate(nw_iq_tot.T, km.f0.quantity).T * norm
                     # update the files
-                    nc['Data.Toltec.Is'][nw_i0:nw_i1, :] = nw_iq_readout.real.astype(int)
-                    nc['Data.Toltec.Qs'][nw_i0:nw_i1, :] = nw_iq_readout.imag.astype(int)
+                    nc['Data.Toltec.Is'][nw_i0:nw_i1, m_nw] = nw_iq_readout.real.astype(int)
+                    nc['Data.Toltec.Qs'][nw_i0:nw_i1, m_nw] = nw_iq_readout.imag.astype(int)
                     # update the variables
                     det_r[m] = nw_rx_tot.real.T
                     det_x_raw[m] = nw_rx_raw.imag.T
