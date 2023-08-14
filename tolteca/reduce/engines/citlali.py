@@ -436,8 +436,10 @@ class CitlaliProc(object):
                     '****** obs name={obsnum}_{subobsnum}_{scannum} '
                     '*******'.format(**key))
             self.logger.debug(f'{group}\n')
+        def _has_data_item(d):
+            return any(i.startswith('toltec') for i in d['interface'])
         input_items = [
-            self._resolve_input_item(d, output_dir, cal_items_low_level=self.config.cal_items, cal_objs=self.config.cal_objs) for d in grouped.groups]
+            self._resolve_input_item(d, output_dir, cal_items_low_level=self.config.cal_items, cal_objs=self.config.cal_objs) for d in grouped.groups if _has_data_item(d)]
         # create low level config object and dump to file
         # the low level has been resolved to a dict when __init__ is called
         cfg = deepcopy(self.config.low_level)

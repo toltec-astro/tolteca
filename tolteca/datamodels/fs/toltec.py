@@ -132,6 +132,7 @@ def _meta_from_wyatt_filename(file_loc):
     meta['interface'] = 'wyatt'
     meta['instru'] = 'wyatt'
     meta['master_name'] = 'ics'
+    meta['filesuffix'] = ''
     return meta
 
 
@@ -174,6 +175,7 @@ def _meta_from_hk_filename(file_loc):
     meta['interface'] = 'hk'
     meta['instru'] = 'toltec'
     meta['master_name'] = 'ics'
+    meta['filesuffix'] = ''
     return meta
 
 
@@ -215,6 +217,7 @@ def _meta_from_hwpr_filename(file_loc):
     meta['file_loc'] = file_loc
     meta['interface'] = 'hwpr'
     meta['instru'] = 'toltec'
+    meta['filesuffix'] = ''
 
     # one can infer the master if the immediate parent of the file is
     # the interface
@@ -265,6 +268,7 @@ def _meta_from_lmt_tel_filename(file_loc):
     meta['file_loc'] = file_loc
     meta['instru'] = 'lmt'
     meta['master_name'] = 'tcs'
+    meta['filesuffix'] = ''
     return meta
 
 
@@ -305,6 +309,7 @@ def _meta_from_simu_filename(file_loc):
     # add more items to the meta
     meta['file_loc'] = file_loc
     meta['instru'] = 'tolteca.simu'
+    meta['filesuffix'] = ''
     return meta
 
 

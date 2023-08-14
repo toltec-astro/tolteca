@@ -50,6 +50,8 @@ class BasicObsDatasetLoader(object):
             return list()
         # remove any file that does not have valid interface
         bods = bods.select(~np.equal(bods['interface'], None))
+        # remove tune files
+        bods = bods.select(~np.equal(bods['filesuffix'], 'tune'))
         if select is not None:
             # apply custom select
             bods = cls._normalize_bods(bods, select=select)
