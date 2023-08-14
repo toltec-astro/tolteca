@@ -758,6 +758,7 @@ class CitlaliProc(object):
 def _fix_tel(source, output_dir):
     # This is to recompute the ParAngAct, SourceRaAct and SourceDecAct from the tel.nc file
     logger = get_logger()
+    import netCDF4
     from netCDF4 import Dataset
     from astropy.time import Time
     from astropy.coordinates import SkyCoord
@@ -808,6 +809,14 @@ def _fix_tel(source, output_dir):
     tnc['Data.TelescopeBackend.ActParAng'][:] = pa.radian
     tnc['Data.TelescopeBackend.SourceRaAct'][:] = tel_icrs_astropy.ra.radian
     tnc['Data.TelescopeBackend.SourceDecAct'][:] = tel_icrs_astropy.dec.radian
+
+    def _setstr(nc, k, s, dim=128):
+        dim_name = k + "_len"
+        nc.createDimension(dim_name, dim)
+        v = nc.createVariable(k, 'S1', (dim_name, ))
+        v[:] = netCDF4.stringtochar(np.array([s], dtype=f'S{dim}'))
+        return v
+    _setstr(tnc, 'Header.Dcs.ObsGoal', 'Science')
     tnc.sync()
     tnc.close()
     # make some diagnostic info
@@ -870,11 +879,15 @@ def _fix_apt(source, output_dir):
             ("sig2noise", None, 0.),
             ("converge_iter", None, 0.),
             ]:
+        logger.debug(f"fix col {c=} {unit=} {defval=}")
         if c not in tbl.colnames:
             tbl_new[c] = 0.
         else:
-            if unit is not None:
+            if unit is not None and tbl[c].unit is not None:
                 c_value = tbl[c].quantity.to_value(unit)
+            elif unit is not None and tbl[c].unit is None:
+                logger.debug(f"assume {unit=} for apt column {c}")
+                c_value = tbl[c]
             else:
                 c_value = tbl[c]
             tbl_new[c] = np.array(c_value, dtype='d')
@@ -883,8 +896,10 @@ def _fix_apt(source, output_dir):
 
     flag = tbl['flag']
     if hasattr(flag, 'filled'):
-        flag = flag.filled(0.)
+        flag = flag.filled(1.)
     tbl_new['flag'] = 1. * flag
+    # add required meta
+    tbl_new.meta['Radesys'] = 'altaz'
     source_new = output_dir.joinpath(Path(source).name.replace('.ecsv', '_trimmed.ecsv')).as_posix()
     tbl_new.write(source_new, format='ascii.ecsv', overwrite=True)
     return source_new
