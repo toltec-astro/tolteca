@@ -816,7 +816,8 @@ def _fix_tel(source, output_dir):
         v = nc.createVariable(k, 'S1', (dim_name, ))
         v[:] = netCDF4.stringtochar(np.array([s], dtype=f'S{dim}'))
         return v
-    _setstr(tnc, 'Header.Dcs.ObsGoal', 'Science')
+    if 'Header.Dcs.ObsGoal' not in tnc.variables:
+        _setstr(tnc, 'Header.Dcs.ObsGoal', 'Science')
     tnc.sync()
     tnc.close()
     # make some diagnostic info
