@@ -37,7 +37,7 @@ class RuntimeInfo(_RuntimeInfo):
         description="The directory to look for external routines.",
     )
     cal_dir: AbsAnyPath = Field(
-        default=get_user_data_dir(),
+        default=get_user_data_dir().joinpath("cal"),
         description="The directory to hold calibration data files.",
     )
     log_dir: None | AbsDirectoryPath = Field(

@@ -28,6 +28,7 @@ classifiers = [
 ]
 
 dependencies = [
+    "astropy",
     "scipy",
     "appdirs",
 ]
