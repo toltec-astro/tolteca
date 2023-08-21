@@ -552,6 +552,7 @@ class ToltecObsSimulator(object):
 
     def mapping_evaluator(
             self, mapping, sources=None,
+            pointing_model_altaz=None,
             erfa_interp_len=300. << u.s,
             eval_interp_len=0.1 << u.s,
             catalog_model_render_pixel_size=0.5 << u.arcsec):
@@ -619,6 +620,15 @@ class ToltecObsSimulator(object):
                             observer=mapping.observer,
                             time_obs=time_obs
                             ))
+                    if pointing_model_altaz is not None:
+                        po_az, po_alt = pointing_model_altaz(t)
+                        self.logger.debug(
+                            f"applying pointing offset in altaz: {po_az.mean()} {po_alt.mean()}")
+                        bs_coords_altaz = bs_coords_altaz.spherical_offsets_by(
+                            po_az,
+                            po_alt
+                        )
+                        bs_coords_icrs = bs_coords_altaz.transform_to("icrs")
                     bs_parallactic_angle = pa_from_coords(
                         observer=mapping.observer,
                         coords_altaz=bs_coords_altaz,

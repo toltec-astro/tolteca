@@ -6,6 +6,7 @@ from astropy.table import Table, QTable
 from astropy.time import Time
 import astropy.units as u
 from astropy.modeling.functional_models import GAUSSIAN_SIGMA_TO_FWHM
+from scipy.interpolate import interp1d
 from ....datamodels.toltec import BasicObsDataset, BasicObsData
 from ....datamodels.io.toltec.table import KidsModelParamsIO
 from tollan.utils.log import get_logger, logit, timeit
@@ -157,6 +158,10 @@ class SimuExecutor(object):
             self.logger.warning(f"ignored sources:\n{sources_unknown}")
         return sources_sb
 
+    def _get_mapping_model(self, tel_filepath):
+        mapping_model = LmtTcsTrajMappingModel(tel_filepath)
+        return mapping_model
+
     def _run_simu(self, input, simu_output_dir):
         name = input['meta']['name']
         self.logger.debug(
@@ -164,7 +169,7 @@ class SimuExecutor(object):
         tel_filepath = Path([d['filepath'] for d in input['data_items'] if d['meta']['interface'] == "lmt"][0])
         perf_params = self._perf_params
         source_models = self._get_source_models()        
-        mapping_model = LmtTcsTrajMappingModel(tel_filepath)
+        mapping_model = self._get_mapping_model(tel_filepath)
         t_simu = mapping_model.t_pattern
         
         # copy over input files and setup the nc node mapper
@@ -289,18 +294,53 @@ class SimuExecutor(object):
             }
             RuntimeBase.yaml_dump(config, fo)
 
+        t_info = self._make_time_grids(mapping_model, output_by_nw, chunk_len=perf_params.chunk_len)
+        t_chunks = t_info['t_chunks']
+        
+        # figure out the pointing model
+        po_az_arcsec = [0]
+        po_alt_arcsec = [0]
+        cal_astrometry = [c for c in input['cal_items'] if c['type'] == 'astrometry']
+        if cal_astrometry:
+            c = cal_astrometry[0].get('pointing_offsets', None)
+            if c is not None:
+                for cc in c:
+                    if cc['axes_name'] == 'az':
+                        po_az_arcsec = cc['value_arcsec']
+                    elif cc['axes_name'] == 'alt':
+                        po_alt_arcsec = cc['value_arcsec']                       
+                    else:
+                        continue
+                        
+        def _make_po_interp(po):
+            if len(po) == 1:
+                return lambda x: np.full(x.shape, po[0])
+            if len(po) == 2:
+                return interp1d(
+                    [t_chunks[0][0].to_value(u.s), t_chunks[-1][-1].to_value(u.s)],
+                    po,
+                    kind='linear',
+                )
+        po_az_interp = _make_po_interp(po_az_arcsec)
+        po_alt_interp = _make_po_interp(po_alt_arcsec)
+
+        def pointing_model_altaz(t):
+            return (
+                po_az_interp(t.to_value(u.s)) << u.arcsec,
+                po_alt_interp(t.to_value(u.s)) << u.arcsec
+                )
+                
         mapping_evaluator, mapping_eval_ctx = simu.mapping_evaluator(
             mapping=mapping_model, sources=source_models,
+            pointing_model_altaz=pointing_model_altaz,
             erfa_interp_len=perf_params.mapping_erfa_interp_len,
             eval_interp_len=perf_params.mapping_eval_interp_len,
             catalog_model_render_pixel_size=(
                 perf_params.catalog_model_render_pixel_size),
             )
 
-        t_info = self._make_time_grids(mapping_model, output_by_nw, chunk_len=perf_params.chunk_len)
-        t_chunks = t_info['t_chunks']
         t_grid_pre_eval = np.linspace(
-                        0, t_simu.to_value(u.s),
+                        t_chunks[0][0].to_value(u.s), t_chunks[-1][-1].to_value(u.s),
                         perf_params.pre_eval_t_grid_size
                         ) << u.s
         # we run the mapping eval to get the det_sky_traj for the entire
