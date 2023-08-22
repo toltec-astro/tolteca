@@ -1268,7 +1268,7 @@ class ToltecSimuOutputContext(ExitStack):
         return nm_toltec
 
     def _get_hwp_interface(self):
-        return 'hwp'
+        return 'hwpr'
 
     def _make_hwp_nc(self, simu_config):
         sim = self._simulator

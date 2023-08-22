@@ -882,7 +882,7 @@ def _fix_apt(source, output_dir):
             ]:
         logger.debug(f"fix col {c=} {unit=} {defval=}")
         if c not in tbl.colnames:
-            tbl_new[c] = 0.
+            tbl_new[c] = defval
         else:
             if unit is not None and tbl[c].unit is not None:
                 c_value = tbl[c].quantity.to_value(unit)
