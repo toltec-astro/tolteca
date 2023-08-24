@@ -1,7 +1,8 @@
-from astropy.modeling import Parameter, Model
+import inspect
+
 import numpy as np
 from astropy import units as u
-import inspect
+from astropy.modeling import Model, Parameter
 
 
 class _Model(Model):

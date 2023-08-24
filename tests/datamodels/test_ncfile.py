@@ -1,7 +1,9 @@
+from pathlib import Path
+
+import netCDF4
+
 from tolteca_datamodels.toltec.ncfile import NcFileIO
 from tolteca_datamodels.toltec.types import ToltecDataKind
-from pathlib import Path
-import netCDF4
 
 data_root = Path(__file__).with_name("data_lmt")
 

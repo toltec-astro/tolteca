@@ -1,9 +1,10 @@
-from tolteca_datamodels.toltec.table import TableIO
-import numpy as np
-from tolteca_datamodels.toltec.types import ToltecDataKind
 from pathlib import Path
-from tolteca_kidsproc.kidsmodel import KidsSweepGainWithLinTrend
 
+import numpy as np
+
+from tolteca_datamodels.toltec.table import TableIO
+from tolteca_datamodels.toltec.types import ToltecDataKind
+from tolteca_kidsproc.kidsmodel import KidsSweepGainWithLinTrend
 
 data_root = Path(__file__).with_name("data_lmt")
 

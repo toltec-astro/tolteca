@@ -1,9 +1,9 @@
+import dataclasses
 from contextlib import ExitStack
 from typing import Any
-import dataclasses
 
-from tollan.utils.log import logger
 from tollan.utils.fileloc import FileLoc
+from tollan.utils.log import logger
 
 __all__ = ["DataFileIOError", "DataFileIO"]
 

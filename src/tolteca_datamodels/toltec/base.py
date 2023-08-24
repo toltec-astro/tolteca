@@ -1,10 +1,11 @@
-from ..base import DataFileIO, DataFileIOError
-
-from .types import ToltecDataKind
-from .file import guess_meta_from_source
-from tollan.utils.log import logger
 from typing import Any
+
 from tollan.utils.fileloc import FileLoc
+from tollan.utils.log import logger
+
+from ..base import DataFileIO, DataFileIOError
+from .file import guess_meta_from_source
+from .types import ToltecDataKind
 
 
 class ToltecDataFileIO(DataFileIO):

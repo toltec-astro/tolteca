@@ -4,10 +4,10 @@ import re
 from datetime import datetime, timezone
 
 from astropy.time import Time
-from tollan.utils.log import logger
-from tollan.utils.fmt import pformat_yaml
 from tollan.utils.fileloc import FileLoc
+from tollan.utils.fmt import pformat_yaml
 from tollan.utils.general import dict_from_regex_match
+from tollan.utils.log import logger
 
 from .types import ToltecDataKind
 
