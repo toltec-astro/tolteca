@@ -149,7 +149,10 @@ class LmtAtmosphereData(object):
     @classmethod
     def _load_data(cls, name):
         # base_url = 'http://toltec1.unity.rc.umass.edu/api/access/datafile/{id}'
-        base_url = 'https://dp.lmtgtm.org/api/access/datafile/{id}'
+        # TODO change this to cal.lmtgtm.org domain with
+        # the calibration data product server
+        # base_url = 'https://dp.lmtgtm.org/api/access/datafile/{id}'
+        base_url = 'http://lmtdv0.astro.umass.edu/api/access/datafile/{id}'
         dl_info = {
             'am_q95': {
                 'id': '461',
