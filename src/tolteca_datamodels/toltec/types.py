@@ -64,6 +64,9 @@ class ToltecDataKind(Flag):
     PointingTable = auto()
     """The pointing property table derived from pointing observation."""
 
+    KidsTableData = KidsModelParamsTable | KidsPropTable | TonePropTable | ChanPropTable
+    TableData = KidsTableData | ArrayPropTable | PointingTable
+
     # Raw infrastructural kinds
     Hwpr = auto()
     """The half wave place rotation data."""
@@ -103,6 +106,11 @@ class DB_RawObsMaster(IntEnum):  # noqa: N801
     CLIP = 2
     """The ROACH manager."""
 
+    @classmethod
+    def get_master_name(cls, master):
+        """Return the name of the master."""
+        return DB_RawObsMaster(master).name.lower()
+
 
 class DB_RawObsType(IntEnum):  # noqa: N801
     """The is in line with the ``toltec/obstype`` table in the toltec db."""
@@ -121,3 +129,14 @@ class DB_RawObsType(IntEnum):  # noqa: N801
 
     TUNE = 4
     """TUNE."""
+
+    @classmethod
+    def get_data_kind(cls, raw_obs_type):
+        """Return the data kind for ``raw_obs_type``."""
+        return {
+            0: ToltecDataKind.RawTimeStream,
+            1: ToltecDataKind.RawTimeStream,
+            2: ToltecDataKind.VnaSweep,
+            3: ToltecDataKind.TargetSweep,
+            4: ToltecDataKind.Tune,
+        }.get(raw_obs_type, ToltecDataKind.Unknown)

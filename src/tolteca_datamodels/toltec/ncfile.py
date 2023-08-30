@@ -1,23 +1,24 @@
 import warnings
 from functools import cached_property
+from pathlib import Path
 from typing import Any, cast
 
 import astropy.units as u
+import netCDF4
 import numpy as np
 from astropy.nddata import StdDevUncertainty
 from astropy.table import Column, QTable
 from loguru import logger
+from tollan.utils.fileloc import FileLoc
 from tollan.utils.fmt import pformat_fancy_index, pformat_yaml
 from tollan.utils.general import add_to_dict
-from tollan.utils.nc import NcNodeMapper, NcNodeMapperError, ncstr
+from tollan.utils.nc import NcNodeMapper, ncstr
 from tollan.utils.np import make_complex
-import netCDF4
 
 from tolteca_kidsproc.kidsdata.sweep import MultiSweep, Sweep
 from tolteca_kidsproc.kidsdata.timestream import TimeStream
 
-from ..base import DataFileIO, DataFileIOError
-from .file import guess_meta_from_source
+from .base import ToltecDataFileIO
 from .kidsdata import (
     KidsDataAxis,
     KidsDataAxisInfoMixin,
@@ -25,6 +26,7 @@ from .kidsdata import (
     KidsDataAxisSlicerMeta,
     ToltecDataKind,
 )
+from .types import DB_RawObsMaster, DB_RawObsType
 
 
 class _NcFileIOKidsDataAxisSlicerMixin(
@@ -36,43 +38,155 @@ class _NcFileIOKidsDataAxisSlicerMixin(
     _slicer_cls = KidsDataAxisSlicer
 
 
-class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
-    """A class to read data from TolTEC netCDF files.
+# maps of the data record for various types
+# the first level maps to the purpose of the mapper,
+# the second level maps to the data object class,
+# the inner most level maps to the netcdf dataset.
+_nc_node_mapper_defs = {
+    # this is a dummy mapper to hold the actual opened dataset.
+    # this is not used for reading the dataset.
+    "ncopen": {},
+    # this is mapper to use when data_kind is called
+    "identify": {
+        ToltecDataKind.ReducedKidsData: {
+            "kind_str": "Header.Kids.kind",
+            "obs_type": "Header.Toltec.ObsType",
+        },
+        ToltecDataKind.RawKidsData: {
+            "kind_str": "Header.Kids.kind",
+            "obs_type": "Header.Toltec.ObsType",
+        },
+    },
+    # this is mapper to use when meta is called
+    "meta": {
+        ToltecDataKind.KidsData: {
+            "fsmp": "Header.Toltec.SampleFreq",
+            "flo_center": "Header.Toltec.LoCenterFreq",
+            "atten_drive": "Header.Toltec.DriveAtten",
+            "atten_sense": "Header.Toltec.SenseAtten",
+            "roach": "Header.Toltec.RoachIndex",
+            "obsnum": "Header.Toltec.ObsNum",
+            "subobsnum": "Header.Toltec.SubObsNum",
+            "scannum": "Header.Toltec.ScanNum",
+            # assoc
+            "cal_roach": "Header.Toltec.RoachIndex",
+            "cal_obsnum": "Header.Toltec.TargSweepObsNum",
+            "cal_subobsnum": "Header.Toltec.TargSweepSubObsNum",
+            "cal_scannum": "Header.Toltec.TargSweepScanNum",
+        },
+        ToltecDataKind.RawKidsData: {
+            "n_kids_design": "loclen",
+            "n_chans_max": "Header.Toltec.MaxNumTones",
+            "filename_orig": "Header.Toltec.Filename",
+            "mastervar": "Header.Toltec.Master",
+            "repeatvar": "Header.Toltec.RepeatLevel",
+            # data shape
+            "n_times": "time",
+            "n_chans": "iqlen",
+        },
+        ToltecDataKind.RawSweep: {
+            "n_sweepreps": "Header.Toltec.NumSamplesPerSweepStep",
+            "n_sweepsteps": "Header.Toltec.NumSweepSteps",
+            "n_sweeps_max": "numSweeps",
+        },
+        ToltecDataKind.ReducedKidsData: {
+            "n_chans": "n_chans",
+        },
+        ToltecDataKind.ReducedSweep: {
+            "n_sweepsteps": "nsweeps",
+        },
+        ToltecDataKind.SolvedTimeStream: {
+            "n_times": "ntimes",
+        },
+    },
+    "axis_data": {
+        "f_tones": "Header.Toltec.ToneFreq",
+        "flos": "Data.Toltec.LoFreq",
+    },
+    "data": {
+        ToltecDataKind.RawKidsData: {
+            "I": "Data.Toltec.Is",
+            "Q": "Data.Toltec.Qs",
+        },
+        ToltecDataKind.ReducedSweep: {
+            "I": "Data.Kids.Is",
+            "Q": "Data.Kids.Qs",
+        },
+        ToltecDataKind.SolvedTimeStream: {
+            "r": "Data.Kids.rs",
+            "x": "Data.Kids.xs",
+        },
+    },
+    # these are ancillary data items
+    "data_extra": {
+        "d21": {
+            "d21_f": "Data.Kids.d21_fs",
+            "d21": "Data.Kids.d21_adiqs",
+            "d21_cov": "Data.Kids.d21_adiqscov",
+            "d21_mean": "Data.Kids.d21_adiqsmean",
+            "d21_std": "Data.Kids.d21_adiqsstd",
+        },
+        "candidates": {
+            "candidates": "Header.Kids.candidates",
+        },
+        "psd": {
+            "f_psd": "Header.Kids.PsdFreq",
+            "I_psd": "Data.Kids.ispsd",
+            "Q_psd": "Data.Kids.qspsd",
+            "phi_psd": "Data.Kids.phspsd",
+            "r_psd": "Data.Kids.rspsd",
+            "x_psd": "Data.Kids.xspsd",
+        },
+    },
+}
 
-    Parameters
-    ----------
-    source : str, `pathlib.Path`, `FileLoc`, `netCDF4.Dataset`
-        The data file location or netCDF dataset.
-        This is passed to `~tollan.utils.nc.NcNodeMapper`.
-    open : bool
-        If True, open file at constuction time.
-    load_meta_on_open : bool
-        If True, the meta data will be loaded upon opening of the file.
-    """
 
-    def __init__(
-        self,
-        source,
-        open=True,
-        load_meta_on_open=True,
-    ):
-        file_loc = (
-            source.filepath()
-            if isinstance(source, netCDF4.Dataset)
-            else source  # type: ignore
-        )
-        file_loc = self._validate_file_loc(file_loc)
+def _create_nc_node_mappers(nc_node_mapper_defs) -> dict:
+    """Create node mappers for the inner most level of dict of node_maps."""
+
+    def _get_sub_node(n) -> Any:
+        if all(not isinstance(v, dict) for v in n.values()):
+            return NcNodeMapper(nc_node_map=n)
+        return {k: _get_sub_node(v) for k, v in n.items()}
+
+    return _get_sub_node(nc_node_mapper_defs)
+
+
+class NcFileIO(ToltecDataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
+    """A class to read data from TolTEC netCDF files."""
+
+    @classmethod
+    def _get_source_file_info(cls, source, source_loc):
+        if isinstance(source, netCDF4.Dataset):
+            file_loc_orig = None
+            file_loc = source_loc or source.filepath()
+            # TODO here we always re-open the file when open is requested
+            # this allows easier management of the pickle but
+            # may not be desired. Need to revisit this later.
+            file_obj = None
+        elif isinstance(source, (str, Path, FileLoc)):
+            file_loc_orig = source_loc
+            file_loc = source
+            file_obj = None
+        else:
+            raise TypeError(f"invalid source {source}")
+        file_loc_orig = cls._validate_file_loc(file_loc_orig)
+        file_loc = cls._validate_file_loc(file_loc)
+        # TODO add logic to handle remote file
         if file_loc.is_remote:
-            raise ValueError("remote file is not supported.")
-        super().__init__(file_loc=file_loc, file_loc_orig=None, io_obj=None)
+            raise ValueError(f"remote file is not supported: {file_loc}")
+        return {
+            "file_loc_orig": file_loc_orig,
+            "file_loc": file_loc,
+            "file_obj": file_obj,
+        }
 
-        # this hold the cached metadata.
-        self._meta_cached = {}
+    def _post_init(self):
+        self._node_mappers = _create_nc_node_mappers(_nc_node_mapper_defs)
+        super()._post_init()
 
-        self._load_meta_on_open = load_meta_on_open
-        self._node_mappers = self._create_node_mappers(self._node_maps)
-        if open:
-            self.open()
+    # the node mappers holds the actual opened netCDF nodes.
+    _node_mappers: dict
 
     @property
     def node_mappers(self):
@@ -85,26 +199,17 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         """The underlying netCDF dataset."""
         return self.node_mappers["ncopen"].nc_node
 
-    @property
-    def io_obj(self):
-        """The underlying netcdf Dataset."""
-        # we expose the raw netcdf dataset as the low level file object.
-        # this returns None if no dataset is open.
-        try:
-            return self.nc_node
-        except NcNodeMapperError:
-            return None
-
     def open(self):
-        """Return the context for data IO."""
+        """Return the context for netCDF file IO."""
         # we just use one of the node_mapper to open the dataset, and
         # set the rest via set_nc_node
         # the node_mapper.open will handle the different types of source
-        if self.io_obj is not None:
+        if self.io_state.is_open():
             # the file is already open
             return self
-        # reset the state so we load the meta from file header
-        self._reset_instance_state()
+        # TODO here we alwasy open the netcdf regardless if
+        # an opened file is passed to source and set as file_obj.
+        # need to revisit this later
         nc_node = None
 
         def _open_sub_node(n):
@@ -122,146 +227,16 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                     _open_sub_node(v)
 
         _open_sub_node(self.node_mappers)
-        # trigger loading the meta on open if requested
-        if self._load_meta_on_open:
-            _ = self.meta
+        self._set_open_state(nc_node)
         return self
 
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self.filepath})"
-
-    # we use this to cache the meta to avoid query the same info multiple times.
-    _meta_cached: dict
-
-    def _reset_instance_state(self):
-        """Reset the instance state."""
-        self._meta_cached.clear()
-        for k in ["meta", "data_kind"]:
-            if k in self.__dict__:
-                del self.__dict__[k]
-
-    # maps of the data record for various types
-    # the first level maps to the method of this class,
-    # the second level maps to the data object class,
-    # the inner most level maps to the netcdf dataset.
-    _node_mappers: dict
-
-    _node_maps = {
-        # this is a dummy mapper to hold the actual opened dataset.
-        # this is not used for reading the dataset.
-        "ncopen": {},
-        # this is mapper to use when data_kind is called
-        "identify": {
-            ToltecDataKind.ReducedKidsData: {
-                "kind_str": "Header.Kids.kind",
-                "obs_type": "Header.Toltec.ObsType",
-            },
-            ToltecDataKind.RawKidsData: {
-                "kind_str": "Header.Kids.kind",
-                "obs_type": "Header.Toltec.ObsType",
-            },
-        },
-        # this is mapper to use when meta is called
-        "meta": {
-            ToltecDataKind.KidsData: {
-                "fsmp": "Header.Toltec.SampleFreq",
-                "flo_center": "Header.Toltec.LoCenterFreq",
-                "atten_drive": "Header.Toltec.DriveAtten",
-                "atten_sense": "Header.Toltec.SenseAtten",
-                "roachid": "Header.Toltec.RoachIndex",
-                "obsnum": "Header.Toltec.ObsNum",
-                "subobsnum": "Header.Toltec.SubObsNum",
-                "scannum": "Header.Toltec.ScanNum",
-                # assoc
-                "cal_roachid": "Header.Toltec.RoachIndex",
-                "cal_obsnum": "Header.Toltec.TargSweepObsNum",
-                "cal_subobsnum": "Header.Toltec.TargSweepSubObsNum",
-                "cal_scannum": "Header.Toltec.TargSweepScanNum",
-            },
-            ToltecDataKind.RawKidsData: {
-                "n_kids_design": "loclen",
-                "n_chans_max": "Header.Toltec.MaxNumTones",
-                "filename_orig": "Header.Toltec.Filename",
-                "mastervar": "Header.Toltec.Master",
-                "repeatvar": "Header.Toltec.RepeatLevel",
-                # data shape
-                "n_times": "time",
-                "n_chans": "iqlen",
-            },
-            ToltecDataKind.RawSweep: {
-                "n_sweepreps": "Header.Toltec.NumSamplesPerSweepStep",
-                "n_sweepsteps": "Header.Toltec.NumSweepSteps",
-                "n_sweeps_max": "numSweeps",
-            },
-            ToltecDataKind.ReducedKidsData: {
-                "n_chans": "n_chans",
-            },
-            ToltecDataKind.ReducedSweep: {
-                "n_sweepsteps": "nsweeps",
-            },
-            ToltecDataKind.SolvedTimeStream: {
-                "n_times": "ntimes",
-            },
-        },
-        "axis_data": {
-            "f_tones": "Header.Toltec.ToneFreq",
-            "flos": "Data.Toltec.LoFreq",
-        },
-        "data": {
-            ToltecDataKind.RawKidsData: {
-                "I": "Data.Toltec.Is",
-                "Q": "Data.Toltec.Qs",
-            },
-            ToltecDataKind.ReducedSweep: {
-                "I": "Data.Kids.Is",
-                "Q": "Data.Kids.Qs",
-            },
-            ToltecDataKind.SolvedTimeStream: {
-                "r": "Data.Kids.rs",
-                "x": "Data.Kids.xs",
-            },
-        },
-        # these are ancillary data items
-        "data_extra": {
-            "d21": {
-                "d21_f": "Data.Kids.d21_fs",
-                "d21": "Data.Kids.d21_adiqs",
-                "d21_cov": "Data.Kids.d21_adiqscov",
-                "d21_mean": "Data.Kids.d21_adiqsmean",
-                "d21_std": "Data.Kids.d21_adiqsstd",
-            },
-            "candidates": {
-                "candidates": "Header.Kids.candidates",
-            },
-            "psd": {
-                "f_psd": "Header.Kids.PsdFreq",
-                "I_psd": "Data.Kids.ispsd",
-                "Q_psd": "Data.Kids.qspsd",
-                "phi_psd": "Data.Kids.phspsd",
-                "r_psd": "Data.Kids.rspsd",
-                "x_psd": "Data.Kids.xspsd",
-            },
-        },
-    }
+    # a registry to store all data kind identifiers
+    # this returns a tuple of (valid, meta)
+    _data_kind_identifiers = {}
 
     @staticmethod
-    def _create_node_mappers(node_maps) -> dict:
-        """Create node mappers for the inner most level of dict of node_maps."""
-
-        def _get_sub_node(n) -> Any:
-            if all(not isinstance(v, dict) for v in n.values()):
-                return NcNodeMapper(nc_node_map=n)
-            return {k: _get_sub_node(v) for k, v in n.items()}
-
-        return _get_sub_node(node_maps)
-
-    _data_kind_identifiers = {}
-    """A registry to store all data kind identifiers."""
-
-    @classmethod
     @add_to_dict(_data_kind_identifiers, ToltecDataKind.RawKidsData)
-    def _identify_raw_kids_data(cls, node_mapper):
-        # this returns a tuple of (valid, meta)
+    def _identify_raw_kids_data(node_mapper):
         nm = node_mapper
         if not nm.has_var("obs_type") or nm.has_var("kind_str"):
             return False, {}
@@ -269,13 +244,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         obs_type = nm.get_scalar("obs_type")
         logger.debug(f"found obs_type -> {nm['obs_type']}: {obs_type}")
 
-        data_kind = {
-            0: ToltecDataKind.RawTimeStream,
-            1: ToltecDataKind.RawTimeStream,
-            2: ToltecDataKind.VnaSweep,
-            3: ToltecDataKind.TargetSweep,
-            4: ToltecDataKind.Tune,
-        }.get(obs_type, ToltecDataKind.Unknown)
+        data_kind = DB_RawObsType.get_data_kind(obs_type)
         # here we allow identification of unknown kids data
         # but in this case only minimal meta data will be available
         return True, {
@@ -283,9 +252,9 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             "data_kind": data_kind,
         }
 
-    @classmethod
+    @staticmethod
     @add_to_dict(_data_kind_identifiers, ToltecDataKind.ReducedKidsData)
-    def _identify_reduced_kids_data(cls, node_mapper):
+    def _identify_reduced_kids_data(node_mapper):
         nm = node_mapper
         if not nm.has_var("kind_str") and not nm.has_var("kind_str_deprecated"):
             return False, {}
@@ -301,70 +270,54 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         }.get(kind_str, ToltecDataKind.Unknown)
         return True, {"kind_str": kind_str, "data_kind": data_kind}
 
-    @cached_property
-    def data_kind(self):
-        """The data kind."""
-        # The below is called once and only once as the first step to read the
-        # netCDF dataset.
-        # here we reset various cache in order to have a clean start
-        self._reset_instance_state()
-
-        # do guess if not open
-        if self.io_obj is None:
-            meta = guess_meta_from_source(self.file_loc)
-            if "data_kind" in meta:
-                self._meta_cached.update(meta)
-                return meta["data_kind"]
-            raise DataFileIOError("invalid file.")
-
+    def _load_data_kind_meta_from_io_obj(self):
+        meta = self._meta
         for k, m in self.node_mappers["identify"].items():
-            valid, meta = self._data_kind_identifiers[k](self.__class__, m)
-            logger.debug(f"check data kind as {k}: {valid} {meta}")
+            valid, _meta = self._data_kind_identifiers[k](m)
+            logger.debug(f"check data kind as {k}: {valid} {_meta}")
             if valid:
-                self._meta_cached.update(meta)
-                return meta["data_kind"]
-        # none of the identify mappers work
-        raise DataFileIOError("invalid file or data format.")
+                meta.update(_meta)
+        # remove the unkown entry to trigger error later if needed.
+        if meta["data_kind"] == ToltecDataKind.Unknown:
+            meta.pop("data_kind")
 
-    @cached_property
-    def meta(self):
-        """The metadata."""
-        _meta = self._meta_cached
+    def _load_meta_from_io_obj(self):
+        # load the full meta data
+        meta = self._meta
         data_kind = self.data_kind
-        if self.io_obj is None:
+        if not self.io_state.is_open():
             # stop if file is not open
-            return _meta
+            return
         # load data kind specific meta
         for k, m in self.node_mappers["meta"].items():
             if k & data_kind:
                 # read all entries in mapper
                 for kk in m.nc_node_map:
-                    _meta[kk] = m.get_value(kk)
+                    meta[kk] = m.get_value(kk)
 
         # update meta using the per type registered updater.
         for k, _meta_updater in self._meta_updaters.items():
             if data_kind & k:
                 _meta_updater(self)
-        logger.debug(f"loaded meta data:\n{pformat_yaml(_meta)}")
-        return _meta
+        logger.debug(f"loaded meta data:\n{pformat_yaml(meta)}")
 
     # a registry to metadata updaters
     _meta_updaters = {}
 
     @add_to_dict(_meta_updaters, ToltecDataKind.KidsData)
     def _update_derived_info(self):
-        meta = self._meta_cached
-        meta["file_loc"] = self.file_loc
+        meta = self._meta
         meta["instru"] = "toltec"
-        meta["interface"] = f'toltec{meta["roachid"]}'
+        meta["interface"] = f'toltec{meta["roach"]}'
         # TODO someday we may need to change the mapping between this
-        meta["master"] = meta.get("mastervar", 1)
+        master = meta["master"] = meta.get("mastervar", 1)
+        meta["master_name"] = DB_RawObsMaster.get_master_name(master)
         meta["repeat"] = meta.get("repeatvar", 1)
-        meta["nw"] = meta["roachid"]
+        meta["nw"] = meta["roach"]
 
     @add_to_dict(_meta_updaters, ToltecDataKind.ReducedSweep)
     def _update_reduced_sweep_block_info(self):
-        meta = self._meta_cached
+        meta = self._meta
         result = {}
         result["n_sweeps"] = 1
         result["sweep_slices"] = [slice(0, meta["n_sweepsteps"])]
@@ -376,15 +329,14 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
 
     @add_to_dict(_meta_updaters, ToltecDataKind.RawSweep)
     def _update_raw_sweep_block_info(self):
+        meta = self._meta
+        data_kind = self.data_kind
         # This function is to populate raw sweep block info to meta
         # The block info is a set of meta data that indicate
         # logical unit of the dataset.
         # For sweeps, each block is one monotonic frequency sweep;
         # for timestreams, this could be arbitrary, and is default
         # to one block as of 20200722.
-        meta = self._meta_cached
-
-        data_kind = meta["data_kind"]
 
         result = {}
 
@@ -415,7 +367,8 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             result["sweep_slices"] = [slice(0, meta["n_times"])]
         else:
             # this can only happend to tune files
-            assert data_kind == ToltecDataKind.Tune
+            if data_kind != ToltecDataKind.Tune:
+                raise ValueError(f"too many blocks found in data kind={data_kind}")
             # the blocks are partitioned by the break indices
             result["n_sweeps"] = break_indices.size + 1
             sweep_starts = (
@@ -457,7 +410,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         result = {}
         result["n_blocks_max"] = 1
         result["n_blocks"] = 1
-        self._meta_cached.update(result)
+        self._meta.update(result)
 
     def _resolve_block_index(self, block_index=None):
         """Return the block info.
@@ -984,7 +937,7 @@ class NcFileIO(DataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
 
     def __getstate__(self):
         # need to reset the object before pickling
-        is_open = self.io_obj is not None
+        is_open = self.io_state.is_open()
         self.close()
         return {
             "_auto_close_on_pickle_wrapped": self.__dict__,

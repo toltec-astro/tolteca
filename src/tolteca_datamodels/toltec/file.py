@@ -5,7 +5,9 @@ from datetime import datetime, timezone
 
 from astropy.time import Time
 from tollan.utils.fileloc import FileLoc
+from tollan.utils.fmt import pformat_yaml
 from tollan.utils.general import dict_from_regex_match
+from tollan.utils.log import logger
 
 from .types import ToltecDataKind
 
@@ -17,9 +19,7 @@ _file_suffix_ext_to_toltec_data_kind = {
     ("targsweep", "nc"): ToltecDataKind.TargetSweep,
     ("tune", "nc"): ToltecDataKind.Tune,
     ("timestream", "nc"): ToltecDataKind.RawTimeStream,
-    ("vnasweep_processed", "nc"): ToltecDataKind.ReducedSweep,
-    ("targsweep_processed", "nc"): ToltecDataKind.ReducedSweep,
-    ("tune_processed", "nc"): ToltecDataKind.ReducedSweep,
+    ("(vnasweep|targsweep|tune)_processed", "nc"): ToltecDataKind.ReducedSweep,
     ("timestream_processed", "nc"): ToltecDataKind.SolvedTimeStream,
     ("vnasweep", "txt"): ToltecDataKind.KidsModelParamsTable,
     ("targsweep", "txt"): ToltecDataKind.KidsModelParamsTable,
@@ -27,10 +27,14 @@ _file_suffix_ext_to_toltec_data_kind = {
     ("targfreqs", "dat"): ToltecDataKind.TargFreqsDat,
     ("targamps", "dat"): ToltecDataKind.TargAmpsDat,
     ("chanflag", "ecsv"): ToltecDataKind.ChanPropTable,
-    ("kidslist", "ecsv"): ToltecDataKind.KidsPropTable,
-    ("kidsprop", "ecsv"): ToltecDataKind.KidsPropTable,
-    ("toneprop", "ecsv"): ToltecDataKind.TonePropTable,
-    ("chanprop", "ecsv"): ToltecDataKind.ChanPropTable,
+    ("(vnasweep|targsweep|tune)_kidslist", "ecsv"): ToltecDataKind.KidsPropTable,
+    ("(vnasweep|targsweep|tune)_kidsprop", "ecsv"): ToltecDataKind.KidsPropTable,
+    ("(vnasweep|targsweep|tune)_toneprop", "ecsv"): ToltecDataKind.TonePropTable,
+    ("(vnasweep|targsweep|tune)_chanprop", "ecsv"): ToltecDataKind.ChanPropTable,
+    # v1 compat
+    ("(vnasweep|targsweep|tune)_tonelist", "ecsv"): ToltecDataKind.KidsPropTable,
+    ("(vnasweep|targsweep|tune)_targfreqs", "ecsv"): ToltecDataKind.TonePropTable,
+    ("(vnasweep|targsweep|tune)_tonecheck", "ecsv"): ToltecDataKind.ChanPropTable,
 }
 
 _file_interface_ext_to_toltec_data_kind = {
@@ -47,11 +51,11 @@ _file_interface_ext_to_toltec_data_kind = {
 _filename_parser_defs = [
     {
         "regex": re.compile(
-            r"^(?P<interface>toltec(?P<roachid>\d+))_(?P<obsnum>\d+)_"
+            r"^(?P<interface>toltec(?P<roach>\d+))_(?P<obsnum>\d+)_"
             r"(?P<subobsnum>\d+)_(?P<scannum>\d+)_"
-            r"(?P<ut>\d{4}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))"
-            r"(?:_(?P<filesuffix>[^\/.]+))?"
-            r"\.(?P<fileext>.+)$",
+            r"(?P<file_timestamp>\d{4}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))"
+            r"(?:_(?P<file_suffix>[^\/.]+))?"
+            r"\.(?P<file_ext>.+)$",
         ),
         "add_meta": {
             "instru": "toltec",
@@ -62,9 +66,9 @@ _filename_parser_defs = [
         "regex": re.compile(
             r"^(?P<interface>hwpr)_(?P<obsnum>\d+)_"
             r"(?P<subobsnum>\d+)_(?P<scannum>\d+)_"
-            r"(?P<ut>\d{4}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))"
-            r"(?:_(?P<filesuffix>[^\/.]+))?"
-            r"\.(?P<fileext>.+)$",
+            r"(?P<file_timestamp>\d{4}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))"
+            r"(?:_(?P<file_suffix>[^\/.]+))?"
+            r"\.(?P<file_ext>.+)$",
         ),
         "add_meta": {
             "instru": "toltec",
@@ -75,9 +79,9 @@ _filename_parser_defs = [
         "regex": re.compile(
             r"^(?P<interface>toltec_hk)_(?P<obsnum>\d+)_"
             r"(?P<subobsnum>\d+)_(?P<scannum>\d+)_"
-            r"(?P<ut>\d{4}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))"
-            r"(?:_(?P<filesuffix>[^\/.]+))?"
-            r"\.(?P<fileext>.+)$",
+            r"(?P<file_timestamp>\d{4}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))"
+            r"(?:_(?P<file_suffix>[^\/.]+))?"
+            r"\.(?P<file_ext>.+)$",
         ),
         "add_meta": {
             "instru": "toltec",
@@ -87,9 +91,9 @@ _filename_parser_defs = [
     {
         "regex": re.compile(
             r"^(?P<interface>tel_toltec|tel_toltec2)"
-            r"_(?P<ut>\d{4}-\d{2}-\d{2})"
+            r"_(?P<file_timestamp>\d{4}-\d{2}-\d{2})"
             r"_(?P<obsnum>\d+)_(?P<subobsnum>\d+)_(?P<scannum>\d+)"
-            r"\.(?P<fileext>.+)$",
+            r"\.(?P<file_ext>.+)$",
         ),
         "add_meta": {
             "instru": "lmt",
@@ -99,9 +103,9 @@ _filename_parser_defs = [
     {
         "regex": re.compile(
             r"^(?P<interface>wyatt)"
-            r"_(?P<ut>\d{4}-\d{2}-\d{2})"
+            r"_(?P<file_timestamp>\d{4}-\d{2}-\d{2})"
             r"_(?P<obsnum>\d+)_(?P<subobsnum>\d+)_(?P<scannum>\d+)"
-            r"\.(?P<fileext>.+)$",
+            r"\.(?P<file_ext>.+)$",
         ),
         "add_meta": {
             "instru": "toltec",
@@ -111,7 +115,7 @@ _filename_parser_defs = [
 ]
 
 
-def _parse_ut_str(v):
+def _parse_file_timestamp_str(v):
     # there are two formats YYYY_mm_dd_HH_MM_SS and YYYY-mm-dd
     n_sep_long = 5
     n_sep_short = 2
@@ -120,7 +124,7 @@ def _parse_ut_str(v):
     elif v.count("-") == n_sep_short:
         fmt = "%Y-%m-%d"
     else:
-        raise ValueError("invalid UT time string.")
+        raise ValueError("invalid file timestamp string.")
     result = Time(datetime.strptime(v, fmt).astimezone(timezone.utc), scale="utc")
     result.format = "isot"
     return result
@@ -135,29 +139,39 @@ def _normalize_interface(v):
 
 
 _filename_parser_type_dispatchers = {
-    "ut": _parse_ut_str,
+    "file_timestamp": _parse_file_timestamp_str,
     "interface": _normalize_interface,
-    "roachid": int,
+    "roach": int,
     "obsnum": int,
     "subobsnum": int,
     "scannum": int,
-    "fileext": str.lower,
+    "file_ext": str.lower,
 }
 
 
 def _guess_data_kind_from_meta(meta):
     interface = meta.get("interface", None)
-    fileext = meta.get("fileext", None)
+    file_ext = meta.get("file_ext", None)
     dk_set = set()
-    if interface is not None and fileext is not None:
-        dk = _file_interface_ext_to_toltec_data_kind.get((interface, fileext), None)
-        if dk is not None:
-            dk_set.add(dk)
-    filesuffix = meta.get("filesuffix", None)
-    if filesuffix is not None and fileext is not None:
-        dk = _file_suffix_ext_to_toltec_data_kind.get((filesuffix, fileext), None)
-        if dk is not None:
-            dk_set.add(dk)
+    if interface is not None and file_ext is not None:
+        for (
+            re_interface,
+            re_file_ext,
+        ), dk in _file_interface_ext_to_toltec_data_kind.items():
+            if re.match(re_interface, interface) and re.match(re_file_ext, file_ext):
+                dk_set.add(dk)
+                break
+    file_suffix = meta.get("file_suffix", None)
+    if file_suffix is not None and file_ext is not None:
+        for (
+            re_file_suffix,
+            re_file_ext,
+        ), dk in _file_suffix_ext_to_toltec_data_kind.items():
+            if re.match(re_file_suffix, file_suffix) and re.match(
+                re_file_ext, file_ext
+            ):
+                dk_set.add(dk)
+                break
     if len(dk_set) == 0:
         return None
     return functools.reduce(operator.ior, dk_set)
@@ -175,11 +189,11 @@ def guess_meta_from_source(source):
     ----------
     source : str, `pathlib.Path`, `FileLoc`
     """
-    fileloc = FileLoc(source)
-    filepath = fileloc.path
+    file_loc = FileLoc(source)
+    filepath = file_loc.path
     meta = {
         "source": source,
-        "fileloc": fileloc,
+        "file_loc": file_loc,
     }
     for parser_def in _filename_parser_defs:
         d = dict_from_regex_match(
@@ -197,4 +211,5 @@ def guess_meta_from_source(source):
     data_kind = _guess_data_kind_from_meta(meta)
     if data_kind is not None:
         meta["data_kind"] = data_kind
+    logger.debug(f"guess meta data from {source}:\n{pformat_yaml(meta)}")
     return meta
