@@ -11,7 +11,7 @@ from tollan.utils.log import logger
 
 from tolteca_kidsproc import kidsdata, kidsmodel
 
-from .base import ToltecDataFileIO
+from .core import ToltecDataFileIO
 from .types import ToltecDataKind
 
 
@@ -148,6 +148,15 @@ class TableIO(ToltecDataFileIO):
             return KidsModelParamsTable(tbl)
         return tbl
 
+    @classmethod
+    def identify(cls, file_loc, file_obj=None):
+        """Return if this class can handle ths given file."""
+        if file_obj is not None:
+            return isinstance(file_obj, Table)
+        if file_loc is not None:
+            return file_loc.path.suffix in [".ecsv", ".txt"]
+        return False
+
 
 class KidsModelParamsTable(QTable):
     """A class to manage a set of Kids model params."""
@@ -223,7 +232,7 @@ class KidsModelParamsTable(QTable):
                 ("m1", "interceptQ", None),
             ]
             args = []
-            for k, kk, unit in dispatch:
+            for _k, kk, unit in dispatch:
                 if kk is None:
                     args.append(None)
                 elif tbl[kk].unit is not None or unit is None:

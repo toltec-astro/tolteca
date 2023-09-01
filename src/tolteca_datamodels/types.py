@@ -10,7 +10,7 @@ class DataProdKind(Flag):
     TimeOrderedData = auto()
     Image = auto()
     Cube = auto()
-    Catalog = auto()
+    Table = auto()
 
     # Calibration state
     Raw = auto()

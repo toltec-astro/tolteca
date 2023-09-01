@@ -18,7 +18,7 @@ from tollan.utils.np import make_complex
 from tolteca_kidsproc.kidsdata.sweep import MultiSweep, Sweep
 from tolteca_kidsproc.kidsdata.timestream import TimeStream
 
-from .base import ToltecDataFileIO
+from .core import ToltecDataFileIO
 from .kidsdata import (
     KidsDataAxis,
     KidsDataAxisInfoMixin,
@@ -953,3 +953,12 @@ class NcFileIO(ToltecDataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         if is_open:
             # try open the object
             self.open()
+
+    @classmethod
+    def identify(cls, file_loc, file_obj=None):
+        """Return if this class can handle ths given file."""
+        if file_obj is not None:
+            return isinstance(file_obj, netCDF4.Dataset)
+        if file_loc is not None:
+            return file_loc.path.suffix == ".nc"
+        return False
