@@ -11,10 +11,11 @@ from tollan.utils.log import logger
 
 from tolteca_kidsproc import kidsdata, kidsmodel
 
-from .core import ToltecDataFileIO
+from .core import ToltecDataFileIO, format_doc, base_doc
 from .types import ToltecDataKind
 
 
+@format_doc(base_doc)
 class TableIO(ToltecDataFileIO):
     """A class to read TolTEC table."""
 

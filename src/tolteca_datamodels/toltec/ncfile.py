@@ -18,7 +18,7 @@ from tollan.utils.np import make_complex
 from tolteca_kidsproc.kidsdata.sweep import MultiSweep, Sweep
 from tolteca_kidsproc.kidsdata.timestream import TimeStream
 
-from .core import ToltecDataFileIO
+from .core import ToltecDataFileIO, format_doc, base_doc
 from .kidsdata import (
     KidsDataAxis,
     KidsDataAxisInfoMixin,
@@ -152,6 +152,7 @@ def _create_nc_node_mappers(nc_node_mapper_defs) -> dict:
     return _get_sub_node(nc_node_mapper_defs)
 
 
+@format_doc(base_doc)
 class NcFileIO(ToltecDataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     """A class to read data from TolTEC netCDF files."""
 
