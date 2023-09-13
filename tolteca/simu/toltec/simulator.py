@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from astropy.coordinates.erfa_astrom import (
         erfa_astrom, ErfaAstromInterpolator)
 from astropy.coordinates import Angle, Longitude, Latitude  # , AltAz, SkyCoord
+from astropy.modeling.functional_models import GAUSSIAN_SIGMA_TO_FWHM
 
 
 __all__ = ['ToltecObsSimulator', 'ToltecHwpConfig']
@@ -570,7 +571,7 @@ class ToltecObsSimulator(object):
                 return Angle(((hwp_cfg.f_rot * t).to_value(
                     u.dimensionless_unscaled) * 2. * np.pi) << u.rad)
             # just a constant
-            return np.full(t.shape, 0.) << u.rad
+            return Angle(np.full(t.shape, 0.) << u.rad)
 
         # convert the catalog source model to image source model, if any
         source_models_for_eval = list()
@@ -906,7 +907,15 @@ class ToltecObsSimulator(object):
         # flxscale = 1. / x_norm
         # update the apt
         apt['background'] = kids_p_tune
-        apt['flxscale'] = flxscale
+        # change flxscale unit to mJy/beam/x
+        apt['mJybeam_per_MJysr'] = np.nan
+        for array_name in toltec_info['array_names']:
+            fwhm = toltec_info[array_name]['a_fwhm']
+            beam_area = 2 * np.pi * (fwhm / GAUSSIAN_SIGMA_TO_FWHM) ** 2
+            conv = (1 << u.mJy/u.beam).to_value(u.MJy / u.sr, equivalencies=u.beam_angular_area(beam_area))
+            apt['mJybeam_per_MJysr'][apt['array_name'] == array_name] = 1 / conv
+        # only extract good detectors for computation
+        apt['flxscale'] = flxscale * apt['mJybeam_per_MJysr']
 
         for array_name in self.array_names:
             m = (det_array_name == array_name)
