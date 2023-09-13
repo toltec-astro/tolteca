@@ -684,7 +684,8 @@ class ToltecArrayPowerLoadingModel(Model):
             tel_surface_rms = 76. << u.um
         self._internal_params['tel_surface_rms'] = tel_surface_rms
         if det_noise_factor is None:
-            det_noise_factor = 0.334
+            # this is to re-define det_noise_factor to linear unit
+            det_noise_factor = 0.334 ** 0.5
         self._internal_params['det_noise_factor'] = det_noise_factor 
         self.logger.debug(f"power loading model internal parameters:\n{pformat_yaml(self._internal_params)}")
 
@@ -983,7 +984,7 @@ class ToltecArrayPowerLoadingModel(Model):
 
         # detector noise factor coefficient
         det_noise_coeff = np.sqrt(
-                1. + self._internal_params['det_noise_factor'])
+                1. + self._internal_params['det_noise_factor'] ** 2)
 
         dnep = dnep_phot * det_noise_coeff
 
