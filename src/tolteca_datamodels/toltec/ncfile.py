@@ -1,7 +1,7 @@
 import warnings
 from functools import cached_property
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 import astropy.units as u
 import netCDF4
@@ -18,7 +18,7 @@ from tollan.utils.np import make_complex
 from tolteca_kidsproc.kidsdata.sweep import MultiSweep, Sweep
 from tolteca_kidsproc.kidsdata.timestream import TimeStream
 
-from .core import ToltecDataFileIO, format_doc, base_doc
+from .core import ToltecFileIO, base_doc, format_doc
 from .kidsdata import (
     KidsDataAxis,
     KidsDataAxisInfoMixin,
@@ -153,7 +153,7 @@ def _create_nc_node_mappers(nc_node_mapper_defs) -> dict:
 
 
 @format_doc(base_doc)
-class NcFileIO(ToltecDataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
+class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     """A class to read data from TolTEC netCDF files."""
 
     @classmethod
@@ -161,11 +161,11 @@ class NcFileIO(ToltecDataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         if isinstance(source, netCDF4.Dataset):
             file_loc_orig = None
             file_loc = source_loc or source.filepath()
-            # TODO here we always re-open the file when open is requested
+            # TODO: here we always re-open the file when open is requested
             # this allows easier management of the pickle but
             # may not be desired. Need to revisit this later.
             file_obj = None
-        elif isinstance(source, (str, Path, FileLoc)):
+        elif isinstance(source, str | Path | FileLoc):
             file_loc_orig = source_loc
             file_loc = source
             file_obj = None
@@ -173,8 +173,8 @@ class NcFileIO(ToltecDataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             raise TypeError(f"invalid source {source}")
         file_loc_orig = cls._validate_file_loc(file_loc_orig)
         file_loc = cls._validate_file_loc(file_loc)
-        # TODO add logic to handle remote file
-        if file_loc.is_remote:
+        # TODO: add logic to handle remote file
+        if file_loc.is_remote():
             raise ValueError(f"remote file is not supported: {file_loc}")
         return {
             "file_loc_orig": file_loc_orig,
@@ -208,14 +208,14 @@ class NcFileIO(ToltecDataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         if self.io_state.is_open():
             # the file is already open
             return self
-        # TODO here we alwasy open the netcdf regardless if
+        # TODO: here we alwasy open the netcdf regardless if
         # an opened file is passed to source and set as file_obj.
         # need to revisit this later
         nc_node = None
 
         def _open_sub_node(n):
             nonlocal nc_node
-            for _, v in n.items():
+            for v in n.values():
                 if isinstance(v, NcNodeMapper):
                     if nc_node is None:
                         v.open(self.filepath)
@@ -233,7 +233,7 @@ class NcFileIO(ToltecDataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
 
     # a registry to store all data kind identifiers
     # this returns a tuple of (valid, meta)
-    _data_kind_identifiers = {}
+    _data_kind_identifiers: ClassVar = {}
 
     @staticmethod
     @add_to_dict(_data_kind_identifiers, ToltecDataKind.RawKidsData)
@@ -303,14 +303,14 @@ class NcFileIO(ToltecDataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         logger.debug(f"loaded meta data:\n{pformat_yaml(meta)}")
 
     # a registry to metadata updaters
-    _meta_updaters = {}
+    _meta_updaters: ClassVar = {}
 
     @add_to_dict(_meta_updaters, ToltecDataKind.KidsData)
     def _update_derived_info(self):
         meta = self._meta
         meta["instru"] = "toltec"
         meta["interface"] = f'toltec{meta["roach"]}'
-        # TODO someday we may need to change the mapping between this
+        # TODO: someday we may need to change the mapping between this
         master = meta["master"] = meta.get("mastervar", 1)
         meta["master_name"] = DB_RawObsMaster.get_master_name(master)
         meta["repeat"] = meta.get("repeatvar", 1)
@@ -429,7 +429,7 @@ class NcFileIO(ToltecDataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         if block_index is None:
             iblock = n_blocks - 1
         else:
-            iblock = range(0, n_blocks_max)[block_index]
+            iblock = range(n_blocks_max)[block_index]
         logger.debug(
             (
                 f"resolve block_index {block_index} -> iblock={iblock} "
@@ -646,6 +646,13 @@ class NcFileIO(ToltecDataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             slicer = getattr(slicer, f"{t}_loc")(arg)
         return self._read_sliced(slicer)
 
+    def read_meta(self, **slicer_args):
+        """Read additional metadata."""
+        slicer = self.block_loc(None)
+        for t, arg in slicer_args.items():
+            slicer = getattr(slicer, f"{t}_loc")(arg)
+        return self._read_sliced(slicer, meta_only=True)
+
     def _resolve_slice(self, slicer):  # noqa: C901, PLR0915
         """Read the file for data specified by the `slicer`."""
         result = {}
@@ -727,7 +734,7 @@ class NcFileIO(ToltecDataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             )
             # this will be used to load the data
             # this data will be reduced for each sweep step later
-            # TODO this is less optimal for sweep_op being a mask.
+            # TODO: this is less optimal for sweep_op being a mask.
             # but for now the sweep is small and we can afford doing so
             sample_slice = slice(
                 np.min(sweep_axis_data["sample_start"]),
@@ -781,7 +788,7 @@ class NcFileIO(ToltecDataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         result["sample_slice"] = sample_slice
         return result
 
-    def _read_sliced(self, slicer):  # noqa: C901, PLR0912
+    def _read_sliced(self, slicer, meta_only=False):  # noqa: C901, PLR0912
         """Read the file for data specified by the `slicer`."""
         s = self._resolve_slice(slicer)
         # now that we have the chan slice and sample slice
@@ -790,6 +797,8 @@ class NcFileIO(ToltecDataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         # we create a copy of meta data here to store the slicer info
         meta = self.meta.copy()
         meta.update(s)
+        if meta_only:
+            return meta
         data = {}
         for k, m in self.node_mappers["data"].items():
             if data_kind & k:
@@ -869,7 +878,7 @@ class NcFileIO(ToltecDataFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         # generic maker, this is just to return the things as a dict
         return {"data_kind": data_kind, "meta": meta, "data": data}
 
-    _kidsdata_obj_makers = {}
+    _kidsdata_obj_makers: ClassVar = {}
     """A registry to store the data obj makers."""
 
     @classmethod

@@ -1,5 +1,6 @@
 import functools
 from pathlib import Path
+from typing import ClassVar
 
 import astropy.units as u
 import numpy as np
@@ -11,16 +12,16 @@ from tollan.utils.log import logger
 
 from tolteca_kidsproc import kidsdata, kidsmodel
 
-from .core import ToltecDataFileIO, format_doc, base_doc
+from .core import ToltecFileIO, base_doc, format_doc
 from .types import ToltecDataKind
 
 
 @format_doc(base_doc)
-class TableIO(ToltecDataFileIO):
+class TableIO(ToltecFileIO):
     """A class to read TolTEC table."""
 
-    # TODO get rid of this when all table writers produce the correct units.
-    _toltec_tbl_col_default_unit = {
+    # TODO: get rid of this when all table writers produce the correct units.
+    _toltec_tbl_col_default_unit: ClassVar = {
         ("f_out", u.Hz),
         ("f_in", u.Hz),
         ("fp", u.Hz),
@@ -29,7 +30,7 @@ class TableIO(ToltecDataFileIO):
         ("slopeQ", u.s),
     }
 
-    _meta_mappers = {
+    _meta_mappers: ClassVar = {
         ToltecDataKind.TableData: {
             "obsnum": "Header.Toltec.ObsNum",
             "subobsnum": "Header.Toltec.SubObsNum",
@@ -47,7 +48,7 @@ class TableIO(ToltecDataFileIO):
             file_loc_orig = None
             file_loc = source_loc
             file_obj = source.copy()
-        elif isinstance(source, (str, Path, FileLoc)):
+        elif isinstance(source, str | Path | FileLoc):
             file_loc_orig = source_loc
             file_loc = source
             file_obj = None
@@ -55,8 +56,8 @@ class TableIO(ToltecDataFileIO):
             raise TypeError(f"invalid source {source}")
         file_loc_orig = cls._validate_file_loc(file_loc_orig)
         file_loc = cls._validate_file_loc(file_loc)
-        # TODO add logic to handle remote file
-        if file_loc.is_remote:
+        # TODO: add logic to handle remote file
+        if file_loc.is_remote():
             raise ValueError(f"remote file is not supported: {file_loc}")
         return {
             "file_loc_orig": file_loc_orig,
@@ -102,7 +103,7 @@ class TableIO(ToltecDataFileIO):
         logger.debug(f"loaded meta data:\n{pformat_yaml(meta)}")
 
     # a registry to metadata updaters
-    _meta_updaters = {}
+    _meta_updaters: ClassVar = {}
 
     @add_to_dict(_meta_updaters, ToltecDataKind.TableData)
     def _update_derived_info(self):
@@ -138,7 +139,7 @@ class TableIO(ToltecDataFileIO):
         data.meta.update(meta)
         return data
 
-    _tbl_obj_makers = {}
+    _tbl_obj_makers: ClassVar = {}
 
     @classmethod
     @add_to_dict(_tbl_obj_makers, ToltecDataKind.KidsTableData)

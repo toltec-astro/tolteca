@@ -4,17 +4,18 @@ from typing import Any
 
 from tollan.utils.fileloc import FileLoc
 from tollan.utils.log import logger
+from typing_extensions import Self
 
-__all__ = ["DataFileIOError", "DataFileIO"]
+__all__ = ["FileIOError", "FileIOBase"]
 
 
-class DataFileIOError(RuntimeError):
-    """An exception class related to data file IO."""
+class FileIOError(RuntimeError):
+    """An exception class related to file IO."""
 
 
 @dataclasses.dataclass
-class DataFileIOState:
-    """A container class for IOState."""
+class FileIOState:
+    """A container class for file IO state."""
 
     io_obj: Any
 
@@ -35,11 +36,12 @@ class DataFileIOState:
         return self.io_obj is not None
 
 
-class DataFileIO(ExitStack):
+class FileIOBase(ExitStack):
     """A base class to help access data file contents.
 
     This class provide a common interface to work with data read and write.
-    It manages properties  ``file_loc_orig``, ``file_loc``, ``file_obj``, and ``io_state``:
+    It manages properties  ``file_loc_orig``, ``file_loc``, ``file_obj``, and
+    ``io_state``:
 
     * ``file_loc_orig``. This is ``FileLoc`` instance of the origin of the file.
 
@@ -52,7 +54,7 @@ class DataFileIO(ExitStack):
     * ``meta``. Arbitury data.
 
     Subclass should implement ``_file_loc_orig``, ``_file_loc``, ``_file_obj``,
-    and ``open()``.
+    ``identify()`` and ``open()``.
 
     This class is also a subclass of `~contextlib.ExitStack`, which can be
     used to manage context objects such as opened files.
@@ -62,17 +64,23 @@ class DataFileIO(ExitStack):
     _file_loc_orig: None | FileLoc
     _file_loc: None | FileLoc
     _file_obj: Any
-    _io_state: DataFileIOState
-    _meta: dict
+    _io_state: FileIOState
+
+    @classmethod
+    def identify(cls, *_args, **_kwargs) -> bool:
+        """Identify if the given file can be opened by this class."""
+        return NotImplemented
+
+    def open(self, *_args, **_kwargs) -> Self:
+        """Open this file for IO."""
+        return NotImplemented
 
     def __init__(self, file_loc_orig=None, file_loc=None, file_obj=None, meta=None):
         self._file_loc_orig = self._validate_file_loc(file_loc_orig)
         self._file_loc = self._validate_file_loc(file_loc)
         self._file_obj = file_obj
-        self._io_state = DataFileIOState(None)
-        self._meta = {}
-        if meta is not None:
-            self.meta.update(meta)
+        self._io_state = FileIOState(None)
+        self._meta = meta or {}
         # init the exit stack
         super().__init__()
         # add the io_state to the callback stack
@@ -105,11 +113,11 @@ class DataFileIO(ExitStack):
         return self._file_obj
 
     @property
-    def file_uri(self):
+    def file_url(self):
         """The file URI."""
         if self.file_loc is None:
             return None
-        return self.file_loc.uri
+        return self.file_loc.url
 
     @property
     def filepath(self):
@@ -130,7 +138,3 @@ class DataFileIO(ExitStack):
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.file_loc})"
-
-    def open(self):
-        """Open the data IO."""
-        return NotImplemented

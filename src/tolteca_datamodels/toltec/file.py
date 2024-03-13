@@ -158,7 +158,10 @@ def _guess_data_kind_from_meta(meta):
             re_interface,
             re_file_ext,
         ), dk in _file_interface_ext_to_toltec_data_kind.items():
-            if re.match(re_interface, interface) and re.match(re_file_ext, file_ext):
+            if re.fullmatch(re_interface, interface) and re.fullmatch(
+                re_file_ext,
+                file_ext,
+            ):
                 dk_set.add(dk)
                 break
     file_suffix = meta.get("file_suffix", None)
@@ -167,8 +170,9 @@ def _guess_data_kind_from_meta(meta):
             re_file_suffix,
             re_file_ext,
         ), dk in _file_suffix_ext_to_toltec_data_kind.items():
-            if re.match(re_file_suffix, file_suffix) and re.match(
-                re_file_ext, file_ext
+            if re.fullmatch(re_file_suffix, file_suffix) and re.fullmatch(
+                re_file_ext,
+                file_ext,
             ):
                 dk_set.add(dk)
                 break
@@ -179,6 +183,7 @@ def _guess_data_kind_from_meta(meta):
 
 def _guess_data_store_info(meta):
     """Return the infered data storage layout and related info."""
+    # TODO : implement this, with respect to taco and data_lmt
     return meta
 
 

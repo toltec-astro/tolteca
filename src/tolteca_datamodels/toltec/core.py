@@ -6,7 +6,7 @@ from tollan.utils.fileloc import FileLoc
 from tollan.utils.log import logger
 from wrapt import ObjectProxy
 
-from ..base import DataFileIO, DataFileIOError
+from ..base import FileIOBase, FileIOError
 from .file import guess_meta_from_source
 from .types import ToltecDataKind
 
@@ -33,7 +33,7 @@ _io_cls_registry = set()
 
 def _identify_io_cls(source, source_loc=None):
     """Return the IO class for `source`."""
-    if isinstance(source, (str, Path, FileLoc)):
+    if isinstance(source, str | Path | FileLoc):
         # map extension to io cls
         file_loc = FileLoc(source)
         file_obj = None
@@ -49,12 +49,10 @@ def _identify_io_cls(source, source_loc=None):
 
 
 @format_doc(base_doc)
-class ToltecDataFileIO(DataFileIO):
-    """A low level base class to open and read TolTEC data files."""
+class ToltecFileIO(FileIOBase):
+    """A low level base class to open and read TolTEC files."""
 
-    def __init_subclass__(cls) -> None:
-        _io_cls_registry.add(cls)
-        return super().__init_subclass__()
+    __abstract__ = True  # skip the registration
 
     def __init__(  # noqa: PLR0913
         self,
@@ -131,7 +129,7 @@ class ToltecDataFileIO(DataFileIO):
                 and self._raise_on_unknown_data_kind
                 and data_kind == ToltecDataKind.Unknown
             ):
-                raise DataFileIOError(error_msg)
+                raise FileIOError(error_msg)
             meta["data_kind"] = data_kind
 
         # this get called in case data kind is found in metadata.
@@ -143,7 +141,7 @@ class ToltecDataFileIO(DataFileIO):
             def on_identified(meta):
                 data_kind = meta["data_kind"]
                 if data_kind not in data_kind_to_validate:
-                    raise DataFileIOError(
+                    raise FileIOError(
                         (
                             f"identified {data_kind=} is not a valid"
                             f" {data_kind_to_validate}"
@@ -191,6 +189,6 @@ class ToltecData(ObjectProxy):
     def __init__(self, source, source_loc=None, **kwargs):
         io_cls = _identify_io_cls(source, source_loc=source_loc)
         if io_cls is None:
-            raise DataFileIOError(f"unable to identify io class for {source=}.")
+            raise FileIOError(f"unable to identify io class for {source=}.")
         io_inst = io_cls(source, source_loc=source_loc, **kwargs)
         super().__init__(io_inst)
