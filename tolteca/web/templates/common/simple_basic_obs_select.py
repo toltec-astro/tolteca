@@ -107,7 +107,8 @@ def _get_bods_index_from_toltecdb(
         obs_type='VNA', n_obs=1, obsnum_latest=None, master=None):
     logger = get_logger()
 
-    tname = 'toltec_r1'
+    # tname = 'toltec_r1'
+    tname = 'toltec'
 
     dbrt.ensure_connection('toltec')
     t = dbrt['toltec'].tables

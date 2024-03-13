@@ -43,7 +43,7 @@ class VnaExplorer(ComponentTemplate):
                 LiveUpdateSection(
                     title_component=html.H3("VNA Sweep Explorer"),
                     interval_options=[2000, 5000],
-                    interval_option_value=2000
+                    interval_option_value=5000
                     ))
         obsInput = controls_container.child(
                 KidsDataSelect(multi=None)

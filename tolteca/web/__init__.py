@@ -105,42 +105,42 @@ celery_config.update(
 
 dasha_config.update(
         pages=[
-                {
-                    "template": "tolteca.web.templates.toltecdashboard",
-                    "route_name": "toltecdashboard",
-                    'title_text': "Dashboard",
-                    'title_icon': 'fas fa-tachometer-alt',
-                },
-                {
-                    "template": "tolteca.web.templates.logview",
-                    "route_name": "logview",
-                    "title_text": 'Log View',
-                    'title_icon': 'far fa-sticky-note',
-                },
-                {
-                    "template": "tolteca.web.templates.beammap",
-                    "route_name": "beammap",
-                    'title_text': "Beammap",
-                    'title_icon': 'fas fa-layer-group',
-                },
-                {
-                    "template": "tolteca.web.templates.dichroic",
-                    "route_name": "dichroic",
-                    "title_text": 'Dichro Temp',
-                    'title_icon': 'fas fa-thermometer-half',
-                },
-                {
-                    "template": "tolteca.web.templates.hkview",
-                    "route_name": "hkview",
-                    "title_text": 'HK View',
-                    'title_icon': 'fas fa-thermometer-half',
-                },
-                {
-                    "template": "tolteca.web.templates.kids_explorer",
-                    "route_name": "kids_explorer",
-                    "title_text": 'KIDs Explorer',
-                    'title_icon': 'fas fa-icicles',
-                },
+#               {
+#                   "template": "tolteca.web.templates.toltecdashboard",
+#                   "route_name": "toltecdashboard",
+#                   'title_text': "Dashboard",
+#                   'title_icon': 'fas fa-tachometer-alt',
+#               },
+#               {
+#                   "template": "tolteca.web.templates.logview",
+#                   "route_name": "logview",
+#                   "title_text": 'Log View',
+#                   'title_icon': 'far fa-sticky-note',
+#               },
+#               {
+#                   "template": "tolteca.web.templates.beammap",
+#                   "route_name": "beammap",
+#                   'title_text': "Beammap",
+#                   'title_icon': 'fas fa-layer-group',
+#               },
+#               {
+#                   "template": "tolteca.web.templates.dichroic",
+#                   "route_name": "dichroic",
+#                   "title_text": 'Dichro Temp',
+#                   'title_icon': 'fas fa-thermometer-half',
+#               },
+#               {
+#                   "template": "tolteca.web.templates.hkview",
+#                   "route_name": "hkview",
+#                   "title_text": 'HK View',
+#                   'title_icon': 'fas fa-thermometer-half',
+#               },
+#               {
+#                   "template": "tolteca.web.templates.kids_explorer",
+#                   "route_name": "kids_explorer",
+#                   "title_text": 'KIDs Explorer',
+#                   'title_icon': 'fas fa-icicles',
+#               },
                 {
                     "template": "tolteca.web.templates.vna_explorer",
                     "route_name": "vna_explorer",
@@ -159,29 +159,29 @@ dasha_config.update(
                     "title_text": 'Noise Explorer',
                     'title_icon': 'fas fa-wave-square',
                 },
-                {
-                    "template": "tolteca.web.templates.disk_stats",
-                    "route_name": "disk_stats",
-                    'title_text': "(dbg) Disk Stats",
-                    'title_icon': 'fas fa-hdd',
-                },
-                {
-                    "template": "tolteca.web.templates.toltecdb",
-                    "route_name": "toltecdb",
-                    'title_text': "(dbg) Databases",
-                    'title_icon': 'fas fa-table',
-                },
-                {
-                    "template": "tolteca.web.templates.taskview",
-                    "route_name": "taskview",
-                    "title_text": '(dbg) Beat Schedule',
-                    "title_icon": 'fas fa-tasks'
-                },
-                {
-                    "template": "tolteca.web.templates.kidsreduceview",
-                    "route_name": "kidsreduce",
-                    "title_text": '(dbg) TRS Info',
-                },
+#               {
+#                   "template": "tolteca.web.templates.disk_stats",
+#                   "route_name": "disk_stats",
+#                   'title_text': "(dbg) Disk Stats",
+#                   'title_icon': 'fas fa-hdd',
+#               },
+#               {
+#                   "template": "tolteca.web.templates.toltecdb",
+#                   "route_name": "toltecdb",
+#                   'title_text': "(dbg) Databases",
+#                   'title_icon': 'fas fa-table',
+#               },
+#                {
+#                    "template": "tolteca.web.templates.taskview",
+#                    "route_name": "taskview",
+#                    "title_text": '(dbg) Beat Schedule',
+#                    "title_icon": 'fas fa-tasks'
+#                },
+#                {
+#                    "template": "tolteca.web.templates.kidsreduceview",
+#                    "route_name": "kidsreduce",
+#                    "title_text": '(dbg) TRS Info',
+#                },
             ],
         )
 
