@@ -15,33 +15,34 @@ __all__ = ["guess_meta_from_source"]
 
 
 _file_suffix_ext_to_toltec_data_kind = {
-    ("vnasweep", "nc"): ToltecDataKind.VnaSweep,
-    ("targsweep", "nc"): ToltecDataKind.TargetSweep,
-    ("tune", "nc"): ToltecDataKind.Tune,
-    ("timestream", "nc"): ToltecDataKind.RawTimeStream,
-    ("(vnasweep|targsweep|tune)_processed", "nc"): ToltecDataKind.ReducedSweep,
-    ("timestream_processed", "nc"): ToltecDataKind.SolvedTimeStream,
-    ("vnasweep", "txt"): ToltecDataKind.KidsModelParamsTable,
-    ("targsweep", "txt"): ToltecDataKind.KidsModelParamsTable,
-    ("tune", "txt"): ToltecDataKind.KidsModelParamsTable,
-    ("targfreqs", "dat"): ToltecDataKind.TargFreqsDat,
-    ("targamps", "dat"): ToltecDataKind.TargAmpsDat,
-    ("chanflag", "ecsv"): ToltecDataKind.ChanPropTable,
-    ("(vnasweep|targsweep|tune)_kidslist", "ecsv"): ToltecDataKind.KidsPropTable,
-    ("(vnasweep|targsweep|tune)_kidsprop", "ecsv"): ToltecDataKind.KidsPropTable,
-    ("(vnasweep|targsweep|tune)_toneprop", "ecsv"): ToltecDataKind.TonePropTable,
-    ("(vnasweep|targsweep|tune)_chanprop", "ecsv"): ToltecDataKind.ChanPropTable,
+    (r"toltec(\d+)?", "vnasweep", "nc"): ToltecDataKind.VnaSweep,
+    (r"toltec(\d+)?", "targsweep", "nc"): ToltecDataKind.TargetSweep,
+    (r"toltec(\d+)?", "tune", "nc"): ToltecDataKind.Tune,
+    (r"toltec(\d+)?", "timestream", "nc"): ToltecDataKind.RawTimeStream,
+    (r"toltec(\d+)?", "^$", "nc"): ToltecDataKind.RawTimeStream,
+    (r"toltec(\d+)?", "(vnasweep|targsweep|tune)_processed", "nc"): ToltecDataKind.ReducedSweep,
+    (r"toltec(\d+)?", "timestream_processed", "nc"): ToltecDataKind.SolvedTimeStream,
+    (r"toltec(\d+)?", "vnasweep", "txt"): ToltecDataKind.KidsModelParamsTable,
+    (r"toltec(\d+)?", "targsweep", "txt"): ToltecDataKind.KidsModelParamsTable,
+    (r"toltec(\d+)?", "tune", "txt"): ToltecDataKind.KidsModelParamsTable,
+    (r"toltec(\d+)?", "targfreqs", "dat"): ToltecDataKind.TargFreqsDat,
+    (r"toltec(\d+)?", "targamps", "dat"): ToltecDataKind.TargAmpsDat,
+    (r"toltec(\d+)?", "chanflag", "ecsv"): ToltecDataKind.ChanPropTable,
+    (r"toltec(\d+)?", "(vnasweep|targsweep|tune)_kidslist", "ecsv"): ToltecDataKind.KidsPropTable,
+    (r"toltec(\d+)?", "(vnasweep|targsweep|tune)_kidsprop", "ecsv"): ToltecDataKind.KidsPropTable,
+    (r"toltec(\d+)?", "(vnasweep|targsweep|tune)_toneprop", "ecsv"): ToltecDataKind.TonePropTable,
+    (r"toltec(\d+)?", "(vnasweep|targsweep|tune)_chanprop", "ecsv"): ToltecDataKind.ChanPropTable,
     # v1 compat
-    ("(vnasweep|targsweep|tune)_tonelist", "ecsv"): ToltecDataKind.KidsPropTable,
-    ("(vnasweep|targsweep|tune)_targfreqs", "ecsv"): ToltecDataKind.TonePropTable,
-    ("(vnasweep|targsweep|tune)_tonecheck", "ecsv"): ToltecDataKind.ChanPropTable,
+    (r"toltec(\d+)?", "(vnasweep|targsweep|tune)_tonelist", "ecsv"): ToltecDataKind.KidsPropTable,
+    (r"toltec(\d+)?", "(vnasweep|targsweep|tune)_targfreqs", "ecsv"): ToltecDataKind.TonePropTable,
+    (r"toltec(\d+)?", "(vnasweep|targsweep|tune)_tonecheck", "ecsv"): ToltecDataKind.ChanPropTable,
 }
 
 _file_interface_ext_to_toltec_data_kind = {
     ("apt", "ecsv"): ToltecDataKind.ArrayPropTable,
     ("ppt", "ecsv"): ToltecDataKind.PointingTable,
-    ("tel_toltec", "nc"): ToltecDataKind.LmtTel,
-    ("tel_toltec2", "nc"): ToltecDataKind.LmtTel2,
+    ("lmt", "nc"): ToltecDataKind.LmtTel,
+    ("lmt_tel2", "nc"): ToltecDataKind.LmtTel2,
     ("hwpr", "nc"): ToltecDataKind.Hwpr,
     ("toltec_hk", "nc"): ToltecDataKind.HouseKeeping,
     ("wyatt", "nc"): ToltecDataKind.Wyatt,
@@ -164,13 +165,14 @@ def _guess_data_kind_from_meta(meta):
             ):
                 dk_set.add(dk)
                 break
-    file_suffix = meta.get("file_suffix", None)
-    if file_suffix is not None and file_ext is not None:
+    file_suffix = meta.get("file_suffix", None) or ""
+    if interface is not None and file_ext is not None:
         for (
+            re_interface,
             re_file_suffix,
             re_file_ext,
         ), dk in _file_suffix_ext_to_toltec_data_kind.items():
-            if re.fullmatch(re_file_suffix, file_suffix) and re.fullmatch(
+            if re.fullmatch(re_interface, interface) and re.fullmatch(re_file_suffix, file_suffix) and re.fullmatch(
                 re_file_ext,
                 file_ext,
             ):
