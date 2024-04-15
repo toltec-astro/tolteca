@@ -1,11 +1,12 @@
 from functools import cached_property
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Generic, TypeVar
 
 from pydantic import Field
 from tollan.config.models.config_snapshot import ConfigSnapshot
 from tollan.config.runtime_context import ConfigBackendBase, RuntimeContextBase
 from tollan.config.runtime_context import RuntimeInfo as _RuntimeInfo
 from tollan.config.types import AbsAnyPath, AbsDirectoryPath, ImmutableBaseModel
+from tollan.utils.typing import get_typing_args
 
 from . import __version__ as _current_version
 from .utils import get_user_data_dir
@@ -46,11 +47,11 @@ class RuntimeInfo(_RuntimeInfo):
     )
 
 
-class ConfigBackend(ConfigBackendBase, runtime_info_model_cls=RuntimeInfo):
+class ConfigBackend(ConfigBackendBase[RuntimeInfo]):
     """The tolteca config backend."""
 
 
-class RuntimeContext(RuntimeContextBase, config_backend_cls=ConfigBackend):
+class RuntimeContext(RuntimeContextBase[ConfigBackend, RuntimeInfo]):
     """The tolteca runtime context."""
 
     config_handler_cls_registry: ClassVar[set[type["ConfigHandler"]]] = set()
@@ -88,7 +89,10 @@ class ConfigModel(ImmutableBaseModel):
     """A base class for tolteca config models."""
 
 
-class ConfigHandler:
+ConfigT = TypeVar("ConfigT", bound=ConfigModel)
+
+
+class ConfigHandler(Generic[ConfigT]):
     """A base class for tolteca config handler.
 
     This class acts as a proxy of an underlying `RuntimeContext` object,
@@ -105,6 +109,17 @@ class ConfigHandler:
         to the `RuntimeContext` constructor.
     """
 
+    config_model_cls: ClassVar[type[ConfigT]]
+    _auto_cache_reset_registry: ClassVar[set[str]] = set()
+
+    @classmethod
+    def auto_cache_reset(cls, prop):
+        """Make cached property auto reset the cache on config load."""
+        if not isinstance(prop, cached_property):
+            raise TypeError("auto invalidate can only be on cached property.")
+        cls._auto_cache_reset_registry.add(prop.func.__name__)
+        return prop
+
     def __init__(self, *args, **kwargs):
         if len(args) == 1 and len(kwargs) == 0 and isinstance(args[0], RuntimeContext):
             rc = args[0]
@@ -112,18 +127,10 @@ class ConfigHandler:
             rc = RuntimeContext(*args, **kwargs)
         self._rc = rc
 
-    config_model_cls: ClassVar[type[ConfigModel]]
-
-    def __init_subclass__(cls, **kwargs) -> None:
+    def __init_subclass__(cls, **kwargs):
+        cls.config_model_cls = get_typing_args(cls, max_depth=2, bound=ConfigModel)[0]
         super().__init_subclass__(**kwargs)
         RuntimeContext.register_config_handler_cls(cls)
-
-    def __class_getitem__(cls, config_model_cls):
-        return type(
-            f"ConfigHandler_{config_model_cls.__name__}",
-            (ConfigHandler,),
-            {"config_model_cls": config_model_cls},
-        )
 
     @property
     def rc(self):
@@ -141,7 +148,7 @@ class ConfigHandler:
         return self.rc.runtime_info
 
     @cached_property
-    def config(self) -> Any:
+    def config(self):
         """The cached config object.
 
         This calls out to `load_config`.
@@ -204,26 +211,30 @@ class ConfigHandler:
             raise ValueError("invalid update mode.")
         # update the cache so any error is raised in the validation now.
         self.__dict__["config"] = self.load_config()
+        # auto invalidate
+        for prop in self._auto_cache_reset_registry:
+            if prop in self.__dict__:
+                del self.__dict__[prop]
 
 
-class SubConfigKeyTransformer:
+KeyT = TypeVar("KeyT")
+
+
+class SubConfigKeyTransformer(Generic[KeyT]):
     """A mixin class to handle a subkey config dict in the runtime config."""
 
-    key: str
+    subconfig_key: ClassVar[KeyT]
 
-    def __class_getitem__(cls, key):
-        return type(
-            f"ConfigTransformer_{key}",
-            (SubConfigKeyTransformer,),
-            {"key": key},
-        )
+    def __init_subclass__(cls, **kwargs):
+        cls.subconfig_key = get_typing_args(cls, max_depth=3, type=str)[0]
+        super().__init_subclass__(**kwargs)
 
     @classmethod
     def prepare_config_data(cls, runtime_config: ImmutableBaseModel) -> dict:
         """Return sub config data."""
-        return getattr(runtime_config, cls.key, {})
+        return getattr(runtime_config, cls.subconfig_key, {})
 
     @classmethod
     def prepare_runtime_config_data(cls, config_data: dict) -> dict:
         """Return runtime config data."""
-        return {cls.key: config_data}
+        return {cls.subconfig_key: config_data}

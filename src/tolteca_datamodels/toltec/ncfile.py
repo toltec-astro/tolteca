@@ -16,7 +16,7 @@ from tollan.utils.nc import NcNodeMapper, ncstr
 from tollan.utils.np import make_complex
 
 from tolteca_kidsproc.kidsdata.sweep import MultiSweep, Sweep
-from tolteca_kidsproc.kidsdata.timestream import TimeStream
+from tolteca_kidsproc.kidsdata.timestream import MultiTimeStream
 
 from .core import ToltecFileIO, base_doc, format_doc
 from .kidsdata import (
@@ -546,7 +546,7 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     def _populate_sweep_axis_data(  # noqa: PLR0913
         sweep_axis_data,
         id,
-        f_sweeps,
+        f_sweep,
         f_los,
         n_samples,
         sample_start,
@@ -560,7 +560,7 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             description="The sweeping LO frequency",
         )
         sweep_axis_data["f_sweep"] = Column(
-            f_sweeps,
+            f_sweep,
             description="The sweep step frequency",
         )
         sweep_axis_data["n_samples"] = Column(
@@ -597,11 +597,11 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             )
             # pad the index with block slice start
             uiflos = uiflos + block_slice.start
-            f_sweeps = uflos - meta["flo_center"]
+            f_sweep = uflos - meta["flo_center"]
             self._populate_sweep_axis_data(
                 sweep_axis_data,
                 id=range(len(uflos)),
-                f_sweeps=f_sweeps << u.Hz,
+                f_sweep=f_sweep << u.Hz,
                 f_los=uflos << u.Hz,
                 n_samples=urflos,
                 sample_start=uiflos,
@@ -621,14 +621,14 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         nm = self.node_mappers["axis_data"]
         meta = self.meta
 
-        f_sweeps = nm.get_var("sweeps")[:]
-        f_los = f_sweeps + meta["flo_center"]
+        f_sweep = nm.get_var("sweeps")[:]
+        f_los = f_sweep + meta["flo_center"]
         sweep_axis_data = QTable()
-        sweep_id = np.arange(len(f_sweeps))
+        sweep_id = np.arange(len(f_sweep))
         self._populate_sweep_axis_data(
             sweep_axis_data,
             id=sweep_id,
-            f_sweeps=f_sweeps << u.Hz,
+            f_sweep=f_sweep << u.Hz,
             f_los=f_los << u.Hz,
             n_samples=1,
             sample_start=sweep_id,
@@ -915,7 +915,7 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     @add_to_dict(_kidsdata_obj_makers, ToltecDataKind.Sweep)
     def _make_kidsdata_sweep(cls, _data_kind, meta, data):
         f_chans = meta["chan_axis_data"]["f_chan"]
-        f_sweeps = meta["sweep_axis_data"]["f_sweep"]
+        f_sweep = meta["sweep_axis_data"]["f_sweep"]
         # we need to pack the I and Q
         S21 = make_complex(data["I"], data["Q"])
         if "unc_I" in data:
@@ -925,7 +925,7 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         result = MultiSweep(
             meta=meta,
             f_chans=f_chans,
-            f_sweeps=f_sweeps,
+            f_sweep=f_sweep,
             S21=S21,
             uncertainty=unc_S21,
         )
@@ -952,7 +952,7 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
     @add_to_dict(_kidsdata_obj_makers, ToltecDataKind.RawTimeStream)
     def _make_kidsdata_rts(cls, _data_kind, meta, data):
         f_chans = meta["chan_axis_data"]["f_chan"]
-        return TimeStream(
+        return MultiTimeStream(
             meta=meta,
             f_chans=f_chans,
             I=data["I"],
@@ -968,7 +968,7 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         for k, v in data.items():
             if k.endswith("_psd"):
                 meta[k] = v
-        return TimeStream(
+        return MultiTimeStream(
             meta=meta,
             f_chans=f_chans,
             r=data["r"],

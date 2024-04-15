@@ -1,13 +1,14 @@
 import tempfile
 from pathlib import Path
+from typing import Literal
 
 from tollan.utils.log import logger
 
 from tolteca_config import __version__
 from tolteca_config.core import (
-    RuntimeContext,
-    ConfigModel,
     ConfigHandler,
+    ConfigModel,
+    RuntimeContext,
     SubConfigKeyTransformer,
 )
 
@@ -52,7 +53,7 @@ class SimpleWorkflowConfig(ConfigModel):
 
 
 class SimpleWorkflow(
-    SubConfigKeyTransformer["workflow"],
+    SubConfigKeyTransformer[Literal["workflow"]],
     ConfigHandler[SimpleWorkflowConfig],
 ):
     """A simple workflow for testing."""

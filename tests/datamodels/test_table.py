@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from tolteca_datamodels.base import DataFileIOError
+from tolteca_datamodels.base import FileIOError
 from tolteca_datamodels.toltec.table import TableIO
 from tolteca_datamodels.toltec.types import ToltecDataKind
 from tolteca_kidsproc.kidsmodel import KidsSweepGainWithLinTrend
@@ -67,5 +67,5 @@ def test_table_read_data_kind():
         tbl = tblfile.read()
     assert tbl.meta["data_kind"] == ToltecDataKind.KidsModelParamsTable
 
-    with pytest.raises(DataFileIOError, match="is not a valid"):
+    with pytest.raises(FileIOError, match="is not a valid"):
         tblfile = TableIO(source=filepath, data_kind="ReducedSweep")

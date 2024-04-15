@@ -30,7 +30,7 @@ class KidsPlotter:
         plt.style.use("seaborn-v0_8-muted")
         self._init_figure()
 
-    def _init_figure(self):
+    def _init_figure(self):  # noqa: C901, PLR0915
         nr = self.n_rows
         nc = self.n_cols
         pw = self.panel_width
@@ -54,7 +54,10 @@ class KidsPlotter:
             raise ValueError("both gs_nav and gs_grid need to be None or set.")
         if self.gs_nav is None:
             gs0 = gridspec.GridSpec(
-                2, 1, figure=fig, height_ratios=[nav_height, grid_size[1]]
+                2,
+                1,
+                figure=fig,
+                height_ratios=[nav_height, grid_size[1]],
             )
             gs_nav = gs0[0, 0]
             gs_grid = gs0[1, 0]
@@ -158,7 +161,7 @@ class KidsPlotter:
                     "i0": i0,
                     "i1": i1,
                     "page_id": page_id,
-                }
+                },
             )
             for i in range(i0, i1):
                 id_to_page_id[i] = page_id
@@ -187,7 +190,9 @@ class KidsPlotter:
                 drawstyle="steps-mid",
             )
             ax.axvspan(
-                i0 - 0.3, i1 + 0.3, color="#cccccc" if (page_id % 2 == 0) else "#eeccee"
+                i0 - 0.3,
+                i1 + 0.3,
+                color="#cccccc" if (page_id % 2 == 0) else "#eeccee",
             )
             if page_id == 0:
                 # setup axis
@@ -199,6 +204,7 @@ class KidsPlotter:
         return self.plot_nav(n_chan, plot_page_func)
 
     def plot_nav_indicator(self, ax, _page_id, i0, i1):
+        """Plot nav indicator."""
         ctx_nav = self._ctx_nav
         if ctx_nav is None:
             raise ValueError("run plot_nav to setup nav context.")
@@ -273,5 +279,8 @@ def plot_axvlines(ax, x, y0=0, y1=1, **kwargs):
     """Plot vlines."""
     trans = tx.blended_transform_factory(ax.transData, ax.transAxes)
     ax.plot(
-        np.repeat(x, 3), np.tile([y0, y1, np.nan], len(x)), transform=trans, **kwargs
+        np.repeat(x, 3),
+        np.tile([y0, y1, np.nan], len(x)),
+        transform=trans,
+        **kwargs,
     )

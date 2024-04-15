@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import Field, PrivateAttr, field_validator
 from pydantic.networks import Url
@@ -84,7 +84,7 @@ class DBConfig(ConfigModel):
         return self._binds_by_name[name]
 
 
-class DB(SubConfigKeyTransformer["db"], ConfigHandler[DBConfig]):
+class DB(SubConfigKeyTransformer[Literal["db"]], ConfigHandler[DBConfig]):
     """The class to work with KIDs data."""
 
     def connect(self, name: str, **kwargs):
