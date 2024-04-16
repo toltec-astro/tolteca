@@ -644,13 +644,16 @@ class SweepCheckPlot(PlotMixin, Step[SweepCheckPlotConfig, SweepCheckPlotContext
             fig=cls.make_bitmask_chan_heatmap(
                 ctd0.bitmask_chan,
             ),
-            row_height=1,
+            row_height=0.5,
         )
 
+        tone_amp = swp.meta["chan_axis_data"]["amp_tone"]
+        tone_amp_db = 20 * np.log10(tone_amp.max() / tone_amp)
         chan_data_items = [
             ("Channel Level", ctd0.chan_level, {}),
             ("Channel Range", ctd0.chan_range, {}),
             ("Channel RMS", ctd0.chan_rms_mean, {}),
+            ("Drive Atten", tone_amp_db, {}),
         ]
         row0 = grid.shape[0] + 1
         for i, (name, value, trace_kw) in enumerate(chan_data_items):
@@ -662,7 +665,7 @@ class SweepCheckPlot(PlotMixin, Step[SweepCheckPlotConfig, SweepCheckPlotContext
                     value,
                     trace_kw,
                 ),
-                row_height=0.5 / len(chan_data_items),
+                row_height=0.75 / len(chan_data_items),
             )
         chunk_data_items = [
             ("Chunk RMS", ctd0.chunk_rms_mean, {}),
@@ -684,14 +687,14 @@ class SweepCheckPlot(PlotMixin, Step[SweepCheckPlotConfig, SweepCheckPlotContext
                     value,
                     trace_kw,
                 ),
-                row_height=1.5 / len(chunk_data_items),
+                row_height=1 / len(chunk_data_items),
             )
 
         fig = ctd1.chan_summary = grid.make_figure(
             shared_xaxes="all",
-            vertical_spacing=40 / 1200,
+            vertical_spacing=40 / 1400,
             fig_layout={
-                "height": 1200,
+                "height": 1400,
             },
         )
         # add a range slider

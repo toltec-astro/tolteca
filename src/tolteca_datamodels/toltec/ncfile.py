@@ -61,7 +61,7 @@ _nc_node_mapper_defs = {
     "meta": {
         ToltecDataKind.KidsData: {
             "fsmp": "Header.Toltec.SampleFreq",
-            "flo_center": "Header.Toltec.LoCenterFreq",
+            "f_lo_center": "Header.Toltec.LoCenterFreq",
             "atten_drive": "Header.Toltec.DriveAtten",
             "atten_sense": "Header.Toltec.SenseAtten",
             "roach": "Header.Toltec.RoachIndex",
@@ -105,7 +105,7 @@ _nc_node_mapper_defs = {
         "amp_tones": "Header.Toltec.ToneAmp",
         "amp_tones_deprecated": "Header.Toltec.ToneAmps",
         "phase_tones": "Header.Toltec.TonePhase",
-        "flos": "Data.Toltec.LoFreq",
+        "f_los": "Data.Toltec.LoFreq",
     },
     "data": {
         ToltecDataKind.RawKidsData: {
@@ -347,24 +347,24 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
 
         # this is the theoretical number of samples per sweep block.
         result["n_timespersweep"] = meta["n_sweepsteps"] * meta["n_sweepreps"]
-        # we need to load flos to properly handle the sweeps with potentially
+        # we need to load f_los to properly handle the sweeps with potentially
         # missing samples
         nm = self.node_mappers["axis_data"]
-        flos_Hz = nm.get_var("flos")[:]
-        result["flos"] = flos_Hz << u.Hz
+        f_los_Hz = nm.get_var("f_los")[:]
+        result["f_los"] = f_los_Hz << u.Hz
 
         # for tune file, we expect multiple sweep blocks
         # because there could be samples missing, the only
         # reliable way to identify the blocks is to
-        # check the flos array looking for monotonically
+        # check the f_los array looking for monotonically
         # increasing blocks
-        # sometimes there could be corrupted data and the flo is set to 0.
+        # sometimes there could be corrupted data and the f_lo is set to 0.
         # this assert detects such case because otherwise the break
         # indices will be incorrect.
-        if not np.all(flos_Hz > 0):
-            raise ValueError("invalid flo found in data file.")
-        # this gives the index of the first item after a decrease in flo
-        break_indices = np.where(np.diff(flos_Hz) < 0)[0] + 1
+        if not np.all(f_los_Hz > 0):
+            raise ValueError("invalid f_lo found in data file.")
+        # this gives the index of the first item after a decrease in f_lo
+        break_indices = np.where(np.diff(f_los_Hz) < 0)[0] + 1
 
         if break_indices.size == 0:
             # we have one (maybe incompleted) block
@@ -487,7 +487,7 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
                 description="The ROACH tone frequency as used in the FFT comb",
             )
             chan_axis_data["f_chan"] = Column(
-                data[i] + (meta["flo_center"] << u.Hz),
+                data[i] + (meta["f_lo_center"] << u.Hz),
                 description="The channel reference frequency.",
             )
             chan_axis_data["mask_tone"] = Column(
@@ -584,28 +584,28 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         This is a list of tables.
         """
         meta = self.meta
-        flos_Hz = meta["flos"].to_value(u.Hz)
+        f_los_Hz = meta["f_los"].to_value(u.Hz)
         result = []
         for iblock, block_slice in enumerate(meta["block_slices"]):
             sweep_axis_data = QTable()
             # the raw sweep axis is constructed from checking the
-            # flo frequencies
-            uflos, uiflos, urflos = np.unique(
-                flos_Hz[block_slice],
+            # f_lo frequencies
+            uf_los, uif_los, urf_los = np.unique(
+                f_los_Hz[block_slice],
                 return_index=True,
                 return_counts=True,
             )
             # pad the index with block slice start
-            uiflos = uiflos + block_slice.start
-            f_sweep = uflos - meta["flo_center"]
+            uif_los = uif_los + block_slice.start
+            f_sweep = uf_los - meta["f_lo_center"]
             self._populate_sweep_axis_data(
                 sweep_axis_data,
-                id=range(len(uflos)),
+                id=range(len(uf_los)),
                 f_sweep=f_sweep << u.Hz,
-                f_los=uflos << u.Hz,
-                n_samples=urflos,
-                sample_start=uiflos,
-                sample_end=uiflos + urflos,
+                f_los=uf_los << u.Hz,
+                n_samples=urf_los,
+                sample_start=uif_los,
+                sample_end=uif_los + urf_los,
                 meta=meta,
                 block_index=iblock,
             )
@@ -622,7 +622,7 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         meta = self.meta
 
         f_sweep = nm.get_var("sweeps")[:]
-        f_los = f_sweep + meta["flo_center"]
+        f_los = f_sweep + meta["f_lo_center"]
         sweep_axis_data = QTable()
         sweep_id = np.arange(len(f_sweep))
         self._populate_sweep_axis_data(

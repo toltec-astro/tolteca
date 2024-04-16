@@ -17,6 +17,7 @@ from tollan.utils.np import attach_unit, make_complex, strip_unit
 
 from tolteca_kidsproc.kidsdata import MultiSweep
 
+from .match1d import Match1D, Match1DResult
 from .peaks1d import Peaks1D, Peaks1DResult
 from .pipeline import Step, StepConfig, StepContext
 from .plot import PlotConfig, PlotMixin
@@ -166,6 +167,12 @@ class KidsFindConfig(StepConfig):
             "Segements with separation smaller than this are modeled as a group."
         ),
     )
+    match: Match1D = Field(
+        default={
+            "method": "dtw_python",
+        },
+        description="Detection matching settings.",
+    )
 
 
 @dataclass(kw_only=True)
@@ -200,6 +207,8 @@ class KidsFindData:
 
     mdl_grouped: QTable = ...
     mdl_groups: QTable = ...
+
+    matched: Match1DResult = ...
 
 
 class KidsFindContext(StepContext["KidsFind", KidsFindConfig]):
@@ -639,6 +648,10 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
         bitmask_det_mdl_group_bits = bitmask_mdl_group_bits[det_group_mask.nonzero()[1]]
         bitmask_d21[d21_mask_peak_detected] |= bitmask_det_mdl_group_bits[m_subdet_d21]
         bitmask_s21[s21_mask_peak_detected] |= bitmask_det_mdl_group_bits[m_subdet_s21]
+
+        # match f_dets to f_chans
+        f_chans = swp.f_chans
+        ctd.matched = cfg.match(mdl_grouped["x"], f_chans)
         return True
 
     @staticmethod

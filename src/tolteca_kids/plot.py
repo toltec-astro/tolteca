@@ -163,6 +163,7 @@ class PlotMixin:
             "autoexpand": True,
             "l": 0,
             "b": 0,
+            "t": 20,
         },
         "modebar": {
             "orientation": "v",

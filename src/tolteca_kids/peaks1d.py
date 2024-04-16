@@ -10,6 +10,7 @@ from scipy.signal import peak_widths
 from tollan.config.types import ImmutableBaseModel
 from tollan.utils.fmt import pformat_yaml
 from tollan.utils.log import logger, timeit
+from tollan.utils.np import strip_unit
 from typing_extensions import assert_never
 
 
@@ -177,23 +178,13 @@ class Peaks1D(ImmutableBaseModel):
             f"peakdetect with {lookahead=} {delta_med=} n_chunks={len(chunks)}",
         )
 
-        def _strip_unit(a):
-            if isinstance(a, u.Quantity):
-                return a.value, a.unit
-            return a, None
-
-        def _attach_unit(a, unit):
-            if unit is None:
-                return a
-            return a << unit
-
-        x_value, x_unit = _strip_unit(x)
-        y_value, y_unit = _strip_unit(y)
+        x_value, x_unit = strip_unit(x)
+        y_value, y_unit = strip_unit(y)
         if ey is not None:
-            ey_value, _ = _strip_unit(ey)
+            ey_value, _ = strip_unit(ey)
         else:
             ey_value = None
-        delta_value, delta_unit = _strip_unit(delta)
+        delta_value, delta_unit = strip_unit(delta)
 
         labx = np.full(ny, 0, dtype=int)
 

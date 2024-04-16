@@ -11,21 +11,24 @@ import astropy.units as u
 import numpy as np
 import numpy.typing as npt
 from astropy.table import Column, QTable, Table
-from astropy.utils.decorators import classproperty
 from loguru import logger
 from strenum import StrEnum
 from tollan.pipeline.context_handler import MetadataContextHandlerMixin
-from tollan.utils.general import getname
 from tollan.utils.np import ensure_unit
 from tollan.utils.table import TableValidator
+
+__all__ = [
+    "RoachToneProps",
+    "TlalocEtcDataStore",
+]
 
 FrequencyQuantityType = u.Quantity["frequency"]
 
 
-def _validate_roach_frequency_data(f_combs, f_tones, f_lo):
-    if f_combs is not None and f_tones is not None:
+def _validate_roach_frequency_data(f_tones, f_chans, f_lo):
+    if f_tones is not None and f_chans is not None:
         # update f_lo if both are present
-        f_los = np.unique(f_tones - f_combs)
+        f_los = np.unique(f_chans - f_tones)
         if len(f_los) != 1:
             raise ValueError("inconsistent LO frequencies in data.")
         if f_lo is None:
@@ -34,13 +37,13 @@ def _validate_roach_frequency_data(f_combs, f_tones, f_lo):
             raise ValueError("inconsistent LO frequency in metadata and data.")
         else:
             pass
-        return f_combs, f_tones, f_lo
-    if f_combs is not None and f_lo is not None:
-        return f_combs, f_combs + f_lo, f_lo
+        return f_tones, f_chans, f_lo
     if f_tones is not None and f_lo is not None:
-        return f_tones - f_lo, f_combs, f_lo
+        return f_tones, f_tones + f_lo, f_lo
+    if f_chans is not None and f_lo is not None:
+        return f_chans - f_lo, f_tones, f_lo
     # incomplete data, just return as is
-    return f_combs, f_tones, f_lo
+    return f_tones, f_chans, f_lo
 
 
 @dataclass(kw_only=True)
@@ -65,10 +68,6 @@ class RoachToneProps(MetadataContextHandlerMixin[str, RoachTonePropsMetadata]):
     _context_handler_context_cls = RoachTonePropsMetadata
     _tbl_validator: ClassVar = TableValidator(table_cls=QTable)
 
-    @classproperty
-    def _context_handler_key(cls):  # noqa: N805
-        return getname(cls)
-
     @staticmethod
     def _validate_f_lo(f_lo):
         if f_lo is None:
@@ -80,7 +79,7 @@ class RoachToneProps(MetadataContextHandlerMixin[str, RoachTonePropsMetadata]):
         cls,
         tbl: Table | QTable,
         f_lo=None,
-        f_lo_key="f_lo",
+        f_lo_key="f_lo_center",
         atten_drive=None,
         atten_drive_key="atten_drive",
     ):
@@ -102,19 +101,19 @@ class RoachToneProps(MetadataContextHandlerMixin[str, RoachTonePropsMetadata]):
         ctx.atten_drive = atten_drive
 
         # validate frequency info
-        f_combs, f_tones = map(
+        f_tones, f_chans = map(
             ensure_f_unit,
-            tblv.get_col_data(tbl, ["f_comb", "f_tone"]),
+            tblv.get_col_data(tbl, ["f_tone", "f_chan"]),
         )
-        f_combs, f_tones, f_lo = _validate_roach_frequency_data(
-            f_combs=f_combs,
+        f_tones, f_chans, f_lo = _validate_roach_frequency_data(
             f_tones=f_tones,
+            f_chans=f_chans,
             f_lo=f_lo,
         )
-        if f_combs is None or f_tones is None:
+        if f_tones is None or f_chans is None:
             raise ValueError("missing frequency data.")
-        tpt["f_comb"] = f_combs
         tpt["f_tone"] = f_tones
+        tpt["f_chan"] = f_chans
         ctx.f_lo = f_lo
         # TODO: put this in the table validator
         for k, unit, dtype in [
@@ -175,14 +174,14 @@ class RoachToneProps(MetadataContextHandlerMixin[str, RoachTonePropsMetadata]):
         return self.table["mask_tone"].astype(bool)
 
     @property
-    def f_combs(self):
+    def f_tones(self):
         """The comb frequency."""
-        return self._get_data("f_comb")
+        return self._get_data("f_tone")
 
     @property
-    def f_tones(self):
+    def f_chans(self):
         """The tone frequency."""
-        return self._get_data("f_tone")
+        return self._get_data("f_chan")
 
     @property
     def amps(self):
@@ -209,6 +208,12 @@ class RoachToneProps(MetadataContextHandlerMixin[str, RoachTonePropsMetadata]):
 
     def __getitem__(self, *args):
         return self.__class__(self.table.__getitem__(*args))
+
+    @staticmethod
+    def make_random_phases(n_chans, seed=None) -> npt.NDArray:
+        """Return random phases."""
+        rng1 = np.random.default_rng(seed=seed)
+        return rng1.random(n_chans) * 2 * np.pi
 
 
 class TlalocRoachInterface:
@@ -599,19 +604,13 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
             roach=roach,
         )
 
-    @staticmethod
-    def make_random_phases(n_chans, seed=None) -> npt.NDArray:
-        """Return random phases."""
-        rng1 = np.random.default_rng(seed=seed)
-        return rng1.random(n_chans) * 2 * np.pi
-
     @classmethod
     def make_targ_phases_table(cls, data=None, roach=None, n_chans=None, seed=None):
         """Return targ phases table."""
         data = cls._gen_data_if_not_given(
             data=data,
             n_chans=n_chans or cls.n_chans_max,
-            gen_none=functools.partial(cls.make_random_phases, seed=seed),
+            gen_none=functools.partial(RoachToneProps.make_random_phases, seed=seed),
             gen_scalar=lambda d, n: np.full((n,), d),
         )
         return cls._make_simple_data_table(
@@ -637,7 +636,7 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
 
     @staticmethod
     def _get_f_lo_from_table(tbl: Table) -> None | FrequencyQuantityType:
-        for k in ["Header.Toltec.LoCenterFreq", "f_lo"]:
+        for k in ["Header.Toltec.LoCenterFreq", "f_lo_center"]:
             v = tbl.meta.get(k)
             if v is not None:
                 return ensure_unit(v, u.Hz)
@@ -661,26 +660,26 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
 
         # validate frequency info
         tblv = cls._tbl_validator
-        f_combs, f_centered, f_tones = map(
+        f_tones, f_centered, f_chans = map(
             ensure_f_unit,
-            tblv.get_col_data(tbl, ["f_combs", "f_centered", "f_tones"]),
+            tblv.get_col_data(tbl, ["f_tones", "f_centered", "f_chans"]),
         )
-        f_combs, f_tones, f_lo = _validate_roach_frequency_data(
-            f_combs=f_combs or f_centered,
-            f_tones=f_tones,
+        f_tones, f_chans, f_lo = _validate_roach_frequency_data(
+            f_tones=f_tones or f_centered,
+            f_chans=f_chans,
             f_lo=f_lo,
         )
-        if f_combs is None or f_tones is None:
+        if f_tones is None or f_chans is None:
             raise ValueError("missing frequency data.")
 
         tbl_out = Table(
             {
                 # TODO: should standarize these keys.
-                "f_centered": f_combs.to_value(f_unit),
-                "f_out": f_tones.to_value(f_unit),
+                "f_centered": f_tones.to_value(f_unit),
+                "f_out": f_chans.to_value(f_unit),
             },
             meta={
-                "f_lo": f_lo.to_value(f_unit),
+                "f_lo_center": f_lo.to_value(f_unit),
                 "roach": roach,
             },
         )
@@ -799,7 +798,7 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
             (
                 TlalocEtcDataItem.targ_freqs,
                 self.write_targ_freqs_table,
-                {"roach": roach, "f_lo": f_lo},
+                {"roach": roach, "f_lo_center": f_lo},
             ),
             (
                 TlalocEtcDataItem.targ_amps,
@@ -884,8 +883,8 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
         targ_freqs = self.read_targ_freqs_table(roach)
 
         n_chans = len(targ_freqs)
-        tpt["f_comb"] = targ_freqs["f_centered"]
-        tpt["f_tone"] = targ_freqs["f_out"]
+        tpt["f_tone"] = targ_freqs["f_centered"]
+        tpt["f_chan"] = targ_freqs["f_out"]
 
         for item, reader, make_default in [
             (
@@ -928,13 +927,13 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
     @classmethod
     def create(
         cls,
-        tlaloc_etc_rootpath,
+        tlaloc_etc_path,
         roaches=None,
         exist_ok=False,
         roach_only=False,
     ):
         """Create the directory tree."""
-        etcdir = Path(tlaloc_etc_rootpath)
+        etcdir = Path(tlaloc_etc_path)
         if etcdir.exists() and not exist_ok:
             raise ValueError("etc directory exists, abort.")
         roaches = roaches or TlalocRoachInterface.roaches
@@ -948,4 +947,4 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
         return cls(path=etcdir)
 
     def __repr__(self):
-        return f"{self.__class__.__name__}({self.path}){self.roaches}"
+        return f"{self.__class__.__name__}({self.path})"
