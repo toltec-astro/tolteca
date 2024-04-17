@@ -70,11 +70,11 @@ class PlotConfig(StepConfig):
                 data = data_item["data"]
                 item_name = data_item["title_text"]
                 if save_name is None:
-                    save_name = item_name
+                    _save_name = item_name
                 else:
-                    save_name = f"{save_name}_{item_name}"
+                    _save_name = f"{save_name}_{item_name}"
                 if isinstance(data, go.Figure):
-                    self._save_fig(data, save_name, save_rootpath=self.save_rootpath)
+                    self._save_fig(data, _save_name, save_rootpath=self.save_rootpath)
                 else:
                     pass
 
@@ -95,6 +95,7 @@ class PlotConfig(StepConfig):
                 fig,
                 filename=save_path.as_posix(),
                 auto_open=False,
+                auto_play=False,
             )
         return save_path
 
