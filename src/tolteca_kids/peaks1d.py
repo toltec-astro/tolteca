@@ -304,6 +304,7 @@ class Peaks1D(ImmutableBaseModel):
                 peak_info[c].unit = y_unit
 
         return Peaks1DResult(
+            config=self,
             x=x,
             y=y,
             ey=ey,
@@ -333,6 +334,7 @@ class Peaks1D(ImmutableBaseModel):
 class Peaks1DResult:
     """Result from Peaks1D."""
 
+    config: Peaks1D = ...
     x: npt.NDArray = ...
     y: npt.NDArray = ...
     ey: None | npt.NDArray = None

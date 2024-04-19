@@ -24,12 +24,15 @@ __all__ = [
 
 
 # this speeds up exceptions containing plotly objects.
+_build_repr_for_class_orig = BasePlotlyType._build_repr_for_class  # noqa: SLF001
+
+
 def _plotly_build_repr_for_class(
     props,  # noqa: ARG001
     class_name,
     parent_path_str=None,
 ):
-    return BasePlotlyType._build_repr_for_class(  # noqa: SLF001
+    return _build_repr_for_class_orig(
         [],
         class_name,
         parent_path_str=parent_path_str,

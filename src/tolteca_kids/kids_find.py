@@ -1,12 +1,14 @@
 from dataclasses import dataclass
 from enum import IntFlag, auto
+from typing import Literal
 
 import astropy.units as u
 import dill
 import numpy as np
 import numpy.typing as npt
+import plotly
 import plotly.graph_objects as go
-from astropy.table import QTable, vstack
+from astropy.table import QTable, unique, vstack
 from pydantic import ConfigDict, Field
 from scipy.ndimage import median_filter
 from scipy.optimize import leastsq
@@ -14,6 +16,7 @@ from tollan.config.types import AbsAnyPath, FrequencyQuantityField, TimeQuantity
 from tollan.utils.fmt import pformat_mask
 from tollan.utils.log import logger, timeit
 from tollan.utils.np import attach_unit, make_complex, strip_unit
+from typing_extensions import assert_never
 
 from tolteca_kidsproc.kidsdata import MultiSweep
 
@@ -173,6 +176,7 @@ class KidsFindConfig(StepConfig):
         },
         description="Detection matching settings.",
     )
+    match_ref: Literal["chan", "d21", "s21"] = "chan"
 
 
 @dataclass(kw_only=True)
@@ -650,8 +654,33 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
         bitmask_s21[s21_mask_peak_detected] |= bitmask_det_mdl_group_bits[m_subdet_s21]
 
         # match f_dets to f_chans
-        f_chans = swp.f_chans
-        ctd.matched = cfg.match(mdl_grouped["x"], f_chans)
+        def _match_postproc(r: Match1DResult):
+            # this add Qr to the detected peak info table
+            matched = r.matched
+            iq = matched["idx_query"]
+            rr = 0.5 / det_groups["Qr"][iq]
+            xx = matched["dist"] / matched["query"]
+            matched["d_phi"] = np.rad2deg(np.arctan2(xx, rr)) << u.deg
+            matched["bitmask_det"] = bitmask_det[iq]
+            return r
+
+        if cfg.match_ref == "chan":
+            f_ref = swp.f_chans
+        elif cfg.match_ref == "d21":
+            f_ref = d21_detected["x"]
+        elif cfg.match_ref == "s21":
+            f_ref = s21_detected["x"]
+        else:
+            assert_never()
+        ctd.matched = cfg.match(
+            query=mdl_grouped["x"].to(u.MHz),
+            ref=f_ref.to(u.MHz),
+            postproc_hook=_match_postproc,
+            shift_kw={
+                "shift_max": 10 << u.MHz,
+                "dx_resample": 1,
+            },
+        )
         return True
 
     @staticmethod
@@ -847,6 +876,7 @@ class KidsFindPlotData:
     det_summary: go.Figure = ...
     # chan_baseline: go.Figure = ...
     peaks: go.Figure = ...
+    matched: go.Figure = ...
 
 
 class KidsFindPlotContext(StepContext["KidsFindPlot", KidsFindPlotConfig]):
@@ -1225,6 +1255,106 @@ class KidsFindPlot(PlotMixin, Step[KidsFindPlotConfig, KidsFindPlotContext]):
             **s21_data_panel_kw,
         )
 
+        # matched
+        matched = ctd_kf.matched
+        fig = ctd.matched = cls.make_subplots(
+            n_rows=3,
+            n_cols=1,
+            vertical_spacing=40 / 1200,
+            fig_layout=cls.fig_layout_default
+            | {
+                "showlegend": False,
+                "height": 1200,
+            },
+        )
+        dist_panel_kw = {"row": 1, "col": 1}
+        match_panel_kw = {"row": 2, "col": 1}
+        density_panel_kw = {"row": 3, "col": 1}
+
+        tbl_matched = matched.matched.copy()
+        tbl_matched.sort("adist_shifted")
+        tbl_matched = unique(tbl_matched, keys="idx_query")
+        d_phi_good_max = 5 << u.deg
+        d_phi_ok_max = d_phi_good_max * 3
+        d_phi = tbl_matched["d_phi"]
+        ad_phi = np.abs(d_phi)
+
+        m_good = ad_phi < d_phi_good_max
+        m_ok = (ad_phi >= d_phi_good_max) & (ad_phi < d_phi_ok_max)
+        m_bad = ad_phi >= d_phi_ok_max
+        m_dup = (tbl_matched["bitmask_det"] & SegmentBitMask.blended) > 0
+        d_phi_good_max_value = d_phi_good_max.to_value(u.deg)
+        bins = (
+            np.arange(
+                -90 - d_phi_good_max_value / 2,
+                90 + d_phi_good_max_value * 1.1 / 2,
+                d_phi_good_max_value,
+            )
+            << u.deg
+        )
+        x = (0.5 * (bins[1:] + bins[:-1])).to_value(u.deg)
+        y_good_dup, _ = np.histogram(d_phi[m_good & m_dup], bins=bins)
+        y_good, _ = np.histogram(d_phi[m_good & (~m_dup)], bins=bins)
+        y_ok_dup, _ = np.histogram(d_phi[m_ok & m_dup], bins=bins)
+        y_ok, _ = np.histogram(d_phi[m_ok & (~m_dup)], bins=bins)
+        y_bad_dup, _ = np.histogram(d_phi[m_bad & m_dup], bins=bins)
+        y_bad, _ = np.histogram(d_phi[m_bad & (~m_dup)], bins=bins)
+
+        c00, c25, c75, c100 = plotly.colors.sample_colorscale(
+            "rdylgn",
+            samplepoints=[0, 0.25, 0.75, 1],
+        )
+        for y, name, color in [
+            (y_bad, "bad", c75),
+            (y_bad_dup, "bad_dup", c25),
+            (y_ok, "ok", c75),
+            (y_ok_dup, "ok_dup", c25),
+            (y_good, "good", c100),
+            (y_good_dup, "good_dup", c00),
+        ]:
+            fig.add_bar(
+                x=x,
+                y=y,
+                marker={
+                    "color": color,
+                },
+                name=name,
+                **dist_panel_kw,
+            )
+        for x0, x1, opt in [
+            (bins[0].to_value(u.deg), -d_phi_ok_max.to_value(u.deg), 0.3),
+            (-d_phi_ok_max.to_value(u.deg), -d_phi_good_max.to_value(u.deg), 0.15),
+            (-d_phi_good_max.to_value(u.deg), d_phi_good_max.to_value(u.deg), 0.0),
+            (d_phi_good_max.to_value(u.deg), d_phi_ok_max.to_value(u.deg), 0.15),
+            (d_phi_ok_max.to_value(u.deg), bins[-1].to_value(u.deg), 0.3),
+        ]:
+            fig.add_vrect(x0=x0, x1=x1, line_width=0, fillcolor="black", opacity=opt)
+        fig.update_yaxes(
+            title="Count",
+            **dist_panel_kw,
+        )
+        fig.update_xaxes(
+            title="phi (deg)",
+            **dist_panel_kw,
+        )
+
+        ref_name = cfg_kf.match_ref.capitalize()
+        matched.make_plotly_fig(
+            type="match",
+            fig=fig,
+            panel_kw=match_panel_kw,
+            label_value="Frequency (MHz)",
+            label_ref=ref_name,
+            label_query="Detect",
+        )
+        matched.make_plotly_fig(
+            type="density",
+            fig=fig,
+            panel_kw=density_panel_kw,
+            label_ref=f"Ref Id ({ref_name})",
+            label_query="Detect Id",
+        )
+        fig.update_layout(barmode="stack")
         cls.save_or_show(data, context)
         return True
 
