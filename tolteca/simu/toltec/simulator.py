@@ -226,8 +226,8 @@ class ToltecObsSimulator(object):
 
         # calibration related
         # TODO need to revisit these assumptions
-        if 'flxscale' not in tbl.colnames:
-            tbl['flxscale'] = (1. / tbl['responsivity']).quantity.value
+        # if 'flxscale' not in tbl.colnames:
+        #     tbl['flxscale'] = (1. / tbl['responsivity']).quantity.value
 
         # kids readout noise
         if 'sigma_readout' not in tbl.colnames:
@@ -462,6 +462,7 @@ class ToltecObsSimulator(object):
                 det_sky_traj=None,
                 time_obs=None,
                 det_add_pwr=None,
+                det_scale_pwr=None,
                 ):
             # make sure we have at least some input for eval
             if det_s is None and det_sky_traj is None:
@@ -505,7 +506,8 @@ class ToltecObsSimulator(object):
                         )
             if det_add_pwr is not None:
                 det_pwr += det_add_pwr
-
+            if det_scale_pwr is not None:
+                det_pwr = det_pwr * det_scale_pwr
             # calculate the kids signal
             nonlocal kids_probe_p
             rs, xs, iqs = kids_probe_p(det_pwr)
@@ -915,7 +917,13 @@ class ToltecObsSimulator(object):
             conv = (1 << u.mJy/u.beam).to_value(u.MJy / u.sr, equivalencies=u.beam_angular_area(beam_area))
             apt['mJybeam_per_MJysr'][apt['array_name'] == array_name] = 1 / conv
         # only extract good detectors for computation
-        apt['flxscale'] = flxscale * apt['mJybeam_per_MJysr']
+        flxscale = flxscale * apt['mJybeam_per_MJysr'] << u.mJy/u.beam
+        # compare the internel flxscale with desired flxscale
+        # this is additional factor that goes to the generated x values
+        if 'flxscale' not in apt.colnames:
+            apt['flxscale'] = flxscale
+        flxscale2 = apt['flxscale'] / flxscale
+        self.logger.debug(f"rescale flxscale {flxscale2.mean()}")
 
         for array_name in self.array_names:
             m = (det_array_name == array_name)
@@ -972,7 +980,8 @@ class ToltecObsSimulator(object):
                 det_s=det_s,
                 det_sky_traj=det_sky_traj,
                 time_obs=mapping_info['time_obs'],
-                det_add_pwr=det_add_background_loading
+                det_add_pwr=det_add_background_loading,
+                det_scale_pwr=flxscale2[:, np.newaxis],
                 )
             return locals()
 

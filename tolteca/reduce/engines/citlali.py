@@ -512,7 +512,7 @@ class CitlaliProc(object):
         cal_obsnums = np.array(list(map(_get_obsnum, ppts)))
         logger.debug(f"resolve pointing offsets for {teldata} {obsnum=} using ppt of obsnums={cal_obsnums}")
 
-        idx_pre = np.where(cal_obsnums < obsnum)[0]
+        idx_pre = np.where(cal_obsnums <= obsnum)[0]
         if len(idx_pre) == 0:
             obsnum_pre = None
             ppt_pre = None
@@ -520,7 +520,7 @@ class CitlaliProc(object):
             obsnum_pre = cal_obsnums[idx_pre[-1]]
             ppt_pre = ppts[idx_pre[-1]]
 
-        idx_post = np.where(cal_obsnums > obsnum)[0]
+        idx_post = np.where(cal_obsnums >= obsnum)[0]
         if len(idx_post) == 0:
             obsnum_post = None
             ppt_post = None
@@ -711,13 +711,11 @@ class CitlaliProc(object):
         # for this we need the tel file index
         tel_index = index_table[index_table['interface'] == 'lmt']
         cal_items =[]
-        # first we resolve the cal_objs
-        if cal_objs is not None:
-            cal_items.extend(cls._resolve_cal_objs(tel_index, cal_objs))
-        # now resolve all the low level cal_items
-        # note these cal_items overrides the resolved calobjs
         if cal_items_low_level is not None:
             cal_items.extend(cal_items_low_level)
+        # note these cal_items get overriden by the resolved calobjs
+        if cal_objs is not None:
+            cal_items.extend(cls._resolve_cal_objs(tel_index, cal_objs))
         # don't forget the cal_items resolved from data_items
         cal_items.extend(cal_items_override)
 
