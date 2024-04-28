@@ -11,9 +11,9 @@ import astropy.units as u
 import numpy as np
 import numpy.typing as npt
 from astropy.table import Column, QTable, Table
-from loguru import logger
 from strenum import StrEnum
 from tollan.pipeline.context_handler import MetadataContextHandlerMixin
+from tollan.utils.log import logger, logit
 from tollan.utils.np import ensure_unit
 from tollan.utils.table import TableValidator
 from tollan.utils.yaml import yaml_sanitize
@@ -755,13 +755,15 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
         if roach is None:
             raise ValueError("cannot find network id to write to.")
         outpath = self.get_item_path(roach, item)
-        logger.debug(f"write validated {item} data to {outpath}\n{tbl}")
+        logger.debug(f"validated {item} data:\n{tbl}")
         if self._do_dry_run:
             print(f"DRY RUN: {outpath=}\n{tbl}")  # noqa: T201
         else:
             # sanitize header
             tbl.meta.update(yaml_sanitize(tbl.meta))
-            tbl.write(outpath, format=tbl_fmt, overwrite=True)
+
+            with logit(logger.info, f"write {item} data size={len(tbl)} to {outpath}"):
+                tbl.write(outpath, format=tbl_fmt, overwrite=True)
         return outpath
 
     def write_targ_amps_table(self, tbl, roach=None):
