@@ -7,11 +7,11 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import numpy.typing as npt
-from astropy.table import QTable
+from astropy.table import QTable, unique
 from pydantic import Field
 from scipy.signal import correlate
 from tollan.config.types import ImmutableBaseModel
-from tollan.utils.fmt import pformat_yaml
+from tollan.utils.fmt import pformat_mask, pformat_yaml
 from tollan.utils.log import logger, timeit
 from tollan.utils.np import attach_unit, qrange, strip_unit
 from tollan.utils.plot.mpl import move_axes
@@ -45,9 +45,9 @@ def calc_shift1d_trace(x, y0, y1, shift_max=np.inf, return_locals=False):
     cross_correlation = correlate(y0, y1, mode="same")
     dx = np.arange(-(nx // 2), nx - nx // 2) * (x[1] - x[0])
     mask_max = np.abs(dx) < shift_max
+    logger.debug(f"use mask_max={pformat_mask(mask_max)}")
     ccm = cross_correlation_masked = np.ma.array(cross_correlation, mask=~mask_max)
-
-    i = np.ma.argmax(ccm)
+    i = np.ma.argmax(ccm) if mask_max.sum() > 0 else nx // 2
     # note the negative sign
     shift = -dx[i]
     shift_snr = (ccm[i] - np.ma.median(ccm)) / np.std(ccm)
@@ -131,6 +131,15 @@ class Match1D(ImmutableBaseModel):
         else:
             if postproc_hook is not None:
                 result = postproc_hook(result)
+            # extract best match
+            matched_sorted = result.matched.copy()
+            matched_sorted.sort("adist_shifted")
+            t = unique(matched_sorted, "idx_query", keep="first")
+            t.sort("idx_query")
+            result.data["query_matched"] = t
+            t = unique(matched_sorted, "idx_ref", keep="first")
+            t.sort("idx_ref")
+            result.data["ref_matched"] = t
             logger.debug(f"{method} succeeded:\n{result.matched}.")
         return result
 
@@ -206,6 +215,9 @@ class Match1D(ImmutableBaseModel):
                 "shift": shift,
             },
         )
+        # mask_matched = np.zeros((len(query), len(ref)), dtype=bool)
+        # for iq, ir in matched.iterrows("idx_query", "idx_ref"):
+        #     mask_matched[iq, ir] = True
         # generate connectivity info
         g = nx.DiGraph()
         nq = matched["idx_query"]
@@ -219,7 +231,7 @@ class Match1D(ImmutableBaseModel):
                 dist=matched["dist"][i],
                 dist_shifted=matched["dist_shifted"][i],
             )
-        unq = np.unique(nq)
+        unq = set(nq)
         n_matched_ref, n_matched_query = nx.bipartite.degrees(g, unq)
         n_matched_ref = data["n_matched_ref"] = np.array(
             list(dict(sorted(dict(n_matched_ref).items())).values()),
@@ -230,7 +242,7 @@ class Match1D(ImmutableBaseModel):
 
         ug = g.to_undirected(as_view=True)
         group_items_query = data["items_query"] = np.array(
-            [nx.node_connected_component(ug, q) for q in sorted(nq)],
+            [nx.node_connected_component(ug, q) for q in unq],
         )
         group_sizes_query = data["sizes_query"] = np.array(
             list(map(len, group_items_query)),
@@ -248,6 +260,7 @@ class Match1D(ImmutableBaseModel):
             shiftdata=shiftdata,
             ref_shifted=ref_shifted,
             matched=matched,
+            # mask_matched=mask_matched,
             data=data,
         )
 
@@ -276,6 +289,7 @@ class Match1DResult:
     shift: float | u.Quantity = ...
     shiftdata: dict[str, Any] = ...
     matched: QTable = ...
+    # mask_matched: npt.NDArray = ...
     data: dict[str, Any] = ...
 
     def _plot_dtw_python_mpl(self, ax=None, type="density"):

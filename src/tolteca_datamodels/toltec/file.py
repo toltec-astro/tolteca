@@ -20,22 +20,54 @@ _file_suffix_ext_to_toltec_data_kind = {
     (r"toltec(\d+)?", "tune", "nc"): ToltecDataKind.Tune,
     (r"toltec(\d+)?", "timestream", "nc"): ToltecDataKind.RawTimeStream,
     (r"toltec(\d+)?", "^$", "nc"): ToltecDataKind.RawTimeStream,
-    (r"toltec(\d+)?", "(vnasweep|targsweep|tune)_processed", "nc"): ToltecDataKind.ReducedSweep,
+    (
+        r"toltec(\d+)?",
+        "(vnasweep|targsweep|tune)_processed",
+        "nc",
+    ): ToltecDataKind.ReducedSweep,
     (r"toltec(\d+)?", "timestream_processed", "nc"): ToltecDataKind.SolvedTimeStream,
     (r"toltec(\d+)?", "vnasweep", "txt"): ToltecDataKind.KidsModelParamsTable,
     (r"toltec(\d+)?", "targsweep", "txt"): ToltecDataKind.KidsModelParamsTable,
     (r"toltec(\d+)?", "tune", "txt"): ToltecDataKind.KidsModelParamsTable,
-    (r"toltec(\d+)?", "targfreqs", "dat"): ToltecDataKind.TargFreqsDat,
+    # (r"toltec(\d+)?", "targfreqs", "dat"): ToltecDataKind.TargFreqsDat,
     (r"toltec(\d+)?", "targamps", "dat"): ToltecDataKind.TargAmpsDat,
-    (r"toltec(\d+)?", "chanflag", "ecsv"): ToltecDataKind.ChanPropTable,
-    (r"toltec(\d+)?", "(vnasweep|targsweep|tune)_kidslist", "ecsv"): ToltecDataKind.KidsPropTable,
-    (r"toltec(\d+)?", "(vnasweep|targsweep|tune)_kidsprop", "ecsv"): ToltecDataKind.KidsPropTable,
-    (r"toltec(\d+)?", "(vnasweep|targsweep|tune)_toneprop", "ecsv"): ToltecDataKind.TonePropTable,
-    (r"toltec(\d+)?", "(vnasweep|targsweep|tune)_chanprop", "ecsv"): ToltecDataKind.ChanPropTable,
+    # (r"toltec(\d+)?", "chanflag", "ecsv"): ToltecDataKind.ChanPropTable,
+    (
+        r"toltec(\d+)?",
+        "(vnasweep|targsweep|tune)_kidslist",
+        "ecsv",
+    ): ToltecDataKind.KidsPropTable,
+    (
+        r"toltec(\d+)?",
+        "(vnasweep|targsweep|tune)_kidsprop",
+        "ecsv",
+    ): ToltecDataKind.KidsPropTable,
+    (
+        r"toltec(\d+)?",
+        "(vnasweep|targsweep|tune)_toneprop",
+        "ecsv",
+    ): ToltecDataKind.TonePropTable,
+    (
+        r"toltec(\d+)?",
+        "(vnasweep|targsweep|tune)_chanprop",
+        "ecsv",
+    ): ToltecDataKind.ChanPropTable,
     # v1 compat
-    (r"toltec(\d+)?", "(vnasweep|targsweep|tune)_tonelist", "ecsv"): ToltecDataKind.KidsPropTable,
-    (r"toltec(\d+)?", "(vnasweep|targsweep|tune)_targfreqs", "ecsv"): ToltecDataKind.TonePropTable,
-    (r"toltec(\d+)?", "(vnasweep|targsweep|tune)_tonecheck", "ecsv"): ToltecDataKind.ChanPropTable,
+    (
+        r"toltec(\d+)?",
+        "(vnasweep|targsweep|tune)_tonelist",
+        "ecsv",
+    ): ToltecDataKind.KidsPropTable,
+    (
+        r"toltec(\d+)?",
+        "(vnasweep|targsweep|tune)_targfreqs",
+        "ecsv",
+    ): ToltecDataKind.TonePropTable,
+    (
+        r"toltec(\d+)?",
+        "(vnasweep|targsweep|tune)_tonecheck",
+        "ecsv",
+    ): ToltecDataKind.ChanPropTable,
 }
 
 _file_interface_ext_to_toltec_data_kind = {
@@ -172,9 +204,13 @@ def _guess_data_kind_from_meta(meta):
             re_file_suffix,
             re_file_ext,
         ), dk in _file_suffix_ext_to_toltec_data_kind.items():
-            if re.fullmatch(re_interface, interface) and re.fullmatch(re_file_suffix, file_suffix) and re.fullmatch(
-                re_file_ext,
-                file_ext,
+            if (
+                re.fullmatch(re_interface, interface)
+                and re.fullmatch(re_file_suffix, file_suffix)
+                and re.fullmatch(
+                    re_file_ext,
+                    file_ext,
+                )
             ):
                 dk_set.add(dk)
                 break

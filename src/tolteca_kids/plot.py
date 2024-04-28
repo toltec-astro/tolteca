@@ -1,11 +1,10 @@
 from typing import ClassVar
 
-import plotly
 import plotly.graph_objects as go
 from plotly.basedatatypes import BasePlotlyType
 from tollan.config.types import AbsDirectoryPath
 from tollan.utils.general import rupdate, slugify
-from tollan.utils.log import logger, logit, timeit
+from tollan.utils.log import logger, timeit
 from tollan.utils.plot.plotly import (
     ColorPalette,
     SubplotGrid,
@@ -15,6 +14,7 @@ from tollan.utils.plot.plotly import (
     update_subplot_layout,
 )
 
+from .output import OutputConfigMixin
 from .pipeline import Step, StepConfig, StepContext
 
 __all__ = [
@@ -44,63 +44,17 @@ BasePlotlyType._build_repr_for_class = staticmethod(  # noqa: SLF001
 )
 
 
-class PlotConfig(StepConfig):
+class PlotConfig(StepConfig, OutputConfigMixin):
     """A base model for plot config."""
+
+    _output_subdir_fmt: ClassVar = "{obsnum}-{subobsnum}-{scannum}"
+    _output_rootpath_attr: ClassVar = "save_rootpath"
 
     save: bool = True
     save_rootpath: None | AbsDirectoryPath = None
     show: bool = False
     show_in_dash_port: int = 8888
     show_in_dash_host: str = "0.0.0.0"  # noqa: S104
-
-    def save_or_show(
-        self,
-        data_items: list | go.Figure,
-        name=None,
-        save_name=None,
-    ):
-        """Render figure."""
-        if self.show:
-            show_in_dash(
-                data_items,
-                host=self.show_in_dash_host,
-                port=self.show_in_dash_port,
-                title_text=name,
-            )
-        if self.save and self.save_rootpath is not None:
-            save_name = save_name or name
-            for data_item in data_items:
-                data = data_item["data"]
-                item_name = data_item["title_text"]
-                if save_name is None:
-                    _save_name = item_name
-                else:
-                    _save_name = f"{save_name}_{item_name}"
-                if isinstance(data, go.Figure):
-                    self._save_fig(data, _save_name, save_rootpath=self.save_rootpath)
-                else:
-                    pass
-
-    @staticmethod
-    def _save_fig(fig: go.Figure, save_name, save_rootpath):
-        save_name = save_name or fig.layout["title"]["text"]
-        if save_name is None:
-            raise ValueError("no save name specified or implied.")
-        # sanitize save name
-        save_name = slugify(save_name)
-        save_path = save_rootpath.joinpath(f"{save_name}.html")
-        save_dir = save_path.parent
-        if not save_dir.exists():
-            with logit(logger.debug, "create figure save dir {save_dir}"):
-                save_dir.mkdir(parents=True, exist_ok=True)
-        with logit(logger.debug, f"save {save_name} to {save_path}"):
-            plotly.offline.plot(
-                fig,
-                filename=save_path.as_posix(),
-                auto_open=False,
-                auto_play=False,
-            )
-        return save_path
 
 
 class PlotMixin:
@@ -136,12 +90,37 @@ class PlotMixin:
         """Save or show the data on context."""
         data_items = []
         for name, value in context.model_dump(include=["data"])["data"].items():
-            data_items.append({"title_text": name, "data": value})
-        context.config.save_or_show(
-            data_items,
-            name=cls._make_show_name(data, context),
-            save_name=cls._make_save_name(data, context),
-        )
+            data_items.append(
+                {
+                    "title_text": name,
+                    "data": value,
+                },
+            )
+        show_name = cls._make_show_name(data, context)
+        save_name = cls._make_save_name(data, context)
+        cfg = context.config
+        if cfg.show:
+            show_in_dash(
+                data_items,
+                host=cfg.show_in_dash_host,
+                port=cfg.show_in_dash_port,
+                title_text=show_name,
+            )
+        if cfg.save and cfg.save_rootpath is not None:
+            for data_item in data_items:
+                obj = data_item["data"]
+                item_name = data_item["title_text"]
+                _save_name = slugify(f"{save_name}_{item_name}")
+                if isinstance(obj, go.Figure):
+                    fig_path = cfg.make_output_path(
+                        data=data,
+                        name=_save_name,
+                        suffix=".html",
+                    )
+                    cfg.save_plotly_fig(fig_path, obj)
+                else:
+                    # TODO: save other stuff
+                    pass
 
     color_palette: ClassVar = ColorPalette()
     fig_layout_default: ClassVar[dict] = {

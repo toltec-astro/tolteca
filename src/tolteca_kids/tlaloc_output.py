@@ -3,17 +3,17 @@ from typing import Annotated, Literal
 
 import astropy.units as u
 import numpy as np
-from astropy.table import QTable
+from astropy.table import QTable, vstack
 from pydantic import BaseModel, ConfigDict, Field
 from tollan.config.types import AbsDirectoryPath, AbsFilePath, FrequencyQuantityField
 from tollan.utils.log import logger, timeit
+from tollan.utils.table import TableValidator
 from typing_extensions import assert_never
 
 from tolteca_kidsproc.kidsdata.sweep import MultiSweep
 
 from .kids_find import KidsFind
-from .output import OutputConfig, OutputMixin
-from .pipeline import Step, StepContext
+from .pipeline import Step, StepConfig, StepContext
 from .roach_tone import RoachToneProps, TlalocEtcDataStore
 
 
@@ -48,6 +48,7 @@ class TonePhasesRandom(_TonePhasesBase):
     )
 
     def __call__(self, n_chans):
+        """Return random phase."""
         if self.optimize_waveform:
             # TODO: integrate in the tone power optimizations.
             raise NotImplementedError
@@ -65,10 +66,11 @@ class TonePhasesFromFile(_TonePhasesBase):
     )
 
     def __call__(self, n_chans):
+        """Return phases from file."""
         tbl = QTable.read(self.path, format="ascii.no_header", names=["phase_tone"])
         phases = tbl["phase_tone"]
         if len(phases) < n_chans:
-            raise ValueError("two few phases in file.")
+            raise ValueError("too few phases in file.")
         return phases
 
 
@@ -97,19 +99,21 @@ class PlaceHolderTones(BaseModel):
     )
     sep_f_det: FrequencyQuantityField = Field(
         default=100 << u.kHz,
-        description="separation from the closest detector.",
+        description="Separation from the closest detector.",
     )
     f_step: FrequencyQuantityField = Field(
         default=50 << u.kHz,
         description="The step size of place holder tones.",
     )
 
-    def __call__(self, f_det, f_lo):
+    def __call__(self, f_dets, f_lo):
         """Return a list of place holder tone frequencies."""
+        f_unit = u.Hz
         if self.n == 0:
-            return None
-        f_det_neg = f_det[f_det < f_lo]
-        f_det_pos = f_det[f_det >= f_lo]
+            return np.array([]) << f_unit
+        # this splits the spectrum to the below LO and above LO sections.
+        f_det_neg = f_dets[f_dets < f_lo]
+        f_det_pos = f_dets[f_dets >= f_lo]
 
         f_det_neg_min = np.min(f_det_neg)
         f_det_neg_max = np.max(f_det_neg)
@@ -125,7 +129,6 @@ class PlaceHolderTones(BaseModel):
 
         n_neg = self.n // 2
         n_pos = self.n - n_neg
-        f_unit = u.Hz
 
         if self.loc == "inner":
             neg0 = f_det_neg_max + self.sep_f_det
@@ -148,7 +151,10 @@ class PlaceHolderTones(BaseModel):
         )
 
 
-class TlalocOutputConfig(OutputConfig):
+ToneAmpsMethod = Literal["match", "interp", "ones"]
+
+
+class TlalocOutputConfig(StepConfig):
     """The tlaloc output config."""
 
     path: AbsDirectoryPath = Field(
@@ -169,14 +175,21 @@ class TlalocOutputConfig(OutputConfig):
         default_factory=PlaceHolderTones,
         description="Config for generating placeholder tones.",
     )
+    fix_n_chans: bool = Field(
+        default=False,
+        description="If True, the number of channels is the same as input.",
+    )
+    tone_amps_method: ToneAmpsMethod = Field(
+        default="match",
+        description="Method used to generate tone amplitudes.",
+    )
 
 
 @dataclass(kw_only=True)
 class TlalocOutputData:
     """The data class for tlaloc output."""
 
-    roach_tone_placeholders: QTable = ...
-    roach_tones: QTable = ...
+    roach_tone_props: RoachToneProps = ...
 
 
 class TlalocOutputContext(StepContext["TlalocOutput", TlalocOutputConfig]):
@@ -186,7 +199,7 @@ class TlalocOutputContext(StepContext["TlalocOutput", TlalocOutputConfig]):
     data: TlalocOutputData = Field(default_factory=TlalocOutputData)
 
 
-class TlalocOutput(OutputMixin, Step[TlalocOutputConfig, TlalocOutputContext]):
+class TlalocOutput(Step[TlalocOutputConfig, TlalocOutputContext]):
     """TlalocOutput.
 
     This step write files to tlaloc folder.
@@ -195,81 +208,132 @@ class TlalocOutput(OutputMixin, Step[TlalocOutputConfig, TlalocOutputContext]):
     @classmethod
     @timeit
     def run(cls, data: MultiSweep, context):
-        """Run kids find plot."""
+        """Run tlaloc output."""
         cfg = context.config
+        ctd = context.data
         tlaloc_etc = TlalocEtcDataStore(cfg.path)
         logger.debug(f"{tlaloc_etc=}")
-        # tlaloc_etc.write_tone_props_table(
-        #     cls.make_roach_tone_props(
-        #         data,
-        #         tone_phases=cfg.tone_phases,
-        #         placeholders=cfg.placeholders,
-        #         n_chans_max=cfg.n_chans_max,
-        #     ),
-        # )
+        rtp = ctd.roach_tone_props = cls.make_roach_tone_props(
+            swp=data,
+            tone_phases=cfg.tone_phases,
+            placeholders=cfg.placeholders,
+            n_chans_max=cfg.n_chans_max,
+            fix_n_chans=cfg.fix_n_chans,
+            tone_amps_method=cfg.tone_amps_method,
+        )
+        tlaloc_etc.write_tone_props(rtp)
         return True
 
     @classmethod
-    def make_roach_tone_props(
+    def make_roach_tone_props(  # noqa: C901, PLR0913, PLR0912, PLR0915
         cls,
-        data: MultiSweep,
+        swp: MultiSweep = None,
+        detected: QTable = None,
         tone_phases=None,
         placeholders=None,
         n_chans_max=TlalocOutputConfig.field_defaults["n_chans_max"],
+        fix_n_chans=TlalocOutputConfig.field_defaults["fix_n_chans"],
+        tone_amps_method: ToneAmpsMethod = "match",
     ):
         """Retrun roach tone props from kids find result."""
-        ctx_kf = KidsFind.get_context(data)
-        if not ctx_kf.completed:
-            raise ValueError("kids find step has not run yet.")
-        ctd_kf = ctx_kf.data
-        swp = data
+        if sum([swp is None, detected is None]) != 1:
+            raise ValueError("require one of swp or detected.")
+        tblv = TableValidator()
+        if swp is not None:
+            ctx_kf = KidsFind.get_context(swp)
+            if not ctx_kf.completed:
+                raise ValueError("kids find step has not run yet.")
+            detected = ctx_kf.data.detected
+            roach = swp.meta["roach"]
+            f_lo = swp.meta["f_lo_center"] << u.Hz
+        elif detected is not None:
+            if not tblv.has_any_col(detected, ["f", "fr"]):
+                raise ValueError("no frequency column found in table.")
+            roach = tblv.get_first_meta(detected.meta, ["roach", "nw"])
+            if roach is None:
+                raise ValueError("no roach id found in meta.")
+            f_lo = tblv.get_first_meta(detected.meta, ["f_lo_center", "f_lo"]) << u.Hz
+            if f_lo is None:
+                raise ValueError("no f_lo found in meta.")
+        else:
+            assert_never()
+        # make a copy so that we can add new columns to it
+        tbl_dets = detected.copy()
+        n_tones = len(tbl_dets)
+        f_dets = tbl_dets["f_chan"] = tblv.get_first_col_data(tbl_dets, ["f", "fr"])
+        tbl_dets["mask_tone"] = True
+        # TODO: implement LUT interp
+        if tone_amps_method == "match":
+            amps = tblv.get_first_col_data(tbl_dets, ["amp_tone"])
+            if amps is None:
+                raise ValueError("no tone amps found in data.")
+        elif tone_amps_method == "ones":
+            amps = np.ones((n_tones,), dtype=float)
+        elif tone_amps_method == "interp":
+            raise NotImplementedError
+        tbl_dets["amp_tone"] = amps
 
-        roach = swp.meta["roach"]
-        f_lo = swp.meta["f_lo_center"] << u.Hz
-        mdl_grouped = ctd_kf.mdl_grouped
-        n_tones = len(mdl_grouped)
-
-        # information of previous placeholder tones
+        # check if we have enough channel to hold the data
         n_chans0 = swp.n_chans
-        if n_tones > n_chans0:
+        if fix_n_chans and n_tones > n_chans0:
             raise ValueError(
                 f"unalbe to allocate {n_tones=} in data with n_chans={n_chans0}.",
             )
-        # make a sorted copy of the chan axis data
-        # identify the placeholder idx for each half of the spectra.
-        rtt0 = swp.meta["chan_axis_data"].copy()
-        rtt0.sort("f_chan")
-        mask_neg0 = rtt0["f_chan"] < f_lo
-        mask_pos0 = rtt0["f_chan"] >= f_lo
-        n_neg0 = mask_neg0.sum()
-        n_pos0 = mask_pos0.sum()
-        idx_placeholders_neg0 = np.nonzero((~rtt0["mask_tone"]) & mask_neg0)[0]
-        idx_placeholders_pos0 = np.nonzero((~rtt0["mask_tone"]) & mask_pos0)[0]
-        n_placeholders_neg0 = len(idx_placeholders_neg0)
-        n_placeholders_pos0 = len(idx_placeholders_pos0)
+        # call placeholder function
+        if placeholders is not None:
+            placeholders = placeholders(
+                f_dets=f_dets,
+                f_lo=f_lo,
+            )
+        if fix_n_chans:
+            n_chans = n_chans0
+            # re-use existing placeholders
+            rtt0 = swp.meta["chan_axis_data"]
+            mask_neg0 = rtt0["f_chan"] < f_lo
+            mask_pos0 = rtt0["f_chan"] >= f_lo
+            # n_neg0 = mask_neg0.sum()
+            # n_pos0 = mask_pos0.sum()
+            idx_plh_neg0 = np.nonzero((~rtt0["mask_tone"]) & mask_neg0)[0]
+            idx_plh_pos0 = np.nonzero((~rtt0["mask_tone"]) & mask_pos0)[0]
+            n_plh_neg0 = len(idx_plh_neg0)
+            n_plh_pos0 = len(idx_plh_pos0)
+            n_plh0 = n_plh_neg0 + n_plh_pos0
+            logger.debug(f"input n_chans={n_chans0} n_placeholders={n_plh0}")
+            logger.debug(
+                f"allocate {n_tones=} to {n_chans} "
+                f"chans with {n_plh0} placeholders",
+            )
+        else:
+            n_placeholders = len(placeholders)
+            n_chans = n_tones + n_placeholders
+            if n_chans > n_chans_max:
+                n_chans = n_chans_max
+                n_placeholders = n_chans - n_tones
+            logger.debug(
+                f"create {n_chans=} whth {n_tones=} {n_placeholders=}",
+            )
+            logger.debug(f"{placeholders=}")
+            tbl_plhs = QTable(
+                {
+                    "f_chan": placeholders[:n_placeholders],
+                    "mask_tone": np.zeros((n_placeholders,), dtype=bool),
+                    "amp_tone": np.zeros((n_placeholders,), dtype=float),
+                },
+            )
+            tbl_roach_tone = vstack([tbl_dets, tbl_plhs])
+        tbl_roach_tone.meta.update(
+            {
+                "roach": roach,
+                "f_lo_center": f_lo,
+            },
+        )
+        tbl_roach_tone["f_tone"] = tbl_roach_tone["f_chan"] - f_lo
+        tbl_roach_tone["phase_tone"] = tone_phases(n_chans)
 
-        # #
-        #
-        # # now compute
-        # mask_neg_out
-        #
-        #
-        # np.nonzero(np.diff(rtt0["mask_tone"].astype(int))  == 1)
-        # rtt = QTable(
-        #     {
-        #         "f_cha"
-        #     }
-        # )
-        # tbl = QTable(
-        #     {
-        #         "f_tone": mdl_grouped["f"],
-        #         "Qr": mdl_grouped["Qr"],
-        #         "amp_tone": np.ones((n_tones, ), dtype=float),
-        #         "phase_tone": tone_phases(n_tones),
-        #     },
-        #     meta={
-        #         "roach": roach,
-        #         "f_lo": f_lo,
-        #     },
-        # )
-        return QTable()
+        tbl_roach_tone.sort("f_chan")
+        rtp = RoachToneProps(
+            table=tbl_roach_tone,
+            f_lo_key="f_lo_center",
+        )
+        logger.debug(f"roach tone props: {rtp}")
+        return rtp

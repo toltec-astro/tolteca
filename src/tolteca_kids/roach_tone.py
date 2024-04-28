@@ -16,6 +16,8 @@ from strenum import StrEnum
 from tollan.pipeline.context_handler import MetadataContextHandlerMixin
 from tollan.utils.np import ensure_unit
 from tollan.utils.table import TableValidator
+from tollan.utils.yaml import yaml_sanitize
+from typing_extensions import assert_never
 
 __all__ = [
     "RoachToneProps",
@@ -65,7 +67,7 @@ class RoachToneProps(MetadataContextHandlerMixin[str, RoachTonePropsMetadata]):
     _table: QTable
     _enable_mask: bool
 
-    _context_handler_context_cls = RoachTonePropsMetadata
+    _context_handler_context_cls: ClassVar = RoachTonePropsMetadata
     _tbl_validator: ClassVar = TableValidator(table_cls=QTable)
 
     @staticmethod
@@ -128,6 +130,11 @@ class RoachToneProps(MetadataContextHandlerMixin[str, RoachTonePropsMetadata]):
             if unit is not None:
                 v = v << unit
             tpt[k] = v
+        # copy over additional columns
+        for col in tbl.colnames:
+            if col not in tpt.colnames:
+                tpt[col] = tbl[col]
+        tpt.sort("f_chan")
         ctx.table_validated = True
         return tpt
 
@@ -318,6 +325,7 @@ class TlalocKidsModelInfo:
         """The kids model params info dict."""
 
         table_colname: None | str
+        table_colname_aliases: list[str]
         unit: None | u.Unit
         default_value: float
 
@@ -327,6 +335,7 @@ class TlalocKidsModelInfo:
             "params": {
                 "fr": {
                     "table_colname": "fr",
+                    "table_colname_aliases": ["f"],
                     "unit": u.Hz,
                 },
                 "Qr": {
@@ -429,6 +438,7 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
     n_chans_max: ClassVar[int] = 1000
     """The max number channels allowed."""
 
+    _context_handler_context_cls: ClassVar = TlalocEtcTableMetadata
     _tbl_validator: ClassVar = TableValidator()
 
     @property
@@ -489,6 +499,8 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
         if s:
             s = s.lstrip(".")
             name = f"{filename}.{s}"
+        else:
+            name = filename
         return self.get_roach_path(roach).joinpath(name)
 
     @classmethod
@@ -539,8 +551,8 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
         item_info: TlalocEtcDataItemInfo.InfoDict,
     ) -> Column:
         col = item_info["table_colname"]
-        col_unit = item_info["unit"]
-        col_dtype = item_info["dtype"]
+        col_unit = item_info.get("unit", None)
+        col_dtype = item_info.get("dtype", None)
         v = tbl[col]
         if col_dtype is not None:
             v = v.astype(col_dtype)
@@ -662,10 +674,10 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
         tblv = cls._tbl_validator
         f_tones, f_centered, f_chans = map(
             ensure_f_unit,
-            tblv.get_col_data(tbl, ["f_tones", "f_centered", "f_chans"]),
+            tblv.get_col_data(tbl, ["f_tone", "f_centered", "f_chan"]),
         )
         f_tones, f_chans, f_lo = _validate_roach_frequency_data(
-            f_tones=f_tones or f_centered,
+            f_tones=f_tones if f_tones is not None else f_centered,
             f_chans=f_chans,
             f_lo=f_lo,
         )
@@ -677,21 +689,38 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
                 # TODO: should standarize these keys.
                 "f_centered": f_tones.to_value(f_unit),
                 "f_out": f_chans.to_value(f_unit),
+                "f_in": f_chans.to_value(f_unit),
             },
             meta={
                 "f_lo_center": f_lo.to_value(f_unit),
                 "roach": roach,
             },
         )
-
         # copy over extra model params if not present in table.
         # TODO: allow customize the model
         mdl = TlalocKidsModel.gain_with_lintrend
+        mask_tone = tblv.get_first_col_data(
+            tbl,
+            ["mask_tone"],
+        )
+
         for p, param_info in TlalocKidsModelInfo.table_model_params_info[mdl].items():
-            c = tblv.get_first_col(tbl, [param_info["table_colname"], p])
-            tbl_out[c] = 0.0 if c is None else tbl[c]
-        # assumes fr is always present in the kids model.
-        tbl_out["f_in"] = tbl_out["fr"]
+            colname = param_info["table_colname"]
+            defval = param_info.get("default_value", 0.0)
+            colname_in = tblv.get_first_col(
+                tbl,
+                [colname, p] + param_info.get("table_colname_aliases", []),
+            )
+            coldata = defval if colname_in is None else tbl[colname_in]
+            if colname == "fr" and colname_in is not None:
+                # update f_in to the model fr
+                tbl_out["f_in"] = coldata
+            if mask_tone is not None:
+                if np.isscalar(coldata):
+                    coldata = np.full((len(tbl_out),), coldata)
+                coldata = np.ma.array(coldata, mask=~mask_tone)
+            tbl_out[colname] = coldata
+        tbl_out = tbl_out.filled(np.nan)
         # update metadata
         for k, defval in [
             (
@@ -718,9 +747,9 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
         **kwargs,
     ):
         item = self._validate_item_arg(item)
-        logger.debug(f"write table {item=}\n{tbl=}")
+        logger.debug(f"write table {item=}\n{tbl}")
         ctx = self.get_or_create_context(tbl)
-        if ctx.item_validated.get(item, False):
+        if not ctx.item_validated.get(item, False):
             tbl = data_maker(tbl, roach=roach, **kwargs)
         roach = self._get_roach_from_meta(tbl.meta)
         if roach is None:
@@ -730,6 +759,8 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
         if self._do_dry_run:
             print(f"DRY RUN: {outpath=}\n{tbl}")  # noqa: T201
         else:
+            # sanitize header
+            tbl.meta.update(yaml_sanitize(tbl.meta))
             tbl.write(outpath, format=tbl_fmt, overwrite=True)
         return outpath
 
@@ -790,15 +821,27 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
             raise ValueError(f"invalid item. Choose from {all_items}")
         return items
 
-    def write_tone_props_table(self, tbl, roach=None, f_lo=None, items=None):
+    def write_tone_props(
+        self,
+        data: RoachToneProps | Table,
+        roach=None,
+        f_lo=None,
+        items=None,
+    ):
         """Write tone prop table."""
         items = self._validate_items_arg(items)
         paths = {}
+        if isinstance(data, Table):
+            tbl = data
+        elif isinstance(data, RoachToneProps):
+            tbl = data.table
+        else:
+            assert_never()
         for item, writer, kwargs in [
             (
                 TlalocEtcDataItem.targ_freqs,
                 self.write_targ_freqs_table,
-                {"roach": roach, "f_lo_center": f_lo},
+                {"roach": roach, "f_lo": f_lo},
             ),
             (
                 TlalocEtcDataItem.targ_amps,
@@ -817,7 +860,7 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
             ),
         ]:
             if item in items:
-                paths[item] = writer(tbl, *kwargs)
+                paths[item] = writer(tbl, **kwargs)
         return paths
 
     def _set_file_suffix_for_items(self, roach, old_suffix, suffix, items=None):
