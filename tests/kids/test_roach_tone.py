@@ -7,7 +7,7 @@ from tolteca_kids.roach_tone import RoachToneProps, RoachTonePropsMetadata
 
 def test_roach_tone_props():
     tbl = Table()
-    tbl["f_comb"] = np.arange(-10, 10, dtype=float)
+    tbl["f_tone"] = np.arange(-10, 10, dtype=float)
     tbl["amp_tone"] = 0.5
     tbl["phase_tone"] = np.zeros((len(tbl),), dtype=float)
     tbl["mask_tone"] = 1
@@ -22,10 +22,10 @@ def test_roach_tone_props():
     assert rtp.n_chans == len(tbl)
     assert rtp.n_tones == 15
     np.testing.assert_array_equal(rtp.mask, tbl["mask_tone"])
-    np.testing.assert_array_equal(rtp.f_combs, tbl["f_comb"][5:] << u.Hz)
+    np.testing.assert_array_equal(rtp.f_tones, tbl["f_tone"][5:] << u.Hz)
     with rtp.no_mask():
         np.testing.assert_array_equal(rtp.mask, tbl["mask_tone"])
-        np.testing.assert_array_equal(rtp.f_combs, tbl["f_comb"] << u.Hz)
+        np.testing.assert_array_equal(rtp.f_tones, tbl["f_tone"] << u.Hz)
 
 
 def test_tlaloc_etc():

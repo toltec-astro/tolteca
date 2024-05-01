@@ -7,7 +7,7 @@ from tollan.utils.log import logger
 from wrapt import ObjectProxy
 
 from ..base import FileIOBase, FileIOError
-from .file import guess_meta_from_source
+from .file0 import guess_meta_from_source
 from .types import ToltecDataKind
 
 base_doc = """{__doc__}

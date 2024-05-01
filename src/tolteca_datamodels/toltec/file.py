@@ -1,258 +1,236 @@
-import functools
-import operator
 import re
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import TYPE_CHECKING, Annotated, ClassVar, Literal, Self
 
-from astropy.time import Time
+import pandas as pd
+import pandas.api.typing as pdt
+from pydantic import BaseModel, computed_field, model_validator
+from pydantic.types import StringConstraints
 from tollan.utils.fileloc import FileLoc
 from tollan.utils.fmt import pformat_yaml
 from tollan.utils.general import dict_from_regex_match
 from tollan.utils.log import logger
+from tollan.utils.table import TableValidator
 
 from .types import ToltecDataKind
 
-__all__ = ["guess_meta_from_source"]
+__all__ = ["guess_info_from_source"]
 
 
-_file_suffix_ext_to_toltec_data_kind = {
-    (r"toltec(\d+)?", "vnasweep", "nc"): ToltecDataKind.VnaSweep,
-    (r"toltec(\d+)?", "targsweep", "nc"): ToltecDataKind.TargetSweep,
-    (r"toltec(\d+)?", "tune", "nc"): ToltecDataKind.Tune,
-    (r"toltec(\d+)?", "timestream", "nc"): ToltecDataKind.RawTimeStream,
-    (r"toltec(\d+)?", "^$", "nc"): ToltecDataKind.RawTimeStream,
+_T = ToltecDataKind
+
+_file_interface_suffix_ext_to_toltec_data_kind = {
+    # raw kids files
+    (r"toltec(\d+)", "vnasweep", ".nc"): _T.VnaSweep,
+    (r"toltec(\d+)", "targsweep", ".nc"): _T.TargetSweep,
+    (r"toltec(\d+)", "tune", ".nc"): _T.Tune,
+    (r"toltec(\d+)", "(timestream)?", ".nc"): _T.RawTimeStream,
+    (r"toltec(\d+)", "(vnasweep|targsweep|tune)_processed", ".nc"): _T.ReducedSweep,
+    (r"toltec(\d+)", "timestream_processed", ".nc"): _T.SolvedTimeStream,
+    # kids reduction
+    (r"toltec(\d+)", "(vnasweep|targsweep|tune)", ".txt"): _T.KidsModelParamsTable,
+    (r"toltec(\d+)", "(vnasweep|targsweep|tune)_targamps", ".dat"): _T.TargAmpsDat,
     (
-        r"toltec(\d+)?",
-        "(vnasweep|targsweep|tune)_processed",
-        "nc",
-    ): ToltecDataKind.ReducedSweep,
-    (r"toltec(\d+)?", "timestream_processed", "nc"): ToltecDataKind.SolvedTimeStream,
-    (r"toltec(\d+)?", "vnasweep", "txt"): ToltecDataKind.KidsModelParamsTable,
-    (r"toltec(\d+)?", "targsweep", "txt"): ToltecDataKind.KidsModelParamsTable,
-    (r"toltec(\d+)?", "tune", "txt"): ToltecDataKind.KidsModelParamsTable,
-    # (r"toltec(\d+)?", "targfreqs", "dat"): ToltecDataKind.TargFreqsDat,
-    (r"toltec(\d+)?", "targamps", "dat"): ToltecDataKind.TargAmpsDat,
-    # (r"toltec(\d+)?", "chanflag", "ecsv"): ToltecDataKind.ChanPropTable,
-    (
-        r"toltec(\d+)?",
-        "(vnasweep|targsweep|tune)_kidslist",
-        "ecsv",
-    ): ToltecDataKind.KidsPropTable,
-    (
-        r"toltec(\d+)?",
-        "(vnasweep|targsweep|tune)_kidsprop",
-        "ecsv",
-    ): ToltecDataKind.KidsPropTable,
-    (
-        r"toltec(\d+)?",
-        "(vnasweep|targsweep|tune)_toneprop",
-        "ecsv",
-    ): ToltecDataKind.TonePropTable,
-    (
-        r"toltec(\d+)?",
-        "(vnasweep|targsweep|tune)_chanprop",
-        "ecsv",
-    ): ToltecDataKind.ChanPropTable,
-    # v1 compat
-    (
-        r"toltec(\d+)?",
-        "(vnasweep|targsweep|tune)_tonelist",
-        "ecsv",
-    ): ToltecDataKind.KidsPropTable,
-    (
-        r"toltec(\d+)?",
-        "(vnasweep|targsweep|tune)_targfreqs",
-        "ecsv",
-    ): ToltecDataKind.TonePropTable,
-    (
-        r"toltec(\d+)?",
-        "(vnasweep|targsweep|tune)_tonecheck",
-        "ecsv",
-    ): ToltecDataKind.ChanPropTable,
+        r"toltec(\d+)",
+        "(vnasweep|targsweep|tune)_(kids_find|kids_fit|tone_prop|chan_prop)",
+        ".ecsv",
+    ): _T.KidsPropTable,
+    # obs reduction
+    ("apt", None, ".ecsv"): _T.ArrayPropTable,
+    ("ppt", None, ".ecsv"): _T.PointingTable,
+    ("tel_toltec", None, ".nc"): _T.LmtTel,
+    ("tel_toltec2", None, ".nc"): _T.LmtTel2,
+    ("hwpr", None, ".nc"): _T.Hwpr,
+    ("toltec_hk", None, ".nc"): _T.HouseKeeping,
+    ("wyatt", None, ".nc"): _T.Wyatt,
+    ("tolteca", None, ".yaml"): _T.ToltecaConfig,
 }
 
-_file_interface_ext_to_toltec_data_kind = {
-    ("apt", "ecsv"): ToltecDataKind.ArrayPropTable,
-    ("ppt", "ecsv"): ToltecDataKind.PointingTable,
-    ("lmt", "nc"): ToltecDataKind.LmtTel,
-    ("lmt_tel2", "nc"): ToltecDataKind.LmtTel2,
-    ("hwpr", "nc"): ToltecDataKind.Hwpr,
-    ("toltec_hk", "nc"): ToltecDataKind.HouseKeeping,
-    ("wyatt", "nc"): ToltecDataKind.Wyatt,
-    ("tolteca", "yaml"): ToltecDataKind.ToltecaConfig,
-}
-
-_filename_parser_defs = [
-    {
-        "regex": re.compile(
-            r"^(?P<interface>toltec(?P<roach>\d+))_(?P<obsnum>\d+)_"
-            r"(?P<subobsnum>\d+)_(?P<scannum>\d+)_"
+_re_filenames = [
+    re.compile(s)
+    for s in [
+        # raw kids data files
+        (
+            r"^(?P<interface>toltec(?P<roach>\d+)|hwpr|toltec_hk)_"
+            r"(?P<obsnum>\d+)_(?P<subobsnum>\d+)_(?P<scannum>\d+)_"
             r"(?P<file_timestamp>\d{4}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))"
             r"(?:_(?P<file_suffix>[^\/.]+))?"
-            r"\.(?P<file_ext>.+)$",
+            r"(?P<file_ext>\..+)$"
         ),
-        "add_meta": {
-            "instru": "toltec",
-            "instru_component": "roach",
-        },
-    },
-    {
-        "regex": re.compile(
-            r"^(?P<interface>hwpr)_(?P<obsnum>\d+)_"
-            r"(?P<subobsnum>\d+)_(?P<scannum>\d+)_"
-            r"(?P<file_timestamp>\d{4}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))"
-            r"(?:_(?P<file_suffix>[^\/.]+))?"
-            r"\.(?P<file_ext>.+)$",
-        ),
-        "add_meta": {
-            "instru": "toltec",
-            "instru_component": "hwpr",
-        },
-    },
-    {
-        "regex": re.compile(
-            r"^(?P<interface>toltec_hk)_(?P<obsnum>\d+)_"
-            r"(?P<subobsnum>\d+)_(?P<scannum>\d+)_"
-            r"(?P<file_timestamp>\d{4}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2}))"
-            r"(?:_(?P<file_suffix>[^\/.]+))?"
-            r"\.(?P<file_ext>.+)$",
-        ),
-        "add_meta": {
-            "instru": "toltec",
-            "instru_component": "hk",
-        },
-    },
-    {
-        "regex": re.compile(
-            r"^(?P<interface>tel_toltec|tel_toltec2)"
-            r"_(?P<file_timestamp>\d{4}-\d{2}-\d{2})"
+        # tel files
+        (
+            r"^(?P<interface>tel_toltec|tel_toltec2|wyatt)_"
+            r"(?P<file_timestamp>\d{4}-\d{2}-\d{2})"
             r"_(?P<obsnum>\d+)_(?P<subobsnum>\d+)_(?P<scannum>\d+)"
-            r"\.(?P<file_ext>.+)$",
+            r"(?:_(?P<file_suffix>[^\/.]+))?"
+            r"(?P<file_ext>\..+)$"
         ),
-        "add_meta": {
-            "instru": "lmt",
-            "instru_component": "tcs",
-        },
-    },
-    {
-        "regex": re.compile(
-            r"^(?P<interface>wyatt)"
-            r"_(?P<file_timestamp>\d{4}-\d{2}-\d{2})"
-            r"_(?P<obsnum>\d+)_(?P<subobsnum>\d+)_(?P<scannum>\d+)"
-            r"\.(?P<file_ext>.+)$",
-        ),
-        "add_meta": {
-            "instru": "toltec",
-            "instru_component": "wyatt",
-        },
-    },
+    ]
 ]
 
-
-def _parse_file_timestamp_str(v):
-    # there are two formats YYYY_mm_dd_HH_MM_SS and YYYY-mm-dd
-    n_sep_long = 5
-    n_sep_short = 2
-    if v.count("_") == n_sep_long:
-        fmt = "%Y_%m_%d_%H_%M_%S"
-    elif v.count("-") == n_sep_short:
-        fmt = "%Y-%m-%d"
-    else:
-        raise ValueError("invalid file timestamp string.")
-    result = Time(datetime.strptime(v, fmt).astimezone(timezone.utc), scale="utc")
-    result.format = "isot"
-    return result
-
-
-def _normalize_interface(v):
-    if v in ["tel", "tel_toltec"]:
-        return "lmt"
-    if v == "tel_toltec2":
-        return "lmt_tel2"
-    return v
-
-
-_filename_parser_type_dispatchers = {
-    "file_timestamp": _parse_file_timestamp_str,
-    "interface": _normalize_interface,
+_re_named_field_type_dispatcher = {
     "roach": int,
     "obsnum": int,
     "subobsnum": int,
     "scannum": int,
-    "file_ext": str.lower,
 }
 
 
-def _guess_data_kind_from_meta(meta):
-    interface = meta.get("interface", None)
-    file_ext = meta.get("file_ext", None)
-    dk_set = set()
-    if interface is not None and file_ext is not None:
-        for (
-            re_interface,
-            re_file_ext,
-        ), dk in _file_interface_ext_to_toltec_data_kind.items():
-            if re.fullmatch(re_interface, interface) and re.fullmatch(
-                re_file_ext,
-                file_ext,
-            ):
-                dk_set.add(dk)
-                break
-    file_suffix = meta.get("file_suffix", None) or ""
-    if interface is not None and file_ext is not None:
+class SourceInfoModel(BaseModel):
+    source: FileLoc
+    instru: Literal[None, "toltec", "lmt"] = None
+    instru_component: Literal[None, "roach", "hwpr", "tcs"] = None
+    interface: None | Annotated[str, StringConstraints(to_lower=True)] = None
+    roach: None | int = None
+    obsnum: None | int = None
+    subobsnum: None | int = None
+    scannum: None | int = None
+    file_timestamp: None | datetime = None
+    file_suffix: None | str = None
+    file_ext: None | Annotated[str, StringConstraints(to_lower=True)] = None
+    data_kind: None | _T = None
+
+    @computed_field
+    def filepath(self) -> Path:
+        return self.source.path
+
+    @computed_field
+    def uid_obs(self) -> Path:
+        return str(self.obsnum)
+
+    @computed_field
+    def uid_raw_obs(self) -> Path:
+        return f"{self.obsnum}-{self.subobsnum}-{self.scannum}"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_source(cls, source):
+        source = FileLoc(source)
+        info = {"source": source}
+        for re_filename in _re_filenames:
+            d = dict_from_regex_match(
+                re_filename,
+                source.path_orig.name,
+                type_dispatcher=_re_named_field_type_dispatcher,
+            )
+            if d is None:
+                continue
+            info.update(d)
+            break
+        return cls._validate_matched(info)
+
+    @staticmethod
+    def _validate_matched(info):
+        interface = info.get("interface", None)
+        if interface is None:
+            raise ValueError("no interface info")
+        roach = info.get("roach", None)
+        if interface.startswith("toltec") or interface in ["wyatt"]:
+            instru = "toltec"
+        elif interface in ["tel_toltec", "tel_toltec2"]:
+            instru = "lmt"
+        else:
+            instru = None
+        if roach is not None:
+            instru_component = "roach"
+        else:
+            instru_component = {
+                "hwpr": "hwpr",
+                "toltec_hk": "hk",
+                "wyatt": "wyatt",
+                "tel_toltec": "tcs",
+                "tel_toltec2": "tcs",
+            }.get(interface)
+        info.update({"instru": instru, "instru_component": instru_component})
+        # handle timestamp
+        # there are two formats YYYY_mm_dd_HH_MM_SS and YYYY-mm-dd
+        v = info["file_timestamp"]
+        n_sep_long = 5
+        n_sep_short = 2
+        if v.count("_") == n_sep_long:
+            fmt = "%Y_%m_%d_%H_%M_%S"
+        elif v.count("-") == n_sep_short:
+            fmt = "%Y-%m-%d"
+        else:
+            raise ValueError("invalid file timestamp string.")
+        info["file_timestamp"] = datetime.strptime(v, fmt).replace(tzinfo=timezone.utc)
+        return info
+
+    @model_validator(mode="after")
+    def _validate_data_kind(self) -> Self:
+        interface = self.interface
+        file_suffix = self.file_suffix
+        file_ext = self.file_ext
+
+        def _check_match(v, re_v):
+            if re_v is None:
+                return True
+            if v is None:
+                return False
+            return re.fullmatch(re_v, v)
+
         for (
             re_interface,
             re_file_suffix,
             re_file_ext,
-        ), dk in _file_suffix_ext_to_toltec_data_kind.items():
-            if (
-                re.fullmatch(re_interface, interface)
-                and re.fullmatch(re_file_suffix, file_suffix)
-                and re.fullmatch(
-                    re_file_ext,
-                    file_ext,
-                )
+        ), dk in _file_interface_suffix_ext_to_toltec_data_kind.items():
+            if all(
+                [
+                    _check_match(interface, re_interface),
+                    _check_match(file_suffix, re_file_suffix),
+                    _check_match(file_ext, re_file_ext),
+                ],
             ):
-                dk_set.add(dk)
+                self.data_kind = dk
                 break
-    if len(dk_set) == 0:
-        return None
-    return functools.reduce(operator.ior, dk_set)
+        return self
 
 
-def _guess_data_store_info(meta):
-    """Return the infered data storage layout and related info."""
-    # TODO : implement this, with respect to taco and data_lmt
-    return meta
-
-
-def guess_meta_from_source(source):
-    """Return guessed metadata parsed from data source.
+def guess_info_from_source(source):
+    """Return file info gussed from parsing source.
 
     Parameters
     ----------
     source : str, `pathlib.Path`, `FileLoc`
     """
-    file_loc = FileLoc(source)
-    filepath = file_loc.path
-    meta = {
-        "source": source,
-        "file_loc": file_loc,
-    }
-    for parser_def in _filename_parser_defs:
-        d = dict_from_regex_match(
-            parser_def["regex"],
-            filepath.name,
-            type_dispatcher=_filename_parser_type_dispatchers,
-        )
-        if d is None:
-            continue
-        if "add_meta" in parser_def:
-            d.update(parser_def["add_meta"])
-        meta.update(d)
-        break
-    meta.update(_guess_data_store_info(meta))
-    data_kind = _guess_data_kind_from_meta(meta)
-    if data_kind is not None:
-        meta["data_kind"] = data_kind
-    logger.debug(f"guess meta data from {source}:\n{pformat_yaml(meta)}")
-    return meta
+    info = SourceInfoModel.model_validate(source)
+    logger.debug(f"guess info from {source}:\n{pformat_yaml(info.model_dump())}")
+    return info
+
+
+def guess_info_from_sources(sources) -> "DataFrame":
+    """Return a table of guessed info for a list of sources."""
+    info_records = [guess_info_from_source(source).model_dump() for source in sources]
+    return pd.DataFrame.from_records(info_records)
+
+
+@pd.api.extensions.register_dataframe_accessor("toltec_file")
+class ToltecFileAccessor:
+    _table_validator: ClassVar = TableValidator()
+    _obj: pd.DataFrame
+
+    def __init__(self, pandas_obj):
+        self._obj = self._validate_obj(pandas_obj)
+
+    @classmethod
+    def _validate_obj(cls, obj):
+        tblv = cls._table_validator
+        if not tblv.has_all_cols(obj, list(SourceInfoModel.model_fields.keys())):
+            raise AttributeError("incomplete source info.")
+        return obj
+
+    def _make_groups(self, by) -> pdt.DataFrameGroupBy:
+        return self._obj.groupby(by, sort=False, group_keys=True, as_index=False)
+
+    def make_obs_groups(self):
+        return self._make_groups(["uid_obs"])
+
+    def make_raw_obs_groups(self):
+        return self._make_groups(["uid_raw_obs"])
+
+
+if TYPE_CHECKING:
+
+    class DataFrame(pd.DataFrame):
+        toltec_file: ToltecFileAccessor

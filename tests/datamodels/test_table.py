@@ -10,6 +10,11 @@ from tolteca_kidsproc.kidsmodel import KidsSweepGainWithLinTrend
 
 data_root = Path(__file__).with_name("data_lmt")
 
+pytestmark = pytest.mark.skipif(
+    not data_root.exists(),
+    reason=f"test data {data_root} does not exist.",
+)
+
 
 def test_table_no_open():
     filepath = data_root.joinpath(

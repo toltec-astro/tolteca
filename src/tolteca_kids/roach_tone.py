@@ -68,7 +68,7 @@ class RoachToneProps(MetadataContextHandlerMixin[str, RoachTonePropsMetadata]):
     _enable_mask: bool
 
     _context_handler_context_cls: ClassVar = RoachTonePropsMetadata
-    _tbl_validator: ClassVar = TableValidator(table_cls=QTable)
+    _tbl_validator: ClassVar = TableValidator()
 
     @staticmethod
     def _validate_f_lo(f_lo):

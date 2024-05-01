@@ -1,8 +1,15 @@
 from pathlib import Path
 
+import pytest
+
 from tolteca_datamodels.toltec import ToltecData, ToltecDataKind
 
 data_root = Path(__file__).with_name("data_lmt")
+
+pytestmark = pytest.mark.skipif(
+    not data_root.exists(),
+    reason=f"test data {data_root} does not exist.",
+)
 
 
 def test_toltecdata1():
@@ -12,6 +19,7 @@ def test_toltecdata1():
     with ToltecData(source=filepath, data_kind="TableData") as tblfile:
         tbl = tblfile.read()
     assert tbl.meta["data_kind"] == ToltecDataKind.KidsModelParamsTable
+
 
 def test_toltecdata_guess_kind():
     filepath = data_root.joinpath(
