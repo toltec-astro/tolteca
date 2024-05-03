@@ -1,7 +1,7 @@
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, ClassVar, Literal, Self
+from typing import TYPE_CHECKING, Annotated, ClassVar, Literal
 
 import pandas as pd
 import pandas.api.typing as pdt
@@ -12,10 +12,15 @@ from tollan.utils.fmt import pformat_yaml
 from tollan.utils.general import dict_from_regex_match
 from tollan.utils.log import logger
 from tollan.utils.table import TableValidator
+from typing_extensions import Self
 
 from .types import ToltecDataKind
 
-__all__ = ["guess_info_from_source"]
+__all__ = [
+    "SourceInfoModel",
+    "guess_info_from_source",
+    "guess_info_from_sources",
+]
 
 
 _T = ToltecDataKind
@@ -78,6 +83,8 @@ _re_named_field_type_dispatcher = {
 
 
 class SourceInfoModel(BaseModel):
+    """Model for information inferred from source."""
+
     source: FileLoc
     instru: Literal[None, "toltec", "lmt"] = None
     instru_component: Literal[None, "roach", "hwpr", "tcs"] = None
@@ -92,15 +99,21 @@ class SourceInfoModel(BaseModel):
     data_kind: None | _T = None
 
     @computed_field
+    @property
     def filepath(self) -> Path:
+        """Filepath."""
         return self.source.path
 
     @computed_field
+    @property
     def uid_obs(self) -> Path:
+        """Unique id for obs idenfied by an obsnum."""
         return str(self.obsnum)
 
     @computed_field
+    @property
     def uid_raw_obs(self) -> Path:
+        """Unique id of idenfied by the (obsnum, subobsnum, scannum) tripplet."""
         return f"{self.obsnum}-{self.subobsnum}-{self.scannum}"
 
     @model_validator(mode="before")
