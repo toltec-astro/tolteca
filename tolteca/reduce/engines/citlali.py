@@ -527,6 +527,10 @@ class CitlaliProc(object):
         else:
             obsnum_post = cal_obsnums[idx_post[0]]
             ppt_post = ppts[idx_post[0]]
+        if obsnum_post == obsnum_pre:
+            logger.debug(f"pre- and post- pointing resolve to the same obsnum, use pre only")
+            obsnum_post = None
+            ppt_post = None
         logger.debug(f"pointing offset for {obsnum=}: {obsnum_pre=} {obsnum_post=}")
 
 
@@ -560,7 +564,8 @@ class CitlaliProc(object):
             az_cor = -(daz_raw + daz_adjust)
             alt_cor = -(dalt_raw + dalt_adjust)
             logger.debug(f"pointing offset correction to use: {az_cor=!s} {alt_cor=!s}")
-            return az_cor.to_value(u.arcsec), alt_cor.to_value(u.arcsec)
+            mjd = ppt.meta["mjd"]
+            return az_cor.to_value(u.arcsec), alt_cor.to_value(u.arcsec), mjd
 
         # compose the dict
         altaz_cor_arcsec = []
@@ -568,11 +573,12 @@ class CitlaliProc(object):
             altaz_cor_arcsec.append(_get_altaz_cor_arcsec(ppt_pre, teldata))
         if ppt_post is not None:
             altaz_cor_arcsec.append(_get_altaz_cor_arcsec(ppt_post, teldata))
-        az_cor_arcsec, alt_cor_arcsec = zip(*altaz_cor_arcsec)
+        az_cor_arcsec, alt_cor_arcsec, mjd = zip(*altaz_cor_arcsec)
         result = {
                 'pointing_offsets': [
                     {'axes_name': 'az', 'value_arcsec': az_cor_arcsec},
                     {'axes_name': 'alt', 'value_arcsec': alt_cor_arcsec},
+                    {'modified_julian_date': mjd},
                     ],
                 'type': 'astrometry',
                 'select': f'obsnum == {obsnum}'
