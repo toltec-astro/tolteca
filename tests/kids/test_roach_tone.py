@@ -1,8 +1,15 @@
+import tempfile
+from pathlib import Path
+
 import astropy.units as u
 import numpy as np
 from astropy.table import Table
 
-from tolteca_kids.roach_tone import RoachToneProps, RoachTonePropsMetadata
+from tolteca_kids.roach_tone import (
+    RoachToneProps,
+    RoachTonePropsMetadata,
+    TlalocEtcDataStore,
+)
 
 
 def test_roach_tone_props():
@@ -29,35 +36,25 @@ def test_roach_tone_props():
 
 
 def test_tlaloc_etc():
-    pass
-    # some tests
+    with tempfile.TemporaryDirectory() as _tmp:
+        tmp = Path(_tmp)
+        path = tmp / "tlaloc_etc"
+        tlaloc = TlalocEtcDataStore.create(path=path)
+        assert tlaloc.path == path
 
-    # test_path = "test_tone_utils_tlaloc_etc"
-    # tlaloc = TlalocEtcDataStore.create(test_path, exist_ok=True)
-    #
-    # # make sample data
-    #
-    # tbl = Table()
-    #
-    # tbl["f_comb"] = range(-10, 10)
-    # tbl["amp_tone"] = 0.5
-    # tbl["phase_tone"] = tlaloc.make_random_phases(len(tbl))
-    # tbl["mask_tone"] = 1
-    # tbl["mask_tone"][:5] = 0
-    #
-    # paths = tlaloc.write_tone_prop_table(tbl, nw=1, flo=100)
-    # print(paths)
-    #
-    # rtp = tlaloc.get_tone_props(nw=1)
-    # print(rtp)
-    # print(rtp.table)
-    #
-    # paths2 = tlaloc.write_tone_prop_table(rtp, nw=2)
-    #
-    # paths3 = tlaloc.backup_tone_prop_files(nw=2)
-    #
-    # rtp2 = rtp[:2]
-    # print(rtp2)
-    # print(rtp2.table)
-    # tlaloc.write_tone_prop_table(rtp2, nw=2)
-    #
+        # make sample data
+        tbl = Table()
+        tbl["f_tone"] = range(-10, 10)
+        tbl["amp_tone"] = 0.5
+        tbl["phase_tone"] = RoachToneProps.make_random_phases(len(tbl))
+        tbl["mask_tone"] = 1
+        tbl["mask_tone"][:5] = 0
+        paths = tlaloc.write_tone_props(tbl, roach=1, f_lo=100)
+        assert paths == {
+            "targ_phases": path / "toltec1/random_phases.dat",
+            "targ_amps": path / "toltec1/default_targ_amps.dat",
+            "targ_freqs": path / "toltec1/targ_freqs.dat",
+            "targ_mask": path / "toltec1/default_targ_masks.dat",
+        }
+        rtp = tlaloc.read_tone_props(roach=1)
+        assert rtp.meta.f_lo == 100 << u.Hz

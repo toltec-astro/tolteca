@@ -3,7 +3,7 @@ import functools
 from collections import defaultdict
 from enum import Enum
 from functools import cached_property
-from typing import Any
+from typing import Any, ClassVar
 
 from loguru import logger
 
@@ -40,7 +40,7 @@ class KidsDataAxisSlicerMeta(abc.ABCMeta):
 
     # the below makes available the get_axis_types method based on
     # the data kind
-    _axis_types_map = {
+    _axis_types_map: ClassVar = {
         ToltecDataKind.KidsData: {
             KidsDataAxis.Block,
             KidsDataAxis.Chan,

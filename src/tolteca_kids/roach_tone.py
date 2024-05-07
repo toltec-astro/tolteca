@@ -10,6 +10,7 @@ from typing import ClassVar, TypedDict
 import astropy.units as u
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 from astropy.table import Column, QTable, Table
 from strenum import StrEnum
 from tollan.pipeline.context_handler import MetadataContextHandlerMixin
@@ -17,7 +18,9 @@ from tollan.utils.log import logger, logit
 from tollan.utils.np import ensure_unit
 from tollan.utils.table import TableValidator
 from tollan.utils.yaml import yaml_sanitize
-from typing_extensions import assert_never
+from typing_extensions import Self, assert_never
+
+from tolteca_datamodels.filestore import FileStoreBase
 
 __all__ = [
     "RoachToneProps",
@@ -411,14 +414,14 @@ class TlalocEtcTableMetadata:
     item_validated: dict[TlalocEtcDataItem, bool] = field(default_factory=dict)
 
 
-class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata]):
+class TlalocEtcDataStore(
+    FileStoreBase,
+    MetadataContextHandlerMixin[str, TlalocEtcTableMetadata],
+):
     """The data files managed by tlaloc."""
 
     def __init__(self, path="~/tlaloc/etc"):
-        path = Path(path).expanduser().resolve()
-        if not path.exists():
-            raise ValueError(f"etc directory does not exist {path}")
-        self._path = path
+        super().__init__(path)
         self._file_suffix = None
         self._do_dry_run = False
         self._interface_subpath = {
@@ -426,7 +429,6 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
             for interface in TlalocInterface.interfaces
         }
 
-    _path: Path
     _file_suffix: None | str
     _do_dry_run: bool
     _interface_subpath: dict[str, Path]
@@ -442,11 +444,6 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
     _tbl_validator: ClassVar = TableValidator()
 
     @property
-    def path(self):
-        """The etc directory."""
-        return self._path
-
-    @property
     def roaches(self):
         """The list of roaches."""
         return TlalocRoachInterface.roaches
@@ -456,8 +453,9 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
         interface = TlalocRoachInterface.roach_interface[roach]
         return self._interface_subpath[interface]
 
-    def iter_interface_paths(self, exist_only=True, roach_only=False):
+    def get_path_info_table(self, exist_only=True, roach_only=False):
         """Return the interface subpaths."""
+        result = []
         for interface in TlalocInterface.interfaces:
             roach = TlalocRoachInterface.interface_roach.get(interface, None)
             if roach_only and roach is None:
@@ -465,11 +463,18 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
             p = self._interface_subpath[interface]
             if exist_only and not p.exists():
                 continue
-            yield roach, interface, p
+            result.append(
+                {
+                    "interface": interface,
+                    "roach": roach,
+                    "path": p,
+                },
+            )
+        return pd.DataFrame.from_records(result)
 
-    def iter_roach_paths(self, exist_only=True):
+    def get_roach_path_info_table(self, exist_only=True):
         """Return the roach interface subpaths."""
-        return self.iter_interface_paths(exist_only=exist_only, roach_only=True)
+        return self.get_path_info_table(exist_only=exist_only, roach_only=True)
 
     @contextmanager
     def set_file_suffix(self, suffix):
@@ -647,7 +652,10 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
         )
 
     @staticmethod
-    def _get_f_lo_from_table(tbl: Table) -> None | FrequencyQuantityType:
+    def _get_f_lo_from_table(tbl: Table, f_lo=None) -> None | FrequencyQuantityType:
+        if f_lo is not None:
+            logger.debug(f"use separately provided {f_lo=}")
+            return ensure_unit(f_lo, u.Hz)
         for k in ["Header.Toltec.LoCenterFreq", "f_lo_center"]:
             v = tbl.meta.get(k)
             if v is not None:
@@ -666,7 +674,7 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
         """Return targ freqs table."""
         tbl = data.table if isinstance(data, RoachToneProps) else QTable(data)
         tbl, roach = cls._get_table_for_roach(tbl, roach)
-        f_lo = cls._get_f_lo_from_table(tbl)
+        f_lo = cls._get_f_lo_from_table(tbl, f_lo=f_lo)
         f_unit = u.Hz
         ensure_f_unit = functools.partial(ensure_unit, unit=f_unit)
 
@@ -972,24 +980,27 @@ class TlalocEtcDataStore(MetadataContextHandlerMixin[str, TlalocEtcTableMetadata
     @classmethod
     def create(
         cls,
-        tlaloc_etc_path,
+        path,
         roaches=None,
         exist_ok=False,
         roach_only=False,
-    ):
+    ) -> Self:
         """Create the directory tree."""
-        etcdir = Path(tlaloc_etc_path)
+        etcdir = Path(path)
         if etcdir.exists() and not exist_ok:
             raise ValueError("etc directory exists, abort.")
+        etcdir.mkdir(exist_ok=True)
         roaches = roaches or TlalocRoachInterface.roaches
-        for roach, _, path in cls.iter_interface_paths(
+        inst = cls(path=etcdir)
+        for path_info in inst.get_path_info_table(
             exist_only=False,
             roach_only=roach_only,
-        ):
+        ).itertuples():
+            roach = path_info.roach
             if roach is not None and roach not in roaches:
                 continue
-            path.mkdir(exist_ok=exist_ok, parents=True)
-        return cls(path=etcdir)
+            path_info.path.mkdir(exist_ok=exist_ok, parents=True)
+        return inst
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.path})"

@@ -242,6 +242,16 @@ class ToltecFileAccessor:
     def make_raw_obs_groups(self):
         return self._make_groups(["uid_raw_obs"])
 
+    def get_latest(self, query=None):
+        obj = self._obj
+        if query is not None:
+            obj = obj.query(query)
+        obj = obj.sort_values(
+            by=["obsnum", "subobsnum", "scannum", "file_timestamp"],
+            ascending=False,
+        )
+        return SourceInfoModel.model_construct(obj.iloc[0].to_dict())
+
 
 if TYPE_CHECKING:
 
