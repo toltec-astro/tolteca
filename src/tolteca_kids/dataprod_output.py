@@ -75,17 +75,17 @@ class DataProdOutput(Step[DataProdOutputConfig, DataProdOutputContext]):
             "amp_tone",
             "dist",
         ]
-        tbl_tone_prop = ctx_kf.data.detected_matched[tbl_cols]
-        tbl_tone_prop.meta.update(tbl_meta)
-        item_path["tone_prop"] = cfg.save_table(
-            cfg.make_output_path(data=swp, suffix="_toneprop.ecsv"),
-            tbl_tone_prop,
+        tbl_kids_find = ctx_kf.data.detected_matched[tbl_cols]
+        tbl_kids_find.meta.update(tbl_meta)
+        item_path["kids_find"] = cfg.save_table(
+            cfg.make_output_path(data=swp, suffix="_kids_find.ecsv"),
+            tbl_kids_find,
         )
 
         tbl_chan_prop = ctx_kf.data.chan_matched[tbl_cols]
         tbl_chan_prop.meta.update(tbl_meta)
         item_path["chan_prop"] = cfg.save_table(
-            cfg.make_output_path(data=swp, suffix="_chanprop.ecsv"),
+            cfg.make_output_path(data=swp, suffix="_chan_prop.ecsv"),
             tbl_chan_prop,
         )
 

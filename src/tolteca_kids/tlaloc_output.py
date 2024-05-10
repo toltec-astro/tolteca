@@ -221,7 +221,7 @@ class TlalocOutput(Step[TlalocOutputConfig, TlalocOutputContext]):
             fix_n_chans=cfg.fix_n_chans,
             tone_amps_method=cfg.tone_amps_method,
         )
-        tlaloc_etc.write_tone_props(rtp)
+        tlaloc_etc.write_tone_props(rtp, sort_fft=True)
         return True
 
     @classmethod
@@ -276,16 +276,30 @@ class TlalocOutput(Step[TlalocOutputConfig, TlalocOutputContext]):
         # check if we have enough channel to hold the data
         n_chans0 = swp.n_chans
         if fix_n_chans and n_tones > n_chans0:
-            raise ValueError(
-                f"unalbe to allocate {n_tones=} in data with n_chans={n_chans0}.",
+            # raise ValueError(
+            #     f"unalbe to allocate {n_tones=} in data with n_chans={n_chans0}.",
+            # )
+            # trim the table to remove some tones that are blended.
+            logger.info(
+                f"unalbe to allocate {n_tones=} in data with n_chans={n_chans0}. "
+                f"trim {n_tones - n_chans0} tones.",
             )
+            keep_mask = np.zeros((n_tones,), dtype=bool)
+            keep_mask[np.abs(tbl_dets["d_phi"]).argsort()[:n_chans0]] = True
+            tbl_dets_keep = tbl_dets[keep_mask]
+            tbl_dets_discard = tbl_dets[~keep_mask]
+            logger.debug(f"trimmed tones:\n{tbl_dets_discard}")
+            tbl_dets = tbl_dets_keep
+        # update n_tones
+        n_tones = len(tbl_dets)
+
         # call placeholder function
         if placeholders is not None:
             placeholders = placeholders(
                 f_dets=f_dets,
                 f_lo=f_lo,
             )
-        if fix_n_chans:
+        if fix_n_chans and n_tones < n_chans0:
             n_chans = n_chans0
             # re-use existing placeholders
             rtt0 = swp.meta["chan_axis_data"]
@@ -303,7 +317,8 @@ class TlalocOutput(Step[TlalocOutputConfig, TlalocOutputContext]):
                 f"allocate {n_tones=} to {n_chans} "
                 f"chans with {n_plh0} placeholders",
             )
-        else:
+            raise NotImplementedError
+        else:  # noqa: RET506
             n_placeholders = len(placeholders)
             n_chans = n_tones + n_placeholders
             if n_chans > n_chans_max:

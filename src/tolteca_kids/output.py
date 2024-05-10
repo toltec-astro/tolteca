@@ -52,7 +52,7 @@ class OutputConfigMixin:
         if data is not None and meta is None:
             meta = data.meta
         if meta is not None and name is None:
-            name = meta["file_loc"].path.stem
+            name = meta["filepath"].stem
         if name is None:
             raise ValueError("cannot infer name")
         name = f"{name}" if suffix is None else f"{name}{suffix}"

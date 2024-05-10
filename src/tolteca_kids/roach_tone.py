@@ -831,12 +831,13 @@ class TlalocEtcDataStore(
             raise ValueError(f"invalid item. Choose from {all_items}")
         return items
 
-    def write_tone_props(
+    def write_tone_props(  # noqa: PLR0913
         self,
         data: RoachToneProps | Table,
         roach=None,
         f_lo=None,
         items=None,
+        sort_fft=False,
     ):
         """Write tone prop table."""
         items = self._validate_items_arg(items)
@@ -847,6 +848,21 @@ class TlalocEtcDataStore(
             tbl = data.table
         else:
             assert_never()
+        if sort_fft:
+            logger.debug("sort tbl in fft order")
+            f_tones = tbl["f_tone"]
+            # this is to shift the negative tones to positive side
+            _f_tone_max = 3 * np.max(f_tones)
+
+            def _fft_idx_sort_key(i):
+                f = f_tones[i]
+                return f + _f_tone_max if f < 0 else f
+
+            isort_fft = sorted(
+                range(len(f_tones)),
+                key=_fft_idx_sort_key,
+            )
+            tbl = tbl[isort_fft]
         for item, writer, kwargs in [
             (
                 TlalocEtcDataItem.targ_freqs,

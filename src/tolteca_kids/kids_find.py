@@ -417,12 +417,28 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
 
         def _calc_s21_fwhm():
             # generate Qr data for each channel
-            Qr_default = np.quantile(d21_prior["Qr"], 0.9)
+            n_d21_priors = len(d21_prior)
+            n_d21_priors_min = 10
+            if n_d21_priors >= n_d21_priors_min:
+                Qr_default = np.quantile(d21_prior["Qr"], 0.9)
+            elif n_d21_priors > 0:
+                logger.debug("not enough prior found, use median value")
+                Qr_default = np.quantile(d21_prior["Qr"], 0.5)
+            else:
+                Qr_default_no_prior = 5000
+                logger.debug(
+                    f"no d21 prior found, use default value {Qr_default_no_prior=}",
+                )
+                Qr_default = Qr_default_no_prior
+
             logger.debug(f"{Qr_default=}")
-            chan_dp_Qrs = np.tile(d21_prior["Qr"], (n_chans, 1))
-            chan_dp_Qrs[~map_chan_dp] = -np.inf
-            chan_dp_Qrs = np.max(chan_dp_Qrs, axis=1)
-            chan_dp_Qrs[chan_dp_Qrs < 0] = Qr_default
+            if n_d21_priors > 0:
+                chan_dp_Qrs = np.tile(d21_prior["Qr"], (n_chans, 1))
+                chan_dp_Qrs[~map_chan_dp] = -np.inf
+                chan_dp_Qrs = np.max(chan_dp_Qrs, axis=1)
+                chan_dp_Qrs[chan_dp_Qrs < 0] = Qr_default
+            else:
+                chan_dp_Qrs = np.full((n_chans,), Qr_default)
             return s21_f / chan_dp_Qrs[:, np.newaxis] / s21_f_step
 
         as21_fwhm = _calc_s21_fwhm()
@@ -672,6 +688,7 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
                 det_groups["f", "Qr", "fwhm"],
             ],
         )
+        detected["bitmask"] = bitmask_det
 
         # do match to chan and ref
         tbl_chans = swp.meta["chan_axis_data"]

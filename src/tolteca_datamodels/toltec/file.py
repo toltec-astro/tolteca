@@ -38,7 +38,7 @@ _file_interface_suffix_ext_to_toltec_data_kind = {
     (r"toltec(\d+)", "(vnasweep|targsweep|tune)_targamps", ".dat"): _T.TargAmpsDat,
     (
         r"toltec(\d+)",
-        "(vnasweep|targsweep|tune)_(kids_find|kids_fit|tone_prop|chan_prop)",
+        "(vnasweep|targsweep|tune)_(kids_find|kids_fit|chan_prop)",
         ".ecsv",
     ): _T.KidsPropTable,
     # obs reduction
