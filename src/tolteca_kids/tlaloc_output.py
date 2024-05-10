@@ -244,6 +244,7 @@ class TlalocOutput(Step[TlalocOutputConfig, TlalocOutputContext]):
             if not ctx_kf.completed:
                 raise ValueError("kids find step has not run yet.")
             detected = ctx_kf.data.detected
+            tbl_chan_prop = ctx_kf.data.chan_matched
             roach = swp.meta["roach"]
             f_lo = swp.meta["f_lo_center"] << u.Hz
         elif detected is not None:
@@ -317,13 +318,14 @@ class TlalocOutput(Step[TlalocOutputConfig, TlalocOutputContext]):
                 f"allocate {n_tones=} to {n_chans} "
                 f"chans with {n_plh0} placeholders",
             )
-            # get missed chans
+            # get missed chans from chan matched
             n_missing = n_chans - n_tones
             missed_mask = np.zeros((n_chans,), dtype=bool)
-            missed_mask[np.abs(tbl_dets["d_phi"]).argsort()[-n_missing:]] = True
+            missed_mask[np.abs(tbl_chan_prop["d_phi"]).argsort()[-n_missing:]] = True
             tbl_chan_missing = rtt0[missed_mask][["f_chan", "mask_tone", "amp_tone"]]
             # tbl_chan_missing["mask_tone"] = False
             tbl_roach_tone = vstack([tbl_dets, tbl_chan_missing])
+            assert n_chans == len(tbl_roach_tone)
         else:
             n_placeholders = len(placeholders)
             n_chans = n_tones + n_placeholders
