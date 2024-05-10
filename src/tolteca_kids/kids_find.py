@@ -8,7 +8,7 @@ import numpy as np
 import numpy.typing as npt
 import plotly
 import plotly.graph_objects as go
-from astropy.table import QTable, hstack, unique, vstack
+from astropy.table import Column, QTable, hstack, unique, vstack
 from pydantic import ConfigDict, Field
 from scipy.ndimage import median_filter
 from scipy.optimize import leastsq
@@ -243,7 +243,7 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
 
     @classmethod
     @timeit
-    def run(cls, data: MultiSweep, context):  # noqa: PLR0915, C901
+    def run(cls, data: MultiSweep, context):  # noqa: PLR0915, C901, PLR0912
         """Run kids find."""
         swp = data
         cfg = context.config
@@ -533,12 +533,22 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
         s21_detected = ctd.s21_detected = s21_peak_info[s21_mask_peak_detected]
 
         # merge detection list
-        d21_detected["subdet"] = "d21"
-        d21_detected["idx_subdet"] = range(len(d21_detected))
-        d21_detected["bitmask"] = bitmask_d21[d21_mask_peak_detected]
-        s21_detected["subdet"] = "s21"
-        s21_detected["idx_subdet"] = range(len(s21_detected))
-        s21_detected["bitmask"] = bitmask_s21[s21_mask_peak_detected]
+        if len(d21_detected) > 0:
+            d21_detected["subdet"] = "d21"
+            d21_detected["idx_subdet"] = range(len(d21_detected))
+            d21_detected["bitmask"] = bitmask_d21[d21_mask_peak_detected]
+        else:
+            d21_detected["subdet"] = Column(dtype=str)
+            d21_detected["idx_subdet"] = Column(dtype=int)
+            d21_detected["bitmask"] = Column(dtype=int)
+        if len(s21_detected) > 0:
+            s21_detected["subdet"] = "s21"
+            s21_detected["idx_subdet"] = range(len(s21_detected))
+            s21_detected["bitmask"] = bitmask_s21[s21_mask_peak_detected]
+        else:
+            s21_detected["subdet"] = Column(dtype=str)
+            s21_detected["idx_subdet"] = Column(dtype=int)
+            s21_detected["bitmask"] = Column(dtype=int)
         det_cols = [
             "x",
             "subdet",

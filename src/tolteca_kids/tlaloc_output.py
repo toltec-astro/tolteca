@@ -317,8 +317,14 @@ class TlalocOutput(Step[TlalocOutputConfig, TlalocOutputContext]):
                 f"allocate {n_tones=} to {n_chans} "
                 f"chans with {n_plh0} placeholders",
             )
-            raise NotImplementedError
-        else:  # noqa: RET506
+            # get missed chans
+            n_missing = n_chans - n_tones
+            missed_mask = np.zeros((n_chans,), dtype=bool)
+            missed_mask[np.abs(tbl_dets["d_phi"]).argsort()[-n_missing:]] = True
+            tbl_chan_missing = rtt0[missed_mask][["f_chan", "mask_tone", "amp_tone"]]
+            # tbl_chan_missing["mask_tone"] = False
+            tbl_roach_tone = vstack([tbl_dets, tbl_chan_missing])
+        else:
             n_placeholders = len(placeholders)
             n_chans = n_tones + n_placeholders
             if n_chans > n_chans_max:
