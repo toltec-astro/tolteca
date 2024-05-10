@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Annotated, ClassVar, Literal
 
 import pandas as pd
 import pandas.api.typing as pdt
-from pydantic import BaseModel, computed_field, model_validator
+from pydantic import BaseModel, TypeAdapter, computed_field, model_validator
 from pydantic.types import StringConstraints
 from tollan.utils.fileloc import FileLoc
 from tollan.utils.fmt import pformat_yaml
@@ -118,6 +118,15 @@ class SourceInfoModel(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
+    def _validate_arg(cls, arg):
+        if isinstance(arg, dict) and "source" in arg:
+            # from dumped data or meta
+            return arg
+        if isinstance(arg, cls):
+            return arg.model_dump()
+        return cls._validate_source(arg)
+
+    @classmethod
     def _validate_source(cls, source):
         source = FileLoc(source)
         info = {"source": source}
@@ -212,7 +221,7 @@ def guess_info_from_source(source):
     return info
 
 
-def guess_info_from_sources(sources) -> "DataFrame":
+def guess_info_from_sources(sources) -> "SourceInfoDataFrame":
     """Return a table of guessed info for a list of sources."""
     info_records = [guess_info_from_source(source).model_dump() for source in sources]
     return pd.DataFrame.from_records(info_records)
@@ -242,18 +251,30 @@ class ToltecFileAccessor:
     def make_raw_obs_groups(self):
         return self._make_groups(["uid_raw_obs"])
 
-    def get_latest(self, query=None):
+    def _get_obj(self, query=None):
         obj = self._obj
-        if query is not None:
-            obj = obj.query(query)
+        if query is None:
+            return obj
+        return obj.query(query)
+
+    def get_latest(self, query=None):
+        obj = self._get_obj(query=query)
         obj = obj.sort_values(
             by=["obsnum", "subobsnum", "scannum", "file_timestamp"],
             ascending=False,
         )
-        return SourceInfoModel.model_construct(obj.iloc[0].to_dict())
+        return SourceInfoModel.model_validate(obj.iloc[0].to_dict())
+
+    _source_info_list_validator = TypeAdapter(list[SourceInfoModel])
+
+    def to_list(self, query=None) -> list[SourceInfoModel]:
+        obj = self._get_obj(query=query)
+        return self._source_info_list_validator.validate_python(
+            obj.to_dict(orient="records"),
+        )
 
 
 if TYPE_CHECKING:
 
-    class DataFrame(pd.DataFrame):
+    class SourceInfoDataFrame(pd.DataFrame):
         toltec_file: ToltecFileAccessor

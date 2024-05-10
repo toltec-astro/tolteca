@@ -7,7 +7,7 @@ from tollan.utils.log import logger
 from wrapt import ObjectProxy
 
 from ..base import FileIOBase, FileIOError
-from .file0 import guess_meta_from_source
+from .file import guess_info_from_source
 from .types import ToltecDataKind
 
 base_doc = """{__doc__}
@@ -103,7 +103,8 @@ class ToltecFileIO(FileIOBase):
         return NotImplemented
 
     def _guess_meta_from_file_loc(self):
-        self._meta.update(guess_meta_from_source(self.file_loc))
+        info = guess_info_from_source(self.file_loc)
+        self._meta.update(info.model_dump())
 
     def _load_data_kind_meta_from_io_obj(self):
         # subclass implement this: return the data kind meta from io obj.

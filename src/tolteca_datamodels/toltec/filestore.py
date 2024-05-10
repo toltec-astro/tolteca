@@ -1,10 +1,10 @@
+import itertools
 from pathlib import Path
 from typing import ClassVar, Literal, get_args
 
 import pandas as pd
 
 from ..filestore import FileStoreBase
-from .file import guess_info_from_sources
 
 ToltecMasterType = Literal["tcs", "ics"]
 
@@ -12,7 +12,7 @@ ToltecMasterType = Literal["tcs", "ics"]
 class ToltecMaster:
     """Toltec master."""
 
-    masters: ClassVar[list[ToltecMasterType]] = get_args(ToltecMasterType)
+    masters: ClassVar[list[ToltecMasterType]] = list(get_args(ToltecMasterType))
 
 
 class ToltecRoachInterface:
@@ -37,28 +37,25 @@ class ToltecFileStore(FileStoreBase):
         super().__init__(path)
         self._master_subpath = {
             master: self._path.joinpath(self._master_subpath_name[master])
-            for master in ToltecMaster.masters
+            for master in self.masters
         }
         self._master_interface_subpath = {
             master: {
                 interface: self._master_subpath[master].joinpath(
-                    self._interface_subpath_name[master],
+                    self._interface_subpath_name[interface],
                 )
-                for interface in ToltecInterface
+                for interface in self.interfaces
             }
-            for master in ToltecMaster.masters
+            for master in self.masters
         }
         # current file links
-        self._interface_file_current_symlink = {
-            interface: self.path.joinpath(symlink_name)
-            for (
-                interface,
-                symlink_name,
-            ) in self._interface_file_current_symlink_name.items()
-        }
         self._master_interface_file_current_symlink = {
             master: {
-                interface: self.master_interface_path[master][interface].joinpath(
+                interface: (
+                    self.master_interface_path[master][interface]
+                    if master is not None
+                    else self.path
+                ).joinpath(
                     symlink_name,
                 )
                 for (
@@ -66,13 +63,15 @@ class ToltecFileStore(FileStoreBase):
                     symlink_name,
                 ) in self._interface_file_current_symlink_name.items()
             }
-            for master in ToltecMaster.masters
+            for master in self.masters + [None]
         }
 
     _master_subpath: dict[str, Path]
     _master_interface_subpath: dict[ToltecMasterType, dict[str, Path]]
-    _interface_file_current_symlink: dict[str, Path]
-    _master_interface_file_current_symlink: dict[ToltecMasterType, dict[str, Path]]
+    _master_interface_file_current_symlink: dict[
+        None | ToltecMasterType,
+        dict[str, Path],
+    ]
 
     _master_subpath_name: ClassVar[dict[ToltecMasterType, str]] = {
         "tcs": "tcs",
@@ -84,66 +83,79 @@ class ToltecFileStore(FileStoreBase):
     _interface_file_current_symlink_name: ClassVar = {
         interface: f"{interface}.nc" for interface in ToltecInterface.interfaces
     }
+    masters: ClassVar = ToltecMaster.masters
+    interfaces: ClassVar = ToltecInterface.interfaces
+    roaches: ClassVar = ToltecRoachInterface.roaches
+    _roach_interface: ClassVar = ToltecRoachInterface.roach_interface
+    _interface_roach: ClassVar = ToltecRoachInterface.interface_roach
 
     @property
     def master_interface_path(self):
         """The path."""
         return self._master_interface_subpath
 
-    @property
-    def masters(self):
-        """The list of masters."""
-        return ToltecMaster.masters
-
-    @property
-    def roaches(self):
-        """The list of roaches."""
-        return ToltecRoachInterface.roaches
-
     def get_roach_path(self, master, roach):
         """Return the roach interface subpath."""
-        interface = ToltecRoachInterface.roach_interface[roach]
+        interface = self._roach_interface[roach]
         return self.master_interface_path[master][interface]
 
-    def get_path_info_table(self, masters=None, exist_only=True, roach_only=False):
-        """Return the path info table."""
-        if masters is None:
-            masters = ToltecMaster.masters
+    @classmethod
+    def _make_master_interface_path_info(
+        cls,
+        path_maker,
+        iter_master_interface,
+        exist_only=True,
+    ):
         result = []
-        for master in masters:
-            for interface in ToltecInterface.interfaces:
-                roach = ToltecRoachInterface.interface_roach.get(interface, None)
-                if roach_only and roach is None:
-                    continue
-                p = self.master_interface_path[master][interface]
-                if exist_only and not p.exists():
-                    continue
-                result.append(
-                    {
-                        "master": master,
-                        "interface": interface,
-                        "roach": roach,
-                        "path": p,
-                    },
-                )
-        return pd.DataFrame.from_records(result)
-
-    def get_roach_path_info_table(self, masters=None, exist_only=True):
-        """Return the roach path info table."""
-        return self.get_path_info_table(
-            masters=masters,
-            exist_only=exist_only,
-            roach_only=True,
+        for master, interface in iter_master_interface:
+            roach = cls._interface_roach.get(interface, None)
+            p = path_maker(master, interface)
+            if p is None:
+                continue
+            if exist_only and not p.exists():
+                continue
+            result.append(
+                {
+                    "master": master,
+                    "interface": interface,
+                    "roach": roach,
+                    "path": p,
+                },
+            )
+        if not result:
+            return None
+        return pd.DataFrame.from_records(result).astype(
+            {
+                "roach": "Int64",
+            },
         )
 
-    def get_current_file_info_table(self, master=None):
-        """Return the file info table for current files."""
-        if master is None:
-            linkpaths = self._interface_file_current_symlink.values()
-        else:
-            linkpaths = self._master_interface_file_current_symlink[master]
-        return guess_info_from_sources(linkpaths)
+    def get_path_info_table(self, exist_only=True):
+        """Return the path info table."""
 
-    def get_current_file_info(self, master=None):
-        """Return the file info of the most current file."""
-        return self.get_current_file_info_table(master=master).toltec_file.get_latest()
+        def _path_maker(master, interface):
+            return self.master_interface_path[master][interface]
+
+        return self._make_master_interface_path_info(
+            _path_maker,
+            itertools.product(self.masters, self.interfaces),
+            exist_only=exist_only,
+        )
+
+    def get_symlink_info_table(self, exist_only=True):
+        """Return the file info table for current files."""
+        linkpath_map = self._master_interface_file_current_symlink
+
+        def _path_maker(master, interface):
+            return linkpath_map[master][interface]
+
+        def _iter_master_interface():
+            for master, d in linkpath_map.items():
+                for interface in d:
+                    yield master, interface
+
+        return self._make_master_interface_path_info(
+            _path_maker,
+            _iter_master_interface(),
+            exist_only=exist_only,
+        )
