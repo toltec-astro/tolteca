@@ -1,6 +1,17 @@
 from enum import Flag, IntEnum, auto
+from typing import ClassVar, Literal, get_args
 
-__all__ = ["ToltecDataKind", "DB_RawObsMaster", "DB_RawObsType"]
+import astropy.units as u
+
+__all__ = [
+    "ToltecDataKind",
+    "DB_RawObsMaster",
+    "DB_RawObsType",
+    "ToltecMasterType",
+    "ToltecMaster",
+    "ToltecRoachInterface",
+    "ToltecInterface",
+]
 
 
 class ToltecDataKind(Flag):
@@ -140,3 +151,53 @@ class DB_RawObsType(IntEnum):  # noqa: N801
             3: ToltecDataKind.TargetSweep,
             4: ToltecDataKind.Tune,
         }.get(raw_obs_type, ToltecDataKind.Unknown)
+
+
+ToltecMasterType = Literal["tcs", "ics"]
+
+
+class ToltecMaster:
+    """Toltec master."""
+
+    masters: ClassVar[list[ToltecMasterType]] = list(get_args(ToltecMasterType))
+
+
+class ToltecRoachInterface:
+    """TolTEC roach interface."""
+
+    roaches: ClassVar = list(range(13))
+    roach_interface: ClassVar = {roach: f"toltec{roach}" for roach in roaches}
+    interface_roach: ClassVar = {v: k for k, v in roach_interface.items()}
+    interfaces: ClassVar = list(roach_interface.values())
+
+
+class ToltecInterface:
+    """TolTEC interface."""
+
+    interfaces: ClassVar = ToltecRoachInterface.interfaces + ["hwpr"]
+
+
+ToltecArrayNameType = Literal["a1100", "a1400", "a2000"]
+
+
+class ToltecArray:
+    """Toltec array."""
+
+    arrays: ClassVar = list(range(3))
+    array_names: ClassVar[list[ToltecArrayNameType]] = ["a1100", "a1400", "a2000"]
+    interface_array_name: ClassVar[dict[str, ToltecArrayNameType]] = {
+        "toltec0": "a1100",
+        "toltec1": "a1100",
+        "toltec2": "a1100",
+        "toltec3": "a1100",
+        "toltec4": "a1100",
+        "toltec5": "a1100",
+        "toltec6": "a1100",
+        "toltec7": "a1400",
+        "toltec8": "a1400",
+        "toltec9": "a1400",
+        "toltec10": "a1400",
+        "toltec11": "a2000",
+        "toltec12": "a2000",
+    }
+    fov_diameter: ClassVar = 4 << u.arcmin

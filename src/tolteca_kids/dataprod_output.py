@@ -18,7 +18,6 @@ ItemType = Literal["tone_prop", "chan_prop", "data_ctx"]
 class DataProdOutputConfig(StepConfig, OutputConfigMixin):
     """The kids dataprod output config."""
 
-    _output_subdir_fmt: ClassVar = "{obsnum}-{subobsnum}-{scannum}"
     _output_rootpath_attr: ClassVar = "path"
 
     path: AbsDirectoryPath = Field(
@@ -70,10 +69,11 @@ class DataProdOutput(Step[DataProdOutputConfig, DataProdOutputContext]):
             "bitmask_det",
             "f_det",
             "Qr",
+            "dist",
+            "d_phi",
             "idx_chan",
             "f_chan",
             "amp_tone",
-            "dist",
         ]
         tbl_kids_find = ctx_kf.data.detected_matched[tbl_cols]
         tbl_kids_find.meta.update(tbl_meta)

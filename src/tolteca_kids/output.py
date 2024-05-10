@@ -7,6 +7,7 @@ import plotly
 import plotly.graph_objects as go
 from astropy.table import Table
 from astropy.utils.masked import Masked
+from pydantic import BaseModel, Field
 from tollan.utils.log import logger, logit
 
 __all__ = [
@@ -35,10 +36,13 @@ def _save_data_info(pickler, obj):
     )
 
 
-class OutputConfigMixin:
+class OutputConfigMixin(BaseModel):
     """A mixin class for output."""
 
-    _output_subdir_fmt: ClassVar[None | str] = None
+    subdir_fmt: None | str = Field(
+        default="{obsnum}-{subobsnum}-{scannum}",
+        description="subdirectory format",
+    )
     _output_rootpath_attr: ClassVar[str] = "path"
 
     def make_output_path(
@@ -56,7 +60,7 @@ class OutputConfigMixin:
         if name is None:
             raise ValueError("cannot infer name")
         name = f"{name}" if suffix is None else f"{name}{suffix}"
-        subdir_fmt = self._output_subdir_fmt
+        subdir_fmt = self.subdir_fmt
         subdir = None if subdir_fmt is None else subdir_fmt.format_map(meta or {})
         rootpath: Path = getattr(self, self._output_rootpath_attr)
         parent = rootpath if subdir is None else rootpath.joinpath(subdir)

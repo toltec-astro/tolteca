@@ -1,33 +1,11 @@
 import itertools
 from pathlib import Path
-from typing import ClassVar, Literal, get_args
+from typing import ClassVar
 
 import pandas as pd
 
 from ..filestore import FileStoreBase
-
-ToltecMasterType = Literal["tcs", "ics"]
-
-
-class ToltecMaster:
-    """Toltec master."""
-
-    masters: ClassVar[list[ToltecMasterType]] = list(get_args(ToltecMasterType))
-
-
-class ToltecRoachInterface:
-    """TolTEC roach interface."""
-
-    roaches: ClassVar = list(range(13))
-    roach_interface: ClassVar = {roach: f"toltec{roach}" for roach in roaches}
-    interface_roach: ClassVar = {v: k for k, v in roach_interface.items()}
-    interfaces: ClassVar = list(roach_interface.values())
-
-
-class ToltecInterface:
-    """TolTEC interface."""
-
-    interfaces: ClassVar = ToltecRoachInterface.interfaces + ["hwpr"]
+from .types import ToltecInterface, ToltecMaster, ToltecMasterType, ToltecRoachInterface
 
 
 class ToltecFileStore(FileStoreBase):

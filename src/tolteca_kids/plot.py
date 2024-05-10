@@ -47,7 +47,6 @@ BasePlotlyType._build_repr_for_class = staticmethod(  # noqa: SLF001
 class PlotConfig(StepConfig, OutputConfigMixin):
     """A base model for plot config."""
 
-    _output_subdir_fmt: ClassVar = "{obsnum}-{subobsnum}-{scannum}"
     _output_rootpath_attr: ClassVar = "save_rootpath"
 
     save: bool = True
