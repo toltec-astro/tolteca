@@ -81,7 +81,7 @@ class PlotMixin:
     def _make_save_name(cls, data, _context):
         """Return the save name."""
         meta = data.meta
-        base = meta["name"] if "name" in meta else meta["source"].path.stem
+        base = meta["name"] if "name" in meta else meta["filepath"].stem
         suffix = cls.__name__.lower()
         return f"{base}_{suffix}"
 
