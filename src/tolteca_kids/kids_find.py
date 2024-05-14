@@ -108,7 +108,7 @@ class KidsFindConfig(StepConfig):
         description="Minimum Qr for dark detectors.",
     )
     Qr_dark_max: float = Field(
-        default=100000,
+        default=120000,
         description="Maximum Qr allowed for dark detection.",
     )
 
@@ -131,6 +131,10 @@ class KidsFindConfig(StepConfig):
     d21_snr_min: float = Field(
         default=20.0,
         description="Minimum SNR for d21 detected kids at ref freq.",
+    )
+    d21_peak_dark_min: D21QuantityField = Field(
+        default=50 << (u.Hz**-1),
+        description="Minimum peak height for dark kids at ref freq",
     )
     d21_snr_dark_min: float = Field(
         default=100.0,
@@ -326,12 +330,17 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
         d21_mask_peak_dark_snr_low = (d21_Qrs >= cfg.Qr_dark_min) & (
             d21_snrs < cfg.d21_snr_dark_min / d21_thresh_scale
         )
+        d21_mask_peak_dark_peak_small = (d21_Qrs >= cfg.Qr_dark_min) & (
+            d21_heights < cfg.d21_peak_dark_min / d21_thresh_scale
+        )
+
         d21_mask_peak_not_real = d21_peak_info["sbm_not_real"] = (
             d21_mask_peak_peak_small
             | d21_mask_peak_snr_low
             | d21_mask_peak_Qr_small
             | d21_mask_peak_Qr_large
             | d21_mask_peak_dark_snr_low
+            | d21_mask_peak_dark_peak_small
         )
         d21_mask_peak_dark = d21_peak_info["sbm_dark"] = (
             d21_Qrs >= cfg.Qr_dark_min

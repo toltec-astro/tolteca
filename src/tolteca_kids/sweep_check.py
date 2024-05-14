@@ -504,6 +504,10 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
                 axis=-1,
                 ignore_nan=True,
             )
+            # make sure the rms values are always larger than 0
+            d21_chunk_baseline_value_rms[d21_chunk_baseline_value_rms <= 0] = np.min(
+                d21_chunk_baseline_value_rms[d21_chunk_baseline_value_rms > 0],
+            )
             ctd.d21_chunk_baseline_rms = (
                 d21_chunk_baseline_value_rms << d21_unified.unit
             )
