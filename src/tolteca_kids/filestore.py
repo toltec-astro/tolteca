@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from tollan.utils.log import logger, logit
 
 __all__ = [
-    "OutputConfigMixin",
+    "FileStoreConfigMixin",
 ]
 
 
@@ -36,23 +36,23 @@ def _save_data_info(pickler, obj):
     )
 
 
-class OutputConfigMixin(BaseModel):
-    """A mixin class for output."""
+class FileStoreConfigMixin(BaseModel):
+    """A mixin class for file store."""
 
     subdir_fmt: None | str = Field(
         default="{obsnum}-{subobsnum}-{scannum}",
         description="subdirectory format",
     )
-    _output_rootpath_attr: ClassVar[str] = "path"
+    _filestore_path_attr: ClassVar[str] = "path"
 
-    def make_output_path(
+    def make_data_path(
         self,
         data=None,
         meta=None,
         suffix=None,
         name=None,
     ):
-        """Make output path."""
+        """Return the path for given data."""
         if data is not None and meta is None:
             meta = data.meta
         if meta is not None and name is None:
@@ -62,8 +62,8 @@ class OutputConfigMixin(BaseModel):
         name = f"{name}" if suffix is None else f"{name}{suffix}"
         subdir_fmt = self.subdir_fmt
         subdir = None if subdir_fmt is None else subdir_fmt.format_map(meta or {})
-        rootpath: Path = getattr(self, self._output_rootpath_attr)
-        parent = rootpath if subdir is None else rootpath.joinpath(subdir)
+        path: Path = getattr(self, self._filestore_path_attr)
+        parent = path if subdir is None else path.joinpath(subdir)
         return parent.joinpath(name)
 
     @staticmethod

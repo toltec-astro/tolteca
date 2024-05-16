@@ -14,7 +14,7 @@ from tollan.utils.plot.plotly import (
     update_subplot_layout,
 )
 
-from .output import OutputConfigMixin
+from .filestore import FileStoreConfigMixin
 from .pipeline import Step, StepConfig, StepContext
 
 __all__ = [
@@ -44,13 +44,13 @@ BasePlotlyType._build_repr_for_class = staticmethod(  # noqa: SLF001
 )
 
 
-class PlotConfig(StepConfig, OutputConfigMixin):
+class PlotConfig(StepConfig, FileStoreConfigMixin):
     """A base model for plot config."""
 
-    _output_rootpath_attr: ClassVar = "save_rootpath"
+    _filestore_path_attr: ClassVar = "save_path"
 
     save: bool = True
-    save_rootpath: None | AbsDirectoryPath = None
+    save_path: None | AbsDirectoryPath = None
     show: bool = False
     show_in_dash_port: int = 8888
     show_in_dash_host: str = "0.0.0.0"  # noqa: S104
@@ -105,13 +105,13 @@ class PlotMixin:
                 port=cfg.show_in_dash_port,
                 title_text=show_name,
             )
-        if cfg.save and cfg.save_rootpath is not None:
+        if cfg.save and cfg.save_path is not None:
             for data_item in data_items:
                 obj = data_item["data"]
                 item_name = data_item["title_text"]
                 _save_name = slugify(f"{save_name}_{item_name}")
                 if isinstance(obj, go.Figure):
-                    fig_path = cfg.make_output_path(
+                    fig_path = cfg.make_data_path(
                         data=data,
                         name=_save_name,
                         suffix=".html",

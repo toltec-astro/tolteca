@@ -8,17 +8,17 @@ from tollan.utils.log import timeit
 
 from tolteca_kidsproc.kidsdata.sweep import MultiSweep
 
+from .filestore import FileStoreConfigMixin
 from .kids_find import KidsFind
-from .output import OutputConfigMixin
 from .pipeline import Step, StepConfig, StepContext
 
 ItemType = Literal["tone_prop", "chan_prop", "data_ctx"]
 
 
-class DataProdOutputConfig(StepConfig, OutputConfigMixin):
+class DataProdOutputConfig(StepConfig, FileStoreConfigMixin):
     """The kids dataprod output config."""
 
-    _output_rootpath_attr: ClassVar = "path"
+    _filestore_path_attr: ClassVar = "path"
 
     path: AbsDirectoryPath = Field(
         default=".",
@@ -78,19 +78,19 @@ class DataProdOutput(Step[DataProdOutputConfig, DataProdOutputContext]):
         tbl_kids_find = ctx_kf.data.detected_matched[tbl_cols]
         tbl_kids_find.meta.update(tbl_meta)
         item_path["kids_find"] = cfg.save_table(
-            cfg.make_output_path(data=swp, suffix="_kids_find.ecsv"),
+            cfg.make_data_path(data=swp, suffix="_kids_find.ecsv"),
             tbl_kids_find,
         )
 
         tbl_chan_prop = ctx_kf.data.chan_matched[tbl_cols]
         tbl_chan_prop.meta.update(tbl_meta)
         item_path["chan_prop"] = cfg.save_table(
-            cfg.make_output_path(data=swp, suffix="_chan_prop.ecsv"),
+            cfg.make_data_path(data=swp, suffix="_chan_prop.ecsv"),
             tbl_chan_prop,
         )
 
         item_path["data_ctx"] = cfg.save_obj_pickle(
-            cfg.make_output_path(data=swp, suffix="_ctx.pkl"),
+            cfg.make_data_path(data=swp, suffix="_ctx.pkl"),
             swp,
         )
         return True

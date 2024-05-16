@@ -12,7 +12,7 @@ from tollan.utils.fmt import pformat_yaml
 from tollan.utils.general import dict_from_regex_match
 from tollan.utils.log import logger
 from tollan.utils.table import TableValidator
-from typing_extensions import Self
+from typing_extensions import Self, assert_never
 
 from .types import ToltecDataKind
 
@@ -116,15 +116,24 @@ class SourceInfoModel(BaseModel):
         """Unique id of idenfied by the (obsnum, subobsnum, scannum) tripplet."""
         return f"{self.obsnum}-{self.subobsnum}-{self.scannum}"
 
-    @model_validator(mode="before")
+    @computed_field
+    @property
+    def uid_raw_obs_file(self) -> Path:
+        """Unique id of idenfied by (obsnum, subobsnum, scannum, roach)."""
+        file_id = self.interface if self.roach is None else self.roach
+        return f"{self.obsnum}-{self.subobsnum}-{self.scannum}-{file_id}"
+
+    @model_validator(mode="wrap")
     @classmethod
-    def _validate_arg(cls, arg):
+    def _validate_arg(cls, arg, handler):
+        if isinstance(arg, cls):
+            return arg
         if isinstance(arg, dict) and "source" in arg:
             # from dumped data or meta
-            return arg
-        if isinstance(arg, cls):
-            return arg.model_dump()
-        return cls._validate_source(arg)
+            values = arg
+        else:
+            values = cls._validate_source(arg)
+        return handler(values)
 
     @classmethod
     def _validate_source(cls, source):
@@ -251,27 +260,56 @@ class ToltecFileAccessor:
     def make_raw_obs_groups(self):
         return self._make_groups(["uid_raw_obs"])
 
-    def _get_obj(self, query=None):
+    def _get_obj(self, query=None) -> "SourceInfoDataFrame":
         obj = self._obj
         if query is None:
             return obj
         return obj.query(query)
 
-    def get_latest(self, query=None):
+    _sort_keys: ClassVar = ["obsnum", "subobsnum", "scannum", "file_timestamp"]
+
+    def get_info_latest(self, query=None):
         obj = self._get_obj(query=query)
         obj = obj.sort_values(
-            by=["obsnum", "subobsnum", "scannum", "file_timestamp"],
+            by=self._sort_keys,
             ascending=False,
         )
         return SourceInfoModel.model_validate(obj.iloc[0].to_dict())
 
+    def get_raw_obs_latest(self, query=None):
+        info = self.get_info_latest(query=query)
+        return self._get_obj(f"uid_raw_obs == '{info.uid_raw_obs}'")
+
+    def get_obs_latest(self, query=None):
+        info = self.get_info_latest(query=query)
+        return self._get_obj(f"uid_obs == '{info.uid_obs}'")
+
     _source_info_list_validator = TypeAdapter(list[SourceInfoModel])
 
-    def to_list(self, query=None) -> list[SourceInfoModel]:
+    def to_info_list(self, query=None) -> list[SourceInfoModel]:
         obj = self._get_obj(query=query)
         return self._source_info_list_validator.validate_python(
             obj.to_dict(orient="records"),
         )
+
+    _pformat_sort_keys: ClassVar = ["obsnum", "subobsnum", "scannum", "roach"]
+
+    def pformat(
+        self,
+        type: Literal["full", "long", "short"] = "long",
+        sort=True,
+    ):
+        if type == "full":
+            colnames = self._obj.columns
+        elif type == "long":
+            c_excl = ["source", "file_timestamp"]
+            colnames = [c for c in self._obj.columns if c not in c_excl]
+        elif type == "short":
+            colnames = ["uid_raw_obs", "filepath"]
+        else:
+            assert_never()
+        obj = self._obj.sort_values(by=self._pformat_sort_keys) if sort else self._obj
+        return obj.to_string(columns=colnames)
 
 
 if TYPE_CHECKING:
