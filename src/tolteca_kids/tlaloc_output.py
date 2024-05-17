@@ -323,6 +323,8 @@ class TlalocOutput(Step[TlalocOutputConfig, TlalocOutputContext]):
             missed_mask = np.zeros((n_chans,), dtype=bool)
             missed_mask[np.abs(tbl_chan_prop["d_phi"]).argsort()[-n_missing:]] = True
             tbl_chan_missing = rtt0[missed_mask][["f_chan", "mask_tone", "amp_tone"]]
+            tbl_chan_missing["f"] = tbl_chan_missing["f_chan"]
+            tbl_chan_missing["Qr"] = 0.0
             # tbl_chan_missing["mask_tone"] = False
             tbl_roach_tone = vstack([tbl_dets, tbl_chan_missing])
             assert n_chans == len(tbl_roach_tone)
