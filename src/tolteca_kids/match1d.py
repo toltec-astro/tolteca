@@ -69,6 +69,8 @@ def calc_shift1d(  # noqa: PLR0913
     x_max = max(np.max(x0), np.max(x1))
     if dx is None:
         dx = np.min(np.r_[np.abs(np.diff(x0)), np.abs(np.diff(x1))]) / dx_resample
+        if dx == 0:
+            raise ValueError("dx has to be positive")
         logger.debug(f"use {dx=} computed from {dx_resample=}")
     x_pad = 3 * dx
     x_bins = qrange(x_min - x_pad, x_max + x_pad + dx, dx)

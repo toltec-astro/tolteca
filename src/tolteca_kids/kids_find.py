@@ -742,7 +742,7 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
         match_kw = {
             "shift_kw": {
                 "shift_max": cfg.match_shift_max,
-                "dx_resample": 1,
+                "dx": s21_f_step / 2,
             },
         }
         matched = ctd.matched = cfg.match(
