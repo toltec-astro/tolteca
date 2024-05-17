@@ -453,24 +453,27 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         n_blocks = meta["n_blocks"]
         n_chans = meta["n_chans"]
         v = nm.get_var("f_tones")
+
         # for multi block data, v should be of 2-dimensional
         # and for single block data, v could be of 2-dimensional or one
-        if n_blocks == 1 and len(v.shape) == 1:
-            data = v[:].reshape((n_blocks, n_chans))
-        else:
-            data = v[:n_blocks, :]
+        def _get_data(v):
+            if n_blocks == 1 and len(v.shape) == 1:
+                return v[:].reshape((n_blocks, n_chans))
+            return v[:n_blocks, :]
+
+        data = _get_data(v)
         data = data << u.Hz
         assert data.shape == (n_blocks, n_chans)
         if nm.has_var("mask_tones"):
             # with masking
-            data_mask = nm.get_var("mask_tones")[:].reshape(data.shape).astype(bool)
-            data_amp = nm.get_var("amp_tones")[:].reshape(data.shape)
-            data_phase = nm.get_var("phase_tones")[:].reshape(data.shape) << u.rad
+            data_mask = _get_data(nm.get_var("mask_tones")).astype(bool)
+            data_amp = _get_data(nm.get_var("amp_tones"))
+            data_phase = _get_data(nm.get_var("phase_tones")) << u.rad
         else:
             data_mask = np.ones(data.shape, dtype=bool)
             # the legacy amps value
             if nm.has_var("amp_tones_deprecated"):
-                data_amp = nm.get_var("amp_tones_deprecated")[:].reshape(data.shape)
+                data_amp = _get_data(nm.get_var("amp_tones_deprecated"))
             else:
                 data_amp = np.ones(data.shape)
             data_phase = np.zeros(data.shape) << u.rad
