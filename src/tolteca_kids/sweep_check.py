@@ -498,12 +498,17 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
                 d21_data_baseline_value[d21_chunk_windows],
                 axis=-1,
             )
+            if np.all(np.isnan(d21_chunk_baseline_value)):
+                d21_chunk_baseline_value[:] = 0.
+
             ctd.d21_chunk_baseline = d21_chunk_baseline_value << d21_unified.unit
             d21_chunk_baseline_value_rms = mad_std(
                 d21_data_baseline_value[d21_chunk_windows],
                 axis=-1,
                 ignore_nan=True,
             )
+            if np.all(np.isnan(d21_chunk_baseline_value_rms)):
+                d21_chunk_baseline_value_rms[:] = 0.1
             # make sure the rms values are always larger than 0
             d21_chunk_baseline_value_rms[d21_chunk_baseline_value_rms <= 0] = np.min(
                 d21_chunk_baseline_value_rms[d21_chunk_baseline_value_rms > 0],
