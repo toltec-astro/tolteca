@@ -348,6 +348,9 @@ class TlalocOutput(Step[TlalocOutputConfig, TlalocOutputContext]):
             tbl_roach_tone = vstack([tbl_dets, tbl_plhs])
         tbl_roach_tone.meta.update(
             {
+                "Header.Toltec.ObsNum": swp.meta["obsnum"],
+                "Header.Toltec.SubObsNum": swp.meta["subobsnum"],
+                "Header.Toltec.ScanNum": swp.meta["scannum"],
                 "roach": roach,
                 "f_lo_center": f_lo,
             },
