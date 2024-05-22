@@ -704,6 +704,13 @@ class TlalocEtcDataStore(
                 "roach": roach,
             },
         )
+        # add flag column
+        flags = tblv.get_first_col_data(tbl, ["flag", "bitmask"])
+        if flags is None:
+            flags = np.zeros((len(tbl_out),), dtype=float)
+        else:
+            flags = flags.astype(float)
+        tbl_out["flag"] = flags
         # copy over extra model params if not present in table.
         # TODO: allow customize the model
         mdl = TlalocKidsModel.gain_with_lintrend
