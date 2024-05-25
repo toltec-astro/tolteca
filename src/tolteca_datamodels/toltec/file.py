@@ -1,8 +1,10 @@
 import re
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, ClassVar, Literal
 
+import numpy as np
 import pandas as pd
 import pandas.api.typing as pdt
 from pydantic import BaseModel, TypeAdapter, computed_field, model_validator
@@ -298,6 +300,7 @@ class ToltecFileAccessor:
         self,
         type: Literal["full", "long", "short"] = "long",
         sort=True,
+        include_cols=None,
     ):
         if type == "full":
             colnames = self._obj.columns
@@ -308,8 +311,94 @@ class ToltecFileAccessor:
             colnames = ["uid_raw_obs", "filepath"]
         else:
             assert_never()
+        if include_cols is not None:
+            for c in include_cols:
+                if c not in colnames:
+                    colnames.append(c)
         obj = self._obj.sort_values(by=self._pformat_sort_keys) if sort else self._obj
         return obj.to_string(columns=colnames)
+
+    _io_obj_key = "_io_obj"
+    _data_obj_key = "_data_obj"
+
+    @property
+    def io_objs(self):
+        """The IO objects."""
+        io_obj_key = self._io_obj_key
+        if io_obj_key not in self._obj.columns:
+            return None
+        return self._obj[io_obj_key]
+
+    @property
+    def data_objs(self):
+        """The data objects."""
+        data_obj_key = self._data_obj_key
+        if data_obj_key not in self._obj.columns:
+            return None
+        return self._obj[data_obj_key]
+
+    def _update_from_item_meta(self, items):
+        data = []
+
+        def _filter_meta(meta):
+            return {k: v for k, v in meta.items() if np.isscalar(v)}
+
+        for item in items:
+            d = {} if pd.isna(item) else _filter_meta(item.meta)
+            data.append(d)
+
+        data = pd.DataFrame.from_records(data)
+        for c in data.columns:
+            self._obj[c] = data[c].to_numpy()
+        return self._obj
+
+    @contextmanager
+    def open(self):
+        """Invoke the default file IO to load meta data."""
+        obj = self._obj
+        io_obj_key = self._io_obj_key
+        io_objs = []
+        es = ExitStack().__enter__()
+
+        from .ncfile import NcFileIO
+
+        file_ext_io_cls: ClassVar = {
+            ".nc": NcFileIO,
+        }
+
+        for entry in obj.itertuples():
+            # TODO: use the unified IO registry for identifying the io class.
+            io_cls = file_ext_io_cls.get(entry.file_ext, None)
+            if io_cls is None:
+                io_obj = None
+            else:
+                io_obj = io_cls(entry.filepath)
+                es.enter_context(io_obj.open())
+            io_objs.append(io_obj)
+        obj[io_obj_key] = io_objs
+        self._update_from_item_meta(io_objs)
+        yield obj
+        es.close()
+        del obj[io_obj_key]
+
+    def read(
+        self,
+        cached=True,
+    ):
+        """Invoke the default file readers to load data objects in to the data frame."""
+        data_objs = self.data_objs
+        if cached and data_objs is not None:
+            return data_objs
+        obj = self._obj
+        data_obj_key = self._data_obj_key
+        data_objs = []
+        with self.open():
+            for io_obj in self.io_objs:
+                data_obj = None if pd.isna(io_obj) else io_obj.read()
+                data_objs.append(data_obj)
+        obj[data_obj_key] = data_objs
+        self._update_from_item_meta(data_objs)
+        return obj
 
 
 if TYPE_CHECKING:

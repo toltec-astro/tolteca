@@ -161,6 +161,8 @@ class PlotMixin:
         n_items,
         make_panel_func,
         fig=None,
+        frame_name_func=None,
+        redraw=False,
         **kwargs,
     ):
         """Create data grid figure with pager."""
@@ -177,6 +179,11 @@ class PlotMixin:
             f"{n_items_per_frame=} {n_frames=}",
         )
         frames = []
+        if frame_name_func is None:
+
+            def frame_name_func(start, stop):  # noqa: ARG001
+                return f"{start}"
+
         for i in range(n_frames):
             start = i * n_items_per_frame
             stop = start + n_items_per_frame
@@ -185,7 +192,7 @@ class PlotMixin:
                     "id": i,
                     "start": start,
                     "stop": stop,
-                    "name": f"{start}",
+                    "name": frame_name_func(start, stop),
                     "indices": list(range(start, stop)),
                     "slice": slice(start, stop),
                 },
@@ -236,16 +243,17 @@ class PlotMixin:
                         trace_ids.append(ti)
                 # collate layout
                 layout = {}
+                annos = []
                 for panel in panels:
                     panel_kw = panel["panel_kw"]
-                    rupdate(
-                        layout,
-                        make_subplot_layout(
-                            fig,
-                            panel["layout"],
-                            **panel_kw,
-                        ),
+                    _layout = make_subplot_layout(
+                        fig,
+                        panel["layout"],
+                        **panel_kw,
                     )
+                    annos.extend(_layout.pop("annotations", []))
+                    rupdate(layout, _layout)
+                layout["annotations"] = annos
                 frame_data.append(
                     go.Frame(
                         {
@@ -263,7 +271,7 @@ class PlotMixin:
                             {
                                 "frame": {
                                     "duration": 30,
-                                    "redraw": False,
+                                    "redraw": redraw,
                                 },
                                 "mode": "immediate",
                                 "transition": {"duration": 30},
