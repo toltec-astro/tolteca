@@ -1056,6 +1056,13 @@ class ToltecSimuOutputContext(ExitStack):
         nm_tel.setstr(
                 'Header.Source.SourceName',
                 simu_config.jobkey)
+        nm_tel.setstr(
+                'Header.Dcs.ProjectId',
+                simu_config.jobkey)
+        nm_tel.setstr(
+                'Header.Dcs.ObsGoal',
+                'Other')
+
         if isinstance(mapping, (LmtTcsTrajMappingModel, )):
             self.logger.debug(
                     f"mapping model meta:\n{pformat_yaml(mapping.meta)}")
@@ -1067,10 +1074,22 @@ class ToltecSimuOutputContext(ExitStack):
             nm_tel.setstr(
                     'Header.Dcs.ObsPgm',
                     'Lissajous')
+            nm_tel.setscalar(
+                    'Header.Map.ExecMode',
+                    1, dtype=int)
         elif mapping.pattern_kind & PatternKind.raster_like:
             nm_tel.setstr(
                     'Header.Dcs.ObsPgm',
                     'Map')
+            if mapping.pattern_kind & PatternKind.raster:
+                nm_tel.setscalar(
+                        'Header.Map.ExecMode',
+                        0, dtype=int)
+            else:
+                nm_tel.setscalar(
+                        'Header.Map.ExecMode',
+                        1, dtype=int)
+
         else:
             raise NotImplementedError
         # the len=2 is for mean and ref coordinates.
