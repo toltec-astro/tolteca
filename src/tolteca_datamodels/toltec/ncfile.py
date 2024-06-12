@@ -960,6 +960,8 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             f_chans=f_chans,
             I=data["I"],
             Q=data["Q"],
+            index=np.arange(meta["n_times"], dtype=int),
+            f_smp=meta["fsmp"] << u.Hz,
         )
 
     @classmethod

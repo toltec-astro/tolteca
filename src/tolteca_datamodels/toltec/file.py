@@ -362,7 +362,7 @@ class ToltecFileAccessor:
 
         from .ncfile import NcFileIO
 
-        file_ext_io_cls: ClassVar = {
+        file_ext_io_cls = {
             ".nc": NcFileIO,
         }
 

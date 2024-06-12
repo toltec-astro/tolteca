@@ -84,7 +84,12 @@ class TableIO(ToltecFileIO):
         meta = self._meta
         tbl = self.io_state.io_obj
         data_kind = self.data_kind
-
+        # TODO: fix this with proper meta data handling
+        if data_kind is None:
+            if self.meta["roach"] is not None:
+                data_kind = self.meta["data_kind"] = ToltecDataKind.KidsTableData
+            else:
+                data_kind = self.meta["data_kind"] = ToltecDataKind.TableData
         for k, m in self._meta_mappers.items():
             if k & data_kind:
                 # read all entries in mapper

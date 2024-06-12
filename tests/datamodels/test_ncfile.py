@@ -73,7 +73,7 @@ def test_ncfile_pre_opened():
     assert ncfile.file_obj is None
 
 
-def test_ncfile_read():
+def test_ncfile_vnasweep_read():
     filepath = data_root.joinpath(
         "toltec/ics/toltec0/toltec0_017596_000_0000_2023_05_02_19_09_42_vnasweep.nc",
     )
@@ -81,3 +81,14 @@ def test_ncfile_read():
         swp = ncfile.read()
     assert swp.meta["obsnum"] == 17596
     assert swp.frequency.shape == (1000, 491)
+
+
+def test_ncfile_timestream_read():
+    filepath = data_root.joinpath(
+        "toltec/ics/toltec0/toltec0_018230_111_0000_2024_05_20_13_40_08_timestream.nc",
+    )
+    with NcFileIO(source=filepath) as ncfile:
+        swp = ncfile.read()
+    assert swp.meta["obsnum"] == 18230
+    assert swp.I.shape == (649, 610)
+    assert swp.r is None
