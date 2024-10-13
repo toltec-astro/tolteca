@@ -588,9 +588,9 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
             for s in subdets:
                 n = np.ma.sum(data_mask[s], axis=0)
                 nm = n == 0
-                for i, data in enumerate(data_values):
+                for i, d in enumerate(data_values):
                     # mean in each subset
-                    v = np.ma.mean(data[s], axis=0)
+                    v = np.ma.mean(d[s], axis=0)
                     v[nm] = np.nan
                     vs[i].append(v)
                 ns.append(n)
@@ -602,9 +602,9 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
                 v = np.ma.array(vv, mask=nmm)
                 v = np.ma.mean(v, axis=0)
                 v[all_nan] = np.nan
-                vs[i].append(v)
-                for j, v in enumerate(vs[i]):
-                    vs[i][j] = attach_unit(v, data_units[i])
+                vv.append(v)
+                for j, v in enumerate(vv):
+                    vv[j] = attach_unit(v, data_units[i])
             return ns, vs
 
         def _agg_func_det(m, x, d, make_masked, **_kw):
@@ -1092,7 +1092,7 @@ class KidsFindPlot(PlotMixin, Step[KidsFindPlotConfig, KidsFindPlotContext]):
         s21_data_panel_kw = {"row": 3, "col": 1}
         color_cycle = cls.color_palette.cycle()
 
-        def _plot_peaks(  # noqa: PLR0913
+        def _plot_peaks(
             name,
             peaks: Peaks1DResult,
             x_unit,
@@ -1433,7 +1433,7 @@ class KidsFindPlot(PlotMixin, Step[KidsFindPlotConfig, KidsFindPlotContext]):
         return fig
 
     @classmethod
-    def make_seg_data_heatmap(  # noqa: PLR0913
+    def make_seg_data_heatmap(
         cls,
         name,
         data,

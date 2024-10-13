@@ -40,7 +40,7 @@ _file_interface_suffix_ext_to_toltec_data_kind = {
     (r"toltec(\d+)", "(vnasweep|targsweep|tune)_targamps", ".dat"): _T.TargAmpsDat,
     (
         r"toltec(\d+)",
-        "(vnasweep|targsweep|tune)_(kids_find|kids_fit|chan_prop)",
+        "(vnasweep|targsweep|tune)_(kids_find|kids_fit|chan_prop|adrv)",
         ".ecsv",
     ): _T.KidsPropTable,
     # obs reduction
@@ -388,7 +388,7 @@ class ToltecFileAccessor:
         """Invoke the default file readers to load data objects in to the data frame."""
         data_objs = self.data_objs
         if cached and data_objs is not None:
-            return data_objs
+            return self._obj
         obj = self._obj
         data_obj_key = self._data_obj_key
         data_objs = []

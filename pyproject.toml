@@ -139,3 +139,6 @@ property-decorators = ["astropy.utils.decorators.classproperty"]
 
 [tool.ruff.lint.pep8-naming]
 classmethod-decorators = ["classproperty"]
+
+[tool.ruff.lint.pylint]
+max-args = 10

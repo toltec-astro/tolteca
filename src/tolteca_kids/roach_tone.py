@@ -80,7 +80,7 @@ class RoachToneProps(MetadataContextHandlerMixin[str, RoachTonePropsMetadata]):
         return f_lo << u.Hz
 
     @classmethod
-    def _validate_table(  # noqa: PLR0913
+    def _validate_table(
         cls,
         tbl: Table | QTable,
         f_lo=None,
@@ -752,7 +752,7 @@ class TlalocEtcDataStore(
         ctx.item_validated[TlalocEtcDataItem.targ_freqs] = True
         return tbl_out
 
-    def _write_table(  # noqa: PLR0913
+    def _write_table(
         self,
         tbl: Table,
         item,
@@ -838,7 +838,7 @@ class TlalocEtcDataStore(
             raise ValueError(f"invalid item. Choose from {all_items}")
         return items
 
-    def write_tone_props(  # noqa: PLR0913
+    def write_tone_props(
         self,
         data: RoachToneProps | Table,
         roach=None,

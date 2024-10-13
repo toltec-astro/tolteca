@@ -56,7 +56,7 @@ def calc_shift1d_trace(x, y0, y1, shift_max=np.inf, return_locals=False):
     return shift
 
 
-def calc_shift1d(  # noqa: PLR0913
+def calc_shift1d(
     x0,
     x1,
     dx=None,
@@ -359,7 +359,7 @@ class Match1DResult:
         adjust_subplot_colorbars(fig)
         return fig
 
-    def _plot_dtw_python_match_plotly(  # noqa: PLR0913
+    def _plot_dtw_python_match_plotly(
         self,
         fig=None,
         panel_kw=None,
