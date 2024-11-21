@@ -153,7 +153,7 @@ class PlotMixin:
     }
 
     @classmethod
-    def make_data_grid_anim(  # noqa: PLR0913, C901
+    def make_data_grid_anim(  # noqa: C901
         cls,
         name,
         n_rows,

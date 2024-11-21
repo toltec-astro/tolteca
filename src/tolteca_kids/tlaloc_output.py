@@ -85,7 +85,7 @@ class PlaceHolderTones(BaseModel):
 
     n: int = Field(
         default=0,
-        description="number of placehold tones.",
+        description="number of placeholder tones.",
         ge=0,
     )
     loc: Literal["inner", "outer"] = "outer"
@@ -225,7 +225,7 @@ class TlalocOutput(Step[TlalocOutputConfig, TlalocOutputContext]):
         return True
 
     @classmethod
-    def make_roach_tone_props(  # noqa: C901, PLR0913, PLR0912, PLR0915
+    def make_roach_tone_props(  # noqa: C901, PLR0912, PLR0915
         cls,
         swp: MultiSweep = None,
         detected: QTable = None,
@@ -275,6 +275,15 @@ class TlalocOutput(Step[TlalocOutputConfig, TlalocOutputContext]):
         tbl_dets["amp_tone"] = amps
 
         # check if we have enough channel to hold the data
+        def _trim_tones(tbl, n_keep, key_indices):
+            n = len(tbl)
+            keep_mask = np.zeros((n,), dtype=bool)
+            keep_mask[key_indices[:n_keep]] = True
+            tbl_keep = tbl[keep_mask]
+            tbl_discard = tbl[~keep_mask]
+            logger.debug(f"trimmed tones:\n{tbl_discard}")
+            return tbl_keep
+
         n_chans0 = swp.n_chans
         if fix_n_chans and n_tones > n_chans0:
             # raise ValueError(
@@ -282,15 +291,25 @@ class TlalocOutput(Step[TlalocOutputConfig, TlalocOutputContext]):
             # )
             # trim the table to remove some tones that are blended.
             logger.info(
-                f"unalbe to allocate {n_tones=} in data with n_chans={n_chans0}. "
+                f"unalbe to allocate {n_tones=} in data with n_chans={n_chans0}, "
                 f"trim {n_tones - n_chans0} tones.",
             )
-            keep_mask = np.zeros((n_tones,), dtype=bool)
-            keep_mask[np.abs(tbl_dets["d_phi"]).argsort()[:n_chans0]] = True
-            tbl_dets_keep = tbl_dets[keep_mask]
-            tbl_dets_discard = tbl_dets[~keep_mask]
-            logger.debug(f"trimmed tones:\n{tbl_dets_discard}")
-            tbl_dets = tbl_dets_keep
+            tbl_dets = _trim_tones(
+                tbl_dets,
+                n_chans0,
+                key_indices=np.abs(tbl_dets["d_phi"]).argsort(),
+            )
+        elif n_tones > n_chans_max:
+            logger.info(
+                f"number of tones {n_tones=} exceed {n_chans_max=}, "
+                f"trim {n_tones - n_chans_max} tones.",
+            )
+            tbl_dets = _trim_tones(
+                tbl_dets,
+                n_chans_max,
+                key_indices=np.flip(tbl_dets["Qr"].argsort()),
+            )
+
         # update n_tones
         n_tones = len(tbl_dets)
 

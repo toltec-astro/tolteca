@@ -968,6 +968,7 @@ class KidsFindPlotData:
     det_summary: go.Figure = ...
     # chan_baseline: go.Figure = ...
     peaks: go.Figure = ...
+    peak_props: go.Figure = ...
     matched: go.Figure = ...
     matched_ref: go.Figure = ...
 
@@ -987,7 +988,7 @@ class KidsFindPlot(PlotMixin, Step[KidsFindPlotConfig, KidsFindPlotContext]):
 
     @classmethod
     @timeit
-    def run(cls, data: MultiSweep, context):  # noqa: PLR0915
+    def run(cls, data: MultiSweep, context):  # noqa: C901, PLR0915
         """Run kids find plot."""
         # ctx_sc = SweepCheck.get_context(data)
         ctx_kf = KidsFind.get_context(data)
@@ -1348,6 +1349,190 @@ class KidsFindPlot(PlotMixin, Step[KidsFindPlotConfig, KidsFindPlotContext]):
             **s21_data_panel_kw,
         )
 
+        # peak props
+        fig = ctd.peak_props = cls.make_subplots(
+            n_rows=2,
+            n_cols=2,
+            shared_xaxes="rows",
+            # vertical_spacing=40 / 1000,
+            fig_layout=cls.fig_layout_default
+            | {
+                "showlegend": True,
+                "height": 1000,
+            },
+        )
+        d21_Qr_h_panel_kw = {"row": 1, "col": 1}
+        d21_Qr_snr_panel_kw = {"row": 1, "col": 2}
+        s21_Qr_h_panel_kw = {"row": 2, "col": 1}
+        s21_Qr_snr_panel_kw = {"row": 2, "col": 2}
+        # color_cycle = cls.color_palette.cycle()
+
+        def _plot_peak_props(
+            name,
+            peaks: Peaks1DResult,
+            x_colname,
+            y_colname,
+            x_unit,
+            y_unit,
+            panel_kw,
+            overlay_masks,
+        ):
+            peak_info = peaks.peaks
+            x = peak_info[x_colname]
+            if x_unit is not None:
+                x = x.to_value(x_unit)
+            y = peak_info[y_colname]
+            if y_unit is not None:
+                y = y.to_value(y_unit)
+            customdata_info = [
+                ("label", ".0f"),
+                ("snr", ".3f"),
+                ("Qr", ".3f"),
+                ("height_db", ".3f"),
+                ("halfmax_size", ".0f"),
+                ("lookahead", ".0f"),
+            ] + [(c, ".0f") for c in peak_info.colnames if c.startswith("sbm")]
+            customdata_info = [c for c in customdata_info if c[0] in peak_info.colnames]
+
+            # color = next(color_cycle)
+            fig.add_scatter(
+                x=x,
+                y=y,
+                mode="markers",
+                marker={
+                    "color": "green",
+                    "size": 6,
+                },
+                customdata=np.stack(
+                    [peak_info[ci[0]] for ci in customdata_info],
+                ).T,
+                hovertemplate=("f: %{x:.3f}<br>d21: %{y:.3f}")
+                + "".join(
+                    f"<br>{c[0]}: %{{customdata[{i}]:{c[1]}}}"
+                    for i, c in enumerate(customdata_info)
+                ),
+                name="all peaks",
+                showlegend=True,
+                **panel_kw,
+            )
+            for mask_name, mask, mask_color in overlay_masks:
+                fig.add_scatter(
+                    x=x[mask],
+                    y=y[mask],
+                    mode="markers",
+                    marker={
+                        "symbol": "circle-open",
+                        "line": {
+                            "width": 1,
+                            "color": mask_color,
+                        },
+                        "size": 8,
+                    },
+                    name=mask_name,
+                    **panel_kw,
+                )
+            fig.update_xaxes(
+                title={
+                    "text": f"{x_colname} ({x_unit})",
+                },
+                **panel_kw,
+            )
+            fig.update_yaxes(
+                title={
+                    "text": f"{name} ({y_unit})",
+                },
+                **panel_kw,
+            )
+
+        lim_line_kw = {
+            "line": {
+                "dash": "dot",
+                "color": "black",
+            },
+        }
+        for name, y_colname, y_unit, panel_kw, y_lim in [
+            (
+                "D21 Qr vs Height",
+                "height",
+                u.Hz**-1,
+                d21_Qr_h_panel_kw,
+                cfg_kf.d21_peak_min.to_value(u.Hz**-1),
+            ),
+            ("D21 Qr vs SNR", "snr", None, d21_Qr_snr_panel_kw, cfg_kf.d21_snr_min),
+        ]:
+            _plot_peak_props(
+                name,
+                ctd_kf.d21_peaks,
+                x_colname="Qr",
+                x_unit=None,
+                y_colname=y_colname,
+                y_unit=y_unit,
+                panel_kw=panel_kw,
+                overlay_masks=[
+                    (
+                        "not real",
+                        (ctd_kf.bitmask_d21 & SegmentBitMask.not_real) > 0,
+                        "gray",
+                    ),
+                    ("dark", (ctd_kf.bitmask_d21 & SegmentBitMask.dark) > 0, "red"),
+                ],
+            )
+            fig.add_hline(
+                y=y_lim,
+                **panel_kw,
+                **lim_line_kw,
+            )
+            fig.add_vline(
+                x=cfg_kf.Qr_min,
+                **panel_kw,
+                **lim_line_kw,
+            )
+            fig.add_vline(
+                x=cfg_kf.Qr_dark_min,
+                **panel_kw,
+                **lim_line_kw,
+            )
+            fig.add_vline(
+                x=cfg_kf.Qr_dark_max,
+                **panel_kw,
+                **lim_line_kw,
+            )
+        for name, y_colname, panel_kw, y_lim in [
+            ("S21 Qr vs Height", "height_db", s21_Qr_h_panel_kw, cfg_kf.peak_db_min),
+            ("S21 Qr vs SNR", "snr", s21_Qr_snr_panel_kw, cfg_kf.snr_min),
+        ]:
+            _plot_peak_props(
+                name,
+                ctd_kf.s21_peaks,
+                x_colname="Qr",
+                x_unit=None,
+                y_colname=y_colname,
+                y_unit=None,
+                panel_kw=panel_kw,
+                overlay_masks=[
+                    (
+                        "not real",
+                        (ctd_kf.bitmask_s21 & SegmentBitMask.not_real) > 0,
+                        "gray",
+                    ),
+                    ("edge", (ctd_kf.bitmask_s21 & SegmentBitMask.edge) > 0, "cyan"),
+                ],
+            )
+            fig.add_hline(
+                y=y_lim,
+                **panel_kw,
+                **lim_line_kw,
+            )
+            fig.add_vline(
+                x=cfg_kf.Qr_min,
+                **panel_kw,
+                **lim_line_kw,
+            )
+            fig.add_vline(
+                x=cfg_kf.Qr_dark_max,
+                **panel_kw,
+                **lim_line_kw,
+            )
         # matched
         ctd.matched = cls.make_matched_fig(ctd_kf.matched, "Chan")
         ctd.matched_ref = cls.make_matched_fig(
