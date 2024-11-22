@@ -1,10 +1,15 @@
 import itertools
+import re
 from pathlib import Path
 from typing import ClassVar
 
 import pandas as pd
+from tollan.utils.fmt import pformat_yaml
+from tollan.utils.general import dict_from_regex_match, resolve_symlink
+from tollan.utils.log import logger
 
 from ..filestore import FileStoreBase
+from .file import guess_info_from_sources
 from .types import ToltecInterface, ToltecMaster, ToltecMasterType, ToltecRoachInterface
 
 
@@ -137,3 +142,148 @@ class ToltecFileStore(FileStoreBase):
             _iter_master_interface(),
             exist_only=exist_only,
         )
+
+
+class ObsSpec:
+    """Utility to query LMT/TolTEC file store."""
+
+    # TODO: make this a pydantic model
+
+    @classmethod
+    def get_raw_obs_info_table(
+        cls,
+        obs_spec,
+        toltec_fs=None,
+        lmt_fs=None,
+        raise_on_multiple=False,
+        raise_on_empty=False,
+    ):
+        """Return the raw obs info table."""
+        if not isinstance(obs_spec, list):
+            obs_spec = [obs_spec]
+        result = []
+        for s in obs_spec:
+            r = cls._get_raw_obs_info_table(lmt_fs, toltec_fs, s)
+            if r is None:
+                continue
+            if isinstance(r, list):
+                r = guess_info_from_sources([resolve_symlink(f) for f in r])
+            result.append(r)
+        result = pd.concat(result, ignore_index=True) if result else None
+        n_files = 0 if result is None else len(result)
+        if n_files > 0:
+            logger.debug(
+                f"resovled {n_files} files from "
+                f"{obs_spec=}\n{result.toltec_file.pformat()}",
+            )
+        if raise_on_multiple and n_files > 1:
+            raise ValueError(
+                f"ambiguous files found for "
+                f"{obs_spec=}:\n{result.toltec_file.pformat()}",
+            )
+        if raise_on_empty and n_files == 0:
+            raise ValueError(f"no files found for {obs_spec=}")
+        return result
+
+    @staticmethod
+    def _replace_parent_path(path, parent_path, ensure_exist=False):
+        path = Path(path)
+        parent_path = Path(parent_path)
+        parent_name = parent_path.name
+        for pp in path.parents:
+            if pp.name == parent_name:
+                subpath = path.relative_to(pp)
+                break
+        else:
+            return None
+        path = parent_path.joinpath(subpath)
+        if ensure_exist and not path.exists():
+            return None
+        return path
+
+    @classmethod
+    def _get_raw_obs_info_table(cls, lmt_fs, toltec_fs, obs_spec):  # noqa: PLR0911
+        logger.debug(f"resovle {obs_spec=}")
+        if obs_spec is None:
+            if toltec_fs is None:
+                logger.error("no toltec data path specified.")
+                return None
+            try:
+                tbl = toltec_fs.get_symlink_info_table()
+            except ValueError as e:
+                logger.opt(exception=True).error(
+                    f"error to infer current obs info: {e}",
+                )
+                return None
+            if tbl is None:
+                logger.error(
+                    "unable to interfer current obs info: no symlink in data root.",
+                )
+                return None
+            logger.debug(f"toltec symlink info in {toltec_fs.path}:\n{tbl}")
+            tbl = guess_info_from_sources([resolve_symlink(p) for p in tbl["path"]])
+            # get latest raw obs group
+            tbl_latest = tbl.toltec_file.get_raw_obs_latest()
+            logger.debug(
+                f"resolved latest raw obs info from {obs_spec=}:\n"
+                f"{tbl_latest.toltec_file.pformat()}",
+            )
+            return tbl_latest
+        if re.match(r"^(.*/)?toltec.+\.nc", obs_spec):
+            file = Path(obs_spec)
+            if file.exists():
+                logger.debug(f"resovled {file=} from {obs_spec=}")
+                return [file]
+            # try to locate the file under the provided root
+            data_lmt_path = lmt_fs.path
+            logger.debug(
+                f"search file with matched subpath for {file} in {data_lmt_path}",
+            )
+            file = cls._replace_parent_path(file, data_lmt_path, ensure_exist=True)
+            if file is None:
+                logger.error(f"no matched file found for {file} in {data_lmt_path}")
+                return None
+            logger.debug(f"resovled {file=} from {obs_spec=}")
+            return [file]
+        info = dict_from_regex_match(
+            r"^(?P<obsnum>\d+)"
+            r"(?:-(?P<subobsnum>\d+)"
+            r"(?:-(?P<scannum>\d+)(?:-(?P<roach>\d+))?)?)?",
+            obs_spec,
+            type_dispatcher={
+                "obsnum": int,
+                "subobsnum": int,
+                "scannum": int,
+                "roach": int,
+            },
+        )
+        if info is None:
+            logger.error(f"unable to resolve {obs_spec=} by regex match")
+            return None
+        obsnum = info["obsnum"]
+        subobsnum = info["subobsnum"]
+        scannum = info["scannum"]
+        roach = info["roach"]
+        logger.debug(
+            f"resolved {obsnum=} {subobsnum=} {scannum=} {roach=} "
+            f"from {obs_spec=} by regex match",
+        )
+        data_lmt_path = lmt_fs.path
+        p_interface = "toltec*" if roach is None else f"toltec{roach}"
+        p_obsnum = f"_{obsnum:06d}"
+        p_subobsnum = "_*" if subobsnum is None else f"_{subobsnum:03d}"
+        p_scannum = "_*" if scannum is None else f"_{scannum:04d}"
+        p = f"{p_interface}/{p_interface}{p_obsnum}{p_subobsnum}{p_scannum}_*.nc"
+        glob_patterns = [
+            f"toltec/ics/{p}",
+            f"toltec/tcs/{p}",
+        ]
+        logger.debug(
+            f"search file patterns in {data_lmt_path=}:\n"
+            f"{pformat_yaml(glob_patterns)}",
+        )
+        files = list(itertools.chain(*(data_lmt_path.glob(p) for p in glob_patterns)))
+        if not files:
+            logger.error(f"no files found for {obs_spec=} in {data_lmt_path=}")
+            return None
+        return files

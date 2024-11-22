@@ -896,6 +896,15 @@ class TlalocEtcDataStore(
                 paths[item] = writer(tbl, **kwargs)
         return paths
 
+    def write_atten_drive_value(self, roach, value):
+        """Write atten drive value for roach."""
+        outpath = self.get_item_path(roach, TlalocEtcDataItem.atten_drive)
+        with (
+            logit(logger.info, f"write atten_drive={value} to {outpath}"),
+            outpath.open("w") as fo,
+        ):
+            fo.write(str(value))
+
     def _set_file_suffix_for_items(self, roach, old_suffix, suffix, items=None):
         items = self._validate_items_arg(items)
         paths: dict[TlalocEtcDataItem, list[Path]] = {}
