@@ -404,7 +404,7 @@ class MultiSweep(
         )
 
     @classmethod
-    def _prepare_init_args(  # noqa: PLR0913
+    def _prepare_init_args(
         cls,
         data,
         S21,

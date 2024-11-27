@@ -499,7 +499,7 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
                 axis=-1,
             )
             if np.all(np.isnan(d21_chunk_baseline_value)):
-                d21_chunk_baseline_value[:] = 0.
+                d21_chunk_baseline_value[:] = 0.0
 
             ctd.d21_chunk_baseline = d21_chunk_baseline_value << d21_unified.unit
             d21_chunk_baseline_value_rms = mad_std(
@@ -555,8 +555,7 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
         """Make chunks for n_items."""
         # adjust chunksize
         n_chunks = n_items // chunk_size + (n_items % chunk_size > 0)
-        if n_chunks < n_chunks_min:
-            n_chunks = n_chunks_min
+        n_chunks = max(n_chunks, n_chunks_min)
         # make sure n_chunks is odd so we always have a center chunk
         if n_chunks % 2 == 0:
             n_chunks += 1
@@ -776,7 +775,7 @@ class SweepCheckPlot(PlotMixin, Step[SweepCheckPlotConfig, SweepCheckPlotContext
         return fig
 
     @classmethod
-    def make_chan_data_heatmap(  # noqa: PLR0913
+    def make_chan_data_heatmap(
         cls,
         name,
         data,
@@ -807,7 +806,7 @@ class SweepCheckPlot(PlotMixin, Step[SweepCheckPlotConfig, SweepCheckPlotContext
         return fig
 
     @classmethod
-    def make_chunk_data_heatmap(  # noqa: PLR0913
+    def make_chunk_data_heatmap(
         cls,
         name,
         data,

@@ -249,6 +249,8 @@ class ToltecFileAccessor:
     @classmethod
     def _validate_obj(cls, obj):
         tblv = cls._table_validator
+        if len(obj) == 0:
+            raise ValueError("table is empty.")
         if not tblv.has_all_cols(obj, list(SourceInfoModel.model_fields.keys())):
             raise AttributeError("incomplete source info.")
         return obj

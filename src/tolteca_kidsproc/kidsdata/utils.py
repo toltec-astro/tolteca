@@ -142,6 +142,9 @@ class ExtendedNDDataRef(NDDataRef):
             body = "(empty)" if self.data is None else self.data.shape
         return f"{self.__class__.__name__}{body}"
 
+    def __str__(self):
+        return self.__repr__()
+
     def __getitem__(self, item):
         """Implement slice of additional attributes along with this object."""
         inst = super().__getitem__(item)
