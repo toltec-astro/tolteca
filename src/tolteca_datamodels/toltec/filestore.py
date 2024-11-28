@@ -248,7 +248,7 @@ class ObsSpec:
         info = dict_from_regex_match(
             r"^(?P<obsnum>\d+)"
             r"(?:-(?P<subobsnum>\d+)"
-            r"(?:-(?P<scannum>\d+)(?:-(?P<roach>\d+))?)?)?",
+            r"(?:-(?P<scannum>\d+))?)?(?:[-/](?P<roach>\d+))?$",
             obs_spec,
             type_dispatcher={
                 "obsnum": int,
