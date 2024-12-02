@@ -572,7 +572,17 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
             "snr",
             "bitmask",
         ]
-        det_info = vstack([d21_detected[det_cols], s21_detected[det_cols]])
+
+        def _make_det_info_tbl(tbl, cols, cols_with_suffix, suffix):
+            t = tbl[cols]
+            for c in cols_with_suffix:
+                t[f"{c}{suffix}"] = tbl[c]
+            return t
+
+        det_info = vstack([
+            _make_det_info_tbl(d21_detected, det_cols, ["height"], "_d21"),
+            _make_det_info_tbl(s21_detected, det_cols, ["height_db"], "_s21"),
+        ])
         det_info["idx_det"] = range(len(det_info))
         logger.debug(f"merged detection info:\n{det_info}")
 

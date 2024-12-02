@@ -24,6 +24,10 @@ class DataProdOutputConfig(StepConfig, FileStoreConfigMixin):
         default=".",
         description="root path.",
     )
+    dump_context: bool = Field(
+        default=True,
+        description="whether to dump context pickle file."
+    )
 
 
 @dataclass(kw_only=True)
@@ -88,9 +92,13 @@ class DataProdOutput(Step[DataProdOutputConfig, DataProdOutputContext]):
             cfg.make_data_path(data=swp, suffix="_chan_prop.ecsv"),
             tbl_chan_prop,
         )
+        if cfg.dump_context:
+             data_ctx_path = cfg.save_obj_pickle(
+                cfg.make_data_path(data=swp, suffix="_ctx.pkl"),
+                swp,
+            )
+        else:
+            data_ctx_path = None
+        item_path["data_ctx"] = data_ctx_path
 
-        item_path["data_ctx"] = cfg.save_obj_pickle(
-            cfg.make_data_path(data=swp, suffix="_ctx.pkl"),
-            swp,
-        )
         return True
