@@ -25,8 +25,7 @@ class DataProdOutputConfig(StepConfig, FileStoreConfigMixin):
         description="root path.",
     )
     dump_context: bool = Field(
-        default=True,
-        description="whether to dump context pickle file."
+        default=True, description="whether to dump context pickle file.",
     )
 
 
@@ -78,6 +77,10 @@ class DataProdOutput(Step[DataProdOutputConfig, DataProdOutputContext]):
             "idx_chan",
             "f_chan",
             "amp_tone",
+            "snr_d21",
+            "snr_s21",
+            "height_d21",
+            "height_db_s21",
         ]
         tbl_kids_find = ctx_kf.data.detected_matched[tbl_cols]
         tbl_kids_find.meta.update(tbl_meta)
@@ -93,7 +96,7 @@ class DataProdOutput(Step[DataProdOutputConfig, DataProdOutputContext]):
             tbl_chan_prop,
         )
         if cfg.dump_context:
-             data_ctx_path = cfg.save_obj_pickle(
+            data_ctx_path = cfg.save_obj_pickle(
                 cfg.make_data_path(data=swp, suffix="_ctx.pkl"),
                 swp,
             )

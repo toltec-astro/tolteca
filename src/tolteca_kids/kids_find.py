@@ -579,10 +579,12 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
                 t[f"{c}{suffix}"] = tbl[c]
             return t
 
-        det_info = vstack([
-            _make_det_info_tbl(d21_detected, det_cols, ["height"], "_d21"),
-            _make_det_info_tbl(s21_detected, det_cols, ["height_db"], "_s21"),
-        ])
+        det_info = vstack(
+            [
+                _make_det_info_tbl(d21_detected, det_cols, ["height"], "_d21"),
+                _make_det_info_tbl(s21_detected, det_cols, ["height_db"], "_s21"),
+            ],
+        )
         det_info["idx_det"] = range(len(det_info))
         logger.debug(f"merged detection info:\n{det_info}")
 
@@ -618,12 +620,22 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
             return ns, vs
 
         def _agg_func_det(m, x, d, make_masked, **_kw):
-            (n_d21, n_s21), ((f_d21, f_s21, f), (Qr_d21, Qr_s21, Qr)) = (
-                _agg_mean_by_subdet(
-                    [x, make_masked(det_info["Qr"])],
-                    m,
-                    [m_subdet_d21, m_subdet_s21],
-                )
+            (n_d21, n_s21), (
+                (f_d21, f_s21, f),
+                (Qr_d21, Qr_s21, Qr),
+                (snr_d21, snr_s21, snr),
+                (_, height_db_s21, _),
+                (height_d21, _, _),
+            ) = _agg_mean_by_subdet(
+                [
+                    x,
+                    make_masked(det_info["Qr"]),
+                    make_masked(det_info["snr"]),
+                    make_masked(det_info["height_db_s21"]),
+                    make_masked(det_info["height_d21"]),
+                ],
+                m,
+                [m_subdet_d21, m_subdet_s21],
             )
             return {
                 "d_min": np.ma.min(d, axis=0),
@@ -643,6 +655,11 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
                 "Qr_max": np.ma.max(Qr, axis=0),
                 "Qr_d21": Qr_d21,
                 "Qr_s21": Qr_s21,
+                "height_d21": height_d21,
+                "height_db_s21": height_db_s21,
+                "snr_d21": snr_d21,
+                "snr_s21": snr_s21,
+                "snr": snr,
                 "f": f,
                 "Qr": Qr,
                 "fwhm": f / Qr,
@@ -711,10 +728,11 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
         bitmask_s21[s21_mask_peak_detected] |= bitmask_det_mdl_group_bits[m_subdet_s21]
 
         # build the final detection table:
+        _cols_extra = ["snr_d21", "snr_s21", "height_d21", "height_db_s21"]
         detected = ctd.detected = hstack(
             [
                 mdl_grouped,
-                det_groups["f", "Qr", "fwhm"],
+                det_groups[["f", "Qr", "fwhm"] + _cols_extra],
             ],
         )
         detected["bitmask"] = bitmask_det
@@ -735,6 +753,8 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
             matched["idx_det"] = iq
             matched["f_det"] = det_groups["f"][iq]
             matched["Qr"] = Qr
+            for c in _cols_extra:
+                matched[c] = det_groups[c][iq]
             return r
 
         def _match_postproc_chan(r: Match1DResult):
