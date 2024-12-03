@@ -1,13 +1,13 @@
 from contextlib import ExitStack
-from typing import ClassVar
+from typing import ClassVar, Generic, TypeVar
 
 import netCDF4
 from tollan.utils.fileloc import FileLoc
 from tollan.utils.nc import NcNodeMapper, NcNodeMapperTree
 
-from .core import FileIODataModelBase, FileIOProtocol
+from .core import FileIO, FileIODataModelBase, FileIOMetadataModelBase
 
-__all__ = ["NcFileIOMixin"]
+__all__ = ["NcFileIO"]
 
 
 class NcFileIOData(FileIODataModelBase):
@@ -56,8 +56,19 @@ class NcFileIOData(FileIODataModelBase):
         self.io_obj = None
 
 
-class NcFileIOMixin(FileIOProtocol):
-    """A mixin class that provide handling of netCDF file IO."""
+NcFileIODataT = TypeVar("NcFileIODataT", bound=NcFileIOData)
+FileIOMetadataT = TypeVar("FileIOMetadataT", bound=FileIOMetadataModelBase)
+
+
+class NcFileIO(
+    FileIO[NcFileIODataT, FileIOMetadataT],
+    Generic[NcFileIODataT, FileIOMetadataT],
+):
+    """A base class that provide handling of netCDF file IO."""
+
+    def __init__(self, source, **kwargs):
+        super().__init__(source, **kwargs)
+        self._init_node_mappers()
 
     _node_mapper_defs: ClassVar[dict[str, str | dict]]
     _node_mappers: NcNodeMapperTree
@@ -76,5 +87,5 @@ class NcFileIOMixin(FileIOProtocol):
         return self.node_mappers.nc_node
 
     def open(self):
-        """Return the context for netCDF file IO."""
+        """Open the netCDF file IO."""
         return super().open(node_mapper=self.node_mappers, exitstack=self)

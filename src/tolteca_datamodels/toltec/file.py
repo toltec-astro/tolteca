@@ -16,6 +16,7 @@ from tollan.utils.log import logger
 from tollan.utils.table import TableValidator
 from typing_extensions import Self, assert_never
 
+from ..lmt.tel import RE_LMT_TEL_FILE
 from .types import ToltecDataKind
 
 __all__ = [
@@ -65,9 +66,11 @@ _re_filenames = [
             r"(?:_(?P<file_suffix>[^\/.]+))?"
             r"(?P<file_ext>\..+)$"
         ),
-        # tel files
+        # tel file
+        RE_LMT_TEL_FILE,
+        # wyatt
         (
-            r"^(?P<interface>tel_toltec|tel_toltec2|wyatt)_"
+            r"^(?P<interface>wyatt)_"
             r"(?P<file_timestamp>\d{4}-\d{2}-\d{2})"
             r"_(?P<obsnum>\d+)_(?P<subobsnum>\d+)_(?P<scannum>\d+)"
             r"(?:_(?P<file_suffix>[^\/.]+))?"

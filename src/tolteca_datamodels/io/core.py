@@ -71,11 +71,15 @@ class FileIODataModelBase(BaseModel):
                 self._set_close_state(**kwargs)
 
 
-FileIODataType = TypeVar("FileIODataType", bound=FileIODataModelBase)
-FileIOMetadataType = TypeVar("FileIOMetadataType")
+class FileIOMetadataModelBase(BaseModel):
+    """A container class for file IO meta data."""
 
 
-class FileIO(ExitStack, Generic[FileIODataType, FileIOMetadataType]):
+FileIODataT = TypeVar("FileIODataT", bound=FileIODataModelBase)
+FileIOMetadataT = TypeVar("FileIOMetadataT", bound=FileIOMetadataModelBase)
+
+
+class FileIO(ExitStack, Generic[FileIODataT, FileIOMetadataT]):
     """A base class to help access data file contents.
 
     This class provide a common interface to work with file IO.
@@ -90,24 +94,17 @@ class FileIO(ExitStack, Generic[FileIODataType, FileIOMetadataType]):
     used to manage context objects such as opened files.
     """
 
-    io_data_cls: ClassVar[type[FileIODataType]]
-    io_metadata_cls: ClassVar[type[FileIOMetadataType]]
-    _io_data: FileIODataType
-    _meta: FileIOMetadataType
+    io_data_cls: ClassVar[type[FileIODataT]]
+    io_metadata_cls: ClassVar[type[FileIOMetadataT]]
+    _io_data: FileIODataT
+    _meta: FileIOMetadataT
 
     def __init_subclass__(cls, **kwargs):
-        io_cls_registry.add(cls)
-        io_data_cls, io_metadata_cls = get_args(
-            next(
-                iter(
-                    c
-                    for c in cls.__orig_bases__
-                    if (hasattr(c, "__origin__") and c.__origin__ is FileIO)
-                ),
-            ),
-        )
-        cls.io_data_cls = io_data_cls
-        cls.io_metadata_cls = io_metadata_cls
+        if Generic not in cls.__bases__:
+            io_cls_registry.add(cls)
+            io_data_cls, io_metadata_cls = get_args(cls.__orig_bases__[0])
+            cls.io_data_cls = io_data_cls
+            cls.io_metadata_cls = io_metadata_cls
         super().__init_subclass__(**kwargs)
 
     def __new__(cls, source, **kwargs):
@@ -124,7 +121,7 @@ class FileIO(ExitStack, Generic[FileIODataType, FileIOMetadataType]):
         super().__init__()
 
     @property
-    def io_data(self) -> FileIODataType:
+    def io_data(self) -> FileIODataT:
         """The io data."""
         return self._io_data
 
@@ -146,7 +143,7 @@ class FileIO(ExitStack, Generic[FileIODataType, FileIOMetadataType]):
         return self.io_data.io_obj
 
     @property
-    def meta(self) -> FileIOMetadataType:
+    def meta(self) -> FileIOMetadataT:
         """The metadata."""
         return self._meta
 

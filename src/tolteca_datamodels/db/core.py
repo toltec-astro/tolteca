@@ -2,7 +2,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Literal
 
 from pydantic import Field, PrivateAttr, field_validator
-from pydantic.networks import Url
+from pydantic.networks import AnyUrl
 from tollan.config.types import ImmutableBaseModel
 from tollan.db import SqlaDB
 from tollan.utils.general import ObjectProxy
@@ -24,7 +24,7 @@ class SqlaBindConfig(ImmutableBaseModel):
     """The config of a database connection."""
 
     name: str = Field(description="The name to identify the connection.")
-    url: Url = Field(description="The SQLAlchemy Url to connect.")
+    url: AnyUrl = Field(description="The SQLAlchemy Url to connect.")
     engine_options: dict = Field(
         description="The options passed to engine.",
         default_factory=dict,
