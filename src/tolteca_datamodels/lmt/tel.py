@@ -5,7 +5,7 @@ from typing import Annotated, ClassVar, Literal
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 from astropy.time import Time
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from pydantic.types import StringConstraints
 from tollan.config.types import SkyCoordField, TimeField
 from tollan.utils.general import dict_from_regex_match
@@ -80,6 +80,7 @@ class LmtTelMetadata(FileIOMetadataModelBase):
 
 class LmtTelData(BaseModel):
     """LMT telescope data."""
+    model_config = ConfigDict(extra="allow")
 
     meta: LmtTelMetadata
 
