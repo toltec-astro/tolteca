@@ -604,8 +604,8 @@ class ToltecObsSimulator(object):
                 f"evaluate time_obs from {time_obs[0]} to "
                 f"{time_obs[-1]} n_times={n_times}")
             self.logger.debug(
-                f'use lon_wrap_angle_icrs={lon_wrap_angle_icrs or "auto"} '
-                f'lon_wrap_angle_altaz={lon_wrap_angle_altaz or "auto"}')
+                f'use lon_wrap_angle_icrs={lon_wrap_angle_icrs} '
+                f'lon_wrap_angle_altaz={lon_wrap_angle_altaz}')
             # TODO add more control for the hwp position
             hwp_pa_t = get_hwp_pa_t(t)
             # if True:
@@ -1089,7 +1089,13 @@ class ToltecSimuOutputContext(ExitStack):
                 nm_tel.setscalar(
                         'Header.Map.ExecMode',
                         1, dtype=int)
-
+            if mapping.ref_frame == "icrs":
+                nm_tel.setstr("Header.Map.MapCoord", "Ra")
+            else:
+                nm_tel.setstr("Header.Map.MapCoord", "Az")
+            nm_tel.setscalar("Header.Map.XLength", mapping.offset_mapping_model.length.quantity.to_value(u.rad))
+            nm_tel.setscalar("Header.Map.YLength", min(mapping.offset_mapping_model.n_scans.value - 1, 1) * mapping.offset_mapping_model.space.quantity.to_value(u.rad))
+            nm_tel.setscalar("Header.Map.ScanAngle", mapping.offset_mapping_model.rot.quantity.to_value(u.rad))
         else:
             raise NotImplementedError
         # the len=2 is for mean and ref coordinates.

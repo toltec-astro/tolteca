@@ -204,6 +204,7 @@ class ToastAtmosphereSimulation(object):
         rmax_threshold = 100000 * u.meter
         while rmax < rmax_threshold:
             slab_id = f'{key1}_{key2}_{counter1}_{counter2}'
+            self.logger.debug(f'slab_id: {slab_id}')
             toast_atmsim_model = toast.atm.AtmSim(
                 azmin=azmin, azmax=azmax,
                 elmin=elmin, elmax=elmax,

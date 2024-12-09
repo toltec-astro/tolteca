@@ -26,6 +26,7 @@ from tollan.utils import call_subprocess_with_live_output
 from tollan.utils.log import get_logger, timeit
 from tollan.utils import ensure_abspath
 from tollan.utils.fmt import pformat_yaml
+from tollan.utils.nc import ncstr
 
 from .base import PipelineEngine, PipelineEngineError
 from ...utils import get_user_data_dir
@@ -822,6 +823,8 @@ def _fix_tel(source, output_dir):
         return v
     if 'Header.Dcs.ObsGoal' not in tnc.variables:
         _setstr(tnc, 'Header.Dcs.ObsGoal', 'Science')
+    if ncstr(tnc.variables['Header.Dcs.ObsPgm']) == "Map" and "Header.Map.MapCoord" not in tnc.variables:
+        _setstr(tnc, 'Header.Map.MapCoord', 'Az')
     tnc.sync()
     tnc.close()
     # make some diagnostic info
