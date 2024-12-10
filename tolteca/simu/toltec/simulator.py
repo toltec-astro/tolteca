@@ -1094,7 +1094,7 @@ class ToltecSimuOutputContext(ExitStack):
             else:
                 nm_tel.setstr("Header.Map.MapCoord", "Az")
             nm_tel.setscalar("Header.Map.XLength", mapping.offset_mapping_model.length.quantity.to_value(u.rad))
-            nm_tel.setscalar("Header.Map.YLength", min(mapping.offset_mapping_model.n_scans.value - 1, 1) * mapping.offset_mapping_model.space.quantity.to_value(u.rad))
+            nm_tel.setscalar("Header.Map.YLength", max(mapping.offset_mapping_model.n_scans.value - 1, 1) * mapping.offset_mapping_model.space.quantity.to_value(u.rad))
             nm_tel.setscalar("Header.Map.ScanAngle", mapping.offset_mapping_model.rot.quantity.to_value(u.rad))
         else:
             raise NotImplementedError

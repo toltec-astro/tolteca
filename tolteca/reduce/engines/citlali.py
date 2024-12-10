@@ -825,6 +825,9 @@ def _fix_tel(source, output_dir):
         _setstr(tnc, 'Header.Dcs.ObsGoal', 'Science')
     if ncstr(tnc.variables['Header.Dcs.ObsPgm']) == "Map" and "Header.Map.MapCoord" not in tnc.variables:
         _setstr(tnc, 'Header.Map.MapCoord', 'Az')
+    if 'Header.Source.Epoch' not in tnc.variables:
+        _setstr(tnc, 'Header.Source.Epoch', 'J2000')
+
     tnc.sync()
     tnc.close()
     # make some diagnostic info
