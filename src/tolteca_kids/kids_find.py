@@ -16,6 +16,7 @@ from tollan.config.types import AbsAnyPath, FrequencyQuantityField, TimeQuantity
 from tollan.utils.fmt import pformat_mask
 from tollan.utils.log import logger, timeit
 from tollan.utils.np import attach_unit, make_complex, strip_unit
+from tollan.utils.table import TableValidator
 from typing_extensions import assert_never
 
 from tolteca_kidsproc.kidsdata import MultiSweep
@@ -27,11 +28,11 @@ from .plot import PlotConfig, PlotMixin
 from .sweep_check import SweepCheck
 
 __all__ = [
-    "SegmentBitMask",
-    "KidsFindConfig",
-    "KidsFindData",
-    "KidsFindContext",
     "KidsFind",
+    "KidsFindConfig",
+    "KidsFindContext",
+    "KidsFindData",
+    "SegmentBitMask",
 ]
 
 
@@ -87,6 +88,9 @@ class SegmentBitMask(IntFlag):
     s21_collided = auto()
     """The s21 detection is merged with two or more s21 detection."""
 
+    rejected = auto()
+    """The detection does not pass select."""
+
 
 class KidsFindConfig(StepConfig):
     """The kids finding config."""
@@ -140,12 +144,14 @@ class KidsFindConfig(StepConfig):
         default=100.0,
         description="Minimum SNR for dark kids at ref freq",
     )
-
+    d21_select: None | str = Field(
+        default=None,
+        description="Additional select clause to filter D21 peaks.",
+    )
     medfilt_size: int = Field(
         default=5,
         description=("Size of median filter used for S21 peak finding."),
     )
-
     detect: Peaks1D = Field(
         default={
             "method": "peakdetect",
@@ -161,6 +167,10 @@ class KidsFindConfig(StepConfig):
     snr_min: float = Field(
         default=10.0,
         description="Minimum SNR for detected kids.",
+    )
+    select: None | str = Field(
+        default=None,
+        description="Additional select clause to filter peaks.",
     )
     detect_sep_fwhm_min: float = Field(
         default=0.5,
@@ -254,6 +264,13 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
         ctd = context.data
         ctd_sc = SweepCheck.get_context(data).data
 
+        _tbl_validator = TableValidator()
+
+        def _make_select_mask(tbl, expr):
+            if expr is None:
+                return np.ones((len(tbl),), dtype=bool)
+            return _tbl_validator.eval(tbl, expr)
+
         # load ref context
         rpath = cfg.ref_context_path
         if rpath is not None:
@@ -334,6 +351,11 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
             d21_heights < cfg.d21_peak_dark_min / d21_thresh_scale
         )
 
+        d21_mask_rejected = d21_peak_info["sbm_rejected"] = ~_make_select_mask(
+            d21_peak_info,
+            cfg.d21_select,
+        )
+
         d21_mask_peak_not_real = d21_peak_info["sbm_not_real"] = (
             d21_mask_peak_peak_small
             | d21_mask_peak_snr_low
@@ -341,6 +363,7 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
             | d21_mask_peak_Qr_large
             | d21_mask_peak_dark_snr_low
             | d21_mask_peak_dark_peak_small
+            | d21_mask_rejected
         )
         d21_mask_peak_dark = d21_peak_info["sbm_dark"] = (
             d21_Qrs >= cfg.Qr_dark_min
@@ -353,6 +376,7 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
             | (d21_mask_peak_Qr_large * SegmentBitMask.Qr_large)
             | (d21_mask_peak_not_real * SegmentBitMask.not_real)
             | (d21_mask_peak_dark * SegmentBitMask.dark)
+            | (d21_mask_rejected * SegmentBitMask.rejected)
         )
         ctd.bitmask_d21 = bitmask_d21
 
@@ -493,11 +517,17 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
             s21_heights_db < cfg.peak_db_min
         )
         s21_mask_peak_snr_low = s21_peak_info["sbm_snr_low"] = s21_snrs < cfg.snr_min
+        s21_mask_rejected = s21_peak_info["sbm_rejected"] = ~_make_select_mask(
+            s21_peak_info,
+            cfg.select,
+        )
+
         s21_mask_peak_not_real = s21_peak_info["sbm_not_real"] = (
             s21_mask_peak_peak_small
             | s21_mask_peak_snr_low
             | s21_mask_peak_Qr_small
             | s21_mask_peak_Qr_large
+            | s21_mask_rejected
         )
         # handle edges
         # TODO: maybe make this configurable
@@ -520,6 +550,7 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
             | (s21_mask_peak_snr_low * SegmentBitMask.snr_low)
             | (s21_mask_peak_Qr_small * SegmentBitMask.Qr_small)
             | (s21_mask_peak_Qr_large * SegmentBitMask.Qr_large)
+            | (s21_mask_rejected * SegmentBitMask.rejected)
             | (s21_mask_peak_not_real * SegmentBitMask.not_real)
             | (s21_mask_peak_edge * SegmentBitMask.edge)
         )

@@ -25,7 +25,8 @@ class DataProdOutputConfig(StepConfig, FileStoreConfigMixin):
         description="root path.",
     )
     dump_context: bool = Field(
-        default=True, description="whether to dump context pickle file.",
+        default=True,
+        description="whether to dump context pickle file.",
     )
 
 
@@ -64,8 +65,10 @@ class DataProdOutput(Step[DataProdOutputConfig, DataProdOutputContext]):
         tbl_meta = {
             "Header.Toltec.ObsNum": swp.meta["obsnum"],
             "Header.Toltec.SubObsNum": swp.meta["subobsnum"],
-            "Header.Toltec.ScanObsNum": swp.meta["scannum"],
+            "Header.Toltec.ScanNum": swp.meta["scannum"],
             "Header.Toltec.RoachIndex": swp.meta["roach"],
+            "uid_raw_obs": swp.meta["uid_raw_obs"],
+            "uid_raw_obs_file": swp.meta["uid_raw_obs_file"],
         }
         tbl_cols = [
             "idx_det",

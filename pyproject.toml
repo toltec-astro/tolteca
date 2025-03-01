@@ -101,7 +101,7 @@ group_by_package = true
 line-length = 88
 lint.select = ["ALL"]
 exclude = ["examples/*", "docs/*", "src/tolteca_config/_version.py"]
-lint.extend-ignore = [
+lint.ignore = [
   "ANN",    # typing
   "RUF005", # unpack-instead-of-concatenating-to-collection-literal
   "I001",   # isort does this
@@ -127,7 +127,7 @@ lint.extend-ignore = [
   "TD002",
   "TD003",
   "FIX002", # TODO
-  "TCH003", # standard lib typing import
+  "TC003",  # standard lib typing import
 ]
 
 [tool.ruff.lint.per-file-ignores]
