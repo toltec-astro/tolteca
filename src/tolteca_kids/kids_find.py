@@ -150,7 +150,7 @@ class KidsFindConfig(StepConfig):
     )
     medfilt_size: int = Field(
         default=5,
-        description=("Size of median filter used for S21 peak finding."),
+        description="Size of median filter used for S21 peak finding.",
     )
     detect: Peaks1D = Field(
         default={
@@ -159,6 +159,10 @@ class KidsFindConfig(StepConfig):
             "peakdetect_delta_threshold": 5,
         },
         description="Detection settings for S21.",
+    )
+    detect_Qr_fallback: float = Field(
+        default=5000,
+        description="Qr to use for detection when no D21 prior is found.",
     )
     peak_db_min: float = Field(
         default=0.2,
@@ -458,7 +462,7 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
                 logger.debug("not enough prior found, use median value")
                 Qr_default = np.quantile(d21_prior["Qr"], 0.5)
             else:
-                Qr_default_no_prior = 5000
+                Qr_default_no_prior = cfg.detect_Qr_fallback
                 logger.debug(
                     f"no d21 prior found, use default value {Qr_default_no_prior=}",
                 )
