@@ -1,18 +1,23 @@
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, Literal
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, constr
 from tollan.config.types import AbsDirectoryPath
+from tollan.utils.general import rgetattr
 from tollan.utils.log import timeit
 
 from tolteca_kidsproc.kidsdata.sweep import MultiSweep
 
 from .filestore import FileStoreConfigMixin
 from .kids_find import KidsFind
-from .pipeline import Step, StepConfig, StepContext
+from .pipeline import Step, StepConfig, StepContext, get_pipeline_contexts
 
 ItemType = Literal["tone_prop", "chan_prop", "data_ctx"]
+
+
+_obj_name_pattern = r"[A-z][A-z0-9.]*:[A-z][A-z0-9.]*/[A-z][A-z0-9.]*"
 
 
 class DataProdOutputConfig(StepConfig, FileStoreConfigMixin):
@@ -27,6 +32,10 @@ class DataProdOutputConfig(StepConfig, FileStoreConfigMixin):
     dump_context: bool = Field(
         default=True,
         description="whether to dump context pickle file.",
+    )
+    dump_objects: None | list[constr(pattern=_obj_name_pattern)] = Field(
+        default=False,
+        description="list of ininternal objects to dump as pickle file.",
     )
 
 
@@ -107,4 +116,24 @@ class DataProdOutput(Step[DataProdOutputConfig, DataProdOutputContext]):
             data_ctx_path = None
         item_path["data_ctx"] = data_ctx_path
 
+        data_obj_names = cfg.dump_objects or []
+        if data_obj_names:
+            data_obj_dict = cls._resolve_data_objs(swp, data_obj_names)
+            data_obj_path = cfg.save_obj_pickle(
+                cfg.make_data_path(data=swp, suffix="_objs.pkl"),
+                data_obj_dict,
+            )
+        else:
+            data_obj_path = None
+        item_path["data_obj"] = data_obj_path
+
         return True
+
+    @classmethod
+    def _resolve_data_objs(cls, data, names):
+        ctxs = get_pipeline_contexts(data)
+        result = defaultdict(dict)
+        for name in names:
+            context_key, attr = name.split("/", 1)
+            result[context_key][attr] = rgetattr(ctxs[context_key], attr)
+        return result
