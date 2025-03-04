@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Literal, get_args
 
 import astropy.units as u
 import dill
@@ -9,6 +9,8 @@ from astropy.table import Table
 from astropy.utils.masked import Masked
 from pydantic import BaseModel, Field
 from tollan.utils.log import logger, logit
+from tollan.utils.plot.plotly import show_in_dash
+from tollan.utils.sys import ensure_path_parent_exists
 
 __all__ = [
     "FileStoreConfigMixin",
@@ -36,6 +38,73 @@ def _save_data_info(pickler, obj):
     )
 
 
+class PlotlyFigExportHtml(BaseModel):
+    """A model to control plotly fig save as html."""
+
+    auto_open: bool = False
+    auto_plot: bool = False
+
+
+class PlotlyFigExportImage(BaseModel):
+    """A model to control plotly fig save as static image."""
+
+    scale: None | float = 1.0
+    width: None | int = 1600
+    height: None | int = None
+
+
+PlotlyFigExportImageFormat = Literal["png", "jpg", "jpeg", "pdf"]
+PlotlyFigExportFormat = Literal["html",] | PlotlyFigExportImageFormat
+
+
+class PlotlyFigExport(BaseModel):
+    """A model to control plotly fig save."""
+
+    html: PlotlyFigExportHtml = Field(default_factory=PlotlyFigExportHtml)
+    image: PlotlyFigExportImage = Field(default_factory=PlotlyFigExportImage)
+
+    def __call__(self, path: Path, fig: go.Figure):
+        """Save ploty figure."""
+        path = ensure_path_parent_exists(path)
+        with logit(logger.info, f"save fig to {path}"):
+            fmt = path.suffix.lstrip(".")
+            if fmt == "html":
+                plotly.offline.plot(
+                    fig,
+                    filename=path.as_posix(),
+                    auto_open=self.html.auto_open,
+                    auto_play=self.html.auto_plot,
+                )
+            elif fmt in get_args(PlotlyFigExportImageFormat):
+                plotly.io.write_image(
+                    fig,
+                    path.as_posix(),
+                    format=fmt,
+                    scale=self.image.scale,
+                    width=self.image.width,
+                    height=self.image.height,
+                )
+            else:
+                raise ValueError(f"unknown figure format: {path}")
+        return path
+
+
+class PlotlyFigShowInDash(BaseModel):
+    """A model to control plotly fig show."""
+
+    host: str = "0.0.0.0"  # noqa: S104
+    port: int = 8888
+
+    def __call__(self, data_items, title_text=None):
+        """Save ploty figure."""
+        show_in_dash(
+            data_items,
+            host=self.host,
+            port=self.port,
+            title_text=title_text or "Show in Dash",
+        )
+
+
 class FileStoreConfigMixin(BaseModel):
     """A mixin class for file store."""
 
@@ -44,6 +113,14 @@ class FileStoreConfigMixin(BaseModel):
         description="subdirectory format",
     )
     _filestore_path_attr: ClassVar[str] = "path"
+    save_plotly: PlotlyFigExport = Field(
+        default_factory=PlotlyFigExport,
+        description="options for save plotly figure.",
+    )
+    show_plotly: PlotlyFigShowInDash = Field(
+        default_factory=PlotlyFigShowInDash,
+        description="options for show plotly live.",
+    )
 
     def make_data_path(
         self,
@@ -66,16 +143,6 @@ class FileStoreConfigMixin(BaseModel):
         parent = path if subdir is None else path.joinpath(subdir)
         return parent.joinpath(name)
 
-    @staticmethod
-    def _ensure_parents(path: Path):
-        if path.is_dir():
-            raise ValueError("invalid path type.")
-        parent = path.parent
-        if not parent.exists():
-            with logit(logger.info, f"create dir {parent}"):
-                parent.mkdir(parents=True, exist_ok=True)
-        return path
-
     @classmethod
     def save_obj_pickle(
         cls,
@@ -83,7 +150,7 @@ class FileStoreConfigMixin(BaseModel):
         obj,
     ):
         """Save object as pickle."""
-        path = cls._ensure_parents(path)
+        path = ensure_path_parent_exists(path)
         with (
             logit(
                 logger.info,
@@ -107,27 +174,10 @@ class FileStoreConfigMixin(BaseModel):
         }
         tbl_fmt = _dispatch_tbl_fmt[path.suffix]
 
-        path = cls._ensure_parents(path)
+        path = ensure_path_parent_exists(path)
         with logit(
             logger.info,
             f"save table of size={len(tbl)} to {path}",
         ):
             tbl.write(path, overwrite=True, format=tbl_fmt)
-        return path
-
-    @classmethod
-    def save_plotly_fig(cls, path: Path, fig: go.Figure, **kwargs):
-        """Save ploty figure."""
-        path = cls._ensure_parents(path)
-        # fig_name = fig["layout"].get("title", {}).get("text", None)
-        # if not fig_name:
-        #     fig_name = "<unknown>"
-        with logit(logger.info, f"save fig to {path}"):
-            plotly.offline.plot(
-                fig,
-                filename=path.as_posix(),
-                auto_open=False,
-                auto_play=False,
-                **kwargs,
-            )
         return path

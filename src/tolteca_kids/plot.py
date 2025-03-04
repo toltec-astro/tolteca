@@ -2,6 +2,7 @@ from typing import ClassVar
 
 import plotly.graph_objects as go
 from plotly.basedatatypes import BasePlotlyType
+from pydantic import Field
 from tollan.config.types import AbsDirectoryPath
 from tollan.utils.general import rupdate, slugify
 from tollan.utils.log import logger, timeit
@@ -10,11 +11,10 @@ from tollan.utils.plot.plotly import (
     SubplotGrid,
     make_subplot_layout,
     make_subplots,
-    show_in_dash,
     update_subplot_layout,
 )
 
-from .filestore import FileStoreConfigMixin
+from .filestore import FileStoreConfigMixin, PlotlyFigExportFormat
 from .pipeline import Step, StepConfig, StepContext
 
 __all__ = [
@@ -51,9 +51,8 @@ class PlotConfig(StepConfig, FileStoreConfigMixin):
 
     save: bool = True
     save_path: None | AbsDirectoryPath = None
+    save_formats: list[PlotlyFigExportFormat] = Field(default_factory=lambda: ["html"])
     show: bool = False
-    show_in_dash_port: int = 8888
-    show_in_dash_host: str = "0.0.0.0"  # noqa: S104
 
 
 class PlotMixin:
@@ -99,10 +98,8 @@ class PlotMixin:
         save_name = cls._make_save_name(data, context)
         cfg = context.config
         if cfg.show:
-            show_in_dash(
+            cfg.show_plotly(
                 data_items,
-                host=cfg.show_in_dash_host,
-                port=cfg.show_in_dash_port,
                 title_text=show_name,
             )
         if cfg.save and cfg.save_path is not None:
@@ -111,12 +108,13 @@ class PlotMixin:
                 item_name = data_item["title_text"]
                 _save_name = slugify(f"{save_name}_{item_name}")
                 if isinstance(obj, go.Figure):
-                    fig_path = cfg.make_data_path(
-                        data=data,
-                        name=_save_name,
-                        suffix=".html",
-                    )
-                    cfg.save_plotly_fig(fig_path, obj)
+                    for fmt in cfg.save_formats:
+                        fig_path = cfg.make_data_path(
+                            data=data,
+                            name=_save_name,
+                            suffix=f".{fmt}",
+                        )
+                        cfg.save_plotly(fig_path, obj)
                 else:
                     # TODO: save other stuff
                     pass
