@@ -34,7 +34,7 @@ class DataProdOutputConfig(StepConfig, FileStoreConfigMixin):
         description="whether to dump context pickle file.",
     )
     dump_objects: None | list[constr(pattern=_obj_name_pattern)] = Field(
-        default=False,
+        default=None,
         description="list of ininternal objects to dump as pickle file.",
     )
 
