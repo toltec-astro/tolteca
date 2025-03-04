@@ -30,7 +30,7 @@ class DataProdOutputConfig(StepConfig, FileStoreConfigMixin):
         description="root path.",
     )
     dump_context: bool = Field(
-        default=True,
+        default=False,
         description="whether to dump context pickle file.",
     )
     dump_objects: None | list[constr(pattern=_obj_name_pattern)] = Field(
