@@ -358,7 +358,7 @@ class ToltecFileAccessor:
         return self._obj
 
     @contextmanager
-    def open(self):
+    def open(self, raise_on_error=False):
         """Invoke the default file IO to load meta data."""
         obj = self._obj
         io_obj_key = self._io_obj_key
@@ -377,8 +377,17 @@ class ToltecFileAccessor:
             if io_cls is None:
                 io_obj = None
             else:
-                io_obj = io_cls(entry.filepath)
-                es.enter_context(io_obj.open())
+                try:
+                    io_obj = io_cls(entry.filepath)
+                except Exception as e:
+                    if raise_on_error:
+                        raise
+                    logger.debug(
+                        f"unable to read file {entry.filepath} with {io_cls=}: {e}",
+                    )
+                    io_obj = None
+                else:
+                    es.enter_context(io_obj.open())
             io_objs.append(io_obj)
         obj[io_obj_key] = io_objs
         self._update_from_item_meta(io_objs)
@@ -389,6 +398,7 @@ class ToltecFileAccessor:
     def read(
         self,
         cached=True,
+        raise_on_error=False,
     ):
         """Invoke the default file readers to load data objects in to the data frame."""
         data_objs = self.data_objs
@@ -397,9 +407,18 @@ class ToltecFileAccessor:
         obj = self._obj
         data_obj_key = self._data_obj_key
         data_objs = []
-        with self.open():
+        with self.open(raise_on_error=raise_on_error):
             for io_obj in self.io_objs:
-                data_obj = None if pd.isna(io_obj) else io_obj.read()
+                if pd.isna(io_obj):
+                    data_obj = None
+                else:
+                    try:
+                        data_obj = io_obj.read()
+                    except Exception as e:
+                        if raise_on_error:
+                            raise
+                        logger.debug(f"failed to read data from {io_obj=}: {e}")
+                        data_obj = None
                 data_objs.append(data_obj)
         obj[data_obj_key] = data_objs
         self._update_from_item_meta(data_objs)

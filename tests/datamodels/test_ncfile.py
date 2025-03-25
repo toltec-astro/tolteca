@@ -3,6 +3,7 @@ from pathlib import Path
 import netCDF4
 import pytest
 
+from tolteca_datamodels.toltec.file import guess_info_from_sources
 from tolteca_datamodels.toltec.ncfile import NcFileIO
 from tolteca_datamodels.toltec.types import ToltecDataKind
 
@@ -92,3 +93,30 @@ def test_ncfile_timestream_read():
     assert swp.meta["obsnum"] == 18230
     assert swp.I.shape == (649, 610)
     assert swp.r is None
+
+
+def test_ncfile_read_bad():
+    filepath = data_root.joinpath(
+        "toltec/tcs/toltec11/toltec11_130764_000_0001_2025_03_16_02_23_39_tune.nc",
+    )
+    with (
+        pytest.raises(ValueError, match="invalid f_lo"),
+        NcFileIO(source=filepath) as ncfile,
+    ):
+        ncfile.read()
+
+
+def test_guess_info_table_read_with_bad():
+    tbl_info = guess_info_from_sources(
+        [
+            data_root.joinpath(p)
+            for p in [
+                "toltec/tcs/toltec11/toltec11_130764_000_0001_2025_03_16_02_23_39_tune.nc",
+            ]
+        ],
+    )
+    with pytest.raises(ValueError, match="invalid f_lo"):
+        tbl_info.toltec_file.read(raise_on_error=True)
+
+    with tbl_info.toltec_file.open(raise_on_error=False):
+        assert tbl_info.toltec_file.io_objs.iloc[0] is None
