@@ -95,6 +95,16 @@ def test_ncfile_timestream_read():
     assert swp.r is None
 
 
+def test_ncfile_nominal_read():
+    filepath = data_root.joinpath(
+        "toltec/tcs/toltec0/toltec0_131289_000_0002_2025_03_19_12_25_40.nc",
+    )
+    with NcFileIO(source=filepath) as ncfile:
+        ts = ncfile.read()
+    assert ts.meta["obsnum"] == 131289
+    assert ts.meta["fsmp"] == 122.0703125
+
+
 def test_ncfile_read_bad():
     filepath = data_root.joinpath(
         "toltec/tcs/toltec11/toltec11_130764_000_0001_2025_03_16_02_23_39_tune.nc",
@@ -120,3 +130,17 @@ def test_guess_info_table_read_with_bad():
 
     with tbl_info.toltec_file.open(raise_on_error=False):
         assert tbl_info.toltec_file.io_objs.iloc[0] is None
+
+
+def test_guess_info_table_open_bad_metadata():
+    tbl_info = guess_info_from_sources(
+        [
+            data_root.joinpath(p)
+            for p in [
+                "toltec/tcs/toltec0/toltec0_131289_000_0001_2025_03_19_12_24_21_tune.nc",
+                "toltec/tcs/toltec0/toltec0_131289_000_0003_2025_03_19_12_25_40.nc",
+            ]
+        ],
+    )
+    with tbl_info.toltec_file.open(raise_on_error=False):
+        assert tbl_info["instru"].to_list() == ["toltec", "toltec"]

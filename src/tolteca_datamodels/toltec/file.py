@@ -33,7 +33,8 @@ _file_interface_suffix_ext_to_toltec_data_kind = {
     (r"toltec(\d+)", "vnasweep", ".nc"): _T.VnaSweep,
     (r"toltec(\d+)", "targsweep", ".nc"): _T.TargetSweep,
     (r"toltec(\d+)", "tune", ".nc"): _T.Tune,
-    (r"toltec(\d+)", "(timestream)?", ".nc"): _T.RawTimeStream,
+    (r"toltec(\d+)", "timestream", ".nc"): _T.RawTimeStream,
+    (r"toltec(\d+)", None, ".nc"): _T.RawTimeStream,
     (r"toltec(\d+)", "(vnasweep|targsweep|tune)_processed", ".nc"): _T.ReducedSweep,
     (r"toltec(\d+)", "timestream_processed", ".nc"): _T.SolvedTimeStream,
     # kids reduction
@@ -354,7 +355,8 @@ class ToltecFileAccessor:
 
         data = pd.DataFrame.from_records(data)
         for c in data.columns:
-            self._obj[c] = data[c].to_numpy()
+            mask = ~pd.isna(data[c])
+            self._obj.loc[mask, c] = data.loc[mask, c].to_numpy()
         return self._obj
 
     @contextmanager

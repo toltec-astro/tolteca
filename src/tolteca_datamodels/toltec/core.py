@@ -54,7 +54,7 @@ class ToltecFileIO(FileIOBase):
 
     __abstract__ = True  # skip the registration
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         source,
         source_loc=None,
@@ -117,14 +117,14 @@ class ToltecFileIO(FileIOBase):
     def _load_data_kind(self):
         def _check_data_kind(on_identified, on_missing, error_msg):
             meta = self._meta
-            if "data_kind" in meta:
+            if meta.get("data_kind", None) is not None:
                 data_kind = meta["data_kind"]
                 logger.debug(f"identified data_kind={meta['data_kind']}")
                 if on_identified is not None:
                     on_identified(meta)
             elif on_missing is not None:
                 on_missing(meta)
-            data_kind = meta.get("data_kind", ToltecDataKind.Unknown)
+            data_kind = meta.get("data_kind", None) or ToltecDataKind.Unknown
             if (
                 error_msg is not None
                 and self._raise_on_unknown_data_kind

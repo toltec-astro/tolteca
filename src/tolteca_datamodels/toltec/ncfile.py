@@ -546,7 +546,7 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
         return self._model_params_tables[iblock]
 
     @staticmethod
-    def _populate_sweep_axis_data(  # noqa: PLR0913
+    def _populate_sweep_axis_data(
         sweep_axis_data,
         id,
         f_sweep,
