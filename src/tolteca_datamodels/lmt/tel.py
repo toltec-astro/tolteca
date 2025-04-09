@@ -22,6 +22,8 @@ ObsGoalType = Literal[
     "pointing",
     "focus",
     "astigmatism",
+    "beammap",
+    "oof",
 ]
 
 RE_LMT_TEL_FILE = re.compile(
@@ -80,6 +82,7 @@ class LmtTelMetadata(FileIOMetadataModelBase):
 
 class LmtTelData(BaseModel):
     """LMT telescope data."""
+
     model_config = ConfigDict(extra="allow")
 
     meta: LmtTelMetadata
