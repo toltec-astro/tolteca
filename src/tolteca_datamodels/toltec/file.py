@@ -355,7 +355,7 @@ class ToltecFileAccessor:
 
         data = pd.DataFrame.from_records(data)
         for c in data.columns:
-            mask = ~pd.isna(data[c])
+            mask = (~pd.isna(data[c])).to_numpy()
             self._obj.loc[mask, c] = data.loc[mask, c].to_numpy()
         return self._obj
 
