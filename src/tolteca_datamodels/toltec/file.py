@@ -1,3 +1,4 @@
+import itertools
 import re
 from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
@@ -342,6 +343,17 @@ class ToltecFileAccessor:
         if data_obj_key not in self._obj.columns:
             return None
         return self._obj[data_obj_key]
+
+    def iter_objs(self):
+        """Return a iterator of (entry, io_obj, data_obj)."""
+        io_objs = self.io_objs
+        if io_objs is None:
+            io_objs = []
+        data_objs = self.data_objs
+        if data_objs is None:
+            data_objs = []
+        entries = self._obj.itertuples()
+        return itertools.zip_longest(entries, io_objs, data_objs, fillvalue=None)
 
     def _update_from_item_meta(self, items):
         data = []
