@@ -4,7 +4,7 @@ import pytest
 from tollan.utils.log import logger
 
 from tolteca_datamodels.lmt.filestore import LmtFileStore
-from tolteca_datamodels.toltec.filestore import ToltecFileStore
+from tolteca_datamodels.toltec.filestore import ObsSpec, ToltecFileStore
 
 data_root = Path(__file__).with_name("data_lmt")
 
@@ -106,3 +106,14 @@ def test_lmt_fs():
 
     assert set(lmt_fs.instruments) == {"toltec"}
     assert set(lmt_fs.interfaces) == {"toltec", "tel"}
+
+
+def test_obs_spec():
+    assert (
+        ObsSpec.obs_spec_to_glob_pattern("1-2-3/4", interface="toltec")
+        == "toltec4/toltec4_000001_002_0003_*.nc"
+    )
+    assert (
+        ObsSpec.obs_spec_to_glob_pattern("1-2-3/4", interface="tel_toltec")
+        == "tel_toltec_*_000001_02_0003.nc"
+    )

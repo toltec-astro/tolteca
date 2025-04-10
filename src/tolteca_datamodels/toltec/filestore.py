@@ -245,6 +245,25 @@ class ObsSpec:
                 return None
             logger.debug(f"resovled {file=} from {obs_spec=}")
             return [file]
+        p = cls.obs_spec_to_glob_pattern(obs_spec, interface="toltec", file_ext=".nc")
+        glob_patterns = [
+            f"toltec/ics/{p}",
+            f"toltec/tcs/{p}",
+        ]
+        data_lmt_path = lmt_fs.path
+        logger.debug(
+            f"search file patterns in {data_lmt_path=}:\n"
+            f"{pformat_yaml(glob_patterns)}",
+        )
+        files = list(itertools.chain(*(data_lmt_path.glob(p) for p in glob_patterns)))
+        if not files:
+            logger.error(f"no files found for {obs_spec=} in {data_lmt_path=}")
+            return None
+        return files
+
+    @classmethod
+    def obs_spec_to_glob_pattern(cls, obs_spec, interface="toltec", file_ext=".nc"):
+        """Return glob pattern for obs spec."""
         info = dict_from_regex_match(
             r"^(?P<obsnum>\d+)"
             r"(?:-(?P<subobsnum>\d+)"
@@ -268,22 +287,21 @@ class ObsSpec:
             f"resolved {obsnum=} {subobsnum=} {scannum=} {roach=} "
             f"from {obs_spec=} by regex match",
         )
-        data_lmt_path = lmt_fs.path
-        p_interface = "toltec*" if roach is None else f"toltec{roach}"
-        p_obsnum = f"_{obsnum:06d}"
-        p_subobsnum = "_*" if subobsnum is None else f"_{subobsnum:03d}"
-        p_scannum = "_*" if scannum is None else f"_{scannum:04d}"
-        p = f"{p_interface}/{p_interface}{p_obsnum}{p_subobsnum}{p_scannum}_*.nc"
-        glob_patterns = [
-            f"toltec/ics/{p}",
-            f"toltec/tcs/{p}",
-        ]
-        logger.debug(
-            f"search file patterns in {data_lmt_path=}:\n"
-            f"{pformat_yaml(glob_patterns)}",
+        if interface == "toltec":
+            p_interface = "toltec*" if roach is None else f"toltec{roach}"
+            p_obsnum = f"_{obsnum:06d}"
+            p_subobsnum = "_*" if subobsnum is None else f"_{subobsnum:03d}"
+            p_scannum = "_*" if scannum is None else f"_{scannum:04d}"
+            return (
+                f"{p_interface}/{p_interface}{p_obsnum}{p_subobsnum}{p_scannum}_*"
+                f"{file_ext}"
+            )
+        if interface in ["tel_toltec", "tel_toltec2"]:
+            p_interface = interface
+            p_obsnum = f"_{obsnum:06d}"
+            p_subobsnum = "_*" if subobsnum is None else f"_{subobsnum:02d}"
+            p_scannum = "_*" if scannum is None else f"_{scannum:04d}"
+            return f"{p_interface}_*{p_obsnum}{p_subobsnum}{p_scannum}{file_ext}"
+        raise ValueError(
+            f"invalid interface for resolving obs_spec {obs_spec}: {interface}",
         )
-        files = list(itertools.chain(*(data_lmt_path.glob(p) for p in glob_patterns)))
-        if not files:
-            logger.error(f"no files found for {obs_spec=} in {data_lmt_path=}")
-            return None
-        return files
