@@ -8,7 +8,13 @@ from typing import TYPE_CHECKING, Annotated, ClassVar, Literal
 import numpy as np
 import pandas as pd
 import pandas.api.typing as pdt
-from pydantic import BaseModel, TypeAdapter, computed_field, model_validator
+from pydantic import (
+    BaseModel,
+    TypeAdapter,
+    ValidationError,
+    computed_field,
+    model_validator,
+)
 from pydantic.types import StringConstraints
 from tollan.utils.fileloc import FileLoc
 from tollan.utils.fmt import pformat_yaml
@@ -225,21 +231,32 @@ class SourceInfoModel(BaseModel):
         return self
 
 
-def guess_info_from_source(source):
+def guess_info_from_source(source, raise_on_error=True):
     """Return file info gussed from parsing source.
 
     Parameters
     ----------
     source : str, `pathlib.Path`, `FileLoc`
     """
-    info = SourceInfoModel.model_validate(source)
-    logger.debug(f"guess info from {source}:\n{pformat_yaml(info.model_dump())}")
-    return info
+    try:
+        info = SourceInfoModel.model_validate(source)
+        logger.debug(f"guess info from {source}:\n{pformat_yaml(info.model_dump())}")
+    except ValidationError as e:
+        if raise_on_error:
+            raise
+        logger.debug(f"invalid toltec file source {source}: {e}")
+        return None
+    else:
+        return info
 
 
-def guess_info_from_sources(sources) -> "SourceInfoDataFrame":
+def guess_info_from_sources(sources, raise_on_error=True) -> "SourceInfoDataFrame":
     """Return a table of guessed info for a list of sources."""
-    info_records = [guess_info_from_source(source).model_dump() for source in sources]
+    info_list = [
+        guess_info_from_source(source, raise_on_error=raise_on_error)
+        for source in sources
+    ]
+    info_records = [info.model_dump() for info in info_list if info is not None]
     return pd.DataFrame.from_records(info_records)
 
 

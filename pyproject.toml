@@ -35,6 +35,7 @@ dependencies = [
 ]
 
 [project.scripts]
+tolteca = "tolteca_config.cli:app"
 
 [tool.setuptools.package-data]
 "*" = [
