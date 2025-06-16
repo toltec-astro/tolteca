@@ -256,6 +256,7 @@ class LmtAtmosphereData(object):
                 },
             }[name]
         url = base_url.format(id=dl_info['id'])
+        cls.logger.info(f"download {name} file from {url}")
         filepath = download_file(url, cache=True)
         hash_ = compute_hash(filepath)
         if hash_ != dl_info['md5']:

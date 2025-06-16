@@ -1224,7 +1224,7 @@ or this value directly after getting the initial execution output for the per-pa
             if mapping_data is None:
                 return [False, True, "Invalid mapping settings.", "invalid"]
             # we use some fake data to initialize the mapping config object
-            target_data = {"name": "180d 0d", "date": "2022-02-02", "time": "06:00:00"}
+            target_data = {"name": "180d 0d", "date": "2024-02-15", "time": "06:00:00"}
             # this should never fail since both mapping_data and the
             # target_data should be always correct at this point
             exec_config = ObsPlannerExecConfig.from_data(mapping_data, target_data)
@@ -1497,7 +1497,7 @@ or "10h09m08s +20d19m18s".
                     #     'flex': '0 1 7rem'
                     #     },
                     "debounce": True,
-                    "value": "2022-01-01",
+                    "value": "2024-02-15",
                     "pattern": r"[1-2]\d\d\d-[0-1]\d-[0-3]\d",
                 },
             )

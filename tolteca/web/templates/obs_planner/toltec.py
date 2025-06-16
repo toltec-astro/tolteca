@@ -347,15 +347,11 @@ class Toltec(ObsInstru, name="toltec"):
 ** WARNING **
 
 The TolTEC team has made its best guesses about the sensitivity and mapping
-speed of the instrument based on 8 nights of commissioning data taken in July,
-2022.
+speed of the instrument based on commissioning data taken in December, 2022.
 
-Users of this tool should be aware that these estimates are very uncertain. We
-have made some improvements to the camera since July, but we are still
-extrapolating the summer performance over a very wide range of observing
-conditions to predict the sensitivity in the much drier winter and spring
-months. Users are encouraged to use a very healthy safety margin in their
-requested time when writing their proposals.
+Users of this tool should be aware that these estimates are very uncertain.
+Users are encouraged to use a very healthy safety margin in their requested
+time when writing their proposals.
 
 """,
                     link_target="_blank",
