@@ -826,7 +826,17 @@ def _fix_tel(source, output_dir):
     if ncstr(tnc.variables['Header.Dcs.ObsPgm']) == "Map" and "Header.Map.MapCoord" not in tnc.variables:
         _setstr(tnc, 'Header.Map.MapCoord', 'Az')
     if 'Header.Source.Epoch' not in tnc.variables:
-        _setstr(tnc, 'Header.Source.Epoch', 'J2000')
+        # _setstr(tnc, 'Header.Source.Epoch', 'J2000')
+        v = tnc.createVariable("Header.Source.Epoch", 'f8', ())
+        v[:] = 2000.
+    if 'Data.TelescopeBackend.TelUtc' not in tnc.variables:
+        # this is should only happen for simulated data
+        v = tnc.createVariable("Data.TelescopeBackend.TelUtc", 'f8', ("time", ))
+        v[:] = 0.
+    if 'Header.Radiometer.Tau' not in tnc.variables:
+        # this is should only happen for simulated data
+        v = tnc.createVariable("Header.Radiometer.Tau", 'f8', ())
+        v[:] = 0.
 
     tnc.sync()
     tnc.close()
