@@ -983,8 +983,11 @@ class ObsPlannerExecConfig(object):
         logger.debug(f"observer: {observer}")
 
         mapping_model = self.mapping.get_model(observer=observer)
-
-        t_exp = self.obs_params.t_exp or mapping_model.t_pattern
+        logger.debug(f"mapping model: {mapping_model}")
+        t_exp = self.obs_params.t_exp
+        if t_exp is None:
+            logger.debug("t_exp is not set, use t_pattern")
+            t_exp = mapping_model.t_pattern
         dt_smp_s = (1.0 / self.obs_params.f_smp_mapping).to_value(u.s)
         t = np.arange(0, t_exp.to_value(u.s) + dt_smp_s, dt_smp_s) << u.s
         n_pts = t.size

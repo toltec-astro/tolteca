@@ -673,8 +673,8 @@ Appendix B.1 of Planck Intermediate Results XIX ([link](https://arxiv.org/pdf/14
             # format the mapping speed here because of the issue in unicode unit formatting
             ms = aplm.get_mapping_speed(alt_mean, n_dets=len(aapt))
             ms_pol = ms / _get_pol_noise_factor() ** 2
-            result["mapping_speed_I"] = f"{ms.value:.0f} {ms.unit:s}"
-            result["mapping_speed_QU"] = f"{ms_pol.value:.0f} {ms_pol.unit:s}"
+            result["mapping_speed_I"] = f"{ms.value:.1f} {ms.unit:s}"
+            result["mapping_speed_QU"] = f"{ms_pol.value:.1f} {ms_pol.unit:s}"
             sens_tbl.append(result)
 
         if exec_config.instru_data["stokes_params"] == "I":
