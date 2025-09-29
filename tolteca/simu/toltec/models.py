@@ -703,7 +703,7 @@ class ToltecArrayPowerLoadingModel(Model):
         if mapping_speed is None:
             pass
         else:
-            global_noise_factor = (ms_value / mapping_speed) ** 0.5
+            global_noise_factor = ((ms_value / mapping_speed) ** 0.5).to_value(u.dimensionless_unscaled)
             self.logger.info(f"use {global_noise_factor=} for target mapping speed {mapping_speed}")
             self._internal_params['global_noise_factor'] = global_noise_factor 
         self.logger.debug(f"power loading model internal parameters:\n{pformat_yaml(self._internal_params)}")
