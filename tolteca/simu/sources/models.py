@@ -104,8 +104,9 @@ class ImageSourceModel(SurfaceBrightnessModel):
             s_out_unit = u.Unit(hdu.header['BUNIT'])
         else:
             s_out_unit = u.adu
-        wcsobj = WCS(hdu.header)
-        ny, nx = data_shape = hdu.data.shape
+        wcsobj = WCS(hdu.header).sub(2)
+        hdu_data = hdu.data.reshape(wcsobj.array_shape)
+        ny, nx = data_shape = hdu_data.shape
         sky_bbox = SkyBoundingBox.from_wcs(wcsobj, data_shape)
         logger.debug(
             f"data bbox: w={sky_bbox.w} e={sky_bbox.e} "
@@ -146,7 +147,7 @@ class ImageSourceModel(SurfaceBrightnessModel):
                 f"pixel range updated: [{ii.min()}, {ii.max()}] "
                 f"[{jj.min()}, {jj.max()}]")
         ig, jg = np.where(g)
-        s = hdu.data[ii, jj] << s_out_unit
+        s = hdu_data[ii, jj] << s_out_unit
         logger.debug(
             f'detector signal range: [{s.min()}, {s.max()}]')
         # combine the mask with overlapping mask

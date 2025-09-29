@@ -124,6 +124,21 @@ class ToltecPowerLoadingModelConfig(DataclassNamespace):
                 description="The detector noise factor.",
             ): Or(None, float, dict),
             Optional(
+                "mapping_speed",
+                default=None,
+                description="The target mapping speed to scale noise for.",
+            ): Or(None, dict),
+            Optional(
+                "mapping_speed_alt",
+                default=None,
+                description="The altitude where mapping speed is calculated.",
+            ): Or(None, PhysicalTypeSchema("angle")),
+            Optional(
+                "mapping_speed_n_dets",
+                default=None,
+                description="The num of detectors used where mapping speed is calculated.",
+            ): Or(None, int),
+            Optional(
                 "atm_model_params",
                 default=None,
                 description="The atmosphere model settings for toast.",
@@ -164,4 +179,7 @@ class ToltecPowerLoadingModelConfig(DataclassNamespace):
             atm_cache_dir=self.atm_cache_dir,
             tel_surface_rms=self.tel_surface_rms,
             det_noise_factor=self.det_noise_factor,
+            mapping_speed=self.mapping_speed,
+            mapping_speed_alt=self.mapping_speed_alt,
+            mapping_speed_n_dets=self.mapping_speed_n_dets,
         )

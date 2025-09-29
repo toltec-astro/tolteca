@@ -343,6 +343,7 @@ class SimulatorRuntime(RuntimeBase):
 
     def _run_plot(self):
         cfg = self.config
+        output_dir = cfg.get_or_create_output_dir()
         self.logger.info(
             f"make simu plots:\n"
             f"{pformat_yaml(cfg.to_dict()['plots'])}")
@@ -352,7 +353,8 @@ class SimulatorRuntime(RuntimeBase):
             results.append(result)
             if plotter.save:
                 # TODO handle save here
-                pass
+                output_file = output_dir.joinpath(f"{cfg.jobkey}_{plotter.type}.png")
+                result[0].savefig(output_file)
         return results
 
     def _run_export(self):

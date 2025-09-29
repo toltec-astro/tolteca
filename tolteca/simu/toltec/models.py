@@ -655,6 +655,9 @@ class ToltecArrayPowerLoadingModel(Model):
             atm_model_name='am_q50',
             tel_surface_rms=None,
             det_noise_factor=None,
+            mapping_speed=None,
+            mapping_speed_alt=None,
+            mapping_speed_n_dets=None,
             *args, **kwargs):
         super().__init__(name=f'{array_name}_loading', *args, **kwargs)
         self._inputs = ('alt', )
@@ -686,7 +689,23 @@ class ToltecArrayPowerLoadingModel(Model):
         if det_noise_factor is None:
             # this is to re-define det_noise_factor to linear unit
             det_noise_factor = 0.334 ** 0.5
+
         self._internal_params['det_noise_factor'] = det_noise_factor 
+
+        if mapping_speed_alt is None:
+            mapping_speed_alt = 70. << u.deg
+        if mapping_speed_n_dets is None:
+            mapping_speed_n_dets = 7000
+        # calculate ms_value without scaling first
+        self._internal_params['global_noise_factor'] = 1.
+        ms_value = self.get_mapping_speed(alt=mapping_speed_alt, n_dets=mapping_speed_n_dets)
+        self.logger.debug(f"internal default unscaled mapping speed: {ms_value} at alt={mapping_speed_alt} n_dets={mapping_speed_n_dets}")
+        if mapping_speed is None:
+            pass
+        else:
+            global_noise_factor = (ms_value / mapping_speed) ** 0.5
+            self.logger.info(f"use {global_noise_factor=} for target mapping speed {mapping_speed}")
+            self._internal_params['global_noise_factor'] = global_noise_factor 
         self.logger.debug(f"power loading model internal parameters:\n{pformat_yaml(self._internal_params)}")
 
     @property
@@ -985,6 +1004,8 @@ class ToltecArrayPowerLoadingModel(Model):
         # detector noise factor coefficient
         det_noise_coeff = np.sqrt(
                 1. + self._internal_params['det_noise_factor'] ** 2)
+        # scale it further by global noise factor
+        det_noise_coeff = self._internal_params["global_noise_factor"] * det_noise_coeff
 
         dnep = dnep_phot * det_noise_coeff
 
@@ -1146,6 +1167,9 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
             atm_cache_dir=None,
             tel_surface_rms=None,
             det_noise_factor=None,
+            mapping_speed=None,
+            mapping_speed_alt=None,
+            mapping_speed_n_dets=None,
             ):
         if atm_model_name is None or atm_model_name == 'toast':
             # this will disable the atm component in the power loading model
@@ -1153,17 +1177,28 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
             _atm_model_name = None
         else:
             _atm_model_name = atm_model_name
+
         if isinstance(det_noise_factor, dict):
             if not set(det_noise_factor.keys()) == set(self.array_names):
                 raise ValueError("invalid det noise factor.")
         else:
             det_noise_factor = {array_name: det_noise_factor for array_name in self.array_names}
+
+        if isinstance(mapping_speed, dict):
+            if not set(mapping_speed.keys()) == set(self.array_names):
+                raise ValueError("invalid mapping speed.")
+        else:
+            mapping_speed = {array_name: mapping_speed for array_name in self.array_names}
+
         self._array_power_loading_models = {
             array_name: ToltecArrayPowerLoadingModel(
                 array_name=array_name,
                 atm_model_name=_atm_model_name,
                 tel_surface_rms=tel_surface_rms,
                 det_noise_factor=det_noise_factor[array_name],
+                mapping_speed=mapping_speed[array_name],
+                mapping_speed_alt=mapping_speed_alt,
+                mapping_speed_n_dets=mapping_speed_n_dets,
                 )
             for array_name in self.array_names
             }
