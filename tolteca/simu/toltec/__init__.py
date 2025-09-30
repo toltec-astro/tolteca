@@ -129,15 +129,15 @@ class ToltecPowerLoadingModelConfig(DataclassNamespace):
                 description="The target mapping speed to scale noise for.",
             ): Or(None, dict),
             Optional(
+                "mapping_speed_n_dets",
+                default=None,
+                description="The num of detectors used where mapping speed is calculated per array.",
+            ): Or(None, dict),
+            Optional(
                 "mapping_speed_alt",
                 default=None,
                 description="The altitude where mapping speed is calculated.",
             ): Or(None, PhysicalTypeSchema("angle")),
-            Optional(
-                "mapping_speed_n_dets",
-                default=None,
-                description="The num of detectors used where mapping speed is calculated.",
-            ): Or(None, int),
             Optional(
                 "atm_model_params",
                 default=None,

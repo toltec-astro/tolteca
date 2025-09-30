@@ -1002,10 +1002,11 @@ class ToltecArrayPowerLoadingModel(Model):
         dnep_phot = self._T_to_dnep(T_det)
 
         # detector noise factor coefficient
-        det_noise_coeff = np.sqrt(
+        _det_noise_coeff = np.sqrt(
                 1. + self._internal_params['det_noise_factor'] ** 2)
         # scale it further by global noise factor
-        det_noise_coeff = self._internal_params["global_noise_factor"] * det_noise_coeff
+        det_noise_coeff = self._internal_params["global_noise_factor"] * _det_noise_coeff
+        self.logger.debug(f"scale det noise coeff {_det_noise_coeff} -> {det_noise_coeff}")
 
         dnep = dnep_phot * det_noise_coeff
 
@@ -1190,6 +1191,12 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
         else:
             mapping_speed = {array_name: mapping_speed for array_name in self.array_names}
 
+        if isinstance(mapping_speed_n_dets, dict):
+            if not set(mapping_speed_n_dets.keys()) == set(self.array_names):
+                raise ValueError("invalid mapping speed.")
+        else:
+            mapping_speed_n_dets = {array_name: mapping_speed_n_dets for array_name in self.array_names}
+
         self._array_power_loading_models = {
             array_name: ToltecArrayPowerLoadingModel(
                 array_name=array_name,
@@ -1197,8 +1204,8 @@ class ToltecPowerLoadingModel(PowerLoadingModel):
                 tel_surface_rms=tel_surface_rms,
                 det_noise_factor=det_noise_factor[array_name],
                 mapping_speed=mapping_speed[array_name],
+                mapping_speed_n_dets=mapping_speed_n_dets[array_name],
                 mapping_speed_alt=mapping_speed_alt,
-                mapping_speed_n_dets=mapping_speed_n_dets,
                 )
             for array_name in self.array_names
             }
