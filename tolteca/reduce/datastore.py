@@ -60,6 +60,12 @@ class LocalFileDataStore(DataclassNamespace, DataLoaderRegistryMixin):
             description='The expression to select data to load.'
             ):
         str,
+        Optional(
+            'select_by_metadata',
+            default=None,
+            description='The expression to further select data by loaded metadata.'
+            ):
+        str,
         })
 
     _data_loader_registry = Registry.create()
