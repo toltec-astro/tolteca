@@ -1052,6 +1052,9 @@ class ToltecArrayPowerLoadingModel(Model):
     def get_mapping_speed(self, alt, n_dets):
 
         sens = self._get_noise(alt, return_avg=True)
+        self.logger.debug(
+            f"sensitivity summary:\n{pformat_yaml(sens)}"
+            )
         array_name = self._array_name
         a_stddev = toltec_info[array_name]['a_fwhm'] / GAUSSIAN_SIGMA_TO_FWHM
         b_stddev = toltec_info[array_name]['b_fwhm'] / GAUSSIAN_SIGMA_TO_FWHM
