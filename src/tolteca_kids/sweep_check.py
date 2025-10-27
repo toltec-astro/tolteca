@@ -22,14 +22,15 @@ from tolteca_kidsproc.kidsdata.sweep import D21Analysis
 
 from .pipeline import Step, StepConfig, StepContext
 from .plot import PlotConfig, PlotMixin
+from .roach_tone_power import RoachTonePower
 
 __all__ = [
-    "SweepBitMask",
     "DespikeMethod",
-    "SweepCheckConfig",
-    "SweepCheckData",
-    "SweepCheckContext",
+    "SweepBitMask",
     "SweepCheck",
+    "SweepCheckConfig",
+    "SweepCheckContext",
+    "SweepCheckData",
 ]
 
 
@@ -66,6 +67,18 @@ class SweepBitMask(IntFlag):
 
     baseline = auto()
     """Data point idenfieid as baseline."""
+
+    tone_amp_zero = auto()
+    """Tone amplitude is zero."""
+
+    tone_amp_one = auto()
+    """Tone amplitude is one."""
+
+    tone_power_low = auto()
+    """Tone driving power low."""
+
+    tone_power_high = auto()
+    """Tone driving power high."""
 
 
 DespikeMethod = Literal["interp_linear",]
@@ -119,6 +132,14 @@ class SweepCheckConfig(StepConfig):
     chan_rms_db_max: float = Field(
         default=0.1,
         description="Channel data RMS higher than this is flagged.",
+    )
+    chan_tone_power_dbm_min: float = Field(
+        default=-np.inf,
+        description="Channel tone power lower than this is flagged.",
+    )
+    chan_tone_power_dbm_max: float = Field(
+        default=np.inf,
+        description="Channel tone power higher than this is flagged.",
     )
 
     # chunk stats
@@ -208,6 +229,8 @@ class SweepCheckData:
     chan_rms_mean: npt.NDArray = ...
     chan_rms_std: npt.NDArray = ...
 
+    roach_tone_power: RoachTonePower = ...
+
     chunk_rms_mean: npt.NDArray = ...
     chunk_rms_std: npt.NDArray = ...
 
@@ -237,7 +260,7 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
     def run(cls, data: MultiSweep, context):  # noqa: C901, PLR0915
         """Run sweep check."""
         swp = data
-        cfg = context.config
+        cfg: SweepCheckConfig = context.config
         ctd = context.data
         y = swp.aS21_db
         mask_spike, ctx_spike = cls.find_spike(
@@ -301,6 +324,10 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
         ctd.chan_rms_std = np.nanstd(y_rms_no_spike, axis=1)
         ctd.swp_rms_med = np.median(chan_rms_mean)
         ctd.swp_rms_rms = mad_std(chan_rms_mean)
+
+        # roach tone power
+        rtp = ctd.roach_tone_power = RoachTonePower.from_kidsdata(swp)
+        logger.debug(rtp.pformat())
 
         with timeit("calc chunk statistics"):
             # chunking
@@ -367,6 +394,12 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
             | (chan_level > cfg.chan_level_db_max) * SweepBitMask.level_high
             | (chan_rms_mean < cfg.chan_rms_db_min) * SweepBitMask.rms_low
             | (chan_rms_mean > cfg.chan_rms_db_max) * SweepBitMask.rms_high
+            # | (tone_amps <= 0.) * SweepBitMask.tone_amp_zero
+            # | (tone_amps >= 1.) * SweepBitMask.tone_amp_one
+            # | (tone_powers_dbm < cfg.chan_tone_power_dbm_min)
+            #  * SweepBitMask.tone_power_low
+            # | (tone_powers_dbm > cfg.chan_tone_power_dbm_max)
+            #  * SweepBitMask.tone_power_high
             | (np.sum(mask_spike, axis=-1) > 0) * SweepBitMask.spike
         )
         # chunk bitmask
@@ -378,6 +411,10 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
                     & SweepBitMask.range_large
                     & SweepBitMask.level_low
                     & SweepBitMask.level_high
+                    & SweepBitMask.tone_amp_zero
+                    & SweepBitMask.tone_amp_one
+                    & SweepBitMask.tone_power_low
+                    & SweepBitMask.tone_power_high
                 )
             )
             | mask_chunk_rms_low * SweepBitMask.rms_low
@@ -388,8 +425,8 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
         # spike mask
         for i, s in enumerate(chunk_slices):
             bitmask_chunk[:, i] |= (
-                np.sum(mask_spike[:, s], axis=-1) * SweepBitMask.spike
-            )
+                np.sum(mask_spike[:, s], axis=-1) > 0
+            ) * SweepBitMask.spike
         # baseline mask
         mask_chunk_baseline = ctd.mask_chunk_baseline = (
             bitmask_chunk & cfg.not_baseline_chunk_bits == 0
@@ -616,6 +653,7 @@ class SweepCheckPlotData:
     S21_f: go.Figure = ...
     S21_f_grid: go.Figure = ...
     I_Q_grid: go.Figure = ...
+    roach_tone_power: go.Figure = ...
 
 
 class SweepCheckPlotContext(StepContext["SweepCheckPlot", SweepCheckPlotConfig]):
@@ -655,13 +693,17 @@ class SweepCheckPlot(PlotMixin, Step[SweepCheckPlotConfig, SweepCheckPlotContext
             row_height=0.5,
         )
 
-        tone_amp = swp.meta["chan_axis_data"]["amp_tone"]
-        tone_amp_db = 20 * np.log10(tone_amp.max() / tone_amp)
+        # tone_amp = swp.meta["chan_axis_data"]["amp_tone"]
+        # tone_amp_db = 20 * np.log10(tone_amp.max() / tone_amp)
+        # tone_amps = ctd0.tone_amps
+        tone_amps_db = ctd0.roach_tone_power.tone_amps_db
+        tone_power_dbm = ctd0.roach_tone_power.predicted_per_tone.drive_atten.output_dbm
         chan_data_items = [
             ("Channel Level", ctd0.chan_level, {}),
             ("Channel Range", ctd0.chan_range, {}),
             ("Channel RMS", ctd0.chan_rms_mean, {}),
-            ("Drive Atten", tone_amp_db, {}),
+            ("Drive Atten", tone_amps_db, {}),
+            ("Drive Power (dbm)", tone_power_dbm, {}),
         ]
         row0 = grid.shape[0] + 1
         for i, (name, value, trace_kw) in enumerate(chan_data_items):
@@ -738,6 +780,7 @@ class SweepCheckPlot(PlotMixin, Step[SweepCheckPlotConfig, SweepCheckPlotContext
             n_chans_per_panel,
             **subplot_kw,
         )
+        ctd1.roach_tone_power = ctd0.roach_tone_power.make_plotly_figure()
         cls.save_or_show(data, context)
         return True
 

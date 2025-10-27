@@ -73,6 +73,7 @@ _nc_node_mapper_defs = {
             "cal_obsnum": "Header.Toltec.TargSweepObsNum",
             "cal_subobsnum": "Header.Toltec.TargSweepSubObsNum",
             "cal_scannum": "Header.Toltec.TargSweepScanNum",
+            "adc_snap": "Header.Toltec.AdcSnapData",
         },
         ToltecDataKind.RawKidsData: {
             "n_kids_design": "loclen",
@@ -892,6 +893,8 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             sweep_axis_data = s["sweep_axis_data"]
             b0 = s["sample_slice"].start  # this is the ref index
             for k in ("I", "Q"):
+                # save the raw I Q in meta
+                # meta[f"{k}_raw"] = data[k]
                 a = np.full(
                     (len(s["chan_axis_data"]), len(sweep_axis_data)),
                     np.nan,
