@@ -129,6 +129,7 @@ lint.ignore = [
   "TD003",
   "FIX002", # TODO
   "TC003",  # standard lib typing import
+  "PLW3301", # nested max
 ]
 
 [tool.ruff.lint.per-file-ignores]
