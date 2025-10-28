@@ -299,7 +299,10 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             if k & data_kind:
                 # read all entries in mapper
                 for kk in m.nc_node_map:
-                    meta[kk] = m.get_value(kk)
+                    v = m.get_value(kk)
+                    if isinstance(v, netCDF4.Variable):
+                        v = v[:]  # make sure we get data from variable
+                    meta[kk] = v
 
         # update meta using the per type registered updater.
         for k, _meta_updater in self._meta_updaters.items():
