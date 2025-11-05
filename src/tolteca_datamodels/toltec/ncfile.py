@@ -897,7 +897,7 @@ class NcFileIO(ToltecFileIO, _NcFileIOKidsDataAxisSlicerMixin):
             b0 = s["sample_slice"].start  # this is the ref index
             for k in ("I", "Q"):
                 # save the raw I Q in meta
-                # meta[f"{k}_raw"] = data[k]
+                meta[f"{k}_raw"] = data[k]
                 a = np.full(
                     (len(s["chan_axis_data"]), len(sweep_axis_data)),
                     np.nan,

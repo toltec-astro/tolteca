@@ -12,6 +12,7 @@ from astropy.stats import mad_std
 from numpy.lib.stride_tricks import sliding_window_view
 from pydantic import ConfigDict, Field
 from scipy.ndimage import binary_erosion, median_filter
+from tollan.config.types import FrequencyQuantityField
 from tollan.utils.fmt import BitmaskStats, pformat_mask
 from tollan.utils.general import rupdate
 from tollan.utils.log import logger, timeit
@@ -179,6 +180,21 @@ class SweepCheckConfig(StepConfig):
         description="D21 analysis paremters.",
     )
 
+    noise_psd: bool = Field(
+        default=False,
+        description="Calculate noise PSD.",
+    )
+    noise_psd_nperseg: int = Field(
+        default=512,
+        description="nperseg for noise PDF calculation.",
+    )
+    chan_noise_psd_f_lims: tuple[FrequencyQuantityField, FrequencyQuantityField] = (
+        Field(
+            default=(5 << u.Hz, 20 << u.Hz),
+            description="The range to calculate channel PSD noise.",
+        )
+    )
+
 
 @dataclass(kw_only=True)
 class SweepCheckData:
@@ -239,6 +255,20 @@ class SweepCheckData:
 
     swp_rms_med: float = ...
     swp_rms_rms: float = ...
+
+    # psd
+    f_psd: None | npt.NDArray = None
+    f_psd_mask: None | npt.NDArray = None
+    I_psd: None | npt.NDArray = None
+    Q_psd: None | npt.NDArray = None
+    Sphi: None | npt.NDArray = None
+
+    chan_I_psd_med: None | npt.NDArray = None
+    chan_I_psd_mad_std: None | npt.NDArray = None
+    chan_Q_psd_med: None | npt.NDArray = None
+    chan_Q_psd_mad_std: None | npt.NDArray = None
+    chan_Sphi_med: None | npt.NDArray = None
+    chan_Sphi_mad_std: None | npt.NDArray = None
 
 
 class SweepCheckContext(StepContext["SweepCheck", SweepCheckConfig]):
@@ -574,6 +604,44 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
             d21_detrended_value[d21_data.value == 0] = 0
             ctd.d21_detrended = d21_detrended_value << d21_unified.unit
 
+        if cfg.noise_psd:
+            with timeit("calc noise psd"):
+                assert swp.meta is not None
+                I_raw = swp.meta["I_raw"]
+                Q_raw = swp.meta["Q_raw"]
+                fsmp = swp.meta["fsmp"]
+                nperseg = cfg.noise_psd_nperseg
+                from scipy.signal import welch
+
+                f_psd, I_psd = welch(I_raw, fs=fsmp, nperseg=nperseg, axis=-1)
+                logger.debug(f"psd_freq shape: {f_psd.shape} psd shape: {I_psd.shape}")
+                logger.debug(
+                    f"psd_freq range: {f_psd[0]}-{f_psd[-1]} Hz"
+                    f" step={f_psd[1]-f_psd[0]} Hz",
+                )
+                _, Q_psd = welch(Q_raw, fs=fsmp, nperseg=nperseg, axis=-1)
+                Sphi = (I_psd + Q_psd) / np.mean(I_raw**2 + Q_raw**2, axis=-1)[:, None]
+                f_psd_mask = (f_psd >= cfg.chan_noise_psd_f_lims[0].to_value(u.Hz)) & (
+                    f_psd <= cfg.chan_noise_psd_f_lims[1].to_value(u.Hz)
+                )
+                logger.debug(f"psd f_mask: {pformat_mask(f_psd_mask)}")
+                chan_I_psd_med = np.median(I_psd[:, f_psd_mask], axis=-1)
+                chan_I_psd_mad_std = mad_std(I_psd[:, f_psd_mask], axis=-1)
+                chan_Q_psd_med = np.median(Q_psd[:, f_psd_mask], axis=-1)
+                chan_Q_psd_mad_std = mad_std(Q_psd[:, f_psd_mask], axis=-1)
+                chan_Sphi_med = np.median(Sphi[:, f_psd_mask], axis=-1)
+                chan_Sphi_mad_std = mad_std(Sphi[:, f_psd_mask], axis=-1)
+                ctd.f_psd = f_psd
+                ctd.f_psd_mask = f_psd_mask
+                ctd.I_psd = I_psd
+                ctd.Q_psd = Q_psd
+                ctd.Sphi = Sphi
+                ctd.chan_I_psd_med = chan_I_psd_med
+                ctd.chan_I_psd_mad_std = chan_I_psd_mad_std
+                ctd.chan_Q_psd_med = chan_Q_psd_med
+                ctd.chan_Q_psd_mad_std = chan_Q_psd_mad_std
+                ctd.chan_Sphi_med = chan_Sphi_med
+                ctd.chan_Sphi_mad_std = chan_Sphi_mad_std
         return True
 
     @staticmethod
@@ -654,6 +722,7 @@ class SweepCheckPlotData:
     S21_f_grid: go.Figure = ...
     I_Q_grid: go.Figure = ...
     roach_tone_power: go.Figure = ...
+    noise_psd: go.Figure = ...
 
 
 class SweepCheckPlotContext(StepContext["SweepCheckPlot", SweepCheckPlotConfig]):
@@ -740,6 +809,15 @@ class SweepCheckPlot(PlotMixin, Step[SweepCheckPlotConfig, SweepCheckPlotContext
                 row_height=1 / len(chunk_data_items),
             )
 
+        # Add channel frequency plot at the end
+        fig_f_chan = cls.make_tone_freq_figure(swp, marker_color="blue")
+        grid.add_subplot(
+            row=grid.shape[0] + 1,
+            col=1,
+            fig=fig_f_chan,
+            row_height=0.5,
+        )
+
         fig = ctd1.chan_summary = grid.make_figure(
             shared_xaxes="all",
             vertical_spacing=40 / 1400,
@@ -781,6 +859,7 @@ class SweepCheckPlot(PlotMixin, Step[SweepCheckPlotConfig, SweepCheckPlotContext
             **subplot_kw,
         )
         ctd1.roach_tone_power = ctd0.roach_tone_power.make_plotly_figure()
+        ctd1.noise_psd = cls.make_noise_psd_figure(data, ctx0)
         cls.save_or_show(data, context)
         return True
 
@@ -1327,3 +1406,250 @@ class SweepCheckPlot(PlotMixin, Step[SweepCheckPlotConfig, SweepCheckPlotContext
             make_panel_func=_make_iq_panel,
             **kwargs,
         )
+
+    @classmethod
+    def make_tone_freq_figure(cls, swp: MultiSweep, chan_ids=None, marker_color="blue"):
+        """Create a tone frequency scatter plot.
+
+        Parameters
+        ----------
+        swp : MultiSweep
+            MultiSweep object containing tone frequency data in meta.
+        chan_ids : array-like, optional
+            Channel IDs for x-axis. If None, uses np.arange(swp.n_chans).
+        marker_color : str, optional
+            Color for markers. Default is "blue".
+
+        Returns
+        -------
+        fig : go.Figure
+            Plotly figure with tone frequency plot.
+        """
+        f_chan = swp.meta["chan_axis_data"]["f_chan"]
+
+        if chan_ids is None:
+            chan_ids = np.arange(swp.n_chans)
+
+        fig = cls.make_subplots(1, 1)
+        fig.add_scatter(
+            x=chan_ids,
+            y=f_chan.to_value(u.MHz)[chan_ids],
+            mode="markers",
+            marker={"size": 4, "color": marker_color},
+            name="Chan Freq",
+            row=1,
+            col=1,
+        )
+        fig.update_yaxes(title={"text": "Chan Frequency (MHz)"}, row=1, col=1)
+        fig.update_xaxes(title={"text": "Channel ID"}, row=1, col=1)
+        return fig
+
+    @classmethod
+    def make_noise_psd_figure(cls, data: MultiSweep, context: SweepCheckContext):
+        ctx0 = context
+        ctd0 = ctx0.data
+
+        # Get channel IDs
+        n_chans = data.n_chans
+        chan_ids = np.arange(n_chans)
+
+        # Use grid utility similar to run function
+        grid = cls.make_subplot_grid()
+
+        # ========== Panel 1: I PSD Waterfall ==========
+        fig_i_waterfall = cls.make_subplots(1, 1)
+        fig_i_waterfall.add_heatmap(
+            x=chan_ids,
+            y=ctd0.f_psd,
+            z=np.log10(
+                ctd0.I_psd.T,
+            ),  # Log scale and transpose to get (n_f_psd, n_chans)
+            colorscale="Viridis",
+            name="I PSD",
+            colorbar={"title": "log10(I PSD)"},
+            row=1,
+            col=1,
+        )
+        fig_i_waterfall.update_yaxes(title={"text": "Frequency (Hz)"}, row=1, col=1)
+        fig_i_waterfall.update_xaxes(title={"text": "Channel ID"}, row=1, col=1)
+        grid.add_subplot(
+            row=1,
+            col=1,
+            fig=fig_i_waterfall,
+            row_height=1,
+        )
+
+        # ========== Panel 2: I PSD per-channel med/mad_std ==========
+        fig_i_chan = cls.make_subplots(1, 1)
+        fig_i_chan.add_scatter(
+            x=chan_ids,
+            y=ctd0.chan_I_psd_med,
+            error_y={
+                "type": "data",
+                "array": ctd0.chan_I_psd_mad_std,
+                "width": 0,
+                "color": "gray",
+            },
+            mode="markers",
+            marker={"size": 4, "color": "blue"},
+            name="I PSD Med",
+            row=1,
+            col=1,
+        )
+        fig_i_chan.update_yaxes(
+            title={"text": "I PSD (adu^2/Hz)"},
+            type="log",
+            row=1,
+            col=1,
+        )
+        fig_i_chan.update_xaxes(title={"text": "Channel ID"}, row=1, col=1)
+        grid.add_subplot(
+            row=2,
+            col=1,
+            fig=fig_i_chan,
+            row_height=0.5,
+        )
+
+        # ========== Panel 3: Q PSD Waterfall ==========
+        fig_q_waterfall = cls.make_subplots(1, 1)
+        fig_q_waterfall.add_heatmap(
+            x=chan_ids,
+            y=ctd0.f_psd,
+            z=np.log10(
+                ctd0.Q_psd.T,
+            ),  # Log scale and transpose to get (n_f_psd, n_chans)
+            colorscale="Viridis",
+            name="Q PSD",
+            colorbar={"title": "log10(Q PSD)"},
+            row=1,
+            col=1,
+        )
+        fig_q_waterfall.update_yaxes(title={"text": "Frequency (Hz)"}, row=1, col=1)
+        fig_q_waterfall.update_xaxes(title={"text": "Channel ID"}, row=1, col=1)
+        grid.add_subplot(
+            row=3,
+            col=1,
+            fig=fig_q_waterfall,
+            row_height=1,
+        )
+
+        # ========== Panel 4: Q PSD per-channel med/mad_std ==========
+        fig_q_chan = cls.make_subplots(1, 1)
+        fig_q_chan.add_scatter(
+            x=chan_ids,
+            y=ctd0.chan_Q_psd_med,
+            error_y={
+                "type": "data",
+                "array": ctd0.chan_Q_psd_mad_std,
+                "width": 0,
+                "color": "gray",
+            },
+            mode="markers",
+            marker={"size": 4, "color": "green"},
+            name="Q PSD Med",
+            row=1,
+            col=1,
+        )
+        fig_q_chan.update_yaxes(
+            title={"text": "Q PSD (adu^2/Hz)"},
+            type="log",
+            row=1,
+            col=1,
+        )
+        fig_q_chan.update_xaxes(title={"text": "Channel ID"}, row=1, col=1)
+        grid.add_subplot(
+            row=4,
+            col=1,
+            fig=fig_q_chan,
+            row_height=0.5,
+        )
+
+        # ========== Panel 5: Sphi Waterfall ==========
+        fig_sphi_waterfall = cls.make_subplots(1, 1)
+        fig_sphi_waterfall.add_heatmap(
+            x=chan_ids,
+            y=ctd0.f_psd,
+            z=np.log10(
+                ctd0.Sphi.T,
+            ),  # Log scale and transpose to get (n_f_psd, n_chans)
+            colorscale="Viridis",
+            name="Sphi",
+            colorbar={"title": "log10(Sphi)"},
+            row=1,
+            col=1,
+        )
+        fig_sphi_waterfall.update_yaxes(title={"text": "Frequency (Hz)"}, row=1, col=1)
+        fig_sphi_waterfall.update_xaxes(title={"text": "Channel ID"}, row=1, col=1)
+        grid.add_subplot(
+            row=5,
+            col=1,
+            fig=fig_sphi_waterfall,
+            row_height=1,
+        )
+
+        # ========== Panel 6: Sphi per-channel med/mad_std ==========
+        fig_sphi_chan = cls.make_subplots(1, 1)
+        fig_sphi_chan.add_scatter(
+            x=chan_ids,
+            y=ctd0.chan_Sphi_med,
+            error_y={
+                "type": "data",
+                "array": ctd0.chan_Sphi_mad_std,
+                "width": 0,
+                "color": "gray",
+            },
+            mode="markers",
+            marker={"size": 4, "color": "red"},
+            name="Sphi Med",
+            row=1,
+            col=1,
+        )
+        fig_sphi_chan.update_yaxes(
+            title={"text": "Sphi (1/Hz)"},
+            type="log",
+            row=1,
+            col=1,
+        )
+        fig_sphi_chan.update_xaxes(title={"text": "Channel ID"}, row=1, col=1)
+        grid.add_subplot(
+            row=6,
+            col=1,
+            fig=fig_sphi_chan,
+            row_height=0.5,
+        )
+
+        # ========== Panel 7: Channel Frequency ==========
+        fig_f_chan = cls.make_tone_freq_figure(
+            data,
+            chan_ids=chan_ids,
+            marker_color="purple",
+        )
+        grid.add_subplot(
+            row=7,
+            col=1,
+            fig=fig_f_chan,
+            row_height=0.5,
+        )
+
+        # Create the final figure using grid utility
+        fig = grid.make_figure(
+            shared_xaxes="all",
+            vertical_spacing=40 / 1800,
+            fig_layout={
+                "height": 1800,
+                "showlegend": False,
+            },
+        )
+
+        # Add a range slider on the bottom panel
+        fig.update_xaxes(
+            rangeslider={
+                "autorange": True,
+                "range": [0, n_chans],
+                "thickness": 0.05,
+            },
+            row=grid.shape[0],
+            col=1,
+        )
+
+        return fig
