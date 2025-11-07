@@ -859,7 +859,8 @@ class SweepCheckPlot(PlotMixin, Step[SweepCheckPlotConfig, SweepCheckPlotContext
             **subplot_kw,
         )
         ctd1.roach_tone_power = ctd0.roach_tone_power.make_plotly_figure()
-        ctd1.noise_psd = cls.make_noise_psd_figure(data, ctx0)
+        if ctx0.config.noise_psd:
+            ctd1.noise_psd = cls.make_noise_psd_figure(data, ctx0)
         cls.save_or_show(data, context)
         return True
 
