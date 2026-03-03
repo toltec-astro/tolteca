@@ -795,7 +795,12 @@ class TimestreamProjectExecutor(SimuExecutor):
             d['filepath'] for d in input['cal_items']
             if d['type'] == 'array_prop_table'
         ][0])
-        apt_in = Table.read(apt_filepath, format='ascii.ecsv')
+        # Resolve relative paths against the workdir (parent^3 of obs_output_dir:
+        # obs_output_dir = <workdir>/timeproj/timeprojNNN/<obsnum>/)
+        if not apt_filepath.is_absolute():
+            workdir = obs_output_dir.parent.parent.parent
+            apt_filepath = (workdir / apt_filepath).resolve()
+        apt_in = Table.read(str(apt_filepath), format='ascii.ecsv')
 
         apt = Table()
         for c in ['uid', 'array', 'nw', 'fg', 'pg', 'ori', 'loc', 'flag']:
@@ -974,6 +979,13 @@ class TimestreamProjectExecutor(SimuExecutor):
                          ).to_value(u.dimensionless_unscaled)))
                     nw_i1 = nw_i0 + len(t)
 
+                    # Clip to NC file bounds (telescope time may extend slightly
+                    # past the end of the detector data stream)
+                    nw_i1_clipped = min(nw_i1, seg_id_arrays[nw].shape[1])
+                    if nw_i1_clipped <= nw_i0:
+                        continue
+                    t_len = nw_i1_clipped - nw_i0
+
                     # record the first i0 seen (chunks are contiguous)
                     if nw not in t_i0_by_nw:
                         t_i0_by_nw[nw] = nw_i0
@@ -981,12 +993,12 @@ class TimestreamProjectExecutor(SimuExecutor):
                     m_apt = apt['nw'] == nw   # mask within good-detector apt
                     # scatter into the nc-file tone positions
                     tone_indices = apt['kids_tone'][m_apt]
-                    seg_id_arrays[nw][tone_indices, nw_i0:nw_i1] = (
-                        det_seg_ids[m_apt, :])
+                    seg_id_arrays[nw][tone_indices, nw_i0:nw_i1_clipped] = (
+                        det_seg_ids[m_apt, :t_len])
 
-                    n_nonbg = int((det_seg_ids[m_apt, :] > 0).sum())
+                    n_nonbg = int((det_seg_ids[m_apt, :t_len] > 0).sum())
                     self.logger.debug(
-                        f"nw={nw} chunk [{nw_i0}:{nw_i1}] "
+                        f"nw={nw} chunk [{nw_i0}:{nw_i1_clipped}] "
                         f"non-background samples: {n_nonbg}")
 
                 if self._debug_max_chunks > 0 and ci + 1 >= self._debug_max_chunks:
