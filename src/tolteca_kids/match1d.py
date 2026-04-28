@@ -3,19 +3,18 @@ from typing import Any, Literal
 
 import astropy.units as u
 import dtw
-import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import numpy.typing as npt
 from astropy.table import QTable, unique
 from pydantic import Field
 from scipy.signal import correlate
-from tollan.config.types import ImmutableBaseModel
+import plotly.graph_objects as go
+from tollan.config import FrozenBaseModel as ImmutableBaseModel
+from tollan.plot.plotly import adjust_subplot_colorbars, make_subplots
 from tollan.utils.fmt import pformat_mask, pformat_yaml
 from tollan.utils.log import logger, timeit
 from tollan.utils.np import attach_unit, qrange, strip_unit
-from tollan.utils.plot.mpl import move_axes
-from tollan.utils.plot.plotly import adjust_subplot_colorbars, make_subplots
 from typing_extensions import assert_never
 
 
@@ -294,65 +293,27 @@ class Match1DResult:
     # mask_matched: npt.NDArray = ...
     data: dict[str, Any] = ...
 
-    def _plot_dtw_python_mpl(self, ax=None, type="density"):
-        alignment: dtw.DTW = self.data["alignment"]
-        if ax is None:
-            ax = plt.subplots(1, 1)
-        type = {
-            "density": "density",
-            "match": "twoway",
-        }[type]
-        return move_axes(alignment.plot(type=type), ax)
-
-    def _plot_dtw_python_plotly(self, type="density", **kwargs):
-        plot_func = {
-            "density": self._plot_dtw_python_density_plotly,
-            "match": self._plot_dtw_python_match_plotly,
-        }[type]
-        return plot_func(**kwargs)
-
     def _plot_dtw_python_density_plotly(
         self,
-        fig=None,
-        panel_kw=None,
-        label_query=None,
-        label_ref=None,
+        fig: go.Figure | None = None,
+        panel_kw: dict | None = None,
+        label_query: str | None = None,
+        label_ref: str | None = None,
         **_kwargs,
-    ):
+    ) -> go.Figure:
         alignment: dtw.DTW = self.data["alignment"]
-        # idx_ref = self.data["idx_ref"]
-        # idx_query = self.data["idx_query"]
-        cm = alignment.costMatrix
-
         fig = fig or make_subplots(1, 1)
         panel_kw = panel_kw or {}
-        z = cm.T
-        fig.add_heatmap(
-            z=z,
-            # x=np.arange(z.shape[1])[idx_query],
-            # y=np.arange(z.shape[0])[idx_ref],
-            colorscale="rdylgn_r",
-            **panel_kw,
-        )
-        fig.update_xaxes(
-            title=label_query or "Query Id",
-            **panel_kw,
-        )
-        fig.update_yaxes(
-            title=label_ref or "ref Id",
-            **panel_kw,
-        )
+        z = alignment.costMatrix.T
+        fig.add_heatmap(z=z, colorscale="rdylgn_r", **panel_kw)
+        fig.update_xaxes(title=label_query or "Query Id", **panel_kw)
+        fig.update_yaxes(title=label_ref or "Ref Id", **panel_kw)
         fig.add_scatter(
             x=alignment.index1,
             y=alignment.index2,
             mode="markers+lines",
-            marker={
-                "size": 4,
-                "color": "black",
-            },
-            line={
-                "color": "gray",
-            },
+            marker={"size": 4, "color": "black"},
+            line={"color": "gray"},
             showlegend=False,
             **panel_kw,
         )
@@ -361,16 +322,15 @@ class Match1DResult:
 
     def _plot_dtw_python_match_plotly(
         self,
-        fig=None,
-        panel_kw=None,
-        label_query=None,
-        label_ref=None,
-        label_value=None,
+        fig: go.Figure | None = None,
+        panel_kw: dict | None = None,
+        label_query: str | None = None,
+        label_ref: str | None = None,
+        label_value: str | None = None,
         **_kwargs,
-    ):
+    ) -> go.Figure:
         fig = fig or make_subplots(1, 1)
         panel_kw = panel_kw or {}
-
         matched = self.matched
         query_sorted_value, data_unit = strip_unit(self.data["query_sorted"])
         ref_sorted_value, _ = strip_unit(self.data["ref_sorted"])
@@ -378,69 +338,59 @@ class Match1DResult:
         n_query = len(query_sorted_value)
         y_ref = np.ones((n_ref,))
         y_query = np.ones((n_query,)) + 1
-
         fig.add_scatter(
-            x=query_sorted_value,
-            y=y_query,
-            mode="markers",
-            marker={
-                "size": 4,
-                "color": "blue",
-            },
-            showlegend=False,
-            **panel_kw,
+            x=query_sorted_value, y=y_query,
+            mode="markers", marker={"size": 4, "color": "blue"},
+            showlegend=False, **panel_kw,
         )
         fig.add_scatter(
-            x=ref_sorted_value,
-            y=y_ref,
-            mode="markers",
-            marker={
-                "size": 4,
-                "color": "black",
-            },
-            showlegend=False,
-            **panel_kw,
+            x=ref_sorted_value, y=y_ref,
+            mode="markers", marker={"size": 4, "color": "black"},
+            showlegend=False, **panel_kw,
         )
-
-        # plot match
+        # Batch all match lines into one trace (None separators) for speed
+        x_lines: list = []
+        y_lines: list = []
         for i in range(len(matched)):
-            fig.add_scatter(
-                x=[
-                    query_sorted_value[matched["isort_query"][i]],
-                    ref_sorted_value[matched["isort_ref"][i]],
-                ],
-                y=[
-                    y_query[matched["isort_query"][i]],
-                    y_ref[matched["idx_ref"][i]],
-                ],
-                mode="lines",
-                line={
-                    "color": "red",
-                    "width": 1,
-                },
-                **panel_kw,
-            )
-        fig.update_xaxes(
-            title=label_value or f"Value ({data_unit})",
+            x_lines += [
+                query_sorted_value[matched["isort_query"][i]],
+                ref_sorted_value[matched["isort_ref"][i]],
+                None,
+            ]
+            y_lines += [
+                float(y_query[matched["isort_query"][i]]),
+                float(y_ref[matched["idx_ref"][i]]),
+                None,
+            ]
+        fig.add_scatter(
+            x=x_lines, y=y_lines,
+            mode="lines",
+            line={"color": "red", "width": 1},
+            showlegend=False,
             **panel_kw,
         )
+        fig.update_xaxes(title=label_value or f"Value ({data_unit})", **panel_kw)
         fig.update_yaxes(
             tickvals=[1, 2],
             ticktext=[label_ref or "ref", label_query or "query"],
-            autorange=False,
-            range=[0, 3],
+            autorange=False, range=[0, 3],
             **panel_kw,
         )
         return fig
 
-    def make_mpl_fig(self, **kwargs):
-        """Return matplotlib figure."""
-        if self.config.method == "dtw_python":
-            return self._plot_dtw_python_mpl(**kwargs)
-        assert_never()
+    def _plot_dtw_python_plotly(self, type="density", **kwargs) -> go.Figure:
+        if type == "density":
+            return self._plot_dtw_python_density_plotly(**kwargs)
+        if type == "match":
+            return self._plot_dtw_python_match_plotly(**kwargs)
+        raise ValueError(f"Unknown plot type: {type!r}")
 
-    def make_plotly_fig(self, **kwargs):
-        """Return plotly figure."""
+    def make_mpl_fig(self, **kwargs):
+        """Return matplotlib figure (not implemented in v3)."""
+        raise NotImplementedError
+
+    def make_plotly_fig(self, **kwargs) -> go.Figure:
+        """Return plotly figure for the matching result."""
         if self.config.method == "dtw_python":
             return self._plot_dtw_python_plotly(**kwargs)
-        assert_never()
+        assert_never(self.config.method)

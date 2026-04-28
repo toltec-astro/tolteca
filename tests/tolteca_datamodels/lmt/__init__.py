@@ -1,0 +1,1 @@
+"""LMT data model tests."""

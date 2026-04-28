@@ -1,41 +1,91 @@
-
-[project.urls]
-homepage = "https://github.com/toltec-astro/tolteca"
-documentation = "https://tolteca.readthedocs.io/"
-repository = "https://github.com/toltec-astro/tolteca"
-changelog = "https://github.com/toltec-astro/tolteca/blob/main/CHANGELOG.md"
-
 [project]
 name = "tolteca"
-description = "A package for analyzing TolTEC data."
-readme = "README.md"
-requires-python = ">=3.10"
 dynamic = ["version"]
-license = { file = "LICENSE" }
-keywords = ["tolteca"]
-authors = [{ name = "Zhiyuan Ma", email = "zhiyuanma@umass.edu" }]
+description = "TolTEC all-in-one"
+readme = "README.md"
+authors = [
+  { name = "Zhiyuan Ma", email = "zhiyuanma@umass.edu" },
+]
+maintainers = [
+  { name = "Zhiyuan Ma", email = "zhiyuanma@umass.edu" },
+]
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+requires-python = ">= 3.13"
 classifiers = [
-  'Development Status :: 2 - Pre-Alpha',
-  'Intended Audience :: Developers',
-  'Natural Language :: English',
-  'License :: OSI Approved :: BSD License',
-  'Programming Language :: Python :: 3',
-  'Programming Language :: Python :: 3.10',
-  'Programming Language :: Python :: 3.11',
+  "Typing :: Typed",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: Implementation :: CPython",
+]
+dependencies = [
+  "typer",
+  "pydantic>=2.0",
+  "astropy",
+  "xarray>=2024.0",
+  "pandas>=2.0",
+  "netcdf4",
+  "dask[array]",
+  "scipy>=1.10.0",
+  "dtw-python",
+  "networkx",
+  "dill",
+  "tollan",
 ]
 
-dependencies = [
-  "astropy",
-  "scipy",
-  "appdirs",
-  "dill",
-  "dtw-python",
-  "strenum",
-  "networkx",
+[tool.uv.sources]
+tollan = { workspace = true }
+
+[dependency-groups]
+test = [
+  "pytest",
+  "pytest-doctestplus",
+  "pytest-remotedata",
+  "pytest-benchmark",
+  "coverage",
+  "ruff",
+  "pre-commit",
+  "ty",
 ]
+
+dev = [
+  { include-group = "test" },
+  { include-group = "docs" },
+  "pandas-stubs",
+  "narwhals",
+  "ipdb",
+]
+
+docs = [
+  "myst-parser",
+  "sphinx",
+  "sphinx-astropy[confv2]",
+  "sphinx-copybutton",
+  "sphinx_book_theme",
+  "autodoc_pydantic[erdantic]",
+  "sphinxcontrib-typer",
+  "sphinx-autobuild",
+  "ghp-import",
+]
+
+[project.urls]
+bugs = "https://github.com/toltec-astro/tolteca/issues"
+changelog = "https://github.com/toltec-astro/tolteca/releases"
+documentation = "https://toltec-astro.github.io/tolteca/"
+homepage = "https://github.com/toltec-astro/tolteca"
 
 [project.scripts]
-tolteca = "tolteca_config.cli:app"
+tolteca = "tolteca.cli:app"
+
+[build-system]
+requires = ["setuptools>=80", "setuptools_scm>=8"]
+build-backend = 'setuptools.build_meta'
+
+[tool.setuptools]
+include-package-data = true
 
 [tool.setuptools.package-data]
 "*" = [
@@ -47,100 +97,185 @@ tolteca = "tolteca_config.cli:app"
   "data/*/*/*/*/*/*",
 ]
 
-[build-system]
-requires = ["setuptools", "setuptools_scm[toml]>=6.2", "wheel"]
-build-backend = 'setuptools.build_meta'
-
-[tool.setuptools_scm]
-write_to = "src/tolteca_config/_version.py"
-
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["tolteca_*"]
+include = ["tolteca", "tolteca_*"]
 namespaces = false
 
-[project.optional-dependencies]
-dev = [
-  "pytest",
-  "pytest-doctestplus",
-  "isort",
-  "black",
-  "ruff",
-  "pre-commit",
-  "sphinx",
-  "myst_parser",
-  "sphinx-book-theme",
-  "sphinx-automodapi",
-]
+[tool.setuptools_scm]
+version_file = "src/tolteca/_version.py"
 
 [tool.pytest.ini_options]
-python_files = ["tests.py", "test_*.py", "*_tests.py"]
-addopts = "--doctest-modules"
+minversion = "9.0"
+testpaths = ["tests", "docs"]
+norecursedirs = [".*", "docs[\\/]_build", "docs[\\/]generated", "examples"]
+doctest_plus = "enabled"
+text_file_format = "rst"
+remote_data_strict = true
+addopts = [
+  "-ra",
+  "--color=yes",
+  "--doctest-rst",
+  "--strict-config",
+  "--strict-markers",
+  "-p no:legacypath",
+  "-p no:cacheprovider",
+]
+log_cli_level = "INFO"
+xfail_strict = "true"
+filterwarnings = [
+  "error",
+  # Ignore numpy binary compatibility warning from netCDF4
+  "ignore:numpy.ndarray size changed:RuntimeWarning",
+  # Zarr v3 consolidated-metadata warning (not part of Zarr v3 spec yet)
+  "ignore:Consolidated metadata is currently not part:UserWarning",
+]
 
-[tool.black]
-line-length = 88
-force-exclude = '''
-^/(
-  (
-    examples
-    |
-    docs
-    |
-    data
-    |
-    src/tolteca_config/_version.py
-  )
-)
-'''
+[tool.ty]
+# All rules are enabled as "error" by default; no need to specify unless overriding.
+# Example override: relax a rule for the entire project (uncomment if needed).
+# rules.TY015 = "warn"  # For invalid-argument-type, warn instead of error.
 
-[tool.isort]
-profile = "black"
-extend_skip_glob = ["docs/*", "src/tolteca_config/_version.py"]
-group_by_package = true
+[tool.ty.src]
+include = ["src", "tests"]
+exclude = [
+  "docs/conf.py",
+  # TODO: pre-existing type errors; fix separately
+  "src/tolteca_kids",
+  "src/tolteca_kidsproc/analysis/d21.py",
+  "tests/tolteca_datamodels/toltec/kids",
+  "tests/tolteca_kids",
+]
 
 [tool.ruff]
 line-length = 88
+exclude = ["src/tolteca/_version.py"]
+lint.future-annotations = true
 lint.select = ["ALL"]
-exclude = ["examples/*", "docs/*", "src/tolteca_config/_version.py"]
 lint.ignore = [
-  "ANN",    # typing
-  "RUF005", # unpack-instead-of-concatenating-to-collection-literal
-  "I001",   # isort does this
-  "S101",   # use of assert
-  "EM",     # exception related
+  # flake8-builtins (A) : shadowing a Python built-in.
+  # New ones should be avoided and is up to maintainers to enforce.
+  "A00",
+  "ARG001", # unused-function-argument
+  "ARG002", # unused-method-argument
+  "ARG003", # unused-class-method-argument
+  "ARG004", # unused-static-method-argument
+  "ARG005", # unused-lambda-argument
+  "SLF001", # private member access
   "TID252", # relative imports
-  "D100",   # module level docstring
-  "D105",   # magic method docs
-  "TRY003", # long message in exception
-  "PGH003", # blanket-type-ignore
-  "FBT001",
-  "FBT002",
-  "FBT003", # boolean traps
-  "A001",
-  "A002",
-  "A003",   # shadowning builtin
-  "ERA001", # commented-out code
-  "G004",   # logging with f-string
-  "N806",   # variable name upper case
-  "N802",   # function name upper case
-  "N803",   # argument upper case
-  "N815",   # class member upper case
-  "TD002",
-  "TD003",
-  "FIX002", # TODO
-  "TC003",  # standard lib typing import
-  "PLW3301", # nested max
+  "ANN401", # using Any type annotation
+  "ANN002", # missing type args
+  "ANN003", # missing type kwargs
+  "D102",   # missing docs in public method
+  "D105",   # missing docs in magic method
+  "TRY003", # f-string in exception
+  "ERA001", # commented out code
+  "FIX002", # todo comments
+  "FIX004", # hack comments
+  "TD002",  # todo missing author
+  "TD003",  # todo missing issue
+  "G004",   # f-string in logging
+  "N806",   # non-lowercase variable name
+  "S101",   # use of assert; needed for narrowing types
+  "PYI051", # redundant union of Literal and str; useful for IDE completion
+  "COM812", # trailing comma (conflicts with ruff formatter)
+  "ISC001", # implicit string concatenation (conflicts with ruff formatter)
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"test_*.py" = ["D", "PLR0915", "PLR2004"]
+"test_*.py" = [
+  "D",       # pydocstyle
+  "ERA001",  # commented out code
+  "PLR2004", # magic value comparison
+  "E721",    # type comparison using type()
+  "PT011",   # pytest-raises-too-broad
+  "PT018",   # pytest-composite-assertion
+  "RUF043",  # pytest regex
+  "PLC0415", # not top level imports
+  "ANN202",  # missing return type annotation
+  "N802",    # function name should be lowercase
+  "F841",    # local variable assigned but never used
+]
+
+"docs/conf.py" = [
+  "D",      # pydocstyle
+  "ERA001", # commented out code
+  "INP001", # implicit namespace package (docs/ has no __init__.py)
+]
+
+"src/tolteca_kidsproc/accessors/*.py" = [
+  "E741", # ambiguous variable name
+  "E743", # ambiguous method name
+  "N802", # function name should be lowercase
+]
+
+[tool.ruff.lint.flake8-annotations]
+ignore-fully-untyped = true
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = [
+  "pydantic.BaseModel",
+  "sqlalchemy.orm.DeclarativeBase",
+  "tollan.config.FrozenBaseModel",
+]
+runtime-evaluated-decorators = [
+  "pydantic.validate_call",
+  "pydantic.dataclasses.dataclass",
+]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["tollan.accessor.Mapping"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
-property-decorators = ["astropy.utils.decorators.classproperty"]
 
-[tool.ruff.lint.pep8-naming]
-classmethod-decorators = ["classproperty"]
+[tool.coverage.run]
+branch = true
+parallel = true
+source = ["src/tolteca"]
+omit = ["*/tests/*", "*/test_*", "*/_version.py", "*/conftest.py"]
 
-[tool.ruff.lint.pylint]
-max-args = 10
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 50
+exclude_also = [
+  "def __repr__",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+  "@abstractmethod",
+  "@overload",
+  "except.*Error.*:",
+  "except.*Exception.*:",
+]
+
+[tool.repo-review]
+ignore = [
+  "PY007", # ignore task runner
+  "PC111", # ignore blacken-docs
+  "PC140", # ignore type checker
+  "PC180", # ignore markdown formatter
+  "PC901", # ignore custom update message
+  "MY",    # ignore mypy
+  "RTD",   # ignore RTD
+  "SCFG",  # ignore setup.cfg
+  "GH",    # ignore GitHub Actions checks
+]
+
+[tool.codespell]
+ignore-words-list = """
+fo,OT
+"""
+
+[tool.uv]
+package = true
+default-groups = ['dev']
+cache-keys = [
+  { file = "pyproject.toml" },
+  { git = { commit = true, tags = true } },
+]
+
+[tool.cruft]
+skip = [".git"]

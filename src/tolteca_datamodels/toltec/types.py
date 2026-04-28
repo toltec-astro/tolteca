@@ -1,16 +1,19 @@
-from enum import Flag, IntEnum, auto
+"""TolTEC data types."""
+
+from __future__ import annotations
+
+from enum import Flag, StrEnum, auto
 from typing import ClassVar, Literal, get_args
 
 import astropy.units as u
 
 __all__ = [
+    "ToltecArrayNameT",
+    "ToltecArrayType",
     "ToltecDataKind",
-    "DB_RawObsMaster",
-    "DB_RawObsType",
+    "ToltecInfo",
+    "ToltecMasterNameT",
     "ToltecMasterType",
-    "ToltecMaster",
-    "ToltecRoachInterface",
-    "ToltecInterface",
 ]
 
 
@@ -22,7 +25,7 @@ class ToltecDataKind(Flag):
     """A full range sweep on a regular grid."""
 
     TargetSweep = auto()
-    """A targed sweep on a list of frequencies."""
+    """A target sweep on a list of frequencies."""
 
     Tune = auto()
     """A pack of two back-to-back target sweeps to improve the probe tones."""
@@ -89,7 +92,7 @@ class ToltecDataKind(Flag):
     """LMT telescope file"""
 
     LmtTel2 = auto()
-    """Suplementary LMT telescope file with data at their original sample rate."""
+    """Supplementary LMT telescope file with data at their original sample rate."""
 
     HouseKeeping = auto()
     """The house keeping data."""
@@ -105,87 +108,67 @@ class ToltecDataKind(Flag):
     """Unknown data."""
 
 
-class DB_RawObsMaster(IntEnum):  # noqa: N801
-    """The is in line with the ``toltec/master`` table in the toltec db."""
+class ToltecMasterType(StrEnum):
+    """Toltec master types."""
 
-    TCS = 0
+    tcs = auto()
     """The telescope control system."""
 
-    ICS = 1
+    ics = auto()
     """The instrument control system."""
 
-    CLIP = 2
+    clip = auto()
     """The ROACH manager."""
 
-    @classmethod
-    def get_master_name(cls, master):
-        """Return the name of the master."""
-        return DB_RawObsMaster(master).name.lower()
+
+type ToltecMasterNameT = Literal[
+    "tcs",
+    "ics",
+    "clip",
+]
+"""Toltec master names."""
 
 
-class DB_RawObsType(IntEnum):  # noqa: N801
-    """The is in line with the ``toltec/obstype`` table in the toltec db."""
+class ToltecArrayType(StrEnum):
+    """Toltec array types."""
 
-    Nominal = 0
-    """Nominal observation."""
+    a1100 = auto()
+    """The 1.1 mm array."""
 
-    Timestream = 1
-    """Time stream probed at a set of tones."""
+    a1400 = auto()
+    """The 1.4 mm array."""
 
-    VNA = 2
-    """VnaSweep."""
-
-    TARG = 3
-    """TargetSweep."""
-
-    TUNE = 4
-    """TUNE."""
-
-    @classmethod
-    def get_data_kind(cls, raw_obs_type):
-        """Return the data kind for ``raw_obs_type``."""
-        return {
-            0: ToltecDataKind.RawTimeStream,
-            1: ToltecDataKind.RawTimeStream,
-            2: ToltecDataKind.VnaSweep,
-            3: ToltecDataKind.TargetSweep,
-            4: ToltecDataKind.Tune,
-        }.get(raw_obs_type, ToltecDataKind.Unknown)
+    a2000 = auto()
+    """The 2.0 mm array."""
 
 
-ToltecMasterType = Literal["tcs", "ics"]
+type ToltecArrayNameT = Literal[
+    "a1100",
+    "a1400",
+    "a2000",
+]
+"""Toltec array names."""
 
 
-class ToltecMaster:
-    """Toltec master."""
+class ToltecInfo:
+    """Toltec instrument information and constants."""
 
-    masters: ClassVar[list[ToltecMasterType]] = list(get_args(ToltecMasterType))
+    masters: ClassVar[list[ToltecMasterNameT]] = list(get_args(ToltecMasterNameT))
 
-
-class ToltecRoachInterface:
-    """TolTEC roach interface."""
-
+    # roach interfaces
     roaches: ClassVar = list(range(13))
     roach_interface: ClassVar = {roach: f"toltec{roach}" for roach in roaches}
     interface_roach: ClassVar = {v: k for k, v in roach_interface.items()}
-    interfaces: ClassVar = list(roach_interface.values())
+    roach_interfaces: ClassVar = list(roach_interface.values())
 
+    # interfaces
+    interfaces: ClassVar = [*roach_interfaces, "hwpr"]
 
-class ToltecInterface:
-    """TolTEC interface."""
-
-    interfaces: ClassVar = ToltecRoachInterface.interfaces + ["hwpr"]
-
-
-ToltecArrayNameType = Literal["a1100", "a1400", "a2000"]
-
-
-class ToltecArray:
-    """Toltec array."""
-
+    # arrays
     arrays: ClassVar = list(range(3))
-    array_names: ClassVar[list[ToltecArrayNameType]] = ["a1100", "a1400", "a2000"]
-    interface_array_name: ClassVar[dict[str, ToltecArrayNameType]] = {
+    array_names: ClassVar[list[ToltecArrayNameT]] = list(get_args(ToltecArrayNameT))
+
+    interface_array_name: ClassVar[dict[str, ToltecArrayNameT]] = {
         "toltec0": "a1100",
         "toltec1": "a1100",
         "toltec2": "a1100",

@@ -6,8 +6,8 @@ Welcome to tolteca's documentation!
    :caption: Contents:
 
    readme
+   cli
    modules
-   changelog
 
 Indices and tables
 ==================

@@ -3,29 +3,26 @@ from enum import IntFlag, auto
 from typing import Literal
 
 import astropy.units as u
-import dill
 import numpy as np
 import numpy.typing as npt
-import plotly
-import plotly.graph_objects as go
+import xarray as xr
 from astropy.table import Column, QTable, hstack, unique, vstack
 from pydantic import ConfigDict, Field
 from scipy.ndimage import median_filter
 from scipy.optimize import leastsq
-from tollan.config.types import AbsAnyPath, FrequencyQuantityField, TimeQuantityField
+from tollan.config.types import FrequencyQuantityField, TimeQuantityField
 from tollan.utils.fmt import pformat_mask
 from tollan.utils.log import logger, timeit
 from tollan.utils.np import attach_unit, make_complex, strip_unit
 from tollan.utils.table import TableValidator
+from tollan.pipeline import Step, StepConfig, StepContext
 from typing_extensions import assert_never
 
-from tolteca_kidsproc.kidsdata import MultiSweep
+from tolteca_datamodels.toltec.kids import ReducedSweepView
 
 from .match1d import Match1D, Match1DResult
 from .peaks1d import Peaks1D, Peaks1DResult
-from .pipeline import Step, StepConfig, StepContext
-from .plot import PlotConfig, PlotMixin
-from .sweep_check import SweepCheck
+from .sweep_check import SweepCheck, _extract_sweep_arrays
 
 __all__ = [
     "KidsFind",
@@ -95,12 +92,7 @@ class SegmentBitMask(IntFlag):
 class KidsFindConfig(StepConfig):
     """The kids finding config."""
 
-    model_config = ConfigDict(protected_namespaces=())
-
-    ref_context_path: None | AbsAnyPath = Field(
-        default=None,
-        description="Reference kids find context to use as additional prior.",
-    )
+    model_config = ConfigDict(protected_namespaces=(), validate_default=True)
 
     Qr_min: float = Field(
         default=1000,
@@ -261,12 +253,39 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
 
     @classmethod
     @timeit
-    def run(cls, data: MultiSweep, context):  # noqa: PLR0915, C901, PLR0912
+    def run(cls, data: xr.DataTree, context):  # noqa: PLR0915, C901, PLR0912
         """Run kids find."""
-        swp = data
         cfg = context.config
         ctd = context.data
         ctd_sc = SweepCheck.get_context(data).data
+
+        # Load sweep data from xr.DataTree (replaces MultiSweep in v2)
+        arrays = _extract_sweep_arrays(data)
+        n_chans = arrays.n_chans
+        s21_f = arrays.frequency  # Quantity [n_chans, n_steps] Hz
+        s21_data = arrays.S21 << u.dimensionless_unscaled  # complex Quantity
+        s21_f_min = np.min(s21_f.to_value(u.Hz), axis=1) << u.Hz
+        s21_f_max = np.max(s21_f.to_value(u.Hz), axis=1) << u.Hz
+        s21_f_step = s21_f[0, 1] - s21_f[0, 0]
+
+        # Build channel axis table from ReducedSweepView f_lo
+        # (replaces swp.meta["chan_axis_data"] in v2)
+        view = ReducedSweepView(data)
+        f_lo_da = view.f_lo
+        if f_lo_da is not None:
+            f_lo_hz = f_lo_da.values
+        else:
+            f_lo_hz = np.linspace(
+                float(s21_f_min.to_value(u.Hz).mean()),
+                float(s21_f_max.to_value(u.Hz).mean()),
+                n_chans,
+            )
+        tbl_chans_all = QTable({
+            "id": np.arange(n_chans),
+            "f_chan": f_lo_hz << u.Hz,
+            "mask_tone": np.ones(n_chans, dtype=bool),
+            "amp_tone": np.ones(n_chans),
+        })
 
         _tbl_validator = TableValidator()
 
@@ -274,15 +293,6 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
             if expr is None:
                 return np.ones((len(tbl),), dtype=bool)
             return _tbl_validator.eval(tbl, expr)
-
-        # load ref context
-        rpath = cfg.ref_context_path
-        if rpath is not None:
-            if rpath.is_dir():
-                raise NotImplementedError
-            ref_context = dill.load(cfg.ref_context_path)  # noqa: S301
-        else:
-            ref_context = None  # noqa: F841
 
         def _detect_postproc(r: Peaks1DResult):
             # this add Qr to the detected peak info table
@@ -414,21 +424,11 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
         d21_prior = d21_peak_info[d21_mask_peak_good]
         dp_f = d21_prior["x"]
 
-        # some convinient varaibles
-        n_chans = swp.n_chans
-        # n_steps = swp.n_steps
-        s21_f = swp.frequency
-        s21_f_min = np.min(s21_f, axis=1)
-        s21_f_max = np.max(s21_f, axis=1)
-        # s21_x_center = np.mean(s21_x, axis=1)
-        # s21_f_range = s21_f_max - s21_f_min
-        s21_f_step = s21_f[0, 1] - s21_f[0, 0]
-
-        map_chan_dp = (s21_f_min[:, np.newaxis] <= dp_f[np.newaxis, :]) & (
-            dp_f[np.newaxis, :] <= s21_f_max[:, np.newaxis]
+        map_chan_dp = (
+            s21_f_min.to_value(u.Hz)[:, np.newaxis] <= dp_f.to_value(u.Hz)[np.newaxis, :]
+        ) & (
+            dp_f.to_value(u.Hz)[np.newaxis, :] <= s21_f_max.to_value(u.Hz)[:, np.newaxis]
         )
-        s21_data = swp.S21
-        # s21_unc_data = swp.S21_unc
 
         ctd.mask_baseline = SweepCheck.make_data_mask_from_unified(
             s21_f,
@@ -444,13 +444,11 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
             i = median_filter(arr.value.imag, shape)
             return make_complex(r, i) << arr.unit
 
-        as21_med = MultiSweep.calc_aS21(
-            _cmedfilt(s21_data, (1, cfg.medfilt_size)),
-        )
+        as21_med = np.abs(_cmedfilt(s21_data, (1, cfg.medfilt_size)).value)
 
         as21_ymax = np.max(as21_med, axis=1)
         as21_y = as21_ymax[:, np.newaxis] - as21_med
-        as21_ey = swp.aS21_unc
+        as21_ey = arrays.aS21_unc
 
         def _calc_s21_fwhm():
             # generate Qr data for each channel
@@ -489,8 +487,8 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
             ci = peaks["idx_chan"] = peaks["idx_chunk"]
             y_orig = as21_ymax[ci] - peaks["y"]
             y_base_orig = as21_ymax[ci] - peaks["base"]
-            y_db = peaks["y_db"] = MultiSweep.calc_db(y_orig)
-            base_db = peaks["base_db"] = MultiSweep.calc_db(y_base_orig)
+            y_db = peaks["y_db"] = 20.0 * np.log10(np.maximum(np.abs(y_orig), 1e-30))
+            base_db = peaks["base_db"] = 20.0 * np.log10(np.maximum(np.abs(y_base_orig), 1e-30))
             peaks["height_db"] = base_db - y_db
             return r
 
@@ -773,7 +771,7 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
         detected["bitmask"] = bitmask_det
 
         # do match to chan and ref
-        tbl_chans = swp.meta["chan_axis_data"]
+        tbl_chans = tbl_chans_all
         mask_tone = tbl_chans["mask_tone"]
         tbl_chans = tbl_chans[mask_tone]
 
@@ -907,12 +905,16 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
         return grouped, groups, mask_groups
 
     @staticmethod
-    def fit_baseline_circle(swp: MultiSweep, mask_baseline):
-        """Run circle fit to baseline data."""
-        s21_value = swp.S21.value
-        s21_unc_value = swp.S21_unc.value
-        n_chans = swp.n_chans
-        n_steps = swp.n_steps
+    def fit_baseline_circle(s21_value, s21_unc_value, mask_baseline):
+        """Run circle fit to baseline data.
+
+        Parameters
+        ----------
+        s21_value : ndarray, complex [n_chans, n_steps]
+        s21_unc_value : ndarray, complex [n_chans, n_steps]
+        mask_baseline : ndarray, bool [n_chans, n_steps]
+        """
+        n_chans, n_steps = s21_value.shape
 
         def _circle_objective_func(c, s21, _s21_unc):
             c = c[0] + 1.0j * c[1]
@@ -1018,875 +1020,3 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
         # as21_y = median_filter(as21_detrended, (1, cfg.medfilt_size))
 
         return locals()
-
-
-class KidsFindPlotConfig(PlotConfig):
-    """The kids finding plot config."""
-
-
-@dataclass(kw_only=True)
-class KidsFindPlotData:
-    """The data class for kids finding plot."""
-
-    d21_peaks_summary: go.Figure = ...
-    s21_peaks_summary: go.Figure = ...
-    det_summary: go.Figure = ...
-    # chan_baseline: go.Figure = ...
-    peaks: go.Figure = ...
-    peak_props: go.Figure = ...
-    matched: go.Figure = ...
-    matched_ref: go.Figure = ...
-
-
-class KidsFindPlotContext(StepContext["KidsFindPlot", KidsFindPlotConfig]):
-    """The context class for kids finding plot."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    data: KidsFindPlotData = Field(default_factory=KidsFindPlotData)
-
-
-class KidsFindPlot(PlotMixin, Step[KidsFindPlotConfig, KidsFindPlotContext]):
-    """Kids find plot.
-
-    This step produces visualization for sweep finding step.
-    """
-
-    @classmethod
-    @timeit
-    def run(cls, data: MultiSweep, context):  # noqa: C901, PLR0915
-        """Run kids find plot."""
-        # ctx_sc = SweepCheck.get_context(data)
-        ctx_kf = KidsFind.get_context(data)
-        if not ctx_kf.completed:
-            raise ValueError("kids find step has not run yet.")
-        swp = data
-        # ctd_sc = ctx_sc.data
-        ctd_kf = ctx_kf.data
-        cfg_kf = ctx_kf.config
-        # cfg1 = context.config
-        ctd = context.data
-
-        def _plot_peak_summary(
-            bitmask,
-            peaks: Peaks1DResult,
-            x_unit,  # noqa: ARG001
-            y_unit,
-        ):
-            peak_info = peaks.peaks
-            height = peak_info["height"].to_value(y_unit)
-            seg_data_items = [
-                (
-                    "Qr",
-                    peak_info["Qr"],
-                    {"zmin": cfg_kf.Qr_min, "zmax": cfg_kf.Qr_dark_min},
-                ),
-                (
-                    "SNR",
-                    peak_info["snr"],
-                    {"zmin": 0, "zmax": np.quantile(peak_info["snr"], 0.9)},
-                ),
-                (
-                    "FWHM",
-                    peak_info["width"].to_value(u.Hz),
-                    {"zmin": 1000, "zmax": 120000},
-                ),
-                (
-                    "height",
-                    height,
-                    {
-                        "zmin": 0,
-                        "zmax": np.quantile(height, 0.9),
-                    },
-                ),
-            ]
-            if "height_db" in peak_info.colnames:
-                height_db = peak_info["height_db"]
-                seg_data_items.append(
-                    (
-                        "height_db",
-                        height_db,
-                        {
-                            "zmin": 0,
-                            "zmax": 1,
-                        },
-                    ),
-                )
-            return cls.make_summary_fig(bitmask, seg_data_items)
-
-        ctd.d21_peaks_summary = _plot_peak_summary(
-            ctd_kf.bitmask_d21,
-            ctd_kf.d21_peaks,
-            x_unit=u.MHz,
-            y_unit=u.Hz**-1,
-        )
-        ctd.s21_peaks_summary = _plot_peak_summary(
-            ctd_kf.bitmask_s21,
-            ctd_kf.s21_peaks,
-            x_unit=u.MHz,
-            y_unit=u.dimensionless_unscaled,
-        )
-        bitmask_det = ctd_kf.bitmask_det
-        det_groups = ctd_kf.det_groups
-        ctd.det_summary = cls.make_summary_fig(
-            bitmask_det,
-            [
-                (
-                    "f",
-                    det_groups["f"].to_value(u.MHz),
-                    {},
-                ),
-                (
-                    "Qr",
-                    det_groups["Qr"],
-                    {"zmin": cfg_kf.Qr_min, "zmax": cfg_kf.Qr_dark_min},
-                ),
-            ],
-        )
-        fig = ctd.peaks = cls.make_subplots(
-            n_rows=3,
-            n_cols=1,
-            shared_xaxes="all",
-            vertical_spacing=40 / 1000,
-            fig_layout=cls.fig_layout_default
-            | {
-                "showlegend": True,
-                "height": 1000,
-            },
-        )
-        d21_panel_kw = {"row": 1, "col": 1}
-        s21_panel_kw = {"row": 2, "col": 1}
-        s21_data_panel_kw = {"row": 3, "col": 1}
-        color_cycle = cls.color_palette.cycle()
-
-        def _plot_peaks(
-            name,
-            peaks: Peaks1DResult,
-            x_unit,
-            y_unit,
-            panel_kw,
-            overlay_masks,
-        ):
-            peak_info = peaks.peaks
-            labels = peaks.labels
-            x = peaks.x.to_value(x_unit)
-            y = peaks.y.to_value(y_unit)
-            height = peak_info["height"].to_value(y_unit)
-            base = peak_info["base"].to_value(y_unit)
-            # ey = peaks.ey.to_value(y_unit)
-            for ll in np.unique(labels):
-                color = next(color_cycle)
-                showlegend = True
-                m = labels == ll
-                fig.add_scatter(
-                    x=x[m],
-                    y=y[m],
-                    mode="lines",
-                    line={
-                        "color": color,
-                    },
-                    name=f"peak {ll}",
-                    showlegend=showlegend,
-                    **panel_kw,
-                )
-            customdata_info = [
-                ("label", ".0f"),
-                ("snr", ".3f"),
-                ("Qr", ".3f"),
-                ("height_db", ".3f"),
-                ("halfmax_size", ".0f"),
-                ("lookahead", ".0f"),
-            ] + [(c, ".0f") for c in peak_info.colnames if c.startswith("sbm")]
-            customdata_info = [c for c in customdata_info if c[0] in peak_info.colnames]
-            fig.add_scatter(
-                x=peak_info["x"].to_value(x_unit),
-                y=height / 2 + base,
-                error_x={
-                    "type": "data",
-                    "array": peak_info["width"].to_value(x_unit) / 2,
-                    "width": 0,
-                    "color": "green",
-                },
-                error_y={
-                    "type": "data",
-                    "array": height / 2,
-                    "width": 0,
-                    "color": "green",
-                },
-                customdata=np.stack(
-                    [peak_info[ci[0]] for ci in customdata_info],
-                ).T,
-                hovertemplate=("f: %{x:.3f}<br>d21: %{y:.3f}")
-                + "".join(
-                    f"<br>{c[0]}: %{{customdata[{i}]:{c[1]}}}"
-                    for i, c in enumerate(customdata_info)
-                ),
-                mode="markers",
-                marker={
-                    "color": "orange",
-                    "size": 4,
-                },
-                name="peak info",
-                **panel_kw,
-            )
-            # fig.add_scatter(
-            #     x=x,
-            #     y=peaks.delta,
-            #     mode="lines",
-            #     line={
-            #         "color": "#aaaaaa",
-            #     },
-            #     name="delta",
-            #     **panel_kw,
-            # )
-            for mask_name, mask, mask_color in overlay_masks:
-                fig.add_scatter(
-                    x=x[mask],
-                    y=y[mask],
-                    mode="lines",
-                    line={
-                        "color": mask_color,
-                    },
-                    name=mask_name,
-                    **panel_kw,
-                )
-            fig.update_yaxes(
-                title={
-                    "text": f"{name} ({y_unit})",
-                },
-                **panel_kw,
-            )
-
-        _plot_peaks(
-            "|D21|",
-            ctd_kf.d21_peaks,
-            x_unit=u.MHz,
-            y_unit=u.Hz**-1,
-            panel_kw=d21_panel_kw,
-            overlay_masks=[
-                ("not real", ctd_kf.d21_mask_not_real, "gray"),
-                ("dark", ctd_kf.d21_mask_dark, "red"),
-                ("baseline", ctd_kf.d21_mask_baseline, "black"),
-            ],
-        )
-        _plot_peaks(
-            "|S21|",
-            ctd_kf.s21_peaks,
-            x_unit=u.MHz,
-            y_unit=u.dimensionless_unscaled,
-            panel_kw=s21_panel_kw,
-            overlay_masks=[
-                ("not real", ctd_kf.s21_mask_not_real, "gray"),
-                ("edge", ctd_kf.s21_mask_edge.ravel(), "cyan"),
-            ],
-        )
-        d21_dets = ctd_kf.d21_detected
-        s21_y_max = ctd_kf.s21_peaks.y.max().value
-        fig.add_scatter(
-            x=d21_dets["x"].to_value(u.MHz),
-            y=np.zeros((len(d21_dets),), dtype=float),
-            error_y={
-                "type": "constant",
-                "value": s21_y_max,
-                "valueminus": 0,
-                "width": 0,
-                "color": "cyan",
-                "thickness": 0.5,
-            },
-            **s21_panel_kw,
-        )
-        # S21 trace
-        fs = swp.frequency.to_value(u.MHz)
-        as21_db = swp.aS21_db
-        as21_unc_db = swp.aS21_unc_db
-        mask_baseline = ctd_kf.mask_baseline
-        color_cycle = cls.color_palette.cycle_alternated(1, 0.5)
-        ds = slice(None, None, 4)
-        for ci in range(fs.shape[0]):
-            color = next(color_cycle)
-            color2 = next(color_cycle)
-            color_arr = [color if m else "black" for m in mask_baseline[ci, ds]]
-            fig.add_scattergl(
-                x=fs[ci, ds],
-                y=as21_db[ci, ds],
-                error_y={
-                    "type": "data",
-                    "array": as21_unc_db[ci, ds],
-                    "width": 0,
-                    "color": color2,
-                },
-                mode="markers",
-                marker={
-                    "size": 4,
-                    "color": color_arr,
-                },
-                name=f"S21 {ci}",
-                showlegend=False,
-                **s21_data_panel_kw,
-            )
-        f_det = det_groups["f"].to_value(u.MHz)
-        det_d_max = det_groups["d_max"].to_value(u.MHz)
-        fwhm_det = det_groups["fwhm"].to_value(u.MHz)
-        as21_min_idx = np.argmin(as21_db, axis=1, keepdims=True)
-        as21_max_idx = np.argmax(as21_db, axis=1, keepdims=True)
-        f_min = np.take_along_axis(fs, as21_min_idx, axis=1).ravel()
-        f_max = np.take_along_axis(fs, as21_max_idx, axis=1).ravel()
-        isort_min = np.argsort(f_min)
-        isort_max = np.argsort(f_max)
-        as21_det = np.interp(
-            f_det,
-            f_min[isort_min],
-            np.take_along_axis(as21_db, as21_min_idx, axis=1).ravel()[isort_min],
-        )
-        as21_base = np.interp(
-            f_det,
-            f_max[isort_max],
-            np.take_along_axis(as21_db, as21_max_idx, axis=1).ravel()[isort_max],
-        )
-        customdata_info = [
-            ("group", ".0f"),
-            ("size", ".0f"),
-            ("d_min", ".3f"),
-            ("d_max", ".3f"),
-        ]
-        fig.add_scatter(
-            x=f_det,
-            y=as21_det + 0.1,
-            mode="markers",
-            marker={
-                "size": 4,
-            },
-            error_x={
-                "type": "data",
-                "array": det_d_max * 0.5,
-                "width": 0,
-                "color": "orange",
-            },
-            **s21_data_panel_kw,
-        )
-
-        fig.add_scatter(
-            x=f_det,
-            y=as21_det,
-            mode="markers",
-            marker={
-                "size": 4,
-            },
-            error_x={
-                "type": "data",
-                "array": fwhm_det * 0.5,
-                "width": 0,
-                "color": "orange",
-            },
-            error_y={
-                "type": "data",
-                "array": (as21_base - as21_det) * 2,
-                "arrayminus": np.zeros(f_det.shape),
-                "width": 0,
-                "color": "orange",
-            },
-            customdata=np.stack(
-                [
-                    det_groups[ci[0]]
-                    for ci in customdata_info
-                    if ci[0] in det_groups.colnames
-                ],
-            ).T,
-            hovertemplate=("f: %{x:.3f}<br>s21: %{y:.3f}")
-            + "".join(
-                f"<br>{c[0]}: %{{customdata[{i}]:{c[1]}}}"
-                for i, c in enumerate(customdata_info)
-                if c[0] in det_groups.colnames
-            ),
-            **s21_data_panel_kw,
-        )
-
-        # s21_dets = ctd_kf.d21_detected
-        fig.update_yaxes(
-            title={
-                "text": "|S21| (dB)",
-            },
-            **s21_data_panel_kw,
-        )
-        fig.update_xaxes(
-            title={
-                "text": "Frequency (MHz)",
-            },
-            **s21_data_panel_kw,
-        )
-
-        # peak props
-        fig = ctd.peak_props = cls.make_subplots(
-            n_rows=2,
-            n_cols=2,
-            shared_xaxes="rows",
-            # vertical_spacing=40 / 1000,
-            fig_layout=cls.fig_layout_default
-            | {
-                "showlegend": True,
-                "height": 1000,
-            },
-        )
-        d21_Qr_h_panel_kw = {"row": 1, "col": 1}
-        d21_Qr_snr_panel_kw = {"row": 1, "col": 2}
-        s21_Qr_h_panel_kw = {"row": 2, "col": 1}
-        s21_Qr_snr_panel_kw = {"row": 2, "col": 2}
-        # color_cycle = cls.color_palette.cycle()
-
-        def _plot_peak_props(
-            name,
-            peaks: Peaks1DResult,
-            x_colname,
-            y_colname,
-            x_unit,
-            y_unit,
-            panel_kw,
-            overlay_masks,
-        ):
-            peak_info = peaks.peaks
-            x = peak_info[x_colname]
-            if x_unit is not None:
-                x = x.to_value(x_unit)
-            y = peak_info[y_colname]
-            if y_unit is not None:
-                y = y.to_value(y_unit)
-            customdata_info = [
-                ("label", ".0f"),
-                ("snr", ".3f"),
-                ("Qr", ".3f"),
-                ("height_db", ".3f"),
-                ("halfmax_size", ".0f"),
-                ("lookahead", ".0f"),
-            ] + [(c, ".0f") for c in peak_info.colnames if c.startswith("sbm")]
-            customdata_info = [c for c in customdata_info if c[0] in peak_info.colnames]
-
-            # color = next(color_cycle)
-            fig.add_scatter(
-                x=x,
-                y=y,
-                mode="markers",
-                marker={
-                    "color": "green",
-                    "size": 6,
-                },
-                customdata=np.stack(
-                    [peak_info[ci[0]] for ci in customdata_info],
-                ).T,
-                hovertemplate=("f: %{x:.3f}<br>d21: %{y:.3f}")
-                + "".join(
-                    f"<br>{c[0]}: %{{customdata[{i}]:{c[1]}}}"
-                    for i, c in enumerate(customdata_info)
-                ),
-                name="all peaks",
-                showlegend=True,
-                **panel_kw,
-            )
-            for mask_name, mask, mask_color in overlay_masks:
-                fig.add_scatter(
-                    x=x[mask],
-                    y=y[mask],
-                    mode="markers",
-                    marker={
-                        "symbol": "circle-open",
-                        "line": {
-                            "width": 1,
-                            "color": mask_color,
-                        },
-                        "size": 8,
-                    },
-                    name=mask_name,
-                    **panel_kw,
-                )
-            fig.update_xaxes(
-                title={
-                    "text": f"{x_colname} ({x_unit})",
-                },
-                **panel_kw,
-            )
-            fig.update_yaxes(
-                title={
-                    "text": f"{name} ({y_unit})",
-                },
-                **panel_kw,
-            )
-
-        lim_line_kw = {
-            "line": {
-                "dash": "dot",
-                "color": "black",
-            },
-        }
-        for name, y_colname, y_unit, panel_kw, y_lim in [
-            (
-                "D21 Qr vs Height",
-                "height",
-                u.Hz**-1,
-                d21_Qr_h_panel_kw,
-                cfg_kf.d21_peak_min.to_value(u.Hz**-1),
-            ),
-            ("D21 Qr vs SNR", "snr", None, d21_Qr_snr_panel_kw, cfg_kf.d21_snr_min),
-        ]:
-            _plot_peak_props(
-                name,
-                ctd_kf.d21_peaks,
-                x_colname="Qr",
-                x_unit=None,
-                y_colname=y_colname,
-                y_unit=y_unit,
-                panel_kw=panel_kw,
-                overlay_masks=[
-                    (
-                        "not real",
-                        (ctd_kf.bitmask_d21 & SegmentBitMask.not_real) > 0,
-                        "gray",
-                    ),
-                    ("dark", (ctd_kf.bitmask_d21 & SegmentBitMask.dark) > 0, "red"),
-                ],
-            )
-            fig.add_hline(
-                y=y_lim,
-                **panel_kw,
-                **lim_line_kw,
-            )
-            fig.add_vline(
-                x=cfg_kf.Qr_min,
-                **panel_kw,
-                **lim_line_kw,
-            )
-            fig.add_vline(
-                x=cfg_kf.Qr_dark_min,
-                **panel_kw,
-                **lim_line_kw,
-            )
-            fig.add_vline(
-                x=cfg_kf.Qr_dark_max,
-                **panel_kw,
-                **lim_line_kw,
-            )
-        for name, y_colname, panel_kw, y_lim in [
-            ("S21 Qr vs Height", "height_db", s21_Qr_h_panel_kw, cfg_kf.peak_db_min),
-            ("S21 Qr vs SNR", "snr", s21_Qr_snr_panel_kw, cfg_kf.snr_min),
-        ]:
-            _plot_peak_props(
-                name,
-                ctd_kf.s21_peaks,
-                x_colname="Qr",
-                x_unit=None,
-                y_colname=y_colname,
-                y_unit=None,
-                panel_kw=panel_kw,
-                overlay_masks=[
-                    (
-                        "not real",
-                        (ctd_kf.bitmask_s21 & SegmentBitMask.not_real) > 0,
-                        "gray",
-                    ),
-                    ("edge", (ctd_kf.bitmask_s21 & SegmentBitMask.edge) > 0, "cyan"),
-                ],
-            )
-            fig.add_hline(
-                y=y_lim,
-                **panel_kw,
-                **lim_line_kw,
-            )
-            fig.add_vline(
-                x=cfg_kf.Qr_min,
-                **panel_kw,
-                **lim_line_kw,
-            )
-            fig.add_vline(
-                x=cfg_kf.Qr_dark_max,
-                **panel_kw,
-                **lim_line_kw,
-            )
-        # matched
-        ctd.matched = cls.make_matched_fig(ctd_kf.matched, "Chan")
-        ctd.matched_ref = cls.make_matched_fig(
-            ctd_kf.matched_ref,
-            cfg_kf.match_ref.capitalize(),
-        )
-        cls.save_or_show(data, context)
-        return True
-
-    @classmethod
-    def make_summary_fig(cls, bitmask_seg, seg_data_items):
-        grid = cls.make_subplot_grid()
-        grid.add_subplot(
-            row=1,
-            col=1,
-            fig=cls.make_bitmask_seg_heatmap(
-                bitmask_seg,
-            ),
-            row_height=1,
-        )
-        row0 = grid.shape[0] + 1
-        for i, (name, value, trace_kw) in enumerate(seg_data_items):
-            grid.add_subplot(
-                row=row0 + i,
-                col=1,
-                fig=cls.make_seg_data_heatmap(
-                    name,
-                    value,
-                    trace_kw,
-                ),
-                row_height=0.5 / len(seg_data_items),
-            )
-        fig = grid.make_figure(
-            shared_xaxes="all",
-            vertical_spacing=40 / 1200,
-            fig_layout={
-                "height": 1200,
-            },
-        )
-        # add a range slider
-        fig.update_xaxes(
-            rangeslider={
-                "autorange": True,
-                "range": [0, bitmask_seg.shape[0]],
-                "thickness": 0.05,
-            },
-            row=grid.shape[0],
-            col=1,
-        )
-        return fig
-
-    @classmethod
-    def make_bitmask_seg_heatmap(cls, bitmask_seg, fig=None, panel_kw=None):
-        names = []
-        data = []
-        for name, value in SegmentBitMask.__members__.items():
-            names.append(name)
-            data.append((bitmask_seg & value) > 0)
-        data = np.vstack(data).astype(int)
-
-        fig = fig or cls.make_subplots(1, 1)
-        panel_kw = panel_kw or {}
-        fig.add_heatmap(
-            z=data,
-            y=names,
-            colorscale="rdylgn_r",
-            zmin=0,
-            zmax=1,
-            **panel_kw,
-        )
-        fig.update_xaxes(
-            title="Segment Id",
-            **panel_kw,
-        )
-        fig.update_yaxes(
-            **panel_kw,
-        )
-        fig.update_layout(
-            title={
-                "text": "Segment Bitmask",
-            },
-        )
-        return fig
-
-    @classmethod
-    def make_seg_data_heatmap(
-        cls,
-        name,
-        data,
-        trace_kw,
-        fig=None,
-        panel_kw=None,
-    ):
-        fig = fig or cls.make_subplots(1, 1)
-        panel_kw = panel_kw or {}
-        z = data[np.newaxis, :]
-        y = [name]
-        fig.add_heatmap(
-            z=z,
-            y=y,
-            colorscale="rdylgn_r",
-            **trace_kw,
-            **panel_kw,
-        )
-        fig.update_xaxes(
-            title="Segment Id",
-            **panel_kw,
-        )
-        fig.update_layout(
-            title={
-                "text": name,
-            },
-        )
-        return fig
-
-    @classmethod
-    def make_chan_baseline_info_fig(cls, swp, chan_baseline_info):
-        # chan baseline info
-        fig = cls.make_subplots(
-            n_rows=2,
-            n_cols=3,
-            shared_xaxes=True,
-            vertical_spacing=40 / 1000,
-            fig_layout=cls.fig_layout_default
-            | {
-                "showlegend": True,
-                "height": 1000,
-            },
-            specs=[
-                [{"rowspan": 2}, {}, {"type": "polar"}],
-                [None, {}, {"type": "polar"}],
-            ],
-        )
-        cbi_amp_unc_cut = 1e3
-        cbi = chan_baseline_info
-        cbi = cbi[cbi["amp_unc"] < cbi_amp_unc_cut]
-        fig.add_scatter(
-            x=cbi["center"].real,
-            y=cbi["center"].imag,
-            mode="markers",
-            marker={"size": 4},
-            row=1,
-            col=1,
-        )
-        fig.add_scatter(
-            x=swp.f_chans[cbi["idx_chan"]].to_value(u.MHz),
-            y=np.abs(cbi["center"]),
-            mode="markers+lines",
-            marker={
-                "size": 4,
-            },
-            row=1,
-            col=2,
-        )
-        fig.add_scatter(
-            x=swp.f_chans[cbi["idx_chan"]].to_value(u.MHz),
-            y=cbi["amp"],
-            error_y={
-                "type": "data",
-                "array": cbi["amp_unc"],
-                "width": 0,
-                "color": "gray",
-            },
-            mode="markers+lines",
-            marker={
-                "size": 4,
-            },
-            row=2,
-            col=2,
-        )
-        fig.add_scatterpolar(
-            theta=np.rad2deg(cbi["phi_center"]),
-            r=np.abs(cbi["center"]),
-            mode="markers",
-            marker={
-                "size": 4,
-            },
-            row=1,
-            col=3,
-        )
-        fig.add_scatterpolar(
-            theta=np.rad2deg(cbi["phi_center"]),
-            r=cbi["amp"],
-            mode="markers",
-            marker={
-                "size": 4,
-            },
-            row=2,
-            col=3,
-        )
-        return fig
-
-    @classmethod
-    def make_matched_fig(cls, matched, ref_name):
-        fig = cls.make_subplots(
-            n_rows=3,
-            n_cols=1,
-            vertical_spacing=40 / 1200,
-            fig_layout=cls.fig_layout_default
-            | {
-                "showlegend": False,
-                "height": 1200,
-            },
-        )
-        dist_panel_kw = {"row": 1, "col": 1}
-        match_panel_kw = {"row": 2, "col": 1}
-        density_panel_kw = {"row": 3, "col": 1}
-
-        tbl_matched = matched.matched.copy()
-        tbl_matched.sort("adist_shifted")
-        tbl_matched = unique(tbl_matched, keys="idx_query")
-        d_phi_good_max = 5 << u.deg
-        d_phi_ok_max = d_phi_good_max * 3
-        d_phi = tbl_matched["d_phi"]
-        ad_phi = np.abs(d_phi)
-
-        m_good = ad_phi < d_phi_good_max
-        m_ok = (ad_phi >= d_phi_good_max) & (ad_phi < d_phi_ok_max)
-        m_bad = ad_phi >= d_phi_ok_max
-        m_dup = (tbl_matched["bitmask_det"] & SegmentBitMask.blended) > 0
-        d_phi_good_max_value = d_phi_good_max.to_value(u.deg)
-        bins = (
-            np.arange(
-                -90 - d_phi_good_max_value / 2,
-                90 + d_phi_good_max_value * 1.1 / 2,
-                d_phi_good_max_value,
-            )
-            << u.deg
-        )
-        x = (0.5 * (bins[1:] + bins[:-1])).to_value(u.deg)
-        y_good_dup, _ = np.histogram(d_phi[m_good & m_dup], bins=bins)
-        y_good, _ = np.histogram(d_phi[m_good & (~m_dup)], bins=bins)
-        y_ok_dup, _ = np.histogram(d_phi[m_ok & m_dup], bins=bins)
-        y_ok, _ = np.histogram(d_phi[m_ok & (~m_dup)], bins=bins)
-        y_bad_dup, _ = np.histogram(d_phi[m_bad & m_dup], bins=bins)
-        y_bad, _ = np.histogram(d_phi[m_bad & (~m_dup)], bins=bins)
-
-        c00, c25, c75, c100 = plotly.colors.sample_colorscale(
-            "rdylgn",
-            samplepoints=[0, 0.25, 0.75, 1],
-        )
-        for y, name, color in [
-            (y_bad, "bad", c75),
-            (y_bad_dup, "bad_dup", c25),
-            (y_ok, "ok", c75),
-            (y_ok_dup, "ok_dup", c25),
-            (y_good, "good", c100),
-            (y_good_dup, "good_dup", c00),
-        ]:
-            fig.add_bar(
-                x=x,
-                y=y,
-                marker={
-                    "color": color,
-                },
-                name=name,
-                **dist_panel_kw,
-            )
-        for x0, x1, opt in [
-            (bins[0].to_value(u.deg), -d_phi_ok_max.to_value(u.deg), 0.3),
-            (-d_phi_ok_max.to_value(u.deg), -d_phi_good_max.to_value(u.deg), 0.15),
-            (-d_phi_good_max.to_value(u.deg), d_phi_good_max.to_value(u.deg), 0.0),
-            (d_phi_good_max.to_value(u.deg), d_phi_ok_max.to_value(u.deg), 0.15),
-            (d_phi_ok_max.to_value(u.deg), bins[-1].to_value(u.deg), 0.3),
-        ]:
-            fig.add_vrect(x0=x0, x1=x1, line_width=0, fillcolor="black", opacity=opt)
-        fig.update_yaxes(
-            title="Count",
-            **dist_panel_kw,
-        )
-        fig.update_xaxes(
-            title="phi (deg)",
-            **dist_panel_kw,
-        )
-
-        matched.make_plotly_fig(
-            type="match",
-            fig=fig,
-            panel_kw=match_panel_kw,
-            label_value="Frequency (MHz)",
-            label_ref=ref_name,
-            label_query="Detect",
-        )
-        matched.make_plotly_fig(
-            type="density",
-            fig=fig,
-            panel_kw=density_panel_kw,
-            label_ref=f"Ref Id ({ref_name})",
-            label_query="Detect Id",
-        )
-        fig.update_layout(barmode="stack")
-        return fig

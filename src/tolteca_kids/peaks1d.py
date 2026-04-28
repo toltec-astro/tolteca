@@ -7,7 +7,7 @@ import numpy.typing as npt
 from astropy.table import QTable
 from pydantic import Field
 from scipy.signal import peak_widths
-from tollan.config.types import ImmutableBaseModel
+from tollan.config import FrozenBaseModel as ImmutableBaseModel
 from tollan.utils.fmt import pformat_yaml
 from tollan.utils.log import logger, timeit
 from tollan.utils.np import strip_unit

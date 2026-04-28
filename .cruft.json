@@ -1,0 +1,21 @@
+{
+  "template": "https://github.com/Jerry-Ma/cookiecutter-pypackage.git",
+  "commit": "48f3ca3dd5fd0ad2329e1777bcda66092f2e939d",
+  "checkout": "v2026",
+  "context": {
+    "cookiecutter": {
+      "full_name": "Zhiyuan Ma",
+      "email": "zhiyuanma@umass.edu",
+      "github_username": "toltec-astro",
+      "pypi_package_name": "tolteca",
+      "project_name": "tolteca",
+      "project_slug": "tolteca",
+      "project_short_description": "TolTEC all-in-one",
+      "pypi_username": "toltec-astro",
+      "__gh_slug": "toltec-astro/tolteca",
+      "_template": "https://github.com/Jerry-Ma/cookiecutter-pypackage.git",
+      "_commit": "48f3ca3dd5fd0ad2329e1777bcda66092f2e939d"
+    }
+  },
+  "directory": null
+}
