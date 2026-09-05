@@ -283,9 +283,9 @@ def test_mapper_validation_methods(toltec_sweep_dataset):
     mapper.validate_has_field(mapper.schema.roach)
 
     # Test validate_has_field - should fail for missing field
-    from tollan.accessor import Mapping
+    from tollan.accessor import NameMapping
 
-    fake_field = Mapping("nonexistent_field")
+    fake_field = NameMapping("nonexistent_field")
     with pytest.raises(ValueError, match="Missing required field"):
         mapper.validate_has_field(fake_field)
 

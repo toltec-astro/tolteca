@@ -10,13 +10,13 @@ Schema fields are namespaced as: tolteca_datamodels.toltec.kids.sweep.*
 from __future__ import annotations
 
 import functools
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 import xarray as xr
 from pydantic import Field
-from pydantic.dataclasses import dataclass
-from tollan.accessor import Mapping, Schema
+from tollan.accessor import Mapping, NameMapping, Schema
 from tollan.accessor.xarray import XarrayAccessorBase, XarrayMapper, ensure_dataset
 from tollan.config import FrozenBaseModel
 
@@ -70,26 +70,26 @@ class ToltecSweepSchema(Schema):
     """
 
     # Reduced data variables (namespaced)
-    I: Mapping = Mapping(f"{__name__}.I")
-    Q: Mapping = Mapping(f"{__name__}.Q")
-    unc_I: Mapping = Mapping(f"{__name__}.unc_I")
-    unc_Q: Mapping = Mapping(f"{__name__}.unc_Q")
+    I: Mapping = NameMapping(f"{__name__}.I")
+    Q: Mapping = NameMapping(f"{__name__}.Q")
+    unc_I: Mapping = NameMapping(f"{__name__}.unc_I")
+    unc_Q: Mapping = NameMapping(f"{__name__}.unc_Q")
 
     # Solved timestream (namespaced)
-    r: Mapping = Mapping(f"{__name__}.r")
-    x: Mapping = Mapping(f"{__name__}.x")
+    r: Mapping = NameMapping(f"{__name__}.r")
+    x: Mapping = NameMapping(f"{__name__}.x")
 
     # Coordinates (not namespaced - shared)
-    sweep: Mapping = Mapping("sweep")
-    block: Mapping = Mapping("block")
-    chan: Mapping = Mapping(("chan", "channel", "n_chans"))
+    sweep: Mapping = NameMapping("sweep")
+    block: Mapping = NameMapping("block")
+    chan: Mapping = NameMapping(("chan", "channel", "n_chans"))
 
     # LO frequency data (not namespaced)
-    f_lo: Mapping = Mapping("f_lo")
-    f_center: Mapping = Mapping("f_center")
+    f_lo: Mapping = NameMapping("f_lo")
+    f_center: Mapping = NameMapping("f_center")
 
     # Metadata (namespaced)
-    reducer_config: Mapping = Mapping(f"{__name__}.reducer_config")
+    reducer_config: Mapping = NameMapping(f"{__name__}.reducer_config")
 
 
 class ToltecSweepMapper(XarrayMapper[ToltecSweepSchema]):

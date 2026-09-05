@@ -70,6 +70,7 @@ visualization.
 from __future__ import annotations
 
 import functools
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, Literal, Self
 
 import astropy.units as u
@@ -77,10 +78,9 @@ import numpy as np
 import numpy.typing as npt
 import xarray as xr
 from pydantic import Field, model_validator
-from pydantic.dataclasses import dataclass
 from scipy.ndimage import uniform_filter1d
 from scipy.signal import savgol_filter
-from tollan.accessor import Mapping, Schema
+from tollan.accessor import Mapping, NameMapping, Schema
 from tollan.accessor.xarray import XarrayMapper, ensure_dataset
 from tollan.config import FrozenBaseModel
 from tollan.config.types import FrequencyQuantityField
@@ -121,15 +121,15 @@ class D21Schema(Schema):
         Coverage map for unified D21.
     """
 
-    d21: Mapping = Mapping(f"{__name__}.d21")
+    d21: Mapping = NameMapping(f"{__name__}.d21")
 
-    d21_unified: Mapping = Mapping(f"{__name__}.d21_unified")
+    d21_unified: Mapping = NameMapping(f"{__name__}.d21_unified")
 
-    analysis: Mapping = Mapping(f"{__name__}.analysis")
+    analysis: Mapping = NameMapping(f"{__name__}.analysis")
 
     # these goes with d21_unified so no __name__ prefix
-    f_unified: Mapping = Mapping("f_unified")
-    cov_unified: Mapping = Mapping("cov_unified")
+    f_unified: Mapping = NameMapping("f_unified")
+    cov_unified: Mapping = NameMapping("cov_unified")
 
 
 class D21Mapper(XarrayMapper[D21Schema]):
@@ -236,7 +236,7 @@ class D21View(KidsView[D21Mapper]):
         # Get first field's mapping
         first_field = next(iter(schema.__dataclass_fields__.values()))
         mapping = first_field.default
-        if isinstance(mapping, Mapping) and "." in mapping.names[0]:
+        if isinstance(mapping, NameMapping) and "." in mapping.names[0]:
             # Extract module path (
             # e.g., "tolteca_kidsproc.analysis.d21.field"
             # )

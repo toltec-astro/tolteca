@@ -13,13 +13,13 @@ For reduced data variables (Data.Kids.*), see sweep.py and timestream.py.
 from __future__ import annotations
 
 import functools
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
 import xarray as xr
 from astropy.table import QTable
-from pydantic.dataclasses import dataclass
-from tollan.accessor import Mapping, Schema
+from tollan.accessor import Mapping, NameMapping, Schema
 from tollan.accessor.xarray import XarrayMapper
 
 if TYPE_CHECKING:
@@ -79,38 +79,40 @@ class ToltecKidsIOSchema(Schema):
     """
 
     # Raw I/Q data fields
-    I: Mapping = Mapping(("Data.Toltec.Is", "I"))
-    Q: Mapping = Mapping(("Data.Toltec.Qs", "Q"))
+    I: Mapping = NameMapping(("Data.Toltec.Is", "I"))
+    Q: Mapping = NameMapping(("Data.Toltec.Qs", "Q"))
 
     # Coordinate fields
-    time: Mapping = Mapping(("time", "ntimes"))
-    channel: Mapping = Mapping(("iqlen", "loclen", "chan", "channel"))
-    frequency: Mapping = Mapping(("sweep", "nsweeps"))
+    time: Mapping = NameMapping(("time", "ntimes"))
+    channel: Mapping = NameMapping(("iqlen", "loclen", "chan", "channel"))
+    frequency: Mapping = NameMapping(("sweep", "nsweeps"))
 
     # Tone/channel axis data
-    f_tones: Mapping = Mapping("Header.Toltec.ToneFreq")
-    f_los: Mapping = Mapping("Data.Toltec.LoFreq")
-    f_lo_center: Mapping = Mapping("Header.Toltec.LoCenterFreq")
-    mask_tones: Mapping = Mapping("Header.Toltec.ToneMask")
-    amp_tones: Mapping = Mapping(("Header.Toltec.ToneAmp", "Header.Toltec.ToneAmps"))
-    phase_tones: Mapping = Mapping("Header.Toltec.TonePhase")
+    f_tones: Mapping = NameMapping("Header.Toltec.ToneFreq")
+    f_los: Mapping = NameMapping("Data.Toltec.LoFreq")
+    f_lo_center: Mapping = NameMapping("Header.Toltec.LoCenterFreq")
+    mask_tones: Mapping = NameMapping("Header.Toltec.ToneMask")
+    amp_tones: Mapping = NameMapping(
+        ("Header.Toltec.ToneAmp", "Header.Toltec.ToneAmps"),
+    )
+    phase_tones: Mapping = NameMapping("Header.Toltec.TonePhase")
 
     # Observation metadata
-    master: Mapping = Mapping("Header.Toltec.Master")
-    roach: Mapping = Mapping("Header.Toltec.RoachIndex")
-    obsnum: Mapping = Mapping("Header.Toltec.ObsNum")
-    subobsnum: Mapping = Mapping("Header.Toltec.SubObsNum")
-    scannum: Mapping = Mapping("Header.Toltec.ScanNum")
-    f_smp: Mapping = Mapping("Header.Toltec.SampleFreq")
-    obs_type: Mapping = Mapping("Header.Toltec.ObsType")
-    kind_str: Mapping = Mapping(("Header.Kids.kind", "kind_str"))
-    obs_start_time: Mapping = Mapping("Header.Toltec.ObsStartTime")
+    master: Mapping = NameMapping("Header.Toltec.Master")
+    roach: Mapping = NameMapping("Header.Toltec.RoachIndex")
+    obsnum: Mapping = NameMapping("Header.Toltec.ObsNum")
+    subobsnum: Mapping = NameMapping("Header.Toltec.SubObsNum")
+    scannum: Mapping = NameMapping("Header.Toltec.ScanNum")
+    f_smp: Mapping = NameMapping("Header.Toltec.SampleFreq")
+    obs_type: Mapping = NameMapping("Header.Toltec.ObsType")
+    kind_str: Mapping = NameMapping(("Header.Kids.kind", "kind_str"))
+    obs_start_time: Mapping = NameMapping("Header.Toltec.ObsStartTime")
 
     # Instrument settings
-    atten_drive: Mapping = Mapping("Header.Toltec.DriveAtten")
-    atten_sense: Mapping = Mapping("Header.Toltec.SenseAtten")
-    atten_in: Mapping = Mapping(("Header.Toltec.AttenIn", "atten_in"))
-    atten_out: Mapping = Mapping(("Header.Toltec.AttenOut", "atten_out"))
+    atten_drive: Mapping = NameMapping("Header.Toltec.DriveAtten")
+    atten_sense: Mapping = NameMapping("Header.Toltec.SenseAtten")
+    atten_in: Mapping = NameMapping(("Header.Toltec.AttenIn", "atten_in"))
+    atten_out: Mapping = NameMapping(("Header.Toltec.AttenOut", "atten_out"))
 
 
 class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):

@@ -10,13 +10,13 @@ Schema fields are namespaced as: tolteca_datamodels.toltec.kids.timestream.*
 from __future__ import annotations
 
 import functools
+from dataclasses import dataclass
 from typing import ClassVar
 
 import numpy as np
 import xarray as xr
 from pydantic import Field
-from pydantic.dataclasses import dataclass
-from tollan.accessor import Mapping, Schema
+from tollan.accessor import Mapping, NameMapping, Schema
 from tollan.accessor.xarray import XarrayAccessorBase, XarrayMapper, ensure_dataset
 from tollan.config import FrozenBaseModel
 
@@ -64,32 +64,32 @@ class ToltecTimestreamSchema(Schema):
     """
 
     # Solved timestream (namespaced)
-    r: Mapping = Mapping(f"{__name__}.r")
-    x: Mapping = Mapping(f"{__name__}.x")
+    r: Mapping = NameMapping(f"{__name__}.r")
+    x: Mapping = NameMapping(f"{__name__}.x")
 
     # PSD data (namespaced)
-    f_psd: Mapping = Mapping(f"{__name__}.f_psd")
-    I_psd: Mapping = Mapping(f"{__name__}.I_psd")
-    Q_psd: Mapping = Mapping(f"{__name__}.Q_psd")
-    r_psd: Mapping = Mapping(f"{__name__}.r_psd")
-    x_psd: Mapping = Mapping(f"{__name__}.x_psd")
+    f_psd: Mapping = NameMapping(f"{__name__}.f_psd")
+    I_psd: Mapping = NameMapping(f"{__name__}.I_psd")
+    Q_psd: Mapping = NameMapping(f"{__name__}.Q_psd")
+    r_psd: Mapping = NameMapping(f"{__name__}.r_psd")
+    x_psd: Mapping = NameMapping(f"{__name__}.x_psd")
 
     # PSD summary statistics (namespaced)
-    I_psd_median: Mapping = Mapping(f"{__name__}.I_psd_median")
-    Q_psd_median: Mapping = Mapping(f"{__name__}.Q_psd_median")
-    r_psd_median: Mapping = Mapping(f"{__name__}.r_psd_median")
-    x_psd_median: Mapping = Mapping(f"{__name__}.x_psd_median")
-    I_psd_mad_std: Mapping = Mapping(f"{__name__}.I_psd_mad_std")
-    Q_psd_mad_std: Mapping = Mapping(f"{__name__}.Q_psd_mad_std")
-    r_psd_mad_std: Mapping = Mapping(f"{__name__}.r_psd_mad_std")
-    x_psd_mad_std: Mapping = Mapping(f"{__name__}.x_psd_mad_std")
+    I_psd_median: Mapping = NameMapping(f"{__name__}.I_psd_median")
+    Q_psd_median: Mapping = NameMapping(f"{__name__}.Q_psd_median")
+    r_psd_median: Mapping = NameMapping(f"{__name__}.r_psd_median")
+    x_psd_median: Mapping = NameMapping(f"{__name__}.x_psd_median")
+    I_psd_mad_std: Mapping = NameMapping(f"{__name__}.I_psd_mad_std")
+    Q_psd_mad_std: Mapping = NameMapping(f"{__name__}.Q_psd_mad_std")
+    r_psd_mad_std: Mapping = NameMapping(f"{__name__}.r_psd_mad_std")
+    x_psd_mad_std: Mapping = NameMapping(f"{__name__}.x_psd_mad_std")
 
     # Coordinates (not namespaced)
-    time: Mapping = Mapping(("time", "ntimes"))
-    chan: Mapping = Mapping(("chan", "channel", "n_chans"))
+    time: Mapping = NameMapping(("time", "ntimes"))
+    chan: Mapping = NameMapping(("chan", "channel", "n_chans"))
 
     # Metadata (namespaced)
-    reducer_config: Mapping = Mapping(f"{__name__}.reducer_config")
+    reducer_config: Mapping = NameMapping(f"{__name__}.reducer_config")
 
 
 class ToltecTimestreamMapper(XarrayMapper[ToltecTimestreamSchema]):

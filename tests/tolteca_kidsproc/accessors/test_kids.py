@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 import xarray as xr
 from astropy import units as u
+from tollan.accessor import NameMapping
 
 from tolteca_kidsproc.accessors.dataset import make_kids_dataset
 from tolteca_kidsproc.accessors.kids import (
@@ -126,6 +127,10 @@ class TestKidsSchema:
     def test_field_names(self):
         """Test field mapping names."""
         schema = KidsSchema()
+        assert isinstance(schema.I, NameMapping)
+        assert isinstance(schema.Q, NameMapping)
+        assert isinstance(schema.frequency, NameMapping)
+        assert isinstance(schema.time, NameMapping)
         assert schema.I.names == ("I",)
         assert schema.Q.names == ("Q",)
         assert schema.frequency.names == ("frequency",)
