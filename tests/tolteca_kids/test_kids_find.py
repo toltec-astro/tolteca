@@ -306,7 +306,8 @@ class TestKidsFindConfig:
 
 class TestKidsFindMechanics:
     @pytest.fixture(scope="class")
-    def dt_with_context(self):
+    @classmethod
+    def dt_with_context(cls):
         dt = make_reduced_datatree(n_chans=6, n_steps=80)
         _run_kids_find(dt)
         return dt
@@ -348,7 +349,8 @@ class TestKidsFindMechanics:
 
 class TestKidsFindOutputs:
     @pytest.fixture(scope="class")
-    def ctx(self):
+    @classmethod
+    def ctx(cls):
         dt = make_reduced_datatree(n_chans=6, n_steps=80)
         return _run_kids_find(dt)
 

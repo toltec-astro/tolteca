@@ -1,57 +1,42 @@
 """Shared pytest fixtures for TolTEC data model tests.
 
-Provides access to ``tolteca_ref_data/`` reference files.  All fixtures that
-require real data call ``pytest.skip`` when the files are absent, so the test
-suite degrades gracefully on machines that do not have the reference data
-checked out.
+Provides access to TolTEC files through the deployed ``data_lmt`` fixture. All
+fixtures that require real data call ``pytest.skip`` when the files are absent,
+so the test suite degrades gracefully outside a development deployment.
 
-Directory layout (relative to package root ``tolteca/``)::
+Directory layout::
 
-    tolteca_ref_data/
-    └── data_lmt/
-        └── toltec/
-            └── tcs/
-                └── toltec0/
-                    ├── *_vnasweep.nc
-                    ├── *_targsweep.nc
-                    └── *_tune.nc
+    data_lmt/
+    └── toltec/
+        └── tcs/
+            └── toltec0/
+                ├── *_vnasweep.nc
+                ├── *_targsweep.nc
+                └── *_tune.nc
 """
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
-# Resolved once at import time so the skipif conditions are cheap.
-_PACKAGE_ROOT = Path(__file__).parents[3]
-_REF_DATA_ROOT = _PACKAGE_ROOT / "tolteca_ref_data"
-_TOLTEC0_DIR = _REF_DATA_ROOT / "data_lmt" / "toltec" / "tcs" / "toltec0"
-
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # ── Path fixtures ──────────────────────────────────────────────────────────────
 
 
 @pytest.fixture(scope="session")
-def tolteca_ref_data_path() -> Path:
-    """Root path of the tolteca reference data tree.
-
-    Skips the test if ``tolteca_ref_data/`` does not exist next to the package.
-    """
-    if not _REF_DATA_ROOT.exists():
-        pytest.skip(f"tolteca_ref_data not found at {_REF_DATA_ROOT}")
-    return _REF_DATA_ROOT
-
-
-@pytest.fixture(scope="session")
-def toltec0_data_path(tolteca_ref_data_path: Path) -> Path:  # noqa: ARG001
+def toltec0_data_path(data_lmt_path: Path) -> Path:
     """Path to the ``toltec0`` reference data directory.
 
     Skips the test if the directory does not exist.
     """
-    if not _TOLTEC0_DIR.exists():
-        pytest.skip(f"toltec0 reference data not found at {_TOLTEC0_DIR}")
-    return _TOLTEC0_DIR
+    path = data_lmt_path / "toltec" / "tcs" / "toltec0"
+    if not path.is_dir():
+        pytest.skip(f"toltec0 reference data not found at {path}")
+    return path
 
 
 # ── File fixtures ──────────────────────────────────────────────────────────────

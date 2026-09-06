@@ -200,7 +200,7 @@ class TestMetadataAccessor:
                 "Header.Toltec.NumSweepSteps": n_sweeps,
                 "Header.Toltec.NumSamplesPerSweepStep": 10,
                 "Header.Toltec.Master": 1,
-                "Header.Toltec.ObsType": 0,  # VNA sweep
+                "Header.Toltec.ObsType": 2,  # VNA sweep
             },
         )
 
@@ -279,7 +279,7 @@ class TestMetadataAccessor:
                 "Header.Toltec.SampleFreq": 488.0,
                 "Header.Toltec.NumSweepSteps": n_sweeps,
                 "Header.Toltec.Master": 1,
-                "Header.Toltec.ObsType": 2,  # Tune
+                "Header.Toltec.ObsType": 4,  # Tune
                 "is_multi_block": True,
                 "n_blocks": n_blocks,
             },
@@ -328,7 +328,7 @@ class TestMetadataAccessor:
                 "Header.Toltec.RoachIndex": 2,
                 "Header.Toltec.SampleFreq": 488.0,
                 "Header.Toltec.ObsNum": 99999,
-                "Header.Toltec.ObsType": 0,  # VnaSweep
+                "Header.Toltec.ObsType": 2,  # VnaSweep
             },
         )
 
@@ -374,7 +374,7 @@ class TestMetadataAccessor:
             attrs={
                 "Header.Toltec.RoachIndex": 0,
                 "Header.Toltec.SampleFreq": 488.0,
-                "Header.Toltec.ObsType": 2,  # Tune sweep
+                "Header.Toltec.ObsType": 4,  # Tune sweep
                 "Header.Toltec.NumSweepSteps": n_sweeps,
                 "is_multi_block": True,
             },

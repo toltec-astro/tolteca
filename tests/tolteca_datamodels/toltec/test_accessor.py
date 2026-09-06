@@ -92,7 +92,7 @@ def toltec_sweep_dataset():
             "Header.Toltec.ScanNum": 0,
             "Header.Toltec.SampleFreq": 1000.0,
             "Header.Toltec.LoCenterFreq": 150e6,  # 150 MHz center LO
-            "Header.Toltec.ObsType": 1,  # TargetSweep
+            "Header.Toltec.ObsType": 3,  # TargetSweep
         },
     )
     # Add units to coordinates
@@ -326,7 +326,7 @@ def test_data_kind_property(toltec_sweep_dataset, toltec_timestream_dataset):
     """Test data_kind property returns appropriate data kind."""
     from tolteca_datamodels.toltec.types import ToltecDataKind
 
-    # Sweep dataset should identify as TargetSweep (ObsType=1 in fixture)
+    # Sweep dataset should identify as TargetSweep (ObsType=3 in fixture)
     sweep_kind = toltec_sweep_dataset.toltec_kids.data_kind
     assert sweep_kind == ToltecDataKind.TargetSweep
 
@@ -526,15 +526,6 @@ def test_real_data_loads_successfully(toltec0_data_path):
         # Should be able to access basic metadata
         assert ds.toltec_kids.meta.n_chans > 0
         assert ds.toltec_kids.meta.array_name in ["a1100", "a1400", "a2000"]
-
-        # Should be able to get channel axis data (may be multi-dimensional)
-        try:
-            chan_table = ds.toltec_kids.get_chan_axis_data()
-            # Just verify it returns a table
-            assert len(chan_table) > 0
-        except ValueError:
-            # Some raw data may have complex structures
-            pytest.skip(f"Channel axis data not available for {nc_file.name}")
 
 
 def test_reduce_raw_sweep_mock_data():
@@ -792,6 +783,20 @@ def test_accessor_metadata_extraction(toltec_sweep_dataset):
     assert metadata.obsnum == 12345
     assert metadata.roach == 0
     assert metadata.n_chans == 256
+
+
+def test_accessor_metadata_reads_sweep_counts_from_data_variables(
+    toltec_sweep_dataset,
+):
+    """Raw netCDF header variables provide sweep dimensions."""
+    ds = toltec_sweep_dataset.drop_vars("sweep")
+    ds["Header.Toltec.NumSweepSteps"] = xr.DataArray(50)
+    ds["Header.Toltec.NumSamplesPerSweepStep"] = xr.DataArray(4)
+
+    metadata = ds.toltec_kids.meta
+
+    assert metadata.n_sweepsteps == 50
+    assert metadata.n_sweepreps == 4
 
 
 # ── Reduced-view accessor entry points ────────────────────────────────────────

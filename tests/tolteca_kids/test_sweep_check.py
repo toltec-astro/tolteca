@@ -218,7 +218,8 @@ class TestPipelineMechanics:
 
 class TestOutputArrays:
     @pytest.fixture(scope="class")
-    def ctx(self):
+    @classmethod
+    def ctx(cls):
         dt = make_reduced_datatree(n_chans=5, n_steps=80)
         return _run_sweep_check(dt, chunk_size=20, n_chunks_min=3)
 
@@ -233,6 +234,7 @@ class TestOutputArrays:
 
     def test_bitmask_chan_stats_is_dataframe(self, ctx):
         import pandas as pd
+
         assert isinstance(ctx.data.bitmask_chan_stats, pd.DataFrame)
 
     def test_d21_is_quantity(self, ctx):

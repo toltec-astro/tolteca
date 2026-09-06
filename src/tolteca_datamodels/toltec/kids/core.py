@@ -22,6 +22,8 @@ from astropy.table import QTable
 from tollan.accessor import Mapping, NameMapping, Schema
 from tollan.accessor.xarray import XarrayMapper
 
+from ..toltecdb import ToltecDBRawObsType
+
 if TYPE_CHECKING:
     from ..types import ToltecDataKind
 
@@ -36,8 +38,8 @@ __all__ = [
 class ToltecKidsIOSchema(Schema):
     """Schema for raw TolTEC KIDs data I/O.
 
-    Maps to raw netCDF variable names as they appear in the LMT data files
-    (tolteca_ref_data/data_lmt). This schema is used by ToltecKidsAccessor
+    Maps to raw netCDF variable names as they appear in the deployed LMT data
+    fixture. This schema is used by ToltecKidsAccessor
     to provide access to raw data and metadata without any processing.
 
     **Data Variables (Raw):**
@@ -64,6 +66,9 @@ class ToltecKidsIOSchema(Schema):
     - obs_type: Observation type (Header.Toltec.ObsType)
     - obs_start_time: Observation start time scalar (Header.Toltec.ObsStartTime)
     - kind_str: Data kind string (Header.Kids.kind)
+    - n_sweepsteps: Number of sweep steps (Header.Toltec.NumSweepSteps)
+    - n_sweepreps: Samples per sweep step
+      (Header.Toltec.NumSamplesPerSweepStep)
 
     **Sweep Coordinate:**
     - frequency: Sweep frequency axis (sweep / nsweeps dim)
@@ -107,6 +112,10 @@ class ToltecKidsIOSchema(Schema):
     obs_type: Mapping = NameMapping("Header.Toltec.ObsType")
     kind_str: Mapping = NameMapping(("Header.Kids.kind", "kind_str"))
     obs_start_time: Mapping = NameMapping("Header.Toltec.ObsStartTime")
+    n_sweepsteps: Mapping = NameMapping("Header.Toltec.NumSweepSteps")
+    n_sweepreps: Mapping = NameMapping(
+        "Header.Toltec.NumSamplesPerSweepStep",
+    )
 
     # Instrument settings
     atten_drive: Mapping = NameMapping("Header.Toltec.DriveAtten")
@@ -261,13 +270,11 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         # Check for obs_type (raw data)
         if self.schema.obs_type in self:
             obs_type = self.get_scalar(data_source, self.schema.obs_type)
-            obs_type_map = {
-                0: ToltecDataKind.VnaSweep,
-                1: ToltecDataKind.TargetSweep,
-                2: ToltecDataKind.Tune,
-                3: ToltecDataKind.RawTimeStream,
-            }
-            return obs_type_map.get(obs_type, ToltecDataKind.Unknown)
+            try:
+                raw_obs_type = ToltecDBRawObsType(obs_type)
+            except (TypeError, ValueError):
+                return ToltecDataKind.Unknown
+            return ToltecDBRawObsType.get_data_kind(raw_obs_type)
 
         # Infer from structure
         if self.schema.frequency in self:
@@ -317,16 +324,20 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         if self.schema.frequency in self:
             freq = self.get_arr(data_source, self.schema.frequency)
             sweep_fields["n_sweepsteps"] = freq.sizes[freq.dims[0]]
-        elif "Header.Toltec.NumSweepSteps" in ds.attrs:
-            sweep_fields["n_sweepsteps"] = ds.attrs["Header.Toltec.NumSweepSteps"]
+        elif self.schema.n_sweepsteps in self:
+            sweep_fields["n_sweepsteps"] = self.get_scalar(
+                data_source,
+                self.schema.n_sweepsteps,
+            )
         elif "nsweeps" in ds.dims:  # For reduced sweeps
             sweep_fields["n_sweepsteps"] = ds.sizes["nsweeps"]
 
         # Get n_sweepreps (for raw sweeps)
-        if "Header.Toltec.NumSamplesPerSweepStep" in ds.attrs:
-            sweep_fields["n_sweepreps"] = ds.attrs[
-                "Header.Toltec.NumSamplesPerSweepStep"
-            ]
+        if self.schema.n_sweepreps in self:
+            sweep_fields["n_sweepreps"] = self.get_scalar(
+                data_source,
+                self.schema.n_sweepreps,
+            )
 
         # For multi-block data
         if is_multi_block:
@@ -484,9 +495,7 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
                 data_source, self.schema.mask_tones
             ).values
         if self.schema.amp_tones in self:
-            table["tone_amp"] = self.get_arr(
-                data_source, self.schema.amp_tones
-            ).values
+            table["tone_amp"] = self.get_arr(data_source, self.schema.amp_tones).values
         if self.schema.phase_tones in self:
             table["tone_phase"] = (
                 self.get_arr(data_source, self.schema.phase_tones).values * u.rad
@@ -523,9 +532,7 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
 
         ds = data_source
         is_sweep = (
-            "sweep" in ds.dims
-            or "nsweeps" in ds.dims
-            or "frequency" in ds.coords
+            "sweep" in ds.dims or "nsweeps" in ds.dims or "frequency" in ds.coords
         )
         if not is_sweep:
             msg = "Dataset is not sweep data (no frequency coordinate)"
@@ -635,9 +642,7 @@ class ToltecKidsAccessor:
         self._obj = xarray_obj
         # Mapper operates on a plain Dataset — use root dataset for DataTree
         self._root_ds: xr.Dataset = (
-            xarray_obj.dataset
-            if isinstance(xarray_obj, xr.DataTree)
-            else xarray_obj
+            xarray_obj.dataset if isinstance(xarray_obj, xr.DataTree) else xarray_obj
         )
         self.mapper = ToltecKidsIOMapper.from_data_source(self._root_ds)
 
@@ -700,7 +705,7 @@ class ToltecKidsAccessor:
         xr.DataArray or None
             Tone frequencies in Hz, or None if not present
         """
-        if not self.mapper.schema.f_tones in self.mapper:
+        if self.mapper.schema.f_tones not in self.mapper:
             return None
         return self.mapper.get_arr(self._root_ds, self.mapper.schema.f_tones)
 
@@ -714,7 +719,7 @@ class ToltecKidsAccessor:
             LO frequency in Hz (array for sweeps, scalar for fixed),
             or None if not present
         """
-        if not self.mapper.schema.f_los in self.mapper:
+        if self.mapper.schema.f_los not in self.mapper:
             return None
 
         name = self.mapper.get_name(self.mapper.schema.f_los)
@@ -755,7 +760,7 @@ class ToltecKidsAccessor:
             For multi-block data, has 'block' dimension.
             Returns None if not present.
         """
-        if not self.mapper.schema.mask_tones in self.mapper:
+        if self.mapper.schema.mask_tones not in self.mapper:
             return None
         arr = self.mapper.get_arr(self._root_ds, self.mapper.schema.mask_tones)
         # Note: For multi-block data after reduce_raw_sweep with concat,
@@ -773,7 +778,7 @@ class ToltecKidsAccessor:
             For multi-block data, has 'block' dimension.
             Returns None if not present.
         """
-        if not self.mapper.schema.amp_tones in self.mapper:
+        if self.mapper.schema.amp_tones not in self.mapper:
             return None
         arr = self.mapper.get_arr(self._root_ds, self.mapper.schema.amp_tones)
         return arr
@@ -789,7 +794,7 @@ class ToltecKidsAccessor:
             For multi-block data, has 'block' dimension.
             Returns None if not present.
         """
-        if not self.mapper.schema.phase_tones in self.mapper:
+        if self.mapper.schema.phase_tones not in self.mapper:
             return None
         arr = self.mapper.get_arr(self._root_ds, self.mapper.schema.phase_tones)
         return arr
