@@ -14,7 +14,10 @@ import pytest
 import xarray as xr
 
 # Import to register accessor
-from tolteca_datamodels.toltec.kids import ToltecKidsAccessor  # noqa: F401
+from tolteca_datamodels.toltec.kids import (
+    ToltecKidsAccessor,  # noqa: F401
+    ToltecKidsIOMapper,
+)
 
 # Helper to get namespaced variable names
 NAMESPACE = "tolteca_datamodels.toltec.kids.sweep"
@@ -507,6 +510,19 @@ def test_real_data_channel_selection(real_vnasweep_file):
     except (ValueError, KeyError):
         # Some raw data formats may not support selection
         pytest.skip("Channel selection not supported for this data format")
+
+
+def test_real_mapper_get_arr_preserves_lazy_backend(real_vnasweep_file):
+    """Mapper resolution and labeled reads leave the large raw I array lazy."""
+    with xr.open_dataset(real_vnasweep_file) as ds:
+        raw_i = ds["Data.Toltec.Is"]
+        assert not raw_i.variable._in_memory
+
+        mapper = ToltecKidsIOMapper.from_data_source(ds)
+        mapped_i = mapper.get_arr(ds, mapper.schema.I)
+
+        assert mapped_i.variable is raw_i.variable
+        assert not raw_i.variable._in_memory
 
 
 def test_real_data_loads_successfully(toltec0_data_path):
