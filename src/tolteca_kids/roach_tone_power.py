@@ -880,9 +880,13 @@ class RoachTonePower:
         float
             Fraction of ADC full scale range used
         """
-        # Convert from 16 bits to 12 bits
-        x0 = self.adc_snap[0].view(np.int16) / 16
-        x1 = self.adc_snap[1].view(np.int16) / 16
+        # Header.Toltec.AdcSnapData is stored with units="12 bit counts",
+        # i.e. the int16 values already are the 12-bit ADC code -- they are
+        # not a 12-bit code left-shifted into a 16-bit word, so no further
+        # division is needed here (verified empirically: raw % 16 spans all
+        # of 0-15 rather than always landing on multiples of 16).
+        x0 = self.adc_snap[0].view(np.int16)
+        x1 = self.adc_snap[1].view(np.int16)
         r0 = (x0.max() - x0.min()) / 2**12
         r1 = (x1.max() - x1.min()) / 2**12
         return np.array([r0, r1]).mean()
