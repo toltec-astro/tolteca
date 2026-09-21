@@ -511,8 +511,10 @@ def test_reference_telescope_files(data_lmt_path, monkeypatch):
                 assert meta.t_elapsed == (meta.t1 - meta.t0).to(u.s)
                 assert meta.t_elapsed is meta.t_elapsed
                 assert not reads
-                assert meta.master == 0
-                assert meta.master_str == "tcs"
+                assert (meta.master, meta.master_str) == (0, "tcs")
+                assert meta.uid_raw_obs_file == (
+                    f"tcs-{meta.obsnum}-{meta.subobsnum}-{meta.scannum}-tel"
+                )
                 assert meta.interface == "tel"
                 assert meta.instru_component == "tcs"
                 assert meta.obsnum == expected["obsnum"]

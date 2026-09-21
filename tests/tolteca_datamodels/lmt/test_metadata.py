@@ -60,6 +60,14 @@ def test_telescope_master_is_nullable(base_tel_fields, master):
     assert meta.master_str == (
         None if master is None else ToltecDBRawObsMaster.get_master_type(master)
     )
+    expected = None if master is None else f"{meta.master_str}-145609-0-2"
+    assert meta.quartet == expected
+    assert meta.uid_raw_obs == expected
+    assert meta.uid_raw_obs_file == (None if expected is None else f"{expected}-tel")
+    payload = TypeAdapter(LmtTelMetadata).dump_python(meta, mode="json")
+    assert payload["master"] == master
+    assert payload["quartet"] == expected
+    assert payload["uid_raw_obs_file"] == meta.uid_raw_obs_file
 
 
 @pytest.mark.parametrize("master", [None, *ToltecDBRawObsMaster])
@@ -88,7 +96,10 @@ def test_instrument_identity_is_constant(base_tel_fields, name, value):
 
 def test_other_telescope_interface(base_tel_fields):
     base_tel_fields["interface"] = "tel2"
-    assert LmtTelMetadata(**base_tel_fields).interface == "tel2"
+    meta = LmtTelMetadata(**base_tel_fields)
+    assert meta.interface == "tel2"
+    assert meta.quartet == "tcs-145609-0-2"
+    assert meta.uid_raw_obs_file == "tcs-145609-0-2-tel2"
 
 
 @pytest.mark.parametrize(
@@ -127,6 +138,7 @@ def test_json_roundtrip(base_tel_fields):
     restored = adapter.validate_json(adapter.dump_json(meta, round_trip=True))
     assert restored.master == 0
     assert restored.master_str == "tcs"
+    assert restored.uid_raw_obs_file == "tcs-145609-0-2-tel"
     assert restored.filepath_orig == meta.filepath_orig
     assert restored.filepath_info_orig == meta.filepath_info_orig
     assert restored.obs_pgm == meta.obs_pgm

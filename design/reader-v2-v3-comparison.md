@@ -8,7 +8,7 @@ reader corrections. No reader implementation was changed for that baseline.
 The current implementation progress, decisions, and exceptions awaiting review
 are recorded in [section 10](#10-reader-correction-iterations). Its telescope
 results supersede the baseline telescope findings where explicitly listed.
-The current telescope contract is **T5**, with shared path naming updated in **C3** below. T1/T2 and C1/C2 are historical
+The current telescope contract is **T6**, with shared path naming updated in **C3** below. T1/T2 and C1/C2 are historical
 iteration records, not competing descriptions of the current API.
 
 ## Summary
@@ -1196,4 +1196,45 @@ a mapper with an incompatible source, cleanup, one-time initialization, and
 deferred metadata validation. The full Tolteca suite passes **1,278 tests** with
 the v2 interpreter enabled and benchmark timing disabled. Scoped Ruff (existing
 CPY001 exclusion), formatting and `ty` checks pass. `just qa` was not run.
-This follow-up remains uncommitted for review.
+This follow-up was approved and committed as `ccb91e8`.
+
+### T6: shared metadata identifiers
+
+`LmtObsQuartetMixin.quartet` is the unpadded
+`master_str-obsnum-subobsnum-scannum`. `LmtRawObsMetadata.uid_raw_obs` is the same
+value, and `uid_raw_obs_file` appends the interface, not the ROACH number or
+current filename. All three are cached computed fields; an unavailable master
+name produces None. They identify acquisition/interface associations, not file
+content, storage locations, or database rows.
+
+The base `master` field now admits a string name, numeric code, or None so its
+annotation covers both existing concrete models. Base `master_str` preserves a
+provided name and returns None for an untranslated code. No TolTEC-specific
+mapping is imported into `lmt_base`. Telescope metadata's existing enum lookup
+continues to supply its name while preserving the numeric header code. KIDs
+metadata explicitly keeps its required string field, so widening the base does
+not silently loosen that concrete model's validation.
+
+Telescope debug logging now uses `uid_raw_obs_file` plus observation program
+and original path. Computing the ID adds no source reads. Computed fields are
+included in ordinary Pydantic serialization and omitted by `round_trip=True`;
+deserialization derives them from the input fields. Replacing frozen metadata
+creates fresh caches. This follows Pydantic's
+[computed-field](https://docs.pydantic.dev/latest/api/fields/#pydantic.fields.computed_field)
+and [dataclass serialization](https://docs.pydantic.dev/latest/concepts/dataclasses/)
+contracts, with local tests for both.
+
+Scope: no file-catalog UID migration, ObsSpec change, product-directory rename,
+or DB/Web key migration. Their differing conventions are recorded in the
+[identifier review](lmt-tel-metadata-review-20260921.md#4-observation-identifiers).
+Header values and all numerical arrays remain unchanged. In particular, this
+does not add a fallback from a missing master to the file's path or instrument.
+
+Verification: the full Tolteca suite passes **1,292 tests**, with actual v2
+comparisons enabled and benchmark timing disabled. The new tests cover named,
+unnamed and simulated masters; inherited concrete-model behavior; interface
+suffixes; cached derivation; read-only serialization schemas; and fresh caches
+after replacement or JSON round trips. Existing reference-file tests still
+observe exactly the expected metadata reads and no reads when accessing IDs.
+Scoped Ruff (existing CPY001 exclusion), formatting and `ty` checks pass.
+`just qa` was not run. This patch remains uncommitted for review.

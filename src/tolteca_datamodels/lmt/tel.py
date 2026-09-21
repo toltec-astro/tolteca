@@ -129,13 +129,9 @@ class LmtTelIOMapper(XarrayMapper[LmtTelIOSchema]):
             target_ref=targets[1],
         )
         logger.debug(
-            "Read telescope metadata: interface={}, master={}, obs={}-{}-{}, "
+            "Read telescope metadata: uid_raw_obs_file={}, "
             "obs_pgm={}, filepath_orig={}",
-            meta.interface,
-            meta.master,
-            meta.obsnum,
-            meta.subobsnum,
-            meta.scannum,
+            meta.uid_raw_obs_file,
             meta.obs_pgm,
             meta.filepath_orig,
         )

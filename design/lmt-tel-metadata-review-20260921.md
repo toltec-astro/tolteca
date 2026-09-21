@@ -3,7 +3,7 @@
 This is a design review, not the public user guide. It revisits the work in
 `/tmp/toltec-python-metadata-catalog-review.diff`. The initial review made no
 runtime changes. The subsequent accepted telescope naming changes and
-structural opener follow-up are recorded below; identifier, integrity-check,
+structural opener and identifier follow-ups are recorded below; integrity-check,
 parser, and guide-consolidation proposals remain separate work.
 
 ## Review boundary and evidence
@@ -165,7 +165,7 @@ However, existing consumers do not all use the same representation:
 | DB ingestion's `DataProdInfo.uid_dp_raw_obs` | Master-prefixed quartet with underscores |
 | DB repository `SourceInfo.uid_raw_obs` | Assigned the data-product database primary key |
 
-Proposed public values, matching the Web's readable quartet convention:
+Implemented metadata values, matching the Web's readable quartet convention:
 
 ```text
 quartet          = tcs-145609-0-2
@@ -174,13 +174,15 @@ uid_raw_obs_file = tcs-145609-0-2-tel
 ```
 
 Use a canonical **master name** here, while preserving the integer acquisition
-code in telescope `master`. The base currently annotates `master` as `str`,
-whereas telescope overrides it with `ToltecDBRawObsMaster | None`. The common
-composition must depend on a typed `master_str` contract, not `str(master)`
-(which would yield the numeric code for telescope metadata). Reconciling that
-base-field typing is part of the identifier change, not an incidental cast.
+code in telescope `master`. The shared base now annotates `master` as
+`str | int | None`, covering the concrete representations without importing
+TolTEC constants. Its computed `master_str` retains a supplied name; an unnamed
+code yields None. Telescope metadata keeps its existing override translating
+the validated enum. KIDs metadata explicitly retains its existing required
+string field. The common composition depends only on `master_str`, never
+`str(master)` or an assumed enum-name convention.
 
-Since an absent master is explicitly valid, recommend nullable quartet/UIDs
+Since an absent master is explicitly valid, the quartet/UIDs are nullable
 when it cannot be named, rather than creating `None-...` or guessing `tcs`.
 A simulated source with an explicitly known name such as `simu` can have an
 identity without an official database code. That does not authorize inferring
@@ -347,7 +349,8 @@ provenance discussion do not belong in those property docstrings.
 
 1. The property/schema table and sampled-duration name are accepted and
    implemented in the committed T4 follow-up. Structural opener checking is
-   implemented separately in T5; shared identifiers remain pending.
+   committed separately in T5. Shared metadata identifiers are implemented in
+   the focused T6 patch, without migrating existing DB/catalog keys.
 2. Extract common filepath machinery and the configured kind lookup without
    changing accepted syntax, source precedence, or query behavior. Test the full
    existing kind matrix, unknowns, both layouts, registry ambiguity, and remote
@@ -408,5 +411,15 @@ now surface at open. No standalone `identify()` API is needed.
 
 Verification passed **108 telescope tests** and **1,278 full-suite tests**, with
 v2 parity enabled, plus scoped lint, formatting and type checks. `just qa` was
-not run. This patch remains uncommitted; its full behavior and test record is
+not run. This patch was approved and committed as `ccb91e8`; its test record is
 [T5 in the reader comparison](reader-v2-v3-comparison.md#t5-structural-telescope-identification-at-open).
+
+### Shared identifier follow-up
+
+The next patch adds cached computed identifiers to the shared metadata base and
+uses the interface-qualified UID in telescope logging. Missing master names
+leave identifiers unavailable; the recorded original path remains in the log.
+No file names, ObsSpec grammar, catalog group keys, DB keys, or product paths
+are migrated. The numerical/header-reading contract is unchanged. See
+[T6 in the reader comparison](reader-v2-v3-comparison.md#t6-shared-metadata-identifiers)
+for verification and the remaining downstream reconciliation boundary.

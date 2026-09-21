@@ -48,6 +48,7 @@ with open_lmt_tel("tel_toltec_2025-10-31_145606_00_0001.nc") as ds:
     print(meta.target.ra.to_value(u.deg), meta.target.dec.to_value(u.deg))
     print(meta.obs_pgm, meta.obs_goal)
     print(meta.master, meta.master_str)
+    print(meta.uid_raw_obs, meta.uid_raw_obs_file)
 ```
 
 | Telescope metadata | Meaning |
@@ -60,6 +61,12 @@ with open_lmt_tel("tel_toltec_2025-10-31_145606_00_0001.nc") as ds:
 | `master`, `master_str` | Recorded acquisition-master code and name, such as `0` and `tcs`; `None` if unavailable |
 | `instru`, `instru_component`, `interface` | Instrument, component, and readout actor: `lmt`, `tcs`, and `tel` |
 | `filepath_orig` | Original acquisition file path recorded in the header |
+
+Use `quartet` or its alias `uid_raw_obs` to identify an observation across
+interfaces: for example, `tcs-145606-0-1`. `uid_raw_obs_file` appends the
+interface, giving `tcs-145606-0-1-tel`. These identifiers have no zero padding
+and are `None` when the master name is unavailable. They identify acquisitions,
+not storage locations: copies of the same acquisition retain the same ID.
 
 KIDs integration time is the sample count divided by the sample rate. Its
 acquisition timestamps describe the containing file. Unavailable optional

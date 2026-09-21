@@ -39,6 +39,8 @@ class ToltecRawObsMetadata(LmtRawObsMetadata):
     - t0, t1, t_exp: Timing fields
     """
 
+    master: str = Field(description="Master controller name")
+
     # Override parent fields with defaults where appropriate
     instru: Literal["toltec", "lmt"] | str = Field(
         default="toltec",
