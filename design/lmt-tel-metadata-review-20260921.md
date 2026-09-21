@@ -2,9 +2,9 @@
 
 This is a design review, not the public user guide. It revisits the work in
 `/tmp/toltec-python-metadata-catalog-review.diff`. The initial review made no
-runtime changes. The subsequent accepted telescope naming changes are recorded
-below; identifier, integrity-check, parser, and guide-consolidation proposals
-remain separate work.
+runtime changes. The subsequent accepted telescope naming changes and
+structural opener follow-up are recorded below; identifier, integrity-check,
+parser, and guide-consolidation proposals remain separate work.
 
 ## Review boundary and evidence
 
@@ -210,21 +210,23 @@ validation pass:
 
 | Operation | Proposed responsibility | Payload cost |
 | --- | --- | --- |
-| Accessor `identify(data_source)` | Recognize telescope structure through its schema, starting with native `TelTime` presence/layout | No numerical-value reads |
+| Accessor construction (`_validate`) | Recognize telescope structure through its schema by native `TelTime` presence | No numerical-value reads |
 | `open_lmt_tel()` | Open once, invoke identification, close on rejection, raise a useful `ValueError` | Same structural cost; no eager `.meta` |
 | `.meta` | Read required scalar headers, the coordinate pairs, and time endpoints; validate their existing contracts | Same bounded reads as today |
 | Explicit `check_integrity()` | Check original-path identifiers against headers and defined metadata/data invariants | Header/endpoints and structural checks; full time-stream checks only if explicitly requested |
 
 V2's content identification checked for `Data.TelescopeBackend.TelTime`.
-Current v3 `open_lmt_tel()` has no equivalent check. Contrary to an earlier
+The reviewed v3 baseline had no equivalent check. Contrary to an earlier
 assumption, `open_toltec()` itself also just opens xarray; KIDs kind detection
 and source enrichment happen subsequently. Do not copy a supposed opener
 validation policy that does not exist.
 
 Keep recognition distinct from completeness: a recognized but corrupt telescope
 file should fail with the missing/invalid metadata field, not be relabelled as
-an unrelated file. The reusable check belongs with the accessor and should use
-schema mappings, not another physical-name list in the opener.
+an unrelated file. The reusable check belongs with the accessor and uses schema
+mappings, not another physical-name list in the opener. The base accessor
+already calls `_validate()`, so the implementation uses that hook instead of
+introducing a separate `identify()` API.
 
 Move the optional original-path consistency check into the explicit integrity
 operation; do not add duration checks to a flag named `check_filepath_orig`.
@@ -344,9 +346,8 @@ provenance discussion do not belong in those property docstrings.
 ## 8. Proposed implementation/review sequence
 
 1. The property/schema table and sampled-duration name are accepted and
-   implemented in the focused T4 follow-up. Shared identifiers and structural
-   opener checks remain separate implementation steps; neither is silently
-   included in this naming patch.
+   implemented in the committed T4 follow-up. Structural opener checking is
+   implemented separately in T5; shared identifiers remain pending.
 2. Extract common filepath machinery and the configured kind lookup without
    changing accepted syntax, source precedence, or query behavior. Test the full
    existing kind matrix, unknowns, both layouts, registry ambiguity, and remote
@@ -394,5 +395,18 @@ comparisons remain exact. Added tests cover native-handle laziness in ordinary
 and Dask modes, no extra metadata reads for elapsed duration, and computed-field
 caching/serialization. The full Tolteca pytest suite passes **1,263 tests** with
 v2 parity enabled; scoped lint, formatting and type checks pass. `just qa` was
-not run, and this follow-up is uncommitted. See
+not run. This follow-up was approved and committed as `d488967`. See
 [T4 in the reader comparison](reader-v2-v3-comparison.md#t4-accepted-telescope-names-and-elapsed-duration).
+
+### Structural opener follow-up
+
+The next focused patch uses the existing accessor `_validate()` hook and
+initializes the cached accessor inside `open_lmt_tel()`. It closes the Dataset
+on initialization failure; successful opens do not read headers or sample
+values. Metadata validation remains deferred, while schema-resolution errors
+now surface at open. No standalone `identify()` API is needed.
+
+Verification passed **108 telescope tests** and **1,278 full-suite tests**, with
+v2 parity enabled, plus scoped lint, formatting and type checks. `just qa` was
+not run. This patch remains uncommitted; its full behavior and test record is
+[T5 in the reader comparison](reader-v2-v3-comparison.md#t5-structural-telescope-identification-at-open).

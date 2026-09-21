@@ -163,6 +163,9 @@ class LmtTelIOMapper(XarrayMapper[LmtTelIOSchema]):
 class LmtTelAccessor(XarrayAccessorBase[LmtTelIOMapper]):
     """Access typed telescope metadata and lazy pointing arrays.
 
+    The source must contain the mapped telescope timestamp variable. Its values
+    and observation headers are read only when requested.
+
     Examples
     --------
     >>> with open_lmt_tel("tel_toltec_2025-10-31_145609_00_0002.nc") as ds:
@@ -172,6 +175,12 @@ class LmtTelAccessor(XarrayAccessorBase[LmtTelIOMapper]):
     Keep the dataset open until the desired array slices have been loaded.
     Metadata is cached on this accessor; it contains no open file handles.
     """
+
+    def _validate(self) -> None:
+        """Reject sources without a mapped telescope timestamp variable."""
+        if not self.mapper.has_arr(self.data_source, self.mapper.schema.tel_time):
+            msg = "Not an LMT telescope dataset: missing tel_time variable"
+            raise ValueError(msg)
 
     @functools.cached_property
     def meta(self) -> LmtTelMetadata:
@@ -245,9 +254,18 @@ def open_lmt_tel(filepath: str | Path | FileLoc, **kwargs) -> xr.Dataset:
     Additional arguments are passed to xarray.open_dataset. Use the returned
     dataset as a context manager, or close it after loading the needed arrays.
     The location must be local; remote files must be staged before opening.
+    A dataset without the telescope timestamp variable raises ValueError.
+    Identification does not read timestamp values or observation headers.
     """
     source = fileloc(filepath)
     if source.is_remote():
         msg = "Remote telescope files must be staged locally before opening"
         raise ValueError(msg)
-    return xr.open_dataset(source.path, **kwargs)
+    ds = xr.open_dataset(source.path, **kwargs)
+    try:
+        # Accessor initialization resolves the schema and validates structure only.
+        _ = ds.lmt_tel
+    except BaseException:
+        ds.close()
+        raise
+    return ds

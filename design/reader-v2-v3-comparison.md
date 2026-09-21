@@ -8,7 +8,7 @@ reader corrections. No reader implementation was changed for that baseline.
 The current implementation progress, decisions, and exceptions awaiting review
 are recorded in [section 10](#10-reader-correction-iterations). Its telescope
 results supersede the baseline telescope findings where explicitly listed.
-The current telescope contract is **T4**, with shared path naming updated in **C3** below. T1/T2 and C1/C2 are historical
+The current telescope contract is **T5**, with shared path naming updated in **C3** below. T1/T2 and C1/C2 are historical
 iteration records, not competing descriptions of the current API.
 
 ## Summary
@@ -1163,4 +1163,37 @@ cache after metadata replacement, and unchanged integration time are covered.
 Scoped Ruff (existing CPY001 exclusion), formatting, and `ty` checks pass.
 The full Tolteca pytest suite also passes: **1,263 tests**, with the actual v2
 interpreter enabled and benchmark timing disabled. The repository-wide
-`just qa` recipe was not run. No commit was made.
+`just qa` recipe was not run. This naming patch was approved and committed as
+`d488967`.
+
+### T5: structural telescope identification at open
+
+`LmtTelAccessor` now uses its existing `_validate()` hook to require the mapped
+`tel_time` variable in the current payload. It checks through `mapper.has_arr`;
+an attribute or bare dimension with the same physical name does not qualify,
+nor does a mapping previously resolved against a different source.
+
+This matches v2's telescope recognition criterion: native TelTime presence,
+not a complete-header or numerical-value check. Empty or scalar timestamp
+variables still pass recognition and fail the existing shape check when
+metadata is requested. Required headers remain lazy. No additional public
+identification API or physical-name list is introduced.
+
+`open_lmt_tel()` initializes the registered accessor once and returns the same
+open Dataset. If accessor initialization fails, including interruption, it
+closes the Dataset and re-raises the exception. Successful opens keep the
+normal caller-owned lifetime. Existing schema-resolution errors now surface
+during opening rather than on first accessor access; directly constructing an
+accessor on an unsupported source also fails immediately.
+
+No sample values or metadata headers are read by this identification check.
+There are no changes to numerical results, filename parsing, remote staging,
+integration-time handling, or optional original-path consistency checks.
+
+Verification: **108 telescope tests passed**, including actual v2 comparisons.
+New cases cover Dataset/DataTree recognition, unrelated netCDF inputs, reuse of
+a mapper with an incompatible source, cleanup, one-time initialization, and
+deferred metadata validation. The full Tolteca suite passes **1,278 tests** with
+the v2 interpreter enabled and benchmark timing disabled. Scoped Ruff (existing
+CPY001 exclusion), formatting and `ty` checks pass. `just qa` was not run.
+This follow-up remains uncommitted for review.

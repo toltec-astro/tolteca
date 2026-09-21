@@ -25,6 +25,13 @@ and selecting input files, see [Discovering and selecting files](file-catalogs.m
 `open_lmt_tel()` accepts local paths, file URLs, and local `FileLoc` objects.
 Stage remote telescope files locally before opening them.
 
+Opening resolves the telescope schema and checks for its timestamp variable
+without reading sample values or observation headers. A dataset without that
+variable raises `ValueError`; the helper closes it before raising. Accessing
+`.lmt_tel` on an already-open Dataset or DataTree applies the same check.
+Required metadata fields and timestamp values are checked when you request
+`.meta`.
+
 ## Inspect observation metadata
 
 `kids.meta` returns `ToltecSweepMetadata` or `ToltecTimeStreamMetadata`;

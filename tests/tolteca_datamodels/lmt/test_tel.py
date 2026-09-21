@@ -279,6 +279,104 @@ def test_open_local_fileloc(data_lmt_path, as_url):
         assert ds.lmt_tel.meta.filepath_orig == f"/data_lmt/tel/{path.name}"
 
 
+@pytest.mark.parametrize("as_tree", [False, True])
+@pytest.mark.parametrize("location", ["missing", "attr", "dim"])
+def test_accessor_requires_native_timestamps(telescope, as_tree, location):
+    name = "Data.TelescopeBackend.TelTime"
+    ds = telescope.drop_vars(name)
+    if location == "attr":
+        ds.attrs[name] = [0.0, 1.0]
+    elif location == "dim":
+        ds["unrelated"] = (name, [0.0, 1.0])
+    obj = xr.DataTree(ds) if as_tree else ds
+    with pytest.raises(ValueError, match="missing tel_time variable"):
+        _ = obj.lmt_tel
+
+
+def test_accessor_checks_timestamp_presence_in_current_source(telescope):
+    mapper = LmtTelIOMapper.from_data_source(telescope)
+    source = telescope.drop_vars("Data.TelescopeBackend.TelTime")
+    with pytest.raises(ValueError, match="missing tel_time variable"):
+        LmtTelAccessor(source, mapper=mapper)
+
+
+def test_open_rejects_other_netcdf(data_lmt_path):
+    path = next((data_lmt_path / "toltec").rglob("*.nc"))
+    with pytest.raises(ValueError, match="Not an LMT telescope dataset"):
+        open_lmt_tel(path)
+
+
+def test_rejected_open_closes_dataset(tmp_path, monkeypatch):
+    ds = xr.Dataset()
+    closed = []
+    ds.set_close(lambda: closed.append(True))
+    monkeypatch.setattr(xr, "open_dataset", lambda *args, **kwargs: ds)
+    with pytest.raises(ValueError, match="missing tel_time variable"):
+        open_lmt_tel(tmp_path / "not_tel.nc")
+    assert closed == [True]
+
+
+@pytest.mark.parametrize("error", [RuntimeError("unexpected"), KeyboardInterrupt()])
+def test_open_closes_on_initialization_failure(telescope, tmp_path, monkeypatch, error):
+    closed = []
+    telescope.set_close(lambda: closed.append(True))
+    monkeypatch.setattr(xr, "open_dataset", lambda *args, **kwargs: telescope)
+
+    def fail(self):
+        raise error
+
+    monkeypatch.setattr(LmtTelAccessor, "_validate", fail)
+    with pytest.raises(type(error)) as exc:
+        open_lmt_tel(tmp_path / "tel.nc")
+    assert exc.value is error
+    assert closed == [True]
+
+
+def test_open_initializes_once_and_preserves_lifetime(telescope, tmp_path, monkeypatch):
+    opened = []
+    validated = []
+    closed = []
+    telescope.set_close(lambda: closed.append(True))
+    validate = LmtTelAccessor._validate
+
+    def track_open(path, **kwargs):
+        opened.append((path, kwargs))
+        return telescope
+
+    def track_validate(self):
+        validated.append(self)
+        validate(self)
+
+    monkeypatch.setattr(xr, "open_dataset", track_open)
+    monkeypatch.setattr(LmtTelAccessor, "_validate", track_validate)
+    path = tmp_path / "renamed.nc"
+    with open_lmt_tel(path, chunks={}) as ds:
+        assert ds is telescope
+        assert validated == [ds.lmt_tel]
+        assert "meta" not in ds.lmt_tel.__dict__
+        assert not closed
+    assert opened == [(path, {"chunks": {}})]
+    assert closed == [True]
+
+
+@pytest.mark.parametrize("condition", ["missing_header", "empty_time", "scalar_time"])
+def test_open_defers_metadata_validation(telescope, tmp_path, monkeypatch, condition):
+    if condition == "missing_header":
+        ds = telescope.drop_vars("Header.Dcs.ObsNum")
+        message = "Header.Dcs.ObsNum"
+    elif condition == "empty_time":
+        ds = telescope.isel(sample=slice(0, 0))
+        message = "nonempty one-dimensional"
+    else:
+        ds = telescope.assign({"Data.TelescopeBackend.TelTime": 1761902400.0})
+        message = "nonempty one-dimensional"
+    monkeypatch.setattr(xr, "open_dataset", lambda *args, **kwargs: ds)
+    with open_lmt_tel(tmp_path / "tel.nc") as opened:
+        assert "meta" not in opened.lmt_tel.__dict__
+        with pytest.raises(ValueError, match=message):
+            _ = opened.lmt_tel.meta
+
+
 @pytest.mark.parametrize(
     "source", ["host:/data/test.nc", "https://example.org/test.nc"]
 )
