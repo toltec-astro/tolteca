@@ -25,10 +25,13 @@ not the complete SweepCheck/KidsFind/Tlaloc scientific pipeline.
    generate range-based review diffs, and pause the task heartbeat
    `kids-overnight-vertical-slice`. Stop sooner if meaningful scoped work is done.
 
-Next action: step 08 — project registered products into a typed Arrow/Parquet
-catalog. Keep separate reductions of one input distinguishable by product ID.
-Then integrate an actual Web consumer path and replace the old hand-written
-integration probe glue.
+Current checkpoint: reducer-only implementation and the four-case reference
+integration are verified. See [final evidence and remaining issues](12-final-checkpoint.md).
+Next action is human review, beginning with the shared input/config and launcher
+decisions, then the persisted result and DB/Web integration. Visual browser
+inspection awaits permission; HTTP layout and callbacks are tested. The expired
+automation remains paused. Do not continue into later scientific stages without
+a new request.
 
 ## Branches and baseline
 
@@ -121,7 +124,12 @@ must have explicit scoped verification, with pre-existing QA failures recorded.
 | 06a | Configuration model import boundary | committed | 552e86d; [step record](06a-config-model-boundary.md); 33 pipeline tests, scoped lint/type checks |
 | 06b | Typed completion manifest and effective-config replay | committed | Tolteca 3678779, Web 1e61a51; [step record](06b-product-manifest.md); 56 pipeline/no-op/v2 tests, 2 Web regressions, scoped lint/type checks |
 | 07a | Repair DB discovery's stale timestamp attribute | committed | DB 976eaaf; DB design/overnight-20260921/07a-file-ut.md; 6 discovery tests |
-| 07b | Completed-product registration and raw provenance | verified | DB design/overnight-20260921/07b-product-registration.md; 65 DB tests, scoped lint/type checks |
+| 07b | Completed-product registration and raw provenance | committed | DB 3c57721; DB design/overnight-20260921/07b-product-registration.md; 65 DB tests, scoped lint/type checks |
+| 08 | Typed Arrow/Parquet catalog publication | committed | DB e948493; DB design/overnight-20260921/08-sweep-catalog.md; 67 DB tests, scoped lint/type checks |
+| 09 | Catalog-backed completed-product browser | committed | Web 9494984; Web design/overnight-20260921/09-completed-product-browser.md; 12 tests, scoped lint/type checks |
+| 10 | Pending raw-source relationship correction | committed | DB 5e7e3d0; DB design/overnight-20260921/10-pending-source-correction.md; regression plus real integration |
+| 11 | Batch channel reads; document storage costs | committed | Web 915ab33, d58e02f; Web design/overnight-20260921/11-channel-read-batching.md; 13 runnable Web tests, scoped lint/type checks |
+| 12 | Reproducible four-case integration and final handoff | verified | [final evidence](12-final-checkpoint.md); probe and review exports described there |
 
 Each entry should contain: evidence inspected; exact intended behavior and
 invariants; options and chosen rationale; changed files/APIs; tests and command
