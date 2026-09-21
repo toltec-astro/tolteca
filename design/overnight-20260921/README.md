@@ -21,10 +21,11 @@ not the complete SweepCheck/KidsFind/Tlaloc scientific pipeline.
    generate range-based review diffs, and pause the task heartbeat
    `kids-overnight-vertical-slice`. Stop sooner if meaningful scoped work is done.
 
-Next action: step 05 — route numerical reducer input reads and block-dimension
-lookups through the established schema/mapper boundary, preserving arithmetic
-order. Avoid rereading the LO vector already loaded for block detection. Then
-complete product provenance and DB/Web publication.
+Next action: step 06 — make completed-product metadata a typed, validated
+interchange boundary and retain the effective per-input config for replay.
+Keep input records shared with datamodels and do not serialize runtimes or file
+handles. Then implement product registration/catalog projection in DB and an
+actual Web consumer path; replace the old hand-written integration probe glue.
 
 ## Branches and baseline
 
@@ -112,7 +113,8 @@ must have explicit scoped verification, with pre-existing QA failures recorded.
 | 01 | Shared file-access configuration, independent of Kids stages | committed | 389e104; [step record](01-file-config.md); 67 tests, scoped lint/type checks |
 | 02 | Shared catalog preparation and Python/CLI config parity | committed | b1fd2ab; [step record](02-catalog-and-runtime.md); 232 tests, scoped lint/type checks |
 | 03 | Explicit deployment launcher and executable command plan | committed | Deploy 117ba21; [step record](03-deploy-launch.md); 57 focused tests including real reference replay; full-suite worktree limitations recorded |
-| 04 | Fixed pipeline reduction policy and current-use guide | verified | [step record](04-fixed-reduction-stage.md); 250 tests including exact v2 values; scoped lint/type checks |
+| 04 | Fixed pipeline reduction policy and current-use guide | committed | a29494e; [step record](04-fixed-reduction-stage.md); 250 tests including exact v2 values; scoped lint/type checks |
+| 05 | Mapper-based reducer reads and one LO evaluation | verified | [step record](05-reducer-mappings.md); 279 tests, exact v2 values, scoped typecheck; pre-existing numerical-module lint debt recorded |
 
 Each entry should contain: evidence inspected; exact intended behavior and
 invariants; options and chosen rationale; changed files/APIs; tests and command

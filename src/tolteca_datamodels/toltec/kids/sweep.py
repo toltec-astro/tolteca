@@ -78,8 +78,8 @@ class ToltecSweepSchema(Schema):
     # Reduced data variables (namespaced)
     I: Mapping = NameMapping.var(f"{__name__}.I")
     Q: Mapping = NameMapping.var(f"{__name__}.Q")
-    unc_I: Mapping = NameMapping(f"{__name__}.unc_I")
-    unc_Q: Mapping = NameMapping(f"{__name__}.unc_Q")
+    unc_I: Mapping = NameMapping.var(f"{__name__}.unc_I")
+    unc_Q: Mapping = NameMapping.var(f"{__name__}.unc_Q")
 
     # Solved timestream (namespaced)
     r: Mapping = NameMapping(f"{__name__}.r")
@@ -88,14 +88,15 @@ class ToltecSweepSchema(Schema):
     # Coordinates (not namespaced - shared)
     sweep: Mapping = NameMapping.var("sweep")
     block: Mapping = NameMapping.var("block")
+    n_blocks: Mapping = NameMapping.dim("block")
     chan: Mapping = NameMapping.var(("chan", "channel", "n_chans"))
 
     # LO frequency data (not namespaced)
     f_lo: Mapping = NameMapping.var("f_lo")
-    f_center: Mapping = NameMapping.var("f_center")
+    f_center: Mapping = NameMapping.attr("f_center")
 
     # Metadata (namespaced)
-    reducer_config: Mapping = NameMapping(f"{__name__}.reducer_config")
+    reducer_config: Mapping = NameMapping.attr(f"{__name__}.reducer_config")
 
 
 class ToltecSweepMapper(XarrayMapper[ToltecSweepSchema]):
@@ -187,7 +188,7 @@ class ReducedSweepView(XarrayAccessorBase[ToltecSweepMapper]):
     @property
     def has_blocks(self) -> bool:
         """Check if data has block dimension (multi-block)."""
-        return "block" in self.data_source.dims
+        return self.mapper.has_dim(self.data_source, self.mapper.schema.n_blocks)
 
     @property
     def f_chan(self) -> xr.DataArray | None:
@@ -225,7 +226,7 @@ class ReducedSweepView(XarrayAccessorBase[ToltecSweepMapper]):
         """Number of blocks (1 if single block)."""
         if not self.has_blocks:
             return 1
-        return self.data_source.sizes["block"]
+        return self.mapper.get_dim(self.data_source, self.mapper.schema.n_blocks)
 
 
 class SweepReducer(FrozenBaseModel):
@@ -375,28 +376,22 @@ class SweepReducer(FrozenBaseModel):
         return result
 
     def _reduce(self, ds: xr.Dataset) -> xr.Dataset:
-        """Perform the actual reduction logic.
-
-        Migrated from io.py reduce_raw_sweep() and adapted to use
-        namespaced schema.
-
-        Returns reduced dataset with namespaced variable names.
-        """
-        # Determine sweep axis variable
+        """Average raw samples and return a namespaced reduced dataset."""
+        mapper = ds.toltec_kids.mapper
+        schema = mapper.schema
         if self.sweep_axis is None:
-            # Try to find LO frequency variable
-            if "Data.Toltec.LoFreq" in ds:
-                f_lo_var = "Data.Toltec.LoFreq"
-            elif "f_lo" in ds:
-                f_lo_var = "f_lo"
+            if schema.f_los in mapper:
+                f_lo_array = mapper.get_arr(ds, schema.f_los)
+            elif self._mapper.has_arr(ds, self._mapper.schema.f_lo):
+                f_lo_array = self._mapper.get_arr(ds, self._mapper.schema.f_lo)
             else:
                 msg = "Cannot find LO frequency variable for sweep reduction"
                 raise ValueError(msg)
         else:
-            f_lo_var = self.sweep_axis
+            f_lo_array = ds[self.sweep_axis]
 
         # Get LO frequencies
-        f_lo = ds[f_lo_var].values
+        f_lo = f_lo_array.values
         if f_lo.ndim > 1:
             # Take first row if multi-dimensional
             f_lo = f_lo[0]
@@ -433,7 +428,7 @@ class SweepReducer(FrozenBaseModel):
             ds_block_reduced = self._reduce_single_block(
                 ds=ds,
                 block_slice=block_slice,
-                f_lo_var=f_lo_var,
+                f_lo=f_lo[block_slice],
                 block_index=iblock,
             )
             reduced_blocks.append(ds_block_reduced)
@@ -443,24 +438,26 @@ class SweepReducer(FrozenBaseModel):
             # Single block - return as-is
             return reduced_blocks[0]
 
-        # Multiple blocks - concatenate along 'block' dimension
+        block_dim = self._mapper.get_name(self._mapper.schema.block)
         ds_reduced = xr.concat(
             reduced_blocks,
-            dim="block",
+            dim=block_dim,
             coords="minimal",
             compat="override",
         )
 
         # Add block coordinate
         ds_reduced = ds_reduced.assign_coords(
-            block=xr.DataArray(
-                np.arange(n_blocks),
-                dims=["block"],
-                attrs={
-                    "long_name": "Block index",
-                    "description": "Monotonic sweep block index",
-                },
-            ),
+            {
+                block_dim: xr.DataArray(
+                    np.arange(n_blocks),
+                    dims=[block_dim],
+                    attrs={
+                        "long_name": "Block index",
+                        "description": "Monotonic sweep block index",
+                    },
+                )
+            },
         )
 
         # Update attrs to indicate multi-block
@@ -473,7 +470,7 @@ class SweepReducer(FrozenBaseModel):
         self,
         ds: xr.Dataset,
         block_slice: slice,
-        f_lo_var: str,
+        f_lo: np.ndarray,
         block_index: int,
     ) -> xr.Dataset:
         """Reduce a single block of raw sweep data.
@@ -484,8 +481,8 @@ class SweepReducer(FrozenBaseModel):
             Raw sweep dataset
         block_slice : slice
             Slice for this block in the time dimension
-        f_lo_var : str
-            Name of LO frequency variable
+        f_lo : numpy.ndarray
+            This block's LO frequencies, already read for block detection
         block_index : int
             Index of this block
 
@@ -494,13 +491,9 @@ class SweepReducer(FrozenBaseModel):
         xr.Dataset
             Reduced dataset for this block with namespaced variables
         """
-        # Slice dataset to this block
+        mapper = ds.toltec_kids.mapper
+        schema = mapper.schema
         ds_block = ds.isel({self.time_axis: block_slice})
-
-        # Get LO frequencies for this block
-        f_lo = ds_block[f_lo_var].values
-        if f_lo.ndim > 1:
-            f_lo = f_lo[0]
 
         # Get unique frequencies and their sample indices
         unique_f_lo, inverse_indices, counts = np.unique(
@@ -510,12 +503,12 @@ class SweepReducer(FrozenBaseModel):
         )
 
         # Get center frequency for computing sweep offsets
-        if "Header.Toltec.LoCenterFreq" in ds_block.attrs:
-            f_lo_center = ds_block.attrs["Header.Toltec.LoCenterFreq"]
-        elif "Header.Toltec.LoCenterFreq" in ds_block:
-            f_lo_center = ds_block["Header.Toltec.LoCenterFreq"].values.item()
-        elif "f_center" in ds_block.attrs:
-            f_lo_center = ds_block.attrs["f_center"]
+        if schema.f_lo_center in mapper:
+            f_lo_center = mapper.get_scalar(ds_block, schema.f_lo_center)
+        elif self._mapper.has_attr(ds_block, self._mapper.schema.f_center):
+            f_lo_center = self._mapper.get_scalar(
+                ds_block, self._mapper.schema.f_center
+            )
         else:
             # Use median as fallback
             f_lo_center = np.median(unique_f_lo)
@@ -524,19 +517,17 @@ class SweepReducer(FrozenBaseModel):
         n_sweeps = len(unique_f_lo)
 
         # Get I/Q data dimensions
-        if "Data.Toltec.Is" in ds_block:
-            I_var, Q_var = "Data.Toltec.Is", "Data.Toltec.Qs"
-        elif "I" in ds_block:
-            I_var, Q_var = "I", "Q"
-        else:
+        if schema.I not in mapper or schema.Q not in mapper:
             msg = "Cannot find I/Q data variables"
             raise ValueError(msg)
 
-        I_data = ds_block[I_var].values
-        Q_data = ds_block[Q_var].values
+        I_array = mapper.get_arr(ds_block, schema.I)
+        Q_array = mapper.get_arr(ds_block, schema.Q)
+        I_data = I_array.values
+        Q_data = Q_array.values
 
         # Determine channel dimension (the one that's not time)
-        data_dims = ds_block[I_var].dims
+        data_dims = I_array.dims
         chan_dim = [d for d in data_dims if d != self.time_axis][0]
         n_chans = ds_block.sizes[chan_dim]
 
@@ -576,9 +567,10 @@ class SweepReducer(FrozenBaseModel):
                     unc_Q_reduced[:, i_sweep] = np.std(Q_samples, axis=1)
 
         # Create new dataset with reduced data using namespaced names
+        sweep_dim = self._mapper.get_name(self._mapper.schema.sweep)
         sweep_coord = xr.DataArray(
             f_sweep,
-            dims=["sweep"],
+            dims=[sweep_dim],
             attrs={
                 "long_name": "Sweep frequency offset",
                 "units": "Hz",
@@ -603,30 +595,26 @@ class SweepReducer(FrozenBaseModel):
         # Means and standard deviations retain input units. Bare input stays
         # bare; assigning an assumed count unit would change its interpretation.
         units_I = (
-            {"units": ds_block[I_var].attrs["units"]}
-            if "units" in ds_block[I_var].attrs
-            else {}
+            {"units": unit_I} if (unit_I := I_array.u.unit_str) is not None else {}
         )
         units_Q = (
-            {"units": ds_block[Q_var].attrs["units"]}
-            if "units" in ds_block[Q_var].attrs
-            else {}
+            {"units": unit_Q} if (unit_Q := Q_array.u.unit_str) is not None else {}
         )
 
         data_vars = {
             I_key: xr.DataArray(
                 I_reduced,
-                dims=[chan_dim, "sweep"],
+                dims=[chan_dim, sweep_dim],
                 attrs={"long_name": "In-phase component (mean)", **units_I},
             ),
             Q_key: xr.DataArray(
                 Q_reduced,
-                dims=[chan_dim, "sweep"],
+                dims=[chan_dim, sweep_dim],
                 attrs={"long_name": "Quadrature component (mean)", **units_Q},
             ),
-            "f_lo": xr.DataArray(
+            self._mapper.get_name(self._mapper.schema.f_lo): xr.DataArray(
                 unique_f_lo,
-                dims=["sweep"],
+                dims=[sweep_dim],
                 attrs={"long_name": "LO frequency", "units": "Hz"},
             ),
         }
@@ -637,23 +625,23 @@ class SweepReducer(FrozenBaseModel):
             unc_Q_key = self._mapper.get_name(self._mapper.schema.unc_Q)
             data_vars[unc_I_key] = xr.DataArray(
                 unc_I_reduced,
-                dims=[chan_dim, "sweep"],
+                dims=[chan_dim, sweep_dim],
                 attrs={"long_name": "In-phase uncertainty (std)", **units_I},
             )
             data_vars[unc_Q_key] = xr.DataArray(
                 unc_Q_reduced,
-                dims=[chan_dim, "sweep"],
+                dims=[chan_dim, sweep_dim],
                 attrs={"long_name": "Quadrature uncertainty (std)", **units_Q},
             )
 
         # Create coordinates
-        coords = {chan_dim: chan_coord, "sweep": sweep_coord}
+        coords = {chan_dim: chan_coord, sweep_dim: sweep_coord}
 
         # Copy relevant attributes from original dataset
         attrs = dict(ds_block.attrs)
         attrs["processing"] = "reduced_raw_sweep"
         attrs["n_sweeps"] = n_sweeps
-        attrs["f_center"] = f_lo_center
+        attrs[self._mapper.get_name(self._mapper.schema.f_center)] = f_lo_center
         attrs["block_index"] = block_index
 
         # Store raw data info in attrs
@@ -665,12 +653,15 @@ class SweepReducer(FrozenBaseModel):
         ds_reduced = xr.Dataset(data_vars=data_vars, coords=coords, attrs=attrs)
 
         # Copy over metadata variables that don't have time dimension
+        block_dim_raw = (
+            mapper.get_name(schema.n_blocks_max)
+            if schema.n_blocks_max in mapper
+            else None
+        )
         for var_name, var_data in ds_block.data_vars.items():
             if self.time_axis not in var_data.dims and var_name not in ds_reduced:
-                # Check if this variable has a numSweeps-like dimension
-                if "numSweeps" in var_data.dims:
-                    # This is block-dependent metadata - select the appropriate block
-                    ds_reduced[var_name] = var_data.isel(numSweeps=block_index)
+                if block_dim_raw in var_data.dims:
+                    ds_reduced[var_name] = var_data.isel({block_dim_raw: block_index})
                 else:
                     # Regular metadata - copy as-is
                     ds_reduced[var_name] = var_data

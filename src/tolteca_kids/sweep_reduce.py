@@ -118,6 +118,7 @@ class SweepReduceView(ReducedSweepView):
     def selected_block(self) -> ReducedSweepView:
         """The block selected by this invocation as a reduced-sweep view."""
         ds = self.data_source
-        if "block" in ds.dims:
-            ds = ds.isel(block=self.context.block_index)
+        if self.has_blocks:
+            block_dim = self.mapper.get_name(self.mapper.schema.n_blocks)
+            ds = ds.isel({block_dim: self.context.block_index})
         return ReducedSweepView(ds)
