@@ -142,7 +142,9 @@ with xr.open_dataset(source) as raw:
     kids = create_kids(rc, context_input=context_input)
     working = ensure_datatree(raw)
     working['tolteca_kids'] = xr.DataTree()
-    working['tolteca_kids'].attrs['input'] = context_input
+    working['tolteca_kids'].attrs['input'] = input_info.model_dump(
+        mode='json', round_trip=True,
+    )
     kids.pipeline_for(input_info.data_kind)(working)
     result = SweepReduce.view(working)
     selected = result.selected_block
@@ -203,8 +205,9 @@ A product directory contains:
 
 - `arrays.zarr`: the reduced result node, its required coordinates and copied
   non-time metadata. It does not contain the raw I/Q root.
-- `manifest.json`: the product format, input identifiers, array-store location,
-  output configuration, and software versions. It is written last, after a
+- `manifest.json`: the product format, structured input record, array-store
+  location, creation time, effective pipeline configuration, and software
+  versions. It is written last, after a
   metadata reopen check.
 
 Signal and uncertainty arrays retain a declared input unit; bare inputs remain
@@ -221,7 +224,40 @@ On the live tree, `DataProdOutput.view(working).context` records the output
 configuration, completion state, and product path. The manifest records the
 publication settings durably; no open runtime or file objects are serialized.
 
-The initial writer uses Zarr format 2 to preserve fixed-byte netCDF headers
+Read product metadata without opening its arrays:
+
+```python
+from tolteca_kids.product import read_sweep_manifest
+
+manifest = read_sweep_manifest(path)
+source_info = manifest.input
+config = manifest.config
+```
+
+For a pipeline-produced product, save the effective settings as a recipe and
+replay with the original input. This does not re-evaluate the original recipe's
+conditions:
+
+```python
+import json
+from tolteca_kids.core import Kids
+
+assert manifest.config is not None
+Path('replay.yaml').write_text(json.dumps(Kids.prepare_runtime_config_data(
+    manifest.config.model_dump(mode='json', round_trip=True),
+)))
+```
+
+```console
+tolteca_kids --config_paths replay.yaml --kids.output.name replayed -- sweep.nc
+```
+
+Choose a new output name or directory because existing products are not
+overwritten. Direct `write_sweep_product()` calls can export in-memory results
+without an input record or pipeline output config; those missing fields remain
+`None` and cannot provide a complete pipeline replay recipe.
+
+The writer uses Zarr format 2 to preserve fixed-byte netCDF headers
 without an unstable dtype extension. Readers reject missing manifests and
 unsupported product formats. A failed write can leave an incomplete directory
 for inspection; it is not a published product. The manifest is a completion

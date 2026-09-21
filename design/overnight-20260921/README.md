@@ -21,10 +21,8 @@ not the complete SweepCheck/KidsFind/Tlaloc scientific pipeline.
    generate range-based review diffs, and pause the task heartbeat
    `kids-overnight-vertical-slice`. Stop sooner if meaningful scoped work is done.
 
-Next action: step 06 — make completed-product metadata a typed, validated
-interchange boundary and retain the effective per-input config for replay.
-Keep input records shared with datamodels and do not serialize runtimes or file
-handles. Then implement product registration/catalog projection in DB and an
+Next action: step 07 — implement completed-product registration and catalog
+projection in DB, using the typed manifest and existing ORM. Then integrate an
 actual Web consumer path; replace the old hand-written integration probe glue.
 
 ## Branches and baseline
@@ -115,7 +113,8 @@ must have explicit scoped verification, with pre-existing QA failures recorded.
 | 03 | Explicit deployment launcher and executable command plan | committed | Deploy 117ba21; [step record](03-deploy-launch.md); 57 focused tests including real reference replay; full-suite worktree limitations recorded |
 | 04 | Fixed pipeline reduction policy and current-use guide | committed | a29494e; [step record](04-fixed-reduction-stage.md); 250 tests including exact v2 values; scoped lint/type checks |
 | 05 | Mapper-based reducer reads and one LO evaluation | committed | 74ad500; [step record](05-reducer-mappings.md); 279 tests, exact v2 values, scoped typecheck; pre-existing numerical-module lint debt recorded |
-| 06a | Configuration model import boundary | verified | [step record](06a-config-model-boundary.md); 33 pipeline tests, scoped lint/type checks |
+| 06a | Configuration model import boundary | committed | 552e86d; [step record](06a-config-model-boundary.md); 33 pipeline tests, scoped lint/type checks |
+| 06b | Typed completion manifest and effective-config replay | verified | [step record](06b-product-manifest.md); 56 pipeline/no-op/v2 tests, 2 Web regressions, scoped lint/type checks |
 
 Each entry should contain: evidence inspected; exact intended behavior and
 invariants; options and chosen rationale; changed files/APIs; tests and command

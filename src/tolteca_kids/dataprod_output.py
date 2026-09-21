@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from tollan.pipeline import Step, StepContext
 
+from tolteca_datamodels.toltec.file import SourceInfoModel
+
 from .config import DataProdOutputConfig
 from .product import write_sweep_product
 
@@ -47,8 +49,13 @@ class DataProdOutput(Step[DataProdOutputConfig, DataProdOutputContext]):
     @classmethod
     def run(cls, data: xr.DataTree, context: DataProdOutputContext) -> bool:
         """Publish reduced arrays and record the completed product location."""
-        info = data["tolteca_kids"].attrs["input"]
-        name = context.config.name.format(**info, stem=Path(info["source"]).stem)
+        info = SourceInfoModel.model_validate(data["tolteca_kids"].attrs["input"])
+        fields = info.model_dump(
+            mode="json",
+            context={"flat": True},
+            exclude={"filepath_info", "filepath_info_orig"},
+        )
+        name = context.config.name.format(**fields, stem=info.source.path.stem)
         if not name or name in {".", ".."} or Path(name).name != name:
             msg = f"Output name must be a single directory component: {name!r}"
             raise ValueError(msg)
@@ -56,7 +63,7 @@ class DataProdOutput(Step[DataProdOutputConfig, DataProdOutputContext]):
             data,
             context.config.path / name,
             input_info=info,
-            output_config=context.config.model_dump(mode="json"),
+            output_config=context.config,
         )
         return True
 

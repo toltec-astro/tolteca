@@ -247,7 +247,7 @@ def test_reference_noop_reads_only_headers_and_closes_files(
     def run(cls, data, context):
         assert cls.get_context(data) is context
         assert not context.completed
-        assert data["tolteca_kids"].attrs["input"]["data_kind"] == kind.name
+        assert data["tolteca_kids"].attrs["input"]["data_kind"] == kind.value
         contexts.append(context)
         return noop_run(data, context)
 

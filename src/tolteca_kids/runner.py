@@ -74,7 +74,9 @@ def run_source(
         # Wrapping only: source arrays and metadata are not transformed.
         working = ensure_datatree(raw)
         working["tolteca_kids"] = xr.DataTree()
-        working["tolteca_kids"].attrs["input"] = context_input
+        working["tolteca_kids"].attrs["input"] = info.model_dump(
+            mode="json", round_trip=True
+        )
         pipeline(working)
         if dry_run:
             logger.info(

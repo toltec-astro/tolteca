@@ -18,7 +18,11 @@ from tolteca_datamodels.toltec.kids.source import identify_source
 from tolteca_kids.cli import app
 from tolteca_kids.core import Kids, KidsConfig
 from tolteca_kids.dataprod_output import DataProdOutput
-from tolteca_kids.product import open_sweep_product, write_sweep_product
+from tolteca_kids.product import (
+    open_sweep_product,
+    read_sweep_manifest,
+    write_sweep_product,
+)
 from tolteca_kids.runner import create_kids, run_source
 from tolteca_kids.sweep_reduce import SweepReduce, SweepReduceView
 
@@ -190,7 +194,7 @@ def test_export_reopen_and_exclusive_destination(tmp_path, raw_sweep):
     raw_sweep = raw_sweep.assign_coords(time=np.arange(12), chan=[8, 9])
     working = ensure_datatree(raw_sweep)
     Kids(RuntimeContext()).sweep_pipeline(working)
-    path = write_sweep_product(working, tmp_path / "product", input_info={})
+    path = write_sweep_product(working, tmp_path / "product")
     with open_sweep_product(path) as reopened:
         actual = SweepReduceView(reopened)
         expected = SweepReduceView(working)
@@ -203,12 +207,122 @@ def test_export_reopen_and_exclusive_destination(tmp_path, raw_sweep):
         assert signal is not None
         np.testing.assert_array_equal(signal.chan, [8, 9])
     with pytest.raises(FileExistsError):
-        write_sweep_product(working, path, input_info={})
+        write_sweep_product(working, path)
 
 
 def test_incomplete_product_rejected(tmp_path):
     with pytest.raises(FileNotFoundError):
         open_sweep_product(tmp_path)
+
+
+def test_manifest_and_effective_config_replay(tmp_path, raw_sweep):
+    source = tmp_path / "toltec0_000001_000_0000_targsweep.nc"
+    raw_sweep.to_netcdf(source, engine="scipy")
+    info = build_input_catalog([source]).toltec_file.to_info_list()[0]
+    runtime = RuntimeContext(
+        [
+            {
+                "source": {
+                    "kids": {
+                        "output": {
+                            "enabled": True,
+                            "path": str(tmp_path),
+                            "name": "first",
+                        }
+                    }
+                }
+            },
+            {
+                "enable_if": "roach == 0",
+                "source": {"kids": {"sweep_reduce": {"block": 0}}},
+            },
+        ]
+    )
+    path = run_source(info, runtime)
+    assert path is not None
+    manifest = read_sweep_manifest(path)
+    assert manifest.input == info
+    assert manifest.config is not None
+    assert manifest.config.sweep_reduce.block == 0
+    offset = manifest.time_created.utcoffset()
+    assert offset is not None
+    assert offset.total_seconds() == 0
+    payload = json.loads((path / "manifest.json").read_text())
+    assert isinstance(payload["input"]["source"], dict)
+    assert isinstance(payload["input"]["data_kind"], int)
+    assert "file_suffix" not in payload["input"]
+    assert "filepath_info_orig" not in payload["input"]
+    snapshot = tmp_path / "replay.yaml"
+    snapshot.write_text(
+        json.dumps(
+            Kids.prepare_runtime_config_data(
+                manifest.config.model_dump(mode="json", round_trip=True)
+            )
+        )
+    )
+    result = CliRunner().invoke(
+        app,
+        [
+            "--config_paths",
+            str(snapshot),
+            "--kids.output.name",
+            "replayed",
+            "--",
+            str(source),
+        ],
+    )
+    assert result.exit_code == 0, result.exception
+    with (
+        open_sweep_product(path) as first,
+        open_sweep_product(tmp_path / "replayed") as replayed,
+    ):
+        xr.testing.assert_identical(
+            SweepReduce.view(first).data_source,
+            SweepReduce.view(replayed).data_source,
+        )
+
+
+@pytest.mark.parametrize(
+    ("key", "value"), [("format", "unknown"), ("arrays", "../outside.zarr")]
+)
+def test_invalid_manifest_rejected_before_array_open(
+    tmp_path, raw_sweep, monkeypatch, key, value
+):
+    working = ensure_datatree(raw_sweep)
+    SweepReduce()(working)
+    path = write_sweep_product(working, tmp_path / "product")
+    manifest = path / "manifest.json"
+    payload = json.loads(manifest.read_text())
+    payload[key] = value
+    manifest.write_text(json.dumps(payload))
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("invalid manifest attempted to open arrays")
+
+    monkeypatch.setattr(xr, "open_datatree", unexpected)
+    with pytest.raises(ValidationError):
+        open_sweep_product(path)
+
+
+def test_manifest_config_must_match_saved_context(tmp_path, raw_sweep):
+    source = tmp_path / "source.nc"
+    raw_sweep.to_netcdf(source, engine="scipy")
+    info = build_input_catalog([source]).toltec_file.to_info_list()[0]
+    runtime = RuntimeContext(
+        {
+            "kids": {
+                "output": {"enabled": True, "path": str(tmp_path), "name": "product"}
+            }
+        }
+    )
+    path = run_source(info, runtime)
+    assert path is not None
+    manifest = path / "manifest.json"
+    payload = json.loads(manifest.read_text())
+    payload["config"]["sweep_reduce"]["block"] = 0
+    manifest.write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="configuration disagree"):
+        open_sweep_product(path)
 
 
 @pytest.mark.parametrize("unit", [None, "adu", "V"])
@@ -218,7 +332,7 @@ def test_preserve_signal_units(tmp_path, raw_sweep, unit):
             raw_sweep[name].attrs["units"] = unit
     working = ensure_datatree(raw_sweep)
     SweepReduce()(working)
-    path = write_sweep_product(working, tmp_path / "product", input_info={})
+    path = write_sweep_product(working, tmp_path / "product")
     with open_sweep_product(path) as reopened:
         view = SweepReduce.view(reopened)
         for name in ("I", "Q", "unc_I", "unc_Q"):
@@ -413,8 +527,7 @@ def test_output_step_and_metadata_view(tmp_path, raw_sweep):
     working["tolteca_kids"] = xr.DataTree()
     working["tolteca_kids"].attrs["input"] = info.model_dump(
         mode="json",
-        context={"flat": True},
-        exclude={"filepath_info", "filepath_info_orig"},
+        round_trip=True,
     )
     kids.sweep_pipeline(working)
     context = DataProdOutput.view(working).context
@@ -422,9 +535,9 @@ def test_output_step_and_metadata_view(tmp_path, raw_sweep):
     assert context.product_path is not None
     assert context.product_path == tmp_path / "000001-0"
     assert context.config == kids.config.output
-    manifest = json.loads((context.product_path / "manifest.json").read_text())
-    assert manifest["output_config"] == kids.config.output.model_dump(mode="json")
-    assert manifest["input"]["data_kind"] == "TargetSweep"
+    manifest = read_sweep_manifest(context.product_path)
+    assert manifest.config == kids.config
+    assert manifest.input == info
     assert "tolteca_kids" not in raw_sweep
     assert PIPELINE_CONTEXT_KEY not in raw_sweep.attrs
 
@@ -440,8 +553,7 @@ def test_output_disabled_and_standalone(tmp_path, raw_sweep):
     working["tolteca_kids"] = xr.DataTree()
     working["tolteca_kids"].attrs["input"] = info.model_dump(
         mode="json",
-        context={"flat": True},
-        exclude={"filepath_info", "filepath_info_orig"},
+        round_trip=True,
     )
     step = DataProdOutput(path=tmp_path, name="standalone")
     _, context = step(working, return_context=True)
