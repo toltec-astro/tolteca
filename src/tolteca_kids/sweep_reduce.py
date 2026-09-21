@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import xarray as xr
 from pydantic import ConfigDict, Field
 from tollan.pipeline import Step, StepConfig, StepContext
@@ -15,11 +17,10 @@ class SweepReduceConfig(StepConfig):
     """Control sweep reduction and select a block from its result.
 
     ``block=-1`` selects the last block; nonnegative indices select an explicit
-    block. Numerical settings belong to the independently callable reducer.
+    block. This stage detects sweep blocks and computes standard deviations.
     """
 
     model_config = ConfigDict(extra="forbid")
-    reducer: SweepReducer = Field(default_factory=SweepReducer)
     block: int = Field(default=-1, ge=-1)
     force: bool = Field(default=False, description="Recompute existing reduced data.")
 
@@ -37,6 +38,8 @@ class SweepReduce(Step[SweepReduceConfig, SweepReduceContext]):
     configuration are stored alongside them as JSON-compatible metadata.
     Direct calls run the step; `SequentialPipeline` handles the enabled flag.
     """
+
+    _reducer: ClassVar[SweepReducer] = SweepReducer()
 
     @classmethod
     def result_path(cls) -> str:
@@ -59,7 +62,7 @@ class SweepReduce(Step[SweepReduceConfig, SweepReduceContext]):
     @classmethod
     def run(cls, data: xr.DataTree, context: SweepReduceContext) -> bool:
         """Run the independent reducer and validate the requested block."""
-        result = context.config.reducer(data, force=context.config.force)
+        result = cls._reducer(data, force=context.config.force)
         view = ReducedSweepView(result)
         block = context.config.block
         if block >= view.n_blocks:

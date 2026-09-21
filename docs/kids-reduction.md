@@ -10,29 +10,30 @@ To inspect inputs and validate configuration without reduction, see
 [Inspect KIDs inputs and check a run](kids-inputs.md).
 
 ```console
-tolteca kids reduce sweep.nc --config_paths recipes/ --output products
-tolteca kids reduce sweep.nc --config_paths recipes/ --show_config
-tolteca kids reduce tune.nc --output products --kids.sweep_reduce.block 0
-tolteca kids reduce '/data/lmt/toltec/tcs/toltec*/*_tune.nc' --show_inputs
-tolteca kids reduce 123456/0 --data_root /data/lmt --output products
-tolteca --log_level DEBUG kids reduce 'tcs-123456/0' --data_root /data/lmt --dry_run
+tolteca_kids --config_paths recipes/ --kids.output.enabled true --dataprod_toltec_path products -- sweep.nc
+tolteca_kids --config_paths recipes/ --show_config -- sweep.nc
+tolteca_kids --kids.output.enabled true --dataprod_toltec_path products --kids.sweep_reduce.block 0 -- tune.nc
+tolteca_kids --show_inputs -- '/data/lmt/toltec/tcs/toltec*/*_tune.nc'
+tolteca_kids --data_lmt_path /data/lmt --kids.output.enabled true --dataprod_toltec_path products -- 123456/0
+tolteca_kids --log_level DEBUG --data_lmt_path /data/lmt --dry_run -- 'tcs-123456/0'
 ```
 
 `--config_paths` accepts YAML/dotenv files or directories of numbered files.
 `--env_paths` accepts dotenv files or directories of numbered env files.
 Both accept multiple values and repeated occurrences, in increasing precedence.
-Place positional sources before these options, or after `--`, to delimit the lists.
+Place positional sources after `--` to delimit the lists.
 Dotted `--kids.*` options are runtime overrides. Automatically derived option
 names preserve their Python spelling, including underscores.
 `--show_config` prints the effective, validated configuration without loading
-I/Q samples or executing reduction. `--output` enables the final output step
-and sets its parent directory. The default product name is the input file stem;
+I/Q samples or executing reduction. Enable the final output step with
+`--kids.output.enabled true`; `--dataprod_toltec_path` supplies its parent
+directory. The default product name is the input file stem;
 existing product directories are never overwritten. Without output configuration,
 reduction runs in memory and publishes no files.
 
 Multiple files, quoted globs, and [observation selectors](obsspec.md) are accepted.
 The local resolver and database API share the same typed selector language.
-Local selectors require `--data_root`; they do not require a database.
+Local selectors require `--data_lmt_path`; they do not require a database.
 
 `--dry_run` resolves inputs and validates each input's effective configuration,
 then executes a real no-op step through `SequentialPipeline`. The step attaches
@@ -41,8 +42,7 @@ products—even when output is enabled in the configuration. This checks the
 input/configuration/execution path, not scientific processing or export. It also
 works for NetCDF timestream inputs whose processing pipeline is not implemented.
 
-Use `tolteca --log_level DEBUG kids reduce ...` or
-`tolteca kids --log_level DEBUG reduce ...` to see discovery counts, normalized
+Use `tolteca_kids --log_level DEBUG ...` to see discovery counts, normalized
 selectors, scalar input metadata, config-source conditions and their decisions,
 effective configuration, selected steps, completion state, failures, and timings.
 Debug output includes paths and configuration values; treat saved logs accordingly.
@@ -70,24 +70,21 @@ kids:
     enabled: true
     block: -1
     force: false
-    reducer:
-      detect_blocks: true
-      compute_uncertainty: true
   output:
     enabled: true
     path: products
     name: '{stem}'
 ```
 
-`reducer` is the independently callable `SweepReducer` configuration, not a
-second definition of its parameters. All detected blocks are reduced and
-retained. `block=-1` selects the last block for downstream consumption, matching
+The stage always detects blocks and computes standard deviations. All detected
+blocks are reduced and retained. `block=-1` selects the last block for consumption, matching
 the legacy reader default; nonnegative values select an explicit block.
 `force` requests recomputation of an existing result in a working tree.
 `output.name` can use source fields, for example
 `'{obsnum:06d}-{subobsnum:03d}-{scannum:04d}-{roach}-{file_suffix}'`.
-It must expand to one directory component. Explicit dotted options take
-precedence over the `--output` shorthand, including `--kids.output.enabled false`.
+It must expand to one directory component. Explicit `kids.output.path` settings
+take precedence over the shared product-root default. The shared root alone
+does not enable output.
 
 Source-list YAML supports conditional configuration, for example:
 
@@ -95,7 +92,7 @@ Source-list YAML supports conditional configuration, for example:
 - source:
     kids:
       sweep_reduce:
-        reducer: {compute_uncertainty: true}
+        block: -1
 - enable_if: roach >= 7 & file_suffix in ['targsweep', 'tune']
   source:
     kids:
@@ -106,7 +103,8 @@ Source-list YAML supports conditional configuration, for example:
 Shared `tolteca_datamodels.toltec.file` records describe source paths, identifiers,
 master, timestamp, suffix, and data kind. Filename discovery does not open files.
 Catalog preparation enriches records with available scalar KIDs header metadata;
-conflicting identifiers or kinds raise instead of silently overriding discovery.
+header identifiers and kinds correct filename guesses. Original-filename
+consistency checking is opt-in.
 Missing fields remain absent, not fabricated zeros. Each input receives its
 own runtime context variant. The resulting handler keeps its validated config
 snapshot; subsequent runtime changes do not alter it.
@@ -130,7 +128,7 @@ from tollan.accessor.xarray import ensure_datatree
 from tollan.config import RuntimeContext
 from tolteca_datamodels.toltec.file import SourceInfoModel
 from tolteca_datamodels.toltec.kids.source import identify_source
-from tolteca_kids.core import Kids
+from tolteca_kids.runner import create_kids
 from tolteca_kids.sweep_reduce import SweepReduce
 
 source = Path("sweep.nc")
@@ -141,7 +139,7 @@ with xr.open_dataset(source) as raw:
         mode="json", context={"flat": True},
         exclude={"filepath_info", "filepath_info_orig"},
     )
-    kids = Kids(rc.with_config(validation_context=context_input))
+    kids = create_kids(rc, context_input=context_input)
     working = ensure_datatree(raw)
     working['tolteca_kids'] = xr.DataTree()
     working['tolteca_kids'].attrs['input'] = context_input

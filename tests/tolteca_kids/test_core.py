@@ -81,18 +81,28 @@ def test_standalone_step_and_repeat_preserve_results(raw_sweep):
 
 def test_aliases_keep_separate_result_nodes(raw_sweep):
     working = ensure_datatree(raw_sweep)
-    other = SweepReduce.alias("without_uncertainty")
+    other = SweepReduce.alias("second_pass")
     pipeline = SequentialPipeline(
         steps=[
             SweepReduce(),
-            other(reducer=SweepReducer(compute_uncertainty=False)),
+            other(force=True),
         ]
     )
     pipeline(working)
     assert SweepReduce.view(working).unc_I is not None
-    assert other.view(working).unc_I is None
+    assert other.view(working).unc_I is not None
     assert other.get_context(working).completed
-    assert SweepReduce.get_context(working).config.reducer.compute_uncertainty
+    assert other.get_context(working).config.force
+    assert not SweepReduce.get_context(working).config.force
+
+
+def test_pipeline_reducer_settings_are_fixed(raw_sweep):
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        SweepReduce(reducer={"compute_uncertainty": False})
+    working = ensure_datatree(raw_sweep)
+    SweepReduce()(working)
+    assert SweepReduce.view(working).unc_I is not None
+    assert SweepReduce.view(working).unc_Q is not None
 
 
 def test_disabled_pipeline_does_not_reduce(raw_sweep, monkeypatch):
@@ -125,9 +135,9 @@ def test_conditional_recipe_and_handler_isolation(tmp_path, raw_sweep):
     )
     recipe = tmp_path / "10_kids.yaml"
     recipe.write_text("""
-- source: {kids: {sweep_reduce: {reducer: {compute_uncertainty: true}}}}
+- source: {kids: {sweep_reduce: {force: false}}}
 - enable_if: roach == 0 & file_suffix in ['targsweep', 'tune']
-  source: {kids: {sweep_reduce: {reducer: {compute_uncertainty: false}}}}
+  source: {kids: {sweep_reduce: {force: true}}}
 """)
     rc = RuntimeContext.from_cli(config_paths=[tmp_path])
     info = identify_source(
@@ -145,8 +155,8 @@ def test_conditional_recipe_and_handler_isolation(tmp_path, raw_sweep):
     second = Kids(
         rc.with_config(validation_context={"roach": 8, "file_suffix": "targsweep"})
     )
-    assert not first.config.sweep_reduce.reducer.compute_uncertainty
-    assert second.config.sweep_reduce.reducer.compute_uncertainty
+    assert first.config.sweep_reduce.force
+    assert not second.config.sweep_reduce.force
     assert info.roach == 0
     assert info.file_suffix == "targsweep"
     assert rc.runtime_info.validation_context == {}
@@ -450,7 +460,7 @@ def test_cli_multiple_inputs_with_per_input_config(tmp_path, raw_sweep):
     config.write_text("""
 - source: {kids: {output: {name: '{stem}'}}}
 - enable_if: roach == 8
-  source: {kids: {sweep_reduce: {reducer: {compute_uncertainty: false}}}}
+  source: {kids: {sweep_reduce: {force: true}}}
 """)
     output = tmp_path / "products"
     result = CliRunner().invoke(
@@ -470,9 +480,10 @@ def test_cli_multiple_inputs_with_per_input_config(tmp_path, raw_sweep):
     assert len(products) == 2
     for roach, product in zip((0, 8), products, strict=True):
         with open_sweep_product(product) as tree:
-            assert SweepReduce.view(
-                tree
-            ).context.config.reducer.compute_uncertainty == (roach == 0)
+            view = SweepReduce.view(tree)
+            assert view.context.config.force == (roach == 8)
+            assert view.unc_I is not None
+            assert view.unc_Q is not None
 
 
 def test_cli_explicit_disabled_output_overrides_shorthand(tmp_path, raw_sweep):
