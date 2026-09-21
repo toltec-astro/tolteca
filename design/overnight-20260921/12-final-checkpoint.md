@@ -79,6 +79,14 @@ integration certification.
 
 Focused pinned pre-commit hooks and type checks were run per step, with explicit
 `ty check --python <shared v3 Python>`. The final Web batching check passed both.
+The final check of every changed Tolteca Python application/test file passed.
+A broader Kids directory check also included unchanged KidsFind modules/tests
+and the v2-only extraction helper, producing 98 diagnostics; those are not
+silently excluded from a claimed whole-package pass. A pre-existing optional
+enum dereference in the touched DB discovery test was made explicit with a
+non-null assertion; all changed DB Python files then passed. Web's new consumer
+and tests pass; the legacy catalog module's five-line reload addition retains
+its earlier scoped/manual review rather than claiming that module is debt-free.
 The integration probe was formatted, import-sorted, compiled and executed; it is
 not presented as passing every application-module lint rule. `git diff --check`
 passes. Global `just qa` is not claimed: it runs mutating hooks on all files and
