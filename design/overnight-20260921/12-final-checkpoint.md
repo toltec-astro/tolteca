@@ -102,6 +102,9 @@ raw browser automation or screenshot workaround was used. Plot arrays, layout
 JSON and HTTP callbacks are verified. Pixel rendering and interactive behavior
 in a browser are not yet verified. This is the only remaining verification
 permission request, not a reason to extend the scientific scope.
+The attempted local development server also exited with `Operation not
+permitted` in this environment; no server is left running. A live visual check
+will require permission to bind the local server as well as browser access.
 
 ## Decisions that need human review
 

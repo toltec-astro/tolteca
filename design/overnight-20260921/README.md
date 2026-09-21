@@ -130,6 +130,7 @@ must have explicit scoped verification, with pre-existing QA failures recorded.
 | 10 | Pending raw-source relationship correction | committed | DB 5e7e3d0; DB design/overnight-20260921/10-pending-source-correction.md; regression plus real integration |
 | 11 | Batch channel reads; document storage costs | committed | Web 915ab33, d58e02f; Web design/overnight-20260921/11-channel-read-batching.md; 13 runnable Web tests, scoped lint/type checks |
 | 12 | Reproducible four-case integration and final handoff | verified | [final evidence](12-final-checkpoint.md); probe and review exports described there |
+| 13 | Discovery-test enum narrowing found in final QA | committed | DB 292ea6c; DB design/overnight-20260921/13-final-typecheck.md; 191 DB tests and changed-file typecheck |
 
 Each entry should contain: evidence inspected; exact intended behavior and
 invariants; options and chosen rationale; changed files/APIs; tests and command
