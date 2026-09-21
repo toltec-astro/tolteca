@@ -13,13 +13,13 @@ from tolteca_datamodels.toltec.file import (
     guess_info_from_source,
     guess_info_from_sources,
 )
-from tolteca_datamodels.toltec.filestore import resolve_sources
+from tolteca_datamodels.toltec.filestore import build_input_catalog, resolve_sources
 from tolteca_datamodels.toltec.kids import SweepReducer
 from tolteca_datamodels.toltec.kids.source import identify_source
 from tolteca_datamodels.toltec.types import ToltecDataKind
 from tolteca_kids.cli import app
 from tolteca_kids.core import Kids
-from tolteca_kids.runner import build_input_catalog, run_source
+from tolteca_kids.runner import run_source
 
 
 @pytest.mark.parametrize(

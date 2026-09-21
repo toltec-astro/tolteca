@@ -8,8 +8,7 @@ import xarray as xr
 from tollan.accessor.xarray import ensure_datatree
 from tollan.utils.log import logger, timeit
 
-from tolteca_datamodels.toltec.file import ToltecFileAccessor
-from tolteca_datamodels.toltec.filestore import resolve_sources
+from tolteca_datamodels.filestore import FileAccess
 from tolteca_datamodels.toltec.kids.source import identify_source
 
 from .core import Kids
@@ -17,39 +16,31 @@ from .dataprod_output import DataProdOutput
 from .noop import NoOp
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
     from pathlib import Path
 
-    import pandas as pd
     from tollan.config import RuntimeContext
 
     from tolteca_datamodels.toltec.file import SourceInfoModel
 
-__all__ = ["build_input_catalog", "run_source"]
+__all__ = ["create_kids", "run_source"]
 
 
-def build_input_catalog(
-    sources: Iterable[str | Path], *, data_root: Path | None = None
-) -> pd.DataFrame:
-    """Discover files and read scalar headers for configuration and selection.
+def create_kids(runtime: RuntimeContext, *, context_input: dict) -> Kids:
+    """Create a per-input KIDs handler without opening source files.
 
-    Files are closed before returning. The catalog contains only metadata;
-    I/Q arrays are not read. Unsupported file kinds retain discovery metadata
-    so callers can inspect or filter them before attempting execution.
+    ``context_input`` supplies metadata for conditional configuration. The
+    shared product root is the default output path; explicit stage settings
+    take precedence. The supplied runtime is not modified.
     """
-    catalog = resolve_sources(sources, data_root=data_root)
-    logger.debug("Discovered {} distinct input files", len(catalog))
-    records = []
-    for record in catalog.toltec_file.to_info_list():
-        info = record
-        if info.filepath.suffix == ".nc" and (
-            info.interface is None or info.roach is not None
-        ):
-            with xr.open_dataset(info.filepath) as data:
-                info = identify_source(data, info)
-        logger.debug("Input metadata: {}", info)
-        records.append(info)
-    return ToltecFileAccessor.from_info_list(records)
+    files = FileAccess(runtime).config
+    defaults = None
+    if files.dataprod_toltec_path is not None:
+        defaults = Kids.prepare_runtime_config_data(
+            {"output": {"path": files.dataprod_toltec_path}}
+        )
+    return Kids(
+        runtime.with_config(defaults=defaults, validation_context=context_input)
+    )
 
 
 @timeit
@@ -72,7 +63,7 @@ def run_source(
             exclude={"filepath_info", "filepath_info_orig"},
         )
         logger.debug("Resolving configuration with input context: {}", context_input)
-        kids = Kids(runtime.with_config(validation_context=context_input))
+        kids = create_kids(runtime, context_input=context_input)
         logger.opt(lazy=True).debug(
             "Effective KIDs configuration: {}", kids.config.model_dump
         )

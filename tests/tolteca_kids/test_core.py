@@ -12,13 +12,14 @@ from tollan.pipeline import PIPELINE_CONTEXT_KEY, SequentialPipeline
 from typer.testing import CliRunner
 
 from tolteca_datamodels.toltec.file import SourceInfoModel
+from tolteca_datamodels.toltec.filestore import build_input_catalog
 from tolteca_datamodels.toltec.kids import SweepReducer
 from tolteca_datamodels.toltec.kids.source import identify_source
 from tolteca_kids.cli import app
 from tolteca_kids.core import Kids, KidsConfig
 from tolteca_kids.dataprod_output import DataProdOutput
 from tolteca_kids.product import open_sweep_product, write_sweep_product
-from tolteca_kids.runner import build_input_catalog, run_source
+from tolteca_kids.runner import create_kids, run_source
 from tolteca_kids.sweep_reduce import SweepReduce, SweepReduceView
 
 
@@ -313,6 +314,46 @@ def test_cli_product_root_is_used_by_enabled_output(tmp_path, raw_sweep):
         ],
     )
     assert result.exit_code == 0, result.exception
+    with open_sweep_product(products / "source") as tree:
+        assert SweepReduce.get_context(tree).completed
+
+
+def test_create_kids_defaults_and_input_context_are_isolated(tmp_path):
+    shared = tmp_path / "shared"
+    conditional = tmp_path / "conditional"
+    runtime = RuntimeContext(
+        [
+            {"source": {"files": {"dataprod_toltec_path": str(shared)}}},
+            {
+                "enable_if": "roach == 7",
+                "source": {"kids": {"output": {"path": str(conditional)}}},
+            },
+        ]
+    )
+    first = create_kids(runtime, context_input={"roach": 0})
+    second = create_kids(runtime, context_input={"roach": 7})
+    assert first.config.output.path == shared
+    assert second.config.output.path == conditional
+    assert first.config.output.path == shared
+    assert "kids" not in runtime.config_dict
+    assert "roach" not in runtime.runtime_info.validation_context
+    assert not shared.exists()
+    assert not conditional.exists()
+
+
+def test_python_runner_uses_shared_product_root(tmp_path, raw_sweep):
+    source = tmp_path / "source.nc"
+    raw_sweep.to_netcdf(source, engine="scipy")
+    products = tmp_path / "products"
+    info = build_input_catalog([source]).toltec_file.to_info_list()[0]
+    runtime = RuntimeContext(
+        {
+            "files": {"dataprod_toltec_path": str(products)},
+            "kids": {"output": {"enabled": True}},
+        }
+    )
+    assert run_source(info, runtime) == products / "source"
+    assert runtime.config_dict["kids"] == {"output": {"enabled": True}}
     with open_sweep_product(products / "source") as tree:
         assert SweepReduce.get_context(tree).completed
 

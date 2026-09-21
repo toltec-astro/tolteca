@@ -6,9 +6,11 @@ import glob
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import xarray as xr
 from tollan.utils.log import logger
 
-from .file import guess_info_from_sources
+from .file import ToltecFileAccessor, guess_info_from_sources
+from .kids.source import identify_source
 from .obsspec import ObsSpec
 
 if TYPE_CHECKING:
@@ -16,7 +18,31 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
-__all__ = ["resolve_sources"]
+__all__ = ["build_input_catalog", "resolve_sources"]
+
+
+def build_input_catalog(
+    sources: Iterable[str | Path], *, data_root: Path | None = None
+) -> pd.DataFrame:
+    """Discover files and read scalar headers for configuration and selection.
+
+    Files are closed before returning. The catalog contains only metadata;
+    I/Q arrays are not read. Unsupported file kinds retain discovery metadata
+    so callers can inspect or filter them before attempting execution.
+    """
+    catalog = resolve_sources(sources, data_root=data_root)
+    logger.debug("Discovered {} distinct input files", len(catalog))
+    records = []
+    for record in catalog.toltec_file.to_info_list():
+        info = record
+        if info.filepath.suffix == ".nc" and (
+            info.interface is None or info.roach is not None
+        ):
+            with xr.open_dataset(info.filepath) as data:
+                info = identify_source(data, info)
+        logger.debug("Input metadata: {}", info)
+        records.append(info)
+    return ToltecFileAccessor.from_info_list(records)
 
 
 def _resolve_obs_spec(spec: ObsSpec, root: Path) -> list[Path]:

@@ -21,10 +21,9 @@ not the complete SweepCheck/KidsFind/Tlaloc scientific pipeline.
    generate range-based review diffs, and pause the task heartbeat
    `kids-overnight-vertical-slice`. Stop sooner if meaningful scoped work is done.
 
-Next action: step 02 — move existing catalog enrichment into shared file access
-and centralize application preparation so direct Python and CLI calls apply the
-same product-root default. Then implement deployment argument translation in
-an isolated Deploy worktree. Do not confuse generic run forwarding with that
+Next action: step 03 — implement deployment argument translation in
+`worktrees/tolteca_deploy-overnight` (isolated worktree, same temporary branch,
+baseline `21cc971`). Do not confuse generic run forwarding with that
 translation; its existing regression tests already pass.
 
 ## Branches and baseline
@@ -110,7 +109,8 @@ must have explicit scoped verification, with pre-existing QA failures recorded.
 | Step | Scope | Status | Commits / evidence |
 | --- | --- | --- | --- |
 | 00 | Preserve baseline and define overnight review discipline | complete | baseline table above |
-| 01 | Shared file-access configuration, independent of Kids stages | verified, ready to commit | [step record](01-file-config.md); 67 tests, scoped lint/type checks |
+| 01 | Shared file-access configuration, independent of Kids stages | committed | 389e104; [step record](01-file-config.md); 67 tests, scoped lint/type checks |
+| 02 | Shared catalog preparation and Python/CLI config parity | verified | [step record](02-catalog-and-runtime.md); 232 tests, scoped lint/type checks |
 
 Each entry should contain: evidence inspected; exact intended behavior and
 invariants; options and chosen rationale; changed files/APIs; tests and command

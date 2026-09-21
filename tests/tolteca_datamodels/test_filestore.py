@@ -34,7 +34,7 @@ def test_shared_file_config_snapshot_and_typo_validation():
     assert files.config.select == "roach < 7"
     assert files.recreate().config.select == "roach >= 7"
     with pytest.raises(ValidationError, match="extra_forbidden"):
-        FileAccessConfig.model_validate({"select": "roach == 0"})
+        FileAccessConfig.model_validate({"unknown_setting": "roach == 0"})
 
 
 @pytest.mark.parametrize("name", ["data_lmt_path", "dataprod_toltec_path", "select"])

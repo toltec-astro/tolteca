@@ -9,8 +9,9 @@ import pytest
 from astropy import units as u
 from tollan.config import RuntimeContext
 
+from tolteca_datamodels.toltec.filestore import build_input_catalog
 from tolteca_kids.product import open_sweep_product
-from tolteca_kids.runner import build_input_catalog, run_source
+from tolteca_kids.runner import run_source
 from tolteca_kids.sweep_reduce import SweepReduceView
 
 

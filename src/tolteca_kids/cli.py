@@ -12,9 +12,10 @@ from tollan.utils.log import logger
 from tollan.utils.typer import TollanTyper
 
 from tolteca_datamodels.filestore import FileAccess
+from tolteca_datamodels.toltec.filestore import build_input_catalog
 
 from .core import Kids
-from .runner import build_input_catalog, run_source
+from .runner import create_kids, run_source
 
 app = TollanTyper(
     name=f"tolteca_{Kids.subconfig_key}",
@@ -86,10 +87,6 @@ def main(  # noqa: PLR0913 -- CLI options form the public command signature
     ] + cli_args
     runtime = RuntimeContext.from_cli_ctx(ctx, cli_args=cli_args)
     inputs = FileAccess(runtime).config
-    if inputs.dataprod_toltec_path is not None:
-        runtime.update_default_config(
-            {key: {"output": {"path": inputs.dataprod_toltec_path}}}
-        )
     logger.debug("Input selection settings: {}", inputs)
     catalog = build_input_catalog(sources, data_root=inputs.data_lmt_path)
     if inputs.select is not None:
@@ -110,14 +107,13 @@ def main(  # noqa: PLR0913 -- CLI options form the public command signature
         raise typer.BadParameter(msg)
     for info in catalog.toltec_file.to_info_list():
         if show_config:
-            kids = Kids(
-                runtime.with_config(
-                    validation_context=info.model_dump(
-                        mode="json",
-                        context={"flat": True},
-                        exclude={"filepath_info", "filepath_info_orig"},
-                    )
-                )
+            kids = create_kids(
+                runtime,
+                context_input=info.model_dump(
+                    mode="json",
+                    context={"flat": True},
+                    exclude={"filepath_info", "filepath_info_orig"},
+                ),
             )
             effective = {
                 FileAccess.subconfig_key: inputs.model_dump(mode="json"),

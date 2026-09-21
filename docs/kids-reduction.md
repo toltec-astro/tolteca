@@ -185,7 +185,8 @@ with xr.open_dataset(source) as raw:
 
 ```python
 from tolteca_kids.product import open_sweep_product
-from tolteca_kids.runner import build_input_catalog, run_source
+from tolteca_datamodels.toltec.filestore import build_input_catalog
+from tolteca_kids.runner import run_source
 
 catalog = build_input_catalog([source])
 inputs = catalog.toltec_file.to_info_list("roach == 0")
