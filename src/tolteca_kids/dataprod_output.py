@@ -5,12 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from pydantic import ConfigDict, Field
-from tollan.config.types import (
-    AbsAnyPath,  # noqa: TC002 -- Pydantic resolves the annotation at runtime
-)
-from tollan.pipeline import Step, StepConfig, StepContext
+from tollan.pipeline import Step, StepContext
 
+from .config import DataProdOutputConfig
 from .product import write_sweep_product
 
 if TYPE_CHECKING:
@@ -22,20 +19,6 @@ __all__ = [
     "DataProdOutputContext",
     "DataProdOutputView",
 ]
-
-
-class DataProdOutputConfig(StepConfig):
-    """Publish beneath ``path`` using a metadata-formatted directory ``name``.
-
-    Output is opt-in. Names may use source-record fields and ``{stem}``;
-    each name must be a single directory component. Existing products are
-    never overwritten.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-    enabled: bool = False
-    path: AbsAnyPath = Field(default=Path(), validate_default=True)
-    name: str = "{stem}"
 
 
 class DataProdOutputContext(StepContext["DataProdOutput", DataProdOutputConfig]):

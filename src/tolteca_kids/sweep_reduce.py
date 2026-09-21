@@ -5,24 +5,13 @@ from __future__ import annotations
 from typing import ClassVar
 
 import xarray as xr
-from pydantic import ConfigDict, Field
-from tollan.pipeline import Step, StepConfig, StepContext
+from tollan.pipeline import Step, StepContext
 
 from tolteca_datamodels.toltec.kids import ReducedSweepView, SweepReducer
 
+from .config import SweepReduceConfig
+
 __all__ = ["SweepReduce", "SweepReduceConfig", "SweepReduceContext", "SweepReduceView"]
-
-
-class SweepReduceConfig(StepConfig):
-    """Control sweep reduction and select a block from its result.
-
-    ``block=-1`` selects the last block; nonnegative indices select an explicit
-    block. This stage detects sweep blocks and computes standard deviations.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-    block: int = Field(default=-1, ge=-1)
-    force: bool = Field(default=False, description="Recompute existing reduced data.")
 
 
 class SweepReduceContext(StepContext["SweepReduce", SweepReduceConfig]):

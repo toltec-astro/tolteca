@@ -3,29 +3,17 @@
 from functools import cached_property
 from typing import Literal
 
-from pydantic import ConfigDict, Field
-from tollan.config import ConfigHandler, FrozenBaseModel, SubConfigKeyTransformer
+from tollan.config import ConfigHandler, SubConfigKeyTransformer
 from tollan.pipeline import SequentialPipeline
 
 from tolteca_datamodels.toltec.types import ToltecDataKind
 
-from .dataprod_output import DataProdOutput, DataProdOutputConfig
+from .config import KidsConfig
+from .dataprod_output import DataProdOutput
 from .noop import NoOp
-from .sweep_reduce import SweepReduce, SweepReduceConfig
+from .sweep_reduce import SweepReduce
 
 __all__ = ["Kids", "KidsConfig"]
-
-
-class KidsConfig(FrozenBaseModel):
-    """Configuration for the supported KIDs processing stages.
-
-    Only raw sweep reduction is currently supported by this pipeline.
-    Unsupported stage sections are rejected.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-    sweep_reduce: SweepReduceConfig = Field(default_factory=SweepReduceConfig)
-    output: DataProdOutputConfig = Field(default_factory=DataProdOutputConfig)
 
 
 class Kids(SubConfigKeyTransformer[Literal["kids"]], ConfigHandler[KidsConfig]):

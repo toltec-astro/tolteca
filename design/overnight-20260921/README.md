@@ -114,7 +114,8 @@ must have explicit scoped verification, with pre-existing QA failures recorded.
 | 02 | Shared catalog preparation and Python/CLI config parity | committed | b1fd2ab; [step record](02-catalog-and-runtime.md); 232 tests, scoped lint/type checks |
 | 03 | Explicit deployment launcher and executable command plan | committed | Deploy 117ba21; [step record](03-deploy-launch.md); 57 focused tests including real reference replay; full-suite worktree limitations recorded |
 | 04 | Fixed pipeline reduction policy and current-use guide | committed | a29494e; [step record](04-fixed-reduction-stage.md); 250 tests including exact v2 values; scoped lint/type checks |
-| 05 | Mapper-based reducer reads and one LO evaluation | verified | [step record](05-reducer-mappings.md); 279 tests, exact v2 values, scoped typecheck; pre-existing numerical-module lint debt recorded |
+| 05 | Mapper-based reducer reads and one LO evaluation | committed | 74ad500; [step record](05-reducer-mappings.md); 279 tests, exact v2 values, scoped typecheck; pre-existing numerical-module lint debt recorded |
+| 06a | Configuration model import boundary | verified | [step record](06a-config-model-boundary.md); 33 pipeline tests, scoped lint/type checks |
 
 Each entry should contain: evidence inspected; exact intended behavior and
 invariants; options and chosen rationale; changed files/APIs; tests and command
