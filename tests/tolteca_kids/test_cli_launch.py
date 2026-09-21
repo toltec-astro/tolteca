@@ -28,8 +28,9 @@ def test_reference_inputs_direct_and_deploy(data_lmt_path, tmp_path, mode):
     config = workdir / "recipe.yaml"
     config.write_text("""
 - source:
-    kids:
+    files:
       select: roach == 0
+    kids:
       sweep_reduce: {block: 1}
 - enable_if: file_suffix == 'tune'
   source:
@@ -128,36 +129,31 @@ def test_deploy_preserves_kids_failure(tmp_path, failure):
     assert "no-op completed" not in direct.stdout + launched.stdout
 
 
-@pytest.mark.parametrize("tier", ["yaml", "option", "dotted"])
+@pytest.mark.parametrize("tier", ["yaml", "option"])
 def test_path_and_selection_precedence(tmp_path, monkeypatch, tier):
     source = tmp_path / "toltec0_000001_000_0000_timestream.nc"
     xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
     paths = {}
-    for name in ("yaml", "option", "dotted"):
+    for name in ("yaml", "option"):
         paths[name] = tmp_path / name
         paths[name].mkdir()
     monkeypatch.setenv("TOLTECA_DATA_LMT_PATH", "/missing/inherited")
     monkeypatch.delenv("TOLTECA_DATAPROD_TOLTEC_PATH", raising=False)
     config = tmp_path / "settings.yaml"
     config.write_text(
-        f"kids:\n  data_lmt_path: {paths['yaml']}\n  select: roach == 0\n"
+        f"files:\n  data_lmt_path: {paths['yaml']}\n  select: roach == 0\n"
     )
     args = ["--config_paths", str(config)]
-    if tier in {"option", "dotted"}:
+    if tier == "option":
         args += ["--data_lmt_path", str(paths["option"]), "--select", "roach < 7"]
-    if tier == "dotted":
-        args += [
-            "--kids.data_lmt_path",
-            str(paths["dotted"]),
-            "--kids.select",
-            "roach != 7",
-        ]
     result = CliRunner().invoke(app, [*args, "--show_config", "--", str(source)])
     assert result.exit_code == 0, result.output
     config = json.loads(result.stdout.split("\n", 1)[1])
-    assert config["data_lmt_path"] == str(paths[tier])
-    if tier == "dotted":
-        assert config["select"] == "roach != 7"
+    assert config["files"]["data_lmt_path"] == str(paths[tier])
+    assert config["files"]["select"] == (
+        "roach == 0" if tier == "yaml" else "roach < 7"
+    )
+    assert "data_lmt_path" not in config["kids"]
     assert os.environ["TOLTECA_DATA_LMT_PATH"] == "/missing/inherited"
 
 
@@ -173,8 +169,38 @@ def test_environment_does_not_supply_kids_paths(tmp_path, monkeypatch):
     )
     assert result.exit_code == 0, result.output
     config = json.loads(result.stdout.split("\n", 1)[1])
-    assert config["data_lmt_path"] is None
-    assert config["dataprod_toltec_path"] is None
+    assert config["files"]["data_lmt_path"] is None
+    assert config["files"]["dataprod_toltec_path"] is None
+
+
+@pytest.mark.parametrize("output_path", ["shared", "recipe", "cli"])
+def test_product_root_defaults_do_not_override_output_recipe(tmp_path, output_path):
+    source = tmp_path / "toltec0_000001_000_0000_timestream.nc"
+    xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
+    products = tmp_path / "shared"
+    config = tmp_path / "settings.yaml"
+    config.write_text(
+        "kids:\n  output:\n    path: " + str(tmp_path / "recipe") + "\n"
+        if output_path != "shared"
+        else "{}\n"
+    )
+    args = [
+        "--config_paths",
+        str(config),
+        "--dataprod_toltec_path",
+        str(products),
+        "--show_config",
+    ]
+    if output_path == "cli":
+        args += ["--kids.output.path", str(tmp_path / "cli")]
+    result = CliRunner().invoke(app, [*args, "--", str(source)])
+    assert result.exit_code == 0, result.output
+    effective = json.loads(result.stdout.split("\n", 1)[1])
+    assert effective["files"]["dataprod_toltec_path"] == str(products)
+    assert effective["kids"]["output"]["path"] == str(tmp_path / output_path)
+    assert effective["kids"]["output"]["enabled"] is False
+    for name in ("shared", "recipe", "cli"):
+        assert not (tmp_path / name).exists()
 
 
 def test_symlink_input_is_processed_once(tmp_path):
@@ -187,7 +213,9 @@ def test_symlink_input_is_processed_once(tmp_path):
     assert result.stdout.count("no-op completed") == 1
 
 
-@pytest.mark.parametrize("option", ["--kids.", "--web.debug", "--kidss.debug"])
+@pytest.mark.parametrize(
+    "option", ["--kids.", "--web.debug", "--kidss.debug", "--files.select"]
+)
 def test_only_nonempty_kids_overrides_reach_runtime(monkeypatch, option):
     from tolteca_kids import cli
 

@@ -297,6 +297,26 @@ def test_prepare_does_not_read_signal(tmp_path, raw_sweep):
     assert kids.config.sweep_reduce.enabled
 
 
+def test_cli_product_root_is_used_by_enabled_output(tmp_path, raw_sweep):
+    source = tmp_path / "source.nc"
+    raw_sweep.to_netcdf(source, engine="scipy")
+    products = tmp_path / "products"
+    result = CliRunner().invoke(
+        app,
+        [
+            "--dataprod_toltec_path",
+            str(products),
+            "--kids.output.enabled",
+            "true",
+            "--",
+            str(source),
+        ],
+    )
+    assert result.exit_code == 0, result.exception
+    with open_sweep_product(products / "source") as tree:
+        assert SweepReduce.get_context(tree).completed
+
+
 @pytest.mark.parametrize("suffix", ["targsweep", "vnasweep", "tune"])
 def test_reference_file_through_runner(data_lmt_path, tmp_path, suffix):
     paths = sorted(

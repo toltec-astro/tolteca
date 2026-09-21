@@ -1,5 +1,6 @@
 """Command-line entry point for configured KIDs reduction."""
 
+import json
 import re
 from pathlib import Path  # noqa: TC003 -- Typer inspects these types at runtime
 from typing import Annotated
@@ -10,7 +11,8 @@ from tollan.utils.cli import split_cli_args
 from tollan.utils.log import logger
 from tollan.utils.typer import TollanTyper
 
-from .config import KidsInputConfig
+from tolteca_datamodels.filestore import FileAccess
+
 from .core import Kids
 from .runner import build_input_catalog, run_source
 
@@ -43,7 +45,7 @@ def main(  # noqa: PLR0913 -- CLI options form the public command signature
         Path | None, typer.Option(help="Data product root; does not enable output.")
     ] = None,
     select: Annotated[
-        str | None, typer.Option(help="Override kids.select, a pandas catalog query.")
+        str | None, typer.Option(help="Override files.select, a pandas catalog query.")
     ] = None,
     show_inputs: Annotated[
         bool, typer.Option(help="Print the selected metadata catalog and exit.")
@@ -69,7 +71,8 @@ def main(  # noqa: PLR0913 -- CLI options form the public command signature
         msg = f"Unknown options: {', '.join(unknown)}"
         raise typer.BadParameter(msg)
 
-    # Shorthands populate the same config fields; explicit dotted options win.
+    # Only these explicit options populate shared discovery settings. User
+    # dotted options were already restricted to the KIDs namespace above.
     options = {
         "data_lmt_path": data_lmt_path,
         "dataprod_toltec_path": dataprod_toltec_path,
@@ -79,13 +82,14 @@ def main(  # noqa: PLR0913 -- CLI options form the public command signature
         arg
         for name, value in options.items()
         if value is not None
-        for arg in (f"--{key}.{name}", str(value))
+        for arg in (f"--{FileAccess.subconfig_key}.{name}", str(value))
     ] + cli_args
     runtime = RuntimeContext.from_cli_ctx(ctx, cli_args=cli_args)
-    inputs = KidsInputConfig.model_validate(
-        Kids.prepare_config_data(runtime.config),
-        context=runtime.runtime_info.validation_context,
-    )
+    inputs = FileAccess(runtime).config
+    if inputs.dataprod_toltec_path is not None:
+        runtime.update_default_config(
+            {key: {"output": {"path": inputs.dataprod_toltec_path}}}
+        )
     logger.debug("Input selection settings: {}", inputs)
     catalog = build_input_catalog(sources, data_root=inputs.data_lmt_path)
     if inputs.select is not None:
@@ -115,7 +119,11 @@ def main(  # noqa: PLR0913 -- CLI options form the public command signature
                     )
                 )
             )
-            typer.echo(f"{info.filepath}\n{kids.config.model_dump_json(indent=2)}")
+            effective = {
+                FileAccess.subconfig_key: inputs.model_dump(mode="json"),
+                key: kids.config.model_dump(mode="json"),
+            }
+            typer.echo(f"{info.filepath}\n{json.dumps(effective, indent=2)}")
         else:
             product = run_source(info, runtime, dry_run=dry_run)
             status = "no-op completed" if dry_run else "completed without output"

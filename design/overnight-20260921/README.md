@@ -21,9 +21,11 @@ not the complete SweepCheck/KidsFind/Tlaloc scientific pipeline.
    generate range-based review diffs, and pause the task heartbeat
    `kids-overnight-vertical-slice`. Stop sooner if meaningful scoped work is done.
 
-Next action: checkpoint existing changes without altering their contents;
-audit the current CLI, source-discovery ownership, no-op tests and deployment
-launcher against the agreed contract before making the first new code change.
+Next action: step 02 — move existing catalog enrichment into shared file access
+and centralize application preparation so direct Python and CLI calls apply the
+same product-root default. Then implement deployment argument translation in
+an isolated Deploy worktree. Do not confuse generic run forwarding with that
+translation; its existing regression tests already pass.
 
 ## Branches and baseline
 
@@ -34,10 +36,10 @@ it is not presented as a newly designed or newly reviewed overnight change.
 
 | Repository | Original branch | Original HEAD | Baseline checkpoint |
 | --- | --- | --- | --- |
-| tollan | v3.x | de75e826ad243ffedf3b08a1933a3df42eb40787 | pending |
-| tolteca | v3.x | 6ef2c1617ccb071b74f1142aac6e9c5d6ed7e56c | pending |
-| tolteca_db | v3.x | 4ea880436368dbcfbf99ee59d2c4c7854a7e83ee | pending |
-| tolteca_web | v3.x | 3bd8c0b14d03c7bfbc4bab237109a9ead8880a66 | pending |
+| tollan | v3.x | de75e826ad243ffedf3b08a1933a3df42eb40787 | 1fea73b |
+| tolteca | v3.x | 6ef2c1617ccb071b74f1142aac6e9c5d6ed7e56c | fe3b722 |
+| tolteca_db | v3.x | 4ea880436368dbcfbf99ee59d2c4c7854a7e83ee | c01f1fa |
+| tolteca_web | v3.x | 3bd8c0b14d03c7bfbc4bab237109a9ead8880a66 | 739c963 |
 
 The shared `tolteca_deploy` checkout begins at
 `21cc97110280f1f3f5f9bfa11a8cb4c7d93071ad` on `main`. It is shared with the C++
@@ -107,7 +109,8 @@ must have explicit scoped verification, with pre-existing QA failures recorded.
 
 | Step | Scope | Status | Commits / evidence |
 | --- | --- | --- | --- |
-| 00 | Preserve baseline and define overnight review discipline | in progress | this index |
+| 00 | Preserve baseline and define overnight review discipline | complete | baseline table above |
+| 01 | Shared file-access configuration, independent of Kids stages | verified, ready to commit | [step record](01-file-config.md); 67 tests, scoped lint/type checks |
 
 Each entry should contain: evidence inspected; exact intended behavior and
 invariants; options and chosen rationale; changed files/APIs; tests and command

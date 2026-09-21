@@ -45,19 +45,20 @@ inputs fails.
 Paths and selection can also be supplied in a YAML configuration:
 
 ```yaml
-kids:
+files:
   data_lmt_path: /data/lmt
   dataprod_toltec_path: /data/products
   select: roach < 7
 ```
 
-`dataprod_toltec_path` records the product root; it does not create directories
-or enable output. Product publication is configured separately.
+`dataprod_toltec_path` supplies the default product-output directory. It does not
+create directories or enable output. An explicit `kids.output.path` takes
+precedence over this shared default.
 
 `--config_paths` accepts files or directories of numbered configuration files.
 Later paths override earlier paths. The explicit path and selection options
-override their YAML fields; dotted `--kids.*` options take precedence over
-those shorthands.
+override their `files` YAML fields. Dotted `--kids.*` options override processing
+settings; shared discovery settings use the explicit options above.
 
 ```console
 tolteca_kids --config_paths recipes/ override.yaml --show_config -- sweep.nc
@@ -65,8 +66,8 @@ tolteca_kids --config_paths recipes/ --dry_run --kids.sweep_reduce.block 0 -- sw
 tolteca_kids --config_paths recipes/ --config_paths override.yaml --dry_run -- sweep.nc
 ```
 
-`--show_config` prints the effective, validated KIDs configuration for each
-selected input and exits. Conditional configuration sources use that input's
+`--show_config` prints the effective, validated `files` and `kids` configuration
+sections for each selected input and exits. Conditional sources use that input's
 metadata for `enable_if`; these conditions control stage configuration, not
 input selection. Set discovery paths and catalog selection in unconditional
 configuration, since they are needed before per-input metadata is available.
