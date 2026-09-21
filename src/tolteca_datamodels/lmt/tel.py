@@ -39,18 +39,26 @@ class LmtTelIOSchema(Schema):
     obs_goal: Mapping = NameMapping("Header.Dcs.ObsGoal")
     t_exp: Mapping = NameMapping("Header.Dcs.IntegrationTime")
     filepath_orig: Mapping = NameMapping("Header.File.Name")
-    target_ra: Mapping = NameMapping.var("Header.Source.Ra")
-    target_dec: Mapping = NameMapping.var("Header.Source.Dec")
-    time: Mapping = NameMapping.var("Data.TelescopeBackend.TelTime")
-    az: Mapping = NameMapping.var("Data.TelescopeBackend.TelAzAct")
-    alt: Mapping = NameMapping.var("Data.TelescopeBackend.TelElAct")
-    ra: Mapping = NameMapping.var("Data.TelescopeBackend.SourceRaAct")
-    dec: Mapping = NameMapping.var("Data.TelescopeBackend.SourceDecAct")
-    hold_flag: Mapping = NameMapping.var("Data.TelescopeBackend.Hold")
+
+    # Header coordinates contain the main and reference positions, in that order.
+    ra: Mapping = NameMapping.var("Header.Source.Ra")
+    dec: Mapping = NameMapping.var("Header.Source.Dec")
+    tel_time: Mapping = NameMapping.var("Data.TelescopeBackend.TelTime")
+
+    # Actual and desired horizontal pointing; native El is canonicalized to alt.
+    az_act: Mapping = NameMapping.var("Data.TelescopeBackend.TelAzAct")
+    alt_act: Mapping = NameMapping.var("Data.TelescopeBackend.TelElAct")
     az_des: Mapping = NameMapping.var("Data.TelescopeBackend.TelAzDes")
     alt_des: Mapping = NameMapping.var("Data.TelescopeBackend.TelElDes")
+
+    # Map-coordinate streams, distinct from actual/desired telescope pointing.
     az_map: Mapping = NameMapping.var("Data.TelescopeBackend.TelAzMap")
     alt_map: Mapping = NameMapping.var("Data.TelescopeBackend.TelElMap")
+
+    # Actual equatorial samples, not the two-position header coordinates above.
+    source_ra_act: Mapping = NameMapping.var("Data.TelescopeBackend.SourceRaAct")
+    source_dec_act: Mapping = NameMapping.var("Data.TelescopeBackend.SourceDecAct")
+    hold_flag: Mapping = NameMapping.var("Data.TelescopeBackend.Hold")
 
 
 class LmtTelIOMapper(XarrayMapper[LmtTelIOSchema]):
@@ -79,17 +87,19 @@ class LmtTelIOMapper(XarrayMapper[LmtTelIOSchema]):
         """
         ds = data_source
         schema = self.schema
-        time = self.get_arr(ds, schema.time)
-        if time.ndim != 1 or time.size == 0:
+        tel_time = self.get_arr(ds, schema.tel_time)
+        if tel_time.ndim != 1 or tel_time.size == 0:
             msg = "Telescope time must be a nonempty one-dimensional array"
             raise ValueError(msg)
-        t0 = Time(time.isel({time.dims[0]: 0}).to_numpy().item(), format="unix")
-        t1 = Time(time.isel({time.dims[0]: -1}).to_numpy().item(), format="unix")
+        t0 = Time(tel_time.isel({tel_time.dims[0]: 0}).to_numpy().item(), format="unix")
+        t1 = Time(
+            tel_time.isel({tel_time.dims[0]: -1}).to_numpy().item(), format="unix"
+        )
         t0.format = "isot"
         t1.format = "isot"
 
-        ra = self.get_arr(ds, schema.target_ra)
-        dec = self.get_arr(ds, schema.target_dec)
+        ra = self.get_arr(ds, schema.ra)
+        dec = self.get_arr(ds, schema.dec)
         if ra.shape != (2,) or dec.shape != (2,):
             msg = "Target RA and Dec must each contain two main/reference entries"
             raise ValueError(msg)
@@ -113,9 +123,10 @@ class LmtTelIOMapper(XarrayMapper[LmtTelIOSchema]):
             obs_goal=self.get_str(ds, schema.obs_goal).lower(),
             t0=t0,
             t1=t1,
+            # Header integration time is distinct from the TelTime span (t_elapsed).
             t_exp=self.get_scalar(ds, schema.t_exp) * u.s,
             target=targets[0],
-            target_off=targets[1],
+            target_ref=targets[1],
         )
         logger.debug(
             "Read telescope metadata: interface={}, master={}, obs={}-{}-{}, "
@@ -168,37 +179,57 @@ class LmtTelAccessor(XarrayAccessorBase[LmtTelIOMapper]):
         return self.mapper.get_metadata(self.data_source)
 
     @functools.cached_property
-    def time(self) -> xr.DataArray:
+    def t(self) -> xr.DataArray:
         """Elapsed seconds from the first sample; computes on non-Dask inputs."""
-        time = self.time_unix
-        result = time - time.isel({time.dims[0]: 0})
+        tel_time = self.tel_time
+        result = tel_time - tel_time.isel({tel_time.dims[0]: 0})
         result.attrs.update(units="s", long_name="Elapsed telescope time")
         return result
 
     @property
-    def time_unix(self) -> xr.DataArray:
+    def tel_time(self) -> xr.DataArray:
         """Native Unix timestamps, available for slicing before loading."""
-        return self.mapper.get_arr(self.data_source, self.mapper.schema.time)
+        return self.mapper.get_arr(self.data_source, self.mapper.schema.tel_time)
 
     @property
     def az(self) -> xr.DataArray:
         """Actual telescope azimuth in radians."""
-        return self.mapper.get_arr(self.data_source, self.mapper.schema.az)
+        return self.mapper.get_arr(self.data_source, self.mapper.schema.az_act)
 
     @property
     def alt(self) -> xr.DataArray:
-        """Actual telescope elevation in radians."""
-        return self.mapper.get_arr(self.data_source, self.mapper.schema.alt)
+        """Actual telescope altitude in radians."""
+        return self.mapper.get_arr(self.data_source, self.mapper.schema.alt_act)
+
+    @property
+    def az_des(self) -> xr.DataArray:
+        """Desired telescope azimuth in radians."""
+        return self.mapper.get_arr(self.data_source, self.mapper.schema.az_des)
+
+    @property
+    def alt_des(self) -> xr.DataArray:
+        """Desired telescope altitude in radians."""
+        return self.mapper.get_arr(self.data_source, self.mapper.schema.alt_des)
+
+    @property
+    def az_map(self) -> xr.DataArray:
+        """Telescope map azimuth coordinate in radians."""
+        return self.mapper.get_arr(self.data_source, self.mapper.schema.az_map)
+
+    @property
+    def alt_map(self) -> xr.DataArray:
+        """Telescope map altitude coordinate in radians."""
+        return self.mapper.get_arr(self.data_source, self.mapper.schema.alt_map)
 
     @property
     def ra(self) -> xr.DataArray:
         """Actual source right ascension in radians."""
-        return self.mapper.get_arr(self.data_source, self.mapper.schema.ra)
+        return self.mapper.get_arr(self.data_source, self.mapper.schema.source_ra_act)
 
     @property
     def dec(self) -> xr.DataArray:
         """Actual source declination in radians."""
-        return self.mapper.get_arr(self.data_source, self.mapper.schema.dec)
+        return self.mapper.get_arr(self.data_source, self.mapper.schema.source_dec_act)
 
     @functools.cached_property
     def hold_flag(self) -> xr.DataArray:

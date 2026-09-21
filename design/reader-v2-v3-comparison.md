@@ -8,7 +8,7 @@ reader corrections. No reader implementation was changed for that baseline.
 The current implementation progress, decisions, and exceptions awaiting review
 are recorded in [section 10](#10-reader-correction-iterations). Its telescope
 results supersede the baseline telescope findings where explicitly listed.
-The current telescope contract is **T3**, with shared path naming updated in **C3** below. T1/T2 and C1/C2 are historical
+The current telescope contract is **T4**, with shared path naming updated in **C3** below. T1/T2 and C1/C2 are historical
 iteration records, not competing descriptions of the current API.
 
 ## Summary
@@ -1130,3 +1130,37 @@ existing `CPY001` exclusion), formatting, and `ty` checks pass; the Tolteca-wide
 References for the chosen boundaries:
 [Pydantic Path validation and serialization](https://docs.pydantic.dev/latest/api/standard_library_types/#paths),
 [fsspec remote/file caching](https://filesystem-spec.readthedocs.io/en/latest/features.html#caching-files-locally).
+
+### T4: accepted telescope names and elapsed duration
+
+The user reviewed the
+[pre-overnight naming comparison](lmt-tel-metadata-review-20260921.md) and chose
+`t` for elapsed samples, `tel_time` for native timestamps, and `alt` rather than
+the telescope's legacy `El` vocabulary. This focused follow-up changes the
+following interfaces, without compatibility aliases:
+
+| Change | Preserved behavior / justification |
+| --- | --- |
+| Accessor `time` → `t` | Exact native timestamp subtraction, dtype, seconds unit, per-accessor caching and Dask deferral retained |
+| Accessor `time_unix` → `tel_time` | Native handle retained; snake case follows the recorded TelTime name |
+| Metadata `target_off` → `target_ref` | Same second absolute ICRS position; no coordinate subtraction or reordered entries |
+| Add metadata `t_elapsed` | Cached `(t1 - t0).to(u.s)`, using the already-read TelTime endpoints; no additional file reads |
+| Add `az_des`, `alt_des`, `az_map`, `alt_map` properties | Expose existing schema mappings as native lazy DataArrays |
+| Explicit schema names | Header pairs use `ra`/`dec`; sampled coordinates use `source_ra_act`/`source_dec_act`; actual horizontal samples use `az_act`/`alt_act`; timestamp mapping uses `tel_time` |
+
+`t_exp` still reads the header integration timer unchanged, including zero.
+It is not replaced by `t_elapsed`, and equality between those durations is not
+required. The derived duration uses Astropy Time subtraction; the existing
+sample-array subtraction remains unchanged. Header completeness, source
+identity, file-opening behavior, and optional integrity checking are unchanged.
+The common parser, shared UIDs, and guide consolidation remain separate work.
+
+Verification: **580 focused telescope/catalog tests passed**, including all
+eight ordinary/Dask telescope comparisons against the actual v2 interpreter.
+Native time/pointing handles are tested for zero backend reads on all four
+fixtures in both modes. Cached elapsed duration, JSON serialization, fresh
+cache after metadata replacement, and unchanged integration time are covered.
+Scoped Ruff (existing CPY001 exclusion), formatting, and `ty` checks pass.
+The full Tolteca pytest suite also passes: **1,263 tests**, with the actual v2
+interpreter enabled and benchmark timing disabled. The repository-wide
+`just qa` recipe was not run. No commit was made.

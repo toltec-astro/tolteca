@@ -111,6 +111,18 @@ must have explicit scoped verification, with pre-existing QA failures recorded.
 6. Run final scoped/full QA as applicable, an actual end-to-end local demonstration,
    self-review and a handoff organized by small commits with remaining questions.
 
+## Pre-overnight review
+
+The preserved baseline is not an approval of every change it contains. The
+user is reviewing the telescope metadata/reader and filename/catalog work
+before the overnight steps. See the
+[LMT telescope and file-metadata review](../lmt-tel-metadata-review-20260921.md)
+for the v2/current/proposed naming tables, reference-header timing evidence,
+identifier conventions, and proposed common-parser boundary. That review is
+against `6ef2c161..fe3b722`; its recommendations are not implemented by the
+overnight commits. The saved input diff remains
+`/tmp/toltec-python-metadata-catalog-review.diff`.
+
 ## Step ledger
 
 | Step | Scope | Status | Commits / evidence |

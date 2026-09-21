@@ -37,7 +37,7 @@ import astropy.units as u
 with open_lmt_tel("tel_toltec_2025-10-31_145606_00_0001.nc") as ds:
     meta = ds.lmt_tel.meta
     print(meta.t0.isot, meta.t1.isot)
-    print(meta.t_exp.to_value(u.s))
+    print(meta.t_exp.to_value(u.s), meta.t_elapsed.to_value(u.s))
     print(meta.target.ra.to_value(u.deg), meta.target.dec.to_value(u.deg))
     print(meta.obs_pgm, meta.obs_goal)
     print(meta.master, meta.master_str)
@@ -47,7 +47,8 @@ with open_lmt_tel("tel_toltec_2025-10-31_145606_00_0001.nc") as ds:
 | --- | --- |
 | `t0`, `t1` | First and last recorded sample times |
 | `t_exp` | Recorded integration time, which may be zero and need not equal `t1 - t0` |
-| `target`, `target_off` | Main and reference sky positions; the latter is a position, not an offset vector |
+| `t_elapsed` | Elapsed time `t1 - t0`, derived from the first and last telescope timestamps |
+| `target`, `target_ref` | Main and reference sky positions; the latter is a position, not an offset vector |
 | `obs_pgm`, `obs_goal` | Observation program and goal, such as `Lissajous` and `pointing` |
 | `master`, `master_str` | Recorded acquisition-master code and name, such as `0` and `tcs`; `None` if unavailable |
 | `instru`, `instru_component`, `interface` | Instrument, component, and readout actor: `lmt`, `tcs`, and `tel` |
@@ -99,19 +100,25 @@ Select a slice of native pointing or timestamp arrays before loading it:
 with open_lmt_tel("tel_toltec_2025-10-31_145606_00_0001.nc") as ds:
     tel = ds.lmt_tel
     az = tel.az.isel(time=slice(0, 100)).load()
-    timestamps = tel.time_unix.isel(time=slice(0, 100)).load()
+    timestamps = tel.tel_time.isel(time=slice(0, 100)).load()
     print(az.u.unit)
 ```
 
 | Accessor property | Values | Loading behavior |
 | --- | --- | --- |
 | `az`, `alt`, `ra`, `dec` | Native pointing angles in radians | Lazy; slice before loading |
-| `time_unix` | Native Unix timestamps | Lazy; slice before loading |
-| `time` | Elapsed seconds from the first sample | Computed and cached on ordinary datasets; deferred with Dask |
+| `az_des`, `alt_des` | Desired horizontal pointing in radians | Lazy; slice before loading |
+| `az_map`, `alt_map` | Map coordinates in radians | Lazy; slice before loading |
+| `tel_time` | Native Unix timestamps | Lazy; slice before loading |
+| `t` | Elapsed seconds from the first sample | Computed and cached on ordinary datasets; deferred with Dask |
 | `hold_flag` | Integer hold flags, without a physical unit | Converted and cached on ordinary datasets; deferred with Dask |
 
-Pass `chunks={}` to `open_lmt_tel()` to use Dask-backed arrays. Raw flags and
-additional pointing fields can be selected through the mapper:
+`meta.t_elapsed` uses the endpoints of `tel_time` and does not load the full
+time array. `meta.t_exp` instead comes from the header's integration timer;
+zero integration time can accompany a nonzero elapsed span.
+
+Pass `chunks={}` to `open_lmt_tel()` to use Dask-backed arrays. Raw flags can
+be selected through the mapper:
 
 ```python
 with open_lmt_tel("tel_toltec_2025-10-31_145606_00_0001.nc") as ds:

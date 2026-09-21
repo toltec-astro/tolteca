@@ -35,6 +35,10 @@ def telescope():
             "Data.TelescopeBackend.TelTime": ("sample", [1761902400.0, 1761902401.0]),
             "Data.TelescopeBackend.TelAzAct": ("sample", [2.0, 2.1], {"units": "rad"}),
             "Data.TelescopeBackend.TelElAct": ("sample", [0.9, 0.8], {"units": "rad"}),
+            "Data.TelescopeBackend.TelAzDes": ("sample", [2.2, 2.3], {"units": "rad"}),
+            "Data.TelescopeBackend.TelElDes": ("sample", [0.7, 0.6], {"units": "rad"}),
+            "Data.TelescopeBackend.TelAzMap": ("sample", [0.1, 0.2], {"units": "rad"}),
+            "Data.TelescopeBackend.TelElMap": ("sample", [0.3, 0.4], {"units": "rad"}),
             "Data.TelescopeBackend.SourceRaAct": (
                 "sample",
                 [1.0, 1.01],
@@ -70,22 +74,28 @@ def test_metadata_and_arrays(telescope, as_tree):
     assert meta.t0.unix == 1761902400.0
     assert meta.t1.unix == 1761902401.0
     assert meta.t_exp == 0 * u.s  # Not replaced by the elapsed span.
-    assert meta.target is not None and meta.target_off is not None
+    assert meta.t_elapsed == (meta.t1 - meta.t0).to(u.s)
+    assert meta.t_elapsed != meta.t_exp
+    assert meta.target is not None and meta.target_ref is not None
     assert meta.target.ra.rad == pytest.approx(1.0)
-    assert meta.target_off.ra.rad == pytest.approx(1.1)
+    assert meta.target_ref.ra.rad == pytest.approx(1.1)
     for name, variable in (
-        ("time_unix", "TelTime"),
+        ("tel_time", "TelTime"),
         ("az", "TelAzAct"),
         ("alt", "TelElAct"),
+        ("az_des", "TelAzDes"),
+        ("alt_des", "TelElDes"),
+        ("az_map", "TelAzMap"),
+        ("alt_map", "TelElMap"),
         ("ra", "SourceRaAct"),
         ("dec", "SourceDecAct"),
     ):
         xr.testing.assert_identical(
             getattr(acc, name), telescope[f"Data.TelescopeBackend.{variable}"]
         )
-    np.testing.assert_array_equal(acc.time.to_numpy(), [0.0, 1.0])
-    assert acc.time.attrs["units"] == "s"
-    assert acc.time is acc.time
+    np.testing.assert_array_equal(acc.t.to_numpy(), [0.0, 1.0])
+    assert acc.t.attrs["units"] == "s"
+    assert acc.t is acc.t
     np.testing.assert_array_equal(acc.hold_flag.to_numpy(), [0, 1])
     assert acc.hold_flag.dtype == np.dtype(int)
     assert "units" not in acc.hold_flag.attrs
@@ -204,12 +214,12 @@ def test_dask_time_and_flags_do_not_compute_or_modify_source(telescope):
     ds = telescope.chunk()
     tasks = []
     with Callback(pretask=lambda key, *_: tasks.append(key)):
-        time = ds.lmt_tel.time
+        t = ds.lmt_tel.t
         flags = ds.lmt_tel.hold_flag
     assert not tasks
-    assert time is ds.lmt_tel.time
+    assert t is ds.lmt_tel.t
     assert flags is ds.lmt_tel.hold_flag
-    np.testing.assert_array_equal(time.compute(), [0.0, 1.0])
+    np.testing.assert_array_equal(t.compute(), [0.0, 1.0])
     np.testing.assert_array_equal(flags.compute(), [0, 1])
     xr.testing.assert_identical(ds.compute(), telescope)
 
@@ -287,6 +297,34 @@ def test_pointing_variable_is_not_shadowed_by_attribute(telescope):
     name = "Data.TelescopeBackend.TelAzAct"
     telescope.attrs[name] = "not pointing data"
     xr.testing.assert_identical(telescope.lmt_tel.az, telescope[name])
+
+
+@pytest.mark.parametrize("chunks", [None, {}])
+def test_reference_native_arrays_are_lazy(data_lmt_path, monkeypatch, chunks):
+    def unexpected(*args, **kwargs):
+        pytest.fail("Accessing a native telescope array read its values")
+
+    for path in sorted((data_lmt_path / "tel").glob("tel*.nc")):
+        with open_lmt_tel(path, chunks=chunks) as ds, monkeypatch.context() as patch:
+            patch.setattr(NetCDF4ArrayWrapper, "__getitem__", unexpected)
+            acc = ds.lmt_tel
+            for name, variable in (
+                ("tel_time", "TelTime"),
+                ("az", "TelAzAct"),
+                ("alt", "TelElAct"),
+                ("az_des", "TelAzDes"),
+                ("alt_des", "TelElDes"),
+                ("az_map", "TelAzMap"),
+                ("alt_map", "TelElMap"),
+                ("ra", "SourceRaAct"),
+                ("dec", "SourceDecAct"),
+            ):
+                array = getattr(acc, name)
+                assert array.name == f"Data.TelescopeBackend.{variable}"
+                assert not array.variable._in_memory
+                assert array.shape == ds[array.name].shape
+                assert array.dtype == ds[array.name].dtype
+            assert "meta" not in acc.__dict__
 
 
 @pytest.mark.parametrize("missing", ["Header.File.Name", "Header.Dcs.IntegrationTime"])
@@ -372,6 +410,8 @@ def test_reference_telescope_files(data_lmt_path, monkeypatch):
                 )
                 reads.clear()
                 assert meta is acc.meta
+                assert meta.t_elapsed == (meta.t1 - meta.t0).to(u.s)
+                assert meta.t_elapsed is meta.t_elapsed
                 assert not reads
                 assert meta.master == 0
                 assert meta.master_str == "tcs"
@@ -384,15 +424,15 @@ def test_reference_telescope_files(data_lmt_path, monkeypatch):
                 assert meta.obs_goal == goal
                 assert meta.filepath_info_orig.obsnum == meta.obsnum
                 assert meta.filepath_info_orig is meta.filepath_info_orig
-                assert meta.target is not None and meta.target_off is not None
+                assert meta.target is not None and meta.target_ref is not None
                 np.testing.assert_allclose(
                     [meta.t0.unix, meta.t1.unix], times, rtol=0, atol=1e-6
                 )
                 np.testing.assert_allclose(
-                    [meta.target.ra.rad, meta.target_off.ra.rad], ra
+                    [meta.target.ra.rad, meta.target_ref.ra.rad], ra
                 )
                 np.testing.assert_allclose(
-                    [meta.target.dec.rad, meta.target_off.dec.rad], dec
+                    [meta.target.dec.rad, meta.target_ref.dec.rad], dec
                 )
                 assert not acc.az.variable._in_memory
                 assert not reads

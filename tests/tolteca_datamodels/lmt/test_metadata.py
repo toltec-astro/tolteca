@@ -28,7 +28,7 @@ def base_tel_fields():
         "obs_pgm": "Lissajous",
         "obs_goal": "pointing",
         "target": SkyCoord(ra=1 * u.rad, dec=0.5 * u.rad, frame="icrs"),
-        "target_off": SkyCoord(ra=1.1 * u.rad, dec=0.6 * u.rad, frame="icrs"),
+        "target_ref": SkyCoord(ra=1.1 * u.rad, dec=0.6 * u.rad, frame="icrs"),
         "filepath_orig": "/data_lmt/tel/tel_toltec_2025-10-31_145609_00_0002.nc",
     }
 
@@ -93,7 +93,7 @@ def test_other_telescope_interface(base_tel_fields):
 
 @pytest.mark.parametrize(
     "missing",
-    ["master", "obs_pgm", "obs_goal", "target", "target_off", "filepath_orig"],
+    ["master", "obs_pgm", "obs_goal", "target", "target_ref", "filepath_orig"],
 )
 def test_required_metadata(base_tel_fields, missing):
     del base_tel_fields[missing]
@@ -102,7 +102,7 @@ def test_required_metadata(base_tel_fields, missing):
 
 
 @pytest.mark.parametrize(
-    "field", ["obs_pgm", "obs_goal", "target", "target_off", "filepath_orig"]
+    "field", ["obs_pgm", "obs_goal", "target", "target_ref", "filepath_orig"]
 )
 def test_required_metadata_cannot_be_none(base_tel_fields, field):
     base_tel_fields[field] = None
@@ -135,9 +135,36 @@ def test_json_roundtrip(base_tel_fields):
     assert restored.t1 == meta.t1
     assert restored.t_exp == meta.t_exp
     assert restored.target.separation(meta.target).rad == pytest.approx(0, abs=1e-14)
-    assert restored.target_off.separation(meta.target_off).rad == pytest.approx(
+    assert restored.target_ref.separation(meta.target_ref).rad == pytest.approx(
         0, abs=1e-14
     )
+
+
+def test_elapsed_time_is_derived_cached_and_serializable(base_tel_fields):
+    meta = LmtTelMetadata(**base_tel_fields)
+    assert "t_elapsed" not in meta.__dict__
+    elapsed = meta.t_elapsed
+    assert elapsed == (meta.t1 - meta.t0).to(u.s)
+    assert elapsed.unit == u.s
+    assert meta.t_elapsed is elapsed
+    assert meta.t_exp == base_tel_fields["t_exp"]
+    assert elapsed != meta.t_exp
+
+    adapter = TypeAdapter(LmtTelMetadata)
+    payload = adapter.dump_python(meta, mode="json")
+    assert "t_elapsed" in payload
+    assert "target_ref" in payload and "target_off" not in payload
+    inputs = adapter.dump_json(meta, round_trip=True)
+    assert b'"t_elapsed"' not in inputs
+    restored = adapter.validate_json(inputs)
+    assert "t_elapsed" not in restored.__dict__
+    assert restored.t_elapsed == elapsed
+
+    replacement = replace(meta, t1=meta.t1 + 1 * u.s)
+    assert "t_elapsed" not in replacement.__dict__
+    assert replacement.t_elapsed == (replacement.t1 - replacement.t0).to(u.s)
+    assert replacement.t_elapsed != elapsed
+    assert meta.t_elapsed is elapsed
 
 
 def test_original_filename_is_cached_and_serialized(base_tel_fields):

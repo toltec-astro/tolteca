@@ -59,21 +59,28 @@ def test_values_equal_v2(data_lmt_path, tmp_path, suffix, chunks):
         assert meta.t0.unix == old["t0"]
         assert meta.t0.format == old["t0_format"]
         assert meta.target.frame.name == old["target_frame"]
-        assert meta.target_off.frame.name == old["target_off_frame"]
+        assert meta.target_ref.frame.name == old["target_off_frame"]
         np.testing.assert_array_equal(
             [meta.target.ra.rad, meta.target.dec.rad], old["target"]
         )
         np.testing.assert_array_equal(
-            [meta.target_off.ra.rad, meta.target_off.dec.rad], old["target_off"]
+            [meta.target_ref.ra.rad, meta.target_ref.dec.rad], old["target_off"]
         )
-        for name in ("time", "az", "alt", "ra", "dec", "holdflag"):
-            array = getattr(tel, "hold_flag" if name == "holdflag" else name)
+        for name, name_v2 in (
+            ("t", "time"),
+            ("az", "az"),
+            ("alt", "alt"),
+            ("ra", "ra"),
+            ("dec", "dec"),
+            ("hold_flag", "holdflag"),
+        ):
+            array = getattr(tel, name)
             np.testing.assert_array_equal(
-                array.to_numpy(), expected[name], err_msg=name
+                array.to_numpy(), expected[name_v2], err_msg=name
             )
-            assert array.dtype == expected[name].dtype, name
-            if name in old["units"]:
-                assert array.u.unit == u.Unit(old["units"][name])
+            assert array.dtype == expected[name_v2].dtype, name
+            if name_v2 in old["units"]:
+                assert array.u.unit == u.Unit(old["units"][name_v2])
 
 
 def test_reference_lmtmc_rows(data_lmt_path):

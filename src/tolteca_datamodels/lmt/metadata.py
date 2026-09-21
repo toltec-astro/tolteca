@@ -5,9 +5,10 @@ from __future__ import annotations
 from functools import cached_property
 from typing import Literal
 
+import astropy.units as u
 from pydantic import Field, computed_field
 from pydantic.dataclasses import dataclass
-from tollan.config.types import SkyCoordField
+from tollan.config.types import SkyCoordField, TimeQuantityField
 
 from ..core import metadata_dataclass_config
 from ..lmt_base import LmtRawObsMetadata
@@ -37,12 +38,22 @@ class LmtTelMetadata(LmtRawObsMetadata):
         description="Observation goal",
     )
     target: SkyCoordField = Field(
-        description="Target sky coordinate",
+        description="Main target sky coordinate",
     )
-    target_off: SkyCoordField = Field(
-        description="Reference sky coordinate",
+    target_ref: SkyCoordField = Field(
+        description="Reference target sky coordinate",
     )
     filepath_orig: str = Field(description="Original acquisition file path")
+
+    @computed_field
+    @cached_property
+    def t_elapsed(self) -> TimeQuantityField:
+        """Elapsed time between the first and last telescope samples, in seconds.
+
+        This is ``t1 - t0`` from the telescope timestamps, not the header's
+        integration time ``t_exp``. The two durations need not agree.
+        """
+        return (self.t1 - self.t0).to(u.s)
 
     @computed_field
     @cached_property
@@ -55,10 +66,9 @@ class LmtTelMetadata(LmtRawObsMetadata):
     @computed_field(repr=False)
     @cached_property
     def filepath_info_orig(self) -> FilepathInfo:
-        """Parse the recorded acquisition filename once, without file access.
+        """Parsed identifiers from the recorded acquisition path.
 
-        The parsed fields include UTC ``ut``, suffix, extension, and observation
-        identifiers. An unrecognized acquisition filename raises ValueError.
+        An unrecognized acquisition filename raises ValueError.
         """
         parsed = FilepathInfo.from_path(self.filepath_orig)
         assert parsed is not None
