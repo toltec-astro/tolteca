@@ -1,7 +1,11 @@
 # Overnight KIDs vertical slice — review trail
 
-Status: in progress. Start: 2026-09-21 04:53:49 UTC. Hard stop:
-2026-09-21 12:53:49 UTC (08:53:49 America/New_York).
+Status: resumed by the user at 2026-09-21 17:54 UTC. Overnight start:
+2026-09-21 04:53:49 UTC; original deadline: 12:53:49 UTC (08:53:49 Eastern).
+The overnight slice was not completed. Work had stopped during DB registration
+testing at about 05:54 UTC; queued heartbeat messages do not establish further
+progress. The expired heartbeat was explicitly paused on resumption. Current
+work is under the user's new `continue` request, with no renewed schedule.
 
 The user authorized autonomous implementation, self-review, adjustment and small
 local commits for up to eight hours. The scope is the existing reducer-only
@@ -21,9 +25,10 @@ not the complete SweepCheck/KidsFind/Tlaloc scientific pipeline.
    generate range-based review diffs, and pause the task heartbeat
    `kids-overnight-vertical-slice`. Stop sooner if meaningful scoped work is done.
 
-Next action: step 07 — implement completed-product registration and catalog
-projection in DB, using the typed manifest and existing ORM. Then integrate an
-actual Web consumer path; replace the old hand-written integration probe glue.
+Next action: step 08 — project registered products into a typed Arrow/Parquet
+catalog. Keep separate reductions of one input distinguishable by product ID.
+Then integrate an actual Web consumer path and replace the old hand-written
+integration probe glue.
 
 ## Branches and baseline
 
@@ -114,7 +119,9 @@ must have explicit scoped verification, with pre-existing QA failures recorded.
 | 04 | Fixed pipeline reduction policy and current-use guide | committed | a29494e; [step record](04-fixed-reduction-stage.md); 250 tests including exact v2 values; scoped lint/type checks |
 | 05 | Mapper-based reducer reads and one LO evaluation | committed | 74ad500; [step record](05-reducer-mappings.md); 279 tests, exact v2 values, scoped typecheck; pre-existing numerical-module lint debt recorded |
 | 06a | Configuration model import boundary | committed | 552e86d; [step record](06a-config-model-boundary.md); 33 pipeline tests, scoped lint/type checks |
-| 06b | Typed completion manifest and effective-config replay | verified | [step record](06b-product-manifest.md); 56 pipeline/no-op/v2 tests, 2 Web regressions, scoped lint/type checks |
+| 06b | Typed completion manifest and effective-config replay | committed | Tolteca 3678779, Web 1e61a51; [step record](06b-product-manifest.md); 56 pipeline/no-op/v2 tests, 2 Web regressions, scoped lint/type checks |
+| 07a | Repair DB discovery's stale timestamp attribute | committed | DB 976eaaf; DB design/overnight-20260921/07a-file-ut.md; 6 discovery tests |
+| 07b | Completed-product registration and raw provenance | verified | DB design/overnight-20260921/07b-product-registration.md; 65 DB tests, scoped lint/type checks |
 
 Each entry should contain: evidence inspected; exact intended behavior and
 invariants; options and chosen rationale; changed files/APIs; tests and command
