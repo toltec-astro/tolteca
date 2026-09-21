@@ -21,10 +21,9 @@ not the complete SweepCheck/KidsFind/Tlaloc scientific pipeline.
    generate range-based review diffs, and pause the task heartbeat
    `kids-overnight-vertical-slice`. Stop sooner if meaningful scoped work is done.
 
-Next action: step 03 — implement deployment argument translation in
-`worktrees/tolteca_deploy-overnight` (isolated worktree, same temporary branch,
-baseline `21cc971`). Do not confuse generic run forwarding with that
-translation; its existing regression tests already pass.
+Next action: step 04 — review reducer/step/view implementation against the
+established schema/mapper contract and exact v2 output tests. Address bounded
+discrepancies, then complete product provenance and DB/Web publication.
 
 ## Branches and baseline
 
@@ -110,7 +109,8 @@ must have explicit scoped verification, with pre-existing QA failures recorded.
 | --- | --- | --- | --- |
 | 00 | Preserve baseline and define overnight review discipline | complete | baseline table above |
 | 01 | Shared file-access configuration, independent of Kids stages | committed | 389e104; [step record](01-file-config.md); 67 tests, scoped lint/type checks |
-| 02 | Shared catalog preparation and Python/CLI config parity | verified | [step record](02-catalog-and-runtime.md); 232 tests, scoped lint/type checks |
+| 02 | Shared catalog preparation and Python/CLI config parity | committed | b1fd2ab; [step record](02-catalog-and-runtime.md); 232 tests, scoped lint/type checks |
+| 03 | Explicit deployment launcher and executable command plan | committed | Deploy 117ba21; [step record](03-deploy-launch.md); 57 focused tests including real reference replay; full-suite worktree limitations recorded |
 
 Each entry should contain: evidence inspected; exact intended behavior and
 invariants; options and chosen rationale; changed files/APIs; tests and command
