@@ -11,14 +11,21 @@ from __future__ import annotations
 
 import functools
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 import xarray as xr
 from pydantic import Field
-from tollan.accessor import Mapping, NameMapping, Schema
-from tollan.accessor.xarray import XarrayAccessorBase, XarrayMapper, ensure_dataset
+from tollan.accessor import NameMapping, Schema
+from tollan.accessor.xarray import (
+    XarrayAccessorBase,
+    XarrayMapper,
+    unwrap_data_source,
+)
 from tollan.config import FrozenBaseModel
+
+if TYPE_CHECKING:
+    from tollan.accessor import Mapping
 
 __all__ = [
     "ReducedTimestreamView",
@@ -68,7 +75,7 @@ class ToltecTimestreamSchema(Schema):
     x: Mapping = NameMapping(f"{__name__}.x")
 
     # PSD data (namespaced)
-    f_psd: Mapping = NameMapping(f"{__name__}.f_psd")
+    f_psd: Mapping = NameMapping.var(f"{__name__}.f_psd")
     I_psd: Mapping = NameMapping(f"{__name__}.I_psd")
     Q_psd: Mapping = NameMapping(f"{__name__}.Q_psd")
     r_psd: Mapping = NameMapping(f"{__name__}.r_psd")
@@ -85,8 +92,8 @@ class ToltecTimestreamSchema(Schema):
     x_psd_mad_std: Mapping = NameMapping(f"{__name__}.x_psd_mad_std")
 
     # Coordinates (not namespaced)
-    time: Mapping = NameMapping(("time", "ntimes"))
-    chan: Mapping = NameMapping(("chan", "channel", "n_chans"))
+    time: Mapping = NameMapping.var(("time", "ntimes"))
+    chan: Mapping = NameMapping.var(("chan", "channel", "n_chans"))
 
     # Metadata (namespaced)
     reducer_config: Mapping = NameMapping(f"{__name__}.reducer_config")
@@ -94,7 +101,6 @@ class ToltecTimestreamSchema(Schema):
 
 class ToltecTimestreamMapper(XarrayMapper[ToltecTimestreamSchema]):
     """Mapper for TolTEC timestream data."""
-
 
 
 # Module-level namespace constant (matches schema field prefix)
@@ -121,7 +127,7 @@ class ReducedTimestreamView(XarrayAccessorBase[ToltecTimestreamMapper]):
     """
 
     @functools.cached_property
-    def data_source(self) -> xr.Dataset:
+    def data_source(self) -> xr.Dataset | xr.DataArray:
         """Resolve to reduced timestream Dataset.
 
         If given a DataTree (from TimestreamReducer), resolves to the
@@ -132,7 +138,7 @@ class ReducedTimestreamView(XarrayAccessorBase[ToltecTimestreamMapper]):
             if _TIMESTREAM_NAMESPACE in self._data_source.children:
                 return self._data_source.children[_TIMESTREAM_NAMESPACE].dataset
             return self._data_source.dataset
-        return ensure_dataset(self._data_source)
+        return unwrap_data_source(self._data_source)
 
     @property
     def f_psd(self) -> xr.DataArray | None:
@@ -276,9 +282,7 @@ class TimestreamReducer(FrozenBaseModel):
             If required data is missing
         """
         raw_ds = ds.dataset if isinstance(ds, xr.DataTree) else ds
-        existing_dt = (
-            ds if isinstance(ds, xr.DataTree) else xr.DataTree(dataset=raw_ds)
-        )
+        existing_dt = ds if isinstance(ds, xr.DataTree) else xr.DataTree(dataset=raw_ds)
 
         # Return early if already reduced with same config
         if not force and _TIMESTREAM_NAMESPACE in existing_dt.children:

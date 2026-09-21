@@ -153,7 +153,9 @@ type ToltecArrayNameT = Literal[
 class ToltecInfo:
     """Toltec instrument information and constants."""
 
-    masters: ClassVar[list[ToltecMasterNameT]] = list(get_args(ToltecMasterNameT))
+    masters: ClassVar[list[ToltecMasterNameT]] = list(
+        get_args(ToltecMasterNameT.__value__),
+    )
 
     # roach interfaces
     roaches: ClassVar = list(range(13))
@@ -166,7 +168,9 @@ class ToltecInfo:
 
     # arrays
     arrays: ClassVar = list(range(3))
-    array_names: ClassVar[list[ToltecArrayNameT]] = list(get_args(ToltecArrayNameT))
+    array_names: ClassVar[list[ToltecArrayNameT]] = list(
+        get_args(ToltecArrayNameT.__value__),
+    )
 
     interface_array_name: ClassVar[dict[str, ToltecArrayNameT]] = {
         "toltec0": "a1100",

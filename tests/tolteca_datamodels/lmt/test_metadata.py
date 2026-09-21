@@ -1,227 +1,179 @@
-"""Unit tests for LMT telescope metadata models."""
+"""Required telescope metadata, numeric identity, and serialization."""
 
-from __future__ import annotations
-
-from typing import Any
+from dataclasses import replace
+from datetime import UTC, datetime
 
 import astropy.units as u
 import pytest
 from astropy.coordinates import SkyCoord
 from astropy.time import Time
-from pydantic_core import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from tolteca_datamodels.lmt import LmtObsGoalType, LmtTelMetadata
+from tolteca_datamodels.lmt_base import LmtRawObsMetadata
+from tolteca_datamodels.toltec.toltecdb import ToltecDBRawObsMaster
 
 
 @pytest.fixture
-def base_tel_fields() -> dict[str, Any]:
-    """Common fields for LMT telescope metadata."""
+def base_tel_fields():
     return {
-        "obsnum": 100,
+        "obsnum": 145609,
         "subobsnum": 0,
-        "scannum": 0,
-        "interface": "tcs",
-        "t0": Time("2024-01-01T00:00:00", format="isot", scale="utc"),
-        "t1": Time("2024-01-01T01:00:00", format="isot", scale="utc"),
-        "t_exp": 3600 * u.s,
+        "scannum": 2,
+        "master": ToltecDBRawObsMaster.TCS,
+        "interface": "tel",
+        "t0": Time("2025-10-31T09:27:56", format="isot", scale="utc"),
+        "t1": Time("2025-10-31T09:28:56", format="isot", scale="utc"),
+        "t_exp": 60.32 * u.s,
+        "obs_pgm": "Lissajous",
+        "obs_goal": "pointing",
+        "target": SkyCoord(ra=1 * u.rad, dec=0.5 * u.rad, frame="icrs"),
+        "target_off": SkyCoord(ra=1.1 * u.rad, dec=0.6 * u.rad, frame="icrs"),
+        "filepath_orig": "/data_lmt/tel/tel_toltec_2025-10-31_145609_00_0002.nc",
     }
 
 
-class TestLmtTelMetadata:
-    """Test LmtTelMetadata for telescope control system."""
-
-    def test_creation_minimal(self, base_tel_fields: dict[str, Any]) -> None:
-        """Test creation with only required fields."""
-        meta = LmtTelMetadata(**base_tel_fields)
-        assert meta.obsnum == 100
-        assert meta.master == "tcs"
-        assert meta.instru == "lmt"
-        assert meta.instru_component == "tel"
-        assert meta.obs_goal == LmtObsGoalType.unspecified
-        assert meta.target is None
-        assert meta.target_off is None
-
-    def test_default_field_values(self, base_tel_fields: dict[str, Any]) -> None:
-        """Test that fields have correct default values."""
-        meta = LmtTelMetadata(**base_tel_fields)
-        # These should all be set by default
-        assert meta.master == "tcs"
-        assert meta.instru == "lmt"
-        assert meta.instru_component == "tel"
-        assert isinstance(meta.obs_goal, LmtObsGoalType)
-
-    def test_master_literal_type(self, base_tel_fields: dict[str, Any]) -> None:
-        """Test that master is constrained to 'tcs' literal."""
-        meta = LmtTelMetadata(**base_tel_fields)
-        assert meta.master == "tcs"
-        # Attempting to override should still work since it's a default
-        # But the type system enforces the literal at creation
-
-    def test_instru_literal_type(self, base_tel_fields: dict[str, Any]) -> None:
-        """Test that instru is constrained to 'lmt' literal."""
-        meta = LmtTelMetadata(**base_tel_fields)
-        assert meta.instru == "lmt"
-
-    def test_instru_component_literal_type(
-        self,
-        base_tel_fields: dict[str, Any],
-    ) -> None:
-        """Test that instru_component is constrained to 'tel' literal."""
-        meta = LmtTelMetadata(**base_tel_fields)
-        assert meta.instru_component == "tel"
-
-    def test_obs_goal_types(self, base_tel_fields: dict[str, Any]) -> None:
-        """Test different observation goal types."""
-        for goal in [
-            LmtObsGoalType.science,
-            LmtObsGoalType.engineering,
-            LmtObsGoalType.calibration,
-            LmtObsGoalType.pointing,
-            LmtObsGoalType.focus,
-            LmtObsGoalType.astigmatism,
-            LmtObsGoalType.beammap,
-            LmtObsGoalType.oof,
-        ]:
-            meta = LmtTelMetadata(**base_tel_fields, obs_goal=goal)
-            assert meta.obs_goal == goal
-            assert isinstance(meta.obs_goal, LmtObsGoalType)
-
-    def test_obs_goal_default(self, base_tel_fields: dict[str, Any]) -> None:
-        """Test that obs_goal defaults to unspecified."""
-        meta = LmtTelMetadata(**base_tel_fields)
-        assert meta.obs_goal == LmtObsGoalType.unspecified
-
-    def test_target_skycoord(self, base_tel_fields: dict[str, Any]) -> None:
-        """Test that target accepts SkyCoord."""
-        target = SkyCoord(ra=180 * u.deg, dec=45 * u.deg, frame="icrs")
-        meta = LmtTelMetadata(**base_tel_fields, target=target)
-        assert meta.target is not None
-        # Verify it's preserved as SkyCoord-like
-        assert hasattr(meta.target, "ra") or isinstance(meta.target, SkyCoord)
-
-    def test_target_defaults_to_none(self, base_tel_fields: dict[str, Any]) -> None:
-        """Test that target defaults to None."""
-        meta = LmtTelMetadata(**base_tel_fields)
-        assert meta.target is None
-
-    def test_target_off_skycoord(self, base_tel_fields: dict[str, Any]) -> None:
-        """Test that target_off accepts SkyCoord."""
-        target_off = SkyCoord(ra=0.1 * u.deg, dec=0.1 * u.deg, frame="icrs")
-        meta = LmtTelMetadata(**base_tel_fields, target_off=target_off)
-        assert meta.target_off is not None
-        # Verify it's preserved as SkyCoord-like
-        assert hasattr(meta.target_off, "ra") or isinstance(meta.target_off, SkyCoord)
-
-    def test_target_off_defaults_to_none(self, base_tel_fields: dict[str, Any]) -> None:
-        """Test that target_off defaults to None."""
-        meta = LmtTelMetadata(**base_tel_fields)
-        assert meta.target_off is None
-
-    def test_both_targets_set(self, base_tel_fields: dict[str, Any]) -> None:
-        """Test setting both target and target_off."""
-        target = SkyCoord(ra=180 * u.deg, dec=45 * u.deg, frame="icrs")
-        target_off = SkyCoord(ra=0.05 * u.deg, dec=-0.05 * u.deg, frame="icrs")
-        meta = LmtTelMetadata(
-            **base_tel_fields,
-            target=target,
-            target_off=target_off,
-        )
-        assert meta.target is not None
-        assert meta.target_off is not None
-
-    def test_inheritance_from_lmt_raw_obs(
-        self,
-        base_tel_fields: dict[str, Any],
-    ) -> None:
-        """Test that LmtTelMetadata inherits from LmtRawObsMetadata."""
-        from tolteca_datamodels.lmt_base import LmtRawObsMetadata
-
-        meta = LmtTelMetadata(**base_tel_fields)
-        assert isinstance(meta, LmtRawObsMetadata)
-        # Should have all base fields
-        assert hasattr(meta, "obsnum")
-        assert hasattr(meta, "t0")
-        assert hasattr(meta, "t_exp")
-        assert meta.obsnum == 100
-
-    def test_frozen(self, base_tel_fields: dict[str, Any]) -> None:
-        """Test that metadata is immutable."""
-        meta = LmtTelMetadata(**base_tel_fields)
-        with pytest.raises((AttributeError, TypeError)):
-            meta.obsnum = 999  # type: ignore[misc]
-        with pytest.raises((AttributeError, TypeError)):
-            meta.obs_goal = LmtObsGoalType.science  # type: ignore[misc]
-
-    def test_keyword_only_enforcement(self, base_tel_fields: dict[str, Any]) -> None:
-        """Test that all fields are keyword-only."""
-        with pytest.raises((TypeError, ValidationError)):
-            LmtTelMetadata(
-                100,  # obsnum # type: ignore[arg-type]
-                0,  # subobsnum
-                0,  # scannum
-                "tcs",  # interface
-                Time.now(),
-                Time.now(),
-                3600 * u.s,
-            )  # ty: ignore[missing-argument]
-
-    def test_complete_observation_metadata(self) -> None:
-        """Test creating complete metadata for a real observation."""
-        target = SkyCoord(ra=83.633 * u.deg, dec=22.0145 * u.deg, frame="icrs")  # M42
-        meta = LmtTelMetadata(
-            obsnum=54321,
-            subobsnum=0,
-            scannum=0,
-            interface="tcs",
-            t0=Time("2024-01-01T00:00:00", format="isot", scale="utc"),  # pyright: ignore[reportArgumentType]
-            t1=Time("2024-01-01T01:00:00", format="isot", scale="utc"),  # pyright: ignore[reportArgumentType]
-            t_exp=3600 * u.s,
-            obs_goal=LmtObsGoalType.science,
-            target=target,
-        )
-        assert meta.obsnum == 54321
-        assert meta.obs_goal == LmtObsGoalType.science
-        assert meta.target is not None
-        assert meta.master == "tcs"
-        assert meta.instru == "lmt"
+def test_telescope_identity(base_tel_fields):
+    meta = LmtTelMetadata(**base_tel_fields)
+    assert isinstance(meta, LmtRawObsMetadata)
+    assert meta.master == 0
+    assert isinstance(meta.master, int)
+    assert meta.master is ToltecDBRawObsMaster.TCS
+    assert meta.master_str == "tcs"
+    assert (meta.instru, meta.instru_component, meta.interface) == ("lmt", "tcs", "tel")
+    assert meta.obs_pgm == "Lissajous"
+    assert meta.obs_goal == LmtObsGoalType.pointing
 
 
-class TestLmtObsGoalType:
-    """Test LmtObsGoalType enum."""
+@pytest.mark.parametrize("master", ["tcs", 99])
+def test_telescope_master_rejects_unknown_values(base_tel_fields, master):
+    base_tel_fields["master"] = master
+    with pytest.raises(ValidationError):
+        LmtTelMetadata(**base_tel_fields)
 
-    def test_all_goal_types_exist(self) -> None:
-        """Test that all expected goal types are defined."""
-        expected_goals = [
-            "engineering",
-            "science",
-            "calibration",
-            "pointing",
-            "focus",
-            "astigmatism",
-            "beammap",
-            "oof",
-            "unspecified",
-        ]
-        for goal_name in expected_goals:
-            assert hasattr(LmtObsGoalType, goal_name)
-            goal = getattr(LmtObsGoalType, goal_name)
-            assert isinstance(goal, LmtObsGoalType)
 
-    def test_goal_type_string_values(self) -> None:
-        """Test that goal types have correct string values."""
-        assert LmtObsGoalType.science == "science"
-        assert LmtObsGoalType.engineering == "engineering"
-        assert LmtObsGoalType.calibration == "calibration"
+@pytest.mark.parametrize("master", [None, *ToltecDBRawObsMaster])
+def test_telescope_master_is_nullable(base_tel_fields, master):
+    base_tel_fields["master"] = master
+    meta = LmtTelMetadata(**base_tel_fields)
+    assert meta.master is master
+    assert meta.master_str == (
+        None if master is None else ToltecDBRawObsMaster.get_master_type(master)
+    )
 
-    def test_goal_type_comparison(self) -> None:
-        """Test that goal types can be compared."""
-        assert LmtObsGoalType.science == LmtObsGoalType.science
-        assert LmtObsGoalType.science != LmtObsGoalType.engineering
 
-    def test_goal_type_is_str_enum(self) -> None:
-        """Test that LmtObsGoalType is a StrEnum."""
-        from enum import StrEnum
+@pytest.mark.parametrize("master", [None, *ToltecDBRawObsMaster])
+def test_telescope_master_name_is_cached(base_tel_fields, master):
+    base_tel_fields["master"] = master
+    meta = LmtTelMetadata(**base_tel_fields)
+    assert "master_str" not in meta.__dict__
+    name = meta.master_str
+    assert meta.__dict__["master_str"] is name
+    assert meta.master_str is name
+    assert TypeAdapter(LmtTelMetadata).dump_python(meta)["master_str"] == name
 
-        assert issubclass(LmtObsGoalType, StrEnum)
-        # Should be usable as strings
-        assert isinstance(LmtObsGoalType.science, str)
+    replacement = replace(meta, master=ToltecDBRawObsMaster.TCS)
+    assert "master_str" not in replacement.__dict__
+    assert replacement.master_str == "tcs"
+    assert meta.master_str is name
+
+
+@pytest.mark.parametrize(
+    ("name", "value"), [("instru", "toltec"), ("instru_component", "roach")]
+)
+def test_instrument_identity_is_constant(base_tel_fields, name, value):
+    with pytest.raises(ValidationError, match=name):
+        LmtTelMetadata(**base_tel_fields, **{name: value})
+
+
+def test_other_telescope_interface(base_tel_fields):
+    base_tel_fields["interface"] = "tel2"
+    assert LmtTelMetadata(**base_tel_fields).interface == "tel2"
+
+
+@pytest.mark.parametrize(
+    "missing",
+    ["master", "obs_pgm", "obs_goal", "target", "target_off", "filepath_orig"],
+)
+def test_required_metadata(base_tel_fields, missing):
+    del base_tel_fields[missing]
+    with pytest.raises(ValidationError, match=missing):
+        LmtTelMetadata(**base_tel_fields)
+
+
+@pytest.mark.parametrize(
+    "field", ["obs_pgm", "obs_goal", "target", "target_off", "filepath_orig"]
+)
+def test_required_metadata_cannot_be_none(base_tel_fields, field):
+    base_tel_fields[field] = None
+    with pytest.raises(ValidationError, match=field):
+        LmtTelMetadata(**base_tel_fields)
+
+
+def test_empty_goal_is_not_unspecified(base_tel_fields):
+    base_tel_fields["obs_goal"] = ""
+    assert LmtTelMetadata(**base_tel_fields).obs_goal == ""
+
+
+def test_frozen(base_tel_fields):
+    meta = LmtTelMetadata(**base_tel_fields)
+    with pytest.raises(AttributeError):
+        meta.obsnum = 999  # ty: ignore[invalid-assignment]
+
+
+def test_json_roundtrip(base_tel_fields):
+    adapter = TypeAdapter(LmtTelMetadata)
+    meta = LmtTelMetadata(**base_tel_fields)
+    restored = adapter.validate_json(adapter.dump_json(meta, round_trip=True))
+    assert restored.master == 0
+    assert restored.master_str == "tcs"
+    assert restored.filepath_orig == meta.filepath_orig
+    assert restored.filepath_info_orig == meta.filepath_info_orig
+    assert restored.obs_pgm == meta.obs_pgm
+    assert restored.obs_goal == meta.obs_goal
+    assert restored.t0 == meta.t0
+    assert restored.t1 == meta.t1
+    assert restored.t_exp == meta.t_exp
+    assert restored.target.separation(meta.target).rad == pytest.approx(0, abs=1e-14)
+    assert restored.target_off.separation(meta.target_off).rad == pytest.approx(
+        0, abs=1e-14
+    )
+
+
+def test_original_filename_is_cached_and_serialized(base_tel_fields):
+    meta = LmtTelMetadata(**base_tel_fields)
+    assert "filepath_info_orig" not in meta.__dict__
+    parsed = meta.filepath_info_orig
+    assert parsed is meta.filepath_info_orig
+    assert parsed.ut == datetime(2025, 10, 31, tzinfo=UTC)
+    assert parsed.interface == "tel_toltec"
+    assert parsed.suffix is None
+    assert parsed.ext == "nc"
+    assert (parsed.obsnum, parsed.subobsnum, parsed.scannum) == (145609, 0, 2)
+    payload = TypeAdapter(LmtTelMetadata).dump_python(meta, mode="json")
+    assert payload["filepath_info_orig"] == parsed.model_dump(mode="json")
+    assert payload["master_str"] == "tcs"
+    assert not {"source", "file_timestamp", "file_suffix", "file_ext"} & payload.keys()
+
+
+def test_roundtrip_serialization_does_not_parse_filename(base_tel_fields):
+    base_tel_fields["filepath_orig"] = "unrecognized.nc"
+    meta = LmtTelMetadata(**base_tel_fields)
+    adapter = TypeAdapter(LmtTelMetadata)
+    restored = adapter.validate_json(adapter.dump_json(meta, round_trip=True))
+    assert "filepath_info_orig" not in meta.__dict__
+    assert restored.filepath_orig == "unrecognized.nc"
+    with pytest.raises(ValueError):
+        _ = restored.filepath_info_orig
+
+
+@pytest.mark.parametrize("goal", list(LmtObsGoalType))
+def test_goal_constants_remain_string_comparable(base_tel_fields, goal):
+    base_tel_fields["obs_goal"] = goal
+    meta = LmtTelMetadata(**base_tel_fields)
+    assert meta.obs_goal == goal.value
+
+
+def test_unlisted_goal_is_retained(base_tel_fields):
+    base_tel_fields["obs_goal"] = "azscan"
+    assert LmtTelMetadata(**base_tel_fields).obs_goal == "azscan"

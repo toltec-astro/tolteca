@@ -39,6 +39,16 @@ def get_var_name(field: str) -> str:
     return f"{NAMESPACE}.{field}"
 
 
+_OBS_HEADERS = {
+    "Header.Toltec.Master": 0,
+    "Header.Toltec.ObsNum": 12345,
+    "Header.Toltec.SubObsNum": 0,
+    "Header.Toltec.ScanNum": 0,
+    "Header.Toltec.ObsStartTime": 1761902400,
+    "Header.Toltec.ObsEndTime": 1761902460,
+}
+
+
 @pytest.fixture
 def rng() -> np.random.Generator:
     """Random number generator with fixed seed for reproducibility."""
@@ -89,6 +99,7 @@ def toltec_sweep_dataset():
             "sweep": frequencies,
         },
         attrs={
+            **_OBS_HEADERS,
             "Header.Toltec.RoachIndex": 0,
             "Header.Toltec.ObsNum": 12345,
             "Header.Toltec.SubObsNum": 1,
@@ -131,16 +142,17 @@ def toltec_timestream_dataset():
 
     ds = xr.Dataset(
         {
-            "Data.Toltec.Is": (["chan", "sample"], i_data),
-            "Data.Toltec.Qs": (["chan", "sample"], q_data),
+            "Data.Toltec.Is": (["chan", "time"], i_data),
+            "Data.Toltec.Qs": (["chan", "time"], q_data),
             "Header.Toltec.ToneFreq": (["chan"], f_tones),
             "Header.Toltec.ToneMask": (["chan"], tone_mask),
         },
         coords={
             "chan": np.arange(n_chans),
-            "time": (["sample"], times),
+            "time": times,
         },
         attrs={
+            **_OBS_HEADERS,
             "Header.Toltec.RoachIndex": 7,  # a1400 array
             "Header.Toltec.ObsNum": 54321,
             "Header.Toltec.SampleFreq": 1000.0,
@@ -512,7 +524,7 @@ def test_real_data_channel_selection(real_vnasweep_file):
         pytest.skip("Channel selection not supported for this data format")
 
 
-def test_real_mapper_get_arr_preserves_lazy_backend(real_vnasweep_file):
+def test_real_mapper_get_var_preserves_lazy_backend(real_vnasweep_file):
     """Mapper resolution and labeled reads leave the large raw I array lazy."""
     with xr.open_dataset(real_vnasweep_file) as ds:
         raw_i = ds["Data.Toltec.Is"]

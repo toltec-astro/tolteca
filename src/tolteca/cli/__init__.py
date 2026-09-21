@@ -1,16 +1,10 @@
 """Console script for tolteca."""
 
-import typer
 from rich.console import Console
+from tollan.utils.typer import create_cli
 
-app = typer.Typer()
+app = create_cli(help="TolTECA data processing tools.")
 console = Console()
-
-
-@app.command()
-def main():
-    """Console script for tolteca."""
-    console.print("This is tolteca CLI.")
 
 
 if __name__ == "__main__":

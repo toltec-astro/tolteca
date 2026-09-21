@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+from functools import cached_property
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, computed_field
 from pydantic.dataclasses import dataclass
 from tollan.config.types import SkyCoordField
 
 from ..core import metadata_dataclass_config
 from ..lmt_base import LmtRawObsMetadata
-from .types import LmtObsGoalType
+from ..toltec.file import FilepathInfo
+from ..toltec.toltecdb import ToltecDBRawObsMaster
 
 __all__ = ["LmtTelMetadata"]
 
@@ -19,28 +21,45 @@ __all__ = ["LmtTelMetadata"]
 class LmtTelMetadata(LmtRawObsMetadata):
     """LMT telescope control system (TCS) metadata."""
 
-    # Override base fields with LMT telescope-specific types and defaults
-    master: Literal["tcs"] | str = Field(
-        default="tcs",
-        description="Master controller",
+    master: ToltecDBRawObsMaster | None = Field(
+        description="Recorded acquisition master code, or None when unavailable",
     )
-    instru: Literal["lmt"] | str = Field(
+    instru: Literal["lmt"] = Field(
         default="lmt",
-        description="LMT instrument",
+        description="Large Millimeter Telescope.",
     )
-    instru_component: Literal["tel"] | str = Field(
-        default="tel",
-        description="Telescope component",
+    instru_component: Literal["tcs"] = Field(
+        default="tcs",
+        description="Telescope Control System.",
     )
-    obs_goal: LmtObsGoalType = Field(
-        default=LmtObsGoalType.unspecified,
+    obs_pgm: str = Field(description="Observation program")
+    obs_goal: str = Field(
         description="Observation goal",
     )
-    target: SkyCoordField | None = Field(
-        default=None,
+    target: SkyCoordField = Field(
         description="Target sky coordinate",
     )
-    target_off: SkyCoordField | None = Field(
-        default=None,
-        description="Target offset coordinate",
+    target_off: SkyCoordField = Field(
+        description="Reference sky coordinate",
     )
+    filepath_orig: str = Field(description="Original acquisition file path")
+
+    @computed_field
+    @cached_property
+    def master_str(self) -> str | None:
+        """Return the acquisition master's name, or None when unavailable."""
+        if self.master is None:
+            return None
+        return ToltecDBRawObsMaster.get_master_type(self.master)
+
+    @computed_field(repr=False)
+    @cached_property
+    def filepath_info_orig(self) -> FilepathInfo:
+        """Parse the recorded acquisition filename once, without file access.
+
+        The parsed fields include UTC ``ut``, suffix, extension, and observation
+        identifiers. An unrecognized acquisition filename raises ValueError.
+        """
+        parsed = FilepathInfo.from_path(self.filepath_orig)
+        assert parsed is not None
+        return parsed

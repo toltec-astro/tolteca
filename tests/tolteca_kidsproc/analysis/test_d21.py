@@ -537,7 +537,7 @@ class TestD21SchemaMapper:
         # Should have d21 after computation
         assert mapper.schema.d21 in mapper
 
-    def test_mapper_get_arr(self, simple_sweep):
+    def test_mapper_get_var(self, simple_sweep):
         """Mapper.get_arr() retrieves DataArray."""
         d21_analysis = D21Analysis(method="gradient", smooth=5)
         ds = d21_analysis(simple_sweep)

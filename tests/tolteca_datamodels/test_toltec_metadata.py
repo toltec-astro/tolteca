@@ -17,6 +17,16 @@ from tolteca_datamodels.toltec.metadata import (
 )
 
 
+_OBS_HEADERS = {
+    "Header.Toltec.Master": 0,
+    "Header.Toltec.ObsNum": 12345,
+    "Header.Toltec.SubObsNum": 0,
+    "Header.Toltec.ScanNum": 0,
+    "Header.Toltec.ObsStartTime": 1761902400,
+    "Header.Toltec.ObsEndTime": 1761902460,
+}
+
+
 @pytest.fixture
 def rng() -> np.random.Generator:
     """Random number generator with fixed seed for reproducibility."""
@@ -191,6 +201,7 @@ class TestMetadataAccessor:
                 "sweeps": np.linspace(-245e6, 245e6, n_sweeps),
             },
             attrs={
+                **_OBS_HEADERS,
                 "Header.Toltec.RoachIndex": 0,
                 "Header.Toltec.ObsNum": 12345,
                 "Header.Toltec.SubObsNum": 1,
@@ -199,7 +210,7 @@ class TestMetadataAccessor:
                 "Header.Toltec.LoCenterFreq": 4.5e9,
                 "Header.Toltec.NumSweepSteps": n_sweeps,
                 "Header.Toltec.NumSamplesPerSweepStep": 10,
-                "Header.Toltec.Master": 1,
+                "Header.Toltec.Master": 0,
                 "Header.Toltec.ObsType": 2,  # VNA sweep
             },
         )
@@ -250,6 +261,7 @@ class TestMetadataAccessor:
                     ["iqlen", "block", "sweeps"],
                     rng.standard_normal((n_chans, n_blocks, n_sweeps)),
                 ),
+                "Header.Toltec.LoCenterFreq": (["block"], [4.5e9, 5.0e9]),
                 "Data.Toltec.LoFreq": (
                     ["block", "sweeps"],
                     np.array(
@@ -272,13 +284,14 @@ class TestMetadataAccessor:
                 "sweeps": np.linspace(-88e6, 88e6, n_sweeps),
             },
             attrs={
+                **_OBS_HEADERS,
                 "Header.Toltec.RoachIndex": 1,
                 "Header.Toltec.ObsNum": 54321,
                 "Header.Toltec.SubObsNum": 2,
                 "Header.Toltec.ScanNum": 1,
                 "Header.Toltec.SampleFreq": 488.0,
                 "Header.Toltec.NumSweepSteps": n_sweeps,
-                "Header.Toltec.Master": 1,
+                "Header.Toltec.Master": 0,
                 "Header.Toltec.ObsType": 4,  # Tune
                 "is_multi_block": True,
                 "n_blocks": n_blocks,
@@ -325,6 +338,7 @@ class TestMetadataAccessor:
                 "sweep": np.linspace(-50e6, 50e6, n_sweeps),
             },
             attrs={
+                **_OBS_HEADERS,
                 "Header.Toltec.RoachIndex": 2,
                 "Header.Toltec.SampleFreq": 488.0,
                 "Header.Toltec.ObsNum": 99999,
@@ -357,6 +371,7 @@ class TestMetadataAccessor:
                     ["iqlen", "block", "sweeps"],
                     rng.standard_normal((n_chans, n_blocks, n_sweeps)),
                 ),
+                "Header.Toltec.LoCenterFreq": (["block"], [4.25e9, 5.25e9, 6.25e9]),
                 "Data.Toltec.LoFreq": (
                     ["block", "sweeps"],
                     np.array(
@@ -372,6 +387,7 @@ class TestMetadataAccessor:
                 "sweeps": np.linspace(-25e6, 25e6, n_sweeps),
             },
             attrs={
+                **_OBS_HEADERS,
                 "Header.Toltec.RoachIndex": 0,
                 "Header.Toltec.SampleFreq": 488.0,
                 "Header.Toltec.ObsType": 4,  # Tune sweep
@@ -386,7 +402,8 @@ class TestMetadataAccessor:
 
         assert isinstance(meta_block_1, ToltecSweepMetadata)
         assert meta_block_1.n_blocks == n_blocks
-        # f_lo_center should be from block 1 (around 5.25e9)
+        # The selected block's LO-center header is retained.
+        assert meta_block_1.f_lo_center is not None
         assert 5e9 < meta_block_1.f_lo_center < 5.5e9
 
     def test_metadata_with_minimal_fields(self, rng):
@@ -398,6 +415,7 @@ class TestMetadataAccessor:
                 "Data.Toltec.Qs": (["iqlen", "time"], rng.standard_normal((100, 1000))),
             },
             attrs={
+                **_OBS_HEADERS,
                 "Header.Toltec.RoachIndex": 0,
                 "Header.Toltec.SampleFreq": 488.0,  # Add f_smp (required)
             },
@@ -428,6 +446,7 @@ class TestMetadataEdgeCases:
                 ),
             },
             attrs={
+                **_OBS_HEADERS,
                 "is_multi_block": True,
                 "Header.Toltec.SampleFreq": 488.0,
             },
@@ -445,6 +464,7 @@ class TestMetadataEdgeCases:
                 "Data.Toltec.Qs": (["iqlen", "sweeps"], rng.standard_normal((100, 50))),
             },
             attrs={
+                **_OBS_HEADERS,
                 "Header.Toltec.RoachIndex": 0,
                 "Header.Toltec.SampleFreq": 488.0,
             },

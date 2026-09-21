@@ -14,18 +14,25 @@ from __future__ import annotations
 
 import functools
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import TYPE_CHECKING
 
 import numpy as np
 import xarray as xr
+from astropy import units as u
 from astropy.table import QTable
-from tollan.accessor import Mapping, NameMapping, Schema
+from astropy.time import Time
+from tollan.accessor import FieldLocation, NameMapping, Schema
 from tollan.accessor.xarray import XarrayMapper
 
-from ..toltecdb import ToltecDBRawObsType
+from ..metadata import ToltecSweepMetadata, ToltecTimeStreamMetadata
+from ..toltecdb import ToltecDBRawObsMaster, ToltecDBRawObsType
+from ..types import ToltecDataKind, ToltecInfo
 
 if TYPE_CHECKING:
-    from ..types import ToltecDataKind
+    from typing import Any
+
+    from tollan.accessor import Mapping
 
 __all__ = [
     "ToltecKidsAccessor",
@@ -38,16 +45,18 @@ __all__ = [
 class ToltecKidsIOSchema(Schema):
     """Schema for raw TolTEC KIDs data I/O.
 
-    Maps to raw netCDF variable names as they appear in the deployed LMT data
-    fixture. This schema is used by ToltecKidsAccessor
-    to provide access to raw data and metadata without any processing.
+    Maps to raw netCDF variable and dimension names. ToltecKidsAccessor uses
+    this schema to provide access to raw data and metadata without processing.
 
     **Data Variables (Raw):**
     - I, Q: Raw in-phase and quadrature data (Data.Toltec.Is/Qs)
 
-    **Coordinates:**
-    - time: Sample time axis
-    - channel: Detector channel axis (iqlen, loclen)
+    **Dimension Counts:**
+    - n_times: Number of acquired samples (time / ntimes)
+    - n_chans: Number of readout channels (iqlen / n_chans)
+    - n_kids_design: Number of designed detector positions (loclen)
+    - n_blocks: Number of explicitly indexed blocks (block)
+    - n_blocks_max: Allocated sweep capacity (numSweeps)
 
     **Tone/LO Metadata:**
     - f_tones: ROACH tone frequencies (Header.Toltec.ToneFreq)
@@ -70,9 +79,6 @@ class ToltecKidsIOSchema(Schema):
     - n_sweepreps: Samples per sweep step
       (Header.Toltec.NumSamplesPerSweepStep)
 
-    **Sweep Coordinate:**
-    - frequency: Sweep frequency axis (sweep / nsweeps dim)
-
     **Instrument Settings:**
     - atten_drive: Drive attenuation (Header.Toltec.DriveAtten)
     - atten_sense: Sense attenuation (Header.Toltec.SenseAtten)
@@ -84,23 +90,25 @@ class ToltecKidsIOSchema(Schema):
     """
 
     # Raw I/Q data fields
-    I: Mapping = NameMapping(("Data.Toltec.Is", "I"))
-    Q: Mapping = NameMapping(("Data.Toltec.Qs", "Q"))
+    I: Mapping = NameMapping.var(("Data.Toltec.Is", "I"))
+    Q: Mapping = NameMapping.var(("Data.Toltec.Qs", "Q"))
 
-    # Coordinate fields
-    time: Mapping = NameMapping(("time", "ntimes"))
-    channel: Mapping = NameMapping(("iqlen", "loclen", "chan", "channel"))
-    frequency: Mapping = NameMapping(("sweep", "nsweeps"))
+    # Dimension counts; these do not require coordinate variables.
+    n_times: Mapping = NameMapping.dim(("time", "ntimes"))
+    n_chans: Mapping = NameMapping.dim(("iqlen", "n_chans", "chan", "channel"))
+    n_blocks: Mapping = NameMapping.dim("block")
+    n_blocks_max: Mapping = NameMapping.dim("numSweeps")
+    n_kids_design: Mapping = NameMapping.dim("loclen")
 
     # Tone/channel axis data
-    f_tones: Mapping = NameMapping("Header.Toltec.ToneFreq")
-    f_los: Mapping = NameMapping("Data.Toltec.LoFreq")
+    f_tones: Mapping = NameMapping.var("Header.Toltec.ToneFreq")
+    f_los: Mapping = NameMapping.var("Data.Toltec.LoFreq")
     f_lo_center: Mapping = NameMapping("Header.Toltec.LoCenterFreq")
-    mask_tones: Mapping = NameMapping("Header.Toltec.ToneMask")
-    amp_tones: Mapping = NameMapping(
+    mask_tones: Mapping = NameMapping.var("Header.Toltec.ToneMask")
+    amp_tones: Mapping = NameMapping.var(
         ("Header.Toltec.ToneAmp", "Header.Toltec.ToneAmps"),
     )
-    phase_tones: Mapping = NameMapping("Header.Toltec.TonePhase")
+    phase_tones: Mapping = NameMapping.var("Header.Toltec.TonePhase")
 
     # Observation metadata
     master: Mapping = NameMapping("Header.Toltec.Master")
@@ -112,7 +120,24 @@ class ToltecKidsIOSchema(Schema):
     obs_type: Mapping = NameMapping("Header.Toltec.ObsType")
     kind_str: Mapping = NameMapping(("Header.Kids.kind", "kind_str"))
     obs_start_time: Mapping = NameMapping("Header.Toltec.ObsStartTime")
-    n_sweepsteps: Mapping = NameMapping("Header.Toltec.NumSweepSteps")
+    obs_end_time: Mapping = NameMapping("Header.Toltec.ObsEndTime")
+    cal_roach: Mapping = NameMapping("Header.Toltec.RoachIndex")
+    cal_obsnum: Mapping = NameMapping("Header.Toltec.TargSweepObsNum")
+    cal_subobsnum: Mapping = NameMapping("Header.Toltec.TargSweepSubObsNum")
+    cal_scannum: Mapping = NameMapping("Header.Toltec.TargSweepScanNum")
+    n_chans_max: Mapping = NameMapping("Header.Toltec.MaxNumTones")
+    filename_orig: Mapping = NameMapping("Header.Toltec.Filename")
+    repeatvar: Mapping = NameMapping("Header.Toltec.RepeatLevel")
+    adc_snap: Mapping = NameMapping.var("Header.Toltec.AdcSnapData")
+    n_sweepsteps: Mapping = NameMapping(
+        [
+            ("Header.Toltec.NumSweepSteps", FieldLocation.var),
+            ("Header.Toltec.NumSweepSteps", FieldLocation.attr),
+            ("sweep", FieldLocation.dim),
+            ("nsweeps", FieldLocation.dim),
+            ("sweeps", FieldLocation.dim),
+        ]
+    )
     n_sweepreps: Mapping = NameMapping(
         "Header.Toltec.NumSamplesPerSweepStep",
     )
@@ -140,125 +165,109 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
     >>> meta = mapper.get_metadata(ds)
     """
 
-    def get_metadata(self, data_source: xr.Dataset, block: int | None = None):
-        """Get metadata as dataclass instance(s).
+    def get_metadata(
+        self,
+        data_source: xr.Dataset,
+        block: int | None = None,
+    ) -> ToltecSweepMetadata | ToltecTimeStreamMetadata | list[ToltecSweepMetadata]:
+        """Read typed observation metadata without loading detector arrays.
 
-        Constructs appropriate metadata dataclass based on data kind.
-        For multi-block data, returns list of metadata instances (one per block).
+        Required identifiers, acquisition times, and sample rate must be present.
+        Optional header fields remain None when absent. Acquisition times come
+        from the file headers; integration time is sample count divided by rate.
+
+        A dataset with an explicit block dimension returns one metadata object
+        per block. A flat acquisition returns one file-level object, including
+        the number of sweeps it contains. Pass block to select one sweep.
+        Flat tune block boundaries require reading the one-dimensional LO
+        frequency array; detector I/Q arrays are never read.
 
         Parameters
         ----------
         data_source : xr.Dataset
-            Dataset to read from
+            Open dataset payload to read from.
         block : int or None, optional
-            If specified, return metadata for specific block only.
-            If None, returns single metadata for single-block data or
-            list of metadata for multi-block data.
+            Select one recorded sweep block. None reads the whole acquisition.
 
         Returns
         -------
         ToltecSweepMetadata or ToltecTimeStreamMetadata or list
-            Metadata instance(s) matching data kind and block structure
+            One metadata instance, or a list for an explicitly block-indexed
+            sweep dataset when block is None.
         """
-        from ..types import ToltecDataKind
-
         ds = data_source
-
-        # Check if multi-block
-        is_multi_block = "block" in ds.dims or ds.attrs.get("is_multi_block", False)
-        n_blocks = ds.sizes.get("block", 1) if is_multi_block else 1
-
-        # Validate block parameter
-        if block is not None:
-            if block < 0 or block >= n_blocks:
-                msg = f"Block {block} out of range [0, {n_blocks})"
-                raise ValueError(msg)
-
-        # Extract base metadata fields (common to all data kinds)
-        base_fields = {}
-
-        # Observation identifiers (use parent class field names)
-        if self.schema.roach in self:
-            roach_val = self.get_scalar(data_source, self.schema.roach)
-            base_fields["roach"] = roach_val
-            # nw is alias for roach
-            base_fields["nw"] = roach_val
-            # interface from roach
-            base_fields["interface"] = f"toltec{roach_val}"
-            # array_name from roach (TolTEC array mapping)
-            if 0 <= roach_val <= 6:  # noqa: PLR2004
-                base_fields["array_name"] = "a1100"
-            elif 7 <= roach_val <= 10:  # noqa: PLR2004
-                base_fields["array_name"] = "a1400"
-            elif 11 <= roach_val <= 12:  # noqa: PLR2004
-                base_fields["array_name"] = "a2000"
-
-        if self.schema.obsnum in self:
-            base_fields["obsnum"] = self.get_scalar(data_source, self.schema.obsnum)
-        else:
-            base_fields["obsnum"] = 0  # Default if not present
-
-        if self.schema.subobsnum in self:
-            base_fields["subobsnum"] = self.get_scalar(
-                data_source,
-                self.schema.subobsnum,
-            )
-        else:
-            base_fields["subobsnum"] = 0  # Default if not present
-
-        if self.schema.scannum in self:
-            base_fields["scannum"] = self.get_scalar(data_source, self.schema.scannum)
-        else:
-            base_fields["scannum"] = 0  # Default if not present
-
-        # Master controller (from v2 mastervar)
-        # Parent class expects string, but v2 uses int - convert to string
-        master_val = ds.attrs.get("Header.Toltec.Master", 1)
-        if isinstance(master_val, int):
-            # Map to master name
-            master_map = {1: "tcs", 2: "ics", 3: "clip"}
-            base_fields["master"] = master_map.get(master_val, "tcs")
-        else:
-            base_fields["master"] = str(master_val)
-
-        # Timing fields (required by parent class, use defaults if not available)
-        # For now, use placeholder values - these should come from file in real data
-        from astropy import units as u
-        from astropy.time import Time
-
-        base_fields["t0"] = Time("2000-01-01T00:00:00", format="isot", scale="utc")
-        base_fields["t1"] = Time("2000-01-01T00:01:00", format="isot", scale="utc")
-        base_fields["t_exp"] = 60.0 * u.s
-
-        # Determine data kind
-        data_kind = self._get_data_kind(data_source)
-
-        # Construct metadata based on data kind
-        if data_kind in (
-            ToltecDataKind.VnaSweep,
-            ToltecDataKind.TargetSweep,
-            ToltecDataKind.Tune,
-            ToltecDataKind.RawSweep,
-            ToltecDataKind.ReducedSweep,
+        schema = self.schema
+        is_multi_block = self.has_dim(ds, schema.n_blocks)
+        n_blocks = self.get_dim(ds, schema.n_blocks) if is_multi_block else 1
+        data_kind = self._get_data_kind(ds)
+        if (
+            (is_multi_block or data_kind != ToltecDataKind.Tune)
+            and block is not None
+            and not 0 <= block < n_blocks
         ):
-            return self._get_sweep_metadata(
-                data_source,
-                base_fields,
-                is_multi_block,
-                n_blocks,
-                block,
-            )
+            msg = f"Block {block} out of range [0, {n_blocks})"
+            raise ValueError(msg)
 
-        # Default to timestream metadata
-        return self._get_timestream_metadata(data_source, base_fields)
+        roach = self.get_scalar(ds, schema.roach)
+        interface = ToltecInfo.roach_interface[roach]
+        master = self.get_scalar(ds, schema.master)
+        t0 = Time(self.get_scalar(ds, schema.obs_start_time), format="unix")
+        t1 = Time(self.get_scalar(ds, schema.obs_end_time), format="unix")
+        f_smp = self._get_frequency(ds, schema.f_smp)
+        if f_smp <= 0 * u.Hz:
+            msg = "Sample frequency must be positive"
+            raise ValueError(msg)
+        base_fields: dict[str, Any] = {
+            "roach": roach,
+            "nw": roach,
+            "interface": interface,
+            "array_name": ToltecInfo.interface_array_name[interface],
+            "master": ToltecDBRawObsMaster.get_master_type(
+                ToltecDBRawObsMaster(master)
+            ),
+            "mastervar": str(master),
+            "obsnum": self.get_scalar(ds, schema.obsnum),
+            "subobsnum": self.get_scalar(ds, schema.subobsnum),
+            "scannum": self.get_scalar(ds, schema.scannum),
+            "t0": t0,
+            "t1": t1,
+            "n_chans": self.get_dim(ds, schema.n_chans),
+            "f_smp": f_smp,
+        }
+        for key in (
+            "obs_type",
+            "atten_drive",
+            "atten_sense",
+            "cal_roach",
+            "cal_obsnum",
+            "cal_subobsnum",
+            "cal_scannum",
+            "n_chans_max",
+        ):
+            field = getattr(schema, key)
+            if field in self:
+                base_fields[key] = self.get_scalar(ds, field)
+        if schema.n_kids_design in self:
+            base_fields["n_kids_design"] = self.get_dim(ds, schema.n_kids_design)
+        if schema.filename_orig in self:
+            base_fields["filename_orig"] = self.get_str(ds, schema.filename_orig)
+        if schema.repeatvar in self:
+            base_fields["repeatvar"] = str(self.get_scalar(ds, schema.repeatvar))
+        if schema.adc_snap in self:
+            # Keep the array reference, not the ADC snapshot payload.
+            base_fields["adc_snap"] = self.get_name(schema.adc_snap)
+
+        if data_kind & ToltecDataKind.Sweep:
+            return self._get_sweep_metadata(
+                ds, base_fields, is_multi_block, n_blocks, block
+            )
+        return self._get_timestream_metadata(ds, base_fields)
 
     def _get_data_kind(self, data_source: xr.Dataset) -> ToltecDataKind:
         """Determine data kind from dataset."""
-        from ..types import ToltecDataKind
-
         # Check for kind_str (reduced/processed data)
         if self.schema.kind_str in self:
-            kind_str = self.get_scalar(data_source, self.schema.kind_str)
+            kind_str = self.get_str(data_source, self.schema.kind_str)
             kind_map = {
                 "d21": ToltecDataKind.D21,
                 "processed_sweep": ToltecDataKind.ReducedSweep,
@@ -277,9 +286,9 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
             return ToltecDBRawObsType.get_data_kind(raw_obs_type)
 
         # Infer from structure
-        if self.schema.frequency in self:
+        if self.schema.n_sweepsteps in self:
             return ToltecDataKind.RawSweep
-        if self.schema.time in self:
+        if self.schema.n_times in self:
             return ToltecDataKind.RawTimeStream
 
         return ToltecDataKind.Unknown
@@ -293,133 +302,94 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         block,
     ):
         """Construct sweep metadata instance(s)."""
-        from ..metadata import ToltecSweepMetadata
-
         ds = data_source
-
-        # Common sweep fields
+        schema = self.schema
         sweep_fields = base_fields.copy()
+        sweep_fields["n_sweepsteps"] = self.get_scalar(ds, schema.n_sweepsteps)
+        if schema.n_sweepreps in self:
+            sweep_fields["n_sweepreps"] = self.get_scalar(ds, schema.n_sweepreps)
 
-        # Sample frequency (needs astropy unit)
-        if self.schema.f_smp in self:
-            from astropy import units as u
+        slices = [slice(None)]
+        if not is_multi_block and self._get_data_kind(ds) == ToltecDataKind.Tune:
+            # numSweeps is allocated capacity; LO resets count recorded sweeps.
+            f_los = self.get_arr(ds, schema.f_los).to_numpy()
+            if f_los.ndim != 1 or not np.all(np.isfinite(f_los) & (f_los > 0)):
+                msg = "Tune LO frequencies must be a positive finite 1-D array"
+                raise ValueError(msg)
+            edges = [0, *(np.flatnonzero(np.diff(f_los) < 0) + 1), len(f_los)]
+            slices = [slice(a, b) for a, b in pairwise(edges)]
+            n_blocks = len(slices)
+        if not is_multi_block and block is not None and not 0 <= block < n_blocks:
+            msg = f"Block {block} out of range [0, {n_blocks})"
+            raise ValueError(msg)
 
-            f_smp_val = self.get_scalar(data_source, self.schema.f_smp)
-            sweep_fields["f_smp"] = f_smp_val * u.Hz
-
-        # Get n_chans from I data shape
-        if self.schema.I in self:
-            i_data = self.get_arr(data_source, self.schema.I)
-            sweep_fields["n_chans"] = i_data.sizes[i_data.dims[0]]
-
-        # Get n_times from data shape (time dimension)
-        if self.schema.I in self:
-            i_data = self.get_arr(data_source, self.schema.I)
-            # Find time/sample dimension (last dimension typically)
-            time_dim = i_data.dims[-1] if len(i_data.dims) > 0 else None
-            if time_dim:
-                sweep_fields["n_times"] = i_data.sizes[time_dim]
-
-        # Get n_sweepsteps
-        if self.schema.frequency in self:
-            freq = self.get_arr(data_source, self.schema.frequency)
-            sweep_fields["n_sweepsteps"] = freq.sizes[freq.dims[0]]
-        elif self.schema.n_sweepsteps in self:
-            sweep_fields["n_sweepsteps"] = self.get_scalar(
-                data_source,
-                self.schema.n_sweepsteps,
-            )
-        elif "nsweeps" in ds.dims:  # For reduced sweeps
-            sweep_fields["n_sweepsteps"] = ds.sizes["nsweeps"]
-
-        # Get n_sweepreps (for raw sweeps)
-        if self.schema.n_sweepreps in self:
-            sweep_fields["n_sweepreps"] = self.get_scalar(
-                data_source,
-                self.schema.n_sweepreps,
-            )
-
-        # For multi-block data
+        sweep_fields["n_blocks"] = n_blocks
+        sweep_fields["n_blocks_max"] = (
+            self.get_dim(ds, schema.n_blocks_max)
+            if schema.n_blocks_max in self
+            else n_blocks
+        )
         if is_multi_block:
-            # If block parameter specified, return single metadata
             if block is not None:
                 return self._get_single_block_sweep_metadata(sweep_fields, ds, block)
-
-            # Otherwise return list of metadata for all blocks
             return [
                 self._get_single_block_sweep_metadata(sweep_fields, ds, i)
                 for i in range(n_blocks)
             ]
 
-        # Single-block data
-        sweep_fields["n_sweeps"] = 1  # v2 convention: n_sweeps=1 for single block
-        sweep_fields["n_blocks"] = 1
-
-        # Get f_lo_center
-        if "Header.Toltec.LoCenterFreq" in ds.attrs:
-            sweep_fields["f_lo_center"] = ds.attrs["Header.Toltec.LoCenterFreq"]
-        elif self.schema.f_los in self:
-            f_los = self.get_arr(data_source, self.schema.f_los)
-            sweep_fields["f_lo_center"] = float(f_los.mean().values)
-
+        if block is not None and schema.n_times in self:
+            ds = ds.isel({self.get_name(schema.n_times): slices[block]})
+        sweep_fields["n_sweeps"] = n_blocks if block is None else 1
+        # Reduced sweeps have one sample per sweep step, not a time dimension.
+        sweep_fields["n_times"] = (
+            self.get_dim(ds, schema.n_times)
+            if schema.n_times in self
+            else sweep_fields["n_sweepsteps"]
+        )
+        sweep_fields["t_exp"] = (sweep_fields["n_times"] / sweep_fields["f_smp"]).to(
+            u.s
+        )
+        if schema.f_lo_center in self:
+            sweep_fields["f_lo_center"] = self._get_frequency(
+                ds, schema.f_lo_center
+            ).to_value(u.Hz)
         return ToltecSweepMetadata(**sweep_fields)
 
     def _get_single_block_sweep_metadata(self, base_fields, ds, block_idx):
-        """Get sweep metadata for a specific block."""
-        from ..metadata import ToltecSweepMetadata
-
+        """Get sweep metadata for a specific explicitly indexed block."""
         block_fields = base_fields.copy()
-
-        # Block-specific fields
-        block_fields["n_sweeps"] = 1  # Each block is one sweep in v2 convention
-        block_fields["n_blocks"] = ds.sizes["block"]
-        block_fields["n_blocks_max"] = ds.sizes.get(
-            "numSweeps",
-            block_fields["n_blocks"],
+        ds = ds.isel({self.get_name(self.schema.n_blocks): block_idx})
+        block_fields["n_sweeps"] = 1
+        block_fields["n_times"] = (
+            self.get_dim(ds, self.schema.n_times)
+            if self.schema.n_times in self
+            else block_fields["n_sweepsteps"]
         )
-
-        # Get f_lo_center for this block
-        if self.schema.f_los in self:
-            f_los = self.get_arr(ds, self.schema.f_los)
-            if "block" in f_los.dims:
-                block_f_los = f_los.isel(block=block_idx)
-                block_fields["f_lo_center"] = float(block_f_los.mean().values)
-        elif "Header.Toltec.LoCenterFreq" in ds.attrs:
-            block_fields["f_lo_center"] = ds.attrs["Header.Toltec.LoCenterFreq"]
-
+        block_fields["t_exp"] = (block_fields["n_times"] / block_fields["f_smp"]).to(
+            u.s
+        )
+        if self.schema.f_lo_center in self:
+            block_fields["f_lo_center"] = self._get_frequency(
+                ds, self.schema.f_lo_center
+            ).to_value(u.Hz)
         return ToltecSweepMetadata(**block_fields)
 
     def _get_timestream_metadata(self, data_source, base_fields):
         """Construct timestream metadata instance."""
-        from ..metadata import ToltecTimeStreamMetadata
-
-        ds = data_source
-
         ts_fields = base_fields.copy()
-
-        # Sample frequency (needs astropy unit)
-        if self.schema.f_smp in self:
-            from astropy import units as u
-
-            f_smp_val = self.get_scalar(data_source, self.schema.f_smp)
-            ts_fields["f_smp"] = f_smp_val * u.Hz
-
-        # Get n_chans from I data shape
-        if self.schema.I in self:
-            i_data = self.get_arr(data_source, self.schema.I)
-            ts_fields["n_chans"] = i_data.sizes[i_data.dims[0]]
-
-        # Get n_times from time coordinate or data shape
-        if self.schema.time in self:
-            time = self.get_arr(data_source, self.schema.time)
-            ts_fields["n_times"] = time.sizes[time.dims[0]]
-        elif self.schema.I in self:
-            i_data = self.get_arr(data_source, self.schema.I)
-            # Last dimension is typically time
-            if len(i_data.dims) > 1:
-                ts_fields["n_times"] = i_data.sizes[i_data.dims[-1]]
-
+        ts_fields["n_times"] = self.get_dim(data_source, self.schema.n_times)
+        ts_fields["t_exp"] = (ts_fields["n_times"] / ts_fields["f_smp"]).to(u.s)
         return ToltecTimeStreamMetadata(**ts_fields)
+
+    def _get_frequency(self, ds, field):
+        """Read a scalar frequency, using Hz when the header has no unit."""
+        value = self.get_scalar(ds, field)
+        unit = (
+            self.get_arr(ds, field).u.unit or u.Hz
+            if self.has_arr(ds, field)
+            else u.Hz
+        )
+        return u.Quantity(value, unit).to(u.Hz)
 
     def _get_f_lo_center(self, data_source: xr.Dataset) -> float | None:
         """Resolve LO center frequency from dataset.
@@ -438,10 +408,9 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
             LO center frequency in Hz, or None if not determinable
         """
         if self.schema.f_lo_center in self:
-            name = self.get_name(self.schema.f_lo_center)
-            if name in data_source.attrs:
-                return float(data_source.attrs[name])
-            if name in data_source:
+            if self.has_attr(data_source, self.schema.f_lo_center):
+                return float(self.get_scalar(data_source, self.schema.f_lo_center))
+            if self.has_arr(data_source, self.schema.f_lo_center):
                 val = self.get_arr(data_source, self.schema.f_lo_center)
                 if hasattr(val, "values"):
                     return (
@@ -472,12 +441,7 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
             - tone_amp: Tone amplitude (if available)
             - tone_phase: Tone phase (if available)
         """
-        from astropy import units as u
-
-        n_chans = 0
-        if self.schema.I in self:
-            i_data = self.get_arr(data_source, self.schema.I)
-            n_chans = i_data.sizes[i_data.dims[0]]
+        n_chans = self.get_dim(data_source, self.schema.n_chans)
 
         table = QTable()
         table["channel"] = np.arange(n_chans)
@@ -528,8 +492,6 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         ValueError
             If dataset has no frequency dimension
         """
-        from astropy import units as u
-
         ds = data_source
         is_sweep = (
             "sweep" in ds.dims or "nsweeps" in ds.dims or "frequency" in ds.coords

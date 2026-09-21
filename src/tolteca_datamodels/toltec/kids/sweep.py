@@ -15,13 +15,19 @@ from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 import xarray as xr
-from pydantic import Field
-from tollan.accessor import Mapping, NameMapping, Schema
-from tollan.accessor.xarray import XarrayAccessorBase, XarrayMapper, ensure_dataset
+from pydantic import ConfigDict, Field
+from tollan.accessor import NameMapping, Schema
+from tollan.accessor.xarray import (
+    XarrayAccessorBase,
+    XarrayMapper,
+    unwrap_data_source,
+)
 from tollan.config import FrozenBaseModel
 
 if TYPE_CHECKING:
     from typing import Self
+
+    from tollan.accessor import Mapping
 
 __all__ = [
     "ReducedSweepView",
@@ -70,8 +76,8 @@ class ToltecSweepSchema(Schema):
     """
 
     # Reduced data variables (namespaced)
-    I: Mapping = NameMapping(f"{__name__}.I")
-    Q: Mapping = NameMapping(f"{__name__}.Q")
+    I: Mapping = NameMapping.var(f"{__name__}.I")
+    Q: Mapping = NameMapping.var(f"{__name__}.Q")
     unc_I: Mapping = NameMapping(f"{__name__}.unc_I")
     unc_Q: Mapping = NameMapping(f"{__name__}.unc_Q")
 
@@ -80,13 +86,13 @@ class ToltecSweepSchema(Schema):
     x: Mapping = NameMapping(f"{__name__}.x")
 
     # Coordinates (not namespaced - shared)
-    sweep: Mapping = NameMapping("sweep")
-    block: Mapping = NameMapping("block")
-    chan: Mapping = NameMapping(("chan", "channel", "n_chans"))
+    sweep: Mapping = NameMapping.var("sweep")
+    block: Mapping = NameMapping.var("block")
+    chan: Mapping = NameMapping.var(("chan", "channel", "n_chans"))
 
     # LO frequency data (not namespaced)
-    f_lo: Mapping = NameMapping("f_lo")
-    f_center: Mapping = NameMapping("f_center")
+    f_lo: Mapping = NameMapping.var("f_lo")
+    f_center: Mapping = NameMapping.var("f_center")
 
     # Metadata (namespaced)
     reducer_config: Mapping = NameMapping(f"{__name__}.reducer_config")
@@ -94,7 +100,6 @@ class ToltecSweepSchema(Schema):
 
 class ToltecSweepMapper(XarrayMapper[ToltecSweepSchema]):
     """Mapper for reduced TolTEC KIDs sweep data."""
-
 
 
 # Module-level namespace constant (matches schema field prefix)
@@ -121,7 +126,7 @@ class ReducedSweepView(XarrayAccessorBase[ToltecSweepMapper]):
     """
 
     @functools.cached_property
-    def data_source(self) -> xr.Dataset:
+    def data_source(self) -> xr.Dataset | xr.DataArray:
         """Resolve to reduced sweep Dataset.
 
         If given a DataTree (from SweepReducer), resolves to the sweep
@@ -130,9 +135,12 @@ class ReducedSweepView(XarrayAccessorBase[ToltecSweepMapper]):
         """
         if isinstance(self._data_source, xr.DataTree):
             if _SWEEP_NAMESPACE in self._data_source.children:
-                return self._data_source.children[_SWEEP_NAMESPACE].dataset
+                ds = self._data_source.children[_SWEEP_NAMESPACE].to_dataset()
+                # Keep coordinates used by results, including inherited channel
+                # coordinates, without the raw root's unrelated time axis.
+                return ds[list(ds.data_vars)]
             return self._data_source.dataset
-        return ensure_dataset(self._data_source)
+        return unwrap_data_source(self._data_source)
 
     @property
     def I(self) -> xr.DataArray | None:
@@ -180,6 +188,37 @@ class ReducedSweepView(XarrayAccessorBase[ToltecSweepMapper]):
     def has_blocks(self) -> bool:
         """Check if data has block dimension (multi-block)."""
         return "block" in self.data_source.dims
+
+    @property
+    def f_chan(self) -> xr.DataArray | None:
+        """Channel frequencies in Hz, aligned with the reduced I/Q channel axis."""
+        frequencies = self.data_source.toltec_kids.f_chan
+        signal = self.I
+        if frequencies is None or signal is None:
+            return None
+        # Raw tone headers and I/Q use different names for the same ordered
+        # channel axis (toneFreqLen versus iqlen).
+        chan_dim = signal.dims[-2]
+        tone_dim = frequencies.dims[-1]
+        if frequencies.sizes[tone_dim] != signal.sizes[chan_dim]:
+            msg = "Tone frequencies and reduced signal have different channel counts"
+            raise ValueError(msg)
+        frequencies = frequencies.rename({tone_dim: chan_dim})
+        frequencies = frequencies.assign_coords({chan_dim: signal[chan_dim]})
+        frequencies.attrs["units"] = "Hz"
+        return frequencies
+
+    @property
+    def frequency(self) -> xr.DataArray | None:
+        """Per-channel sweep frequencies in Hz, in reduced I/Q dimension order."""
+        f_chan = self.f_chan
+        sweep = self.sweep
+        signal = self.I
+        if f_chan is None or sweep is None or signal is None:
+            return None
+        frequency = (f_chan + sweep).transpose(*signal.dims)
+        frequency.attrs["units"] = "Hz"
+        return frequency
 
     @property
     def n_blocks(self) -> int:
@@ -238,6 +277,8 @@ class SweepReducer(FrozenBaseModel):
     >>> dt2 = reducer(dt, force=False)
     >>> # Returns immediately without reprocessing
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     detect_blocks: bool = Field(
         default=True,
@@ -329,10 +370,9 @@ class SweepReducer(FrozenBaseModel):
         # Store config in attrs of reduced dataset
         self._dump_to_attr(ds_reduced)
 
-        return xr.DataTree(
-            dataset=raw_ds,
-            children={_SWEEP_NAMESPACE: xr.DataTree(dataset=ds_reduced)},
-        )
+        result = existing_dt.copy(deep=False)
+        result[_SWEEP_NAMESPACE] = xr.DataTree(dataset=ds_reduced)
+        return result
 
     def _reduce(self, ds: xr.Dataset) -> xr.Dataset:
         """Perform the actual reduction logic.
@@ -560,16 +600,29 @@ class SweepReducer(FrozenBaseModel):
         I_key = self._mapper.get_name(self._mapper.schema.I)
         Q_key = self._mapper.get_name(self._mapper.schema.Q)
 
+        # Means and standard deviations retain input units. Bare input stays
+        # bare; assigning an assumed count unit would change its interpretation.
+        units_I = (
+            {"units": ds_block[I_var].attrs["units"]}
+            if "units" in ds_block[I_var].attrs
+            else {}
+        )
+        units_Q = (
+            {"units": ds_block[Q_var].attrs["units"]}
+            if "units" in ds_block[Q_var].attrs
+            else {}
+        )
+
         data_vars = {
             I_key: xr.DataArray(
                 I_reduced,
                 dims=[chan_dim, "sweep"],
-                attrs={"long_name": "In-phase component (mean)", "units": "ADU"},
+                attrs={"long_name": "In-phase component (mean)", **units_I},
             ),
             Q_key: xr.DataArray(
                 Q_reduced,
                 dims=[chan_dim, "sweep"],
-                attrs={"long_name": "Quadrature component (mean)", "units": "ADU"},
+                attrs={"long_name": "Quadrature component (mean)", **units_Q},
             ),
             "f_lo": xr.DataArray(
                 unique_f_lo,
@@ -585,12 +638,12 @@ class SweepReducer(FrozenBaseModel):
             data_vars[unc_I_key] = xr.DataArray(
                 unc_I_reduced,
                 dims=[chan_dim, "sweep"],
-                attrs={"long_name": "In-phase uncertainty (std)", "units": "ADU"},
+                attrs={"long_name": "In-phase uncertainty (std)", **units_I},
             )
             data_vars[unc_Q_key] = xr.DataArray(
                 unc_Q_reduced,
                 dims=[chan_dim, "sweep"],
-                attrs={"long_name": "Quadrature uncertainty (std)", "units": "ADU"},
+                attrs={"long_name": "Quadrature uncertainty (std)", **units_Q},
             )
 
         # Create coordinates
@@ -604,8 +657,8 @@ class SweepReducer(FrozenBaseModel):
         attrs["block_index"] = block_index
 
         # Store raw data info in attrs
-        attrs["raw_I_shape"] = I_data.shape
-        attrs["raw_Q_shape"] = Q_data.shape
+        attrs["raw_I_shape"] = list(I_data.shape)
+        attrs["raw_Q_shape"] = list(Q_data.shape)
         attrs["samples_per_sweep"] = counts.tolist()
 
         # Create new dataset

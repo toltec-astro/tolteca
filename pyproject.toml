@@ -26,7 +26,9 @@ dependencies = [
   "pydantic>=2.0",
   "astropy",
   "xarray>=2024.0",
-  "pandas>=2.0",
+  "zarr>=3",
+  "pandas>=2.2",
+  "pyarrow>=18",
   "netcdf4",
   "dask[array]",
   "scipy>=1.10.0",
@@ -79,6 +81,7 @@ homepage = "https://github.com/toltec-astro/tolteca"
 
 [project.scripts]
 tolteca = "tolteca.cli:app"
+tolteca_kids = "tolteca_kids.cli:app"
 
 [build-system]
 requires = ["setuptools>=80", "setuptools_scm>=8"]
@@ -226,7 +229,13 @@ runtime-evaluated-decorators = [
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = [
   "tollan.accessor.NameMapping",
+  "tollan.accessor.NameMapping.attr",
+  "tollan.accessor.NameMapping.var",
+  "tollan.accessor.NameMapping.dim",
   "tollan.accessor.schema.NameMapping",
+  "tollan.accessor.schema.NameMapping.attr",
+  "tollan.accessor.schema.NameMapping.var",
+  "tollan.accessor.schema.NameMapping.dim",
 ]
 
 [tool.ruff.lint.pydocstyle]

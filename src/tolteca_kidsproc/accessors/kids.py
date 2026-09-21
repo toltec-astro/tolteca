@@ -57,10 +57,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import xarray as xr
-from tollan.accessor import Mapping, NameMapping, Schema
+from tollan.accessor import NameMapping, Schema
 from tollan.accessor.xarray import XarrayAccessorBase, XarrayMapper
 
 if TYPE_CHECKING:
+    from tollan.accessor import Mapping
+
     from .views import (
         MultiSweepView,
         MultiTimestreamView,
@@ -94,10 +96,10 @@ class KidsSchema(Schema):
         Time coordinate (required for timestream views)
     """
 
-    I: Mapping = NameMapping("I")
-    Q: Mapping = NameMapping("Q")
-    frequency: Mapping = NameMapping("frequency")
-    time: Mapping = NameMapping("time")
+    I: Mapping = NameMapping.var("I")
+    Q: Mapping = NameMapping.var("Q")
+    frequency: Mapping = NameMapping.var("frequency")
+    time: Mapping = NameMapping.var("time")
 
 
 class KidsMapper(XarrayMapper[KidsSchema]):

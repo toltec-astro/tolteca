@@ -190,15 +190,8 @@ class TestToltecInfo:
 
     def test_masters_list(self) -> None:
         """Test that masters list contains all master names."""
-        # ToltecInfo.masters is populated from ToltecMasterNameT type alias
-        # which may be empty list if get_args() doesn't work with Python
-        # 3.12+ type statement. Instead verify masters exist in ToltecMasterType enum
-        assert ToltecMasterType.tcs == "tcs"
-        assert ToltecMasterType.ics == "ics"
-        assert ToltecMasterType.clip == "clip"
-        # Check that all enum values are valid masters
-        for master in ToltecMasterType:
-            assert isinstance(master.value, str)
+        assert ToltecInfo.masters == ["tcs", "ics", "clip"]
+        assert ToltecInfo.masters == [master.value for master in ToltecMasterType]
 
     def test_roaches_list(self) -> None:
         """Test that roaches list contains all roach indices."""
@@ -240,15 +233,8 @@ class TestToltecInfo:
 
     def test_array_names_list(self) -> None:
         """Test that array_names contains all array names."""
-        # ToltecInfo.array_names is populated from ToltecArrayNameT type alias
-        # which may be empty list if get_args() doesn't work with Python
-        # 3.12+ type statement. Instead verify array names exist in ToltecArrayType enum
-        assert ToltecArrayType.a1100 == "a1100"
-        assert ToltecArrayType.a1400 == "a1400"
-        assert ToltecArrayType.a2000 == "a2000"
-        # Check that all enum values are valid array names
-        for array in ToltecArrayType:
-            assert isinstance(array.value, str)
+        assert ToltecInfo.array_names == ["a1100", "a1400", "a2000"]
+        assert ToltecInfo.array_names == [array.value for array in ToltecArrayType]
 
     def test_interface_array_name_mapping(self) -> None:
         """Test that interface to array name mapping is correct."""

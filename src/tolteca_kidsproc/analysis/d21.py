@@ -75,13 +75,12 @@ from typing import TYPE_CHECKING, ClassVar, Literal, Self
 
 import astropy.units as u
 import numpy as np
-import numpy.typing as npt
 import xarray as xr
 from pydantic import Field, model_validator
 from scipy.ndimage import uniform_filter1d
 from scipy.signal import savgol_filter
-from tollan.accessor import Mapping, NameMapping, Schema
-from tollan.accessor.xarray import XarrayMapper, ensure_dataset
+from tollan.accessor import NameMapping, Schema
+from tollan.accessor.xarray import XarrayMapper, unwrap_data_source
 from tollan.config import FrozenBaseModel
 from tollan.config.types import FrequencyQuantityField
 from tollan.utils.log import logger
@@ -90,6 +89,9 @@ from tollan.utils.np import make_complex
 from ..accessors.views import KidsView
 
 if TYPE_CHECKING:
+    import numpy.typing as npt
+    from tollan.accessor import Mapping
+
     from tolteca_kidsproc.accessors.kids import MultiSweepView, SweepView
 
 __all__ = [
@@ -121,15 +123,15 @@ class D21Schema(Schema):
         Coverage map for unified D21.
     """
 
-    d21: Mapping = NameMapping(f"{__name__}.d21")
+    d21: Mapping = NameMapping.var(f"{__name__}.d21")
 
-    d21_unified: Mapping = NameMapping(f"{__name__}.d21_unified")
+    d21_unified: Mapping = NameMapping.var(f"{__name__}.d21_unified")
 
-    analysis: Mapping = NameMapping(f"{__name__}.analysis")
+    analysis: Mapping = NameMapping.attr(f"{__name__}.analysis")
 
     # these goes with d21_unified so no __name__ prefix
-    f_unified: Mapping = NameMapping("f_unified")
-    cov_unified: Mapping = NameMapping("cov_unified")
+    f_unified: Mapping = NameMapping.var("f_unified")
+    cov_unified: Mapping = NameMapping.var("cov_unified")
 
 
 class D21Mapper(XarrayMapper[D21Schema]):
@@ -197,7 +199,7 @@ class D21View(KidsView[D21Mapper]):
     _data_analysis: D21Analysis
 
     @functools.cached_property
-    def data_source(self) -> xr.Dataset:
+    def data_source(self) -> xr.Dataset | xr.DataArray:
         """Resolve data source to D21 analysis dataset.
 
         If _data_source is a DataTree, resolves to the D21 analysis child node.
@@ -219,7 +221,7 @@ class D21View(KidsView[D21Mapper]):
             # Fall back to root dataset
             return self._data_source.dataset
 
-        return ensure_dataset(self._data_source)
+        return unwrap_data_source(self._data_source)
 
     @classmethod
     def _get_namespace_from_schema_cls(cls) -> str:

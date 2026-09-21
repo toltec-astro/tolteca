@@ -6,6 +6,10 @@ Welcome to tolteca's documentation!
    :caption: Contents:
 
    readme
+   observation-data
+   kids-inputs
+   kids-reduction
+   obsspec
    cli
    modules
 
