@@ -102,12 +102,12 @@ Source-list YAML supports conditional configuration, for example:
 
 Shared `tolteca_datamodels.file` records describe source paths, identifiers,
 master, timestamp, suffix, and data kind. Filename discovery does not open files.
-Catalog preparation enriches records with available scalar KIDs header metadata;
-header identifiers and kinds correct filename guesses. Original-filename
-consistency checking is opt-in.
-Missing fields remain absent, not fabricated zeros. Each input receives its
-own runtime context variant. The resulting handler keeps its validated config
-snapshot; subsequent runtime changes do not alter it.
+Catalog preparation attaches typed raw-header metadata; header identifiers and
+kinds correct filename guesses. Missing required raw headers raise an error.
+Processed sources receive identifiers only, without an acquisition metadata
+snapshot. Original-filename consistency checking is opt-in. Each input receives
+its own runtime context variant. The resulting handler keeps its validated
+config snapshot; subsequent runtime changes do not alter it.
 
 Included source filenames are relative to their containing YAML file. Ordinary
 path-valued config data is resolved during validation against the common
@@ -127,7 +127,7 @@ import xarray as xr
 from tollan.accessor.xarray import ensure_datatree
 from tollan.config import RuntimeContext
 from tolteca_datamodels.file import SourceInfoModel
-from tolteca_datamodels.toltec.kids.source import identify_source
+from tolteca_datamodels.filestore import identify_source
 from tolteca_kids.runner import create_kids
 from tolteca_kids.sweep_reduce import SweepReduce
 
