@@ -58,9 +58,10 @@ unnecessary dependency upgrades, or agent delegation.
 | 01 | Reconcile previous overnight work with current decisions | Initial boundary review and fresh exact integration complete; see [review matrix](01-review-matrix.md). This is a findings inventory, not a claim all layers are redesigned. |
 | 02a | Explicit canonical telescope-interface discovery | Complete: `34f6b4e`; 102 focused tests pass. See [step record](02a-telescope-discovery.md). |
 | 02b | Metadata opening/enrichment and catalog review | [Usage and projection gaps](02b-catalog-review.md) recorded; implementation pending. |
-| 03a | Reduced channel-frequency coordinate | Implemented; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
+| 02b1 | Prevent false KIDs classification of telescope files | Implemented and verified; see [regression record](02b1-kids-identification.md). General telescope header identification remains pending. |
+| 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
 | 03b | Remaining reducer / live context / output review | Pending |
-| 04a | Web selection before frequency broadcast | In verification; depends on 03a. |
+| 04a | Web selection before frequency broadcast | Complete: Web `928bf28`; 10 tests and fresh exact integration pass; [step record](../../../tolteca_web/design/overnight-20260922/04a-frequency-selection.md). Depends on 03a. |
 | 04b | Remaining DB discovery / Web consumption review | Pending |
 | 05 | Exact reference verification, guide, final handoff | Pending |
 
@@ -71,7 +72,7 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Continue after steps 03a/04a, committing/exporting them first if still pending. Explicit
+Continue after step 02b1, committing/exporting it first if still pending. Explicit
 `/tel` now searches the actual telescope directory; unqualified/ROACH selection
 is preserved and no master is guessed from a telescope filename. Review opening/
 enrichment separately: v2 catalog `.open()` merges scalar metadata, whereas the
@@ -79,13 +80,25 @@ current KIDs projection exposes only identity/kind. Existing KIDs metadata has
 not received all telescope-model refinements. Do not paper over that with another
 untyped metadata dictionary or copy of scientific fields.
 
-Current code, unit tests, and the renewed four-case integration are verified at
-Tolteca `62602a2`, DB `317f951`, Web `3bc81fe`. Fresh integration evidence:
-`toltec_astro_dev/run/overnight-slice-20260922-baseline/report.json`. Do not reuse
-that output directory. The complete pre-existing 20260921 step records in Tolteca,
-DB and Web have been read. The standalone reducer's numerical internals still
-need a focused review; exact integration is evidence, not a substitute for it.
+Fresh four-case integration at Tolteca `aabb582`, DB `317f951`, Web `928bf28`:
+`toltec_astro_dev/run/overnight-slice-20260922-coordinates/report.json`. The prior
+baseline report remains alongside it. Do not reuse either output directory.
+The complete pre-existing 20260921 step records in Tolteca, DB and Web have been
+read. The standalone reducer and Step call implementation have now been read
+fully. Frequency coordinate ownership/selection is corrected; other numerical,
+context failure/lifetime and output-design findings still need a focused review.
+Exact integration is evidence, not a substitute for that review.
 
 The requested focused telescope→catalog→no-op user guide remains to consolidate;
 existing pages are not the final guide. No production services or browser server
 were launched. Prior live-browser permission/verification limits remain open.
+
+## Latest QA checkpoint
+
+After 02b1, 910 Tolteca tests pass (54.37 s), with
+`TOLTECA_V2_PYTHON=/Users/ma/.pyenv/versions/tolteca_v2/bin/python` and
+`--benchmark-disable`. The 18 DB sweep-product tests and 10 Web figure/service
+tests also pass against the stored-coordinate change. Scoped typing passes;
+the raw core/reducer retain their documented pre-existing lint/format findings.
+Reference checkout, DB and Web are clean. No production service or fixture write
+was needed. This checkpoint is not a claim the pending catalog/guide work is done.

@@ -285,11 +285,13 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
                 return ToltecDataKind.Unknown
             return ToltecDBRawObsType.get_data_kind(raw_obs_type)
 
-        # Infer from structure
-        if self.schema.n_sweepsteps in self:
-            return ToltecDataKind.RawSweep
-        if self.schema.n_times in self:
-            return ToltecDataKind.RawTimeStream
+        # A time/sweep dimension alone is shared by unrelated data such as
+        # telescope pointing. Structural inference requires the raw I/Q pair.
+        if self.schema.I in self and self.schema.Q in self:
+            if self.schema.n_sweepsteps in self:
+                return ToltecDataKind.RawSweep
+            if self.schema.n_times in self:
+                return ToltecDataKind.RawTimeStream
 
         return ToltecDataKind.Unknown
 
@@ -766,7 +768,12 @@ class ToltecKidsAccessor:
 
     @functools.cached_property
     def data_kind(self) -> ToltecDataKind:
-        """Identify the data kind from dataset attributes.
+        """Identify KIDs data from type headers or raw I/Q structure.
+
+        Explicit kind and observation-type headers take precedence. Without
+        them, structural identification requires mapped I/Q variables and a
+        sweep-step count or time dimension; otherwise the result is Unknown.
+        Signal values are not read.
 
         Returns
         -------

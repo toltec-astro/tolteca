@@ -9,13 +9,14 @@ from tollan.config import RuntimeContext
 from typer.testing import CliRunner
 from xarray.backends.netCDF4_ import NetCDF4ArrayWrapper, NetCDF4DataStore
 
-from tolteca_datamodels.file import guess_info_from_source
+from tolteca_datamodels.file import SourceInfoModel, guess_info_from_source
 from tolteca_datamodels.toltec.kids import SweepReducer
 from tolteca_datamodels.toltec.types import ToltecDataKind
 from tolteca_kids.cli import app
 from tolteca_kids.core import Kids
 from tolteca_kids.dataprod_output import DataProdOutput
 from tolteca_kids.noop import NoOp
+from tolteca_kids.runner import run_source
 
 
 def test_noop_live_context_and_array_identity():
@@ -26,6 +27,30 @@ def test_noop_live_context_and_array_identity():
     assert NoOp.get_context(working).completed
     assert working["signal"].data is raw["signal"].data
     xr.testing.assert_identical(raw, original)
+
+
+def test_telescope_noop_retains_its_source_kind(data_lmt_path, monkeypatch):
+    source = data_lmt_path / "tel/tel_toltec_2025-10-31_145609_00_0002.nc"
+    info = guess_info_from_source(source)
+    assert info is not None
+    contexts = []
+
+    def run(cls, data, context):
+        current = SourceInfoModel.model_validate(data["tolteca_kids"].attrs["input"])
+        assert current.data_kind == ToltecDataKind.LmtTel
+        assert current.interface == "tel"
+        assert current.obsnum == 145609
+        contexts.append(context)
+        return True
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("Telescope no-op must not read signal or pointing values")
+
+    monkeypatch.setattr(NoOp, "run", classmethod(run))
+    monkeypatch.setattr(NetCDF4ArrayWrapper, "_getitem", unexpected)
+    assert run_source(info, RuntimeContext(), dry_run=True) is None
+    assert len(contexts) == 1
+    assert contexts[0].completed
 
 
 def test_cli_noop_selection_config_logging_and_no_products(tmp_path, monkeypatch):
