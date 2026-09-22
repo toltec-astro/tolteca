@@ -27,7 +27,7 @@ class TestLmtObsQuartetMixin:
             interface="test0",
             t0=Time("2024-01-01T00:00:00"),  # pyright: ignore[reportArgumentType]
             t1=Time("2024-01-01T01:00:00"),  # pyright: ignore[reportArgumentType]
-            t_exp=3600 * u.s,
+            t_int=3600 * u.s,
         )
         assert meta.master == "lmt"
         assert meta.obsnum == 100
@@ -43,7 +43,7 @@ class TestLmtObsQuartetMixin:
             interface="test0",
             t0=Time("2024-01-01T00:00:00"),  # pyright: ignore[reportArgumentType]
             t1=Time("2024-01-01T01:00:00"),  # pyright: ignore[reportArgumentType]
-            t_exp=3600 * u.s,
+            t_int=3600 * u.s,
         )
         assert isinstance(meta.master, str)
         assert isinstance(meta.obsnum, int)
@@ -61,10 +61,10 @@ class TestLmtObsQuartetMixin:
             interface="test0",
             t0=Time("2024-01-01T00:00:00"),  # pyright: ignore[reportArgumentType]
             t1=Time("2024-01-01T01:00:00"),  # pyright: ignore[reportArgumentType]
-            t_exp=3600 * u.s,
+            t_int=3600 * u.s,
         )
         with pytest.raises(dataclasses.FrozenInstanceError):
-            meta.master = "new_value"  # type: ignore[attr-defined]
+            meta.master = "new_value"  # ty: ignore[invalid-assignment]
 
 
 class TestLmtInstruMixin:
@@ -73,7 +73,7 @@ class TestLmtInstruMixin:
     def test_required_fields(self):
         """Test that instru and interface are required."""
         with pytest.raises(ValidationError):
-            LmtRawObsMetadata(
+            LmtRawObsMetadata(  # ty: ignore[missing-argument]
                 master="lmt",
                 obsnum=1,
                 subobsnum=0,
@@ -81,8 +81,8 @@ class TestLmtInstruMixin:
                 # Missing instru and interface
                 t0=Time.now(),
                 t1=Time.now(),
-                t_exp=60 * u.s,
-            )  # type: ignore[arg-type]
+                t_int=60 * u.s,
+            )
 
     def test_optional_instru_component(self):
         """Test that instru_component is optional."""
@@ -95,7 +95,7 @@ class TestLmtInstruMixin:
             interface="test0",
             t0=Time("2024-01-01T00:00:00"),  # pyright: ignore[reportArgumentType]
             t1=Time("2024-01-01T01:00:00"),  # pyright: ignore[reportArgumentType]
-            t_exp=60 * u.s,
+            t_int=60 * u.s,
         )
         assert meta.instru_component is None
 
@@ -111,7 +111,7 @@ class TestLmtInstruMixin:
             instru_component="subsystem1",
             t0=Time("2024-01-01T00:00:00"),  # pyright: ignore[reportArgumentType]
             t1=Time("2024-01-01T01:00:00"),  # pyright: ignore[reportArgumentType]
-            t_exp=60 * u.s,
+            t_int=60 * u.s,
         )
         assert meta.instru_component == "subsystem1"
 
@@ -130,7 +130,7 @@ class TestLmtRawObsMetadata:
             scannum=3,
             t0=Time("2024-01-15T10:30:00"),  # pyright: ignore[reportArgumentType]
             t1=Time("2024-01-15T10:35:00"),  # pyright: ignore[reportArgumentType]
-            t_exp=300 * u.s,
+            t_int=300 * u.s,
         )
 
         assert meta.instru == "toltec"
@@ -141,7 +141,7 @@ class TestLmtRawObsMetadata:
         assert meta.scannum == 3
         assert isinstance(meta.t0, Time)
         assert isinstance(meta.t1, Time)
-        assert meta.t_exp == 300 * u.s
+        assert meta.t_int == 300 * u.s
 
     def test_time_field_types(self):
         """Test that time fields are properly typed."""
@@ -157,7 +157,7 @@ class TestLmtRawObsMetadata:
             interface="test0",
             t0=t0,  # pyright: ignore[reportArgumentType]
             t1=t1,  # pyright: ignore[reportArgumentType]
-            t_exp=60 * u.s,
+            t_int=60 * u.s,
         )
 
         assert isinstance(meta.t0, Time)
@@ -176,12 +176,12 @@ class TestLmtRawObsMetadata:
             interface="test0",
             t0=Time.now(),  # pyright: ignore[reportArgumentType]
             t1=Time.now(),  # pyright: ignore[reportArgumentType]
-            t_exp=120 * u.s,
+            t_int=120 * u.s,
         )
 
-        assert isinstance(meta.t_exp, u.Quantity)
-        assert meta.t_exp.unit is not None
-        assert meta.t_exp.unit.physical_type == "time"
+        assert isinstance(meta.t_int, u.Quantity)
+        assert meta.t_int.unit is not None
+        assert meta.t_int.unit.physical_type == "time"
 
     def test_quantity_field_unit_conversion(self):
         """Test that quantity fields handle unit conversion."""
@@ -194,11 +194,11 @@ class TestLmtRawObsMetadata:
             interface="test0",
             t0=Time.now(),  # pyright: ignore[reportArgumentType]
             t1=Time.now(),  # pyright: ignore[reportArgumentType]
-            t_exp=2 * u.min,
+            t_int=2 * u.min,
         )
 
-        assert meta.t_exp == 2 * u.min
-        assert meta.t_exp.to(u.s) == 120 * u.s
+        assert meta.t_int == 2 * u.min
+        assert meta.t_int.to(u.s) == 120 * u.s
 
     def test_frozen_metadata(self):
         """Test that metadata instances are immutable."""
@@ -211,11 +211,11 @@ class TestLmtRawObsMetadata:
             interface="test0",
             t0=Time.now(),  # pyright: ignore[reportArgumentType]
             t1=Time.now(),  # pyright: ignore[reportArgumentType]
-            t_exp=60 * u.s,
+            t_int=60 * u.s,
         )
 
         with pytest.raises(dataclasses.FrozenInstanceError):
-            meta.obsnum = 999  # type: ignore[attr-defined]
+            meta.obsnum = 999  # ty: ignore[invalid-assignment]
 
     def test_multiple_inheritance(self):
         """Test that multiple inheritance works correctly."""
@@ -228,7 +228,7 @@ class TestLmtRawObsMetadata:
             interface="test0",
             t0=Time.now(),  # pyright: ignore[reportArgumentType]
             t1=Time.now(),  # pyright: ignore[reportArgumentType]
-            t_exp=60 * u.s,
+            t_int=60 * u.s,
         )
 
         # Check fields from LmtObsQuartetMixin
@@ -245,13 +245,13 @@ class TestLmtRawObsMetadata:
         # Check own fields
         assert hasattr(meta, "t0")
         assert hasattr(meta, "t1")
-        assert hasattr(meta, "t_exp")
+        assert hasattr(meta, "t_int")
 
     def test_missing_required_fields(self):
         """Test that missing required fields raise validation error."""
         with pytest.raises(ValidationError):
-            LmtRawObsMetadata(
+            LmtRawObsMetadata(  # ty: ignore[missing-argument]
                 master="lmt",
                 obsnum=1,
                 # Missing many required fields
-            )  # type: ignore[arg-type]
+            )

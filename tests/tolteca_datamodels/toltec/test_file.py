@@ -7,27 +7,24 @@ from tollan.utils.fileloc import fileloc
 
 import tolteca_datamodels.file as file_module
 from tolteca_datamodels.file import (
-    DataKindKey,
     FilepathInfo,
     SourceInfoModel,
     guess_info_from_source,
     guess_info_from_sources,
 )
-from tolteca_datamodels.toltec.file import FilepathInfo as ToltecFilepathInfo
+from tolteca_datamodels.toltec.file import RoachFilepathInfo
 from tolteca_datamodels.toltec.types import ToltecDataKind
 
 
 def test_kind_is_computed_for_source_not_filepath(monkeypatch):
     lookups = []
+    classify = file_module.FileIdentifier.guess_data_kinds
 
-    class KindMap(dict):
-        def get(self, key, default=None):
-            lookups.append(key)
-            return super().get(key, default)
+    def trace(fields):
+        lookups.append(len(fields))
+        return classify(fields)
 
-    monkeypatch.setattr(
-        file_module, "data_kind_map", KindMap(file_module.data_kind_map)
-    )
+    monkeypatch.setattr(file_module.FileIdentifier, "guess_data_kinds", trace)
     path = "toltec8_145605_000_0001_2025_10_31_09_20_06_vnasweep.nc"
     info = FilepathInfo.from_path(path)
     assert info is not None
@@ -36,17 +33,13 @@ def test_kind_is_computed_for_source_not_filepath(monkeypatch):
     source = guess_info_from_source(path)
     assert source is not None
     assert source.filepath_info == info
-    assert lookups == [
-        DataKindKey(
-            instru="toltec", instru_component="roach", suffix="vnasweep", ext="nc"
-        )
-    ]
+    assert lookups == [1]
     lookups.clear()
 
     def unexpected(*args, **kwargs):
         pytest.fail("Stored filename identity was recomputed")
 
-    monkeypatch.setattr(FilepathInfo, "_derive_fields", classmethod(unexpected))
+    monkeypatch.setattr(file_module.FileIdentifier, "parse_filepath", unexpected)
     for _ in range(2):
         assert info.interface == "toltec8"
         assert info.instru == "toltec"
@@ -60,6 +53,16 @@ def test_kind_is_computed_for_source_not_filepath(monkeypatch):
         )
     assert lookups == []
     assert not FilepathInfo.model_computed_fields
+
+
+@pytest.mark.parametrize("interface", ["toltec08", "toltec13"])
+def test_unregistered_roach_interface_is_rejected(toltecdb_records, interface):
+    # Deliberately replace a recorded prefix with an unregistered spelling/index.
+    path = Path(toltecdb_records[0]["FileName"])
+    _, remainder = path.name.split("_", 1)
+    invalid_path = path.with_name(f"{interface}_{remainder}")
+    with pytest.raises(KeyError, match=interface):
+        RoachFilepathInfo.from_path(invalid_path)
 
 
 def test_unknown_telescope_suffix_does_not_change_kind():
@@ -155,7 +158,7 @@ def test_current_and_original_paths_use_the_same_parser(prefix):
     assert parsed is not None and current is not None and fallback is not None
     assert parsed.master_str == master_str
     assert "master" not in parsed.model_dump()
-    assert isinstance(parsed, ToltecFilepathInfo)
+    assert isinstance(parsed, RoachFilepathInfo)
     assert parsed.roach == 8
     assert fallback.source is source
     assert fallback.filepath_orig == original
@@ -190,7 +193,7 @@ def test_original_telescope_filename_fallback():
     assert info.obsnum == 145609
     assert info.scannum == 2
     assert info.file_suffix is None
-    assert info.master is None
+    assert info.master == "tcs"
 
 
 def test_conflicting_current_filename_retains_its_fields():

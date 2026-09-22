@@ -442,7 +442,7 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         )
         fields = {
             "n_times": n_times,
-            "t_exp": (n_times / base_fields["f_smp"]).to(u.s),
+            "t_int": (n_times / base_fields["f_smp"]).to(u.s),
         }
         if is_raw or self.schema.f_lo_center in self:
             fields["f_lo_center"] = self._get_frequency(

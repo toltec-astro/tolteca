@@ -22,7 +22,7 @@ with open_lmt_tel(tel_path) as ds:
     tel = ds.lmt_tel
     meta = tel.meta
     print(meta.uid_raw_obs_file, meta.obs_pgm, meta.obs_goal)
-    print(meta.t_exp.to_value(u.s), meta.t_elapsed.to_value(u.s))
+    print(meta.t_int.to_value(u.s), meta.t_elapsed.to_value(u.s))
     print(meta.target.ra.to_value(u.deg), meta.target_ref.ra.to_value(u.deg))
     az = tel.az.isel(time=slice(0, 100)).load()
 ```
@@ -37,13 +37,14 @@ raises an error; an unavailable master may be `None`.
 | --- | --- |
 | `obsnum`, `subobsnum`, `scannum` | Recorded observation identifiers |
 | `master`, `master_str` | Acquisition-master code and readable name, or `None` |
-| `quartet`, `uid_raw_obs` | The same `master-obsnum-subobsnum-scannum` identifier |
-| `uid_raw_obs_file` | Quartet followed by interface, such as `tcs-145609-0-2-tel` |
+| `quartet` | Observation label in `master-obsnum-subobsnum-scannum` form |
+| `uid_raw_obs` | Identifier of the raw observation |
+| `uid_raw_obs_file` | Identifier of the observation's interface data |
 | `instru`, `instru_component`, `interface` | Instrument, component and readout actor: `lmt`, `tcs`, `tel` |
 | `obs_pgm`, `obs_goal` | Observation program and goal |
 | `t0`, `t1` | First and last telescope sample times, as Astropy Time objects |
-| `t_exp` | Integration time from the header; it may be zero |
-| `t_elapsed` | Actual timestamp span `t1 - t0`; it need not equal `t_exp` |
+| `t_int` | Integration time from the header; it may be zero |
+| `t_elapsed` | Actual timestamp span `t1 - t0`; it need not equal `t_int` |
 | `target`, `target_ref` | Main and reference SkyCoord positions, not an offset vector |
 | `filepath_orig` | Original acquisition path recorded in the header |
 
@@ -127,6 +128,12 @@ print(guessed[["source", "interface", "obsnum", "data_kind"]])
 An unrecognized name raises `ValueError`; `raise_on_error=False` returns `None`
 instead. The plural function keeps unrecognized sources as rows with unknown
 identifiers. A malformed date in an otherwise recognized name still raises.
+For a collection, pass all paths to `guess_info_from_sources()` so data-kind
+classification runs as one batch rather than once per file.
+The equivalent accessor factory is `ToltecFileAccessor.from_sources(paths)`.
+Use `ToltecFileAccessor.from_info_list(records)` when you already have source
+records; it preserves their classifications and metadata without identifying
+the sources again.
 
 Read authoritative header identifiers with `build_input_catalog()`:
 
@@ -198,15 +205,19 @@ Reading again replaces the metadata snapshot; previous records do not change.
 `filepath_info` holds effective filename information; `filepath_info_orig`
 holds only the recorded acquisition-name information. Either may be absent.
 Their fields include `prefix`, `interface`, `instru`, `instru_component`,
-`master_str`, `obsnum`, `subobsnum`, `scannum`, `ut`, `suffix`, and `ext`.
-TolTEC readout path records also have `roach`.
+`master_str`, `obsnum`, `subobsnum`, `scannum`, `ut`, `suffix`, `proc_suffix`,
+and `ext`. TolTEC ROACH path records also have `roach`. For example,
+`tune_kids_find` retains that full `suffix` and has `proc_suffix="kids_find"`.
+Select those products with `file_proc_suffix == 'kids_find'` regardless of the
+input sweep kind.
 
 The native prefix `tel_toltec` or `tel_toltec2` maps to interface `tel` and
 instrument/component `lmt`/`tcs`. Select a specific stream by prefix, not UID.
-ROACH interfaces such as `toltec0` belong to `toltec`/`roach`. A filename does
-not supply a telescope master. The source-level `master` column is a label;
-the telescope and KIDs metadata separately retain the numeric code in `master`
-and provide its readable label through `master_str`. A KIDs file requires a
+ROACH interfaces such as `toltec0` belong to `toltec`/`roach`. Telescope filenames
+identify master `tcs` regardless of their directory; TolTEC paths derive the
+master from `toltec/<master>/<interface>/`. The source-level `master` column is
+a label; the telescope and KIDs metadata separately retain the numeric code in
+`master` and provide its readable label through `master_str`. A KIDs file requires a
 recorded master; a telescope file may have an unavailable master.
 
 Use either dotted fields or short aliases in queries:
@@ -292,9 +303,8 @@ the CLI's `--select` expression. Explicit files and quoted globs need no data
 root. Overlapping inputs, including symlinks, are deduplicated.
 
 An explicit `/tel` selector searches the telescope directory; unqualified and
-ROACH selectors search TolTEC files. To select telescope master, use `/tel`
-and then `--select "master == 'tcs'"`. A master-qualified filename selector
-cannot match a telescope master that is only available in the header.
+ROACH selectors search TolTEC files. Telescope filenames identify master `tcs`,
+so `tcs-145609/tel` selects telescope files without opening their headers.
 
 Configure paths and input selection in a recipe, for example `check.yaml`:
 

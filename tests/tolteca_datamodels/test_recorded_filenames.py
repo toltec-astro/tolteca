@@ -13,7 +13,7 @@ from tolteca_datamodels.file import (
     guess_info_from_source,
     guess_info_from_sources,
 )
-from tolteca_datamodels.toltec.file import FilepathInfo as ToltecFilepathInfo
+from tolteca_datamodels.toltec.file import RoachFilepathInfo
 from tolteca_datamodels.toltec.types import ToltecDataKind
 
 
@@ -24,12 +24,13 @@ def test_lmtmc_filenames(lmtmc_records):
         assert info is not None
         assert info.prefix == "tel_toltec"
         assert info.interface == row["Instrument"] == "tel"
+        assert Path(row["FileName"]).parent.name == info.interface
         assert (info.instru, info.instru_component) == ("lmt", "tcs")
         assert (info.obsnum, info.subobsnum, info.scannum) == tuple(
             map(int, row["ObsNum"].split("."))
         ), row["FileName"]
         assert info.suffix is None and info.ext == "nc"
-        assert info.master_str is None  # No master directory in LMTMC paths.
+        assert info.master_str == "tcs"
         source = guess_info_from_source(row["FileName"])
         assert source is not None
         assert source.filepath_info == info
@@ -48,7 +49,9 @@ def test_toltecdb_filenames(toltecdb_records):
         info = FilepathInfo.from_path(row["FileName"])
         assert info is not None
         assert info.prefix == info.interface == f"toltec{row['RoachIndex']}"
-        assert isinstance(info, ToltecFilepathInfo)
+        assert Path(row["FileName"]).parent.name == info.interface
+        assert isinstance(info, RoachFilepathInfo)
+        assert type(info.roach) is int
         assert info.roach == row["RoachIndex"]
         assert (info.instru, info.instru_component) == ("toltec", "roach")
         assert info.master_str == row["master_label"].lower()

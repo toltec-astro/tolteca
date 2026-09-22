@@ -37,7 +37,7 @@ class LmtTelIOSchema(Schema):
     master: Mapping = NameMapping("Header.TelescopeBackend.Master")
     obs_pgm: Mapping = NameMapping("Header.Dcs.ObsPgm")
     obs_goal: Mapping = NameMapping("Header.Dcs.ObsGoal")
-    t_exp: Mapping = NameMapping("Header.Dcs.IntegrationTime")
+    t_int: Mapping = NameMapping("Header.Dcs.IntegrationTime")
     filepath_orig: Mapping = NameMapping("Header.File.Name")
 
     # Header coordinates contain the main and reference positions, in that order.
@@ -124,7 +124,7 @@ class LmtTelIOMapper(XarrayMapper[LmtTelIOSchema]):
             t0=t0,
             t1=t1,
             # Header integration time is distinct from the TelTime span (t_elapsed).
-            t_exp=self.get_scalar(ds, schema.t_exp) * u.s,
+            t_int=self.get_scalar(ds, schema.t_int) * u.s,
             target=targets[0],
             target_ref=targets[1],
         )

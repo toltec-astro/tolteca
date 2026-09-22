@@ -73,9 +73,9 @@ def test_metadata_and_arrays(telescope, as_tree):
     assert meta.obs_goal == LmtObsGoalType.pointing
     assert meta.t0.unix == 1761902400.0
     assert meta.t1.unix == 1761902401.0
-    assert meta.t_exp == 0 * u.s  # Not replaced by the elapsed span.
+    assert meta.t_int == 0 * u.s  # Not replaced by the elapsed span.
     assert meta.t_elapsed == (meta.t1 - meta.t0).to(u.s)
-    assert meta.t_elapsed != meta.t_exp
+    assert meta.t_elapsed != meta.t_int
     assert meta.target is not None and meta.target_ref is not None
     assert meta.target.ra.rad == pytest.approx(1.0)
     assert meta.target_ref.ra.rad == pytest.approx(1.1)
@@ -162,9 +162,6 @@ def test_headers_are_authoritative_and_check_is_opt_in(telescope):
     ],
 )
 def test_original_filename_consistency_check(telescope, name, header):
-    telescope["Header.File.Name"] = (
-        "/data_lmt/toltec/tcs/tel/tel_toltec_2025-10-31_000010_00_0001.nc"
-    )
     telescope[header] = telescope[header] + 1
     acc = telescope.lmt_tel
     assert getattr(acc.meta, name) == telescope[header].item()
@@ -473,7 +470,7 @@ def test_reference_telescope_files(data_lmt_path, monkeypatch):
                     ("obsnum", "ObsNum"),
                     ("subobsnum", "SubObsNum"),
                     ("scannum", "ScanNum"),
-                    ("t_exp", "IntegrationTime"),
+                    ("t_int", "IntegrationTime"),
                 )
             }
             ra = ds["Header.Source.Ra"].values
@@ -520,7 +517,7 @@ def test_reference_telescope_files(data_lmt_path, monkeypatch):
                 assert meta.obsnum == expected["obsnum"]
                 assert meta.subobsnum == expected["subobsnum"]
                 assert meta.scannum == expected["scannum"]
-                assert meta.t_exp == expected["t_exp"] * u.s
+                assert meta.t_int == expected["t_int"] * u.s
                 assert meta.obs_goal == goal
                 assert meta.filepath_info_orig.obsnum == meta.obsnum
                 assert meta.filepath_info_orig is meta.filepath_info_orig

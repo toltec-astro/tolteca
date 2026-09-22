@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime  # noqa: TC003 -- Pydantic resolves computed-field types.
 from functools import cache, cached_property, reduce
 from operator import or_
 from typing import TYPE_CHECKING, Annotated, ClassVar, NamedTuple
 
 import pandas as pd
 import pyarrow as pa
+import pyarrow.compute as pc
 from pydantic import (
-    AwareDatetime,
     BaseModel,
     BeforeValidator,
     ConfigDict,
@@ -27,12 +27,14 @@ from tollan.utils.dict import dict_from_regex_match
 from tollan.utils.fileloc import FileLoc, fileloc
 from tollan.utils.log import logger
 
+from .lmt_base.file import FilepathInfo
 from .lmt_base.metadata import LmtRawObsMetadata
 from .toltec.types import ToltecDataKind
 
 if TYPE_CHECKING:
     import re
     from collections.abc import Callable, Iterable
+    from enum import Enum
     from pathlib import Path
     from types import EllipsisType
 
@@ -42,24 +44,23 @@ if TYPE_CHECKING:
         ValidationInfo,
     )
 
-    from .lmt_base.metadata import LmtInstruMixin
-
 __all__ = [
-    "DataKindKey",
+    "FileIdentifier",
+    "FilenameParser",
     "FilepathInfo",
+    "FilepathInfoMatch",
     "SourceInfoModel",
     "ToltecFileAccessor",
-    "guess_data_kind",
     "guess_info_from_source",
     "guess_info_from_sources",
 ]
 
 
-class DataKindKey(NamedTuple):
-    """A normalized dictionary key for source classification.
+class FilepathInfoMatch(NamedTuple):
+    """Field constraints for matching parsed path information.
 
-    Use ``...`` for ignored fields on both the table and lookup keys.
-    ``None`` represents an absent value, not an ignored field.
+    Use ``...`` to leave a field unconstrained. ``None`` matches an absent
+    value; an empty string matches only an empty string.
     """
 
     prefix: str | EllipsisType | None = ...
@@ -67,17 +68,182 @@ class DataKindKey(NamedTuple):
     instru: str | EllipsisType | None = ...
     instru_component: str | EllipsisType | None = ...
     suffix: str | EllipsisType | None = ...
+    proc_suffix: str | EllipsisType | None = ...
     ext: str | EllipsisType | None = ...
 
 
-# Domain modules populate these tables below, after the shared models exist.
-filename_patterns: dict[re.Pattern[str], type[FilepathInfo]] = {}
-filename_field_types: dict[str, Callable[[str], object]] = {}
-prefix_interface: dict[str, str] = {}
-data_kind_map: dict[DataKindKey, ToltecDataKind] = {}
-# Retain these fields in the lookup key for each instrument/component pair.
-# Other families use (prefix, ext); ignored positions are always Ellipsis.
-data_kind_fields: dict[tuple[str | None, str | None], tuple[str, ...]] = {}
+class FilenameParser(NamedTuple):
+    """Record type and ordered parsers for one filename pattern.
+
+    Each parser receives the current fields and source path, and returns a
+    partial dictionary without modifying its inputs. Updates are applied before
+    the next parser runs; later values replace earlier ones. Order parsers after
+    any parsers supplying their required fields. Each runs once. Pydantic
+    validates the completed record and converts ordinary numeric captures.
+    """
+
+    filepath_info_cls: type[FilepathInfo]
+    parsers: tuple[Callable[[dict, Path], dict[str, object]], ...]
+
+
+class FileIdentifier:
+    """Identify local or remote sources from paths without opening files.
+
+    Domain modules register filename patterns, ordered parsers, and
+    classification rules on this class.
+    """
+
+    filename_pattern_parser: ClassVar[dict[re.Pattern[str], FilenameParser]] = {}
+    # Insertion order defines priority: the first matching rule wins.
+    filepath_info_data_kind: ClassVar[dict[FilepathInfoMatch, Enum]] = {}
+
+    @classmethod
+    def parse_filepath(
+        cls,
+        source: str | Path | FileLoc,
+        *,
+        info_cls: type[FilepathInfo] = FilepathInfo,
+        raise_on_error: bool = True,
+    ) -> FilepathInfo | None:
+        """Parse a path into its registered filename-information model.
+
+        Limit matching to subclasses of ``info_cls``. Unrecognized names raise
+        ValueError, or return None with ``raise_on_error=False``. Invalid field
+        values, including malformed dates, always raise. No file is opened.
+        """
+        source = fileloc(source)
+        path = source.path
+        for pattern, parser in cls.filename_pattern_parser.items():
+            if not issubclass(parser.filepath_info_cls, info_cls):
+                continue
+            fields = dict_from_regex_match(pattern, path.name)
+            if fields is None:
+                continue
+            for parse in parser.parsers:
+                fields.update(parse(fields, path))
+            return parser.filepath_info_cls.model_validate(fields)
+        if not raise_on_error:
+            return None
+        msg = f"Unrecognized acquisition filename: {source}"
+        raise ValueError(msg)
+
+    @classmethod
+    def guess_data_kinds(cls, fields: pd.DataFrame | pa.Table) -> list[Enum]:
+        """Classify rows of filename-derived fields without opening files.
+
+        Columns use the names in :class:`FilepathInfoMatch`; missing columns
+        are treated as absent values. Extra columns are ignored. Return the
+        first matching registered enum member for each row, in input row order, or
+        ``ToltecDataKind.Unknown`` if no rule matches. All conditions operate on
+        columns; matching does not short-circuit condition evaluation per row.
+
+        Examples
+        --------
+        >>> fields = pd.DataFrame({"prefix": ["tel_toltec"], "ext": ["nc"]})
+        >>> FileIdentifier.guess_data_kinds(fields) == [ToltecDataKind.LmtTel]
+        True
+        """
+        size = len(fields)
+        if not size:
+            return []
+        rules = tuple(cls.filepath_info_data_kind.items())
+        if not rules:
+            return [ToltecDataKind.Unknown] * size
+        if isinstance(fields, pd.DataFrame):
+            names = [name for name in FilepathInfoMatch._fields if name in fields]
+            fields = pa.Table.from_pandas(fields[names], preserve_index=False)
+        columns = {name: fields[name] for name in fields.column_names}
+        comparisons = {}
+        conditions = []
+        condition_all = pa.repeat(value=True, size=size)
+        column_absent = pa.scalar(None, type=pa.string())
+        for key, _ in rules:
+            condition = condition_all
+            for name, value in zip(key._fields, key, strict=True):
+                if value is ...:
+                    continue
+                # Share repeated column comparisons within this batch only.
+                if (name, value) not in comparisons:
+                    column = columns.get(name, column_absent)
+                    # Arrow installs these compute functions dynamically.
+                    comparisons[name, value] = (
+                        pc.is_null(column)  # ty: ignore[unresolved-attribute]
+                        if value is None
+                        else pc.fill_null(
+                            pc.equal(column, value),  # ty: ignore[unresolved-attribute]
+                            fill_value=False,
+                        )
+                    )
+                condition = pc.and_(condition, comparisons[name, value])  # ty: ignore[unresolved-attribute]
+            conditions.append(condition)
+        indices = pc.case_when(  # ty: ignore[unresolved-attribute]
+            pc.make_struct(  # ty: ignore[unresolved-attribute]
+                *conditions, field_names=[str(i) for i in range(len(rules))]
+            ),
+            *range(len(rules)),
+            len(rules),
+        )
+        # Rule positions preserve enum identity even across enums with equal values.
+        kinds = [kind for _, kind in rules]
+        kinds.append(ToltecDataKind.Unknown)
+        return [kinds[i] for i in indices.to_pylist()]
+
+    @classmethod
+    def guess_data_kind(cls, info: FilepathInfo) -> Enum:
+        """Classify parsed filepath information without opening a file.
+
+        Return the first matching registered enum member, or
+        ``ToltecDataKind.Unknown`` when no rule matches. For multiple records, use
+        :meth:`guess_data_kinds`. ROACH NetCDF and model-table files use the full
+        ``suffix``; DAT/ECSV products use the parsed ``proc_suffix``, such as
+        ``targamps`` or ``kids_find``. Other families use prefix and extension.
+        """
+        fields = pa.Table.from_pylist(
+            [info.model_dump(include=set(FilepathInfoMatch._fields))]
+        )
+        return cls.guess_data_kinds(fields)[0]
+
+    @classmethod
+    def _guess_source_fields(
+        cls,
+        source: str | Path | FileLoc,
+        *,
+        filepath_orig: str | None = None,
+        raise_on_error: bool = True,
+    ) -> dict | None:
+        """Collect source fields and effective path information without classifying."""
+        source = fileloc(source)
+        parsed = cls.parse_filepath(source, raise_on_error=False)
+        parsed_orig = (
+            cls.parse_filepath(filepath_orig, raise_on_error=False)
+            if filepath_orig is not None
+            else None
+        )
+        if parsed is None and parsed_orig is not None:
+            parsed = parsed_orig
+            logger.debug(
+                "Identify unrecognized filename {} using recorded path {}",
+                source,
+                filepath_orig,
+            )
+        if parsed is None:
+            if not raise_on_error:
+                return None
+            msg = f"Unrecognized acquisition filename: {source}"
+            raise ValueError(msg)
+        if parsed_orig is not None and parsed_orig.master_str is not None:
+            parsed = parsed.model_copy(update={"master_str": parsed_orig.master_str})
+        return {
+            "source": source,
+            "filepath_orig": filepath_orig,
+            "filepath_info": parsed,
+            "interface": parsed.interface,
+            "roach": getattr(parsed, "roach", None),
+            "master": parsed.master_str,
+            "obsnum": parsed.obsnum,
+            "subobsnum": parsed.subobsnum,
+            "scannum": parsed.scannum,
+        }
 
 
 _FILEPATH_INFO_DTYPE = pd.ArrowDtype(
@@ -94,6 +260,7 @@ _FILEPATH_INFO_DTYPE = pd.ArrowDtype(
             ("scannum", pa.int64()),
             ("ut", pa.timestamp("us", tz="UTC")),
             ("suffix", pa.string()),
+            ("proc_suffix", pa.string()),
             ("ext", pa.string()),
         ]
     )
@@ -134,121 +301,12 @@ type _DataKindField = Annotated[
 ]
 
 
-class FilepathInfo(BaseModel):
-    """Identifiers encoded in an acquisition path, independent of file contents.
-
-    ``prefix`` preserves the literal filename prefix. ``ut`` is the writer's
-    file-creation time encoded in the filename, in UTC at the filename's
-    precision. It is independent of observation time and filesystem mtime.
-    The suffix may be absent; ``ext`` excludes the leading dot.
-    All derived fields are stored when the record is constructed.
-    """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    @staticmethod
-    def _parse_ut(value: str) -> datetime:
-        fmt = "%Y_%m_%d_%H_%M_%S" if "_" in value else "%Y-%m-%d"
-        return datetime.strptime(value, fmt).replace(tzinfo=UTC)
-
-    prefix: str
-    interface: str
-    instru: str | None
-    instru_component: str | None
-    master_str: str | None
-    obsnum: int = Field(ge=0)
-    subobsnum: int = Field(ge=0)
-    scannum: int = Field(ge=0)
-    ut: AwareDatetime | None
-    suffix: str | None
-    ext: str
-
-    @classmethod
-    def from_path(
-        cls, source: str | Path | FileLoc, *, raise_on_error: bool = True
-    ) -> FilepathInfo | None:
-        """Parse a local or remote path without opening the source.
-
-        Return the registered record type with all filename-derived fields
-        populated. Calling on a subclass limits parsing to that record type.
-        Unrecognized names raise ValueError, or return None when
-        ``raise_on_error=False``. Invalid dates always raise ValueError.
-
-        Examples
-        --------
-        >>> info = FilepathInfo.from_path("tel_toltec_2025-10-31_145609_00_0002.nc")
-        >>> info.prefix, info.interface
-        ('tel_toltec', 'tel')
-        """
-        source = fileloc(source)
-        path = source.path
-        for pattern, info_cls in filename_patterns.items():
-            if not issubclass(info_cls, cls):
-                continue
-            fields = dict_from_regex_match(pattern, path.name, filename_field_types)
-            if fields is not None:
-                return info_cls.model_validate(cls._derive_fields(path, fields))
-        if not raise_on_error:
-            return None
-        msg = f"Unrecognized acquisition filename: {source}"
-        raise ValueError(msg)
-
-    @staticmethod
-    def _derive_fields(path: Path, fields: dict) -> dict:
-        """Complete parsed fields before constructing the record."""
-        prefix = fields["prefix"]
-        interface = fields["interface"] = prefix_interface.get(prefix, prefix)
-        # Numeric ROACH captures recognize alternate numeric spellings without
-        # changing the literal filename prefix or interface.
-        interface_key = ToltecInfo.roach_interface.get(fields.get("roach"), interface)
-        identity = interface_instru.get(interface_key)
-        fields.update(
-            instru=None if identity is None else identity.instru,
-            instru_component=None if identity is None else identity.instru_component,
-            master_str=None,
-        )
-        # Only the acquisition directory layout supplies a master. An arbitrary
-        # ancestor named "toltec" is not sufficient evidence.
-        match path.parent.parts:
-            case (*_, "toltec", master, directory_interface) if directory_interface in (
-                prefix,
-                prefix.partition("_")[0],
-            ):
-                fields["master_str"] = master
-        return fields
-
-
-def guess_data_kind(  # noqa: PLR0913 -- one argument per classification key field
-    *,
-    prefix: str | None = None,
-    interface: str | None = None,
-    instru: str | None = None,
-    instru_component: str | None = None,
-    suffix: str | None = None,
-    ext: str | None = None,
-) -> ToltecDataKind:
-    """Classify source metadata without opening a file.
-
-    Return ``ToltecDataKind.Unknown`` when the supplied identifiers have no
-    registered classification. For ROACH data, instrument, component, suffix,
-    and extension determine the kind; other families use prefix and extension.
-    """
-    fields = {
-        "prefix": prefix,
-        "interface": interface,
-        "instru": instru,
-        "instru_component": instru_component,
-        "suffix": suffix,
-        "ext": ext,
-    }
-    names = data_kind_fields.get((instru, instru_component), ("prefix", "ext"))
-    key = DataKindKey(**{name: fields[name] for name in names})
-    return data_kind_map.get(key, ToltecDataKind.Unknown)
-
-
 @cache
 def _get_filepath_adapter() -> TypeAdapter[FilepathInfo]:
-    models = dict.fromkeys(filename_patterns.values())
+    models = dict.fromkeys(
+        parser.filepath_info_cls
+        for parser in FileIdentifier.filename_pattern_parser.values()
+    )
     return TypeAdapter(reduce(or_, models))
 
 
@@ -436,55 +494,18 @@ def guess_info_from_source(
     precedence, including their suffix and timestamp. A master identified by
     the original acquisition path takes precedence over the current directory.
     """
-    source = fileloc(source)
-    parsed = FilepathInfo.from_path(source, raise_on_error=False)
-    parsed_orig = (
-        FilepathInfo.from_path(filepath_orig, raise_on_error=False)
-        if filepath_orig is not None
-        else None
+    fields = FileIdentifier._guess_source_fields(
+        source, filepath_orig=filepath_orig, raise_on_error=raise_on_error
     )
-    if parsed is None and parsed_orig is not None:
-        parsed = parsed_orig
-        logger.debug(
-            "Identify unrecognized filename {} using recorded path {}",
-            source,
-            filepath_orig,
-        )
-    if parsed is None:
-        if not raise_on_error:
-            return None
-        msg = f"Unrecognized acquisition filename: {source}"
-        raise ValueError(msg)
-    if parsed_orig is not None and parsed_orig.master_str is not None:
-        parsed = parsed.model_copy(update={"master_str": parsed_orig.master_str})
-    return SourceInfoModel(
-        source=source,
-        filepath_orig=filepath_orig,
-        filepath_info=parsed,
-        interface=parsed.interface,
-        roach=getattr(parsed, "roach", None),
-        master=parsed.master_str,
-        obsnum=parsed.obsnum,
-        subobsnum=parsed.subobsnum,
-        scannum=parsed.scannum,
-        data_kind=guess_data_kind(
-            prefix=parsed.prefix,
-            interface=parsed.interface,
-            instru=parsed.instru,
-            instru_component=parsed.instru_component,
-            suffix=parsed.suffix,
-            ext=parsed.ext,
-        ),
-    )
+    if fields is None:
+        return None
+    fields["data_kind"] = FileIdentifier.guess_data_kind(fields["filepath_info"])
+    return SourceInfoModel.model_validate(fields)
 
 
 def guess_info_from_sources(sources: Iterable[str | Path | FileLoc]) -> pd.DataFrame:
     """Build a filename-only catalog, retaining unknown names for header discovery."""
-    return ToltecFileAccessor.from_info_list(
-        guess_info_from_source(source, raise_on_error=False)
-        or SourceInfoModel(source=fileloc(source))
-        for source in sources
-    )
+    return ToltecFileAccessor.from_sources(sources)
 
 
 def _get_filepath_fields(
@@ -583,13 +604,49 @@ class _CatalogAliases(dict):
 
 @pd.api.extensions.register_dataframe_accessor("toltec_file")
 class ToltecFileAccessor:
-    """Select and reconstruct source records from a metadata-only catalog."""
+    """Build, select, and reconstruct source records in a metadata-only catalog."""
 
     def __init__(self, data: pd.DataFrame) -> None:
         if "source" not in data:
             msg = "A file catalog requires a source column"
             raise AttributeError(msg)
         self._obj = data
+
+    @classmethod
+    def from_sources(cls, sources: Iterable[str | Path | FileLoc]) -> pd.DataFrame:
+        """Build a filename-only catalog from local or remote paths.
+
+        Classify the collection in one batch without opening files. Retain
+        unrecognized names with unknown identifiers; invalid dates in recognized
+        names raise ValueError. Accept generators and empty inputs.
+
+        Examples
+        --------
+        >>> catalog = ToltecFileAccessor.from_sources(
+        ...     ["tel_toltec_2025-10-31_145609_00_0002.nc"]
+        ... )
+        >>> catalog["interface"].tolist()
+        ['tel']
+        """
+        rows = [
+            FileIdentifier._guess_source_fields(source, raise_on_error=False)
+            or {"source": fileloc(source)}
+            for source in sources
+        ]
+        columns = pa.table(
+            {
+                name: pa.array(
+                    [getattr(row.get("filepath_info"), name, None) for row in rows],
+                    type=pa.string(),
+                )
+                for name in FilepathInfoMatch._fields
+            }
+        )
+        kinds = FileIdentifier.guess_data_kinds(columns)
+        return cls.from_info_list(
+            SourceInfoModel.model_validate({**row, "data_kind": kind})
+            for row, kind in zip(rows, kinds, strict=True)
+        )
 
     @staticmethod
     def from_info_list(records: Iterable[SourceInfoModel]) -> pd.DataFrame:
@@ -667,18 +724,6 @@ class ToltecFileAccessor:
         return result
 
 
-filename_field_types.update(
-    obsnum=int, subobsnum=int, scannum=int, ut=FilepathInfo._parse_ut
-)
-
-# Readers and metadata import the shared models above. Import domain modules
-# only after defining them; each module registers its declarations exactly once.
+# Domain modules populate the registries after the shared declarations exist.
 from .lmt import file as _lmt_file  # noqa: E402, F401
-from .lmt.types import LmtInfo  # noqa: E402
 from .toltec import file as _toltec_file  # noqa: E402, F401
-from .toltec.types import ToltecInfo  # noqa: E402
-
-interface_instru: dict[str, LmtInstruMixin] = {
-    **LmtInfo.interface_instru,
-    **ToltecInfo.interface_instru,
-}

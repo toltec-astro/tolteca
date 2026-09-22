@@ -14,7 +14,7 @@ from tolteca_datamodels.file import (
     ToltecFileAccessor,
     guess_info_from_source,
 )
-from tolteca_datamodels.toltec.file import FilepathInfo as ToltecFilepathInfo
+from tolteca_datamodels.toltec.file import RoachFilepathInfo
 from tolteca_datamodels.toltec.types import ToltecDataKind
 
 
@@ -176,7 +176,7 @@ def test_mixed_record_types_survive_json_and_parquet(tmp_path, record, monkeypat
     adapter = TypeAdapter(list[SourceInfoModel])
     restored = adapter.validate_json(adapter.dump_json(records, round_trip=True))
     assert restored == records
-    assert type(restored[0].filepath_info) is ToltecFilepathInfo
+    assert type(restored[0].filepath_info) is RoachFilepathInfo
     assert type(restored[1].filepath_info) is FilepathInfo
     assert restored[0].filepath_info.roach == 8
     assert "roach" not in restored[1].filepath_info.model_dump()

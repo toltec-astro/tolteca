@@ -79,7 +79,7 @@ def inspect_product(path):
             result["error"] = f"{type(exc).__name__}: {exc}"
         else:
             result.update(
-                type=type(meta).__name__, n_times=meta.n_times, t_exp=str(meta.t_exp)
+                type=type(meta).__name__, n_times=meta.n_times, t_int=str(meta.t_int)
             )
         return result
 

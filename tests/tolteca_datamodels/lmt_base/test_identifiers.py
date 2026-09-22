@@ -24,7 +24,7 @@ def identified_metadata():
         interface="tel",
         t0=Time("2025-10-31T09:27:56"),
         t1=Time("2025-10-31T09:28:56"),
-        t_exp=60 * u.s,
+        t_int=60 * u.s,
     )
 
 
@@ -36,14 +36,23 @@ def test_quartet_names(master):
     assert meta.quartet == f"{master}-145609-0-2"
 
 
-@pytest.mark.parametrize("master", [None, 0, 99])
-def test_unavailable_master_name(identified_metadata, master):
-    meta = dataclasses.replace(identified_metadata, master=master)
-    assert meta.master == master
+def test_unavailable_master_name(identified_metadata):
+    meta = dataclasses.replace(identified_metadata, master=None)
+    assert meta.master is None
     assert meta.master_str is None
     assert meta.quartet is None
     assert meta.uid_raw_obs is None
     assert meta.uid_raw_obs_file is None
+
+
+@pytest.mark.parametrize("master", [0, 99])
+def test_generic_master_codes_use_text_identifiers(identified_metadata, master):
+    meta = dataclasses.replace(identified_metadata, master=master)
+    assert meta.master == master
+    assert meta.master_str == str(master)
+    assert meta.quartet == f"{master}-145609-0-2"
+    assert meta.uid_raw_obs == f"{master}-145609-0-2"
+    assert meta.uid_raw_obs_file == f"{master}-145609-0-2-tel"
 
 
 def test_identifiers_are_derived_cached_and_serialized(identified_metadata):

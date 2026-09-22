@@ -27,7 +27,7 @@ def base_obs_fields() -> dict[str, Any]:
         "interface": "toltec0",
         "t0": Time("2024-01-01T00:00:00", format="isot", scale="utc"),
         "t1": Time("2024-01-01T00:01:00", format="isot", scale="utc"),
-        "t_exp": 60 * u.s,
+        "t_int": 60 * u.s,
     }
 
 
@@ -136,7 +136,7 @@ class TestToltecRawObsMetadata:
         assert hasattr(meta, "scannum")
         assert hasattr(meta, "t0")
         assert hasattr(meta, "t1")
-        assert hasattr(meta, "t_exp")
+        assert hasattr(meta, "t_int")
 
     def test_frozen(self, base_obs_fields: dict[str, Any]) -> None:
         """Test that metadata is immutable."""
@@ -306,10 +306,10 @@ class TestToltecTimeStreamMetadata:
         assert meta.roach == 0
         # Should have all base fields
         assert hasattr(meta, "t0")
-        assert hasattr(meta, "t_exp")
+        assert hasattr(meta, "t_int")
 
-    def test_t_exp_from_base_class(self, base_obs_fields: dict[str, Any]) -> None:
-        """Test that t_exp is available from base class."""
+    def test_t_int_from_base_class(self, base_obs_fields: dict[str, Any]) -> None:
+        """Test that t_int is available from base class."""
         meta = ToltecTimeStreamMetadata(
             **base_obs_fields,
             master=ToltecDBRawObsMaster.CLIP,
@@ -319,9 +319,9 @@ class TestToltecTimeStreamMetadata:
             n_chans=512,
             f_smp=488.28125 * u.Hz,
         )
-        assert meta.t_exp == 60 * u.s
-        assert meta.t_exp.unit is not None
-        assert meta.t_exp.unit.physical_type == "time"
+        assert meta.t_int == 60 * u.s
+        assert meta.t_int.unit is not None
+        assert meta.t_int.unit.physical_type == "time"
 
     def test_frozen(self, base_obs_fields: dict[str, Any]) -> None:
         """Test that timestream metadata is immutable."""

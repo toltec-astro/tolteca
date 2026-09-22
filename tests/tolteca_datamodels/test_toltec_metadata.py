@@ -52,7 +52,7 @@ class TestMetadataDataclasses:
             scannum=0,
             t0=Time("2025-01-01T00:00:00", format="isot", scale="utc"),
             t1=Time("2025-01-01T00:01:00", format="isot", scale="utc"),
-            t_exp=60.0 * u.s,
+            t_int=60.0 * u.s,
         )
         assert meta.instru == "toltec"
         assert meta.master == ToltecDBRawObsMaster.TCS
@@ -76,7 +76,7 @@ class TestMetadataDataclasses:
             scannum=0,
             t0=Time("2025-01-01T00:00:00", format="isot", scale="utc"),
             t1=Time("2025-01-01T00:01:00", format="isot", scale="utc"),
-            t_exp=60.0 * u.s,
+            t_int=60.0 * u.s,
             n_times=1000,
             n_chans=256,
             f_smp=488.0 * u.Hz,
@@ -104,7 +104,7 @@ class TestMetadataDataclasses:
             scannum=0,
             t0=Time("2025-01-01T00:00:00", format="isot", scale="utc"),
             t1=Time("2025-01-01T00:01:00", format="isot", scale="utc"),
-            t_exp=60.0 * u.s,
+            t_int=60.0 * u.s,
             n_times=4910,
             n_chans=1000,
             f_smp=488.0 * u.Hz,
@@ -140,7 +140,7 @@ class TestMetadataDataclasses:
             scannum=0,
             t0=Time("2025-01-01T00:00:00", format="isot", scale="utc"),
             t1=Time("2025-01-01T00:01:00", format="isot", scale="utc"),
-            t_exp=60.0 * u.s,
+            t_int=60.0 * u.s,
         )
         with pytest.raises(
             (AttributeError, TypeError),
@@ -163,7 +163,7 @@ class TestMetadataDataclasses:
             scannum=0,
             t0=Time("2025-01-01T00:00:00", format="isot", scale="utc"),
             t1=Time("2025-01-01T00:01:00", format="isot", scale="utc"),
-            t_exp=60.0 * u.s,
+            t_int=60.0 * u.s,
         )
         assert meta.interface == "toltec0"
         assert meta.nw == 0

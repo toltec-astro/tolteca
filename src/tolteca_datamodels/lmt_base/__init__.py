@@ -7,6 +7,7 @@ to avoid circular dependencies.
 
 from __future__ import annotations
 
+from .file import FilepathInfo
 from .metadata import (
     LmtInstruMixin,
     LmtObsQuartetMixin,
@@ -14,6 +15,7 @@ from .metadata import (
 )
 
 __all__ = [
+    "FilepathInfo",
     "LmtInstruMixin",
     "LmtObsQuartetMixin",
     "LmtRawObsMetadata",

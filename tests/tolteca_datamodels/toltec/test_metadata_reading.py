@@ -56,7 +56,7 @@ def test_named_dimensions_and_headers(raw, transpose, as_tree):
     assert meta.array_name == "a1400"
     assert meta.t0.unix == 1761902400
     assert meta.t1.unix == 1761902460
-    assert meta.t_exp == 6 / 500 * u.s
+    assert meta.t_int == 6 / 500 * u.s
     assert meta.f_smp == 500 * u.Hz
     assert meta.f_lo_center == 600e6
     assert meta.atten_drive == 7.25
@@ -200,7 +200,7 @@ def test_reference_metadata(data_lmt_path, monkeypatch):
                 assert meta.atten_drive == expected["DriveAtten"]
                 assert meta.atten_sense == expected["SenseAtten"]
                 assert meta.f_lo_center == expected["LoCenterFreq"]
-                assert meta.t_exp.to_value(u.s) == pytest.approx(
+                assert meta.t_int.to_value(u.s) == pytest.approx(
                     sizes["time"] / expected["SampleFreq"]
                 )
                 assert not ds["Data.Toltec.Is"].variable._in_memory
@@ -209,6 +209,13 @@ def test_reference_metadata(data_lmt_path, monkeypatch):
                     assert meta.n_sweeps == n_blocks
                     assert meta.n_blocks_max == sizes["numSweeps"]
                 assert reads.count("Data.Toltec.LoFreq") == (expected["ObsType"] == 4)
+                reads_before = list(reads)
+                assert meta.t_elapsed == (meta.t1 - meta.t0).to(u.s)
+                parsed = meta.filepath_info_orig
+                assert parsed is not None
+                assert parsed.model_dump()["roach"] == 0
+                TypeAdapter(type(meta)).dump_json(meta)
+                assert reads == reads_before
 
 
 def test_tune_blocks_use_recorded_lo_resets(raw):
@@ -225,6 +232,10 @@ def test_tune_blocks_use_recorded_lo_resets(raw):
         assert selected.n_times == 3
         assert selected.n_blocks == 2
         assert selected.n_sweeps == 1
+        assert selected.t0 == meta.t0
+        assert selected.t1 == meta.t1
+        assert selected.t_elapsed == meta.t_elapsed
+        assert selected.t_int == 3 / 500 * u.s
     with pytest.raises(ValueError, match="out of range"):
         mapper.get_metadata(raw, block=2)
 

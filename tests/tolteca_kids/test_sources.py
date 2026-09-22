@@ -23,38 +23,47 @@ from tolteca_kids.runner import run_source
 
 
 @pytest.mark.parametrize(
-    ("filename", "kind", "obsnum"),
+    ("filename", "kind", "obsnum", "master"),
     [
         (
             "toltec0_145605_000_0001_2025_10_31_09_20_06_vnasweep.nc",
             ToltecDataKind.VnaSweep,
             145605,
+            None,
         ),
         (
             "toltec0_145606_000_0001_2025_10_31_09_22_14_targsweep.nc",
             ToltecDataKind.TargetSweep,
             145606,
+            None,
         ),
         (
             "toltec0_145609_000_0001_2025_10_31_09_26_59_tune.nc",
             ToltecDataKind.Tune,
             145609,
+            None,
         ),
         (
             "toltec0_145609_000_0002_2025_10_31_09_27_57.nc",
             ToltecDataKind.RawTimeStream,
             145609,
+            None,
         ),
-        ("tel_toltec_2025-10-31_145609_00_0002.nc", ToltecDataKind.LmtTel, 145609),
+        (
+            "tel_toltec_2025-10-31_145609_00_0002.nc",
+            ToltecDataKind.LmtTel,
+            145609,
+            "tcs",
+        ),
     ],
 )
-def test_filename_kinds_and_catalog_roundtrip(filename, kind, obsnum):
+def test_filename_kinds_and_catalog_roundtrip(filename, kind, obsnum, master):
     # Basenames recorded in the reference ToltecDB/LMTMC slices.
     info = guess_info_from_source(filename)
     assert info is not None
     assert info.data_kind == kind
     assert info.obsnum == obsnum
-    assert info.master is None
+    assert info.master == master
     restored = guess_info_from_sources([filename]).toltec_file.to_info_list()[0]
     assert restored.model_dump(
         mode="json",

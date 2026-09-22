@@ -32,7 +32,7 @@ class ToltecRawObsMetadata(LmtRawObsMetadata):
     """TolTEC acquisition metadata and readout settings.
 
     ``master`` retains the recorded controller code. ``master_str`` supplies
-    its readable name, used by the quartet and observation identifiers.
+    its readable name.
     """
 
     master: ToltecDBRawObsMaster = Field(description="Recorded acquisition master code")
@@ -114,12 +114,6 @@ class ToltecRawObsMetadata(LmtRawObsMetadata):
     n_chans_max: int | None = Field(
         default=None,
         description="Maximum number of tones",
-    )
-
-    # File information
-    filepath_orig: str | None = Field(
-        default=None,
-        description="Original acquisition file path",
     )
 
     repeat: int | None = Field(

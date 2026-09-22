@@ -22,6 +22,7 @@ from tolteca_datamodels.toltec.filestore import build_input_catalog, resolve_sou
             ],
         ),
         ("145609/2/tel", ["tel_toltec_2025-10-31_145609_00_0002.nc"]),
+        ("tcs-145609/2/tel", ["tel_toltec_2025-10-31_145609_00_0002.nc"]),
         (
             "{145605,145609}/tel",
             [
@@ -54,7 +55,7 @@ def test_telescope_selectors_use_recorded_layout_without_opening(
     catalog = resolve_sources([spec], data_root=data_lmt_path)
     assert catalog["source"].tolist() == [str(path) for path in expected]
     assert catalog["interface"].tolist() == ["tel"] * len(expected)
-    assert catalog["master"].isna().all()
+    assert catalog["master"].tolist() == ["tcs"] * len(expected)
     assert catalog["data_kind"].tolist() == ["LmtTel"] * len(expected)
 
 
@@ -70,10 +71,9 @@ def test_unqualified_and_roach_selectors_keep_toltec_scope(data_lmt_path):
         assert catalog["interface"].tolist() == ["toltec0", "toltec0"]
 
 
-def test_telescope_selector_does_not_invent_master(data_lmt_path):
-    # Master is a header value; the telescope directory/name does not supply it.
+def test_telescope_selector_rejects_non_tcs_master(data_lmt_path):
     with pytest.raises(FileNotFoundError, match="No input files matched"):
-        resolve_sources(["tcs-145609/tel"], data_root=data_lmt_path)
+        resolve_sources(["ics-145609/tel"], data_root=data_lmt_path)
 
 
 def test_telescope_selector_and_explicit_path_deduplicate(data_lmt_path, tmp_path):

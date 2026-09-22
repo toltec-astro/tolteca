@@ -47,7 +47,7 @@ def test_metadata_roundtrips_json_and_mixed_parquet(records, tmp_path):
         assert restored_item.metadata is not None
         assert source.metadata.t0 == restored_item.metadata.t0
         assert source.metadata.t1 == restored_item.metadata.t1
-        assert source.metadata.t_exp == restored_item.metadata.t_exp
+        assert source.metadata.t_int == restored_item.metadata.t_int
         if source.interface == "tel":
             assert isinstance(restored_item.metadata, LmtTelMetadata)
             assert source.metadata.target == restored_item.metadata.target
@@ -80,7 +80,7 @@ def test_metadata_aliases_are_vectorized_and_match_config_context(records, monke
     assert len(frame.toltec_file.query("metadata.atten_drive == 7.25")) == 4
     assert len(frame.toltec_file.query("obs_pgm == metadata.obs_pgm")) == 1
     # File-level master labels win the unqualified name over raw numeric codes.
-    assert len(frame.toltec_file.query("master == 'tcs' & metadata.master == 0")) == 4
+    assert len(frame.toltec_file.query("master == 'tcs' & metadata.master == 0")) == 5
 
 
 def test_flat_metadata_aliases_are_available_for_conditions(records):

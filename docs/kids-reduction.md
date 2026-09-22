@@ -222,13 +222,13 @@ identification does not. Inspect one block's metadata explicitly with:
 ```python
 with open_toltec("toltec0_145609_000_0001_2025_10_31_09_26_59_tune.nc") as ds:
     meta = ds.toltec_kids.mapper.get_metadata(ds, block=1)
-    print(meta.n_times, meta.t_exp)
+    print(meta.n_times, meta.t_int)
 ```
 
-The sample count and integration time describe that block. Acquisition start/end
-timestamps still describe the containing file. `n_blocks_max` is the allocated
-capacity, not the count of recorded blocks. An explicitly block-indexed dataset
-returns a list of metadata objects.
+The sample count and integration time `t_int` describe that block. Acquisition
+start/end timestamps and their span `t_elapsed` describe the containing file.
+`n_blocks_max` is the allocated capacity, not the count of recorded blocks.
+An explicitly block-indexed dataset returns a list of metadata objects.
 
 ## Products and result views
 

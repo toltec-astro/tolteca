@@ -100,8 +100,9 @@ def test_reference_lmtmc_rows(data_lmt_path):
             assert meta.obs_pgm == row["ObsPgm"]
             assert meta.obs_goal == row["ObsGoal"].lower()
             # CSV is rounded to hundredths; do not round the reader's timer.
-            assert meta.t_exp.to_value(u.s) == pytest.approx(
+            assert meta.t_int.to_value(u.s) == pytest.approx(
                 float(row["IntegrationTime"]), abs=0.005
             )
             assert meta.master == 0
             assert meta.master_str == "tcs"
+            assert meta.filepath_info_orig.master_str == meta.master_str

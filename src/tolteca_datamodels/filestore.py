@@ -10,7 +10,7 @@ from tollan.config import ConfigHandler, FrozenBaseModel, SubConfigKeyTransforme
 from tollan.config.types import AbsAnyPath, AbsDirectoryPath
 from tollan.utils.log import logger
 
-from .file import SourceInfoModel, _get_filepath_fields, guess_data_kind
+from .file import FileIdentifier, SourceInfoModel, _get_filepath_fields
 from .lmt.tel import LmtTelIOMapper
 from .toltec.kids.source import identify_source as identify_kids_source
 from .toltec.types import ToltecDataKind
@@ -78,11 +78,11 @@ def identify_source(
     # The recorded prefix distinguishes the telescope stream. A time variable
     # alone cannot tell which stream produced it.
     kind = (
-        guess_data_kind(prefix=filepath_info_orig.prefix, ext=filepath_info_orig.ext)
+        FileIdentifier.guess_data_kind(filepath_info_orig)
         if filepath_info_orig is not None
         else ToltecDataKind.Unknown
     )
-    if kind == ToltecDataKind.Unknown:
+    if not isinstance(kind, ToltecDataKind) or kind == ToltecDataKind.Unknown:
         kind = info.data_kind
     fields["data_kind"] = (
         kind & (ToltecDataKind.LmtTel | ToltecDataKind.LmtTel2)

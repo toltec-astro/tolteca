@@ -5,13 +5,11 @@ from __future__ import annotations
 from functools import cached_property
 from typing import Literal
 
-import astropy.units as u
 from pydantic import Field, computed_field
 from pydantic.dataclasses import dataclass
-from tollan.config.types import SkyCoordField, TimeQuantityField
+from tollan.config.types import SkyCoordField
 
 from ..core import metadata_dataclass_config
-from ..file import FilepathInfo
 from ..lmt_base import LmtRawObsMetadata
 from ..toltec.toltecdb import ToltecDBRawObsMaster
 
@@ -47,24 +45,8 @@ class LmtTelMetadata(LmtRawObsMetadata):
 
     @computed_field
     @cached_property
-    def t_elapsed(self) -> TimeQuantityField:
-        """Elapsed time between the first and last telescope samples, in seconds.
-
-        This is ``t1 - t0`` from the telescope timestamps, not the header's
-        integration time ``t_exp``. The two durations need not agree.
-        """
-        return (self.t1 - self.t0).to(u.s)
-
-    @computed_field
-    @cached_property
     def master_str(self) -> str | None:
         """Return the acquisition master's name, or None when unavailable."""
         if self.master is None:
             return None
         return ToltecDBRawObsMaster.get_master_type(self.master)
-
-    @computed_field(repr=False)
-    @cached_property
-    def filepath_info_orig(self) -> FilepathInfo | None:
-        """Parsed acquisition path, or None for an unrecognized filename."""
-        return FilepathInfo.from_path(self.filepath_orig, raise_on_error=False)

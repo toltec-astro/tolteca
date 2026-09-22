@@ -24,7 +24,7 @@ def base_tel_fields():
         "interface": "tel",
         "t0": Time("2025-10-31T09:27:56", format="isot", scale="utc"),
         "t1": Time("2025-10-31T09:28:56", format="isot", scale="utc"),
-        "t_exp": 60.32 * u.s,
+        "t_int": 60.32 * u.s,
         "obs_pgm": "Lissajous",
         "obs_goal": "pointing",
         "target": SkyCoord(ra=1 * u.rad, dec=0.5 * u.rad, frame="icrs"),
@@ -145,7 +145,7 @@ def test_json_roundtrip(base_tel_fields):
     assert restored.obs_goal == meta.obs_goal
     assert restored.t0 == meta.t0
     assert restored.t1 == meta.t1
-    assert restored.t_exp == meta.t_exp
+    assert restored.t_int == meta.t_int
     assert restored.target.separation(meta.target).rad == pytest.approx(0, abs=1e-14)
     assert restored.target_ref.separation(meta.target_ref).rad == pytest.approx(
         0, abs=1e-14
@@ -159,8 +159,8 @@ def test_elapsed_time_is_derived_cached_and_serializable(base_tel_fields):
     assert elapsed == (meta.t1 - meta.t0).to(u.s)
     assert elapsed.unit == u.s
     assert meta.t_elapsed is elapsed
-    assert meta.t_exp == base_tel_fields["t_exp"]
-    assert elapsed != meta.t_exp
+    assert meta.t_int == base_tel_fields["t_int"]
+    assert elapsed != meta.t_int
 
     adapter = TypeAdapter(LmtTelMetadata)
     payload = adapter.dump_python(meta, mode="json")

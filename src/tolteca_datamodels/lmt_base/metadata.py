@@ -8,11 +8,13 @@ from __future__ import annotations
 
 from functools import cached_property
 
-from pydantic import Field, computed_field
+import astropy.units as u
+from pydantic import Field, SerializeAsAny, computed_field
 from pydantic.dataclasses import dataclass
 from tollan.config.types import TimeQuantityField, UnixTimeField
 
 from ..core import metadata_dataclass_config
+from .file import FilepathInfo
 
 __all__ = [
     "LmtInstruMixin",
@@ -35,12 +37,8 @@ class LmtObsQuartetMixin:
     @computed_field
     @cached_property
     def master_str(self) -> str | None:
-        """Master controller name, or None when it is unavailable.
-
-        Names are retained as supplied. Metadata classes with a controller-code
-        mapping override this property to translate their numeric codes.
-        """
-        return self.master if isinstance(self.master, str) else None
+        """Master controller name or code as text, or None when unavailable."""
+        return None if self.master is None else str(self.master)
 
     @computed_field
     @cached_property
@@ -78,22 +76,36 @@ class LmtRawObsMetadata(LmtObsQuartetMixin, LmtInstruMixin):
 
     t0: UnixTimeField = Field(description="Observation start time")
     t1: UnixTimeField = Field(description="Observation end time")
-    t_exp: TimeQuantityField = Field(description="Integration time")
+    t_int: TimeQuantityField = Field(description="Integration time")
+    filepath_orig: str | None = Field(
+        default=None,
+        description="Original acquisition file path",
+    )
+
+    @computed_field
+    @cached_property
+    def t_elapsed(self) -> TimeQuantityField:
+        """Elapsed time between t0 and t1, in seconds."""
+        return (self.t1 - self.t0).to(u.s)
+
+    @computed_field(repr=False)
+    @cached_property
+    def filepath_info_orig(self) -> SerializeAsAny[FilepathInfo] | None:
+        """Parsed acquisition path, or None when absent or unrecognized."""
+        if self.filepath_orig is None:
+            return None
+        return FilepathInfo.from_path(self.filepath_orig, raise_on_error=False)
 
     @computed_field
     @cached_property
     def uid_raw_obs(self) -> str | None:
-        """Raw observation identifier, equal to ``quartet``."""
+        """Identifier of the raw observation, or None when unavailable."""
         return self.quartet
 
     @computed_field
     @cached_property
     def uid_raw_obs_file(self) -> str | None:
-        """Return ``quartet-interface``, or None when the quartet is unavailable.
-
-        This identifies an acquisition's interface, not a file's storage
-        location or a particular copy of its contents.
-        """
+        """Identifier of the observation's interface data, or None if unavailable."""
         if self.quartet is None:
             return None
         return f"{self.quartet}-{self.interface}"
