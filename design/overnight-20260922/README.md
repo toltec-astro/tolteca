@@ -56,7 +56,8 @@ unnecessary dependency upgrades, or agent delegation.
 | --- | --- | --- |
 | 00 | Preserve pending baseline; finish registry and source-kind refactor | Complete: Tolteca `62602a2`; see [step record](00-file-registry.md). Baseline: Tolteca `269d1db`, DB `317f951`, Web `3bc81fe`. |
 | 01 | Reconcile previous overnight work with current decisions | Initial boundary review and fresh exact integration complete; see [review matrix](01-review-matrix.md). This is a findings inventory, not a claim all layers are redesigned. |
-| 02 | No-op invocation and catalog review | Pending |
+| 02a | Explicit canonical telescope-interface discovery | Implemented; 102 focused tests pass. See [step record](02a-telescope-discovery.md). |
+| 02b | Metadata opening/enrichment and catalog review | Pending; broader than the directory correction. |
 | 03 | Reducer / live context / output review | Pending |
 | 04 | DB discovery / Web consumption review | Pending |
 | 05 | Exact reference verification, guide, final handoff | Pending |
@@ -68,11 +69,13 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Start step 02 with the findings in `01-review-matrix.md`. The telescope ObsSpec
-directory gap is reproduced on actual reference files; keep existing unqualified
-KIDs discovery semantics while adding an explicit canonical telescope-interface
-path if justified. Do not silently rewrite DB keys or treat a masterless telescope
-filename as proof of TCS. Review header-enrichment/opening policy separately.
+Continue after step 02a, committing/exporting it first if still pending. Explicit
+`/tel` now searches the actual telescope directory; unqualified/ROACH selection
+is preserved and no master is guessed from a telescope filename. Review opening/
+enrichment separately: v2 catalog `.open()` merges scalar metadata, whereas the
+current KIDs projection exposes only identity/kind. Existing KIDs metadata has
+not received all telescope-model refinements. Do not paper over that with another
+untyped metadata dictionary or copy of scientific fields.
 
 Current code, unit tests, and the renewed four-case integration are verified at
 Tolteca `62602a2`, DB `317f951`, Web `3bc81fe`. Fresh integration evidence:

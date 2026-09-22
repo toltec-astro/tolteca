@@ -16,6 +16,7 @@ aligned to the right. Masters are `tcs`, `ics`, and `clip`.
 | `1000-2/7` | Observation 1000, subobservation 2, ROACH 7 |
 | `tcs-1000/toltec7` | TCS observation 1000, ROACH 7 |
 | `1000/hwpr` | Observation 1000, interface hwpr |
+| `145609/tel` | Observation 145609, telescope interface |
 | `1000-{0,2}/[0:7]` | Subobservations 0 or 2, ROACHes 0 through 6 |
 
 Each numeric field accepts a nonnegative integer, a set `{0,2,5}`, or a half-open
@@ -41,8 +42,13 @@ selected_from_db = query.get_raw_obs_info_table(spec)
 ```
 
 Local CLI discovery searches the NetCDF acquisition layout beneath
-`data_root/toltec/<master>/<interface>/`. Other layouts can be supplied as
-explicit paths or quoted filesystem globs. Input strings with a file extension,
+`data_root/toltec/<master>/<interface>/`. Explicit telescope selectors such as
+`145609/tel` search `data_root/tel/`; an unqualified `145609` continues to select
+TolTEC files only. Telescope streams share interface `tel`: select their literal
+prefix afterward with `file_prefix == 'tel_toltec'`. Telescope filenames do not
+supply a master, so a master-constrained telescope selector does not match at
+this filename-only stage. Other layouts can be supplied as explicit paths or
+quoted filesystem globs. Input strings with a file extension,
 or beginning with `/`, `./`, `../`, or `~/`, are filesystem inputs rather than
 selectors. Python callers can pass a `Path` for an extensionless filename.
 Selectors constrain only supplied fields; an unknown constrained metadata value

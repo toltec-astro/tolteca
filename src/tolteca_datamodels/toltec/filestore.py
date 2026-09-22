@@ -52,15 +52,23 @@ def _resolve_obs_spec(spec: ObsSpec, root: Path) -> list[Path]:
         f"toltec{spec.roach}" if isinstance(spec.roach, int) else "*"
     )
     obsnum = f"{spec.obsnum:06d}" if isinstance(spec.obsnum, int) else "*"
-    # Non-ROACH filenames may place a date before the observation identifier.
-    filename = f"{interface}_*.nc" if spec.interface else f"{interface}_{obsnum}_*.nc"
-    candidates = sorted(root.glob(f"toltec/{master}/{interface}/{filename}"))
+    if interface == "tel":
+        # Telescope streams share an interface and live outside the TolTEC tree.
+        # Their filenames put the writer date before the observation number.
+        pattern = f"tel/tel_*_{obsnum}_*.nc"
+    else:
+        filename = (
+            f"{interface}_*.nc" if spec.interface else f"{interface}_{obsnum}_*.nc"
+        )
+        pattern = f"toltec/{master}/{interface}/{filename}"
+    candidates = sorted(root.glob(pattern))
     catalog = guess_info_from_sources(candidates)
     selected = spec.select(catalog)
     logger.debug(
-        "ObsSpec {} under {}: {} candidates, {} selected",
+        "ObsSpec {} under {} using {!r}: {} candidates, {} selected",
         spec,
         root,
+        pattern,
         len(catalog),
         len(selected),
     )
@@ -76,6 +84,10 @@ def resolve_sources(
     prefix (/, ./, ../, ~/), are filesystem inputs. Other strings are ObsSpec
     expressions. Pass a Path object to disambiguate an extensionless filename.
     Selectors require data_root; paths and globs do not.
+
+    An explicit ``tel`` interface searches ``data_root/tel``. Other selectors
+    search the TolTEC master/interface tree. Filename discovery does not open
+    headers; unknown constrained identifiers, including master, do not match.
     """
     paths = []
     for source in sources:
