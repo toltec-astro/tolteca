@@ -58,7 +58,7 @@ unnecessary dependency upgrades, or agent delegation.
 | 01 | Reconcile previous overnight work with current decisions | Initial boundary review and fresh exact integration complete; see [review matrix](01-review-matrix.md). This is a findings inventory, not a claim all layers are redesigned. |
 | 02a | Explicit canonical telescope-interface discovery | Complete: `34f6b4e`; 102 focused tests pass. See [step record](02a-telescope-discovery.md). |
 | 02b | Metadata opening/enrichment and catalog review | [Usage and projection gaps](02b-catalog-review.md) recorded; implementation pending. |
-| 02b1 | Prevent false KIDs classification of telescope files | Implemented and verified; see [regression record](02b1-kids-identification.md). General telescope header identification remains pending. |
+| 02b1 | Prevent false KIDs classification of telescope files | Complete: `51e0728`; see [regression record](02b1-kids-identification.md). General telescope header identification remains pending. |
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
 | 03b | Remaining reducer / live context / output review | Pending |
 | 04a | Web selection before frequency broadcast | Complete: Web `928bf28`; 10 tests and fresh exact integration pass; [step record](../../../tolteca_web/design/overnight-20260922/04a-frequency-selection.md). Depends on 03a. |
@@ -72,7 +72,8 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Continue after step 02b1, committing/exporting it first if still pending. Explicit
+Resume the remaining step 02b opening/projection design. Steps 02a, 02b1, 03a
+and 04a are committed and exported in `review/overnight-20260922/`. Explicit
 `/tel` now searches the actual telescope directory; unqualified/ROACH selection
 is preserved and no master is guessed from a telescope filename. Review opening/
 enrichment separately: v2 catalog `.open()` merges scalar metadata, whereas the
