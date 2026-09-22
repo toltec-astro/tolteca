@@ -37,8 +37,9 @@ changed. Results: `/tmp/tolteca-20260922-product-reads.json`, against the fresh
 Open does not load signal chunks, but it does load two dimension-coordinate
 chunks (three for tune) for xarray indexes. Context validation adds no store
 reads. Consolidation does not change subsequent signal chunk reads or bytes.
-The figure check verifies trace count; exact scientific values are covered by
-the separate four-case integration, not asserted anew by this count-only probe.
+The initial count probe checked trace counts only. A follow-up now also asserts
+exact equality of every plotted x/y array before/after consolidation. The
+separate four-case integration establishes actual-v2 numerical parity.
 
 These are operations observed in a local store, including missing-key probes,
 not HTTP request counts or remote wall-time measurements. OS caching is not

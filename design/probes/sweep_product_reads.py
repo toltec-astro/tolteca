@@ -15,6 +15,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+import numpy as np
 import xarray as xr
 import zarr
 from tolteca_web.sweep.reduced import reduced_sweep_figure
@@ -89,11 +90,14 @@ def measure(path, channels, *, consolidated):
         }
         figure = reduced_sweep_figure(view, channels)
         assert len(figure.data) == 2 * len(channels)
-    return {
-        "open": summarize(events[:opened], signal_names),
-        "context": summarize(events[opened:validated], signal_names),
-        "plot": summarize(events[validated:], signal_names),
-    }
+    return (
+        {
+            "open": summarize(events[:opened], signal_names),
+            "context": summarize(events[opened:validated], signal_names),
+            "plot": summarize(events[validated:], signal_names),
+        },
+        figure.data,
+    )
 
 
 def main():
@@ -106,16 +110,24 @@ def main():
     reports = []
     for path in args.products:
         report = {"product": str(path), "channels": args.channels}
-        report["unconsolidated"] = measure(path, args.channels, consolidated=False)
+        report["unconsolidated"], traces = measure(
+            path, args.channels, consolidated=False
+        )
         if args.compare_consolidated:
             with TemporaryDirectory(prefix="sweep-consolidation-") as directory:
                 copied = Path(directory) / path.name
                 shutil.copytree(path, copied)
                 manifest = read_sweep_manifest(copied)
                 zarr.consolidate_metadata(copied / manifest.arrays)
-                report["consolidated"] = measure(
+                report["consolidated"], traces_consolidated = measure(
                     copied, args.channels, consolidated=True
                 )
+                for original, consolidated in zip(
+                    traces, traces_consolidated, strict=True
+                ):
+                    np.testing.assert_array_equal(original.x, consolidated.x)
+                    np.testing.assert_array_equal(original.y, consolidated.y)
+                report["consolidated_traces_exact"] = True
         reports.append(report)
     print(json.dumps(reports, indent=2))
 
