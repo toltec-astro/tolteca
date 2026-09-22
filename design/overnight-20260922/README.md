@@ -65,6 +65,7 @@ unnecessary dependency upgrades, or agent delegation.
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
 | 03b | Remaining reducer / live context / output review | [Three reproduced lifecycle/alias gaps](03b-lifecycle-review.md); fixes pending. |
 | 03b1 | Attach live context before execution | Complete; see [step record](03b1-live-context.md). 228 KIDs tests pass, including actual-v2 parity. |
+| 03b2 | Keep alias context back-links independent | Complete: Tollan `62e3a5c` and dependent KIDs adapters; see [step record](03b2-context-binding.md). 1,289 Tollan / 230 KIDs tests pass. |
 | 04a | Web selection before frequency broadcast | Complete: Web `928bf28`; 10 tests and fresh exact integration pass; [step record](../../../tolteca_web/design/overnight-20260922/04a-frequency-selection.md). Depends on 03a. |
 | 04b | Remaining DB discovery / Web consumption review | Pending |
 | 05 | Exact reference verification, guide, final handoff | Pending |
@@ -76,10 +77,10 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Resume alias back-links in [03b](03b-lifecycle-review.md), then repeated alias-only
-reduction. The live-context gap is fixed in 03b1. A repeatable read-only probe is
-saved at `design/probes/check_step_lifecycle.py`.
-Tollan needs a new overnight branch before edits; preserve its unrelated files.
+Resume repeated alias-only reduction in [03b](03b-lifecycle-review.md). Live
+context attachment and alias back-links are fixed in 03b1/03b2. A repeatable
+read-only probe is saved at `design/probes/check_step_lifecycle.py`.
+Tollan is now on the new overnight branch; its unrelated `.DS_Store` is untouched.
 
 The guide is consolidated and its examples executed; see 02c. The shared identifier serves catalog preparation
 and execution. Python catalog opening policies are implemented; the CLI retains

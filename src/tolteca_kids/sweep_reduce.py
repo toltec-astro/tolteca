@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import ClassVar, cast
 
 import xarray as xr
 from tollan.pipeline import Step, StepContext
@@ -42,14 +42,19 @@ class SweepReduce(Step[SweepReduceConfig, SweepReduceContext]):
         if isinstance(data, xr.DataTree):
             data = data[cls.result_path()].to_dataset()
             data = data[list(data.data_vars)]
-        return SweepReduceView(data, context_key=cls.context_key)
+        return SweepReduceView(
+            data,
+            context_key=cls.context_key,
+            context_cls=cast("type[SweepReduceContext]", cls.context_cls),
+        )
 
     def create_context(self, data: xr.DataTree) -> SweepReduceContext:
         """Attach a fresh live invocation before reading or reducing arrays."""
         path = self.result_path()
         if path not in data:
             data[path] = xr.DataTree()
-        context = SweepReduceContext(config=self.config)
+        context_cls = cast("type[SweepReduceContext]", self.context_cls)
+        context = context_cls(config=self.config)
         data[path].attrs[self.context_key] = context
         return context
 
@@ -97,15 +102,20 @@ class SweepReduceView(ReducedSweepView):
     """Reduced arrays and the step metadata that describes their production."""
 
     def __init__(
-        self, data: xr.Dataset | xr.DataTree, *, context_key: str | None = None
+        self,
+        data: xr.Dataset | xr.DataTree,
+        *,
+        context_key: str | None = None,
+        context_cls: type[SweepReduceContext] = SweepReduceContext,
     ) -> None:
         super().__init__(data)
         self._context_key = context_key or SweepReduce.context_key
+        self._context_cls = context_cls
 
     @property
     def context(self) -> SweepReduceContext:
         """The recorded invocation, reconstructed without reading arrays."""
-        return SweepReduceContext.model_validate(
+        return self._context_cls.model_validate(
             self.data_source.attrs[self._context_key]
         )
 

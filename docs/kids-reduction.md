@@ -167,6 +167,9 @@ before treating a retained result as the outcome of the latest invocation.
 The output step follows the same rule: a failed publication has an incomplete
 context and no new `product_path`. An earlier published product is not changed.
 
+For an aliased step, use that class's `view()` or `get_context()` to recover its
+context. Calling `make_step()` on it reconstructs the same alias and configuration.
+
 Standalone execution uses the same contract on an open working tree:
 
 ```python

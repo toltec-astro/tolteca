@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import xarray as xr
 from tollan.pipeline import Step, StepContext
@@ -37,13 +38,18 @@ class DataProdOutput(Step[DataProdOutputConfig, DataProdOutputContext]):
     @classmethod
     def view(cls, data: xr.DataTree) -> DataProdOutputView:
         """Return the data-backed publication view."""
-        return DataProdOutputView(data, context_key=cls.context_key)
+        return DataProdOutputView(
+            data,
+            context_key=cls.context_key,
+            context_cls=cast("type[DataProdOutputContext]", cls.context_cls),
+        )
 
     def create_context(self, data: xr.DataTree) -> DataProdOutputContext:
         """Attach a fresh publication invocation without changing source arrays."""
         if "tolteca_kids" not in data:
             data["tolteca_kids"] = xr.DataTree()
-        context = DataProdOutputContext(config=self.config)
+        context_cls = cast("type[DataProdOutputContext]", self.context_cls)
+        context = context_cls(config=self.config)
         data["tolteca_kids"].attrs[self.context_key] = context
         return context
 
@@ -87,13 +93,20 @@ class DataProdOutput(Step[DataProdOutputConfig, DataProdOutputContext]):
 class DataProdOutputView:
     """Publication metadata attached to a working data tree."""
 
-    def __init__(self, data: xr.DataTree, *, context_key: str | None = None) -> None:
+    def __init__(
+        self,
+        data: xr.DataTree,
+        *,
+        context_key: str | None = None,
+        context_cls: type[DataProdOutputContext] = DataProdOutputContext,
+    ) -> None:
         self.data_source = data["tolteca_kids"]
         self._context_key = context_key or DataProdOutput.context_key
+        self._context_cls = context_cls
 
     @property
     def context(self) -> DataProdOutputContext:
         """The output step's configuration, completion state, and product path."""
-        return DataProdOutputContext.model_validate(
+        return self._context_cls.model_validate(
             self.data_source.attrs[self._context_key]
         )

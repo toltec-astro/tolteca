@@ -100,6 +100,35 @@ def test_aliases_keep_separate_result_nodes(raw_sweep):
     assert not SweepReduce.get_context(working).config.force
 
 
+def test_alias_context_recreates_the_right_step_after_serialization(raw_sweep):
+    working = ensure_datatree(raw_sweep)
+    _, original = SweepReduce()(working, return_context=True)
+    alias = SweepReduce.alias("repeat")
+    _, aliased = alias()(working, return_context=True)
+    assert type(original.make_step()) is SweepReduce
+    assert type(aliased.make_step()) is alias
+    assert type(SweepReduce.view(working).context.make_step()) is SweepReduce
+    assert type(alias.view(working).context.make_step()) is alias
+    restored = alias.context_cls.model_validate_json(aliased.model_dump_json())
+    assert type(restored.make_step()) is alias
+    assert restored.model_dump() == aliased.model_dump()
+
+
+def test_output_alias_context_recreates_the_right_step(tmp_path, raw_sweep):
+    working = ensure_datatree(raw_sweep)
+    original = DataProdOutput(path=tmp_path).create_context(working)
+    alias = DataProdOutput.alias("second")
+    aliased = alias(path=tmp_path).create_context(working)
+    assert type(original.make_step()) is DataProdOutput
+    assert type(aliased.make_step()) is alias
+    assert DataProdOutput.get_context(working) is original
+    assert alias.get_context(working) is aliased
+    DataProdOutput.set_context(working, original)
+    alias.set_context(working, aliased)
+    assert type(DataProdOutput.view(working).context.make_step()) is DataProdOutput
+    assert type(alias.view(working).context.make_step()) is alias
+
+
 def test_pipeline_reducer_settings_are_fixed(raw_sweep):
     with pytest.raises(ValidationError, match="extra_forbidden"):
         SweepReduce(reducer={"compute_uncertainty": False})
