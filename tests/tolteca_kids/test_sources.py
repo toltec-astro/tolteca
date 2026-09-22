@@ -135,21 +135,24 @@ def test_header_enrichment_corrects_guesses():
 
 
 def test_original_filename_enrichment_creates_a_fresh_record():
-    original = "/recorded/toltec8_145609_000_0002_2025_10_31_01_02_03_timestream.nc"
+    original = (
+        "/data_lmt/toltec/tcs/toltec0/"
+        "toltec0_145606_000_0001_2025_10_31_09_22_14_targsweep.nc"
+    )
     record = SourceInfoModel(source="renamed.nc")
     assert record.filepath_info_orig is None
-    data = xr.Dataset({"Header.Toltec.ObsType": 1, "Header.Toltec.Filename": original})
+    data = xr.Dataset({"Header.Toltec.ObsType": 3, "Header.Toltec.Filename": original})
     enriched = identify_source(data, record)
     assert enriched.source == record.source
     assert enriched.filepath_orig == original
     assert enriched.filepath_info_orig is not None
-    assert enriched.filepath_info_orig.suffix == "timestream"
-    assert enriched.file_suffix == "timestream"
+    assert enriched.filepath_info_orig.suffix == "targsweep"
+    assert enriched.file_suffix == "targsweep"
     assert enriched.file_ext == "nc"
-    assert enriched.file_ut == datetime(2025, 10, 31, 1, 2, 3, tzinfo=UTC)
-    assert (enriched.obsnum, enriched.subobsnum, enriched.scannum) == (145609, 0, 2)
-    assert enriched.roach == 8
-    assert enriched.interface == "toltec8"
+    assert enriched.file_ut == datetime(2025, 10, 31, 9, 22, 14, tzinfo=UTC)
+    assert (enriched.obsnum, enriched.subobsnum, enriched.scannum) == (145606, 0, 1)
+    assert enriched.roach == 0
+    assert enriched.interface == "toltec0"
     assert record.filepath_orig is None
     assert record.filepath_info_orig is None
 
@@ -168,9 +171,9 @@ def test_headers_win_with_original_consistency_check_opt_in(
     field, header, value, expected
 ):
     original = (
-        "/data_lmt/toltec/tcs/toltec8/"
-        "toltec8_145609_000_0002_2025_10_31_01_02_03_timestream.nc"
+        "/data_lmt/toltec/tcs/toltec0/toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
     )
+    # Deliberately conflict one scalar with the recorded filename.
     data = xr.Dataset(
         {
             "Header.Toltec.Filename": original,
@@ -191,16 +194,15 @@ def test_headers_win_with_original_consistency_check_opt_in(
 
 def test_original_path_master_overrides_current_directory_guess():
     record = guess_info_from_source(
-        "/copied/toltec/ics/toltec8/"
-        "toltec8_145609_000_0002_2025_10_31_01_02_03_timestream.nc"
+        "/copied/toltec/ics/toltec0/toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
     )
     assert record is not None
     assert record.master == "ics"
     data = xr.Dataset(
         {
             "Header.Toltec.Filename": (
-                "/data_lmt/toltec/tcs/toltec8/"
-                "toltec8_145609_000_0002_2025_10_31_01_02_03_timestream.nc"
+                "/data_lmt/toltec/tcs/toltec0/"
+                "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
             ),
             "Header.Toltec.ObsType": 1,
             "Header.Toltec.Master": 0,
@@ -213,9 +215,9 @@ def test_original_path_master_overrides_current_directory_guess():
 
 
 def test_unregistered_master_is_preserved_without_a_header_code():
+    # An intentional unknown-master case, not a recorded acquisition location.
     original = (
-        "/data_lmt/toltec/simu/toltec8/"
-        "toltec8_145609_000_0002_2025_10_31_01_02_03_timestream.nc"
+        "/data_lmt/toltec/simu/toltec0/toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
     )
     data = xr.Dataset({"Header.Toltec.Filename": original, "Header.Toltec.ObsType": 1})
     record = SourceInfoModel(source="downloaded.nc")
@@ -232,14 +234,16 @@ def test_unregistered_master_is_preserved_without_a_header_code():
 
 
 def test_processed_kind_and_suffix_are_not_replaced_by_raw_original():
+    # Taco's reduce.sh writes {stem}_processed.nc from the acquisition basename.
     record = guess_info_from_source(
-        "toltec8_145609_000_0002_2025_10_31_01_02_03_vnasweep_processed.nc"
+        "toltec0_145605_000_0001_2025_10_31_09_20_06_vnasweep_processed.nc"
     )
     assert record is not None
     data = xr.Dataset(
         {
             "Header.Toltec.Filename": (
-                "/recorded/toltec8_145609_000_0002_2025_10_31_01_02_03_vnasweep.nc"
+                "/data_lmt/toltec/tcs/toltec0/"
+                "toltec0_145605_000_0001_2025_10_31_09_20_06_vnasweep.nc"
             ),
             "Header.Kids.kind": "processed_sweep",
         }
