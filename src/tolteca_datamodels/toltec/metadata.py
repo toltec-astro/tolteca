@@ -22,6 +22,7 @@ from .types import ToltecArrayNameT, ToltecMasterType
 __all__ = [
     "ToltecRawObsMetadata",
     "ToltecSweepMetadata",
+    "ToltecSweepMetadataHeader",
     "ToltecTimeStreamMetadata",
 ]
 
@@ -145,27 +146,35 @@ class ToltecTimeStreamMetadata(ToltecRawObsMetadata):
 
 
 @dataclass(config=metadata_dataclass_config, frozen=True, kw_only=True)
-class ToltecSweepMetadata(ToltecTimeStreamMetadata):
-    """TolTEC frequency sweep metadata (VNA, target, tune).
+class ToltecSweepMetadataHeader(ToltecTimeStreamMetadata):
+    """Sweep settings and sample metadata available without reading LO samples.
 
-    Extends timestream metadata with sweep-specific fields. Sweeps are
-    time-series data with frequency sweeping, so they inherit from timestream.
-    Matches v2 structure where sweeps have all timestream fields plus sweep info.
+    ``n_blocks_max`` is allocated capacity, not the number of acquired sweeps.
+    The sample count and integration time describe the entire acquisition.
     """
 
-    n_sweeps: int = Field(description="Number of sweeps (blocks for multi-block data)")
     n_sweepsteps: int = Field(description="Number of frequency steps per sweep")
     n_sweepreps: int | None = Field(
         default=None,
         description="Number of repetitions per sweep step (for raw sweeps)",
     )
 
-    # Multi-block fields (from v2)
-    n_blocks: int | None = Field(
-        default=None,
-        description="Number of blocks (for multi-block data)",
-    )
     n_blocks_max: int | None = Field(
         default=None,
         description="Maximum number of blocks",
+    )
+
+
+@dataclass(config=metadata_dataclass_config, frozen=True, kw_only=True)
+class ToltecSweepMetadata(ToltecSweepMetadataHeader):
+    """Sweep acquisition metadata including the number of recorded blocks.
+
+    A selected block has one sweep and its own sample count and integration time.
+    ``n_blocks`` retains the number of blocks in the full acquisition.
+    """
+
+    n_sweeps: int = Field(description="Number of sweeps (blocks for multi-block data)")
+    n_blocks: int | None = Field(
+        default=None,
+        description="Number of blocks (for multi-block data)",
     )

@@ -16,6 +16,7 @@ from .kids import (
 from .metadata import (
     ToltecRawObsMetadata,
     ToltecSweepMetadata,
+    ToltecSweepMetadataHeader,
     ToltecTimeStreamMetadata,
 )
 from .types import (
@@ -123,6 +124,7 @@ __all__ = [
     "ToltecMasterType",
     "ToltecRawObsMetadata",
     "ToltecSweepMetadata",
+    "ToltecSweepMetadataHeader",
     "ToltecTimeStreamMetadata",
     "open_toltec",
     "reduce_raw_sweep",

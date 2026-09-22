@@ -14,13 +14,18 @@ import reader_comparison as tracing
 from loguru import logger
 
 
-def inspect_metadata(version, path):
+def inspect_metadata(version, path, *, header_only=False):
     """Read one source's metadata without reading I/Q data."""
     tracing.EVENTS.clear()
     tracing.TRACE = True
     reader = tracing.open_reader(version, "kids", path)
     try:
-        meta = reader.meta if version == "v2" else reader.toltec_kids.meta
+        if version == "v2":
+            meta = reader.meta
+        elif header_only:
+            meta = reader.toltec_kids.meta_header
+        else:
+            meta = reader.toltec_kids.meta
         result = tracing.summarize(meta)
     finally:
         reader.close()
@@ -59,6 +64,9 @@ def main():
     for path in sorted((args.data_root / "toltec/tcs/toltec0").glob("*.nc")):
         records[path.name] = inspect_metadata(args.version, path)
         if args.version == "v3":
+            records[path.name]["header_only"] = inspect_metadata(
+                args.version, path, header_only=True
+            )
             records[path.name]["catalog"] = inspect_catalog(path)
     print(json.dumps(records, indent=2, default=str))
 

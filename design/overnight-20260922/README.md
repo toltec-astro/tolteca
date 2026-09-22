@@ -70,6 +70,7 @@ unnecessary dependency upgrades, or agent delegation.
 | 02b10 | Shared recorded LO-center metadata | Complete; [step record](02b10-lo-center-metadata.md). 1,016 tests pass. Timestreams now expose the same recorded center as v2; raw missing centers reject and processed omissions remain nullable. |
 | 02b11 | Required raw design dimension and lazy ADC reference | Complete; [step record](02b11-design-metadata.md). 1,026 tests pass; missing raw fields reject without loading their payloads. |
 | 02b12 | Required recorded raw sweep geometry | Complete; [step record](02b12-sweep-geometry.md). 1,039 tests and fresh exact integration pass; raw repetitions, capacity and sample dimension cannot silently use processed fallbacks. |
+| 02b13 | Typed header-only acquisition metadata | Complete; [step record](02b13-header-metadata.md). 1,050 tests and fresh exact integration pass; tune catalog metadata can be read without an LO-vector scan. Catalog composition remains next. |
 | 02c | Focused telescope/catalog/no-op guide | Complete: `ef546a3`; see [step record](02c-observation-guide.md). Python examples, direct CLI and isolated Deploy invocation verified. |
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
 | 03b | Remaining reducer / live context / output review | [Three reproduced lifecycle/alias gaps](03b-lifecycle-review.md); fixed in 03b1–03b3. Output boundary review continues. |
@@ -92,7 +93,7 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Resume typed header-only catalog composition from [02b4](02b4-scalar-projection-boundary.md),
+Resume typed catalog composition using the header-only API in [02b13](02b13-header-metadata.md),
 then final verification. The bounded native-value and reference raw-requiredness
 corrections are complete through 02b12; all 47 omission probes reject. The existing
 raw/processed metadata classes still share nullable fields. Decide their header
