@@ -74,6 +74,7 @@ unnecessary dependency upgrades, or agent delegation.
 | 02b14 | Exact native acquisition-time serialization | Complete; [step record](02b14-timestamp-serialization.md). Use numeric Unix seconds for t0/t1; exact roundtrips on all four telescope files. Separate catalog prototype remains in progress. |
 | 02b14a | Exact ICRS coordinate serialization | Complete: Tollan `1c65394`; [step record](../../../tollan/design/overnight-20260922/02b14a-coordinate-precision.md). 1,293 Tollan tests pass; named-source behavior unchanged. |
 | 02b15 | Typed source metadata and Arrow projection | Complete; [step record](02b15-source-metadata.md). Source/JSON/Parquet/query/condition support is implemented. Automatic header attachment remains next. |
+| 02b15a | Serializable unknown telescope original names | Complete; [step record](02b15a-unrecognized-telescope-path.md). Parsed path is None for unrecognized names; explicit integrity checks remain strict. 120 focused LMT tests pass. |
 | 02c | Focused telescope/catalog/no-op guide | Complete: `ef546a3`; see [step record](02c-observation-guide.md). Python examples, direct CLI and isolated Deploy invocation verified. |
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
 | 03b | Remaining reducer / live context / output review | [Three reproduced lifecycle/alias gaps](03b-lifecycle-review.md); fixed in 03b1–03b3. Output boundary review continues. |

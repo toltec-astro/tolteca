@@ -137,6 +137,9 @@ class LmtTelIOMapper(XarrayMapper[LmtTelIOSchema]):
         )
         if check_filepath_orig:
             filepath_info_orig = meta.filepath_info_orig
+            if filepath_info_orig is None:
+                msg = f"Unrecognized acquisition filename: {meta.filepath_orig}"
+                raise ValueError(msg)
             for name in ("obsnum", "subobsnum", "scannum", "master"):
                 attribute = "master_str" if name == "master" else name
                 value = getattr(meta, attribute)

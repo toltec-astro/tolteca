@@ -202,8 +202,10 @@ def test_roundtrip_serialization_does_not_parse_filename(base_tel_fields):
     restored = adapter.validate_json(adapter.dump_json(meta, round_trip=True))
     assert "filepath_info_orig" not in meta.__dict__
     assert restored.filepath_orig == "unrecognized.nc"
-    with pytest.raises(ValueError):
-        _ = restored.filepath_info_orig
+    assert restored.filepath_info_orig is None
+    payload = adapter.dump_python(restored, mode="json")
+    assert payload["filepath_orig"] == "unrecognized.nc"
+    assert payload["filepath_info_orig"] is None
 
 
 @pytest.mark.parametrize("goal", list(LmtObsGoalType))

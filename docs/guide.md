@@ -95,9 +95,9 @@ mtime or telescope time. Telescope names encode only a date, represented as
 midnight UTC; readout names also encode the time of day. Do not use filename UT
 as the exposure start time.
 
-An unrecognized recorded name raises `ValueError` when
-`meta.filepath_info_orig` is requested, without preventing ordinary metadata
-reading. To check header identifiers against that recorded name explicitly:
+An unrecognized recorded name gives `meta.filepath_info_orig = None`; the raw
+`filepath_orig` remains available. To require a recognized acquisition name and
+check header identifiers against it explicitly:
 
 ```python
 with open_lmt_tel(tel_path) as ds:

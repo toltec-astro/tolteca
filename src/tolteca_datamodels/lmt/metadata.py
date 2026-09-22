@@ -65,11 +65,6 @@ class LmtTelMetadata(LmtRawObsMetadata):
 
     @computed_field(repr=False)
     @cached_property
-    def filepath_info_orig(self) -> FilepathInfo:
-        """Parsed identifiers from the recorded acquisition path.
-
-        An unrecognized acquisition filename raises ValueError.
-        """
-        parsed = FilepathInfo.from_path(self.filepath_orig)
-        assert parsed is not None
-        return parsed
+    def filepath_info_orig(self) -> FilepathInfo | None:
+        """Parsed acquisition path, or None for an unrecognized filename."""
+        return FilepathInfo.from_path(self.filepath_orig, raise_on_error=False)
