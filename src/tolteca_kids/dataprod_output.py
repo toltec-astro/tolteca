@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
+import xarray as xr
 from tollan.pipeline import Step, StepContext
 
 from tolteca_datamodels.file import SourceInfoModel
 
 from .config import DataProdOutputConfig
 from .product import write_sweep_product
-
-if TYPE_CHECKING:
-    import xarray as xr
 
 __all__ = [
     "DataProdOutput",
@@ -43,8 +40,12 @@ class DataProdOutput(Step[DataProdOutputConfig, DataProdOutputContext]):
         return DataProdOutputView(data, context_key=cls.context_key)
 
     def create_context(self, data: xr.DataTree) -> DataProdOutputContext:
-        """Create publication state without changing the source dataset."""
-        return DataProdOutputContext(config=self.config)
+        """Attach a fresh publication invocation without changing source arrays."""
+        if "tolteca_kids" not in data:
+            data["tolteca_kids"] = xr.DataTree()
+        context = DataProdOutputContext(config=self.config)
+        data["tolteca_kids"].attrs[self.context_key] = context
+        return context
 
     @classmethod
     def run(cls, data: xr.DataTree, context: DataProdOutputContext) -> bool:

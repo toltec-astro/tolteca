@@ -120,12 +120,86 @@ def test_disabled_pipeline_does_not_reduce(raw_sweep, monkeypatch):
     assert not SweepReduce.has_context(working)
 
 
-def test_invalid_block_does_not_publish_result(raw_sweep):
+def test_invalid_block_keeps_incomplete_context_without_arrays(raw_sweep, tmp_path):
     working = ensure_datatree(raw_sweep)
     with pytest.raises(IndexError, match="Block 1 out of range"):
         SweepReduce(block=1)(working)
-    assert not SweepReduce.has_context(working)
-    assert list(working.children) == []
+    assert SweepReduce.has_context(working)
+    context = SweepReduce.get_context(working)
+    assert not context.completed
+    assert context.config.block == 1
+    assert SweepReduce.view(working).I is None
+    with pytest.raises(ValueError, match="not completed"):
+        write_sweep_product(working, tmp_path / "failed")
+    assert not (tmp_path / "failed").exists()
+
+
+def test_reduction_context_is_attached_during_run(raw_sweep, monkeypatch):
+    working = ensure_datatree(raw_sweep)
+    run = SweepReduce.run
+    seen = []
+
+    def inspect(cls, data, context):
+        assert cls.has_context(data)
+        assert cls.get_context(data) is context
+        assert not context.completed
+        seen.append(context)
+        result = run(data, context)
+        assert cls.get_context(data) is context
+        assert not context.completed
+        return result
+
+    monkeypatch.setattr(SweepReduce, "run", classmethod(inspect))
+    _, context = SweepReduce()(working, return_context=True)
+    assert seen == [context]
+    assert seen[0] is context
+    assert context.completed
+    assert SweepReduce.get_context(working) == context
+    assert isinstance(
+        working[SweepReduce.result_path()].attrs[SweepReduce.context_key], dict
+    )
+    assert PIPELINE_CONTEXT_KEY not in raw_sweep.attrs
+
+
+def test_failed_rerun_replaces_success_context_and_cannot_publish(raw_sweep, tmp_path):
+    working = ensure_datatree(raw_sweep)
+    SweepReduce(block=0)(working)
+    first = SweepReduce.get_context(working)
+    first_I = SweepReduce.view(working).I
+    assert first_I is not None
+    values = first_I.data
+    with pytest.raises(IndexError, match="Block 1 out of range"):
+        SweepReduce(block=1)(working)
+    current = SweepReduce.get_context(working)
+    assert current is not first
+    assert current.config.block == 1
+    assert not current.completed
+    assert first.completed
+    after_failure = SweepReduce.view(working).I
+    assert after_failure is not None
+    assert after_failure.data is values
+    with pytest.raises(ValueError, match="not completed"):
+        write_sweep_product(working, tmp_path / "failed")
+    assert not (tmp_path / "failed").exists()
+    SweepReduce(block=0)(working)
+    assert SweepReduce.get_context(working).completed
+    after_retry = SweepReduce.view(working).I
+    assert after_retry is not None
+    assert after_retry.data is values
+
+
+def test_failed_alias_keeps_the_primary_result_and_context(raw_sweep):
+    working = ensure_datatree(raw_sweep)
+    SweepReduce()(working)
+    before = SweepReduce.get_context(working)
+    result = SweepReduce.view(working).data_source.copy(deep=True)
+    alias = SweepReduce.alias("invalid_block")
+    with pytest.raises(IndexError, match="Block 1 out of range"):
+        alias(block=1)(working)
+    assert alias.has_context(working)
+    assert not alias.get_context(working).completed
+    assert SweepReduce.get_context(working) == before
+    xr.testing.assert_identical(SweepReduce.view(working).data_source, result)
 
 
 def test_conditional_recipe_and_handler_isolation(tmp_path, raw_sweep):
@@ -508,7 +582,9 @@ def test_reference_file_through_runner(data_lmt_path, tmp_path, suffix):
         assert actual.context.block_index == expected.n_blocks - 1
 
 
-def test_output_step_and_metadata_view(tmp_path, raw_sweep):
+def test_output_step_and_metadata_view(tmp_path, raw_sweep, monkeypatch):
+    from tolteca_kids import dataprod_output
+
     info = identify_source(raw_sweep, SourceInfoModel(source="source.nc"))
     kids = Kids(
         RuntimeContext(
@@ -529,17 +605,47 @@ def test_output_step_and_metadata_view(tmp_path, raw_sweep):
         mode="json",
         round_trip=True,
     )
+    seen = []
+
+    def inspect(data, *args, **kwargs):
+        context = DataProdOutput.get_context(data)
+        assert not context.completed
+        assert context.product_path is None
+        seen.append(context)
+        return write_sweep_product(data, *args, **kwargs)
+
+    monkeypatch.setattr(dataprod_output, "write_sweep_product", inspect)
     kids.sweep_pipeline(working)
     context = DataProdOutput.view(working).context
     assert context.completed
     assert context.product_path is not None
     assert context.product_path == tmp_path / "000001-0"
     assert context.config == kids.config.output
+    assert seen == [context]
+    assert seen[0].completed
     manifest = read_sweep_manifest(context.product_path)
     assert manifest.config == kids.config
     assert manifest.input == info
     assert "tolteca_kids" not in raw_sweep
     assert PIPELINE_CONTEXT_KEY not in raw_sweep.attrs
+    with pytest.raises(FileExistsError):
+        kids.output(working)
+    failed = DataProdOutput.get_context(working)
+    assert not failed.completed
+    assert failed.product_path is None
+    assert context.completed
+    assert read_sweep_manifest(context.product_path) == manifest
+
+
+def test_output_missing_input_keeps_incomplete_context(tmp_path):
+    working = xr.DataTree()
+    with pytest.raises(KeyError):
+        DataProdOutput(path=tmp_path)(working)
+    assert DataProdOutput.has_context(working)
+    context = DataProdOutput.get_context(working)
+    assert not context.completed
+    assert context.product_path is None
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_output_disabled_and_standalone(tmp_path, raw_sweep):

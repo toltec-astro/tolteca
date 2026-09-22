@@ -157,6 +157,16 @@ result nodes and preserve unrelated siblings. Array buffers shared with the
 raw input are not modified. Keep the input open while using raw-backed metadata
 in the working tree, or export the result before closing it.
 
+Each step attaches a fresh live context before it runs. During execution,
+`SweepReduce.get_context(working)` returns that invocation. Successful execution
+stores its JSON-compatible metadata beside the results. If reduction raises,
+the current context stays incomplete; existing array buffers may remain for
+inspection, but the product writer refuses to publish them. Check `completed`
+before treating a retained result as the outcome of the latest invocation.
+
+The output step follows the same rule: a failed publication has an incomplete
+context and no new `product_path`. An earlier published product is not changed.
+
 Standalone execution uses the same contract on an open working tree:
 
 ```python

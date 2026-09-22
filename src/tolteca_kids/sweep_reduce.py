@@ -45,8 +45,13 @@ class SweepReduce(Step[SweepReduceConfig, SweepReduceContext]):
         return SweepReduceView(data, context_key=cls.context_key)
 
     def create_context(self, data: xr.DataTree) -> SweepReduceContext:
-        """Create invocation metadata before the result node exists."""
-        return SweepReduceContext(config=self.config)
+        """Attach a fresh live invocation before reading or reducing arrays."""
+        path = self.result_path()
+        if path not in data:
+            data[path] = xr.DataTree()
+        context = SweepReduceContext(config=self.config)
+        data[path].attrs[self.context_key] = context
+        return context
 
     @classmethod
     def run(cls, data: xr.DataTree, context: SweepReduceContext) -> bool:
@@ -61,6 +66,7 @@ class SweepReduce(Step[SweepReduceConfig, SweepReduceContext]):
         # The numerical object owns its result; the step adds it to the caller's
         # working tree. Assignment copies the node, not its array buffers.
         data[cls.result_path()] = result[SweepReducer.__module__]
+        data[cls.result_path()].attrs[cls.context_key] = context
         return True
 
     @classmethod

@@ -64,6 +64,7 @@ unnecessary dependency upgrades, or agent delegation.
 | 02c | Focused telescope/catalog/no-op guide | Complete: `ef546a3`; see [step record](02c-observation-guide.md). Python examples, direct CLI and isolated Deploy invocation verified. |
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
 | 03b | Remaining reducer / live context / output review | [Three reproduced lifecycle/alias gaps](03b-lifecycle-review.md); fixes pending. |
+| 03b1 | Attach live context before execution | Complete; see [step record](03b1-live-context.md). 228 KIDs tests pass, including actual-v2 parity. |
 | 04a | Web selection before frequency broadcast | Complete: Web `928bf28`; 10 tests and fresh exact integration pass; [step record](../../../tolteca_web/design/overnight-20260922/04a-frequency-selection.md). Depends on 03a. |
 | 04b | Remaining DB discovery / Web consumption review | Pending |
 | 05 | Exact reference verification, guide, final handoff | Pending |
@@ -75,9 +76,9 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Resume the live-context gap in [03b](03b-lifecycle-review.md), then alias back-links
-and repeated alias-only reduction. A repeatable read-only probe is saved at
-`design/probes/check_step_lifecycle.py`. No lifecycle fix is implemented yet.
+Resume alias back-links in [03b](03b-lifecycle-review.md), then repeated alias-only
+reduction. The live-context gap is fixed in 03b1. A repeatable read-only probe is
+saved at `design/probes/check_step_lifecycle.py`.
 Tollan needs a new overnight branch before edits; preserve its unrelated files.
 
 The guide is consolidated and its examples executed; see 02c. The shared identifier serves catalog preparation
