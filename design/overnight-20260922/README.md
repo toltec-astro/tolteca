@@ -72,6 +72,8 @@ unnecessary dependency upgrades, or agent delegation.
 | 02b12 | Required recorded raw sweep geometry | Complete; [step record](02b12-sweep-geometry.md). 1,039 tests and fresh exact integration pass; raw repetitions, capacity and sample dimension cannot silently use processed fallbacks. |
 | 02b13 | Typed header-only acquisition metadata | Complete; [step record](02b13-header-metadata.md). 1,050 tests and fresh exact integration pass; tune catalog metadata can be read without an LO-vector scan. Catalog composition remains next. |
 | 02b14 | Exact native acquisition-time serialization | Complete; [step record](02b14-timestamp-serialization.md). Use numeric Unix seconds for t0/t1; exact roundtrips on all four telescope files. Separate catalog prototype remains in progress. |
+| 02b14a | Exact ICRS coordinate serialization | Complete: Tollan `1c65394`; [step record](../../../tollan/design/overnight-20260922/02b14a-coordinate-precision.md). 1,293 Tollan tests pass; named-source behavior unchanged. |
+| 02b15 | Typed source metadata and Arrow projection | Complete; [step record](02b15-source-metadata.md). Source/JSON/Parquet/query/condition support is implemented. Automatic header attachment remains next. |
 | 02c | Focused telescope/catalog/no-op guide | Complete: `ef546a3`; see [step record](02c-observation-guide.md). Python examples, direct CLI and isolated Deploy invocation verified. |
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
 | 03b | Remaining reducer / live context / output review | [Three reproduced lifecycle/alias gaps](03b-lifecycle-review.md); fixed in 03b1–03b3. Output boundary review continues. |
@@ -94,8 +96,15 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Resume typed catalog composition using the header-only API in [02b13](02b13-header-metadata.md),
-then final verification. The bounded native-value and reference raw-requiredness
+Resume **automatic header attachment** to source records using 02b13 and the
+typed composition in [02b15](02b15-source-metadata.md), then final verification.
+KIDs `identify_source` is still identity-only; telescope identification already
+constructs a strict model but does not yet attach it. Decide and record the
+default read-cost/requiredness change explicitly. Existing tiny header-only
+no-op unit fixtures are not proof of complete acquisition structure. Preserve
+processed-file identification, filename-only/fallback policies, and signal-array
+laziness; exercise `--select` and `enable_if` on actual scalar metadata.
+The bounded native-value and reference raw-requiredness
 corrections are complete through 02b12; all 47 omission probes reject. The existing
 raw/processed metadata classes still share nullable fields. Decide their header
 model boundary explicitly; do not fake a partial full model or bolt untyped scalar
@@ -216,3 +225,11 @@ metadata, while real-file traces confirm their payloads remain unread.
 After 02b12, 1,039 tests pass (53.43 s), and a fresh four-case exact integration
 passes in `run/overnight-slice-20260922-raw-metadata/`. All 47 omission probes
 reject incomplete raw metadata. Source catalog scalar projection is still open.
+
+After 02b15, **1,056 full Tolteca tests pass (56.42 s)** with actual-v2 parity.
+Fresh exact integration passes in `run/overnight-slice-20260922-source-metadata/`.
+Tollan has 1,293 passing tests and full ty after the coordinate precision fix.
+Typed source composition, Arrow queries and scalar config projection work;
+automatic reader attachment is still pending. Reference, DB and Web checkouts
+remain clean; the unrelated Tollan `.DS_Store` remains untouched. The automation
+is active, with the 13:06:38 UTC deadline unchanged.

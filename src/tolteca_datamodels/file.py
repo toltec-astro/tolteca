@@ -20,11 +20,14 @@ from pydantic import (
     WrapSerializer,
     computed_field,
     field_serializer,
+    field_validator,
+    model_serializer,
 )
 from tollan.utils.dict import dict_from_regex_match
 from tollan.utils.fileloc import FileLoc, fileloc
 from tollan.utils.log import logger
 
+from .lmt_base.metadata import LmtRawObsMetadata
 from .toltec.types import ToltecDataKind
 
 if TYPE_CHECKING:
@@ -33,7 +36,11 @@ if TYPE_CHECKING:
     from pathlib import Path
     from types import EllipsisType
 
-    from pydantic import SerializationInfo, SerializerFunctionWrapHandler
+    from pydantic import (
+        SerializationInfo,
+        SerializerFunctionWrapHandler,
+        ValidationInfo,
+    )
 
     from .lmt_base.metadata import LmtInstruMixin
 
@@ -256,16 +263,43 @@ type _FilepathInfoField = Annotated[
 ]
 
 
+@cache
+def _get_metadata_adapters() -> dict[
+    ToltecDataKind, tuple[type[LmtRawObsMetadata], TypeAdapter[LmtRawObsMetadata]]
+]:
+    # Resolve domain classes after the root file/reader imports have completed.
+    from .lmt.metadata import LmtTelMetadata  # noqa: PLC0415
+    from .toltec.metadata import (  # noqa: PLC0415
+        ToltecSweepMetadataHeader,
+        ToltecTimeStreamMetadata,
+    )
+
+    models: tuple[tuple[ToltecDataKind, type[LmtRawObsMetadata]], ...] = (
+        (ToltecDataKind.RawSweep, ToltecSweepMetadataHeader),
+        (ToltecDataKind.RawTimeStream, ToltecTimeStreamMetadata),
+        (ToltecDataKind.LmtTel | ToltecDataKind.LmtTel2, LmtTelMetadata),
+    )
+    adapters = {}
+    for kinds, cls in models:
+        adapter = cls, TypeAdapter[LmtRawObsMetadata](cls)
+        adapters.update((kind, adapter) for kind in (*kinds, kinds))
+    return adapters
+
+
 class SourceInfoModel(BaseModel):
     """Serializable discovery metadata for one local or remote file.
 
     Missing identifiers remain ``None`` until supplied by filename or header
     metadata. This record contains neither open resources nor numerical arrays.
+    ``metadata`` holds a telescope metadata record or raw KIDs ``meta_header``;
+    ``data_kind`` determines its type when restoring serialized records.
 
     Pass ``context={"flat": True}`` to ``model_dump`` to serialize source
-    locations as resolved strings and data kinds as names. The default retains
-    FileLoc's structured representation. ``round_trip=True`` omits computed
-    aliases and the original-path property; stored filename fields are retained.
+    locations as resolved strings and data kinds as names, and expose scalar
+    metadata fields as top-level aliases. Existing source fields take precedence
+    over metadata aliases. The default retains FileLoc's structured
+    representation. ``round_trip=True`` omits aliases and computed properties;
+    stored filename fields and typed metadata are retained.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -286,7 +320,46 @@ class SourceInfoModel(BaseModel):
         default=None,
         description="Effective path information from source identification",
     )
+    # Field validation uses this discriminator before restoring metadata.
     data_kind: _DataKindField = ToltecDataKind.Unknown
+    metadata: SerializeAsAny[LmtRawObsMetadata] | None = Field(
+        default=None,
+        description="Typed acquisition headers; absent for filename-only discovery",
+    )
+
+    @field_validator("metadata", mode="before")
+    @classmethod
+    def _validate_metadata(cls, value: object, info: ValidationInfo) -> object:
+        if value is None:
+            return None
+        kind = info.data.get("data_kind", ToltecDataKind.Unknown)
+        try:
+            metadata_cls, adapter = _get_metadata_adapters()[kind]
+        except KeyError as exc:
+            msg = f"No acquisition metadata model for {kind}"
+            raise ValueError(msg) from exc
+        if isinstance(value, LmtRawObsMetadata) and type(value) is not metadata_cls:
+            msg = f"Source metadata for {kind} requires {metadata_cls.__name__}"
+            raise ValueError(msg)
+        # Serialized dataclasses are dictionaries, not strict Python instances.
+        return adapter.validate_python(value, strict=False)
+
+    @model_serializer(mode="wrap")
+    def _serialize_record(  # noqa: ANN202 -- preserve the wrapped model's JSON schema
+        self, handler: SerializerFunctionWrapHandler, info: SerializationInfo
+    ):
+        # Leave the return schema with the wrapped model; only flat projections
+        # add aliases, while normal serialization retains the declared fields.
+        result = handler(self)
+        if (
+            not info.round_trip
+            and isinstance(info.context, dict)
+            and info.context.get("flat")
+        ):
+            for name, value in (result.get("metadata") or {}).items():
+                if name not in result and not isinstance(value, (dict, list)):
+                    result[name] = value
+        return result
 
     @computed_field
     @property
@@ -409,16 +482,19 @@ def _get_filepath_fields(
     info: SourceInfoModel, filepath_orig: str | None
 ) -> tuple[dict, FilepathInfo | None]:
     """Fill discovery fields from filenames, preserving the current source."""
-    fields = info.model_dump(round_trip=True, exclude={"source", "filepath_info"})
+    fields = info.model_dump(
+        round_trip=True, exclude={"source", "filepath_info", "metadata"}
+    )
     fields["source"] = info.source
     fields["filepath_info"] = info.filepath_info
+    fields["metadata"] = info.metadata
     fields["filepath_orig"] = filepath_orig
     guessed = guess_info_from_source(
         info.source, filepath_orig=filepath_orig, raise_on_error=False
     )
     if guessed is not None:
         for name, value in guessed.model_dump(
-            round_trip=True, exclude={"source", "filepath_info"}
+            round_trip=True, exclude={"source", "filepath_info", "metadata"}
         ).items():
             if fields[name] is None or fields[name] is ToltecDataKind.Unknown:
                 fields[name] = value
@@ -452,10 +528,10 @@ class _StructFields:
         return field
 
 
-class _FilepathAliases(dict):
-    """Project a path field only when its shorthand is used in a query."""
+class _CatalogAliases(dict):
+    """Project a struct field only when its shorthand is used in a query."""
 
-    _aliases: ClassVar = {
+    _filepath_aliases: ClassVar = {
         f"file_{name}{qualifier}": (column, name)
         for column, qualifier in (
             ("filepath_info", ""),
@@ -467,6 +543,19 @@ class _FilepathAliases(dict):
     def __init__(self, data: pd.DataFrame) -> None:
         super().__init__()
         self._data = data
+        self._aliases = self._filepath_aliases.copy()
+        if "metadata" in data:
+            dtype = data["metadata"].dtype
+            if isinstance(dtype, pd.ArrowDtype) and pa.types.is_struct(
+                dtype.pyarrow_dtype
+            ):
+                self._aliases.update(
+                    (field.name, ("metadata", field.name))
+                    for field in dtype.pyarrow_dtype
+                    if field.name not in data
+                    and field.name not in self._aliases
+                    and not pa.types.is_nested(field.type)
+                )
 
     def __missing__(self, name: str) -> pd.Series:
         column, field = self._aliases[name]
@@ -498,8 +587,10 @@ class ToltecFileAccessor:
         """Build a file catalog from source records without opening files.
 
         Accept any iterable, including an empty one. Parsed path information
-        uses Arrow struct columns with UTC timestamps. Source locations become
-        resolved local paths or remote URLs; data kinds use their enum names.
+        and acquisition metadata use Arrow struct columns. Filename timestamps
+        use UTC; observation timestamps use Unix seconds. Quantities and sky
+        coordinates retain their model's parseable string representation.
+        Source locations become resolved paths or URLs; data kinds use names.
         Select rows with ``catalog.toltec_file.query(expression)`` and restore
         models with ``catalog.toltec_file.to_info_list()``.
         """
@@ -514,6 +605,8 @@ class ToltecFileAccessor:
         catalog = pd.DataFrame.from_records(rows, columns=columns)
         for name in ("filepath_info", "filepath_info_orig"):
             catalog[name] = pd.Series(catalog[name], dtype=_FILEPATH_INFO_DTYPE)
+        metadata = pa.array(catalog["metadata"].tolist())
+        catalog["metadata"] = pd.Series(metadata, dtype=pd.ArrowDtype(metadata.type))
         return catalog
 
     def query(self, expression: str) -> pd.DataFrame:
@@ -523,6 +616,11 @@ class ToltecFileAccessor:
         the original filename. ``filepath_info.suffix`` and
         ``filepath_info_orig.suffix`` also accept the aliases ``file_suffix``
         and ``file_suffix_orig``. The same rule applies to every path field.
+        Acquisition fields also support ``metadata.atten_drive`` or the scalar
+        shorthand ``atten_drive``. Source columns and filename aliases take
+        precedence over metadata shorthands; ``metadata.master`` retains the
+        raw code while ``master`` is the source's readable label. Metadata
+        fields are available only when records include that metadata type.
         Comparisons, membership, and nulls follow pandas query semantics.
         Only evaluate trusted expressions.
         """
@@ -535,7 +633,7 @@ class ToltecFileAccessor:
         return self._obj.query(
             expression,
             engine="python",
-            resolvers=[resolvers, _FilepathAliases(self._obj)],
+            resolvers=[resolvers, _CatalogAliases(self._obj)],
         )
 
     def to_info_list(self, query: str | None = None) -> list[SourceInfoModel]:

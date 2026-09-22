@@ -74,6 +74,7 @@ def test_flat_config_dump_needs_no_original_path_parsing(record, monkeypatch):
         "subobsnum": 0,
         "scannum": 1,
         "data_kind": "VnaSweep",
+        "metadata": None,
         "file_prefix": "toltec8",
         "file_ut": "2025-10-31T09:20:06Z",
         "file_suffix": "vnasweep",

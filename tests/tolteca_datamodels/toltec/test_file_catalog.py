@@ -161,11 +161,14 @@ def test_catalog_scalar_and_struct_columns(records):
             for record in records
         ],
         columns=[
-            name for name in SourceInfoModel.model_fields if name != "filepath_info"
+            name
+            for name in SourceInfoModel.model_fields
+            if name not in {"filepath_info", "metadata"}
         ],
     )
     assert_frame_equal(
-        catalog.drop(columns=["filepath_info", "filepath_info_orig"]), scalars
+        catalog.drop(columns=["filepath_info", "filepath_info_orig", "metadata"]),
+        scalars,
     )
     column = catalog["filepath_info_orig"]
     assert isinstance(column.dtype, pd.ArrowDtype)
