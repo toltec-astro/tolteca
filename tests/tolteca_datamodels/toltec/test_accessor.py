@@ -56,7 +56,7 @@ def rng() -> np.random.Generator:
 
 
 @pytest.fixture
-def toltec_sweep_dataset(kids_readout_settings):
+def toltec_sweep_dataset(kids_readout_settings, kids_design_data):
     """Toy numerical sweep; not evidence of an acquisition file format."""
     n_chans = 256
     n_sweeps = 50
@@ -87,6 +87,7 @@ def toltec_sweep_dataset(kids_readout_settings):
 
     ds = xr.Dataset(
         {
+            **kids_design_data.data_vars,
             "Data.Toltec.Is": (["chan", "sweep"], i_data),
             "Data.Toltec.Qs": (["chan", "sweep"], q_data),
             "Header.Toltec.ToneFreq": (["chan"], f_tones),
@@ -118,7 +119,7 @@ def toltec_sweep_dataset(kids_readout_settings):
 
 
 @pytest.fixture
-def toltec_timestream_dataset(kids_readout_settings):
+def toltec_timestream_dataset(kids_readout_settings, kids_design_data):
     """Toy numerical timestream; not evidence of an acquisition file format."""
     n_chans = 256
     n_samples = 1000
@@ -143,6 +144,7 @@ def toltec_timestream_dataset(kids_readout_settings):
 
     ds = xr.Dataset(
         {
+            **kids_design_data.data_vars,
             "Data.Toltec.Is": (["chan", "time"], i_data),
             "Data.Toltec.Qs": (["chan", "time"], q_data),
             "Header.Toltec.ToneFreq": (["chan"], f_tones),

@@ -15,11 +15,12 @@ from tolteca_datamodels.toltec.toltecdb import ToltecDBRawObsMaster
 
 
 @pytest.fixture
-def raw(kids_readout_settings):
+def raw(kids_readout_settings, kids_design_data):
     """Toy geometry/unit representations with recorded calibration settings."""
     return xr.Dataset(
         {
             **kids_readout_settings,
+            **kids_design_data.data_vars,
             "Header.Toltec.Master": 1,
             "Header.Toltec.RoachIndex": 7,
             "Header.Toltec.ObsNum": 123,

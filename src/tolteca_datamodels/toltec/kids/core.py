@@ -176,6 +176,8 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         Raw acquisitions also require their observation type, attenuation,
         calibration identifiers, maximum tone count, original path, repeat
         level, and LO center frequency. Processed data may omit those settings.
+        Raw design dimensions and the ADC snapshot variable must also exist;
+        the snapshot is retained as a variable-name reference, without reading it.
         Acquisition times come from the file headers; integration time is sample
         count divided by rate.
 
@@ -255,13 +257,13 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
             field = getattr(schema, key)
             if is_raw or field in self:
                 base_fields[key] = self.get_scalar(ds, field)
-        if schema.n_kids_design in self:
+        if is_raw or schema.n_kids_design in self:
             base_fields["n_kids_design"] = self.get_dim(ds, schema.n_kids_design)
         if is_raw or schema.filepath_orig in self:
             base_fields["filepath_orig"] = self.get_str(ds, schema.filepath_orig)
-        if schema.adc_snap in self:
+        if is_raw or schema.adc_snap in self:
             # Keep the array reference, not the ADC snapshot payload.
-            base_fields["adc_snap"] = self.get_name(schema.adc_snap)
+            base_fields["adc_snap"] = self.get_arr(ds, schema.adc_snap).name
 
         if data_kind & ToltecDataKind.Sweep:
             return self._get_sweep_metadata(

@@ -172,7 +172,9 @@ class TestMetadataDataclasses:
 class TestMetadataAccessor:
     """Test metadata accessor integration."""
 
-    def test_single_block_sweep_metadata(self, rng, kids_readout_settings):
+    def test_single_block_sweep_metadata(
+        self, rng, kids_readout_settings, kids_design_data
+    ):
         """Test metadata property returns ToltecSweepMetadata for single-block sweep."""
         # Create mock sweep dataset
         n_chans = 1000
@@ -181,6 +183,7 @@ class TestMetadataAccessor:
 
         ds = xr.Dataset(
             {
+                **kids_design_data.data_vars,
                 "Data.Toltec.Is": (
                     ["iqlen", "time"],
                     rng.standard_normal((n_chans, n_samples)),
@@ -246,7 +249,9 @@ class TestMetadataAccessor:
         assert meta.n_sweepreps == 10
         assert meta.f_lo_center == 4.5e9
 
-    def test_multi_block_sweep_metadata(self, rng, kids_readout_settings):
+    def test_multi_block_sweep_metadata(
+        self, rng, kids_readout_settings, kids_design_data
+    ):
         """Test metadata property returns list for multi-block sweep."""
         # Create mock multi-block dataset
         n_chans = 632
@@ -255,6 +260,7 @@ class TestMetadataAccessor:
 
         ds = xr.Dataset(
             {
+                **kids_design_data.data_vars,
                 "Data.Toltec.Is": (
                     ["iqlen", "block", "sweeps"],
                     rng.standard_normal((n_chans, n_blocks, n_sweeps)),
@@ -321,13 +327,14 @@ class TestMetadataAccessor:
             # Each block has different f_lo_center
             assert meta.f_lo_center is not None
 
-    def test_get_metadata_method(self, rng, kids_readout_settings):
+    def test_get_metadata_method(self, rng, kids_readout_settings, kids_design_data):
         """Test get_metadata() method on mapper directly."""
         n_chans = 500
         n_sweeps = 100
 
         ds = xr.Dataset(
             {
+                **kids_design_data.data_vars,
                 "Data.Toltec.Is": (
                     ["iqlen", "sweep"],
                     rng.standard_normal((n_chans, n_sweeps)),
@@ -360,7 +367,9 @@ class TestMetadataAccessor:
         assert meta.array_name == "a1100"  # roach 2 maps to a1100 (range 0-6)
         assert meta.obsnum == 99999
 
-    def test_get_metadata_specific_block(self, rng, kids_readout_settings):
+    def test_get_metadata_specific_block(
+        self, rng, kids_readout_settings, kids_design_data
+    ):
         """Test get_metadata(block=N) returns single metadata for specific block."""
         n_chans = 100
         n_sweeps = 50
@@ -368,6 +377,7 @@ class TestMetadataAccessor:
 
         ds = xr.Dataset(
             {
+                **kids_design_data.data_vars,
                 "Data.Toltec.Is": (
                     ["iqlen", "block", "sweeps"],
                     rng.standard_normal((n_chans, n_blocks, n_sweeps)),

@@ -50,3 +50,11 @@ def kids_readout_settings(data_lmt_path):
                 "RepeatLevel",
             )
         }
+
+
+@pytest.fixture(scope="session")
+def kids_design_data(data_lmt_path):
+    """Read recorded design/ADC values for toy metadata datasets."""
+    (path,) = (data_lmt_path / "toltec/tcs/toltec0").glob("*_targsweep.nc")
+    with xr.open_dataset(path) as data:
+        return data[["Header.Toltec.Xloc", "Header.Toltec.AdcSnapData"]].load()

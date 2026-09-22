@@ -1819,3 +1819,23 @@ Latest verification: 966 Tolteca tests pass, actual-v2 parity enabled; a fresh
 four-case CLI/Zarr/SQLite/Parquet/Web integration passes with exact arrays and
 units in `run/overnight-slice-20260922-header-contract/` under the development
 location. No fixture writes, tolerance changes, or production services.
+
+### K2. Recorded settings, common LO center, and design/ADC presence
+
+Follow-up checkpoints 02b8–02b11 supersede the corresponding pending items in K1:
+
+| Field / operation | Current contract | Record |
+| --- | --- | --- |
+| `repeat`, instrument component | Integer repeat retained; ROACH identity comes from the existing `ToltecInfo.interface_instru` map. | [02b8](overnight-20260922/02b8-native-repeat-component.md) |
+| Raw scalar/string settings | Attenuation, calibration IDs, maximum tones, original path and repeat are required by the reader. Processed omissions remain nullable. | [02b9](overnight-20260922/02b9-required-readout-headers.md) |
+| `f_lo_center` | Available for timestreams and sweeps, float Hz, required for raw metadata. All four actual v2/v3 values are exactly 675,190,000 Hz. | [02b10](overnight-20260922/02b10-lo-center-metadata.md) |
+| `n_kids_design`, `adc_snap` | Raw dimension/variable presence is required. ADC remains a lazy variable-name reference, not v2's eagerly read array. | [02b11](overnight-20260922/02b11-design-metadata.md) |
+
+The additional valid-file I/O is one 8-byte LO-center scalar for timestreams;
+the other changes restore missing-field errors without adding payload reads.
+Latest full test count: 1,026, with actual-v2 parity enabled. The 02b9 fresh
+four-case CLI/Zarr/DB/Parquet/Web integration passes exact values and units.
+Raw sweep repetition/capacity/sample-dimension fallback and strict header-only
+catalog composition remain open; `atten_drive` catalog selection is not yet
+claimed supported. Earlier comparison tables are the original audit baseline,
+not a claim these corrected omissions remain in the current reader.
