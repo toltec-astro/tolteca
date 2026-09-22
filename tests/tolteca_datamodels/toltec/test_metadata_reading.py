@@ -227,3 +227,19 @@ def test_tune_blocks_use_recorded_lo_resets(raw):
         assert selected.n_sweeps == 1
     with pytest.raises(ValueError, match="out of range"):
         mapper.get_metadata(raw, block=2)
+
+
+@pytest.mark.parametrize("n_blocks", [0, 1, 2])
+def test_explicit_block_dimension_is_distinct_from_flat_input(raw, n_blocks):
+    # Synthetic indexed layouts exercise dimension handling, not file identity.
+    indexed = raw.assign_coords(block=np.arange(n_blocks))
+    mapper = ToltecKidsIOMapper.from_data_source(indexed)
+    metadata = mapper.get_metadata(indexed)
+    assert isinstance(metadata, list)
+    assert len(metadata) == n_blocks
+    for i, meta in enumerate(metadata):
+        assert meta.n_blocks == n_blocks
+        assert meta.n_sweeps == 1
+        assert mapper.get_metadata(indexed, block=i) == meta
+    with pytest.raises(ValueError, match="out of range"):
+        mapper.get_metadata(indexed, block=n_blocks)

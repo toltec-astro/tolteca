@@ -222,7 +222,11 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         base_fields = self._get_metadata_fields(ds, is_raw=is_raw)
         if data_kind & ToltecDataKind.Sweep:
             return self._get_sweep_metadata(
-                ds, base_fields, is_multi_block, n_blocks, block, data_kind
+                ds,
+                base_fields,
+                n_blocks if is_multi_block else None,
+                block,
+                data_kind,
             )
         return self._get_timestream_metadata(ds, base_fields, is_raw=is_raw)
 
@@ -344,16 +348,18 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
 
     def _get_sweep_metadata(
         self,
-        data_source,
-        base_fields,
-        is_multi_block,
-        n_blocks,
-        block,
-        data_kind,
-    ):
+        data_source: xr.Dataset,
+        base_fields: dict[str, Any],
+        n_blocks_dim: int | None,
+        block: int | None,
+        data_kind: ToltecDataKind,
+    ) -> ToltecSweepMetadata | list[ToltecSweepMetadata]:
         """Construct sweep metadata instance(s)."""
         ds = data_source
         schema = self.schema
+        # None denotes a flat acquisition; zero is still an explicit dimension.
+        is_multi_block = n_blocks_dim is not None
+        n_blocks = n_blocks_dim if is_multi_block else 1
         is_raw = bool(data_kind & ToltecDataKind.RawKidsData)
         sweep_fields = base_fields.copy()
         sweep_fields.update(self._get_sweep_metadata_fields(ds, is_raw=is_raw))
