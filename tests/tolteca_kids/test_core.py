@@ -114,6 +114,78 @@ def test_alias_context_recreates_the_right_step_after_serialization(raw_sweep):
     assert restored.model_dump() == aliased.model_dump()
 
 
+@pytest.mark.parametrize("primary_first", [False, True])
+def test_alias_reuses_its_result_without_recomputing(
+    raw_sweep, monkeypatch, primary_first
+):
+    working = ensure_datatree(raw_sweep)
+    working["unrelated"] = xr.DataTree(dataset=xr.Dataset({"a": 3}))
+    calls = []
+    reduce = SweepReducer._reduce
+
+    def count(reducer, data):
+        calls.append(data)
+        return reduce(reducer, data)
+
+    monkeypatch.setattr(SweepReducer, "_reduce", count)
+    primary = None
+    if primary_first:
+        SweepReduce()(working)
+        primary = SweepReduce.view(working).data_source.copy(deep=True)
+    alias = SweepReduce.alias("cached")
+    alias()(working)
+    first = alias.view(working).I
+    assert first is not None
+    assert len(calls) == 1
+    alias()(working)
+    repeated = alias.view(working).I
+    assert repeated is not None
+    assert repeated.data is first.data
+    assert len(calls) == 1
+    alias(force=True)(working)
+    forced = alias.view(working).I
+    assert forced is not None
+    assert forced.data is not first.data
+    xr.testing.assert_identical(forced, first)
+    assert len(calls) == 2
+    assert working["unrelated"]["a"].item() == 3
+    if primary_first:
+        xr.testing.assert_identical(SweepReduce.view(working).data_source, primary)
+    else:
+        assert SweepReduce.result_path() not in working
+
+
+def test_alias_keeps_its_cache_when_primary_is_replaced(raw_sweep, monkeypatch):
+    working = ensure_datatree(raw_sweep)
+    alias = SweepReduce.alias("cached")
+    alias()(working)
+    aliased = alias.view(working).I
+    assert aliased is not None
+    SweepReduce(force=True)(working)
+    primary = SweepReduce.view(working).I
+    assert primary is not None
+    assert primary.data is not aliased.data
+
+    def unexpected(*args):
+        pytest.fail("unforced repeat computed an already available result")
+
+    monkeypatch.setattr(SweepReducer, "_reduce", unexpected)
+    alias()(working)
+    repeated = alias.view(working).I
+    assert repeated is not None
+    assert repeated.data is aliased.data
+
+
+def test_alias_cache_still_checks_numerical_configuration(raw_sweep):
+    working = ensure_datatree(raw_sweep)
+    alias = SweepReduce.alias("different_config")
+    without_uncertainty = SweepReducer(compute_uncertainty=False)(raw_sweep)
+    working[alias.result_path()] = without_uncertainty[SweepReducer.__module__]
+    assert alias.view(working).unc_I is None
+    alias()(working)
+    assert alias.view(working).unc_I is not None
+
+
 def test_output_alias_context_recreates_the_right_step(tmp_path, raw_sweep):
     working = ensure_datatree(raw_sweep)
     original = DataProdOutput(path=tmp_path).create_context(working)

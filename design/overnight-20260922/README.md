@@ -63,9 +63,10 @@ unnecessary dependency upgrades, or agent delegation.
 | 02b3 | Explicit catalog opening policy and shared runner identity | Complete: `673a2ec`; see [step record](02b3-catalog-opening.md). Broader typed scalar catalog projection remains open. |
 | 02c | Focused telescope/catalog/no-op guide | Complete: `ef546a3`; see [step record](02c-observation-guide.md). Python examples, direct CLI and isolated Deploy invocation verified. |
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
-| 03b | Remaining reducer / live context / output review | [Three reproduced lifecycle/alias gaps](03b-lifecycle-review.md); fixes pending. |
+| 03b | Remaining reducer / live context / output review | [Three reproduced lifecycle/alias gaps](03b-lifecycle-review.md); fixed in 03b1–03b3. Output boundary review continues. |
 | 03b1 | Attach live context before execution | Complete; see [step record](03b1-live-context.md). 228 KIDs tests pass, including actual-v2 parity. |
 | 03b2 | Keep alias context back-links independent | Complete: Tollan `62e3a5c` and dependent KIDs adapters; see [step record](03b2-context-binding.md). 1,289 Tollan / 230 KIDs tests pass. |
+| 03b3 | Reuse alias-local reduction results | Complete; see [step record](03b3-alias-cache.md). 234 KIDs tests pass; the real-reference lifecycle probe now matches all three intended behaviors. |
 | 04a | Web selection before frequency broadcast | Complete: Web `928bf28`; 10 tests and fresh exact integration pass; [step record](../../../tolteca_web/design/overnight-20260922/04a-frequency-selection.md). Depends on 03a. |
 | 04b | Remaining DB discovery / Web consumption review | Pending |
 | 05 | Exact reference verification, guide, final handoff | Pending |
@@ -77,8 +78,9 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Resume repeated alias-only reduction in [03b](03b-lifecycle-review.md). Live
-context attachment and alias back-links are fixed in 03b1/03b2. A repeatable
+Resume the export boundary finding in [03b3](03b3-alias-cache.md): NoOp's live
+context copied into reduced attrs prevents Zarr output on a reused working tree.
+All three earlier lifecycle/alias gaps are fixed in 03b1–03b3. The repeatable
 read-only probe is saved at `design/probes/check_step_lifecycle.py`.
 Tollan is now on the new overnight branch; its unrelated `.DS_Store` is untouched.
 

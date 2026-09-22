@@ -169,6 +169,9 @@ context and no new `product_path`. An earlier published product is not changed.
 
 For an aliased step, use that class's `view()` or `get_context()` to recover its
 context. Calling `make_step()` on it reconstructs the same alias and configuration.
+Unforced calls reuse that alias's existing numerical result; a first invocation
+may reuse the primary result. Set `force=True` to recompute, including after
+changing raw input values on an existing working tree.
 
 Standalone execution uses the same contract on an open working tree:
 

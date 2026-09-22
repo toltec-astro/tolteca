@@ -61,7 +61,14 @@ class SweepReduce(Step[SweepReduceConfig, SweepReduceContext]):
     @classmethod
     def run(cls, data: xr.DataTree, context: SweepReduceContext) -> bool:
         """Run the independent reducer and validate the requested block."""
-        result = cls._reducer(data, force=context.config.force)
+        source = data
+        path = cls.result_path()
+        if cls._alias_name and path in data and data[path].has_data:
+            # Present the alias's result under the reducer's native namespace.
+            # A context-only first invocation can still reuse the primary result.
+            source = xr.DataTree(dataset=data.to_dataset())
+            source[SweepReducer.__module__] = data[path]
+        result = cls._reducer(source, force=context.config.force)
         view = ReducedSweepView(result)
         block = context.config.block
         if block >= view.n_blocks:
