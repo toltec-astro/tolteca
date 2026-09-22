@@ -5,6 +5,7 @@ import json
 import numpy as np
 import pytest
 import xarray as xr
+import zarr
 from pydantic import ValidationError
 from tollan.accessor.xarray import ensure_datatree
 from tollan.config import RuntimeContext
@@ -389,6 +390,80 @@ def test_export_reopen_and_exclusive_destination(tmp_path, raw_sweep):
 def test_incomplete_product_rejected(tmp_path):
     with pytest.raises(FileNotFoundError):
         open_sweep_product(tmp_path)
+
+
+def test_product_has_consolidated_metadata_before_completion(tmp_path, raw_sweep):
+    working = ensure_datatree(raw_sweep)
+    SweepReduce()(working)
+    path = write_sweep_product(working, tmp_path / "product")
+    assert (path / "arrays.zarr" / ".zmetadata").is_file()
+    with xr.open_datatree(
+        path / "arrays.zarr", engine="zarr", consolidated=True
+    ) as tree:
+        xr.testing.assert_identical(
+            SweepReduce.view(tree).data_source, SweepReduce.view(working).data_source
+        )
+    assert read_sweep_manifest(path).arrays == "arrays.zarr"
+
+
+def test_failed_consolidation_does_not_publish_completion(
+    tmp_path, raw_sweep, monkeypatch
+):
+    working = ensure_datatree(raw_sweep)
+    SweepReduce()(working)
+
+    def fail(*args, **kwargs):
+        msg = "simulated consolidation failure"
+        raise OSError(msg)
+
+    monkeypatch.setattr(zarr, "consolidate_metadata", fail)
+    path = tmp_path / "product"
+    with pytest.raises(OSError, match="consolidation failure"):
+        write_sweep_product(working, path)
+    assert not (path / "manifest.json").exists()
+    with pytest.raises(FileNotFoundError):
+        open_sweep_product(path)
+
+
+def test_reader_uses_consolidated_metadata_without_child_metadata_reads(
+    tmp_path, raw_sweep, monkeypatch
+):
+    from zarr.storage import LocalStore
+
+    working = ensure_datatree(raw_sweep)
+    SweepReduce()(working)
+    path = write_sweep_product(working, tmp_path / "product")
+    keys = []
+    get = LocalStore.get
+
+    async def record(store, key, *args, **kwargs):
+        keys.append(key)
+        return await get(store, key, *args, **kwargs)
+
+    monkeypatch.setattr(LocalStore, "get", record)
+    with open_sweep_product(path) as tree:
+        assert SweepReduce.view(tree).context.completed
+    assert ".zmetadata" in keys
+    assert not any(
+        key.startswith(SweepReduce.result_path())
+        and key.endswith((".zattrs", ".zarray", ".zgroup", "zarr.json"))
+        for key in keys
+    )
+
+
+def test_reader_uses_native_fallback_without_consolidated_metadata(tmp_path, raw_sweep):
+    working = ensure_datatree(raw_sweep)
+    SweepReduce()(working)
+    path = write_sweep_product(working, tmp_path / "product")
+    # Keep the test's original index for inspection, but make it unavailable.
+    (path / "arrays.zarr" / ".zmetadata").rename(tmp_path / "metadata.saved")
+    with (
+        pytest.warns(RuntimeWarning, match="non-consolidated metadata"),
+        open_sweep_product(path) as tree,
+    ):
+        xr.testing.assert_identical(
+            SweepReduce.view(tree).data_source, SweepReduce.view(working).data_source
+        )
 
 
 def test_export_excludes_live_context_without_mutating_working_tree(

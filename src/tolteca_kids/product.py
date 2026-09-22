@@ -72,6 +72,7 @@ def write_sweep_product(
     Only the reducer result is exported, not the raw root or live resources.
     The reserved Tollan live-context store is omitted; the reduction step's
     JSON-compatible metadata is retained.
+    Zarr metadata is consolidated before verification and publication.
     Existing destinations are never overwritten. A failed write may leave an
     incomplete directory for inspection; readers require its completion manifest.
     """
@@ -107,11 +108,9 @@ def write_sweep_product(
     product = xr.DataTree(children={SweepReduce.result_path(): node})
     # Format 2 preserves fixed-byte netCDF headers without relying on an
     # unstable Zarr 3 dtype extension or converting their values to text.
-    product.to_zarr(
-        path / manifest.arrays, mode="w-", zarr_format=2, consolidated=False
-    )
+    product.to_zarr(path / manifest.arrays, mode="w-", zarr_format=2, consolidated=True)
     with xr.open_datatree(
-        path / manifest.arrays, engine="zarr", consolidated=False
+        path / manifest.arrays, engine="zarr", consolidated=True
     ) as reopened:
         restored = SweepReduce.view(reopened)
         if dict(restored.data_source.sizes) != dict(view.data_source.sizes):
@@ -129,10 +128,14 @@ def write_sweep_product(
 
 
 def open_sweep_product(path: Path) -> xr.DataTree:
-    """Open a completed local product; the caller owns the returned tree."""
+    """Open a completed local product; the caller owns the returned tree.
+
+    Use consolidated metadata when available. For a store without it, xarray
+    reads the individual metadata files and emits a performance warning.
+    """
     path = Path(path)
     manifest = read_sweep_manifest(path)
-    result = xr.open_datatree(path / manifest.arrays, engine="zarr", consolidated=False)
+    result = xr.open_datatree(path / manifest.arrays, engine="zarr", consolidated=None)
     try:
         context = SweepReduceView(result).context
         if not context.completed:

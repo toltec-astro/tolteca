@@ -307,7 +307,12 @@ without an input record or pipeline output config; those missing fields remain
 `None` and cannot provide a complete pipeline replay recipe.
 
 The writer uses Zarr format 2 to preserve fixed-byte netCDF headers
-without an unstable dtype extension. Readers reject missing manifests and
+without an unstable dtype extension. It consolidates array metadata before
+publishing the manifest, so readers can open the product without inspecting each
+array's metadata files. Treat completed product directories as read-only; write
+a new product for a new result. A store without consolidated metadata remains
+readable through xarray's slower fallback, which emits a performance warning.
+Readers reject missing manifests and
 unsupported product formats. A failed write can leave an incomplete directory
 for inspection; it is not a published product. The manifest is a completion
 marker, not a checksum or a distributed transaction guarantee.

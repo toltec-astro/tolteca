@@ -70,6 +70,7 @@ unnecessary dependency upgrades, or agent delegation.
 | 03b4 | Exclude the live store at the product boundary | Complete; see [step record](03b4-live-export-boundary.md). 947 full Tolteca tests and fresh four-case exact integration pass. |
 | 04a | Web selection before frequency broadcast | Complete: Web `928bf28`; 10 tests and fresh exact integration pass; [step record](../../../tolteca_web/design/overnight-20260922/04a-frequency-selection.md). Depends on 03a. |
 | 04b | Remaining DB discovery / Web consumption review | [Measured storage review](04b-storage-review.md): metadata consolidation and repeated frequency-coordinate reads are the next bounded steps; broader DB/Web redesign stays deferred. |
+| 04b1 | Consolidate immutable product metadata | Complete; see [step record](04b1-consolidated-metadata.md). 951 full Tolteca, 18 DB and 10 Web tests pass; fresh exact integration passes. |
 | 05 | Exact reference verification, guide, final handoff | Pending |
 
 Every completed step must record rationale, explicit observable changes,
@@ -79,10 +80,11 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Resume metadata consolidation in [04b](04b-storage-review.md). The read-only
-probe measured 285–304 local store gets on opening reference products versus
-6–7 on consolidated temporary copies. No storage behavior is changed yet.
-Then inspect repeated frequency-coordinate reads and the DB unit-fixture identity.
+Resume repeated frequency-coordinate reads in [04b](04b-storage-review.md), then
+the DB unit-fixture identity. Consolidated metadata is implemented in 04b1;
+fresh products open with 6–7 LocalStore gets instead of 285–304. A read-only
+experiment reduced four `f_chan` reads to one by computing only selected I/Q and
+their shared coordinates together, preserving exact plot values.
 The export boundary finding is fixed in 03b4.
 All three earlier lifecycle/alias gaps are fixed in 03b1–03b3. The repeatable
 read-only probe is saved at `design/probes/check_step_lifecycle.py`.
@@ -119,12 +121,12 @@ live-browser permission/verification limits remain open.
 
 ## Latest QA checkpoint
 
-After 03b4, 947 Tolteca tests pass (55.38 s), with
+After 04b1, 951 Tolteca tests pass (57.13 s), with
 `TOLTECA_V2_PYTHON=/Users/ma/.pyenv/versions/tolteca_v2/bin/python` and
 `--benchmark-disable`. Fresh four-case exact integration through CLI, Zarr,
 SQLite, Parquet, Web traces and Dash HTTP callbacks passes; outputs are in
-`toltec_astro_dev/run/overnight-slice-20260922-lifecycle/`. The prior 18 DB
-sweep-product and 10 Web tests pass against the stored-coordinate change. Scoped typing passes;
+`toltec_astro_dev/run/overnight-slice-20260922-consolidated/`. All 18 DB
+sweep-product and 10 Web tests pass against this checkpoint. Scoped typing passes;
 the raw core/reducer retain their documented pre-existing lint/format findings.
 Reference checkout, DB and Web are clean. No production service or fixture write
 was needed. All 1,289 Tollan tests and its full type check pass. Broader scalar
