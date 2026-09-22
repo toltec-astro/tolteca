@@ -183,6 +183,7 @@ def test_original_filename_is_cached_and_serialized(base_tel_fields):
     meta = LmtTelMetadata(**base_tel_fields)
     assert "filepath_info_orig" not in meta.__dict__
     parsed = meta.filepath_info_orig
+    assert parsed is not None
     assert parsed is meta.filepath_info_orig
     assert parsed.ut == datetime(2025, 10, 31, tzinfo=UTC)
     assert parsed.interface == "tel"
