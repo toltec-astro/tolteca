@@ -61,6 +61,7 @@ unnecessary dependency upgrades, or agent delegation.
 | 02b1 | Prevent false KIDs classification of telescope files | Complete: `51e0728`; see [regression record](02b1-kids-identification.md). General telescope header identification remains pending. |
 | 02b2 | Shared source identification through existing readers | Complete: `4f19abe`; see [step record](02b2-shared-identification.md). |
 | 02b3 | Explicit catalog opening policy and shared runner identity | Complete: `673a2ec`; see [step record](02b3-catalog-opening.md). Broader typed scalar catalog projection remains open. |
+| 02b4 | Measure the scalar projection gap and model boundary | Diagnostic complete: `970c7ef`; [step record](02b4-scalar-projection-boundary.md). Actual v2/v3 reads and missing `atten_drive` catalog selection reproduced; implementation remains open. |
 | 02c | Focused telescope/catalog/no-op guide | Complete: `ef546a3`; see [step record](02c-observation-guide.md). Python examples, direct CLI and isolated Deploy invocation verified. |
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
 | 03b | Remaining reducer / live context / output review | [Three reproduced lifecycle/alias gaps](03b-lifecycle-review.md); fixed in 03b1–03b3. Output boundary review continues. |
@@ -73,6 +74,7 @@ unnecessary dependency upgrades, or agent delegation.
 | 04b1 | Consolidate immutable product metadata | Complete; see [step record](04b1-consolidated-metadata.md). 951 full Tolteca, 18 DB and 10 Web tests pass; fresh exact integration passes. |
 | 04b2 | Read selected I/Q and shared coordinates together | Complete: Web `04f0c73`; [step record](../../../tolteca_web/design/overnight-20260922/04b2-shared-coordinate-reads.md). 10 tests and four actual-v2 exact trace checks pass; `f_chan` reads fall 4 → 1. |
 | 04b3 | Recorded DB product-test acquisition identity | Complete: DB `412fe6e`; [step record](../../../tolteca_db/design/overnight-20260922/04b3-recorded-fixture-identity.md). All 18 focused tests pass; no runtime change. |
+| 04b4 | Measure sparse/full sweep chunk policy | Complete: `42e03cd`; [step record](04b4-chunk-policy.md). 60 exact layout/selection comparisons; writer default unchanged pending serving-workload evidence. |
 | 05 | Exact reference verification, guide, final handoff | Pending |
 
 Every completed step must record rationale, explicit observable changes,
@@ -82,11 +84,15 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Resume the broader catalog projection review in 02b, then measured chunk-policy
-evaluation and final verification. The bounded [04b](04b-storage-review.md)
+Resume the KIDs header-metadata boundary in [02b4](02b4-scalar-projection-boundary.md),
+then final verification. Do not bolt scalar extras onto the catalog: align the
+existing header model first, preserve source identity and numerical behavior,
+then evaluate typed header-only composition. The bounded [04b](04b-storage-review.md)
 consolidation, repeated-coordinate-read and unit-fixture findings are fixed in
 04b1–04b3. Fresh products open with 6–7 LocalStore gets instead of 285–304;
 Web reads `f_chan` once instead of four times, preserving exact plot values.
+Chunk tradeoffs are measured in 04b4; no universal layout was chosen from local
+measurements. All 60 candidate-layout/selection comparisons preserve values.
 The export boundary finding is fixed in 03b4.
 All three earlier lifecycle/alias gaps are fixed in 03b1–03b3. The repeatable
 read-only probe is saved at `design/probes/check_step_lifecycle.py`.
@@ -134,3 +140,12 @@ Reference checkout, DB and Web are clean. No production service or fixture write
 was needed. All 1,289 Tollan tests and its full type check pass. Broader scalar
 catalog projection and remaining DB/Web review are open; the reproduced lifecycle
 issues are fixed and tested. See 03b1–03b4 for the focused behavior changes.
+
+After 04b2/04b3, 10 focused Web and 18 DB tests pass. A fresh full four-case exact
+integration passes at `run/overnight-slice-20260922-web-reads/` under the development
+location, including direct/planned no-op, actual-v2 values/units, Zarr, SQLite,
+Parquet, Web traces and Dash callbacks. No browser server or remote benchmark
+was started. Production changes in this checkpoint are only Web's shared
+coordinate loading; DB changes are unit-fixture identity, and the remaining
+commits are diagnostic/design records. Automation remains active before the
+13:06:38 UTC deadline.
