@@ -1,12 +1,77 @@
-"""Shared configuration for file discovery and product locations."""
+"""Shared file-access configuration and source identification."""
 
-from typing import Literal
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import ConfigDict
 from tollan.config import ConfigHandler, FrozenBaseModel, SubConfigKeyTransformer
 from tollan.config.types import AbsAnyPath, AbsDirectoryPath
+from tollan.utils.log import logger
 
-__all__ = ["FileAccess", "FileAccessConfig"]
+from .file import SourceInfoModel, _get_filepath_fields, guess_data_kind
+from .lmt.tel import LmtTelIOMapper
+from .toltec.kids.source import identify_source as identify_kids_source
+from .toltec.types import ToltecDataKind
+
+if TYPE_CHECKING:
+    import xarray as xr
+
+__all__ = ["FileAccess", "FileAccessConfig", "identify_source"]
+
+
+def identify_source(
+    data: xr.Dataset,
+    info: SourceInfoModel,
+    *,
+    check_filepath_orig: bool = False,
+) -> SourceInfoModel:
+    """Read source identifiers from an open telescope or KIDs dataset.
+
+    Return a new source record, preserving its current location. Telescope
+    structure is recognized through its timestamp mapping; its strict metadata
+    supplies observation identifiers and the recorded path. This reads scalar
+    headers, two timestamp endpoints and the two target-coordinate pairs, not
+    pointing streams. KIDs identification reads only its scalar headers.
+
+    Recognized but incomplete telescope files raise their metadata errors.
+    Unsupported data retains filename guesses. Set ``check_filepath_orig=True``
+    to compare header identifiers with the recorded acquisition path. It does
+    not compare the current filename or filesystem timestamps.
+    """
+    mapper = LmtTelIOMapper.from_data_source(data)
+    if not mapper.has_arr(data, mapper.schema.tel_time):
+        return identify_kids_source(data, info, check_filepath_orig=check_filepath_orig)
+    meta = mapper.get_metadata(data, check_filepath_orig=check_filepath_orig)
+    fields, filepath_info_orig = _get_filepath_fields(info, meta.filepath_orig)
+    fields.update(
+        interface=meta.interface,
+        roach=None,
+        master=meta.master_str,
+        obsnum=meta.obsnum,
+        subobsnum=meta.subobsnum,
+        scannum=meta.scannum,
+    )
+    # The recorded prefix distinguishes the telescope stream. A time variable
+    # alone cannot tell which stream produced it.
+    kind = (
+        guess_data_kind(prefix=filepath_info_orig.prefix, ext=filepath_info_orig.ext)
+        if filepath_info_orig is not None
+        else ToltecDataKind.Unknown
+    )
+    if kind == ToltecDataKind.Unknown:
+        kind = info.data_kind
+    fields["data_kind"] = (
+        kind & (ToltecDataKind.LmtTel | ToltecDataKind.LmtTel2)
+        or ToltecDataKind.Unknown
+    )
+    logger.debug(
+        "Identified telescope source {}: uid_raw_obs_file={}, filepath_orig={}",
+        info.source,
+        meta.uid_raw_obs_file,
+        meta.filepath_orig,
+    )
+    return SourceInfoModel.model_validate(fields)
 
 
 class FileAccessConfig(FrozenBaseModel):

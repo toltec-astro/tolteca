@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from tollan.utils.log import logger
 
-from ...file import SourceInfoModel, guess_info_from_source
+from ...file import SourceInfoModel, _get_filepath_fields
 from ..toltecdb import ToltecDBRawObsMaster
 from ..types import ToltecDataKind
 from .core import ToltecKidsAccessor
@@ -14,38 +14,7 @@ from .core import ToltecKidsAccessor
 if TYPE_CHECKING:
     import xarray as xr
 
-    from ...file import FilepathInfo
-
 __all__ = ["identify_source"]
-
-
-def _get_filepath_fields(
-    info: SourceInfoModel, filepath_orig: str | None
-) -> tuple[dict, FilepathInfo | None]:
-    """Fill discovery fields from filenames, preserving the current source."""
-    fields = info.model_dump(round_trip=True, exclude={"source", "filepath_info"})
-    fields["source"] = info.source
-    fields["filepath_info"] = info.filepath_info
-    fields["filepath_orig"] = filepath_orig
-    guessed = guess_info_from_source(
-        info.source, filepath_orig=filepath_orig, raise_on_error=False
-    )
-    if guessed is not None:
-        for name, value in guessed.model_dump(
-            round_trip=True, exclude={"source", "filepath_info"}
-        ).items():
-            if fields[name] is None or fields[name] is ToltecDataKind.Unknown:
-                fields[name] = value
-        if fields["filepath_info"] is None:
-            fields["filepath_info"] = guessed.filepath_info
-    filepath_info_orig = guessed.filepath_info_orig if guessed is not None else None
-    if filepath_info_orig is not None and filepath_info_orig.master_str is not None:
-        fields["master"] = filepath_info_orig.master_str
-        if fields["filepath_info"] is not None:
-            fields["filepath_info"] = fields["filepath_info"].model_copy(
-                update={"master_str": filepath_info_orig.master_str}
-            )
-    return fields, filepath_info_orig
 
 
 def identify_source(
