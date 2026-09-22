@@ -1839,3 +1839,19 @@ Raw sweep repetition/capacity/sample-dimension fallback and strict header-only
 catalog composition remain open; `atten_drive` catalog selection is not yet
 claimed supported. Earlier comparison tables are the original audit baseline,
 not a claim these corrected omissions remain in the current reader.
+
+### K3. Recorded sweep geometry and fresh exact integration
+
+[02b12](overnight-20260922/02b12-sweep-geometry.md) requires raw sweep repetitions,
+allocated capacity and the mapped acquisition time dimension. Processed-data
+fallbacks remain unchanged. Missing raw capacity no longer becomes the actual
+block count; missing raw time no longer becomes the number of sweep steps.
+All 47 header-omission probes now reject incomplete raw metadata; additional tests
+cover missing dimensions. Native valid values and I/O remain unchanged.
+
+Latest: **1,039 full tests pass**, actual-v2 parity enabled, and the fresh
+four-case CLI/Zarr/SQLite/Parquet/Web integration is exact in
+`run/overnight-slice-20260922-raw-metadata/`. Native raw reader omissions are
+corrected, but model-level raw/processed requiredness and typed header-only
+catalog composition remain open. Current catalog selection still does not expose
+`atten_drive`; do not confuse successful reader metadata with catalog support.

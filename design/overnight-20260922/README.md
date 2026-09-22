@@ -69,6 +69,7 @@ unnecessary dependency upgrades, or agent delegation.
 | 02b9 | Require raw scalar/string readout settings | Complete; [step record](02b9-required-readout-headers.md). 1,004 tests and fresh exact integration pass. Missing recorded settings no longer silently become None; processed omissions remain supported. |
 | 02b10 | Shared recorded LO-center metadata | Complete; [step record](02b10-lo-center-metadata.md). 1,016 tests pass. Timestreams now expose the same recorded center as v2; raw missing centers reject and processed omissions remain nullable. |
 | 02b11 | Required raw design dimension and lazy ADC reference | Complete; [step record](02b11-design-metadata.md). 1,026 tests pass; missing raw fields reject without loading their payloads. |
+| 02b12 | Required recorded raw sweep geometry | Complete; [step record](02b12-sweep-geometry.md). 1,039 tests and fresh exact integration pass; raw repetitions, capacity and sample dimension cannot silently use processed fallbacks. |
 | 02c | Focused telescope/catalog/no-op guide | Complete: `ef546a3`; see [step record](02c-observation-guide.md). Python examples, direct CLI and isolated Deploy invocation verified. |
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
 | 03b | Remaining reducer / live context / output review | [Three reproduced lifecycle/alias gaps](03b-lifecycle-review.md); fixed in 03b1–03b3. Output boundary review continues. |
@@ -91,10 +92,13 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Resume the KIDs header-metadata boundary in [02b4](02b4-scalar-projection-boundary.md),
-then final verification. Do not bolt scalar extras onto the catalog: align the
-existing header model first, preserve source identity and numerical behavior,
-then evaluate typed header-only composition. The bounded [04b](04b-storage-review.md)
+Resume typed header-only catalog composition from [02b4](02b4-scalar-projection-boundary.md),
+then final verification. The bounded native-value and reference raw-requiredness
+corrections are complete through 02b12; all 47 omission probes reject. The existing
+raw/processed metadata classes still share nullable fields. Decide their header
+model boundary explicitly; do not fake a partial full model or bolt untyped scalar
+extras onto the catalog. Preserve source identity and exact numerical behavior.
+The bounded [04b](04b-storage-review.md)
 consolidation, repeated-coordinate-read and unit-fixture findings are fixed in
 04b1–04b3. Fresh products open with 6–7 LocalStore gets instead of 285–304;
 Web reads `f_chan` once instead of four times, preserving exact plot values.
@@ -127,6 +131,10 @@ remain separate; the strict header-only model boundary is not yet complete.
 dimension/repetition/ADC-reference presence; then choose the typed catalog path.
 02b11 covers design-dimension and ADC-reference presence. Raw sweep repetitions,
 allocated capacity and sample-dimension fallback remain to be checked explicitly.
+02b12 completes those three checks. Earlier pending statements above describe the
+successive checkpoints, not the latest reader status. Typed catalog composition
+and model-level requiredness remain open; the reader contract is now tested on
+all four available KIDs acquisitions.
 Keep processed identification and standalone numerical-input inference distinct
 from complete raw acquisition metadata; do not use a reduced child's raw
 accessor metadata as an acquisition record.
@@ -202,3 +210,7 @@ exactly on the LO center for all four files; raw timestream metadata adds one
 
 After 02b11, 1,026 tests pass (55.55 s). Missing design/ADC fields reject raw
 metadata, while real-file traces confirm their payloads remain unread.
+
+After 02b12, 1,039 tests pass (53.43 s), and a fresh four-case exact integration
+passes in `run/overnight-slice-20260922-raw-metadata/`. All 47 omission probes
+reject incomplete raw metadata. Source catalog scalar projection is still open.

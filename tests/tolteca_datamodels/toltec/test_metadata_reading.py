@@ -41,6 +41,7 @@ def raw(kids_readout_settings, kids_design_data):
             "Data.Toltec.Qs": (("time", "iqlen"), np.zeros((6, 2))),
             "Data.Toltec.LoFreq": ("time", [599.0, 599.0, 600.0, 600.0, 601.0, 601.0]),
         },
+        coords={"numSweeps": [0, 1]},  # Toy capacity, independent of acquired blocks.
     )
 
 

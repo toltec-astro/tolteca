@@ -109,6 +109,7 @@ def toltec_sweep_dataset(kids_readout_settings, kids_design_data):
             "Header.Toltec.SampleFreq": 1000.0,
             "Header.Toltec.LoCenterFreq": 150e6,  # 150 MHz center LO
             "Header.Toltec.ObsType": 3,  # TargetSweep
+            "Header.Kids.kind": "processed_sweep",  # One value per sweep step.
         },
     )
     # Add units to coordinates
@@ -346,9 +347,9 @@ def test_data_kind_property(toltec_sweep_dataset, toltec_timestream_dataset):
     """Test data_kind property returns appropriate data kind."""
     from tolteca_datamodels.toltec.types import ToltecDataKind
 
-    # Sweep dataset should identify as TargetSweep (ObsType=3 in fixture)
+    # The toy sweep stores one value per step, not raw acquisition samples.
     sweep_kind = toltec_sweep_dataset.toltec_kids.data_kind
-    assert sweep_kind == ToltecDataKind.TargetSweep
+    assert sweep_kind == ToltecDataKind.ReducedSweep
 
     # Timestream dataset should identify as raw timestream
     timestream_kind = toltec_timestream_dataset.toltec_kids.data_kind
@@ -821,7 +822,7 @@ def test_accessor_metadata_extraction(toltec_sweep_dataset):
 def test_accessor_metadata_reads_sweep_counts_from_data_variables(
     toltec_sweep_dataset,
 ):
-    """Raw netCDF header variables provide sweep dimensions."""
+    """Mapped header variables provide sweep counts."""
     ds = toltec_sweep_dataset.drop_vars("sweep")
     ds["Header.Toltec.NumSweepSteps"] = xr.DataArray(50)
     ds["Header.Toltec.NumSamplesPerSweepStep"] = xr.DataArray(4)

@@ -178,6 +178,7 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         level, and LO center frequency. Processed data may omit those settings.
         Raw design dimensions and the ADC snapshot variable must also exist;
         the snapshot is retained as a variable-name reference, without reading it.
+        Raw sweeps require recorded repetitions, sweep capacity and a time dimension.
         Acquisition times come from the file headers; integration time is sample
         count divided by rate.
 
@@ -318,7 +319,7 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         is_raw = bool(data_kind & ToltecDataKind.RawKidsData)
         sweep_fields = base_fields.copy()
         sweep_fields["n_sweepsteps"] = self.get_scalar(ds, schema.n_sweepsteps)
-        if schema.n_sweepreps in self:
+        if is_raw or schema.n_sweepreps in self:
             sweep_fields["n_sweepreps"] = self.get_scalar(ds, schema.n_sweepreps)
 
         slices = [slice(None)]
@@ -338,7 +339,7 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         sweep_fields["n_blocks"] = n_blocks
         sweep_fields["n_blocks_max"] = (
             self.get_dim(ds, schema.n_blocks_max)
-            if schema.n_blocks_max in self
+            if is_raw or schema.n_blocks_max in self
             else n_blocks
         )
         if is_multi_block:
@@ -356,10 +357,10 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         if block is not None and schema.n_times in self:
             ds = ds.isel({self.get_name(schema.n_times): slices[block]})
         sweep_fields["n_sweeps"] = n_blocks if block is None else 1
-        # Reduced sweeps have one sample per sweep step, not a time dimension.
+        # Only processed sweeps may replace acquisition samples with sweep steps.
         sweep_fields["n_times"] = (
             self.get_dim(ds, schema.n_times)
-            if schema.n_times in self
+            if is_raw or schema.n_times in self
             else sweep_fields["n_sweepsteps"]
         )
         sweep_fields["t_exp"] = (sweep_fields["n_times"] / sweep_fields["f_smp"]).to(
@@ -378,7 +379,7 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         block_fields["n_sweeps"] = 1
         block_fields["n_times"] = (
             self.get_dim(ds, self.schema.n_times)
-            if self.schema.n_times in self
+            if is_raw or self.schema.n_times in self
             else block_fields["n_sweepsteps"]
         )
         block_fields["t_exp"] = (block_fields["n_times"] / block_fields["f_smp"]).to(

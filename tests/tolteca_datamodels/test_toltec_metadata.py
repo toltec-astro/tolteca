@@ -203,6 +203,7 @@ class TestMetadataAccessor:
             },
             coords={
                 "sweeps": np.linspace(-245e6, 245e6, n_sweeps),
+                "numSweeps": [0],  # Toy acquisition has capacity for one sweep.
             },
             attrs={
                 **kids_readout_settings,
@@ -302,6 +303,7 @@ class TestMetadataAccessor:
                 "Header.Toltec.NumSweepSteps": n_sweeps,
                 "Header.Toltec.Master": 0,
                 "Header.Toltec.ObsType": 4,  # Tune
+                "Header.Kids.kind": "processed_sweep",  # One value per step.
                 "is_multi_block": True,
                 "n_blocks": n_blocks,
             },
@@ -355,6 +357,7 @@ class TestMetadataAccessor:
                 "Header.Toltec.LoCenterFreq": 4.5e9,
                 "Header.Toltec.ObsNum": 99999,
                 "Header.Toltec.ObsType": 2,  # VnaSweep
+                "Header.Kids.kind": "processed_sweep",  # No acquisition time axis.
             },
         )
 
@@ -407,6 +410,7 @@ class TestMetadataAccessor:
                 "Header.Toltec.RoachIndex": 0,
                 "Header.Toltec.SampleFreq": 488.0,
                 "Header.Toltec.ObsType": 4,  # Tune sweep
+                "Header.Kids.kind": "processed_sweep",  # One value per step.
                 "Header.Toltec.NumSweepSteps": n_sweeps,
                 "is_multi_block": True,
             },
