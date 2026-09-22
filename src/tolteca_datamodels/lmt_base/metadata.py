@@ -10,7 +10,7 @@ from functools import cached_property
 
 from pydantic import Field, computed_field
 from pydantic.dataclasses import dataclass
-from tollan.config.types import TimeField, TimeQuantityField
+from tollan.config.types import TimeQuantityField, UnixTimeField
 
 from ..core import metadata_dataclass_config
 
@@ -69,10 +69,15 @@ class LmtInstruMixin:
 
 @dataclass(config=metadata_dataclass_config, frozen=True, kw_only=True)
 class LmtRawObsMetadata(LmtObsQuartetMixin, LmtInstruMixin):
-    """LMT raw observation metadata."""
+    """LMT raw observation metadata.
 
-    t0: TimeField = Field(description="Observation start time")
-    t1: TimeField = Field(description="Observation end time")
+    ``t0`` and ``t1`` are scalar Astropy times. Serialized records store them as
+    Unix seconds, matching the acquisition timestamps. Construct them from
+    ``Time`` objects or numeric Unix timestamps.
+    """
+
+    t0: UnixTimeField = Field(description="Observation start time")
+    t1: UnixTimeField = Field(description="Observation end time")
     t_exp: TimeQuantityField = Field(description="Integration time")
 
     @computed_field
