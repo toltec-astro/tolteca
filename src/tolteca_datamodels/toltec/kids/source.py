@@ -37,9 +37,9 @@ def identify_source(
     accessor = ToltecKidsAccessor(data)
     mapper = accessor.mapper
     filepath_orig = info.filepath_orig
-    filename = mapper.schema.filename_orig
-    if filename in mapper and mapper.get_name(filename) is not None:
-        filepath_orig = mapper.get_str(data, filename)
+    filepath = mapper.schema.filepath_orig
+    if filepath in mapper and mapper.get_name(filepath) is not None:
+        filepath_orig = mapper.get_str(data, filepath)
     fields, filepath_info_orig = _get_filepath_fields(info, filepath_orig)
     for name in ("roach", "obsnum", "subobsnum", "scannum", "master"):
         mapping = getattr(mapper.schema, name)

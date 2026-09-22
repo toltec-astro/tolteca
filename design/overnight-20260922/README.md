@@ -63,6 +63,7 @@ unnecessary dependency upgrades, or agent delegation.
 | 02b3 | Explicit catalog opening policy and shared runner identity | Complete: `673a2ec`; see [step record](02b3-catalog-opening.md). Broader typed scalar catalog projection remains open. |
 | 02b4 | Measure the scalar projection gap and model boundary | Diagnostic complete: `970c7ef`; [step record](02b4-scalar-projection-boundary.md). Actual v2/v3 reads and missing `atten_drive` catalog selection reproduced; implementation remains open. |
 | 02b5 | Preserve native KIDs master codes | Complete; [step record](02b5-native-master.md). 956 full tests and fresh four-case exact integration pass; source labels and UIDs are unchanged. |
+| 02b6 | Consistent KIDs original-path name | Complete; [step record](02b6-original-path.md). 961 full tests pass. Rename to `filepath_orig`, preserving values and current missing-field behavior. |
 | 02c | Focused telescope/catalog/no-op guide | Complete: `ef546a3`; see [step record](02c-observation-guide.md). Python examples, direct CLI and isolated Deploy invocation verified. |
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
 | 03b | Remaining reducer / live context / output review | [Three reproduced lifecycle/alias gaps](03b-lifecycle-review.md); fixed in 03b1–03b3. Output boundary review continues. |
@@ -106,8 +107,9 @@ measured reads, behavior changes and self-review. Full scalar catalog projection
 remains unresolved.
 
 KIDs raw master codes are now retained in 02b5, with cached `master_str` and
-unchanged identifiers. Original-path naming and the remaining header-model
-boundary are the next focused checks, not implicit parts of that correction.
+unchanged identifiers. Original-path naming is aligned in 02b6. The remaining
+raw/reduced header-model boundary and requiredness are the next focused checks,
+not implicit parts of either correction.
 
 Steps 02a, 02b1, 03a
 and 04a are committed and exported in `review/overnight-20260922/`. Explicit
@@ -158,3 +160,6 @@ commits are diagnostic/design records. Automation remains active before the
 After 02b5, 956 Tolteca tests pass (52.87 s) and fresh exact integration passes
 in `run/overnight-slice-20260922-master/`. This verifies the native master-code
 change without changing scientific outputs or source-catalog labels.
+
+After 02b6, 961 Tolteca tests pass (53.49 s), actual-v2 parity enabled. Scoped
+lint, formatting and typing pass for the original-path rename.

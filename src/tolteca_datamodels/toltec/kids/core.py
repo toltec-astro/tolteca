@@ -126,7 +126,7 @@ class ToltecKidsIOSchema(Schema):
     cal_subobsnum: Mapping = NameMapping("Header.Toltec.TargSweepSubObsNum")
     cal_scannum: Mapping = NameMapping("Header.Toltec.TargSweepScanNum")
     n_chans_max: Mapping = NameMapping("Header.Toltec.MaxNumTones")
-    filename_orig: Mapping = NameMapping("Header.Toltec.Filename")
+    filepath_orig: Mapping = NameMapping("Header.Toltec.Filename")
     repeatvar: Mapping = NameMapping("Header.Toltec.RepeatLevel")
     adc_snap: Mapping = NameMapping.var("Header.Toltec.AdcSnapData")
     n_sweepsteps: Mapping = NameMapping(
@@ -246,8 +246,8 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
                 base_fields[key] = self.get_scalar(ds, field)
         if schema.n_kids_design in self:
             base_fields["n_kids_design"] = self.get_dim(ds, schema.n_kids_design)
-        if schema.filename_orig in self:
-            base_fields["filename_orig"] = self.get_str(ds, schema.filename_orig)
+        if schema.filepath_orig in self:
+            base_fields["filepath_orig"] = self.get_str(ds, schema.filepath_orig)
         if schema.repeatvar in self:
             base_fields["repeatvar"] = str(self.get_scalar(ds, schema.repeatvar))
         if schema.adc_snap in self:

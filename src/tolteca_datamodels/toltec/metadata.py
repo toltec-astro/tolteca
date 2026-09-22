@@ -116,9 +116,9 @@ class ToltecRawObsMetadata(LmtRawObsMetadata):
     )
 
     # File information
-    filename_orig: str | None = Field(
+    filepath_orig: str | None = Field(
         default=None,
-        description="Original filename",
+        description="Original acquisition file path",
     )
 
     repeatvar: str | None = Field(
