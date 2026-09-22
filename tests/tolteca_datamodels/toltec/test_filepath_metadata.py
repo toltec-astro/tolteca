@@ -43,11 +43,12 @@ def test_recorded_acquisition_path(data_lmt_path, suffix):
     assert restored.filepath_orig == expected
 
 
-def test_path_field_does_not_parse_or_require_a_filename(data_lmt_path):
+def test_path_field_preserves_text_but_requires_the_header(data_lmt_path):
     (path,) = (data_lmt_path / "toltec/tcs/toltec0").glob("*_targsweep.nc")
     with open_toltec(path) as data:
         # Unrecognized text is kept verbatim, not silently replaced by a guess.
         meta = dataclasses.replace(data.toltec_kids.meta, filepath_orig="unknown.nc")
         assert meta.filepath_orig == "unknown.nc"
         missing = data.drop_vars("Header.Toltec.Filename")
-        assert missing.toltec_kids.meta.filepath_orig is None
+        with pytest.raises(KeyError, match="Header.Toltec.Filename"):
+            _ = missing.toltec_kids.meta

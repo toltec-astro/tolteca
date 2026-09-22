@@ -38,4 +38,5 @@ def test_missing_repeat_is_not_fabricated(data_lmt_path):
     (path,) = (data_lmt_path / "toltec/tcs/toltec0").glob("*_targsweep.nc")
     with open_toltec(path) as data:
         missing = data.drop_vars("Header.Toltec.RepeatLevel")
-        assert missing.toltec_kids.meta.repeat is None
+        with pytest.raises(ValueError, match="Header.Toltec.RepeatLevel"):
+            _ = missing.toltec_kids.meta

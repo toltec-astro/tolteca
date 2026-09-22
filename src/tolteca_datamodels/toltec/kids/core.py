@@ -173,9 +173,10 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         """Read typed observation metadata without loading detector arrays.
 
         Required identifiers, acquisition times, and sample rate must be present.
-        Raw acquisitions also require their recorded observation type.
-        Optional header fields remain None when absent. Acquisition times come
-        from the file headers; integration time is sample count divided by rate.
+        Raw acquisitions also require their observation type, attenuation,
+        calibration identifiers, maximum tone count, original path, and repeat
+        level. Processed data may omit those readout settings. Acquisition times
+        come from the file headers; integration time is sample count divided by rate.
 
         A dataset with an explicit block dimension returns one metadata object
         per block. A flat acquisition returns one file-level object, including
@@ -201,6 +202,7 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         is_multi_block = self.has_dim(ds, schema.n_blocks)
         n_blocks = self.get_dim(ds, schema.n_blocks) if is_multi_block else 1
         data_kind = self._get_data_kind(ds)
+        is_raw = bool(data_kind & ToltecDataKind.RawKidsData)
         if (
             (is_multi_block or data_kind != ToltecDataKind.Tune)
             and block is not None
@@ -237,7 +239,7 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         }
         # A raw sweep's shape cannot distinguish tune from VNA/target. Its
         # recorded type determines how acquired blocks are counted.
-        if data_kind & ToltecDataKind.RawKidsData or schema.obs_type in self:
+        if is_raw or schema.obs_type in self:
             base_fields["obs_type"] = self.get_scalar(ds, schema.obs_type)
         for key in (
             "atten_drive",
@@ -247,16 +249,15 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
             "cal_subobsnum",
             "cal_scannum",
             "n_chans_max",
+            "repeat",
         ):
             field = getattr(schema, key)
-            if field in self:
+            if is_raw or field in self:
                 base_fields[key] = self.get_scalar(ds, field)
         if schema.n_kids_design in self:
             base_fields["n_kids_design"] = self.get_dim(ds, schema.n_kids_design)
-        if schema.filepath_orig in self:
+        if is_raw or schema.filepath_orig in self:
             base_fields["filepath_orig"] = self.get_str(ds, schema.filepath_orig)
-        if schema.repeat in self:
-            base_fields["repeat"] = self.get_scalar(ds, schema.repeat)
         if schema.adc_snap in self:
             # Keep the array reference, not the ADC snapshot payload.
             base_fields["adc_snap"] = self.get_name(schema.adc_snap)

@@ -5,6 +5,7 @@ import sqlite3
 from contextlib import closing
 
 import pytest
+import xarray as xr
 
 
 @pytest.fixture(scope="session")
@@ -29,3 +30,23 @@ def toltecdb_records(data_lmt_path):
                 "JOIN obstype ON toltec.ObsType = obstype.id ORDER BY toltec.id"
             )
         )
+
+
+@pytest.fixture(scope="session")
+def kids_readout_settings(data_lmt_path):
+    """Read recorded settings for toy datasets, not acquisition-format proof."""
+    (path,) = (data_lmt_path / "toltec/tcs/toltec0").glob("*_targsweep.nc")
+    with xr.open_dataset(path) as data:
+        return {
+            f"Header.Toltec.{key}": data[f"Header.Toltec.{key}"].item()
+            for key in (
+                "DriveAtten",
+                "SenseAtten",
+                "TargSweepObsNum",
+                "TargSweepSubObsNum",
+                "TargSweepScanNum",
+                "MaxNumTones",
+                "Filename",
+                "RepeatLevel",
+            )
+        }

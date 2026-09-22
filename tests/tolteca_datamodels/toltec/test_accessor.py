@@ -56,8 +56,8 @@ def rng() -> np.random.Generator:
 
 
 @pytest.fixture
-def toltec_sweep_dataset():
-    """Create a mock TolTEC sweep dataset with TolTEC-specific fields."""
+def toltec_sweep_dataset(kids_readout_settings):
+    """Toy numerical sweep; not evidence of an acquisition file format."""
     n_chans = 256
     n_sweeps = 50
 
@@ -99,6 +99,7 @@ def toltec_sweep_dataset():
             "sweep": frequencies,
         },
         attrs={
+            **kids_readout_settings,
             **_OBS_HEADERS,
             "Header.Toltec.RoachIndex": 0,
             "Header.Toltec.ObsNum": 12345,
@@ -117,7 +118,7 @@ def toltec_sweep_dataset():
 
 
 @pytest.fixture
-def toltec_timestream_dataset():
+def toltec_timestream_dataset(kids_readout_settings):
     """Toy numerical timestream; not evidence of an acquisition file format."""
     n_chans = 256
     n_samples = 1000
@@ -152,6 +153,7 @@ def toltec_timestream_dataset():
             "time": times,
         },
         attrs={
+            **kids_readout_settings,
             **_OBS_HEADERS,
             "Header.Toltec.RoachIndex": 7,  # a1400 array
             "Header.Toltec.ObsNum": 54321,

@@ -15,9 +15,11 @@ from tolteca_datamodels.toltec.toltecdb import ToltecDBRawObsMaster
 
 
 @pytest.fixture
-def raw():
+def raw(kids_readout_settings):
+    """Toy geometry/unit representations with recorded calibration settings."""
     return xr.Dataset(
         {
+            **kids_readout_settings,
             "Header.Toltec.Master": 1,
             "Header.Toltec.RoachIndex": 7,
             "Header.Toltec.ObsNum": 123,
@@ -133,12 +135,9 @@ def test_required_metadata_is_not_fabricated(raw, missing):
         _ = raw.drop_vars(missing).toltec_kids.meta
 
 
-def test_missing_optional_headers_remain_unknown(raw):
-    meta = raw.drop_vars(
-        ["Header.Toltec.LoCenterFreq", "Header.Toltec.DriveAtten"]
-    ).toltec_kids.meta
+def test_missing_lo_center_remains_unknown(raw):
+    meta = raw.drop_vars("Header.Toltec.LoCenterFreq").toltec_kids.meta
     assert meta.f_lo_center is None
-    assert meta.atten_drive is None
 
 
 def test_reference_metadata(data_lmt_path, monkeypatch):

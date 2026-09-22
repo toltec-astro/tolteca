@@ -172,7 +172,7 @@ class TestMetadataDataclasses:
 class TestMetadataAccessor:
     """Test metadata accessor integration."""
 
-    def test_single_block_sweep_metadata(self, rng):
+    def test_single_block_sweep_metadata(self, rng, kids_readout_settings):
         """Test metadata property returns ToltecSweepMetadata for single-block sweep."""
         # Create mock sweep dataset
         n_chans = 1000
@@ -202,6 +202,7 @@ class TestMetadataAccessor:
                 "sweeps": np.linspace(-245e6, 245e6, n_sweeps),
             },
             attrs={
+                **kids_readout_settings,
                 **_OBS_HEADERS,
                 "Header.Toltec.RoachIndex": 0,
                 "Header.Toltec.ObsNum": 12345,
@@ -245,7 +246,7 @@ class TestMetadataAccessor:
         assert meta.n_sweepreps == 10
         assert meta.f_lo_center == 4.5e9
 
-    def test_multi_block_sweep_metadata(self, rng):
+    def test_multi_block_sweep_metadata(self, rng, kids_readout_settings):
         """Test metadata property returns list for multi-block sweep."""
         # Create mock multi-block dataset
         n_chans = 632
@@ -285,6 +286,7 @@ class TestMetadataAccessor:
                 "sweeps": np.linspace(-88e6, 88e6, n_sweeps),
             },
             attrs={
+                **kids_readout_settings,
                 **_OBS_HEADERS,
                 "Header.Toltec.RoachIndex": 1,
                 "Header.Toltec.ObsNum": 54321,
@@ -319,7 +321,7 @@ class TestMetadataAccessor:
             # Each block has different f_lo_center
             assert meta.f_lo_center is not None
 
-    def test_get_metadata_method(self, rng):
+    def test_get_metadata_method(self, rng, kids_readout_settings):
         """Test get_metadata() method on mapper directly."""
         n_chans = 500
         n_sweeps = 100
@@ -339,6 +341,7 @@ class TestMetadataAccessor:
                 "sweep": np.linspace(-50e6, 50e6, n_sweeps),
             },
             attrs={
+                **kids_readout_settings,
                 **_OBS_HEADERS,
                 "Header.Toltec.RoachIndex": 2,
                 "Header.Toltec.SampleFreq": 488.0,
@@ -356,7 +359,7 @@ class TestMetadataAccessor:
         assert meta.array_name == "a1100"  # roach 2 maps to a1100 (range 0-6)
         assert meta.obsnum == 99999
 
-    def test_get_metadata_specific_block(self, rng):
+    def test_get_metadata_specific_block(self, rng, kids_readout_settings):
         """Test get_metadata(block=N) returns single metadata for specific block."""
         n_chans = 100
         n_sweeps = 50
@@ -388,6 +391,7 @@ class TestMetadataAccessor:
                 "sweeps": np.linspace(-25e6, 25e6, n_sweeps),
             },
             attrs={
+                **kids_readout_settings,
                 **_OBS_HEADERS,
                 "Header.Toltec.RoachIndex": 0,
                 "Header.Toltec.SampleFreq": 488.0,
