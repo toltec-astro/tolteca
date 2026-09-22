@@ -1732,3 +1732,66 @@ Final verification:
 repository-wide cleanup is included. The combined review is generated from
 each repository's HEAD by `just review`, including earlier uncommitted work,
 not from a previous uncommitted iteration.
+
+### C11. Direct registration and source-owned data kind
+
+The root file module defines ordinary registries for filename patterns, capture
+converters, prefix aliases, kind-key fields and kind constants. Importing the
+LMT and TolTEC file modules populates those registries. The root combines the
+existing instrument identity maps. `FileSpec` bundles and cached declaration
+assembly are removed; domain files no longer bundle identity and classification
+policies with each regex.
+
+`FilepathInfo` now stores filename segments and eagerly deduced identity only.
+The `data_kind` field belongs to `SourceInfoModel`. `guess_data_kind` accepts
+available metadata independently of a path, normalizes one `DataKindKey`, and
+performs a dictionary lookup. Source discovery calls it once after parsing.
+Ordinary model construction/restoration never silently reclassifies an explicit
+kind. Header enrichment remains unchanged, including retention of a compatible
+more-specific processed kind.
+
+Observable changes are limited to the approved ownership/API changes:
+
+- Remove nested `filepath_info.data_kind` / `filepath_info_orig.data_kind` and
+  their `file_data_kind` / `file_data_kind_orig` query aliases. Use top-level
+  `data_kind` to select a source classification; source enum representations are
+  unchanged. There are no compatibility shims for this unreleased model.
+- Rename `FileKindKey` to `DataKindKey`; remove `FileSpec`. Record types remain
+  the common model and TolTEC ROACH subtype.
+- Import-time registration replaces lazy declaration assembly. All four tested
+  first-import orders fully populate the disjoint patterns; repeated ordinary
+  imports leave the tables unchanged. The union validation adapter remains
+  cached and restores stored fields without rerunning deduction.
+
+Self-review and verification:
+
+- All 132 saved source projections compare exactly equal after deleting only
+  their nested kind field. The acquisition grammar, filename UT, source/original
+  precedence, remote FileLoc handling, master labels, and header policy remain
+  unchanged. The reference checkout is clean.
+- Counters verify that path parsing does no classification, source discovery
+  does one kind lookup, and reads/dumps/round trips do neither again.
+- Four initial selection-test failures exposed fixtures that explicitly had an
+  Unknown source kind; their former assertions queried the original filename's
+  kind. Tests now verify top-level selection on the actual 132-record discovery
+  catalog. They do not change fixture kinds to disguise reclassification.
+- **894 Tolteca tests pass** with the v2 interpreter enabled; **192 DB tests
+  pass** (54 existing deselections); **10 focused Web tests pass**. The count
+  changes from 897 because four obsolete nested-query parameter cases are
+  removed and one metadata-only classifier test is added.
+- All 25 changed/new Tolteca Python files pass Ruff (existing CPY001 exclusion),
+  formatting and scoped type checks. `git diff --check` passes. Existing global
+  type/legacy Web/DB lint debt noted in C10 is not claimed fixed. `just qa` and
+  commit hooks were not run; equivalent scoped checks above were run explicitly.
+- Paired same-process microbenchmark, seven runs of 3,000 source guesses:
+  ROACH **53.76 → 55.38 µs/source**, telescope **57.49 → 54.70 µs/source**.
+  This is a local measurement, not a speedup claim. Extra normalization of the
+  independent classification call is small; no file I/O is introduced. Regex
+  trial order can differ with first import; patterns are disjoint.
+
+Before committing this follow-up, the saved pre-change review was applied to
+the Git index only to preserve earlier pending work as checkpoint `269d1db`.
+The working tree was neither restored nor reset. Companion baseline changes:
+DB `317f951`, Web `3bc81fe`. The current registry change therefore has a focused
+commit diff rather than incorporating all daytime iterations. The renewed
+review trail is [here](overnight-20260922/README.md).

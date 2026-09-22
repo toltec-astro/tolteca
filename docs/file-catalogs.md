@@ -119,7 +119,6 @@ retain all of these stored fields.
 | `suffix` | Filename suffix, such as `vnasweep`; `None` when absent |
 | `ext` | Extension without the leading dot |
 | `roach` | ROACH index; present on the TolTEC readout record |
-| `data_kind` | Filename-derived `ToltecDataKind`, or `Unknown` |
 
 The model derives `interface` from `prefix`, then `instru` and
 `instru_component` from the interface during parsing. Telescope prefixes such as
@@ -142,9 +141,10 @@ telescope filename supplies only the creation date, represented as midnight UTC;
 it does not supply the time of day. Readout filenames include the creation time
 to the second. Both filename formats require their date/time segment.
 Top-level record identifiers may be corrected from headers; the parsed path
-fields remain available for comparison. Likewise, `record.data_kind` may be
-refined by header identification, while `record.filepath_info.data_kind`
-preserves the filename-derived kind.
+fields remain available for comparison. `record.data_kind` describes the source:
+filename discovery guesses it from the available identifiers, and header
+identification can refine it. Use the catalog's `data_kind` column to select by
+this classification, for example `data_kind == "VnaSweep"`.
 
 ## Complete KIDs records from headers
 
@@ -194,9 +194,7 @@ records = catalog.toltec_file.to_info_list("obsnum == 145609")
 | `filepath_info.ut` | `file_ut` |
 | `filepath_info.suffix` | `file_suffix` |
 | `filepath_info.ext` | `file_ext` |
-| `filepath_info.data_kind` | `file_data_kind` |
 | `filepath_info_orig.ut` | `file_ut_orig` |
-| `filepath_info_orig.data_kind` | `file_data_kind_orig` |
 | `filepath_info_orig.suffix` | `file_suffix_orig` |
 | `filepath_info_orig.ext` | `file_ext_orig` |
 

@@ -186,14 +186,12 @@ def test_catalog_scalar_and_struct_columns(records):
         ('filepath_info_orig.ut >= "2025-10-31T00:00:00Z"', [0, 1, 3]),
         ("filepath_info_orig.ut.isna()", [2]),
         ("filepath_info_orig.interface.isna()", [2]),
-        ('filepath_info_orig.data_kind == "VnaSweep"', [0]),
-        ('filepath_info_orig.data_kind == "LmtTel"', [1]),
     ],
 )
 @pytest.mark.parametrize("short_names", [False, True])
 def test_dotted_selection(records, expression, indices, short_names):
     if short_names:
-        for name in ("suffix", "ut", "interface", "prefix", "data_kind"):
+        for name in ("suffix", "ut", "interface", "prefix"):
             expression = expression.replace(
                 f"filepath_info_orig.{name}", f"file_{name}_orig"
             )

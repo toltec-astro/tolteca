@@ -1,6 +1,5 @@
 """Filename identification preserves local and remote source locations."""
 
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -8,7 +7,7 @@ from tollan.utils.fileloc import fileloc
 
 import tolteca_datamodels.file as file_module
 from tolteca_datamodels.file import (
-    FileKindKey,
+    DataKindKey,
     FilepathInfo,
     SourceInfoModel,
     guess_info_from_source,
@@ -18,7 +17,7 @@ from tolteca_datamodels.toltec.file import FilepathInfo as ToltecFilepathInfo
 from tolteca_datamodels.toltec.types import ToltecDataKind
 
 
-def test_file_identity_and_kind_are_computed_once(monkeypatch):
+def test_kind_is_computed_for_source_not_filepath(monkeypatch):
     lookups = []
 
     class KindMap(dict):
@@ -26,17 +25,19 @@ def test_file_identity_and_kind_are_computed_once(monkeypatch):
             lookups.append(key)
             return super().get(key, default)
 
-    specs = tuple(
-        replace(spec, kind_map=KindMap(spec.kind_map))
-        for spec in file_module._get_file_specs()
+    monkeypatch.setattr(
+        file_module, "data_kind_map", KindMap(file_module.data_kind_map)
     )
-    monkeypatch.setattr(file_module, "_get_file_specs", lambda: specs)
-    info = FilepathInfo.from_path(
-        "toltec8_145605_000_0001_2025_10_31_09_20_06_vnasweep.nc"
-    )
+    path = "toltec8_145605_000_0001_2025_10_31_09_20_06_vnasweep.nc"
+    info = FilepathInfo.from_path(path)
     assert info is not None
+    assert lookups == []
+    assert "data_kind" not in info.model_dump()
+    source = guess_info_from_source(path)
+    assert source is not None
+    assert source.filepath_info == info
     assert lookups == [
-        FileKindKey(
+        DataKindKey(
             instru="toltec", instru_component="roach", suffix="vnasweep", ext="nc"
         )
     ]
@@ -50,18 +51,22 @@ def test_file_identity_and_kind_are_computed_once(monkeypatch):
         assert info.interface == "toltec8"
         assert info.instru == "toltec"
         assert info.instru_component == "roach"
-        assert info.data_kind == ToltecDataKind.VnaSweep
+        assert source.data_kind == ToltecDataKind.VnaSweep
         assert type(info).model_validate(info.model_dump()) == info
         assert type(info).model_validate_json(info.model_dump_json()) == info
+        assert (
+            SourceInfoModel.model_validate_json(source.model_dump_json(round_trip=True))
+            == source
+        )
     assert lookups == []
     assert not FilepathInfo.model_computed_fields
 
 
 def test_unknown_telescope_suffix_does_not_change_kind():
     # A deliberately renamed copy exercises suffix-independent identification.
-    info = FilepathInfo.from_path("tel_toltec_2025-10-31_145609_00_0002_custom.nc")
+    info = guess_info_from_source("tel_toltec_2025-10-31_145609_00_0002_custom.nc")
     assert info is not None
-    assert info.suffix == "custom"
+    assert info.file_suffix == "custom"
     assert info.data_kind == ToltecDataKind.LmtTel
 
 

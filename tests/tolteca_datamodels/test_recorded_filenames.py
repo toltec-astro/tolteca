@@ -8,7 +8,11 @@ from pathlib import Path
 
 import pytest
 
-from tolteca_datamodels.file import FilepathInfo, guess_info_from_sources
+from tolteca_datamodels.file import (
+    FilepathInfo,
+    guess_info_from_source,
+    guess_info_from_sources,
+)
 from tolteca_datamodels.toltec.file import FilepathInfo as ToltecFilepathInfo
 from tolteca_datamodels.toltec.types import ToltecDataKind
 
@@ -26,7 +30,10 @@ def test_lmtmc_filenames(lmtmc_records):
         ), row["FileName"]
         assert info.suffix is None and info.ext == "nc"
         assert info.master_str is None  # No master directory in LMTMC paths.
-        assert info.data_kind == ToltecDataKind.LmtTel
+        source = guess_info_from_source(row["FileName"])
+        assert source is not None
+        assert source.filepath_info == info
+        assert source.data_kind == ToltecDataKind.LmtTel
 
 
 def test_toltecdb_filenames(toltecdb_records):
@@ -51,7 +58,11 @@ def test_toltecdb_filenames(toltecdb_records):
             row["ScanNum"],
         ), row["FileName"]
         suffix, kind = kinds[row["kind_label"]]
-        assert (info.suffix, info.ext, info.data_kind) == (suffix, "nc", kind)
+        assert (info.suffix, info.ext) == (suffix, "nc")
+        source = guess_info_from_source(row["FileName"])
+        assert source is not None
+        assert source.filepath_info == info
+        assert source.data_kind == kind
         assert info.ut is not None
         assert (
             type(info).model_validate_json(info.model_dump_json(round_trip=True))
@@ -122,7 +133,13 @@ def test_recorded_catalog_selection(lmtmc_records, toltecdb_records, monkeypatch
     assert len(catalog) == 132
     telescopes = catalog.toltec_file.query('interface == "tel"')
     assert telescopes["source"].tolist() == [row["FileName"] for row in lmtmc_records]
+    assert catalog.toltec_file.query('data_kind == "LmtTel"').index.equals(
+        telescopes.index
+    )
     sweeps = catalog.toltec_file.query('file_suffix == "vnasweep"')
     assert sweeps["source"].tolist() == [
         row["FileName"] for row in toltecdb_records if row["kind_label"] == "VNA"
     ]
+    assert catalog.toltec_file.query('data_kind == "VnaSweep"').index.equals(
+        sweeps.index
+    )

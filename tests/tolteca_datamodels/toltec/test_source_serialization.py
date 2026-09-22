@@ -36,14 +36,14 @@ def test_normal_serialization_retains_location_and_typed_aliases(record):
     dumped = record.model_dump()
     assert dumped["source"] == record.source.model_dump()
     assert dumped["data_kind"] is ToltecDataKind.VnaSweep
-    assert dumped["filepath_info"]["data_kind"] is ToltecDataKind.VnaSweep
+    assert "data_kind" not in dumped["filepath_info"]
     assert dumped["file_ut"] == datetime(2025, 10, 31, 9, 20, 6, tzinfo=UTC)
     assert dumped["file_suffix"] == "vnasweep"
     assert dumped["file_ext"] == "nc"
     dumped_json = record.model_dump(mode="json")
     assert dumped_json["source"] == record.source.model_dump(mode="json")
     assert dumped_json["data_kind"] == ToltecDataKind.VnaSweep.value
-    assert dumped_json["filepath_info"]["data_kind"] == ToltecDataKind.VnaSweep.value
+    assert "data_kind" not in dumped_json["filepath_info"]
     assert dumped_json["file_ut"] == "2025-10-31T09:20:06Z"
     restored = SourceInfoModel.model_validate_json(
         record.model_dump_json(round_trip=True)
@@ -115,9 +115,10 @@ def test_aliases_follow_replaced_path_info_without_cached_values(record):
 )
 def test_catalog_kind_serialization_and_validation(kind, record):
     # Exercise the enum codec, not classification of these artificial combinations.
-    parsed = record.filepath_info.model_copy(update={"data_kind": kind})
     record = SourceInfoModel(
-        source="https://example.org/unknown.nc", data_kind=kind, filepath_info=parsed
+        source="https://example.org/unknown.nc",
+        data_kind=kind,
+        filepath_info=record.filepath_info,
     )
     assert (
         SourceInfoModel.model_validate(record.model_dump(round_trip=True)).data_kind
@@ -134,7 +135,9 @@ def test_catalog_kind_serialization_and_validation(kind, record):
     assert SourceInfoModel.model_validate(serialized).data_kind == kind
     catalog = ToltecFileAccessor.from_info_list([record])
     assert catalog.toltec_file.to_info_list()[0].data_kind == kind
-    assert catalog.toltec_file.to_info_list()[0].filepath_info.data_kind == kind
+    dtype = catalog["filepath_info"].dtype
+    assert isinstance(dtype, pd.ArrowDtype)
+    assert "data_kind" not in dtype.pyarrow_dtype.names
 
 
 def test_invalid_kind_name_raises_validation_error():

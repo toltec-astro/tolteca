@@ -4,8 +4,11 @@ from datetime import UTC, datetime
 
 import pytest
 
-from tolteca_datamodels.file import FilepathInfo, guess_info_from_sources
-from tolteca_datamodels.lmt.file import file_specs
+from tolteca_datamodels.file import (
+    FilepathInfo,
+    filename_patterns,
+    guess_info_from_sources,
+)
 from tolteca_datamodels.toltec.file import FilepathInfo as ToltecFilepathInfo
 
 
@@ -98,9 +101,13 @@ def test_malformed_acquisition_filenames_are_rejected(filename):
     assert FilepathInfo.from_path(filename, raise_on_error=False) is None
 
 
-def test_lmt_declarations_do_not_accept_readout_files():
+def test_common_record_declarations_do_not_accept_readout_files():
     name = "toltec8_145609_000_0002_2025_10_31_09_27_57.nc"
-    assert all(spec.pattern.match(name) is None for spec in file_specs)
+    assert all(
+        pattern.match(name) is None
+        for pattern, model in filename_patterns.items()
+        if model is FilepathInfo
+    )
 
 
 def test_telescope_prefix_and_interface_selection(monkeypatch):

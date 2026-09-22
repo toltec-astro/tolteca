@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import cache, cached_property, reduce
 from operator import or_
@@ -31,7 +29,7 @@ from .toltec.types import ToltecDataKind
 
 if TYPE_CHECKING:
     import re
-    from collections.abc import Iterable
+    from collections.abc import Callable, Iterable
     from pathlib import Path
     from types import EllipsisType
 
@@ -40,29 +38,39 @@ if TYPE_CHECKING:
     from .lmt_base.metadata import LmtInstruMixin
 
 __all__ = [
-    "FileKindKey",
-    "FileSpec",
+    "DataKindKey",
     "FilepathInfo",
     "SourceInfoModel",
     "ToltecFileAccessor",
+    "guess_data_kind",
     "guess_info_from_source",
     "guess_info_from_sources",
 ]
 
 
-class FileKindKey(NamedTuple):
-    """A normalized dictionary key for filename classification.
+class DataKindKey(NamedTuple):
+    """A normalized dictionary key for source classification.
 
     Use ``...`` for ignored fields on both the table and lookup keys.
     ``None`` represents an absent value, not an ignored field.
     """
 
-    prefix: str | EllipsisType = ...
-    interface: str | EllipsisType = ...
+    prefix: str | EllipsisType | None = ...
+    interface: str | EllipsisType | None = ...
     instru: str | EllipsisType | None = ...
     instru_component: str | EllipsisType | None = ...
     suffix: str | EllipsisType | None = ...
-    ext: str | EllipsisType = ...
+    ext: str | EllipsisType | None = ...
+
+
+# Domain modules populate these tables below, after the shared models exist.
+filename_patterns: dict[re.Pattern[str], type[FilepathInfo]] = {}
+filename_field_types: dict[str, Callable[[str], object]] = {}
+prefix_interface: dict[str, str] = {}
+data_kind_map: dict[DataKindKey, ToltecDataKind] = {}
+# Retain these fields in the lookup key for each instrument/component pair.
+# Other families use (prefix, ext); ignored positions are always Ellipsis.
+data_kind_fields: dict[tuple[str | None, str | None], tuple[str, ...]] = {}
 
 
 _FILEPATH_INFO_DTYPE = pd.ArrowDtype(
@@ -80,7 +88,6 @@ _FILEPATH_INFO_DTYPE = pd.ArrowDtype(
             ("ut", pa.timestamp("us", tz="UTC")),
             ("suffix", pa.string()),
             ("ext", pa.string()),
-            ("data_kind", pa.string()),
         ]
     )
 )
@@ -137,13 +144,6 @@ class FilepathInfo(BaseModel):
         fmt = "%Y_%m_%d_%H_%M_%S" if "_" in value else "%Y-%m-%d"
         return datetime.strptime(value, fmt).replace(tzinfo=UTC)
 
-    _type_dispatcher: ClassVar[dict[str, Callable[[str], object]]] = {
-        "obsnum": int,
-        "subobsnum": int,
-        "scannum": int,
-        "ut": _parse_ut,
-    }
-
     prefix: str
     interface: str
     instru: str | None
@@ -155,7 +155,6 @@ class FilepathInfo(BaseModel):
     ut: AwareDatetime | None
     suffix: str | None
     ext: str
-    data_kind: _DataKindField
 
     @classmethod
     def from_path(
@@ -176,27 +175,26 @@ class FilepathInfo(BaseModel):
         """
         source = fileloc(source)
         path = source.path
-        for spec in _get_file_specs():
-            if not issubclass(spec.info_cls, cls):
+        for pattern, info_cls in filename_patterns.items():
+            if not issubclass(info_cls, cls):
                 continue
-            fields = dict_from_regex_match(
-                spec.pattern, path.name, spec.type_dispatcher
-            )
+            fields = dict_from_regex_match(pattern, path.name, filename_field_types)
             if fields is not None:
-                return spec.info_cls.model_validate(
-                    cls._derive_fields(path, fields, spec)
-                )
+                return info_cls.model_validate(cls._derive_fields(path, fields))
         if not raise_on_error:
             return None
         msg = f"Unrecognized acquisition filename: {source}"
         raise ValueError(msg)
 
     @staticmethod
-    def _derive_fields(path: Path, fields: dict, spec: FileSpec) -> dict:
+    def _derive_fields(path: Path, fields: dict) -> dict:
         """Complete parsed fields before constructing the record."""
         prefix = fields["prefix"]
-        fields["interface"] = spec.prefix_interface.get(prefix, prefix)
-        identity = spec.identity_map.get(fields[spec.identity_field])
+        interface = fields["interface"] = prefix_interface.get(prefix, prefix)
+        # Numeric ROACH captures recognize alternate numeric spellings without
+        # changing the literal filename prefix or interface.
+        interface_key = ToltecInfo.roach_interface.get(fields.get("roach"), interface)
+        identity = interface_instru.get(interface_key)
         fields.update(
             instru=None if identity is None else identity.instru,
             instru_component=None if identity is None else identity.instru_component,
@@ -210,46 +208,40 @@ class FilepathInfo(BaseModel):
                 prefix.partition("_")[0],
             ):
                 fields["master_str"] = master
-        key = FileKindKey(**{name: fields[name] for name in spec.kind_fields})
-        fields["data_kind"] = spec.kind_map.get(key, ToltecDataKind.Unknown)
         return fields
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
-class FileSpec:
-    """Describe filename captures, identity lookup, and data-kind lookup.
+def guess_data_kind(  # noqa: PLR0913 -- one argument per classification key field
+    *,
+    prefix: str | None = None,
+    interface: str | None = None,
+    instru: str | None = None,
+    instru_component: str | None = None,
+    suffix: str | None = None,
+    ext: str | None = None,
+) -> ToltecDataKind:
+    """Classify source metadata without opening a file.
 
-    ``pattern`` captures record fields. ``type_dispatcher`` converts captured
-    strings. ``identity_field`` selects the key in ``identity_map``.
-    ``kind_fields`` names the positions retained in the classification key;
-    every other position is ``...``. ``info_cls`` validates the completed record.
+    Return ``ToltecDataKind.Unknown`` when the supplied identifiers have no
+    registered classification. For ROACH data, instrument, component, suffix,
+    and extension determine the kind; other families use prefix and extension.
     """
-
-    pattern: re.Pattern[str]
-    identity_map: Mapping[str, LmtInstruMixin] | Mapping[int, LmtInstruMixin]
-    kind_map: dict[FileKindKey, ToltecDataKind]
-    info_cls: type[FilepathInfo] = FilepathInfo
-    prefix_interface: Mapping[str, str] = field(default_factory=dict)
-    identity_field: str = "interface"
-    kind_fields: tuple[str, ...] = ("prefix", "ext")
-    type_dispatcher: dict[str, Callable[[str], object]] = field(
-        default_factory=lambda: FilepathInfo._type_dispatcher
-    )
-
-
-@cache
-def _get_file_specs() -> tuple[FileSpec, ...]:
-    # Instrument package initializers import readers and metadata. Assemble
-    # their declarations only after this module's record classes are defined.
-    from .lmt.file import file_specs as lmt_specs  # noqa: PLC0415
-    from .toltec.file import file_specs as toltec_specs  # noqa: PLC0415
-
-    return (*toltec_specs, *lmt_specs)
+    fields = {
+        "prefix": prefix,
+        "interface": interface,
+        "instru": instru,
+        "instru_component": instru_component,
+        "suffix": suffix,
+        "ext": ext,
+    }
+    names = data_kind_fields.get((instru, instru_component), ("prefix", "ext"))
+    key = DataKindKey(**{name: fields[name] for name in names})
+    return data_kind_map.get(key, ToltecDataKind.Unknown)
 
 
 @cache
 def _get_filepath_adapter() -> TypeAdapter[FilepathInfo]:
-    models = dict.fromkeys(spec.info_cls for spec in _get_file_specs())
+    models = dict.fromkeys(filename_patterns.values())
     return TypeAdapter(reduce(or_, models))
 
 
@@ -393,7 +385,14 @@ def guess_info_from_source(
         obsnum=parsed.obsnum,
         subobsnum=parsed.subobsnum,
         scannum=parsed.scannum,
-        data_kind=parsed.data_kind,
+        data_kind=guess_data_kind(
+            prefix=parsed.prefix,
+            interface=parsed.interface,
+            instru=parsed.instru,
+            instru_component=parsed.instru_component,
+            suffix=parsed.suffix,
+            ext=parsed.ext,
+        ),
     )
 
 
@@ -530,3 +529,20 @@ class ToltecFileAccessor:
                 }
             result.append(SourceInfoModel.model_validate(fields))
         return result
+
+
+filename_field_types.update(
+    obsnum=int, subobsnum=int, scannum=int, ut=FilepathInfo._parse_ut
+)
+
+# Readers and metadata import the shared models above. Import domain modules
+# only after defining them; each module registers its declarations exactly once.
+from .lmt import file as _lmt_file  # noqa: E402, F401
+from .lmt.types import LmtInfo  # noqa: E402
+from .toltec import file as _toltec_file  # noqa: E402, F401
+from .toltec.types import ToltecInfo  # noqa: E402
+
+interface_instru: dict[str, LmtInstruMixin] = {
+    **LmtInfo.interface_instru,
+    **ToltecInfo.interface_instru,
+}
