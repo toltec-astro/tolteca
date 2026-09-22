@@ -139,11 +139,28 @@ records = telescope.toltec_file.to_info_list()
 print(records[0].filepath_orig)
 ```
 
-Files close before this function returns. Telescope identification uses its
-strict metadata reader; KIDs identification reads scalar headers without
-loading I/Q or scanning tune LO values. The catalog holds source identity and
-filename fields, not every field of the observation metadata. Read `.meta`
-for fields such as telescope `obs_goal` or KIDs `atten_drive`.
+Files close before this function returns. Each source record's `metadata` holds
+typed telescope metadata or raw KIDs header metadata. Telescope identification
+uses its strict metadata reader; KIDs identification reads scalar headers and
+dimension lengths without loading I/Q or scanning tune LO values. Missing
+required acquisition headers raise an error. Processed KIDs sources receive
+identifiers only, with `metadata=None`.
+
+Select by scalar headers using their names or the explicit `metadata` namespace:
+
+```python
+kids_selected = catalog.toltec_file.query("atten_drive == 7.25 & roach == 0")
+tel_selected = catalog.toltec_file.query("metadata.obs_goal == 'pointing'")
+print(records[0].metadata.obs_pgm)
+```
+
+Metadata uses an Arrow struct column; queries project its fields without
+restoring Python objects per row. Scalar aliases are available only for fields
+present in the catalog. In a mixed catalog, other record types have null values
+for that field. Source columns take precedence over aliases: `master` is the
+source's readable label, whereas `metadata.master` is its numeric header code.
+Raw sweep metadata includes programmed steps, repetitions and capacity, but not
+actual tune `n_sweeps` or `n_blocks`; those require the full KIDs reader `.meta`.
 
 Choose when sources are opened with the Python `header_mode` keyword:
 
@@ -174,6 +191,7 @@ It returns a fresh record without changing the current source. Header identifier
 correct guesses; an unrecognized current filename falls back to the recorded
 original filename. A recognized current name retains its own suffix and UT.
 Use `check_filepath_orig=True` for optional header/original-name consistency.
+Reading again replaces the metadata snapshot; previous records do not change.
 
 ### Select rows using path fields
 

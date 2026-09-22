@@ -265,7 +265,7 @@ type _FilepathInfoField = Annotated[
 
 @cache
 def _get_metadata_adapters() -> dict[
-    ToltecDataKind, tuple[type[LmtRawObsMetadata], TypeAdapter[LmtRawObsMetadata]]
+    ToltecDataKind | str, tuple[type[LmtRawObsMetadata], TypeAdapter[LmtRawObsMetadata]]
 ]:
     # Resolve domain classes after the root file/reader imports have completed.
     from .lmt.metadata import LmtTelMetadata  # noqa: PLC0415
@@ -283,6 +283,9 @@ def _get_metadata_adapters() -> dict[
     for kinds, cls in models:
         adapter = cls, TypeAdapter[LmtRawObsMetadata](cls)
         adapters.update((kind, adapter) for kind in (*kinds, kinds))
+    # Telescope metadata identifies the interface even when an unrecognized
+    # original filename cannot distinguish the tel/tel2 stream kind.
+    adapters["tel"] = adapters[ToltecDataKind.LmtTel]
     return adapters
 
 
@@ -292,7 +295,8 @@ class SourceInfoModel(BaseModel):
     Missing identifiers remain ``None`` until supplied by filename or header
     metadata. This record contains neither open resources nor numerical arrays.
     ``metadata`` holds a telescope metadata record or raw KIDs ``meta_header``;
-    ``data_kind`` determines its type when restoring serialized records.
+    ``data_kind`` determines its type when restoring serialized records. A
+    telescope record with unknown stream kind is identified by ``interface``.
 
     Pass ``context={"flat": True}`` to ``model_dump`` to serialize source
     locations as resolved strings and data kinds as names, and expose scalar
@@ -333,8 +337,13 @@ class SourceInfoModel(BaseModel):
         if value is None:
             return None
         kind = info.data.get("data_kind", ToltecDataKind.Unknown)
+        key = (
+            (info.data.get("interface") or kind)
+            if kind is ToltecDataKind.Unknown
+            else kind
+        )
         try:
-            metadata_cls, adapter = _get_metadata_adapters()[kind]
+            metadata_cls, adapter = _get_metadata_adapters()[key]
         except KeyError as exc:
             msg = f"No acquisition metadata model for {kind}"
             raise ValueError(msg) from exc

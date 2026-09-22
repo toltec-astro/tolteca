@@ -40,6 +40,8 @@ def main():
             assert namespace["meta"].uid_raw_obs_file == "tcs-145609-0-2-tel"
             assert len(namespace["guessed"]) == len(namespace["catalog"]) == 3
             assert len(namespace["telescope"]) == 1
+            assert len(namespace["kids_selected"]) == 2
+            assert len(namespace["tel_selected"]) == 1
             assert len(namespace["selected"]) == 1
             selected = namespace["by_recorded_name"]
             restored = namespace["selected_again"]
@@ -49,7 +51,7 @@ def main():
                 selected.toltec_file.to_info_list()
                 == restored.toltec_file.to_info_list()
             )
-            columns = ["filepath_info", "filepath_info_orig"]
+            columns = ["filepath_info", "filepath_info_orig", "metadata"]
             pd.testing.assert_frame_equal(selected[columns], restored[columns])
             assert namespace["record_restored"] == namespace["record"]
             assert (

@@ -35,10 +35,14 @@ def build_input_catalog(
     Fallback does not fill missing fields in an otherwise recognized filename.
 
     Files are closed before returning or propagating a read error. KIDs reads
-    scalar headers only; telescope identification also reads two timestamp
+    scalar headers and dimension lengths into typed ``metadata``; telescope
+    identification also reads two timestamp
     endpoints and the two target-coordinate pairs. I/Q and pointing streams are
     not loaded. Unsupported kinds retain filename guesses. Observation selectors
-    filter filenames before this header-enrichment stage.
+    filter filenames before this header-enrichment stage. Header fields such as
+    ``atten_drive`` are available as query aliases and in flat source snapshots
+    for conditional configuration. Actual tune block counts require a separate
+    array read and are not included in header metadata.
     """
     header_mode = HeaderReadMode(header_mode)
     catalog = resolve_sources(sources, data_root=data_root)

@@ -21,7 +21,9 @@ more than once, including through a symbolic link, is processed once.
 
 ObsSpec first narrows file discovery with glob patterns, then filters filename
 metadata with the complete selector. Selected candidates are opened to read
-scalar header metadata. Use `--select` to filter that enriched catalog:
+scalar header metadata. Raw acquisitions must contain their required headers;
+no-op execution does not bypass metadata validation. Use `--select` to filter
+that enriched catalog:
 
 ```console
 tolteca_kids --select "roach < 7 & file_suffix in ['vnasweep', 'targsweep', 'tune']" \
@@ -72,6 +74,9 @@ sections for each selected input and exits. Conditional sources use that input's
 metadata for `enable_if`; these conditions control stage configuration, not
 input selection. Set discovery paths and catalog selection in unconditional
 configuration, since they are needed before per-input metadata is available.
+Scalar header names such as `atten_drive`, `obs_type` and `n_chans` are available
+in both `--select` and `enable_if`. Actual tune block counts are not read during
+catalog preparation. See the guide for metadata types and field availability.
 
 Kids consumes explicit path settings. It does not discover a deployment root
 or derive paths from process environment variables. Relative configuration

@@ -138,11 +138,13 @@ def test_header_opening_modes(  # noqa: PLR0913, PLR0917 -- fixtures and case ma
     assert len(opened) == len(closed) == int(should_open)
     assert len(time_reads) == (2 if should_open and expected.interface == "tel" else 0)
     if should_open:
+        assert record.metadata is not None
         assert record.master == "tcs"
         assert record.filepath_orig is not None
         assert record.filepath_info_orig is not None
         assert record.filepath_info == record.filepath_info_orig
     else:
+        assert record.metadata is None
         assert record.filepath_orig is None
     if renamed and not should_open:
         assert record.obsnum is None
@@ -161,9 +163,12 @@ def test_default_catalog_enriches_all_reference_headers(data_lmt_path):
     catalog = build_input_catalog(paths)
     assert catalog["master"].tolist() == ["tcs"] * 8
     assert len(catalog.toltec_file.query("interface == 'tel' & master == 'tcs'")) == 4
+    assert len(catalog.toltec_file.query("atten_drive == 7.25")) == 4
+    assert len(catalog.toltec_file.query("obs_pgm == metadata.obs_pgm")) == 4
     for info in catalog.toltec_file.to_info_list():
         assert info.filepath_orig is not None
         assert info.filepath_info_orig is not None
+        assert info.metadata is not None
         assert info.obsnum == info.filepath_info_orig.obsnum
 
 

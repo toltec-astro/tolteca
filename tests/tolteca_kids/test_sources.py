@@ -285,22 +285,18 @@ def test_reference_headers_match_original_filename(data_lmt_path, monkeypatch, c
         "filepath_info_orig.suffix",
     ],
 )
-def test_cli_selects_original_filename_in_renamed_file(tmp_path, suffix_field):
+def test_cli_selects_original_filename_in_renamed_file(
+    target_sweep_path, tmp_path, suffix_field
+):
     path = tmp_path / "downloaded.nc"
-    original = "/recorded/toltec8_145609_000_0002_2025_10_31_01_02_03_timestream.nc"
-    xr.Dataset(
-        {
-            "Header.Toltec.ObsType": 1,
-            "Header.Toltec.RoachIndex": 8,
-            "Header.Toltec.Filename": original,
-        }
-    ).to_netcdf(path, engine="scipy")
+    path.symlink_to(target_sweep_path)
+    original = f"/data_lmt/toltec/tcs/toltec0/{target_sweep_path.name}"
     result = CliRunner().invoke(
         app,
         [
             "--show_inputs",
             "--select",
-            f"roach == 8 & {suffix_field} == 'timestream'",
+            f"roach == 0 & {suffix_field} == 'targsweep'",
             "--",
             str(path),
         ],
@@ -309,8 +305,8 @@ def test_cli_selects_original_filename_in_renamed_file(tmp_path, suffix_field):
     [row] = json.loads(result.stdout)
     assert row["source"] == str(path)
     assert row["filepath_orig"] == original
-    assert row["filepath_info_orig"]["suffix"] == "timestream"
-    assert row["filepath_info_orig"]["ut"] == "2025-10-31T01:02:03.000Z"
+    assert row["filepath_info_orig"]["suffix"] == "targsweep"
+    assert row["filepath_info_orig"]["ut"] == "2025-10-31T09:22:14.000Z"
 
 
 @pytest.mark.parametrize(
@@ -331,9 +327,8 @@ def test_unsupported_kind_never_enters_sweep_pipeline(kind, monkeypatch):
         Kids(RuntimeContext()).pipeline_for(kind)
 
 
-def test_cli_selection_and_timestream_rejection(tmp_path, monkeypatch):
-    path = tmp_path / "toltec8_145609_000_0002_2025_10_31_09_27_57.nc"
-    xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(path, engine="scipy")
+def test_cli_selection_and_timestream_rejection(timestream_path, monkeypatch):
+    path = timestream_path
 
     def unexpected(*args, **kwargs):
         pytest.fail("metadata-only command invoked reduction")
@@ -345,7 +340,7 @@ def test_cli_selection_and_timestream_rejection(tmp_path, monkeypatch):
             str(path),
             "--show_inputs",
             "--select",
-            "roach == 8 & data_kind == 'RawTimeStream'",
+            "roach == 0 & data_kind == 'RawTimeStream'",
         ],
     )
     assert result.exit_code == 0, result.exception

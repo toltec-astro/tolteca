@@ -503,9 +503,8 @@ def test_export_does_not_silently_discard_unknown_opaque_metadata(tmp_path, raw_
     assert "unsupported_resource" in SweepReduce.view(working).data_source.attrs
 
 
-def test_manifest_and_effective_config_replay(tmp_path, raw_sweep):
-    source = tmp_path / "toltec0_000001_000_0000_targsweep.nc"
-    raw_sweep.to_netcdf(source, engine="scipy")
+def test_manifest_and_effective_config_replay(tmp_path, target_sweep_path):
+    source = target_sweep_path
     info = build_input_catalog([source]).toltec_file.to_info_list()[0]
     runtime = RuntimeContext(
         [
@@ -592,9 +591,8 @@ def test_invalid_manifest_rejected_before_array_open(
         open_sweep_product(path)
 
 
-def test_manifest_config_must_match_saved_context(tmp_path, raw_sweep):
-    source = tmp_path / "source.nc"
-    raw_sweep.to_netcdf(source, engine="scipy")
+def test_manifest_config_must_match_saved_context(tmp_path, target_sweep_path):
+    source = target_sweep_path
     info = build_input_catalog([source]).toltec_file.to_info_list()[0]
     runtime = RuntimeContext(
         {
@@ -632,9 +630,9 @@ def test_preserve_signal_units(tmp_path, raw_sweep, unit):
                 assert str(array.u.quantity.unit) == unit
 
 
-def test_cli_config_and_reduction(tmp_path, raw_sweep, monkeypatch):
+def test_cli_config_and_reduction(tmp_path, target_sweep_path, monkeypatch):
     source = tmp_path / "source.nc"
-    raw_sweep.to_netcdf(source, engine="scipy")
+    source.symlink_to(target_sweep_path)
     runner = CliRunner()
     with monkeypatch.context() as patch:
 
@@ -710,9 +708,9 @@ def test_prepare_does_not_read_signal(tmp_path, raw_sweep):
     assert kids.config.sweep_reduce.enabled
 
 
-def test_cli_product_root_is_used_by_enabled_output(tmp_path, raw_sweep):
+def test_cli_product_root_is_used_by_enabled_output(tmp_path, target_sweep_path):
     source = tmp_path / "source.nc"
-    raw_sweep.to_netcdf(source, engine="scipy")
+    source.symlink_to(target_sweep_path)
     products = tmp_path / "products"
     result = CliRunner().invoke(
         app,
@@ -753,9 +751,9 @@ def test_create_kids_defaults_and_input_context_are_isolated(tmp_path):
     assert not conditional.exists()
 
 
-def test_python_runner_uses_shared_product_root(tmp_path, raw_sweep):
+def test_python_runner_uses_shared_product_root(tmp_path, target_sweep_path):
     source = tmp_path / "source.nc"
-    raw_sweep.to_netcdf(source, engine="scipy")
+    source.symlink_to(target_sweep_path)
     products = tmp_path / "products"
     info = build_input_catalog([source]).toltec_file.to_info_list()[0]
     runtime = RuntimeContext(
@@ -862,43 +860,40 @@ def test_output_missing_input_keeps_incomplete_context(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
-def test_output_disabled_and_standalone(tmp_path, raw_sweep):
+def test_output_disabled_and_standalone(tmp_path, target_sweep_path):
     source = tmp_path / "source.nc"
-    raw_sweep.to_netcdf(source, engine="scipy")
+    source.symlink_to(target_sweep_path)
     info = build_input_catalog([source]).toltec_file.to_info_list()[0]
     assert run_source(info, RuntimeContext()) is None
     assert list(tmp_path.iterdir()) == [source]
-    working = ensure_datatree(raw_sweep)
-    SweepReduce()(working)
-    working["tolteca_kids"] = xr.DataTree()
-    working["tolteca_kids"].attrs["input"] = info.model_dump(
-        mode="json",
-        round_trip=True,
-    )
-    step = DataProdOutput(path=tmp_path, name="standalone")
-    _, context = step(working, return_context=True)
+    with xr.open_dataset(source) as raw:
+        working = ensure_datatree(raw)
+        SweepReduce()(working)
+        working["tolteca_kids"] = xr.DataTree()
+        working["tolteca_kids"].attrs["input"] = info.model_dump(
+            mode="json",
+            round_trip=True,
+        )
+        step = DataProdOutput(path=tmp_path, name="standalone")
+        _, context = step(working, return_context=True)
     assert context.completed
     assert context.product_path == tmp_path / "standalone"
 
 
-def test_cli_multiple_inputs_with_per_input_config(tmp_path, raw_sweep):
-    sources = []
-    for roach in (0, 8):
-        source = tmp_path / f"toltec{roach}_000001_000_0000_targsweep.nc"
-        data = raw_sweep.assign({"Header.Toltec.RoachIndex": roach})
-        data.to_netcdf(source, engine="scipy")
-        sources.append(str(source))
+def test_cli_multiple_inputs_with_per_input_config(tmp_path, data_lmt_path):
+    sources = sorted((data_lmt_path / "toltec/tcs/toltec0").glob("*sweep.nc"))
+    assert len(sources) == 2
     config = tmp_path / "recipe.yaml"
     config.write_text("""
 - source: {kids: {output: {name: '{stem}'}}}
-- enable_if: roach == 8
+- enable_if: obsnum == 145606 & atten_drive == 7.25
   source: {kids: {sweep_reduce: {force: true}}}
 """)
     output = tmp_path / "products"
     result = CliRunner().invoke(
         app,
         [
-            *sources,
+            *map(str, sources),
             "--config_paths",
             str(config),
             "--kids.output.enabled",
@@ -910,17 +905,17 @@ def test_cli_multiple_inputs_with_per_input_config(tmp_path, raw_sweep):
     assert result.exit_code == 0, result.exception
     products = sorted(output.iterdir())
     assert len(products) == 2
-    for roach, product in zip((0, 8), products, strict=True):
+    for obsnum, product in zip((145605, 145606), products, strict=True):
         with open_sweep_product(product) as tree:
             view = SweepReduce.view(tree)
-            assert view.context.config.force == (roach == 8)
+            assert view.context.config.force == (obsnum == 145606)
             assert view.unc_I is not None
             assert view.unc_Q is not None
 
 
-def test_cli_explicit_disabled_output_overrides_shorthand(tmp_path, raw_sweep):
+def test_cli_explicit_disabled_output_overrides_shorthand(tmp_path, target_sweep_path):
     source = tmp_path / "source.nc"
-    raw_sweep.to_netcdf(source, engine="scipy")
+    source.symlink_to(target_sweep_path)
     output = tmp_path / "products"
     result = CliRunner().invoke(
         app,

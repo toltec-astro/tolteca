@@ -111,7 +111,9 @@ def test_cli_selects_renamed_telescope_by_header(
     assert len(time_reads) == 2 * len(closed)
 
 
-def test_cli_noop_selection_config_logging_and_no_products(tmp_path, monkeypatch):
+def test_cli_noop_selection_config_logging_and_no_products(
+    data_lmt_path, tmp_path, monkeypatch
+):
     from tollan.utils import typer as typer_utils
     from tollan.utils.log import reset_logger
 
@@ -122,18 +124,17 @@ def test_cli_noop_selection_config_logging_and_no_products(tmp_path, monkeypatch
 
     # The CLI resets sinks; capture its selected level with the real logger.
     monkeypatch.setattr(typer_utils, "reset_logger", capture_logs)
-    for roach in (0, 7):
-        path = (
-            tmp_path / f"toltec/tcs/toltec{roach}/"
-            f"toltec{roach}_145609_000_0002_2025_10_31_09_27_57.nc"
-        )
-        path.parent.mkdir(parents=True)
-        # Header-only files are sufficient: a signal read would fail this test.
-        xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(path, engine="scipy")
+    getitem = NetCDF4ArrayWrapper._getitem
+
+    def read(array, key):
+        assert not array.variable_name.startswith("Data.")
+        return getitem(array, key)
+
+    monkeypatch.setattr(NetCDF4ArrayWrapper, "_getitem", read)
     recipe = tmp_path / "recipe.yaml"
     recipe.write_text("""
 - source: {kids: {sweep_reduce: {block: 1}}}
-- enable_if: roach == 7 & scannum == 2
+- enable_if: atten_drive == 7.25 & scannum == 2
   source: {kids: {sweep_reduce: {block: 2}}}
 """)
     configs = []
@@ -163,7 +164,7 @@ def test_cli_noop_selection_config_logging_and_no_products(tmp_path, monkeypatch
             "--log_level",
             "DEBUG",
             "--data_lmt_path",
-            str(tmp_path),
+            str(data_lmt_path),
             "--config_paths",
             str(recipe),
             "--dry_run",
@@ -174,7 +175,7 @@ def test_cli_noop_selection_config_logging_and_no_products(tmp_path, monkeypatch
             "--kids.sweep_reduce.force",
             "true",
             "--",
-            "tcs-145609/2/{0,7}",
+            "tcs-145609/0",
         ],
     )
     assert result.exit_code == 0, result.output
@@ -196,11 +197,15 @@ def test_cli_noop_selection_config_logging_and_no_products(tmp_path, monkeypatch
 
 
 @pytest.mark.parametrize("repeated", [False, True])
-def test_cli_paths_load_ordered_runtime_sources(tmp_path, monkeypatch, repeated):
+def test_cli_paths_load_ordered_runtime_sources(
+    data_lmt_path, tmp_path, monkeypatch, repeated
+):
     from tolteca_kids import cli
 
-    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
-    xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
+    source = (
+        data_lmt_path / "toltec/tcs/toltec0/"
+        "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
+    )
     first = tmp_path / "env.d"
     first.mkdir()
     second = tmp_path / "second.env"
@@ -268,6 +273,49 @@ def test_cli_help_uses_python_option_names():
         assert f"--{name}" in result.stdout
         assert f"--{name.replace('_', '-')}" not in result.stdout
     assert "--env-file" not in result.stdout
+
+
+@pytest.mark.parametrize("action", ["--show_inputs", "--show_config"])
+def test_cli_header_selection_and_conditional_config(
+    data_lmt_path, tmp_path, monkeypatch, action
+):
+    import json
+
+    recipe = tmp_path / "recipe.yaml"
+    recipe.write_text("""
+- enable_if: atten_drive == 7.25 & obsnum == 145606
+  source: {kids: {sweep_reduce: {force: true}}}
+""")
+    getitem = NetCDF4ArrayWrapper._getitem
+
+    def read(array, key):
+        assert not array.variable_name.startswith("Data.")
+        return getitem(array, key)
+
+    monkeypatch.setattr(NetCDF4ArrayWrapper, "_getitem", read)
+    result = CliRunner().invoke(
+        app,
+        [
+            "--data_lmt_path",
+            str(data_lmt_path),
+            "--config_paths",
+            str(recipe),
+            "--select",
+            "atten_drive == 7.25 & obsnum == 145606",
+            action,
+            "--",
+            "{145605,145606}/0",
+        ],
+    )
+    assert result.exit_code == 0, result.exception
+    if action == "--show_inputs":
+        [row] = json.loads(result.stdout)
+        assert row["obsnum"] == 145606
+        assert row["metadata"]["atten_drive"] == 7.25
+    else:
+        source, payload = result.stdout.split("\n", 1)
+        assert "145606" in source
+        assert json.loads(payload)["kids"]["sweep_reduce"]["force"]
 
 
 def test_noop_failure_logs_step_and_propagates(monkeypatch):
@@ -372,9 +420,8 @@ def test_reference_noop_reads_only_headers_and_closes_files(
 
 
 @pytest.mark.parametrize("failure", ["step", "config"])
-def test_cli_noop_failure_closes_source(tmp_path, monkeypatch, failure):
-    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
-    xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="netcdf4")
+def test_cli_noop_failure_closes_source(timestream_path, monkeypatch, failure):
+    source = timestream_path
     closed = []
     contexts = []
     close_store = NetCDF4DataStore.close
@@ -404,9 +451,8 @@ def test_cli_noop_failure_closes_source(tmp_path, monkeypatch, failure):
 
 
 @pytest.mark.parametrize("inspection", ["--show_inputs", "--show_config"])
-def test_inspection_exits_before_noop(tmp_path, monkeypatch, inspection):
-    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
-    xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
+def test_inspection_exits_before_noop(timestream_path, monkeypatch, inspection):
+    source = timestream_path
 
     def unexpected(*args, **kwargs):
         pytest.fail("inspection executed a pipeline step")
@@ -418,9 +464,8 @@ def test_inspection_exits_before_noop(tmp_path, monkeypatch, inspection):
     assert "no-op completed" not in result.stdout
 
 
-def test_empty_selection_does_not_start_noop(tmp_path, monkeypatch):
-    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
-    xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
+def test_empty_selection_does_not_start_noop(timestream_path, monkeypatch):
+    source = timestream_path
 
     def unexpected(*args, **kwargs):
         pytest.fail("empty selection executed a pipeline step")

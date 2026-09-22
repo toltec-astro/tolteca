@@ -132,7 +132,11 @@ def test_shared_kids_identification_preserves_projection(
         with xr.open_dataset(source) as data:
             expected = identify_kids_source(data, record)
             actual = identify_source(data, record)
-            assert actual == expected
+            assert actual.model_dump(exclude={"metadata"}) == expected.model_dump(
+                exclude={"metadata"}
+            )
+            assert actual.metadata is not None
+            assert expected.metadata is None
 
 
 def test_unknown_payload_retains_filename_guesses():
@@ -156,3 +160,8 @@ def test_unknown_original_path_does_not_invent_a_telescope_stream(data_lmt_path,
         assert result.data_kind == (
             ToltecDataKind.LmtTel if known else ToltecDataKind.Unknown
         )
+        assert result.metadata is not None
+        restored = SourceInfoModel.model_validate_json(
+            result.model_dump_json(round_trip=True)
+        )
+        assert type(restored.metadata) is type(result.metadata)

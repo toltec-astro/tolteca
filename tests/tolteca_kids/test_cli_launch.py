@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 
 import pytest
-import xarray as xr
 from typer.testing import CliRunner
 
 from tolteca_kids.cli import app
@@ -32,7 +31,7 @@ def test_reference_inputs_direct_and_deploy(data_lmt_path, tmp_path, mode):
       select: roach == 0
     kids:
       sweep_reduce: {block: 1}
-- enable_if: file_suffix == 'tune'
+- enable_if: file_suffix == 'tune' & atten_drive == 7.25
   source:
     kids:
       sweep_reduce: {block: 2}
@@ -100,14 +99,13 @@ def test_reference_inputs_direct_and_deploy(data_lmt_path, tmp_path, mode):
 
 
 @pytest.mark.parametrize("failure", ["selection", "config", "option"])
-def test_deploy_preserves_kids_failure(tmp_path, failure):
+def test_deploy_preserves_kids_failure(timestream_path, failure):
     pytest.importorskip("tolteca_deploy")
     kids = Path(sys.executable).with_name("tolteca_kids")
     deploy = Path(sys.executable).with_name("tolteca_deploy")
     if not kids.exists() or not deploy.exists():
         pytest.skip("Install the editable Kids and Deploy entrypoints")
-    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
-    xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
+    source = timestream_path
     args = {
         "selection": ["--select", "roach == 7"],
         "config": ["--kids.sweep_reduce.block", "invalid"],
@@ -127,12 +125,18 @@ def test_deploy_preserves_kids_failure(tmp_path, failure):
     assert direct.returncode != 0
     assert launched.returncode == direct.returncode
     assert "no-op completed" not in direct.stdout + launched.stdout
+    expected = {
+        "selection": "No inputs selected",
+        "config": "Input should be a valid integer",
+        "option": "Unknown options",
+    }[failure]
+    assert expected in direct.stdout + direct.stderr
+    assert expected in launched.stdout + launched.stderr
 
 
 @pytest.mark.parametrize("tier", ["yaml", "option"])
-def test_path_and_selection_precedence(tmp_path, monkeypatch, tier):
-    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
-    xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
+def test_path_and_selection_precedence(tmp_path, timestream_path, monkeypatch, tier):
+    source = timestream_path
     paths = {}
     for name in ("yaml", "option"):
         paths[name] = tmp_path / name
@@ -157,9 +161,8 @@ def test_path_and_selection_precedence(tmp_path, monkeypatch, tier):
     assert os.environ["TOLTECA_DATA_LMT_PATH"] == "/missing/inherited"
 
 
-def test_environment_does_not_supply_kids_paths(tmp_path, monkeypatch):
-    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
-    xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
+def test_environment_does_not_supply_kids_paths(tmp_path, timestream_path, monkeypatch):
+    source = timestream_path
     monkeypatch.setenv("TOLTECA_DATA_LMT_PATH", str(tmp_path))
     monkeypatch.setenv("TOLTECA_DATAPROD_TOLTEC_PATH", str(tmp_path / "products"))
     env = tmp_path / "settings.env"
@@ -174,9 +177,10 @@ def test_environment_does_not_supply_kids_paths(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("output_path", ["shared", "recipe", "cli"])
-def test_product_root_defaults_do_not_override_output_recipe(tmp_path, output_path):
-    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
-    xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
+def test_product_root_defaults_do_not_override_output_recipe(
+    tmp_path, timestream_path, output_path
+):
+    source = timestream_path
     products = tmp_path / "shared"
     config = tmp_path / "settings.yaml"
     config.write_text(
@@ -203,9 +207,8 @@ def test_product_root_defaults_do_not_override_output_recipe(tmp_path, output_pa
         assert not (tmp_path / name).exists()
 
 
-def test_symlink_input_is_processed_once(tmp_path):
-    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
-    xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
+def test_symlink_input_is_processed_once(tmp_path, timestream_path):
+    source = timestream_path
     alias = tmp_path / "alias.nc"
     alias.symlink_to(source)
     result = CliRunner().invoke(app, ["--dry_run", "--", str(source), str(alias)])

@@ -75,6 +75,7 @@ unnecessary dependency upgrades, or agent delegation.
 | 02b14a | Exact ICRS coordinate serialization | Complete: Tollan `1c65394`; [step record](../../../tollan/design/overnight-20260922/02b14a-coordinate-precision.md). 1,293 Tollan tests pass; named-source behavior unchanged. |
 | 02b15 | Typed source metadata and Arrow projection | Complete; [step record](02b15-source-metadata.md). Source/JSON/Parquet/query/condition support is implemented. Automatic header attachment remains next. |
 | 02b15a | Serializable unknown telescope original names | Complete; [step record](02b15a-unrecognized-telescope-path.md). Parsed path is None for unrecognized names; explicit integrity checks remain strict. 120 focused LMT tests pass. |
+| 02b16 | Automatic typed catalog preparation | Complete; [step record](02b16-catalog-preparation.md). Header selection and conditional config work through CLI and Deploy; 1,068 tests and fresh exact integration pass. |
 | 02c | Focused telescope/catalog/no-op guide | Complete: `ef546a3`; see [step record](02c-observation-guide.md). Python examples, direct CLI and isolated Deploy invocation verified. |
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
 | 03b | Remaining reducer / live context / output review | [Three reproduced lifecycle/alias gaps](03b-lifecycle-review.md); fixed in 03b1–03b3. Output boundary review continues. |
@@ -96,6 +97,27 @@ actions. Keep the index current before yielding. End with a safe checkpoint and
 remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
+
+Automatic header attachment is complete in **02b16**. Resume step **05**, final
+review and handoff consolidation. The latest full checkpoint is 1,068 passing
+Tolteca tests (58.54 s) with actual-v2 parity, and fresh exact integration at
+`run/overnight-slice-20260922-catalog-preparation/`. All 12 guide Python blocks and
+four CLI examples pass, including metadata/Parquet projection. Read costs and
+the explicit raw-requiredness change are in 02b16. No fixture or shared Deploy
+checkout changed. Current metadata/source issues are the limitations stated at
+the end of that record, not the superseded pending statements below.
+
+Next verify the final review matrix against actual code/tests and inspect any
+remaining in-scope gaps, including fixture fidelity of older identity-only
+tests. Do not broaden to DB/Web redesign or later science stages. No browser
+visual verification has been claimed. Keep work local; pause the automation
+once scoped verification and the review handoff are genuinely complete, or by
+13:06:38 UTC.
+
+## Earlier checkpoint context (historical)
+
+The following entries record the progression before 02b16; they are not the
+current resume instructions.
 
 Resume **automatic header attachment** to source records using 02b13 and the
 typed composition in [02b15](02b15-source-metadata.md), then final verification.

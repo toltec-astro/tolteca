@@ -40,22 +40,30 @@ def identify_source(
     *,
     check_filepath_orig: bool = False,
 ) -> SourceInfoModel:
-    """Read source identifiers from an open telescope or KIDs dataset.
+    """Read source identifiers and typed metadata from an open acquisition.
 
     Return a new source record, preserving its current location. Telescope
     structure is recognized through its timestamp mapping; its strict metadata
     supplies observation identifiers and the recorded path. This reads scalar
     headers, two timestamp endpoints and the two target-coordinate pairs, not
-    pointing streams. KIDs identification reads only its scalar headers.
+    pointing streams. Raw KIDs sources include ``meta_header``: scalar headers
+    and dimension lengths, without reading LO, I/Q, position or ADC arrays.
 
-    Recognized but incomplete telescope files raise their metadata errors.
-    Unsupported data retains filename guesses. Set ``check_filepath_orig=True``
+    Recognized but incomplete raw acquisitions raise their metadata errors.
+    Processed KIDs sources receive identifiers only. Unsupported data retains
+    filename guesses. Existing metadata is replaced, not reused across reads.
+    Set ``check_filepath_orig=True``
     to compare header identifiers with the recorded acquisition path. It does
     not compare the current filename or filesystem timestamps.
     """
     mapper = LmtTelIOMapper.from_data_source(data)
     if not mapper.has_arr(data, mapper.schema.tel_time):
-        return identify_kids_source(data, info, check_filepath_orig=check_filepath_orig)
+        return identify_kids_source(
+            data,
+            info,
+            read_metadata=True,
+            check_filepath_orig=check_filepath_orig,
+        )
     meta = mapper.get_metadata(data, check_filepath_orig=check_filepath_orig)
     fields, filepath_info_orig = _get_filepath_fields(info, meta.filepath_orig)
     fields.update(
@@ -65,6 +73,7 @@ def identify_source(
         obsnum=meta.obsnum,
         subobsnum=meta.subobsnum,
         scannum=meta.scannum,
+        metadata=meta,
     )
     # The recorded prefix distinguishes the telescope stream. A time variable
     # alone cannot tell which stream produced it.
