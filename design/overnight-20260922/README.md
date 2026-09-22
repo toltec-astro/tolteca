@@ -59,7 +59,8 @@ unnecessary dependency upgrades, or agent delegation.
 | 02a | Explicit canonical telescope-interface discovery | Complete: `34f6b4e`; 102 focused tests pass. See [step record](02a-telescope-discovery.md). |
 | 02b | Metadata opening/enrichment and catalog review | [Usage and projection gaps](02b-catalog-review.md) recorded; implementation pending. |
 | 02b1 | Prevent false KIDs classification of telescope files | Complete: `51e0728`; see [regression record](02b1-kids-identification.md). General telescope header identification remains pending. |
-| 02b2 | Shared source identification through existing readers | Complete; see [step record](02b2-shared-identification.md). Catalog/runner wiring remains separate. |
+| 02b2 | Shared source identification through existing readers | Complete: `4f19abe`; see [step record](02b2-shared-identification.md). |
+| 02b3 | Explicit catalog opening policy and shared runner identity | Complete; see [step record](02b3-catalog-opening.md). Broader typed scalar catalog projection remains open. |
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
 | 03b | Remaining reducer / live context / output review | Pending |
 | 04a | Web selection before frequency broadcast | Complete: Web `928bf28`; 10 tests and fresh exact integration pass; [step record](../../../tolteca_web/design/overnight-20260922/04a-frequency-selection.md). Depends on 03a. |
@@ -73,10 +74,12 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Resume step 02b catalog opening policies and shared-identifier wiring. The new
-shared identifier uses strict telescope metadata without creating a partial
-metadata model; KIDs projections are preserved. See 02b2 for measured reads,
-cost and self-review. Full scalar catalog projection remains unresolved.
+Resume the focused guide consolidation, followed by remaining reducer/context/
+output and DB/Web review. The shared identifier now serves catalog preparation
+and execution. Python catalog opening policies are implemented; the CLI retains
+all-header preparation and now enriches telescope records too. See 02b2/02b3 for
+measured reads, behavior changes and self-review. Full scalar catalog projection
+remains unresolved.
 
 Steps 02a, 02b1, 03a
 and 04a are committed and exported in `review/overnight-20260922/`. Explicit

@@ -34,23 +34,81 @@ def test_telescope_noop_retains_its_source_kind(data_lmt_path, monkeypatch):
     info = guess_info_from_source(source)
     assert info is not None
     contexts = []
+    reads = []
+    read_array = NetCDF4ArrayWrapper._getitem
 
     def run(cls, data, context):
         current = SourceInfoModel.model_validate(data["tolteca_kids"].attrs["input"])
         assert current.data_kind == ToltecDataKind.LmtTel
         assert current.interface == "tel"
         assert current.obsnum == 145609
+        assert current.master == "tcs"
+        assert current.filepath_orig is not None
         contexts.append(context)
         return True
 
-    def unexpected(*args, **kwargs):
-        pytest.fail("Telescope no-op must not read signal or pointing values")
+    def read(array, key):
+        if array.variable_name.startswith("Data."):
+            assert array.variable_name == "Data.TelescopeBackend.TelTime"
+            assert key in ((0,), (array.shape[0] - 1,))
+            reads.append(key)
+        return read_array(array, key)
 
     monkeypatch.setattr(NoOp, "run", classmethod(run))
-    monkeypatch.setattr(NetCDF4ArrayWrapper, "_getitem", unexpected)
+    monkeypatch.setattr(NetCDF4ArrayWrapper, "_getitem", read)
     assert run_source(info, RuntimeContext(), dry_run=True) is None
     assert len(contexts) == 1
     assert contexts[0].completed
+    assert len(reads) == 2
+
+
+@pytest.mark.parametrize("action", ["--show_inputs", "--dry_run"])
+def test_cli_selects_renamed_telescope_by_header(
+    data_lmt_path, tmp_path, monkeypatch, action
+):
+    import json
+
+    source = data_lmt_path / "tel/tel_toltec_2025-10-31_145609_00_0002.nc"
+    downloaded = tmp_path / "downloaded.nc"
+    downloaded.symlink_to(source)
+    closed = []
+    time_reads = []
+    close_store = NetCDF4DataStore.close
+    getitem = NetCDF4ArrayWrapper._getitem
+
+    def close(data, **kwargs):
+        close_store(data, **kwargs)
+        closed.append(data)
+
+    def read(array, key):
+        if array.variable_name.startswith("Data."):
+            assert array.variable_name == "Data.TelescopeBackend.TelTime"
+            assert key in ((0,), (array.shape[0] - 1,))
+            time_reads.append(key)
+        return getitem(array, key)
+
+    monkeypatch.setattr(NetCDF4DataStore, "close", close)
+    monkeypatch.setattr(NetCDF4ArrayWrapper, "_getitem", read)
+    result = CliRunner().invoke(
+        app,
+        [
+            str(downloaded),
+            "--select",
+            "interface == 'tel' & master == 'tcs' & obsnum == 145609",
+            action,
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    if action == "--show_inputs":
+        [row] = json.loads(result.stdout)
+        assert row["source"] == str(downloaded)
+        assert row["data_kind"] == "LmtTel"
+        assert row["filepath_info"]["prefix"] == "tel_toltec"
+        assert len(closed) == 1
+    else:
+        assert f"{downloaded}: no-op completed" in result.stdout
+        assert len(closed) == 2
+    assert len(time_reads) == 2 * len(closed)
 
 
 def test_cli_noop_selection_config_logging_and_no_products(tmp_path, monkeypatch):

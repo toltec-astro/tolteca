@@ -8,8 +8,7 @@ import xarray as xr
 from tollan.accessor.xarray import ensure_datatree
 from tollan.utils.log import logger, timeit
 
-from tolteca_datamodels.filestore import FileAccess
-from tolteca_datamodels.toltec.kids.source import identify_source
+from tolteca_datamodels.filestore import FileAccess, identify_source
 
 from .core import Kids
 from .dataprod_output import DataProdOutput
@@ -52,7 +51,9 @@ def run_source(
     Return the published product path, or ``None`` when output is disabled.
     Use the configured steps directly for interactive in-memory results.
     With ``dry_run=True``, validate configuration and execute only a no-op step.
-    Scalar headers are read; signal arrays and product writers are not used.
+    Source-identifying metadata is read; signal arrays and product writers are
+    not used. Telescope identification includes the two timestamp endpoints and
+    target-coordinate pairs, without reading pointing streams.
     """
     logger.info("Processing source {} (dry_run={})", info.filepath, dry_run)
     with xr.open_dataset(info.filepath) as raw:

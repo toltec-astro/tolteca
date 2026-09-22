@@ -10,7 +10,7 @@ import xarray as xr
 from tollan.utils.log import logger
 
 from ..file import ToltecFileAccessor, guess_info_from_sources
-from .kids.source import identify_source
+from ..filestore import HeaderReadMode, identify_source
 from .obsspec import ObsSpec
 
 if TYPE_CHECKING:
@@ -22,24 +22,45 @@ __all__ = ["build_input_catalog", "resolve_sources"]
 
 
 def build_input_catalog(
-    sources: Iterable[str | Path], *, data_root: Path | None = None
+    sources: Iterable[str | Path],
+    *,
+    data_root: Path | None = None,
+    header_mode: HeaderReadMode | str = HeaderReadMode.always,
 ) -> pd.DataFrame:
-    """Discover files and read scalar headers for configuration and selection.
+    """Discover files and identify metadata for configuration and selection.
 
-    Files are closed before returning. The catalog contains only metadata;
-    I/Q arrays are not read. Unsupported file kinds retain discovery metadata
-    so callers can inspect or filter them before attempting execution.
+    ``header_mode="never"`` uses filename guesses without opening files.
+    ``"fallback"`` opens only unrecognized filenames; ``"always"`` (the default)
+    reads headers for known telescope/KIDs and unrecognized netCDF candidates.
+    Fallback does not fill missing fields in an otherwise recognized filename.
+
+    Files are closed before returning or propagating a read error. KIDs reads
+    scalar headers only; telescope identification also reads two timestamp
+    endpoints and the two target-coordinate pairs. I/Q and pointing streams are
+    not loaded. Unsupported kinds retain filename guesses. Observation selectors
+    filter filenames before this header-enrichment stage.
     """
+    header_mode = HeaderReadMode(header_mode)
     catalog = resolve_sources(sources, data_root=data_root)
     logger.debug("Discovered {} distinct input files", len(catalog))
+    if header_mode is HeaderReadMode.never:
+        logger.debug("Using filename metadata without opening source files")
+        return catalog
     records = []
     for record in catalog.toltec_file.to_info_list():
         info = record
-        if info.filepath.suffix == ".nc" and (
-            info.interface is None or info.roach is not None
-        ):
+        supported = info.filepath.suffix == ".nc" and (
+            info.interface in (None, "tel") or info.roach is not None
+        )
+        requested = header_mode is HeaderReadMode.always or info.filepath_info is None
+        if supported and requested:
+            logger.debug(
+                "Identifying source {} (header_mode={})", info.source, header_mode
+            )
             with xr.open_dataset(info.filepath) as data:
                 info = identify_source(data, info)
+        else:
+            logger.debug("Keeping filename metadata for {}", info.source)
         logger.debug("Input metadata: {}", info)
         records.append(info)
     return ToltecFileAccessor.from_info_list(records)

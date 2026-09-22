@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from enum import StrEnum, auto
 from typing import TYPE_CHECKING, Literal
 
 from pydantic import ConfigDict
@@ -17,7 +18,20 @@ from .toltec.types import ToltecDataKind
 if TYPE_CHECKING:
     import xarray as xr
 
-__all__ = ["FileAccess", "FileAccessConfig", "identify_source"]
+__all__ = ["FileAccess", "FileAccessConfig", "HeaderReadMode", "identify_source"]
+
+
+class HeaderReadMode(StrEnum):
+    """Choose when a file catalog opens sources to identify their metadata.
+
+    ``never`` uses filename guesses only. ``fallback`` opens sources whose
+    current filename is unrecognized. ``always`` opens all supported candidates,
+    including recognized filenames, to read authoritative header identifiers.
+    """
+
+    never = auto()
+    fallback = auto()
+    always = auto()
 
 
 def identify_source(
