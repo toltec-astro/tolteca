@@ -60,7 +60,8 @@ unnecessary dependency upgrades, or agent delegation.
 | 02b | Metadata opening/enrichment and catalog review | [Usage and projection gaps](02b-catalog-review.md) recorded; implementation pending. |
 | 02b1 | Prevent false KIDs classification of telescope files | Complete: `51e0728`; see [regression record](02b1-kids-identification.md). General telescope header identification remains pending. |
 | 02b2 | Shared source identification through existing readers | Complete: `4f19abe`; see [step record](02b2-shared-identification.md). |
-| 02b3 | Explicit catalog opening policy and shared runner identity | Complete; see [step record](02b3-catalog-opening.md). Broader typed scalar catalog projection remains open. |
+| 02b3 | Explicit catalog opening policy and shared runner identity | Complete: `673a2ec`; see [step record](02b3-catalog-opening.md). Broader typed scalar catalog projection remains open. |
+| 02c | Focused telescope/catalog/no-op guide | Complete; see [step record](02c-observation-guide.md). Python examples, direct CLI and isolated Deploy invocation verified. |
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
 | 03b | Remaining reducer / live context / output review | Pending |
 | 04a | Web selection before frequency broadcast | Complete: Web `928bf28`; 10 tests and fresh exact integration pass; [step record](../../../tolteca_web/design/overnight-20260922/04a-frequency-selection.md). Depends on 03a. |
@@ -74,8 +75,8 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Resume the focused guide consolidation, followed by remaining reducer/context/
-output and DB/Web review. The shared identifier now serves catalog preparation
+Resume remaining reducer/context/output and DB/Web review. The guide is now
+consolidated and its examples executed; see 02c. The shared identifier serves catalog preparation
 and execution. Python catalog opening policies are implemented; the CLI retains
 all-header preparation and now enriches telescope records too. See 02b2/02b3 for
 measured reads, behavior changes and self-review. Full scalar catalog projection
@@ -99,9 +100,10 @@ fully. Frequency coordinate ownership/selection is corrected; other numerical,
 context failure/lifetime and output-design findings still need a focused review.
 Exact integration is evidence, not a substitute for that review.
 
-The requested focused telescope→catalog→no-op user guide remains to consolidate;
-existing pages are not the final guide. No production services or browser server
-were launched. Prior live-browser permission/verification limits remain open.
+The focused telescope→catalog→no-op guide replaces the three overlapping pages;
+its 11 Python and four KIDs CLI examples pass, as do isolated Deploy planning and
+no-op launch. No production services or browser server were launched. Prior
+live-browser permission/verification limits remain open.
 
 ## Latest QA checkpoint
 

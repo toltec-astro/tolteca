@@ -181,6 +181,36 @@ with xr.open_dataset(source) as raw:
     sweep = ReducedSweepView(result)
 ```
 
+Inspect the complex sweep response with the reduced view:
+
+```python
+import numpy as np
+from tolteca_datamodels.toltec import open_toltec
+
+with open_toltec("toltec0_145606_000_0001_2025_10_31_09_22_14_targsweep.nc") as ds:
+    tree = SweepReducer()(ds)
+    sweep = tree.toltec_kids.sweep
+    S21 = sweep.I + 1j * sweep.Q
+    S21_db = 20 * np.log10(np.abs(S21))
+    frequency = sweep.frequency
+```
+
+Reduction reads detector data. KIDs accessors expose typed metadata and native
+arrays such as `f_tone` and `tone_mask` before reduction. A flat tune's full
+metadata scans LO frequency to identify recorded sweep blocks; filename/catalog
+identification does not. Inspect one block's metadata explicitly with:
+
+```python
+with open_toltec("toltec0_145609_000_0001_2025_10_31_09_26_59_tune.nc") as ds:
+    meta = ds.toltec_kids.mapper.get_metadata(ds, block=1)
+    print(meta.n_times, meta.t_exp)
+```
+
+The sample count and integration time describe that block. Acquisition start/end
+timestamps still describe the containing file. `n_blocks_max` is the allocated
+capacity, not the count of recorded blocks. An explicitly block-indexed dataset
+returns a list of metadata objects.
+
 ## Products and result views
 
 ```python

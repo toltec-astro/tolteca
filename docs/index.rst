@@ -6,7 +6,7 @@ Welcome to tolteca's documentation!
    :caption: Contents:
 
    readme
-   observation-data
+   guide
    kids-inputs
    kids-reduction
    obsspec

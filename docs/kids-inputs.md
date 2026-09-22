@@ -1,7 +1,7 @@
 # Inspect KIDs inputs and check a run
 
 Use `tolteca_kids --dry_run` to check input selection and configuration before
-running a reduction. It reads scalar file metadata, validates configuration for
+running a reduction. It reads source-identifying metadata, validates configuration for
 each selected input, and executes a no-op pipeline. It does not read signal
 arrays or write products, even when output is enabled in the configuration.
 
@@ -34,7 +34,8 @@ back to the acquisition filename from `Header.Toltec.Filename`. The usual
 identifiers correct filename guesses before `--select` is evaluated. A
 recognizable current filename keeps its own suffix; use
 `filepath_info_orig.suffix` to explicitly select by the acquisition suffix.
-See [file catalogs](file-catalogs.md) for the nested fields and Parquet examples.
+See the [observation-file guide](guide.md) for the nested
+fields, telescope identification, and Parquet examples.
 
 `--show_inputs` prints the selected catalog and exits without executing a
 pipeline. An empty catalog is allowed for inspection; a run with no selected
@@ -79,7 +80,9 @@ when no root is supplied; they are not relative to each YAML file.
 
 ## Launch through Deploy
 
-You can pass the same command through Deploy's generic runner:
+Use Deploy's `run_kids` to supply deployment paths and forward application
+configuration, as shown in the [observation-file guide](guide.md).
+You can also pass an explicitly configured command through its generic runner:
 
 ```console
 tolteca_deploy run -- tolteca_kids \
