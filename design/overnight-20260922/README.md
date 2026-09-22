@@ -56,10 +56,12 @@ unnecessary dependency upgrades, or agent delegation.
 | --- | --- | --- |
 | 00 | Preserve pending baseline; finish registry and source-kind refactor | Complete: Tolteca `62602a2`; see [step record](00-file-registry.md). Baseline: Tolteca `269d1db`, DB `317f951`, Web `3bc81fe`. |
 | 01 | Reconcile previous overnight work with current decisions | Initial boundary review and fresh exact integration complete; see [review matrix](01-review-matrix.md). This is a findings inventory, not a claim all layers are redesigned. |
-| 02a | Explicit canonical telescope-interface discovery | Implemented; 102 focused tests pass. See [step record](02a-telescope-discovery.md). |
-| 02b | Metadata opening/enrichment and catalog review | Pending; broader than the directory correction. |
-| 03 | Reducer / live context / output review | Pending |
-| 04 | DB discovery / Web consumption review | Pending |
+| 02a | Explicit canonical telescope-interface discovery | Complete: `34f6b4e`; 102 focused tests pass. See [step record](02a-telescope-discovery.md). |
+| 02b | Metadata opening/enrichment and catalog review | [Usage and projection gaps](02b-catalog-review.md) recorded; implementation pending. |
+| 03a | Reduced channel-frequency coordinate | Implemented; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
+| 03b | Remaining reducer / live context / output review | Pending |
+| 04a | Web selection before frequency broadcast | In verification; depends on 03a. |
+| 04b | Remaining DB discovery / Web consumption review | Pending |
 | 05 | Exact reference verification, guide, final handoff | Pending |
 
 Every completed step must record rationale, explicit observable changes,
@@ -69,7 +71,7 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Continue after step 02a, committing/exporting it first if still pending. Explicit
+Continue after steps 03a/04a, committing/exporting them first if still pending. Explicit
 `/tel` now searches the actual telescope directory; unqualified/ROACH selection
 is preserved and no master is guessed from a telescope filename. Review opening/
 enrichment separately: v2 catalog `.open()` merges scalar metadata, whereas the

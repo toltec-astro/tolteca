@@ -58,6 +58,7 @@ class ToltecSweepSchema(Schema):
     - sweep: Frequency offset from LO center
     - block: Block index for multi-block data
     - chan: Channel index
+    - f_chan: Channel frequency in Hz on the reduced signal's channel dimension
 
     **LO/Frequency:**
     - f_lo: LO frequency array
@@ -90,6 +91,7 @@ class ToltecSweepSchema(Schema):
     block: Mapping = NameMapping.var("block")
     n_blocks: Mapping = NameMapping.dim("block")
     chan: Mapping = NameMapping.var(("chan", "channel", "n_chans"))
+    f_chan: Mapping = NameMapping.var("f_chan")
 
     # LO frequency data (not namespaced)
     f_lo: Mapping = NameMapping.var("f_lo")
@@ -124,6 +126,16 @@ class ReducedSweepView(XarrayAccessorBase[ToltecSweepMapper]):
     >>> view = ReducedSweepView(dt)  # auto-resolves child node
     >>> I_data = view.I  # Returns namespaced DataArray
     >>> unc_I_data = view.unc_I
+
+    Select channels before requesting the two-dimensional frequency grid:
+
+    >>> chan_dim = view.f_chan.dims[-1]
+    >>> subset = ReducedSweepView(view.data_source.isel({chan_dim: [0, 1]}))
+    >>> frequency = subset.frequency
+
+    The reduced dataset stores its channel frequencies in ``f_chan``. Reading
+    them does not require the raw tone headers. Frequency grids are calculated
+    for the view's current channel and sweep selection.
     """
 
     @functools.cached_property
@@ -193,21 +205,9 @@ class ReducedSweepView(XarrayAccessorBase[ToltecSweepMapper]):
     @property
     def f_chan(self) -> xr.DataArray | None:
         """Channel frequencies in Hz, aligned with the reduced I/Q channel axis."""
-        frequencies = self.data_source.toltec_kids.f_chan
-        signal = self.I
-        if frequencies is None or signal is None:
+        if self.mapper.schema.f_chan not in self.mapper:
             return None
-        # Raw tone headers and I/Q use different names for the same ordered
-        # channel axis (toneFreqLen versus iqlen).
-        chan_dim = signal.dims[-2]
-        tone_dim = frequencies.dims[-1]
-        if frequencies.sizes[tone_dim] != signal.sizes[chan_dim]:
-            msg = "Tone frequencies and reduced signal have different channel counts"
-            raise ValueError(msg)
-        frequencies = frequencies.rename({tone_dim: chan_dim})
-        frequencies = frequencies.assign_coords({chan_dim: signal[chan_dim]})
-        frequencies.attrs["units"] = "Hz"
-        return frequencies
+        return self.mapper.get_arr(self.data_source, self.mapper.schema.f_chan)
 
     @property
     def frequency(self) -> xr.DataArray | None:
@@ -337,6 +337,8 @@ class SweepReducer(FrozenBaseModel):
 
         The returned DataTree has the raw dataset at the root and the
         reduced sweep dataset as a child at ``_SWEEP_NAMESPACE``.
+        When tone and center-frequency headers are available, the child includes
+        a ``f_chan`` coordinate in Hz aligned with the reduced I/Q channels.
 
         Parameters
         ----------
@@ -367,6 +369,24 @@ class SweepReducer(FrozenBaseModel):
 
         # Perform reduction
         ds_reduced = self._reduce(raw_ds)
+
+        frequencies = ds_reduced.toltec_kids.f_chan
+        if frequencies is not None:
+            signal = self._mapper.get_arr(ds_reduced, self._mapper.schema.I)
+            # Raw tone headers and I/Q use different names for the same ordered
+            # channel axis (toneFreqLen versus iqlen). Align the result once so
+            # native Dataset selection also selects its frequency coordinate.
+            chan_dim, tone_dim = signal.dims[-2], frequencies.dims[-1]
+            if frequencies.sizes[tone_dim] != signal.sizes[chan_dim]:
+                msg = (
+                    "Tone frequencies and reduced signal have different channel counts"
+                )
+                raise ValueError(msg)
+            frequencies = frequencies.rename({tone_dim: chan_dim})
+            frequencies = frequencies.assign_coords({chan_dim: signal[chan_dim]})
+            frequencies.attrs["units"] = "Hz"
+            name = self._mapper.get_name(self._mapper.schema.f_chan)
+            ds_reduced = ds_reduced.assign_coords({name: frequencies})
 
         # Store config in attrs of reduced dataset
         self._dump_to_attr(ds_reduced)

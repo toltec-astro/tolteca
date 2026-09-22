@@ -84,3 +84,37 @@ def test_ambiguous_center_uses_mapper_validation(sweep_input):
     sweep_input.attrs["Header.Toltec.LoCenterFreq"] = 100.0
     with pytest.raises(ValueError, match="[Aa]mbiguous"):
         SweepReducer()(sweep_input)
+
+
+@pytest.mark.parametrize("suffix", ["vnasweep", "targsweep", "tune"])
+def test_result_channel_frequency_is_independently_selectable(data_lmt_path, suffix):
+    source = next((data_lmt_path / "toltec/tcs/toltec0").glob(f"*_{suffix}.nc"))
+    with xr.open_dataset(source) as raw:
+        view = ReducedSweepView(SweepReducer()(raw))
+        frequencies = view.f_chan
+        assert frequencies is not None
+        field = view.mapper.schema.f_chan
+        name = view.mapper.get_name(field)
+        assert name in view.data_source.coords
+        chan_dim = frequencies.dims[-1]
+        assert view.I is not None
+        assert chan_dim == view.I.dims[-2]
+        expected = view.frequency
+        assert expected is not None
+        # A persisted result needs only its own frequency axes, not raw headers.
+        reduced = view.data_source.drop_vars(
+            [
+                key
+                for key in view.data_source.data_vars
+                if isinstance(key, str) and key.startswith("Header.")
+            ]
+        )
+        selected = ReducedSweepView(reduced.isel({chan_dim: [3, 0, 3]}))
+        assert selected.frequency is not None
+        xr.testing.assert_identical(
+            selected.frequency, expected.isel({chan_dim: [3, 0, 3]})
+        )
+        assert selected.f_chan is not None
+        assert selected.f_chan.u.unit_str == "Hz"
+        # Selecting a view does not replace or shorten its source coordinates.
+        xr.testing.assert_identical(view.f_chan, frequencies)
