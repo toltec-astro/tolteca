@@ -11,6 +11,7 @@ from xarray.backends.netCDF4_ import NetCDF4ArrayWrapper
 from tolteca_datamodels.toltec import open_toltec
 from tolteca_datamodels.toltec.kids import ToltecKidsIOMapper
 from tolteca_datamodels.toltec.metadata import ToltecSweepMetadata
+from tolteca_datamodels.toltec.toltecdb import ToltecDBRawObsMaster
 
 
 @pytest.fixture
@@ -47,7 +48,7 @@ def test_named_dimensions_and_headers(raw, transpose, as_tree):
     obj = xr.DataTree(ds) if as_tree else ds
     meta = obj.toltec_kids.meta
     assert (meta.n_times, meta.n_chans) == (6, 2)
-    assert meta.master == "ics"
+    assert meta.master == ToltecDBRawObsMaster.ICS
     assert meta.array_name == "a1400"
     assert meta.t0.unix == 1761902400
     assert meta.t1.unix == 1761902460
@@ -67,7 +68,8 @@ def test_named_dimensions_and_headers(raw, transpose, as_tree):
 def test_master_header_in_attributes(raw, master):
     ds = raw.drop_vars("Header.Toltec.Master")
     ds.attrs["Header.Toltec.Master"] = master
-    assert ds.toltec_kids.meta.master == ("tcs", "ics", "clip")[master]
+    assert ds.toltec_kids.meta.master == master
+    assert ds.toltec_kids.meta.master_str == ("tcs", "ics", "clip")[master]
 
 
 @pytest.mark.parametrize("location", list(FieldLocation))
@@ -185,7 +187,7 @@ def test_reference_metadata(data_lmt_path, monkeypatch):
                 assert not reads
                 meta = acc.meta
                 assert meta is acc.meta
-                assert meta.master == "tcs"
+                assert meta.master == ToltecDBRawObsMaster.TCS
                 assert meta.n_times == sizes["time"]
                 assert meta.n_chans == sizes["iqlen"]
                 assert meta.n_kids_design == sizes["loclen"]

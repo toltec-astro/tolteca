@@ -75,7 +75,8 @@ def test_reference_file_headers_match_database(toltecdb_slice, data_lmt_path):
         with open_toltec(path) as ds:
             assert ds.toltec_kids.data_kind == kinds[obs_types[obs_type]]
             meta = ds.toltec_kids.meta
-            assert meta.master == masters[master].lower()
+            assert meta.master == master
+            assert meta.master_str == masters[master].lower()
             assert (meta.roach, meta.obsnum, meta.subobsnum, meta.scannum) == (
                 roach,
                 obsnum,

@@ -14,6 +14,7 @@ from tolteca_datamodels.toltec import (
     ToltecSweepMetadata,
     ToltecTimeStreamMetadata,
 )
+from tolteca_datamodels.toltec.toltecdb import ToltecDBRawObsMaster
 
 
 @pytest.fixture
@@ -35,9 +36,11 @@ class TestToltecRawObsMetadata:
 
     def test_creation_minimal(self, base_obs_fields: dict[str, Any]) -> None:
         """Test creation with minimal required fields."""
-        meta = ToltecRawObsMetadata(**base_obs_fields, master="ics", instru="toltec")
+        meta = ToltecRawObsMetadata(
+            **base_obs_fields, master=ToltecDBRawObsMaster.ICS, instru="toltec"
+        )
         assert meta.obsnum == 12345
-        assert meta.master == "ics"
+        assert meta.master == ToltecDBRawObsMaster.ICS
         assert meta.instru == "toltec"
         assert meta.instru_component is None
         assert meta.roach is None
@@ -48,10 +51,14 @@ class TestToltecRawObsMetadata:
         base_obs_fields: dict[str, Any],
     ) -> None:
         """Test that instru accepts both 'toltec' and 'lmt'."""
-        meta1 = ToltecRawObsMetadata(**base_obs_fields, master="ics", instru="toltec")
+        meta1 = ToltecRawObsMetadata(
+            **base_obs_fields, master=ToltecDBRawObsMaster.ICS, instru="toltec"
+        )
         assert meta1.instru == "toltec"
 
-        meta2 = ToltecRawObsMetadata(**base_obs_fields, master="tcs", instru="lmt")
+        meta2 = ToltecRawObsMetadata(
+            **base_obs_fields, master=ToltecDBRawObsMaster.TCS, instru="lmt"
+        )
         assert meta2.instru == "lmt"
 
     def test_instru_component_options(self, base_obs_fields: dict[str, Any]) -> None:
@@ -59,7 +66,7 @@ class TestToltecRawObsMetadata:
         for component in ["roach", "hwpr", "hk", "tel"]:
             meta = ToltecRawObsMetadata(
                 **base_obs_fields,
-                master="ics",
+                master=ToltecDBRawObsMaster.ICS,
                 instru="toltec",
                 instru_component=component,
             )
@@ -70,7 +77,7 @@ class TestToltecRawObsMetadata:
         for roach_idx in [0, 5, 12]:
             meta = ToltecRawObsMetadata(
                 **base_obs_fields,
-                master="clip",
+                master=ToltecDBRawObsMaster.CLIP,
                 instru="toltec",
                 roach=roach_idx,
             )
@@ -78,7 +85,9 @@ class TestToltecRawObsMetadata:
 
     def test_roach_defaults_to_none(self, base_obs_fields: dict[str, Any]) -> None:
         """Test that roach defaults to None."""
-        meta = ToltecRawObsMetadata(**base_obs_fields, master="ics", instru="toltec")
+        meta = ToltecRawObsMetadata(
+            **base_obs_fields, master=ToltecDBRawObsMaster.ICS, instru="toltec"
+        )
         assert meta.roach is None
 
     def test_array_name_field(self, base_obs_fields: dict[str, Any]) -> None:
@@ -86,7 +95,7 @@ class TestToltecRawObsMetadata:
         for array in ["a1100", "a1400", "a2000"]:
             meta = ToltecRawObsMetadata(
                 **base_obs_fields,
-                master="ics",
+                master=ToltecDBRawObsMaster.ICS,
                 instru="toltec",
                 array_name=array,
             )
@@ -94,18 +103,21 @@ class TestToltecRawObsMetadata:
 
     def test_array_name_defaults_to_none(self, base_obs_fields: dict[str, Any]) -> None:
         """Test that array_name defaults to None."""
-        meta = ToltecRawObsMetadata(**base_obs_fields, master="ics", instru="toltec")
+        meta = ToltecRawObsMetadata(
+            **base_obs_fields, master=ToltecDBRawObsMaster.ICS, instru="toltec"
+        )
         assert meta.array_name is None
 
     def test_master_field_type_hint(self, base_obs_fields: dict[str, Any]) -> None:
-        """Test that master field accepts ToltecMasterNameT values."""
-        for master in ["tcs", "ics", "clip"]:
+        """Test the controller-code enum and its derived labels."""
+        for master in ToltecDBRawObsMaster:
             meta = ToltecRawObsMetadata(
                 **base_obs_fields,
                 master=master,
                 instru="toltec",
             )
             assert meta.master == master
+            assert meta.master_str == ToltecDBRawObsMaster.get_master_type(master)
 
     def test_inheritance_from_lmt_raw_obs(
         self,
@@ -114,7 +126,9 @@ class TestToltecRawObsMetadata:
         """Test that ToltecRawObsMetadata inherits from LmtRawObsMetadata."""
         from tolteca_datamodels.lmt_base import LmtRawObsMetadata
 
-        meta = ToltecRawObsMetadata(**base_obs_fields, master="ics", instru="toltec")
+        meta = ToltecRawObsMetadata(
+            **base_obs_fields, master=ToltecDBRawObsMaster.ICS, instru="toltec"
+        )
         assert isinstance(meta, LmtRawObsMetadata)
         # Should have all base fields
         assert hasattr(meta, "obsnum")
@@ -126,17 +140,19 @@ class TestToltecRawObsMetadata:
 
     def test_frozen(self, base_obs_fields: dict[str, Any]) -> None:
         """Test that metadata is immutable."""
-        meta = ToltecRawObsMetadata(**base_obs_fields, master="ics", instru="toltec")
+        meta = ToltecRawObsMetadata(
+            **base_obs_fields, master=ToltecDBRawObsMaster.ICS, instru="toltec"
+        )
         with pytest.raises((AttributeError, TypeError)):
-            meta.obsnum = 99999  # type: ignore[misc]
+            meta.obsnum = 99999  # ty: ignore[invalid-assignment] -- frozen model
         with pytest.raises((AttributeError, TypeError)):
-            meta.roach = 5  # type: ignore[misc]
+            meta.roach = 5  # ty: ignore[invalid-assignment] -- frozen model
 
     def test_keyword_only_enforcement(self, base_obs_fields: dict[str, Any]) -> None:
         """Test that all fields are keyword-only."""
         with pytest.raises((TypeError, ValidationError)):
             ToltecRawObsMetadata(
-                12345,  # obsnum  # type: ignore[arg-type]
+                12345,  # ty: ignore[too-many-positional-arguments] -- keyword-only
                 1,  # subobsnum
                 2,  # scannum
                 "toltec0",  # interface
@@ -145,7 +161,7 @@ class TestToltecRawObsMetadata:
                 60 * u.s,
                 "lmt",
                 "toltec",
-            )  # ty: ignore[missing-argument]
+            )  # ty: ignore[missing-argument] -- deliberately use positional args
 
 
 class TestToltecSweepMetadata:
@@ -155,7 +171,7 @@ class TestToltecSweepMetadata:
         """Test sweep metadata creation."""
         meta = ToltecSweepMetadata(
             **base_obs_fields,
-            master="clip",
+            master=ToltecDBRawObsMaster.CLIP,
             instru="toltec",
             roach=0,
             n_sweeps=401,
@@ -175,7 +191,7 @@ class TestToltecSweepMetadata:
         """Test that f_smp accepts frequency quantities."""
         meta = ToltecSweepMetadata(
             **base_obs_fields,
-            master="clip",
+            master=ToltecDBRawObsMaster.CLIP,
             instru="toltec",
             roach=0,
             n_sweeps=100,
@@ -193,7 +209,7 @@ class TestToltecSweepMetadata:
         """Test that sweep metadata inherits from ToltecRawObsMetadata."""
         meta = ToltecSweepMetadata(
             **base_obs_fields,
-            master="clip",
+            master=ToltecDBRawObsMaster.CLIP,
             instru="toltec",
             roach=0,
             n_sweeps=401,
@@ -212,7 +228,7 @@ class TestToltecSweepMetadata:
         """Test that sweep metadata is immutable."""
         meta = ToltecSweepMetadata(
             **base_obs_fields,
-            master="clip",
+            master=ToltecDBRawObsMaster.CLIP,
             instru="toltec",
             roach=0,
             n_sweeps=401,
@@ -222,7 +238,7 @@ class TestToltecSweepMetadata:
             f_smp=488.28125 * u.Hz,
         )
         with pytest.raises((AttributeError, TypeError)):
-            meta.n_sweeps = 500  # type: ignore[misc]
+            meta.n_sweeps = 500  # ty: ignore[invalid-assignment] -- frozen model
 
     def test_missing_required_sweep_fields(
         self,
@@ -232,7 +248,7 @@ class TestToltecSweepMetadata:
         with pytest.raises(ValidationError):
             ToltecSweepMetadata(
                 **base_obs_fields,
-                master="lmt",
+                master=ToltecDBRawObsMaster.TCS,
                 instru="toltec",
                 roach=0,
                 # Missing: n_sweeps, n_chans, f_smp
@@ -246,7 +262,7 @@ class TestToltecTimeStreamMetadata:
         """Test timestream metadata creation."""
         meta = ToltecTimeStreamMetadata(
             **base_obs_fields,
-            master="clip",
+            master=ToltecDBRawObsMaster.CLIP,
             instru="toltec",
             roach=0,
             n_times=10000,
@@ -262,7 +278,7 @@ class TestToltecTimeStreamMetadata:
         """Test that f_smp accepts sample rate frequencies."""
         meta = ToltecTimeStreamMetadata(
             **base_obs_fields,
-            master="clip",
+            master=ToltecDBRawObsMaster.CLIP,
             instru="toltec",
             roach=0,
             n_times=5000,
@@ -278,7 +294,7 @@ class TestToltecTimeStreamMetadata:
         """Test that timestream metadata inherits from ToltecRawObsMetadata."""
         meta = ToltecTimeStreamMetadata(
             **base_obs_fields,
-            master="clip",
+            master=ToltecDBRawObsMaster.CLIP,
             instru="toltec",
             roach=0,
             n_times=10000,
@@ -296,7 +312,7 @@ class TestToltecTimeStreamMetadata:
         """Test that t_exp is available from base class."""
         meta = ToltecTimeStreamMetadata(
             **base_obs_fields,
-            master="clip",
+            master=ToltecDBRawObsMaster.CLIP,
             instru="toltec",
             roach=0,
             n_times=10000,
@@ -311,7 +327,7 @@ class TestToltecTimeStreamMetadata:
         """Test that timestream metadata is immutable."""
         meta = ToltecTimeStreamMetadata(
             **base_obs_fields,
-            master="clip",
+            master=ToltecDBRawObsMaster.CLIP,
             instru="toltec",
             roach=0,
             n_times=10000,
@@ -319,7 +335,7 @@ class TestToltecTimeStreamMetadata:
             f_smp=488.28125 * u.Hz,
         )
         with pytest.raises((AttributeError, TypeError)):
-            meta.n_samples = 20000  # type: ignore[misc]
+            meta.n_times = 20000  # ty: ignore[invalid-assignment] -- frozen model
 
     def test_missing_required_timestream_fields(
         self,
@@ -329,7 +345,7 @@ class TestToltecTimeStreamMetadata:
         with pytest.raises(ValidationError):
             ToltecTimeStreamMetadata(
                 **base_obs_fields,
-                master="lmt",
+                master=ToltecDBRawObsMaster.TCS,
                 instru="toltec",
                 roach=0,
                 # Missing: n_samples, n_chans, f_smp

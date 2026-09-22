@@ -7,15 +7,17 @@ All metadata classes are frozen (immutable) DTOs.
 
 from __future__ import annotations
 
+from functools import cached_property
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, computed_field
 from pydantic.dataclasses import dataclass
 from tollan.config.types import FrequencyQuantityField
 
 from ..core import metadata_dataclass_config
 from ..lmt_base import LmtRawObsMetadata
-from .types import ToltecArrayNameT
+from .toltecdb import ToltecDBRawObsMaster
+from .types import ToltecArrayNameT, ToltecMasterType
 
 __all__ = [
     "ToltecRawObsMetadata",
@@ -26,20 +28,19 @@ __all__ = [
 
 @dataclass(config=metadata_dataclass_config, frozen=True, kw_only=True)
 class ToltecRawObsMetadata(LmtRawObsMetadata):
-    """TolTEC raw observation metadata with roach and observation identifiers.
+    """TolTEC acquisition metadata and readout settings.
 
-    Base metadata class for all TolTEC data. Contains instrument identification
-    and observation tracking fields matching v2 structure.
-
-    Note: Inherits from LmtRawObsMetadata which provides:
-    - master: Master controller (string, not int)
-    - obsnum, subobsnum, scannum: Observation identifiers
-    - interface: Data interface identifier
-    - instru: Instrument name
-    - t0, t1, t_exp: Timing fields
+    ``master`` retains the recorded controller code. ``master_str`` supplies
+    its readable name, used by the quartet and observation identifiers.
     """
 
-    master: str = Field(description="Master controller name")
+    master: ToltecDBRawObsMaster = Field(description="Recorded acquisition master code")
+
+    @computed_field
+    @cached_property
+    def master_str(self) -> ToltecMasterType:
+        """Return the acquisition master's name."""
+        return ToltecDBRawObsMaster.get_master_type(self.master)
 
     # Override parent fields with defaults where appropriate
     instru: Literal["toltec", "lmt"] | str = Field(
@@ -120,11 +121,6 @@ class ToltecRawObsMetadata(LmtRawObsMetadata):
         description="Original filename",
     )
 
-    # Master/repeat variables (v2 compatibility)
-    mastervar: str | None = Field(
-        default=None,
-        description="Master variable from netCDF",
-    )
     repeatvar: str | None = Field(
         default=None,
         description="Repeat level variable from netCDF",

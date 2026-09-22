@@ -62,6 +62,7 @@ unnecessary dependency upgrades, or agent delegation.
 | 02b2 | Shared source identification through existing readers | Complete: `4f19abe`; see [step record](02b2-shared-identification.md). |
 | 02b3 | Explicit catalog opening policy and shared runner identity | Complete: `673a2ec`; see [step record](02b3-catalog-opening.md). Broader typed scalar catalog projection remains open. |
 | 02b4 | Measure the scalar projection gap and model boundary | Diagnostic complete: `970c7ef`; [step record](02b4-scalar-projection-boundary.md). Actual v2/v3 reads and missing `atten_drive` catalog selection reproduced; implementation remains open. |
+| 02b5 | Preserve native KIDs master codes | Complete; [step record](02b5-native-master.md). 956 full tests and fresh four-case exact integration pass; source labels and UIDs are unchanged. |
 | 02c | Focused telescope/catalog/no-op guide | Complete: `ef546a3`; see [step record](02c-observation-guide.md). Python examples, direct CLI and isolated Deploy invocation verified. |
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
 | 03b | Remaining reducer / live context / output review | [Three reproduced lifecycle/alias gaps](03b-lifecycle-review.md); fixed in 03b1–03b3. Output boundary review continues. |
@@ -103,6 +104,10 @@ and execution. Python catalog opening policies are implemented; the CLI retains
 all-header preparation and now enriches telescope records too. See 02b2/02b3 for
 measured reads, behavior changes and self-review. Full scalar catalog projection
 remains unresolved.
+
+KIDs raw master codes are now retained in 02b5, with cached `master_str` and
+unchanged identifiers. Original-path naming and the remaining header-model
+boundary are the next focused checks, not implicit parts of that correction.
 
 Steps 02a, 02b1, 03a
 and 04a are committed and exported in `review/overnight-20260922/`. Explicit
@@ -149,3 +154,7 @@ was started. Production changes in this checkpoint are only Web's shared
 coordinate loading; DB changes are unit-fixture identity, and the remaining
 commits are diagnostic/design records. Automation remains active before the
 13:06:38 UTC deadline.
+
+After 02b5, 956 Tolteca tests pass (52.87 s) and fresh exact integration passes
+in `run/overnight-slice-20260922-master/`. This verifies the native master-code
+change without changing scientific outputs or source-catalog labels.

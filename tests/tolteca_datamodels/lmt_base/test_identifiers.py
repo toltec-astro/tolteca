@@ -10,6 +10,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from tolteca_datamodels.lmt_base import LmtObsQuartetMixin, LmtRawObsMetadata
 from tolteca_datamodels.toltec import ToltecRawObsMetadata
+from tolteca_datamodels.toltec.toltecdb import ToltecDBRawObsMaster
 
 
 @pytest.fixture
@@ -100,7 +101,7 @@ def test_master_stays_required():
 
 def test_toltec_inherits_interface_identifiers(identified_metadata):
     fields = dataclasses.asdict(identified_metadata)
-    fields.update(master="ics", interface="toltec0", roach=12)
+    fields.update(master=ToltecDBRawObsMaster.ICS, interface="toltec0", roach=12)
     meta = ToltecRawObsMetadata(**fields)
     assert meta.master_str == "ics"
     assert meta.quartet == "ics-145609-0-2"
@@ -109,8 +110,8 @@ def test_toltec_inherits_interface_identifiers(identified_metadata):
     assert meta.uid_raw_obs_file == "ics-145609-0-2-toltec0"
 
 
-@pytest.mark.parametrize("master", [None, 0, 99])
-def test_toltec_master_remains_a_required_name(identified_metadata, master):
+@pytest.mark.parametrize("master", [None, "tcs", 99])
+def test_toltec_master_requires_a_recorded_code(identified_metadata, master):
     fields = dataclasses.asdict(identified_metadata)
     fields["master"] = master
     with pytest.raises(ValidationError, match="master"):

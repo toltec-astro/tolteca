@@ -222,10 +222,7 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
             "nw": roach,
             "interface": interface,
             "array_name": ToltecInfo.interface_array_name[interface],
-            "master": ToltecDBRawObsMaster.get_master_type(
-                ToltecDBRawObsMaster(master)
-            ),
-            "mastervar": str(master),
+            "master": ToltecDBRawObsMaster(master),
             "obsnum": self.get_scalar(ds, schema.obsnum),
             "subobsnum": self.get_scalar(ds, schema.subobsnum),
             "scannum": self.get_scalar(ds, schema.scannum),

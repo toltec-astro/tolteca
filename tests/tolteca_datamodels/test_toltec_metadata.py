@@ -15,7 +15,7 @@ from tolteca_datamodels.toltec.metadata import (
     ToltecSweepMetadata,
     ToltecTimeStreamMetadata,
 )
-
+from tolteca_datamodels.toltec.toltecdb import ToltecDBRawObsMaster
 
 _OBS_HEADERS = {
     "Header.Toltec.Master": 0,
@@ -44,7 +44,7 @@ class TestMetadataDataclasses:
         meta = ToltecRawObsMetadata(
             instru="toltec",
             interface="toltec0",
-            master="tcs",
+            master=ToltecDBRawObsMaster.TCS,
             roach=0,
             obsnum=12345,
             subobsnum=1,
@@ -54,7 +54,7 @@ class TestMetadataDataclasses:
             t_exp=60.0 * u.s,
         )
         assert meta.instru == "toltec"
-        assert meta.master == "tcs"
+        assert meta.master == ToltecDBRawObsMaster.TCS
         assert meta.roach == 0
         assert meta.obsnum == 12345
         assert meta.subobsnum == 1
@@ -68,7 +68,7 @@ class TestMetadataDataclasses:
         meta = ToltecTimeStreamMetadata(
             instru="toltec",
             interface="toltec0",
-            master="tcs",
+            master=ToltecDBRawObsMaster.TCS,
             roach=0,
             obsnum=10001,
             subobsnum=1,
@@ -96,7 +96,7 @@ class TestMetadataDataclasses:
         meta = ToltecSweepMetadata(
             instru="toltec",
             interface="toltec0",
-            master="tcs",
+            master=ToltecDBRawObsMaster.TCS,
             roach=0,
             obsnum=10002,
             subobsnum=1,
@@ -132,7 +132,7 @@ class TestMetadataDataclasses:
         meta = ToltecRawObsMetadata(
             instru="toltec",
             interface="toltec0",
-            master="tcs",
+            master=ToltecDBRawObsMaster.TCS,
             roach=0,
             obsnum=10003,
             subobsnum=1,
@@ -144,7 +144,7 @@ class TestMetadataDataclasses:
         with pytest.raises(
             (AttributeError, TypeError),
         ):  # pydantic frozen dataclass raises AttributeError or TypeError
-            meta.roach = 1  # type: ignore[misc]
+            meta.roach = 1  # ty: ignore[invalid-assignment] -- test frozen metadata
 
     def test_derived_fields(self):
         """Test derived metadata fields."""
@@ -153,7 +153,7 @@ class TestMetadataDataclasses:
 
         meta = ToltecRawObsMetadata(
             instru="toltec",
-            master="tcs",
+            master=ToltecDBRawObsMaster.TCS,
             roach=0,
             interface="toltec0",
             nw=0,
@@ -226,7 +226,7 @@ class TestMetadataAccessor:
         assert meta.obsnum == 12345
         assert meta.subobsnum == 1
         assert meta.scannum == 0
-        assert meta.master == "tcs"
+        assert meta.master == ToltecDBRawObsMaster.TCS
 
         # Check derived fields
         assert meta.interface == "toltec0"

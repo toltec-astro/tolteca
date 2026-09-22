@@ -187,7 +187,9 @@ The native prefix `tel_toltec` or `tel_toltec2` maps to interface `tel` and
 instrument/component `lmt`/`tcs`. Select a specific stream by prefix, not UID.
 ROACH interfaces such as `toltec0` belong to `toltec`/`roach`. A filename does
 not supply a telescope master. The source-level `master` column is a label;
-the strict telescope metadata separately retains its numeric code.
+the telescope and KIDs metadata separately retain the numeric code in `master`
+and provide its readable label through `master_str`. A KIDs file requires a
+recorded master; a telescope file may have an unavailable master.
 
 Use either dotted fields or short aliases in queries:
 
