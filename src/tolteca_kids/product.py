@@ -11,6 +11,7 @@ import xarray as xr
 from pydantic import AwareDatetime, ConfigDict
 from tollan.accessor.xarray import ensure_dataset
 from tollan.config import FrozenBaseModel
+from tollan.pipeline import PIPELINE_CONTEXT_KEY
 
 from tolteca_datamodels.file import SourceInfoModel
 
@@ -69,6 +70,8 @@ def write_sweep_product(
     """Write a new reduced product, marking it complete only after verification.
 
     Only the reducer result is exported, not the raw root or live resources.
+    The reserved Tollan live-context store is omitted; the reduction step's
+    JSON-compatible metadata is retained.
     Existing destinations are never overwritten. A failed write may leave an
     incomplete directory for inspection; readers require its completion manifest.
     """
@@ -96,7 +99,11 @@ def write_sweep_product(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.mkdir()
     # Remove source-backend encodings; data values and unit attrs are retained.
-    node = xr.DataTree(dataset=ensure_dataset(view.data_source).drop_encoding())
+    dataset = ensure_dataset(view.data_source).drop_encoding()
+    # Raw attrs can carry live contexts from earlier steps on the working tree.
+    # drop_encoding() supplies a fresh attrs dict; leave the live tree untouched.
+    dataset.attrs.pop(PIPELINE_CONTEXT_KEY, None)
+    node = xr.DataTree(dataset=dataset)
     product = xr.DataTree(children={SweepReduce.result_path(): node})
     # Format 2 preserves fixed-byte netCDF headers without relying on an
     # unstable Zarr 3 dtype extension or converting their values to text.

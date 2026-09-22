@@ -67,6 +67,7 @@ unnecessary dependency upgrades, or agent delegation.
 | 03b1 | Attach live context before execution | Complete; see [step record](03b1-live-context.md). 228 KIDs tests pass, including actual-v2 parity. |
 | 03b2 | Keep alias context back-links independent | Complete: Tollan `62e3a5c` and dependent KIDs adapters; see [step record](03b2-context-binding.md). 1,289 Tollan / 230 KIDs tests pass. |
 | 03b3 | Reuse alias-local reduction results | Complete; see [step record](03b3-alias-cache.md). 234 KIDs tests pass; the real-reference lifecycle probe now matches all three intended behaviors. |
+| 03b4 | Exclude the live store at the product boundary | Complete; see [step record](03b4-live-export-boundary.md). 947 full Tolteca tests and fresh four-case exact integration pass. |
 | 04a | Web selection before frequency broadcast | Complete: Web `928bf28`; 10 tests and fresh exact integration pass; [step record](../../../tolteca_web/design/overnight-20260922/04a-frequency-selection.md). Depends on 03a. |
 | 04b | Remaining DB discovery / Web consumption review | Pending |
 | 05 | Exact reference verification, guide, final handoff | Pending |
@@ -78,8 +79,8 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Resume the export boundary finding in [03b3](03b3-alias-cache.md): NoOp's live
-context copied into reduced attrs prevents Zarr output on a reused working tree.
+Resume the remaining DB/Web review (04b): discovery, resource lifetime, and
+request/chunk amplification. The export boundary finding is fixed in 03b4.
 All three earlier lifecycle/alias gaps are fixed in 03b1–03b3. The repeatable
 read-only probe is saved at `design/probes/check_step_lifecycle.py`.
 Tollan is now on the new overnight branch; its unrelated `.DS_Store` is untouched.
@@ -115,13 +116,14 @@ live-browser permission/verification limits remain open.
 
 ## Latest QA checkpoint
 
-After 02b3/02c, 935 Tolteca tests pass (54.86 s), with
+After 03b4, 947 Tolteca tests pass (55.38 s), with
 `TOLTECA_V2_PYTHON=/Users/ma/.pyenv/versions/tolteca_v2/bin/python` and
 `--benchmark-disable`. Fresh four-case exact integration through CLI, Zarr,
 SQLite, Parquet, Web traces and Dash HTTP callbacks passes; outputs are in
-`toltec_astro_dev/run/overnight-slice-20260922-catalog-guide/`. The prior 18 DB
+`toltec_astro_dev/run/overnight-slice-20260922-lifecycle/`. The prior 18 DB
 sweep-product and 10 Web tests pass against the stored-coordinate change. Scoped typing passes;
 the raw core/reducer retain their documented pre-existing lint/format findings.
 Reference checkout, DB and Web are clean. No production service or fixture write
-was needed. Broader scalar catalog projection and the newly reproduced lifecycle
-issues remain open. See 03b for why passing the normal slice is not enough.
+was needed. All 1,289 Tollan tests and its full type check pass. Broader scalar
+catalog projection and remaining DB/Web review are open; the reproduced lifecycle
+issues are fixed and tested. See 03b1–03b4 for the focused behavior changes.

@@ -18,6 +18,7 @@ from tolteca_datamodels.toltec.kids.source import identify_source
 from tolteca_kids.cli import app
 from tolteca_kids.core import Kids, KidsConfig
 from tolteca_kids.dataprod_output import DataProdOutput
+from tolteca_kids.noop import NoOp
 from tolteca_kids.product import (
     open_sweep_product,
     read_sweep_manifest,
@@ -388,6 +389,43 @@ def test_export_reopen_and_exclusive_destination(tmp_path, raw_sweep):
 def test_incomplete_product_rejected(tmp_path):
     with pytest.raises(FileNotFoundError):
         open_sweep_product(tmp_path)
+
+
+def test_export_excludes_live_context_without_mutating_working_tree(
+    tmp_path, raw_sweep
+):
+    raw_sweep.attrs["user_label"] = "interactive test"
+    working = ensure_datatree(raw_sweep)
+    NoOp()(working)
+    live_context = NoOp.get_context(working)
+    SweepReduce()(working)
+    reduced = SweepReduce.view(working).data_source
+    live_store = reduced.attrs[PIPELINE_CONTEXT_KEY]
+    assert live_store is working.attrs[PIPELINE_CONTEXT_KEY]
+    expected = reduced.copy(deep=False)
+    expected.attrs.pop(PIPELINE_CONTEXT_KEY)
+    path = write_sweep_product(working, tmp_path / "product")
+    with open_sweep_product(path) as reopened:
+        saved = SweepReduce.view(reopened)
+        xr.testing.assert_identical(saved.data_source, expected)
+        assert saved.context.completed
+        assert saved.data_source.attrs["user_label"] == "interactive test"
+        assert PIPELINE_CONTEXT_KEY not in saved.data_source.attrs
+    assert reduced.attrs[PIPELINE_CONTEXT_KEY] is live_store
+    assert working.attrs[PIPELINE_CONTEXT_KEY] is live_store
+    assert NoOp.get_context(working) is live_context
+    assert PIPELINE_CONTEXT_KEY not in raw_sweep.attrs
+
+
+def test_export_does_not_silently_discard_unknown_opaque_metadata(tmp_path, raw_sweep):
+    raw_sweep.attrs["unsupported_resource"] = object()
+    working = ensure_datatree(raw_sweep)
+    SweepReduce()(working)
+    path = tmp_path / "product"
+    with pytest.raises(TypeError, match="Invalid attribute"):
+        write_sweep_product(working, path)
+    assert not (path / "manifest.json").exists()
+    assert "unsupported_resource" in SweepReduce.view(working).data_source.attrs
 
 
 def test_manifest_and_effective_config_replay(tmp_path, raw_sweep):
