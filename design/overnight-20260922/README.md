@@ -71,6 +71,8 @@ unnecessary dependency upgrades, or agent delegation.
 | 04a | Web selection before frequency broadcast | Complete: Web `928bf28`; 10 tests and fresh exact integration pass; [step record](../../../tolteca_web/design/overnight-20260922/04a-frequency-selection.md). Depends on 03a. |
 | 04b | Remaining DB discovery / Web consumption review | [Measured storage review](04b-storage-review.md): metadata consolidation and repeated frequency-coordinate reads are the next bounded steps; broader DB/Web redesign stays deferred. |
 | 04b1 | Consolidate immutable product metadata | Complete; see [step record](04b1-consolidated-metadata.md). 951 full Tolteca, 18 DB and 10 Web tests pass; fresh exact integration passes. |
+| 04b2 | Read selected I/Q and shared coordinates together | Complete: Web `04f0c73`; [step record](../../../tolteca_web/design/overnight-20260922/04b2-shared-coordinate-reads.md). 10 tests and four actual-v2 exact trace checks pass; `f_chan` reads fall 4 → 1. |
+| 04b3 | Recorded DB product-test acquisition identity | Complete: DB `412fe6e`; [step record](../../../tolteca_db/design/overnight-20260922/04b3-recorded-fixture-identity.md). All 18 focused tests pass; no runtime change. |
 | 05 | Exact reference verification, guide, final handoff | Pending |
 
 Every completed step must record rationale, explicit observable changes,
@@ -80,11 +82,11 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Resume repeated frequency-coordinate reads in [04b](04b-storage-review.md), then
-the DB unit-fixture identity. Consolidated metadata is implemented in 04b1;
-fresh products open with 6–7 LocalStore gets instead of 285–304. A read-only
-experiment reduced four `f_chan` reads to one by computing only selected I/Q and
-their shared coordinates together, preserving exact plot values.
+Resume the broader catalog projection review in 02b, then measured chunk-policy
+evaluation and final verification. The bounded [04b](04b-storage-review.md)
+consolidation, repeated-coordinate-read and unit-fixture findings are fixed in
+04b1–04b3. Fresh products open with 6–7 LocalStore gets instead of 285–304;
+Web reads `f_chan` once instead of four times, preserving exact plot values.
 The export boundary finding is fixed in 03b4.
 All three earlier lifecycle/alias gaps are fixed in 03b1–03b3. The repeatable
 read-only probe is saved at `design/probes/check_step_lifecycle.py`.
