@@ -61,9 +61,9 @@ unnecessary dependency upgrades, or agent delegation.
 | 02b1 | Prevent false KIDs classification of telescope files | Complete: `51e0728`; see [regression record](02b1-kids-identification.md). General telescope header identification remains pending. |
 | 02b2 | Shared source identification through existing readers | Complete: `4f19abe`; see [step record](02b2-shared-identification.md). |
 | 02b3 | Explicit catalog opening policy and shared runner identity | Complete: `673a2ec`; see [step record](02b3-catalog-opening.md). Broader typed scalar catalog projection remains open. |
-| 02c | Focused telescope/catalog/no-op guide | Complete; see [step record](02c-observation-guide.md). Python examples, direct CLI and isolated Deploy invocation verified. |
+| 02c | Focused telescope/catalog/no-op guide | Complete: `ef546a3`; see [step record](02c-observation-guide.md). Python examples, direct CLI and isolated Deploy invocation verified. |
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
-| 03b | Remaining reducer / live context / output review | Pending |
+| 03b | Remaining reducer / live context / output review | [Three reproduced lifecycle/alias gaps](03b-lifecycle-review.md); fixes pending. |
 | 04a | Web selection before frequency broadcast | Complete: Web `928bf28`; 10 tests and fresh exact integration pass; [step record](../../../tolteca_web/design/overnight-20260922/04a-frequency-selection.md). Depends on 03a. |
 | 04b | Remaining DB discovery / Web consumption review | Pending |
 | 05 | Exact reference verification, guide, final handoff | Pending |
@@ -75,8 +75,12 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Resume remaining reducer/context/output and DB/Web review. The guide is now
-consolidated and its examples executed; see 02c. The shared identifier serves catalog preparation
+Resume the live-context gap in [03b](03b-lifecycle-review.md), then alias back-links
+and repeated alias-only reduction. A repeatable read-only probe is saved at
+`design/probes/check_step_lifecycle.py`. No lifecycle fix is implemented yet.
+Tollan needs a new overnight branch before edits; preserve its unrelated files.
+
+The guide is consolidated and its examples executed; see 02c. The shared identifier serves catalog preparation
 and execution. Python catalog opening policies are implemented; the CLI retains
 all-header preparation and now enriches telescope records too. See 02b2/02b3 for
 measured reads, behavior changes and self-review. Full scalar catalog projection
@@ -107,10 +111,13 @@ live-browser permission/verification limits remain open.
 
 ## Latest QA checkpoint
 
-After 02b1, 910 Tolteca tests pass (54.37 s), with
+After 02b3/02c, 935 Tolteca tests pass (54.86 s), with
 `TOLTECA_V2_PYTHON=/Users/ma/.pyenv/versions/tolteca_v2/bin/python` and
-`--benchmark-disable`. The 18 DB sweep-product tests and 10 Web figure/service
-tests also pass against the stored-coordinate change. Scoped typing passes;
+`--benchmark-disable`. Fresh four-case exact integration through CLI, Zarr,
+SQLite, Parquet, Web traces and Dash HTTP callbacks passes; outputs are in
+`toltec_astro_dev/run/overnight-slice-20260922-catalog-guide/`. The prior 18 DB
+sweep-product and 10 Web tests pass against the stored-coordinate change. Scoped typing passes;
 the raw core/reducer retain their documented pre-existing lint/format findings.
 Reference checkout, DB and Web are clean. No production service or fixture write
-was needed. This checkpoint is not a claim the pending catalog/guide work is done.
+was needed. Broader scalar catalog projection and the newly reproduced lifecycle
+issues remain open. See 03b for why passing the normal slice is not enough.
