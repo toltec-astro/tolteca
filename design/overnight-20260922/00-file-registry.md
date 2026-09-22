@@ -58,6 +58,10 @@ commit hooks; tests and scoped QA were run explicitly as recorded above.
 
 ## Next decision
 
+The focused follow-up is committed as Tolteca `62602a2`. Review it after the
+separate `269d1db` baseline; the combined pre-commit `just review` export is
+`/tmp/toltec-python-file-registry-review.diff`.
+
 Review the previous no-op and reducer slice from the new baseline. Do not treat
 passing tests as evidence that all models, field meanings and public docs agree
 with the latest user decisions. Record real gaps first; make focused corrections

@@ -54,8 +54,8 @@ unnecessary dependency upgrades, or agent delegation.
 
 | Step | Scope | Status / evidence |
 | --- | --- | --- |
-| 00 | Preserve pending baseline; finish registry and source-kind refactor | Implemented and verified; see [step record](00-file-registry.md). Baseline: Tolteca `269d1db`, DB `317f951`, Web `3bc81fe`. |
-| 01 | Reconcile previous overnight work with current decisions | Pending |
+| 00 | Preserve pending baseline; finish registry and source-kind refactor | Complete: Tolteca `62602a2`; see [step record](00-file-registry.md). Baseline: Tolteca `269d1db`, DB `317f951`, Web `3bc81fe`. |
+| 01 | Reconcile previous overnight work with current decisions | Initial boundary review and fresh exact integration complete; see [review matrix](01-review-matrix.md). This is a findings inventory, not a claim all layers are redesigned. |
 | 02 | No-op invocation and catalog review | Pending |
 | 03 | Reducer / live context / output review | Pending |
 | 04 | DB discovery / Web consumption review | Pending |
@@ -68,11 +68,19 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Finish the step-00 commit/review export if still pending, then start step 01:
-read the prior ledger's per-step records and inspect the current implementation
-against the revised metadata/file rules. Build a concise review matrix with
-actual findings before changing the pipeline. The previous final checkpoint
-already identifies DB/Web identity drift, product/chunking limits and unverified
-live browser rendering; verify current state rather than assuming those notes
-are still complete. The requested focused telescope→catalog→no-op user guide is
-still pending consolidation; existing pages are not the final guide.
+Start step 02 with the findings in `01-review-matrix.md`. The telescope ObsSpec
+directory gap is reproduced on actual reference files; keep existing unqualified
+KIDs discovery semantics while adding an explicit canonical telescope-interface
+path if justified. Do not silently rewrite DB keys or treat a masterless telescope
+filename as proof of TCS. Review header-enrichment/opening policy separately.
+
+Current code, unit tests, and the renewed four-case integration are verified at
+Tolteca `62602a2`, DB `317f951`, Web `3bc81fe`. Fresh integration evidence:
+`toltec_astro_dev/run/overnight-slice-20260922-baseline/report.json`. Do not reuse
+that output directory. The complete pre-existing 20260921 step records in Tolteca,
+DB and Web have been read. The standalone reducer's numerical internals still
+need a focused review; exact integration is evidence, not a substitute for it.
+
+The requested focused telescope→catalog→no-op user guide remains to consolidate;
+existing pages are not the final guide. No production services or browser server
+were launched. Prior live-browser permission/verification limits remain open.
