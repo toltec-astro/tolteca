@@ -67,6 +67,7 @@ unnecessary dependency upgrades, or agent delegation.
 | 02b7 | Require raw observation type; audit remaining omissions | Complete; [step record](02b7-observation-type.md). 966 full tests and fresh exact integration pass. Missing type no longer silently changes tune block count. |
 | 02b8 | Native repeat and registered instrument component | Complete; [step record](02b8-native-repeat-component.md). 971 full tests pass; integer `repeat` and `toltec`/`roach` identity, with no extra reads. |
 | 02b9 | Require raw scalar/string readout settings | Complete; [step record](02b9-required-readout-headers.md). 1,004 tests and fresh exact integration pass. Missing recorded settings no longer silently become None; processed omissions remain supported. |
+| 02b10 | Shared recorded LO-center metadata | Complete; [step record](02b10-lo-center-metadata.md). 1,016 tests pass. Timestreams now expose the same recorded center as v2; raw missing centers reject and processed omissions remain nullable. |
 | 02c | Focused telescope/catalog/no-op guide | Complete: `ef546a3`; see [step record](02c-observation-guide.md). Python examples, direct CLI and isolated Deploy invocation verified. |
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
 | 03b | Remaining reducer / live context / output review | [Three reproduced lifecycle/alias gaps](03b-lifecycle-review.md); fixed in 03b1–03b3. Output boundary review continues. |
@@ -121,6 +122,8 @@ catalog projection.
 02b9 now covers attenuation, calibration identifiers, maximum tones, original
 path and repeat. Design/sweep dimensions, ADC reference and LO-center semantics
 remain separate; the strict header-only model boundary is not yet complete.
+02b10 restores the common LO-center field and its raw requiredness. Next inspect
+dimension/repetition/ADC-reference presence; then choose the typed catalog path.
 Keep processed identification and standalone numerical-input inference distinct
 from complete raw acquisition metadata; do not use a reduced child's raw
 accessor metadata as an acquisition record.
@@ -189,3 +192,7 @@ repeat values and registered component labels are verified on all four inputs.
 After 02b9, 1,004 tests pass (55.66 s), and fresh four-case exact integration
 passes in `run/overnight-slice-20260922-required-headers/`. No valid scientific
 values change. The automation is still active before the deadline.
+
+After 02b10, 1,016 tests pass (53.81 s). Independent actual-v2 and v3 reads agree
+exactly on the LO center for all four files; raw timestream metadata adds one
+8-byte scalar read. No I/Q or ADC payload is read by metadata construction.

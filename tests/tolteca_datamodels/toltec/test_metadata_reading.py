@@ -135,9 +135,11 @@ def test_required_metadata_is_not_fabricated(raw, missing):
         _ = raw.drop_vars(missing).toltec_kids.meta
 
 
-def test_missing_lo_center_remains_unknown(raw):
-    meta = raw.drop_vars("Header.Toltec.LoCenterFreq").toltec_kids.meta
-    assert meta.f_lo_center is None
+def test_missing_raw_lo_center_is_not_inferred_from_samples(raw):
+    missing = raw.drop_vars("Header.Toltec.LoCenterFreq")
+    assert "Data.Toltec.LoFreq" in missing
+    with pytest.raises(ValueError, match="Header.Toltec.LoCenterFreq"):
+        _ = missing.toltec_kids.meta
 
 
 def test_reference_metadata(data_lmt_path, monkeypatch):
@@ -195,12 +197,12 @@ def test_reference_metadata(data_lmt_path, monkeypatch):
                 assert meta.t1.unix == expected["ObsEndTime"]
                 assert meta.atten_drive == expected["DriveAtten"]
                 assert meta.atten_sense == expected["SenseAtten"]
+                assert meta.f_lo_center == expected["LoCenterFreq"]
                 assert meta.t_exp.to_value(u.s) == pytest.approx(
                     sizes["time"] / expected["SampleFreq"]
                 )
                 assert not ds["Data.Toltec.Is"].variable._in_memory
                 if isinstance(meta, ToltecSweepMetadata):
-                    assert meta.f_lo_center == expected["LoCenterFreq"]
                     assert meta.n_blocks == n_blocks
                     assert meta.n_sweeps == n_blocks
                     assert meta.n_blocks_max == sizes["numSweeps"]

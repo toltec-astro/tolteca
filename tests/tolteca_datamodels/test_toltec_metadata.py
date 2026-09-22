@@ -345,6 +345,7 @@ class TestMetadataAccessor:
                 **_OBS_HEADERS,
                 "Header.Toltec.RoachIndex": 2,
                 "Header.Toltec.SampleFreq": 488.0,
+                "Header.Toltec.LoCenterFreq": 4.5e9,
                 "Header.Toltec.ObsNum": 99999,
                 "Header.Toltec.ObsType": 2,  # VnaSweep
             },

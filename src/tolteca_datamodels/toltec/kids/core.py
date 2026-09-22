@@ -174,9 +174,10 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
 
         Required identifiers, acquisition times, and sample rate must be present.
         Raw acquisitions also require their observation type, attenuation,
-        calibration identifiers, maximum tone count, original path, and repeat
-        level. Processed data may omit those readout settings. Acquisition times
-        come from the file headers; integration time is sample count divided by rate.
+        calibration identifiers, maximum tone count, original path, repeat
+        level, and LO center frequency. Processed data may omit those settings.
+        Acquisition times come from the file headers; integration time is sample
+        count divided by rate.
 
         A dataset with an explicit block dimension returns one metadata object
         per block. A flat acquisition returns one file-level object, including
@@ -264,9 +265,9 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
 
         if data_kind & ToltecDataKind.Sweep:
             return self._get_sweep_metadata(
-                ds, base_fields, is_multi_block, n_blocks, block
+                ds, base_fields, is_multi_block, n_blocks, block, data_kind
             )
-        return self._get_timestream_metadata(ds, base_fields)
+        return self._get_timestream_metadata(ds, base_fields, is_raw=is_raw)
 
     def _get_data_kind(self, data_source: xr.Dataset) -> ToltecDataKind:
         """Determine data kind from dataset."""
@@ -307,17 +308,19 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         is_multi_block,
         n_blocks,
         block,
+        data_kind,
     ):
         """Construct sweep metadata instance(s)."""
         ds = data_source
         schema = self.schema
+        is_raw = bool(data_kind & ToltecDataKind.RawKidsData)
         sweep_fields = base_fields.copy()
         sweep_fields["n_sweepsteps"] = self.get_scalar(ds, schema.n_sweepsteps)
         if schema.n_sweepreps in self:
             sweep_fields["n_sweepreps"] = self.get_scalar(ds, schema.n_sweepreps)
 
         slices = [slice(None)]
-        if not is_multi_block and self._get_data_kind(ds) == ToltecDataKind.Tune:
+        if not is_multi_block and data_kind == ToltecDataKind.Tune:
             # numSweeps is allocated capacity; LO resets count recorded sweeps.
             f_los = self.get_arr(ds, schema.f_los).to_numpy()
             if f_los.ndim != 1 or not np.all(np.isfinite(f_los) & (f_los > 0)):
@@ -338,9 +341,13 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         )
         if is_multi_block:
             if block is not None:
-                return self._get_single_block_sweep_metadata(sweep_fields, ds, block)
+                return self._get_single_block_sweep_metadata(
+                    sweep_fields, ds, block, is_raw=is_raw
+                )
             return [
-                self._get_single_block_sweep_metadata(sweep_fields, ds, i)
+                self._get_single_block_sweep_metadata(
+                    sweep_fields, ds, i, is_raw=is_raw
+                )
                 for i in range(n_blocks)
             ]
 
@@ -356,13 +363,13 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         sweep_fields["t_exp"] = (sweep_fields["n_times"] / sweep_fields["f_smp"]).to(
             u.s
         )
-        if schema.f_lo_center in self:
+        if is_raw or schema.f_lo_center in self:
             sweep_fields["f_lo_center"] = self._get_frequency(
                 ds, schema.f_lo_center
             ).to_value(u.Hz)
         return ToltecSweepMetadata(**sweep_fields)
 
-    def _get_single_block_sweep_metadata(self, base_fields, ds, block_idx):
+    def _get_single_block_sweep_metadata(self, base_fields, ds, block_idx, *, is_raw):
         """Get sweep metadata for a specific explicitly indexed block."""
         block_fields = base_fields.copy()
         ds = ds.isel({self.get_name(self.schema.n_blocks): block_idx})
@@ -375,17 +382,21 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         block_fields["t_exp"] = (block_fields["n_times"] / block_fields["f_smp"]).to(
             u.s
         )
-        if self.schema.f_lo_center in self:
+        if is_raw or self.schema.f_lo_center in self:
             block_fields["f_lo_center"] = self._get_frequency(
                 ds, self.schema.f_lo_center
             ).to_value(u.Hz)
         return ToltecSweepMetadata(**block_fields)
 
-    def _get_timestream_metadata(self, data_source, base_fields):
+    def _get_timestream_metadata(self, data_source, base_fields, *, is_raw):
         """Construct timestream metadata instance."""
         ts_fields = base_fields.copy()
         ts_fields["n_times"] = self.get_dim(data_source, self.schema.n_times)
         ts_fields["t_exp"] = (ts_fields["n_times"] / ts_fields["f_smp"]).to(u.s)
+        if is_raw or self.schema.f_lo_center in self:
+            ts_fields["f_lo_center"] = self._get_frequency(
+                data_source, self.schema.f_lo_center
+            ).to_value(u.Hz)
         return ToltecTimeStreamMetadata(**ts_fields)
 
     def _get_frequency(self, ds, field):

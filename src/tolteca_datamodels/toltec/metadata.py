@@ -138,6 +138,10 @@ class ToltecTimeStreamMetadata(ToltecRawObsMetadata):
     n_times: int = Field(description="Number of time samples")
     n_chans: int = Field(description="Number of readout channels")
     f_smp: FrequencyQuantityField = Field(description="Sample rate")
+    f_lo_center: float | None = Field(
+        default=None,
+        description="Center LO frequency in Hz",
+    )
 
 
 @dataclass(config=metadata_dataclass_config, frozen=True, kw_only=True)
@@ -154,11 +158,6 @@ class ToltecSweepMetadata(ToltecTimeStreamMetadata):
     n_sweepreps: int | None = Field(
         default=None,
         description="Number of repetitions per sweep step (for raw sweeps)",
-    )
-
-    f_lo_center: float | None = Field(
-        default=None,
-        description="Center LO frequency in Hz",
     )
 
     # Multi-block fields (from v2)
