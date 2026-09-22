@@ -64,6 +64,7 @@ unnecessary dependency upgrades, or agent delegation.
 | 02b4 | Measure the scalar projection gap and model boundary | Diagnostic complete: `970c7ef`; [step record](02b4-scalar-projection-boundary.md). Actual v2/v3 reads and missing `atten_drive` catalog selection reproduced; implementation remains open. |
 | 02b5 | Preserve native KIDs master codes | Complete; [step record](02b5-native-master.md). 956 full tests and fresh four-case exact integration pass; source labels and UIDs are unchanged. |
 | 02b6 | Consistent KIDs original-path name | Complete; [step record](02b6-original-path.md). 961 full tests pass. Rename to `filepath_orig`, preserving values and current missing-field behavior. |
+| 02b7 | Require raw observation type; audit remaining omissions | Complete; [step record](02b7-observation-type.md). 966 full tests and fresh exact integration pass. Missing type no longer silently changes tune block count. |
 | 02c | Focused telescope/catalog/no-op guide | Complete: `ef546a3`; see [step record](02c-observation-guide.md). Python examples, direct CLI and isolated Deploy invocation verified. |
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
 | 03b | Remaining reducer / live context / output review | [Three reproduced lifecycle/alias gaps](03b-lifecycle-review.md); fixed in 03b1–03b3. Output boundary review continues. |
@@ -110,6 +111,13 @@ KIDs raw master codes are now retained in 02b5, with cached `master_str` and
 unchanged identifiers. Original-path naming is aligned in 02b6. The remaining
 raw/reduced header-model boundary and requiredness are the next focused checks,
 not implicit parts of either correction.
+The 02b7 diagnostic measures 47 omitted-header cases and the raw accessor's
+behavior on reduced product children. Only missing raw observation type is
+fixed in that step. Next address the remaining raw required fields and native
+repeat/component semantics before choosing typed header-only catalog projection.
+Keep processed identification and standalone numerical-input inference distinct
+from complete raw acquisition metadata; do not use a reduced child's raw
+accessor metadata as an acquisition record.
 
 Steps 02a, 02b1, 03a
 and 04a are committed and exported in `review/overnight-20260922/`. Explicit
@@ -163,3 +171,8 @@ change without changing scientific outputs or source-catalog labels.
 
 After 02b6, 961 Tolteca tests pass (53.49 s), actual-v2 parity enabled. Scoped
 lint, formatting and typing pass for the original-path rename.
+
+After 02b7, 966 Tolteca tests pass (55.40 s), and a fresh exact integration passes
+in `run/overnight-slice-20260922-header-contract/`. Only the four missing raw
+observation-type cases differ in the before/after diagnostic. The automation
+remains active; the deadline is still 13:06:38 UTC.

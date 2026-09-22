@@ -9,7 +9,8 @@ The current implementation progress, decisions, and exceptions awaiting review
 are recorded in [section 10](#10-reader-correction-iterations). Its telescope
 results supersede the baseline telescope findings where explicitly listed.
 The current telescope contract is **T6**, with shared path naming in **C3** and
-kind classification in **C6** below. T1/T2 and C1/C2 are historical
+kind classification in **C11** below. KIDs header corrections are tracked in
+**K1**. T1/T2 and C1/C2 are historical
 iteration records, not competing descriptions of the current API.
 
 ## Summary
@@ -1795,3 +1796,26 @@ The working tree was neither restored nor reset. Companion baseline changes:
 DB `317f951`, Web `3bc81fe`. The current registry change therefore has a focused
 commit diff rather than incorporating all daytime iterations. The renewed
 review trail is [here](overnight-20260922/README.md).
+
+### K1. Native KIDs header semantics and full-metadata requiredness
+
+The September 22 review makes three separately committed corrections:
+
+| Field / operation | Current contract | Evidence |
+| --- | --- | --- |
+| `master`, `master_str` | Metadata retains the numeric acquisition enum and derives its cached name. Redundant `mastervar` is removed. Source/catalog master labels and UIDs are unchanged. | `5932256`, [02b5](overnight-20260922/02b5-native-master.md); actual headers and independent DB labels agree. |
+| `filepath_orig` | Replaces KIDs `filename_orig` in the model/schema; preserves the complete header path. No eager parsing or missing-field policy change in this rename. | `d131555`, [02b6](overnight-20260922/02b6-original-path.md); all four raw headers contain full paths. |
+| Full raw metadata without `ObsType` | Raises the normal mapper error. Structural kind inference remains available for numerical processing, but is not a complete acquisition record. Processed identification is unchanged. | [02b7](overnight-20260922/02b7-observation-type.md); previously a tune with this header removed incorrectly reported one block instead of two. |
+
+Full metadata requiredness is not finished: the diagnostic in 02b7 records the
+remaining omissions rather than claiming they are valid nullable acquisition
+fields. Native repeat values and instrument-component metadata also need
+alignment. Header-only catalog projection remains open; current catalogs still
+cannot select on `atten_drive`. Reduced-child raw accessor metadata must not
+substitute for raw acquisition metadata; their counts/times can differ or fail
+for block-promoted headers. See the focused records for the precise boundary.
+
+Latest verification: 966 Tolteca tests pass, actual-v2 parity enabled; a fresh
+four-case CLI/Zarr/SQLite/Parquet/Web integration passes with exact arrays and
+units in `run/overnight-slice-20260922-header-contract/` under the development
+location. No fixture writes, tolerance changes, or production services.

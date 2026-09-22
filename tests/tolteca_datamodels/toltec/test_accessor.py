@@ -118,7 +118,7 @@ def toltec_sweep_dataset():
 
 @pytest.fixture
 def toltec_timestream_dataset():
-    """Create a mock TolTEC timestream dataset."""
+    """Toy numerical timestream; not evidence of an acquisition file format."""
     n_chans = 256
     n_samples = 1000
 
@@ -155,6 +155,7 @@ def toltec_timestream_dataset():
             **_OBS_HEADERS,
             "Header.Toltec.RoachIndex": 7,  # a1400 array
             "Header.Toltec.ObsNum": 54321,
+            "Header.Toltec.ObsType": 0,  # Nominal, as in the reference timestream.
             "Header.Toltec.SampleFreq": 1000.0,
             "Header.Toltec.LoCenterFreq": 150e6,
         },

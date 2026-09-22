@@ -7,6 +7,7 @@ import pytest
 import xarray as xr
 from astropy import units as u
 
+from tolteca_datamodels.toltec import open_toltec
 from tolteca_datamodels.toltec.kids.core import (
     ToltecKidsIOMapper as ToltecKidsFullMapper,
 )
@@ -406,9 +407,8 @@ class TestMetadataAccessor:
         assert meta_block_1.f_lo_center is not None
         assert 5e9 < meta_block_1.f_lo_center < 5.5e9
 
-    def test_metadata_with_minimal_fields(self, rng):
-        """Test metadata construction with minimal required fields."""
-        # Minimal dataset
+    def test_metadata_without_observation_type(self, rng):
+        """A raw array shape cannot replace the recorded observation type."""
         ds = xr.Dataset(
             {
                 "Data.Toltec.Is": (["iqlen", "time"], rng.standard_normal((100, 1000))),
@@ -421,11 +421,8 @@ class TestMetadataAccessor:
             },
         )
 
-        meta = ds.toltec_kids.meta
-
-        # Should still construct successfully
-        assert isinstance(meta, (ToltecSweepMetadata, ToltecTimeStreamMetadata))
-        assert meta.roach == 0
+        with pytest.raises(ValueError, match="Header.Toltec.ObsType"):
+            _ = ds.toltec_kids.meta
 
 
 class TestMetadataEdgeCases:
@@ -456,23 +453,10 @@ class TestMetadataEdgeCases:
         with pytest.raises(ValueError, match="Block .* out of range"):
             mapper.get_metadata(ds, block=5)
 
-    def test_metadata_caching(self, rng):
-        """Test metadata is cached via functools.cached_property."""
-        ds = xr.Dataset(
-            {
-                "Data.Toltec.Is": (["iqlen", "sweeps"], rng.standard_normal((100, 50))),
-                "Data.Toltec.Qs": (["iqlen", "sweeps"], rng.standard_normal((100, 50))),
-            },
-            attrs={
-                **_OBS_HEADERS,
-                "Header.Toltec.RoachIndex": 0,
-                "Header.Toltec.SampleFreq": 488.0,
-            },
-        )
-
-        # Access metadata twice
-        meta1 = ds.toltec_kids.meta
-        meta2 = ds.toltec_kids.meta
-
-        # Should be the same object (cached)
-        assert meta1 is meta2
+    def test_metadata_caching(self, data_lmt_path):
+        """Repeated metadata access returns the same cached instance."""
+        (path,) = (data_lmt_path / "toltec/tcs/toltec0").glob("*_targsweep.nc")
+        with open_toltec(path) as ds:
+            meta1 = ds.toltec_kids.meta
+            meta2 = ds.toltec_kids.meta
+            assert meta1 is meta2

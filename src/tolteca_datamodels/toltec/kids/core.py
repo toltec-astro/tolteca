@@ -173,6 +173,7 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         """Read typed observation metadata without loading detector arrays.
 
         Required identifiers, acquisition times, and sample rate must be present.
+        Raw acquisitions also require their recorded observation type.
         Optional header fields remain None when absent. Acquisition times come
         from the file headers; integration time is sample count divided by rate.
 
@@ -231,8 +232,11 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
             "n_chans": self.get_dim(ds, schema.n_chans),
             "f_smp": f_smp,
         }
+        # A raw sweep's shape cannot distinguish tune from VNA/target. Its
+        # recorded type determines how acquired blocks are counted.
+        if data_kind & ToltecDataKind.RawKidsData or schema.obs_type in self:
+            base_fields["obs_type"] = self.get_scalar(ds, schema.obs_type)
         for key in (
-            "obs_type",
             "atten_drive",
             "atten_sense",
             "cal_roach",
