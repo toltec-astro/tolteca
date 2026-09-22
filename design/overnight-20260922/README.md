@@ -69,7 +69,7 @@ unnecessary dependency upgrades, or agent delegation.
 | 03b3 | Reuse alias-local reduction results | Complete; see [step record](03b3-alias-cache.md). 234 KIDs tests pass; the real-reference lifecycle probe now matches all three intended behaviors. |
 | 03b4 | Exclude the live store at the product boundary | Complete; see [step record](03b4-live-export-boundary.md). 947 full Tolteca tests and fresh four-case exact integration pass. |
 | 04a | Web selection before frequency broadcast | Complete: Web `928bf28`; 10 tests and fresh exact integration pass; [step record](../../../tolteca_web/design/overnight-20260922/04a-frequency-selection.md). Depends on 03a. |
-| 04b | Remaining DB discovery / Web consumption review | Pending |
+| 04b | Remaining DB discovery / Web consumption review | [Measured storage review](04b-storage-review.md): metadata consolidation and repeated frequency-coordinate reads are the next bounded steps; broader DB/Web redesign stays deferred. |
 | 05 | Exact reference verification, guide, final handoff | Pending |
 
 Every completed step must record rationale, explicit observable changes,
@@ -79,8 +79,11 @@ remaining issues, not an unsupported claim of completeness.
 
 ## Resume here
 
-Resume the remaining DB/Web review (04b): discovery, resource lifetime, and
-request/chunk amplification. The export boundary finding is fixed in 03b4.
+Resume metadata consolidation in [04b](04b-storage-review.md). The read-only
+probe measured 285–304 local store gets on opening reference products versus
+6–7 on consolidated temporary copies. No storage behavior is changed yet.
+Then inspect repeated frequency-coordinate reads and the DB unit-fixture identity.
+The export boundary finding is fixed in 03b4.
 All three earlier lifecycle/alias gaps are fixed in 03b1–03b3. The repeatable
 read-only probe is saved at `design/probes/check_step_lifecycle.py`.
 Tollan is now on the new overnight branch; its unrelated `.DS_Store` is untouched.
