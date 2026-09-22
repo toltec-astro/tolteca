@@ -100,7 +100,7 @@ Source-list YAML supports conditional configuration, for example:
         block: 0
 ```
 
-Shared `tolteca_datamodels.toltec.file` records describe source paths, identifiers,
+Shared `tolteca_datamodels.file` records describe source paths, identifiers,
 master, timestamp, suffix, and data kind. Filename discovery does not open files.
 Catalog preparation enriches records with available scalar KIDs header metadata;
 header identifiers and kinds correct filename guesses. Original-filename
@@ -126,7 +126,7 @@ from pathlib import Path
 import xarray as xr
 from tollan.accessor.xarray import ensure_datatree
 from tollan.config import RuntimeContext
-from tolteca_datamodels.toltec.file import SourceInfoModel
+from tolteca_datamodels.file import SourceInfoModel
 from tolteca_datamodels.toltec.kids.source import identify_source
 from tolteca_kids.runner import create_kids
 from tolteca_kids.sweep_reduce import SweepReduce

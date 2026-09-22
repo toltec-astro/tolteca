@@ -12,7 +12,7 @@ from pydantic import AwareDatetime, ConfigDict
 from tollan.accessor.xarray import ensure_dataset
 from tollan.config import FrozenBaseModel
 
-from tolteca_datamodels.toltec.file import SourceInfoModel
+from tolteca_datamodels.file import SourceInfoModel
 
 from .config import KidsConfig
 from .sweep_reduce import SweepReduce, SweepReduceView

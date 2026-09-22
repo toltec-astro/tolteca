@@ -6,6 +6,7 @@ from enum import Flag, StrEnum
 
 import astropy.units as u
 
+from tolteca_datamodels.lmt_base.metadata import LmtInstruMixin
 from tolteca_datamodels.toltec import (
     ToltecArrayNameT,
     ToltecArrayType,
@@ -221,11 +222,39 @@ class TestToltecInfo:
         assert len(ToltecInfo.roach_interfaces) == 13
 
     def test_interfaces_list(self) -> None:
-        """Test that interfaces list includes roaches and hwpr."""
-        assert "toltec0" in ToltecInfo.interfaces
-        assert "toltec12" in ToltecInfo.interfaces
-        assert "hwpr" in ToltecInfo.interfaces
-        assert len(ToltecInfo.interfaces) == 14  # 13 roaches + hwpr
+        """Test that interfaces include each TolTEC readout and auxiliary stream."""
+        assert ToltecInfo.interfaces == [
+            *(f"toltec{roach}" for roach in range(13)),
+            "hwpr",
+            "wyatt",
+            "toltec_hk",
+        ]
+        assert ToltecInfo.interfaces == list(ToltecInfo.interface_instru)
+
+    def test_interface_instrument_mapping(self) -> None:
+        """Test that only TolTEC readouts map to TolTEC components."""
+        assert ToltecInfo.interface_instru == {
+            **{
+                f"toltec{roach}": LmtInstruMixin(
+                    interface=f"toltec{roach}",
+                    instru="toltec",
+                    instru_component="roach",
+                )
+                for roach in range(13)
+            },
+            "hwpr": LmtInstruMixin(
+                interface="hwpr", instru="toltec", instru_component="hwpr"
+            ),
+            "wyatt": LmtInstruMixin(
+                interface="wyatt", instru="toltec", instru_component="wyatt"
+            ),
+            "toltec_hk": LmtInstruMixin(
+                interface="toltec_hk", instru="toltec", instru_component="hk"
+            ),
+        }
+        assert "toltec" not in ToltecInfo.interface_instru
+        assert "tel" not in ToltecInfo.interface_instru
+        assert "hk" not in ToltecInfo.interface_instru
 
     def test_arrays_list(self) -> None:
         """Test that arrays list contains array indices."""

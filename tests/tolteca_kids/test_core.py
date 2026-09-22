@@ -11,7 +11,7 @@ from tollan.config import RuntimeContext
 from tollan.pipeline import PIPELINE_CONTEXT_KEY, SequentialPipeline
 from typer.testing import CliRunner
 
-from tolteca_datamodels.toltec.file import SourceInfoModel
+from tolteca_datamodels.file import SourceInfoModel
 from tolteca_datamodels.toltec.filestore import build_input_catalog
 from tolteca_datamodels.toltec.kids import SweepReducer
 from tolteca_datamodels.toltec.kids.source import identify_source

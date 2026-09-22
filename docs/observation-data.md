@@ -10,7 +10,7 @@ For example, select the ROACH 8 sweep from a directory and read its metadata:
 from pathlib import Path
 
 from tolteca_datamodels.toltec import open_toltec
-from tolteca_datamodels.toltec.file import guess_info_from_sources
+from tolteca_datamodels.file import guess_info_from_sources
 
 catalog = guess_info_from_sources(Path("sweeps").glob("*.nc"))
 records = catalog.toltec_file.to_info_list(

@@ -106,7 +106,7 @@ def test_deploy_preserves_kids_failure(tmp_path, failure):
     deploy = Path(sys.executable).with_name("tolteca_deploy")
     if not kids.exists() or not deploy.exists():
         pytest.skip("Install the editable Kids and Deploy entrypoints")
-    source = tmp_path / "toltec0_000001_000_0000_timestream.nc"
+    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
     xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
     args = {
         "selection": ["--select", "roach == 7"],
@@ -131,7 +131,7 @@ def test_deploy_preserves_kids_failure(tmp_path, failure):
 
 @pytest.mark.parametrize("tier", ["yaml", "option"])
 def test_path_and_selection_precedence(tmp_path, monkeypatch, tier):
-    source = tmp_path / "toltec0_000001_000_0000_timestream.nc"
+    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
     xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
     paths = {}
     for name in ("yaml", "option"):
@@ -158,7 +158,7 @@ def test_path_and_selection_precedence(tmp_path, monkeypatch, tier):
 
 
 def test_environment_does_not_supply_kids_paths(tmp_path, monkeypatch):
-    source = tmp_path / "toltec0_000001_000_0000_timestream.nc"
+    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
     xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
     monkeypatch.setenv("TOLTECA_DATA_LMT_PATH", str(tmp_path))
     monkeypatch.setenv("TOLTECA_DATAPROD_TOLTEC_PATH", str(tmp_path / "products"))
@@ -175,7 +175,7 @@ def test_environment_does_not_supply_kids_paths(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("output_path", ["shared", "recipe", "cli"])
 def test_product_root_defaults_do_not_override_output_recipe(tmp_path, output_path):
-    source = tmp_path / "toltec0_000001_000_0000_timestream.nc"
+    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
     xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
     products = tmp_path / "shared"
     config = tmp_path / "settings.yaml"
@@ -204,7 +204,7 @@ def test_product_root_defaults_do_not_override_output_recipe(tmp_path, output_pa
 
 
 def test_symlink_input_is_processed_once(tmp_path):
-    source = tmp_path / "toltec0_000001_000_0000_timestream.nc"
+    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
     xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
     alias = tmp_path / "alias.nc"
     alias.symlink_to(source)

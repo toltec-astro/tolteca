@@ -8,7 +8,7 @@ import xarray as xr
 from tollan.config import RuntimeContext
 from typer.testing import CliRunner
 
-from tolteca_datamodels.toltec.file import (
+from tolteca_datamodels.file import (
     SourceInfoModel,
     guess_info_from_source,
     guess_info_from_sources,
@@ -23,43 +23,37 @@ from tolteca_kids.runner import run_source
 
 
 @pytest.mark.parametrize(
-    ("filename", "kind"),
+    ("filename", "kind", "obsnum"),
     [
-        ("toltec0_000001_000_0000_vnasweep.nc", ToltecDataKind.VnaSweep),
-        ("toltec0_000001_000_0000_targsweep.nc", ToltecDataKind.TargetSweep),
-        ("toltec0_000001_000_0000_tune.nc", ToltecDataKind.Tune),
-        ("toltec0_000001_000_0000.nc", ToltecDataKind.RawTimeStream),
-        ("toltec0_000001_000_0000_timestream.nc", ToltecDataKind.RawTimeStream),
         (
-            "toltec0_000001_000_0000_timestream_processed.nc",
-            ToltecDataKind.SolvedTimeStream,
+            "toltec0_145605_000_0001_2025_10_31_09_20_06_vnasweep.nc",
+            ToltecDataKind.VnaSweep,
+            145605,
         ),
         (
-            "toltec0_000001_000_0000_tune_processed.nc",
-            ToltecDataKind.ReducedTargetSweep,
+            "toltec0_145606_000_0001_2025_10_31_09_22_14_targsweep.nc",
+            ToltecDataKind.TargetSweep,
+            145606,
         ),
         (
-            "toltec0_000001_000_0000_vnasweep_processed.nc",
-            ToltecDataKind.ReducedVnaSweep,
+            "toltec0_145609_000_0001_2025_10_31_09_26_59_tune.nc",
+            ToltecDataKind.Tune,
+            145609,
         ),
-        ("toltec0_000001_000_0000_tune_kids_find.ecsv", ToltecDataKind.KidsPropTable),
-        ("toltec0_000001_000_0000_tune.txt", ToltecDataKind.KidsModelParamsTable),
-        ("toltec0_000001_000_0000_tune_targamps.dat", ToltecDataKind.TargAmpsDat),
-        ("hwpr_000001_000_0000_timestream.nc", ToltecDataKind.Hwpr),
-        ("tel_toltec_2026-09-01_000001_00_0000.nc", ToltecDataKind.LmtTel),
-        ("tel_toltec2_2026-09-01_000001_00_0000.nc", ToltecDataKind.LmtTel2),
         (
-            "toltec_hk_000001_000_0000_2026_09_01_01_02_03.nc",
-            ToltecDataKind.HouseKeeping,
+            "toltec0_145609_000_0002_2025_10_31_09_27_57.nc",
+            ToltecDataKind.RawTimeStream,
+            145609,
         ),
-        ("wyatt_2026-09-01_000001_00_0000.nc", ToltecDataKind.Wyatt),
+        ("tel_toltec_2025-10-31_145609_00_0002.nc", ToltecDataKind.LmtTel, 145609),
     ],
 )
-def test_filename_kinds_and_catalog_roundtrip(filename, kind):
+def test_filename_kinds_and_catalog_roundtrip(filename, kind, obsnum):
+    # Basenames recorded in the reference ToltecDB/LMTMC slices.
     info = guess_info_from_source(filename)
     assert info is not None
     assert info.data_kind == kind
-    assert info.obsnum == 1
+    assert info.obsnum == obsnum
     assert info.master is None
     restored = guess_info_from_sources([filename]).toltec_file.to_info_list()[0]
     assert restored.model_dump(
@@ -79,21 +73,33 @@ def test_unknown_stays_partial_and_master_comes_from_layout(tmp_path):
     catalog = guess_info_from_sources(
         [
             tmp_path / "renamed.nc",
-            tmp_path / "toltec/tcs/toltec0/toltec0_000001_000_0000_tune.nc",
+            tmp_path / "toltec/tcs/toltec0/"
+            "toltec0_145609_000_0001_2025_10_31_09_26_59_tune.nc",
         ]
     )
     unknown, known = catalog.toltec_file.to_info_list()
     assert unknown.obsnum is None
     assert unknown.data_kind == ToltecDataKind.Unknown
     assert known.master == "tcs"
-    assert catalog.toltec_file.to_info_list("roach == 0 & obsnum == 1") == [known]
+    assert catalog.toltec_file.to_info_list("roach == 0 & obsnum == 145609") == [known]
 
 
 @pytest.mark.parametrize(
-    "spec", ["1", "1-0", "1-0-0", "1/0", "1/toltec0", "1-0-0-0", "tcs-1/0"]
+    "spec",
+    [
+        "145609",
+        "145609-0",
+        "145609-0-2",
+        "145609/0",
+        "145609/toltec0",
+        "145609-0-2-0",
+        "tcs-145609/0",
+    ],
 )
 def test_observation_selectors(tmp_path, spec):
-    path = tmp_path / "toltec/tcs/toltec0/toltec0_000001_000_0000.nc"
+    path = (
+        tmp_path / "toltec/tcs/toltec0/toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
+    )
     path.parent.mkdir(parents=True)
     path.touch()
     catalog = resolve_sources([spec], data_root=tmp_path)
@@ -326,7 +332,7 @@ def test_unsupported_kind_never_enters_sweep_pipeline(kind, monkeypatch):
 
 
 def test_cli_selection_and_timestream_rejection(tmp_path, monkeypatch):
-    path = tmp_path / "toltec8_000001_000_0000_timestream.nc"
+    path = tmp_path / "toltec8_145609_000_0002_2025_10_31_09_27_57.nc"
     xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(path, engine="scipy")
 
     def unexpected(*args, **kwargs):

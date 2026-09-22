@@ -250,38 +250,43 @@ raised during accessor initialization, so a deliberately reported invalid-file
 
 ## 6. Filename parsing and classification ownership
 
-The present ownership is backwards: `LmtTelMetadata` imports `toltec.file`,
-whose model carries a ROACH field and whose classifier hardcodes branches for
-KIDs versus auxiliary interfaces. A common parser must not import those
-instrument decisions.
+The root `tolteca_datamodels.file` module assembles declarations from LMT and
+TolTEC, converts captures, deduces identity/kind, and constructs a frozen record.
+It also owns source records and the in-memory catalog API. This is the file-based
+access path, complementing the database-based access path in `tolteca_db`;
+filesystem discovery and header/data readers retain their separate jobs.
 
 Recommended small components, not a plugin framework:
 
 | Owner | Responsibility |
 | --- | --- |
-| `lmt_base/file.py` common `FilepathInfo` | Interface, observation numbers, master name, `ut`, suffix and extension; local/remote path-component parsing without opening files |
-| A frozen `FilenameFormat` record and parser | Keep compiled full-match regex and UTC format together; return named fields to the selected model; do not duplicate manual field-type conversion beside Pydantic |
-| `toltec/file.py` extended `FilepathInfo` | Add nullable ROACH index and TolTEC format/classification configuration |
-| A typed kind-rule table/index | Map normalized interface, suffix and extension criteria to supplied kind values; no knowledge of what KIDs, telescope, or housekeeping means |
-| Domain-owned configuration | Declare the recognized interfaces, filename formats, aliases, and kind rules; the algorithm does not select `_KIDS` versus `_AUXILIARY` dictionaries |
+| Root `file.py` common `FilepathInfo` | Filename segments, derived identity/kind, local/remote parsing, source records and catalogs; explicitly assemble both instruments' declarations |
+| Regex patterns and the capture dispatcher | Use Tollan's existing conversion helper for `ut`, observation numbers and ROACH; no timestamp-aware format wrapper |
+| `lmt/file.py` | Telescope patterns, prefix aliases and kind entries |
+| `toltec/file.py` | ROACH, HWPR, housekeeping and Wyatt patterns/kind entries; ROACH record extension |
+| `FileKindKey` and a plain dictionary | Direct lookup using normalized named-tuple keys, with `...` for ignored fields and `None` for an absent value |
+| `LmtInfo` / `ToltecInfo` | Interface maps containing predefined frozen `LmtInstruMixin` instances |
+| `toltec/types.py` | Keep `ToltecDataKind`, including telescope kinds needed by TolTEC processing |
 | Catalog accessor and its resolver | Own Arrow struct projection and the public `file_*` / `file_*_orig` aliases |
 
 For filename syntax, deterministic means a complete filename has an
 unambiguous interpretation. It cannot generally be dictionary-looked-up before
-parsing. The current two compiled formats describe date-first and
-observation-first layouts; a typed format collection is sufficient. Both
-accept telescope prefixes, so dispatching solely on `tel_*` cannot select one
-format. Test the disjoint layouts and preserve accepted names rather than
-introducing a second ad hoc prefix/format decision tree for an unmeasured gain.
+parsing. The two v2 formats describe date-first telescope/Wyatt and
+observation-first readout layouts. Declarations split these by record type and
+instrument ownership without changing the combined accepted filename grammar.
+The earlier v3 rewrite incorrectly broadened both formats. Restore v2's exact
+prefix alternatives, required dates/timestamps, and extension grammar; there
+is no acquisition evidence justifying that broadening. The writer's creation
+time encoded in the filename is independent of header/telescope times. See
+the reader comparison ledger, C8, for the correction and verification.
 
-Kind classification, in contrast, should be an indexed lookup. Represent exact
-and subset keys in one registry, with **unspecified criterion distinct from an
-explicitly absent suffix**. Exact matches take precedence over a less-specific
-rule; conflicting equally specific rules are a registry-definition error, not
-an order-dependent answer. For three keys, only a small fixed number of key
-subsets exists, so indexes can be prepared once rather than scanning every
-suffix rule for every file. Interface families/aliases belong to that
-configuration, not `if interface.startswith('toltec')` in the lookup algorithm.
+Kind classification uses one dictionary lookup after forming the key. For KIDs,
+keep instrument/component, suffix and extension, setting prefix/interface to
+`...`. For auxiliary files, keep prefix and extension, setting the other fields
+to `...`. In particular, a missing KIDs suffix is `None`, not `...`. These two
+key shapes preserve suffix-sensitive readout classification and suffix-independent
+auxiliary classification without generic partial matching or priority rules.
+The record preserves all original values; normalization affects only the key.
 
 Examples the rule set must preserve:
 
@@ -296,9 +301,8 @@ Examples the rule set must preserve:
 | KIDs interface, `nc`, unknown suffix | `Unknown`, not raw timestream |
 
 The current `ToltecDataKind` also contains telescope/auxiliary constants. The
-common lookup must accept domain-provided result values without importing this
-enum. Moving or splitting the public enum itself is a separate consumer-facing
-change; it is not necessary to remove the branching from this algorithm.
+shared `FileKindKey` does not import that enum. Moving or splitting the public
+enum is a separate consumer-facing change.
 
 Make `_FilepathAliases` own its immutable alias definitions and its per-query
 projection cache. The current module-level `_FILEPATH_ALIASES` is not wrong for
@@ -350,12 +354,13 @@ provenance discussion do not belong in those property docstrings.
 1. The property/schema table and sampled-duration name are accepted and
    implemented in the committed T4 follow-up. Structural opener checking is
    committed separately in T5. Shared metadata identifiers are implemented in
-   the focused T6 patch, without migrating existing DB/catalog keys.
+   the committed T6 patch, without migrating existing DB/catalog keys.
 2. Extract common filepath machinery and the configured kind lookup without
    changing accepted syntax, source precedence, or query behavior. Test the full
    existing kind matrix, unknowns, both layouts, registry ambiguity, and remote
-   FileLoc cases. Reconcile base master typing as part of the shared-identity
-   change, not by putting TolTEC conversions into generic code.
+   FileLoc cases. C6 now includes the agreed prefix/identity split, parser/model
+   extraction, and catalog-alias ownership. Base master typing
+   was reconciled in T6 without putting TolTEC conversions into generic code.
 3. Consolidate and execute the guide's examples against the fixture. Move
    rationale only into this design review. Review each focused diff separately
    from the already committed overnight slice.
@@ -423,3 +428,25 @@ No file names, ObsSpec grammar, catalog group keys, DB keys, or product paths
 are migrated. The numerical/header-reading contract is unchanged. See
 [T6 in the reader comparison](reader-v2-v3-comparison.md#t6-shared-metadata-identifiers)
 for verification and the remaining downstream reconciliation boundary.
+
+This identifier patch was subsequently approved and committed as `94b87a0`.
+
+### Filename identity and kind-registry follow-up
+
+C6 now implements the common parser/model extraction and the agreed derivation
+`prefix → interface → instru, instru_component`. Literal filename segments
+are retained, telescope prefixes identify interface `tel`, and the configured
+kind lookup uses exact/subset criteria rather than interface regexes. ROACH
+data rules use the derived instrument/component; the supplementary telescope
+rule also specifies `prefix="tel_toltec2"`.
+
+The catalog stores both prefix and derived identity in Arrow fields.
+`file_prefix` and `file_prefix_orig` select the literal tokens without
+reconstructing per-row models. The existing DB scanner adapter continues to
+supply its native-prefix-based DTO using `file_prefix`; DB semantics are not
+changed. Metadata identifiers are outside this filename/identity change.
+
+The generic kind lookup is slower than the old specialized branches. Behavior,
+scope, full-suite QA, self-review corrections, and measured costs are recorded
+in [C6](reader-v2-v3-comparison.md#c6-filename-segments-derived-identity-and-indexed-kind-rules).
+This follow-up remains uncommitted.

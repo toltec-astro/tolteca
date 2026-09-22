@@ -11,7 +11,7 @@ from pandas.testing import assert_frame_equal
 from pydantic import ValidationError
 from tollan.utils.fileloc import fileloc
 
-from tolteca_datamodels.toltec.file import (
+from tolteca_datamodels.file import (
     FilepathInfo,
     SourceInfoModel,
     ToltecFileAccessor,
@@ -24,21 +24,36 @@ from tolteca_datamodels.toltec.file import (
     ("name", "expected"),
     [
         (
-            "toltec8_145609_000_0002_2025_10_31_01_02_03_vnasweep.nc",
-            ("toltec8", datetime(2025, 10, 31, 1, 2, 3, tzinfo=UTC), "vnasweep"),
+            "toltec8_145605_000_0001_2025_10_31_09_20_06_vnasweep.nc",
+            (
+                "toltec8",
+                145605,
+                1,
+                datetime(2025, 10, 31, 9, 20, 6, tzinfo=UTC),
+                "vnasweep",
+            ),
         ),
         (
             "tel_toltec_2025-10-31_145609_00_0002.nc",
-            ("tel_toltec", datetime(2025, 10, 31, tzinfo=UTC), None),
+            ("tel_toltec", 145609, 2, datetime(2025, 10, 31, tzinfo=UTC), None),
         ),
-        ("toltec8_145609_000_0002_tune.nc", ("toltec8", None, "tune")),
+        (
+            "toltec8_145609_000_0001_2025_10_31_09_26_59_tune.nc",
+            (
+                "toltec8",
+                145609,
+                1,
+                datetime(2025, 10, 31, 9, 26, 59, tzinfo=UTC),
+                "tune",
+            ),
+        ),
     ],
 )
 @pytest.mark.parametrize(
     "prefix", ["/recorded", "host:/recorded", "https://example.org"]
 )
 def test_filename_info(name, expected, prefix, monkeypatch):
-    interface, ut, suffix = expected
+    file_prefix, obsnum, scannum, ut, suffix = expected
 
     def unexpected(*args, **kwargs):
         pytest.fail("Filename parsing accessed the filesystem")
@@ -46,16 +61,14 @@ def test_filename_info(name, expected, prefix, monkeypatch):
     monkeypatch.setattr(Path, "exists", unexpected)
     info = FilepathInfo.from_path(f"{prefix}/{name}")
     assert info is not None
-    assert (info.interface, info.obsnum, info.subobsnum, info.scannum) == (
-        interface,
-        145609,
+    assert (info.prefix, info.obsnum, info.subobsnum, info.scannum) == (
+        file_prefix,
+        obsnum,
         0,
-        2,
+        scannum,
     )
     assert (info.ut, info.suffix, info.ext) == (ut, suffix, "nc")
-    assert (
-        FilepathInfo.model_validate_json(info.model_dump_json(round_trip=True)) == info
-    )
+    assert type(info).model_validate_json(info.model_dump_json(round_trip=True)) == info
     with pytest.raises(ValidationError, match="frozen"):
         info.obsnum = 1  # ty: ignore[invalid-assignment]
 
@@ -71,7 +84,7 @@ def test_unknown_filename_and_invalid_date():
 
 
 def test_original_filename_is_cached_and_independent_of_source(monkeypatch):
-    original = "/recorded/toltec8_145609_000_0002_2025_10_31_01_02_03_vnasweep.nc"
+    original = "/recorded/toltec8_145605_000_0001_2025_10_31_09_20_06_vnasweep.nc"
     record = SourceInfoModel(source="downloaded.nc", filepath_orig=original)
     parsed = record.filepath_info_orig
     assert parsed is not None and parsed.suffix == "vnasweep"
@@ -94,7 +107,9 @@ def test_original_filename_is_cached_and_independent_of_source(monkeypatch):
     updated = SourceInfoModel.model_validate(
         {
             **record.model_dump(round_trip=True),
-            "filepath_orig": original.replace("vnasweep", "tune"),
+            "filepath_orig": (
+                "/recorded/toltec8_145609_000_0001_2025_10_31_09_26_59_tune.nc"
+            ),
         }
     )
     assert updated.filepath_info_orig is not None
@@ -107,25 +122,31 @@ def test_original_filename_is_cached_and_independent_of_source(monkeypatch):
 
 
 @pytest.fixture
-def records(tmp_path):
-    return [
+def records(tmp_path, lmtmc_records, toltecdb_records):
+    result = [
         SourceInfoModel(
             source=tmp_path / "downloaded.nc",
-            obsnum=145609,
-            filepath_orig="/recorded/toltec8_145609_000_0002_2025_10_31_01_02_03_vnasweep.nc",
+            obsnum=145605,
+            filepath_orig="/data_lmt/toltec/tcs/toltec8/toltec8_145605_000_0001_2025_10_31_09_20_06_vnasweep.nc",
         ),
         SourceInfoModel(
             source=tmp_path / "tel.nc",
-            obsnum=145610,
-            filepath_orig="/recorded/tel_toltec_2025-10-31_145610_00_0002.nc",
+            obsnum=145606,
+            filepath_orig="/data_lmt/tel/tel_toltec_2025-10-31_145606_00_0001.nc",
         ),
         SourceInfoModel(source=tmp_path / "unknown.nc"),
         SourceInfoModel(
             source=tmp_path / "tune.nc",
-            obsnum=145611,
-            filepath_orig="/recorded/toltec8_145611_000_0002_tune.nc",
+            obsnum=145609,
+            filepath_orig="/data_lmt/toltec/tcs/toltec8/toltec8_145609_000_0001_2025_10_31_09_26_59_tune.nc",
         ),
     ]
+    recorded_paths = {row["FileName"] for row in [*lmtmc_records, *toltecdb_records]}
+    assert all(
+        item.filepath_orig is None or item.filepath_orig in recorded_paths
+        for item in result
+    )
+    return result
 
 
 def test_catalog_scalar_and_struct_columns(records):
@@ -160,17 +181,19 @@ def test_catalog_scalar_and_struct_columns(records):
     [
         ('filepath_info_orig.suffix in ["vnasweep", "tune"]', [0, 3]),
         ('filepath_info_orig.suffix != "tune"', [0, 1, 2]),
-        ('obsnum >= 145610 & filepath_info_orig.suffix == "tune"', [3]),
-        ('obsnum < 145610 | filepath_info_orig.interface == "tel_toltec"', [0, 1]),
-        ('filepath_info_orig.ut >= "2025-10-31T00:00:00Z"', [0, 1]),
-        ("filepath_info_orig.ut.isna()", [2, 3]),
+        ('obsnum >= 145606 & filepath_info_orig.suffix == "tune"', [3]),
+        ('obsnum < 145606 | filepath_info_orig.prefix == "tel_toltec"', [0, 1]),
+        ('filepath_info_orig.ut >= "2025-10-31T00:00:00Z"', [0, 1, 3]),
+        ("filepath_info_orig.ut.isna()", [2]),
         ("filepath_info_orig.interface.isna()", [2]),
+        ('filepath_info_orig.data_kind == "VnaSweep"', [0]),
+        ('filepath_info_orig.data_kind == "LmtTel"', [1]),
     ],
 )
 @pytest.mark.parametrize("short_names", [False, True])
 def test_dotted_selection(records, expression, indices, short_names):
     if short_names:
-        for name in ("suffix", "ut", "interface"):
+        for name in ("suffix", "ut", "interface", "prefix", "data_kind"):
             expression = expression.replace(
                 f"filepath_info_orig.{name}", f"file_{name}_orig"
             )
@@ -236,14 +259,15 @@ def test_unknown_field_is_not_silently_ignored(records):
 def test_effective_path_aliases_and_parquet(tmp_path, monkeypatch):
     original = (
         "/data_lmt/toltec/tcs/toltec8/"
-        "toltec8_145609_000_0002_2025_10_31_01_02_03_tune.nc"
+        "toltec8_145609_000_0001_2025_10_31_09_26_59_tune.nc"
     )
-    current = "/copied/toltec9_000001_002_0003_2025_10_30_00_00_00_tune_processed.nc"
+    # Deliberate conflicting paths test precedence without inventing filenames.
+    current = "/copied/toltec8_145605_000_0001_2025_10_31_09_20_06_vnasweep.nc"
     record = guess_info_from_source(current, filepath_orig=original)
     assert record is not None
     assert record.filepath_info is not None
     assert record.file_ut == record.filepath_info.ut
-    assert record.file_suffix == record.filepath_info.suffix == "tune_processed"
+    assert record.file_suffix == record.filepath_info.suffix == "vnasweep"
     assert record.file_ext == record.filepath_info.ext == "nc"
     assert record.filepath_info_orig is not None
     assert record.filepath_info_orig.suffix == "tune"
@@ -264,16 +288,16 @@ def test_effective_path_aliases_and_parquet(tmp_path, monkeypatch):
     monkeypatch.setattr(FilepathInfo, "from_path", unexpected)
     monkeypatch.setattr(SourceInfoModel, "model_validate", unexpected)
     for frame in (catalog, restored):
-        assert frame.toltec_file.query(
-            "file_suffix == 'tune_processed'"
-        ).index.tolist() == [0]
+        assert frame.toltec_file.query("file_suffix == 'vnasweep'").index.tolist() == [
+            0
+        ]
         assert frame.toltec_file.query("file_suffix_orig == 'tune'").index.tolist() == [
             0,
             1,
         ]
         assert frame.toltec_file.query("file_ut < file_ut_orig").index.tolist() == [0]
         assert frame.toltec_file.query(
-            "file_ut >= '2025-10-31T00:00:00Z'"
+            "file_ut >= '2025-10-31T09:26:00Z'"
         ).index.tolist() == [1]
         assert frame.toltec_file.query(
             "file_ext == 'nc' & file_master_str_orig == 'tcs'"
@@ -304,7 +328,7 @@ def test_aliases_project_only_requested_fields(records, monkeypatch):
 def test_unregistered_master_catalog_roundtrip(tmp_path):
     original = (
         "/data_lmt/toltec/simu/toltec8/"
-        "toltec8_145609_000_0002_2025_10_31_01_02_03_tune.nc"
+        "toltec8_145609_000_0001_2025_10_31_09_26_59_tune.nc"
     )
     record = guess_info_from_source(tmp_path / "downloaded.nc", filepath_orig=original)
     assert record is not None
@@ -374,8 +398,6 @@ def test_reference_original_filename_catalog(data_lmt_path, tmp_path):
     restored = pd.read_parquet(path, dtype_backend="pyarrow")
     assert restored.toltec_file.to_info_list() == records
     assert (
-        restored.toltec_file.query(
-            'filepath_info_orig.interface == "tel_toltec"'
-        ).shape[0]
+        restored.toltec_file.query('filepath_info_orig.prefix == "tel_toltec"').shape[0]
         > 0
     )

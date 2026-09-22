@@ -9,7 +9,7 @@ from tollan.config import RuntimeContext
 from typer.testing import CliRunner
 from xarray.backends.netCDF4_ import NetCDF4ArrayWrapper, NetCDF4DataStore
 
-from tolteca_datamodels.toltec.file import guess_info_from_source
+from tolteca_datamodels.file import guess_info_from_source
 from tolteca_datamodels.toltec.kids import SweepReducer
 from tolteca_datamodels.toltec.types import ToltecDataKind
 from tolteca_kids.cli import app
@@ -41,8 +41,8 @@ def test_cli_noop_selection_config_logging_and_no_products(tmp_path, monkeypatch
     monkeypatch.setattr(typer_utils, "reset_logger", capture_logs)
     for roach in (0, 7):
         path = (
-            tmp_path
-            / f"toltec/tcs/toltec{roach}/toltec{roach}_001000_002_0003_timestream.nc"
+            tmp_path / f"toltec/tcs/toltec{roach}/"
+            f"toltec{roach}_145609_000_0002_2025_10_31_09_27_57.nc"
         )
         path.parent.mkdir(parents=True)
         # Header-only files are sufficient: a signal read would fail this test.
@@ -50,7 +50,7 @@ def test_cli_noop_selection_config_logging_and_no_products(tmp_path, monkeypatch
     recipe = tmp_path / "recipe.yaml"
     recipe.write_text("""
 - source: {kids: {sweep_reduce: {block: 1}}}
-- enable_if: roach == 7 & scannum == 3
+- enable_if: roach == 7 & scannum == 2
   source: {kids: {sweep_reduce: {block: 2}}}
 """)
     configs = []
@@ -91,7 +91,7 @@ def test_cli_noop_selection_config_logging_and_no_products(tmp_path, monkeypatch
             "--kids.sweep_reduce.force",
             "true",
             "--",
-            "tcs-1000/3/{0,7}",
+            "tcs-145609/2/{0,7}",
         ],
     )
     assert result.exit_code == 0, result.output
@@ -116,7 +116,7 @@ def test_cli_noop_selection_config_logging_and_no_products(tmp_path, monkeypatch
 def test_cli_paths_load_ordered_runtime_sources(tmp_path, monkeypatch, repeated):
     from tolteca_kids import cli
 
-    source = tmp_path / "toltec0_000001_000_0000_timestream.nc"
+    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
     xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
     first = tmp_path / "env.d"
     first.mkdir()
@@ -290,7 +290,7 @@ def test_reference_noop_reads_only_headers_and_closes_files(
 
 @pytest.mark.parametrize("failure", ["step", "config"])
 def test_cli_noop_failure_closes_source(tmp_path, monkeypatch, failure):
-    source = tmp_path / "toltec0_000001_000_0000_timestream.nc"
+    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
     xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="netcdf4")
     closed = []
     contexts = []
@@ -322,7 +322,7 @@ def test_cli_noop_failure_closes_source(tmp_path, monkeypatch, failure):
 
 @pytest.mark.parametrize("inspection", ["--show_inputs", "--show_config"])
 def test_inspection_exits_before_noop(tmp_path, monkeypatch, inspection):
-    source = tmp_path / "toltec0_000001_000_0000_timestream.nc"
+    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
     xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
 
     def unexpected(*args, **kwargs):
@@ -336,7 +336,7 @@ def test_inspection_exits_before_noop(tmp_path, monkeypatch, inspection):
 
 
 def test_empty_selection_does_not_start_noop(tmp_path, monkeypatch):
-    source = tmp_path / "toltec0_000001_000_0000_timestream.nc"
+    source = tmp_path / "toltec0_145609_000_0002_2025_10_31_09_27_57.nc"
     xr.Dataset({"Header.Toltec.ObsType": 1}).to_netcdf(source, engine="scipy")
 
     def unexpected(*args, **kwargs):

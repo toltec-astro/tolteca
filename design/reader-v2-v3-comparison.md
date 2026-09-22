@@ -8,7 +8,8 @@ reader corrections. No reader implementation was changed for that baseline.
 The current implementation progress, decisions, and exceptions awaiting review
 are recorded in [section 10](#10-reader-correction-iterations). Its telescope
 results supersede the baseline telescope findings where explicitly listed.
-The current telescope contract is **T6**, with shared path naming updated in **C3** below. T1/T2 and C1/C2 are historical
+The current telescope contract is **T6**, with shared path naming in **C3** and
+kind classification in **C6** below. T1/T2 and C1/C2 are historical
 iteration records, not competing descriptions of the current API.
 
 ## Summary
@@ -1237,4 +1238,497 @@ suffixes; cached derivation; read-only serialization schemas; and fresh caches
 after replacement or JSON round trips. Existing reference-file tests still
 observe exactly the expected metadata reads and no reads when accessing IDs.
 Scoped Ruff (existing CPY001 exclusion), formatting and `ty` checks pass.
-`just qa` was not run. This patch remains uncommitted for review.
+`just qa` was not run. This patch was approved and committed as `94b87a0`.
+
+### C6: filename segments, derived identity, and indexed kind rules
+
+This section records the earlier iteration. C9 below supersedes its format
+wrapper, computed identity properties and general rule-registry implementation.
+
+Status: uncommitted, against `94b87a0`. This replaces the earlier uncommitted
+classification-only prototype after the user's prefix/identity clarification.
+
+#### Agreed model boundary
+
+Literal filename segments are `prefix`, observation numbers, `ut`, `suffix`,
+and `ext`. Catalog/source shorthands use `file_prefix`, `file_ut`,
+`file_suffix`, and `file_ext`. The derivation is strictly:
+
+```text
+prefix → interface → instru, instru_component
+```
+
+For `tel_*`, including `tel_toltec` and `tel_toltec2`, the interface is
+`tel`; otherwise it retains the prefix spelling. The original prefix is never
+rewritten. The recognized telescope filename grammar still uses lowercase
+alphanumeric suffixes after `tel_`. The mapping is not a claim that every
+telescope stream has the same sampling or payload structure.
+
+`LmtInfo` contains LMT names, site constants, local timezone, and the single
+interface entry `tel → (lmt, tcs)`. `ToltecInfo.interface_instru` separately
+owns the ROACH, HWPR, Wyatt, and TolTEC housekeeping entries. Both classes use
+plain maps, with no getters or lookup caches. Values are immutable
+`InstruComponent` pairs from `lmt_base/types.py`, with nullable string labels.
+Separate instrument/component enums were removed: the declared pair, rather
+than independent enum membership, specifies component ownership.
+Housekeeping is instrument-scoped; `toltec_hk` maps to `(toltec, hk)`.
+Unknown interfaces, including bare `hk`, still yield `(None, None)` for
+instrument/component. Prefix interpretation and leading-zero lookup-key
+normalization belong to `lmt/file.py`, which queries the two maps directly.
+Lookup has no connection to master codes or UID construction. Metadata
+identifiers and numerical readers are unchanged.
+
+Historical references checked for this namespace's responsibility:
+
+- v1 `tolteca/common/lmt/__init__.py`: `lmt_info` stores instrument/name labels,
+  site longitude/latitude/height and the local time-zone name. The simulator's
+  separate `simu/lmt` module constructs EarthLocation, time-zone and Observer
+  objects; those runtime objects are not part of the basic constant namespace.
+- v2 `tolteca_datamodels/lmt/filestore.py`: `LmtInstruInterface` and
+  `LmtInterface` provide instrument/interface lists and mappings. There is no
+  `LmtInfo` class in the inspected v2 source. Its `toltec/types.py` separately
+  groups ROACH/interface/array terminology and the field-of-view diameter.
+- v2 taco `observing_scripts/05_all_sky_pointing/make_ot_scripts.py` and
+  `06_ab_pointing/make_ot_scripts.py`: use the same longitude, latitude,
+  elevation, name and timezone as v1 to construct the site and observer.
+- Current v3 `ToltecInfo` combines those TolTEC facts and mappings in a class
+  namespace. `LmtInfo` follows that structure and carries forward the exact
+  v1/v2 site facts: `-97d18m52.6s`, `+18d59m10s`, `4640 m`, and
+  `America/Mexico_City`. The geodetic constants remain a dictionary usable by
+  `EarthLocation.from_geodetic`, not an Observer or simulator resource.
+
+Removing the enums preserves the paired labels, including `(toltec, hk)` for
+`toltec_hk`. C8 removes bare `hk` from the parser and kind rules because it was
+not accepted by v2. Ordinary Python model dumps now return plain strings
+instead of StrEnum members for instrument/component; JSON/Arrow values are
+unchanged.
+
+The latest ownership review removes the incorrect `(toltec, None)` map entry:
+`toltec` is not a readout interface. At this stage the parser still accepted it;
+C8 removes that unsupported prefix instead of returning unknown labels for it.
+No bare `toltec_*` acquisition fixture was found, and the v2 raw regex does not
+accept that prefix. Taco output writers use unrelated layouts such as
+`toltec_<array>_pointing_<obsnum>_params.txt` and
+`toltec_beammap_<obsnum>_image.png`. Those reduction-artifact names are outside
+this raw-reader change; the proposed synthetic `toltec_..._apt.ecsv` test was
+removed rather than treated as an acquisition requirement.
+`ToltecInfo.interfaces` now derives from its map and includes Wyatt and
+TolTEC housekeeping as well as ROACH/HWPR (16 entries instead of 14). The
+checked v3 consumers do not use that list to construct readers or jobs.
+
+#### Ownership and implementation
+
+- `lmt_base/file.py`: common path fields; frozen `FilenameFormat` pairs an
+  anchored regex with its UTC format; a shared parser opens nothing.
+  The default directory-master hook returns None.
+- `lmt/file.py`: the date-first telescope/Wyatt format and the TolTEC directory
+  convention; computed interface/instrument/component properties.
+  `LmtTelMetadata.filepath_info_orig` now uses this model without a ROACH field.
+- `toltec/file.py`: the model adds the timestamp-required readout format,
+  nullable ROACH capture and configured kind rules. C8 restores v2's integer
+  capture conversion and removes the separately added prefix validator,
+  hardware-range and ASCII restrictions. Direct model construction supplies
+  `prefix` and, for readout names, the captured `roach`; round-trip dumps
+  contain model inputs, not computed identity fields.
+- The catalog's Arrow struct includes both literal segments and derived
+  identity. `_FilepathAliases` owns the alias definitions. Selection projects
+  Arrow fields without row-model traversal. A source record's computed
+  `file_prefix` also appears in ordinary/flat serialization.
+
+The generic kind registry accepts exact/subset criteria over prefix, interface,
+instrument, component, suffix, and extension. It indexes rules once, grouped
+by the number of specified criteria. Omitted `...` differs from an explicit
+`None`; more-specific matches win, and equally specific conflicting rules
+raise ValueError. No regular expressions or instrument branches remain in the
+kind lookup itself. KIDs rules use instrument `toltec` and component `roach`.
+The `tel_toltec2` rule adds its prefix criterion to the general telescope
+rule, preserving `LmtTel2` versus `LmtTel`.
+
+Identity lookup uses the constant dictionaries without a separate cache.
+Computed identity properties are not cached on individual models, so
+copying the complete parsed fields from another model does not inherit stale
+identity. Changing a ROACH filename requires both its prefix and captured index.
+Catalog queries do not invoke this lookup again.
+
+#### Observable changes and preserved behavior
+
+New queries distinguish the literal prefix from its derived interface:
+`interface == "tel"` selects both telescope prefixes;
+`file_prefix == "tel_toltec2"` selects one. Queries that previously used
+`filepath_info.interface` to inspect the raw prefix should use
+`filepath_info.prefix`. Instrument/component queries use the stored struct
+fields. This changes the newly developed catalog schema; no backward-compatible
+model aliases or old-catalog loader are introduced.
+
+The existing DB scanner's ingestion DTO still calls the filename prefix its
+`interface`. Its existing adapter now takes shared `file_prefix`, preserving
+its output without changing DB models or identifier construction. This is a
+two-line consumer adaptation with a regression for both telescope prefixes,
+not an identifier redesign.
+
+Original/current-path precedence, directory-derived master names and
+contextual/remote FileLoc behavior are preserved. C8 separately corrects the
+filename grammar to the actual v2 baseline; the earlier v3 checkpoint was not
+an adequate behavioral reference. No new source reads are added.
+The guide consolidation remains a separate follow-up; this patch only updates
+the existing catalog guide's field descriptions and examples.
+
+#### Verification and self-review
+
+The earlier parser differential against `94b87a0` covered **840 generated cases**: 14 prefixes,
+three local/remote roots, five directory layouts, and four filename layouts
+including invalid dates. Accepted/rejected cases, parsed values, master names,
+and kinds agreed, except the explicitly renamed prefix/interface fields.
+This was an implementation comparison, not evidence that each generated name
+occurs in acquisition. C7 below supersedes those cases as the real-file baseline.
+The first comparison caught Python's `int()` accepting Unicode decimal digits
+where the intermediate v3 Pydantic ROACH input rejected them. Retaining that
+rejection was the wrong baseline choice: v2 used `int()` with `\d+`. C8 removes
+the extra validator rather than treating the intermediate-v3 policy as v2's.
+
+Generic registry tests cover all 64 kind-criterion subsets and priority/conflicts.
+Other tests cover shared instrument constants, nullable unknown identity,
+fresh derivation after model copying, and Arrow queries without
+identity recomputation. Real reference telescope headers use the common model.
+Fresh-process imports of the base, LMT, and TolTEC modules pass, avoiding a
+circular dependency without changing package accessor registration.
+
+Verification before the fixture audit in C7, after separating instrument facts/maps and removing the
+lookup cache: **1,389 Tolteca tests passed**, including actual v2 comparisons.
+The unchanged DB adapter previously passed **193 DB tests** (54 excluded by that
+repository's existing test configuration); `test_shared_file_discovery.py` was
+rerun for this revision (**8 passed**). The supported-prefix kind matrix
+previously passed **2,576 cases**
+(23 prefixes × 16 suffixes × 7 extensions) against `94b87a0`. Four real telescope
+headers expose the expected prefix and derived identity. No tel_toltec2
+fixture exists; the invented positive filename cases were removed in C7.
+
+Scoped Tolteca Ruff (existing CPY001 exclusion), formatting and type checking
+pass. The DB adapter and its tests pass type checking with the deployed Python
+environment selected explicitly. DB scanner Ruff reports the same 23 existing
+diagnostics as its committed baseline; its test file passes scoped Ruff and
+formatting. No broader lint cleanup was performed. `just qa` was not run.
+
+Local median-of-five timings, Python 3.13, warmed constant lookup cache. These
+measurements precede the paired-string cleanup; they describe the earlier
+enum-based version of this patch, not a fresh benchmark of the final revision:
+
+| Operation | `94b87a0` (µs/call) | Before enum removal (µs/call) |
+| --- | ---: | ---: |
+| KIDs kind lookup (`toltec8`) | 0.164 | 1.553 |
+| Telescope kind lookup (`tel_toltec`) | 0.234 | 2.793 |
+| Supplementary telescope kind lookup (`tel_toltec2`) | 0.098 | 2.177 |
+| Unrecognized prefix | 0.196 | 2.722 |
+| Complete KIDs filename identification | 50.223 | 54.851 |
+
+Classification used 20,000 calls per repeat; complete identification used 3,000
+calls per repeat on
+`toltec8_145609_000_0002_2025_10_31_01_02_03_tune.nc`. Complete identification costs
+about 4.6 µs more (9.2%) in this run. An earlier run measured 7.1%; these are
+local microbenchmarks, not application-throughput guarantees. The additional
+identity derivation and generic criterion projection have a cost; this is not
+a performance improvement. These numbers also predate the removal of the
+interface lookup cache. Static regex compilation and rule indexing remain
+outside per-query repeated setup. No I/O or numerical-array evaluation is added.
+
+This work remains uncommitted for review.
+
+### C7: acquisition examples anchored to recorded file catalogs
+
+Read the reference repository's `test_fixtures/lmtmc_slice.csv` and
+`test_fixtures/toltecdb_slice.sqlite` directly, with SQLite opened read-only.
+These catalogs include records whose netCDF payload is not present locally;
+filename tests must not require those payloads to exist or open them.
+
+| Recorded population | Count | Filename evidence |
+| --- | ---: | --- |
+| LMTMC telescope observations | 12 | `tel_toltec_2025-10-31_<obsnum>_00_<scannum>.nc`, interface `tel` |
+| TolTEC VNA (`ObsType=2`) | 10 | `_vnasweep.nc` |
+| TolTEC TARG (`ObsType=3`) | 20 | `_targsweep.nc` |
+| TolTEC TUNE (`ObsType=4`) | 50 | `_tune.nc` |
+| TolTEC Nominal (`ObsType=0`) | 40 | No filename suffix; raw timestream |
+
+All 120 readout records have master TCS (`0`), dates on 2025-10-31, and
+observation numbers 145605–145612. The recorded ROACH indices are
+0, 1, 2, 3, 4, 7, 8, 9, 11 and 12. This sample does not redefine the instrument's
+13-ROACH hardware facts. Filenames use full six-part UTC timestamps, three-digit
+sub-observation numbers, and four-digit scan numbers. Telescope filenames have
+date-only UT, two-digit sub-observation numbers, and four-digit scan numbers.
+
+The writer's file-creation UT must not be replaced with the database time: 112 readout
+records agree to the second, while eight database times are one second later.
+For example, ROACH 3's observation 145611/0/1 has filename timestamp 09:36:08,
+but database `Time=09:36:09`. The regression explicitly preserves the former.
+LMTMC's date/time includes observation time, but its filename supplies only
+the date; parsed filename UT remains UTC midnight.
+
+Test changes:
+
+- Added read-only catalog fixtures and comparisons against all 132 recorded
+  paths, checking observation identifiers, interface, instrument/component,
+  ROACH, directory master and data kind against independent record fields.
+- Catalog selection now exercises the full recorded population without opening
+  payload files. Representative positive filename, alias, serialization and
+  Parquet tests use recorded basenames and real observation/timestamp/suffix
+  combinations, rather than invented `01:02:03` examples or timestamp-less
+  supposed raw sweeps.
+- Removed the large positive filename cross-product and invented auxiliary
+  acquisitions. Those tests established agreement with our rules, not actual
+  readout behavior. Generic rule-engine tests remain separate from acquisition
+  examples. The test count consequently decreases; this is not a claim of
+  reduced-product or auxiliary-file parity.
+- Retained explicit malformed/unknown/fallback tests. Relocation tests reuse
+  real basenames; conflicting source/original-path tests are explicitly
+  adversarial, not examples of a valid acquisition association. The existing
+  user-renamed-suffix case tests the agreed copied-file behavior.
+- Added the real-record policy to workspace instructions.
+
+No `tel_toltec2`, HWPR, Wyatt, housekeeping, bare `toltec`, zero-padded ROACH,
+or reduced-product examples occur in these slices/reference files. Real
+examples remain needed for positive coverage of those formats. This finding
+does not tighten the parser or remove previously supported kinds: absence from
+a small catalog cannot establish invalidity. No production reader or classifier
+behavior changed in this test-only follow-up, and no fixture files were edited.
+
+Verification: **957 Tolteca tests passed**, including actual v2 comparisons;
+the focused filename/catalog suite passed **114 tests**. Scoped Ruff (existing
+CPY001 exclusion), formatting, type checking, and `git diff --check` pass.
+`just qa` was not run. Changes remain uncommitted for review.
+
+### C8: restore the actual v2 filename grammar and writer-time semantics
+
+The user's review identified unintended grammar changes introduced in the v3
+rewrite (`fe3b722`), not a defect in the established v2 parser. Comparing against
+the later v3 checkpoint `94b87a0` preserved those mistakes. The authoritative
+syntax for this correction is the installed v2 source:
+
+- `tolteca_datamodels/toltec/file.py`: readout regex and integer capture dispatch.
+- `tolteca_datamodels/lmt/tel.py`: `RE_LMT_TEL_FILE`.
+- Tollan's `dict_from_regex_match`: named captures and per-field conversion.
+
+| Aspect | Corrected behavior |
+| --- | --- |
+| Readout prefix | `toltec` followed by `\d+`, `hwpr`, or `toltec_hk` |
+| Readout UT | Required `YYYY_MM_DD_HH_MM_SS` after observation numbers |
+| Date-first prefix | Exactly `tel_toltec`, `tel_toltec2`, or `wyatt` |
+| Date-first UT | Required `YYYY-MM-DD` before observation numbers |
+| Extension | Nonempty `.+` capture, as in v2; v3 still exposes it without the dot |
+| ROACH extraction | Named `roach` capture converted with `int`, alongside observation numbers |
+| Additional ROACH validation | None: no prefix reparsing, new ASCII restriction or hardware-range bound |
+
+Bare `toltec`, bare `hk`, arbitrary `tel_*`, timestamp-less readout names and
+swapped date/readout layouts are rejected by the regex. There is no second
+validator to decide whether a captured prefix is valid. The generic base owns
+neither instrument regex; the LMT model declares the date-first format and the
+TolTEC subtype adds the readout format and capture converter. The redundant
+v2 Wyatt-only pattern is unnecessary because `RE_LMT_TEL_FILE` already includes
+Wyatt. Regex compilation and integer-dispatch mappings remain class-level.
+
+`file_ut` is the writer's file-creation time encoded in the filename. It is
+independent of header/observation time, telescope sample time and filesystem
+mtime. Date-only telescope names encode a creation date, represented at UTC
+midnight, not a known time of day. Removed tests that inferred equality from
+the catalog's observation date/time; the new v2 parser comparison checks the
+actual encoded value. No timestamp-equality integrity check is introduced.
+
+Retained intentional v3 choices: `prefix` preserves the filename token,
+`interface` canonicalizes telescope prefixes to `tel`, and `ext` omits the dot.
+Instrument facts and the kind registry are not redesigned in this correction.
+No header/array reads, scientific computations or fixture writes are added.
+
+Tests directly compare the installed v2 parser with v3 for all **132 recorded
+paths**, including ROACH, observation numbers, timestamp, suffix and extension.
+Explicit malformed variants guard the removed grammar broadenings. Affected
+no-op CLI and DB adapter tests now use recorded raw basenames rather than
+timestamp-less invented acquisitions. Their header-only temporary files remain
+infrastructure stubs, not scientific reference payloads. Removed unsupported
+positive auxiliary/reduced-file examples from these matrices; real fixtures are
+still needed for positive coverage of those formats. This does not remove their
+established v2 grammar or their existing kind rules.
+
+Verification: **956 Tolteca tests passed**, with `TOLTECA_V2_PYTHON` set to the
+installed v2 interpreter. The complete DB suite passed **192 tests**, with 54
+excluded by its existing configuration; the shared discovery subset passed
+**7 tests**. Scoped Ruff (existing CPY001 exclusion), formatting, type checking
+and `git diff --check` pass. Reference-data Git state remains clean. `just qa`
+was not run; these were direct local checks without dependency updates.
+Changes remain uncommitted for review.
+
+### C9: eager filename records and direct normalized-key lookup
+
+The construction boundary is now the v2-style sequence:
+
+```text
+path -> regex captures -> capture converters -> identity/kind deduction -> record
+```
+
+Removed `FilenameFormat`, `FileKindRule`, `_RuleIndex` and `FileKindRegistry`.
+The shared parser calls Tollan's `dict_from_regex_match` with a class-level
+dispatcher. `ut` uses `_parse_ut` in that dispatcher just as the observation
+numbers and ROACH use `int`. No parser wrapper indexes a presumed `ut` field.
+The two anchored acquisition regexes and their date interpretation are unchanged.
+
+`_derive_fields` runs before model construction. The LMT model stores interface
+and paired instrument/component labels. Its TolTEC subtype additionally stores
+the captured ROACH and filename-derived kind. These are ordinary fields of a
+frozen Pydantic record, not computed properties or lazy caches. Reading,
+serializing or reconstructing a dumped record does not run deduction again.
+`guess_data_kind()` is removed; consumers use `.data_kind`.
+
+Classification constructs a `FileKindKey` and performs one `_kind_map.get`:
+
+| File family | Key values retained | Ignored values set to `...` |
+| --- | --- | --- |
+| TolTEC ROACH | instrument, component, suffix, extension | prefix, interface |
+| Telescope and auxiliary files | prefix, extension | interface, instrument, component, suffix |
+
+`...` is a literal dictionary-key sentinel on both sides, not wildcard equality.
+`None` still means an absent suffix; the two do not compare equal. There are no
+subset loops, fallback searches, precedence or conflict checks. The only loops
+in the kind-map declaration expand its fixed entries once at import. The
+normalization branch belongs to TolTEC's deduction function and explicitly
+preserves its suffix-sensitive versus suffix-independent classification.
+Original filename fields are never rewritten by key normalization.
+
+Observable record changes:
+
+- Round-trip filename dumps now retain interface/instrument/component. A record
+  restored from serialized fields is a snapshot, not a request to infer them.
+  To describe another filename, parse that path; changing only one field with
+  Pydantic's non-validating `model_copy(update=...)` does not refresh other fields.
+- TolTEC filename records now contain `data_kind`, including in the Arrow struct.
+  Queries can use `filepath_info.data_kind` / `file_data_kind` and their original
+  path equivalents. These retain filename guesses even when header enrichment
+  updates `SourceInfoModel.data_kind`.
+- The source-record aliases and cached original-path property retain their
+  existing behavior; this change makes the parsed filename record eager.
+- Existing Python enum / JSON number / flat catalog-name serialization is shared
+  by the two kind fields through a private Annotated field type. This follows
+  Pydantic's documented reusable [serializer](https://docs.pydantic.dev/latest/concepts/serialization/#using-the-annotated-pattern)
+  and [validator](https://docs.pydantic.dev/latest/concepts/validators/#using-the-annotated-pattern)
+  patterns, without adding a model inheritance layer. Self-review caught the
+  unnamed zero flag becoming `"0"` in the nested Arrow string field; its decoder
+  now accepts that representation. Nested enum round-trips cover all declared
+  values, a composite, and zero. Ordinary source serialization is unchanged.
+
+Verification and performance:
+
+- Before editing, saved the flat discovery results for all 132 recorded paths;
+  the new results compare exactly equal. The installed-v2 parser comparison is
+  retained, including exact writer times, and no reference payload is modified.
+- Tests count capture conversions and dictionary lookups during construction;
+  repeated field access/dumps, reconstruction and Arrow catalog queries do not
+  call deduction again. Unknown KIDs suffixes stay Unknown, and a deliberately
+  renamed telescope suffix leaves its telescope kind unchanged.
+- Removed tests for the deleted general matching engine, rather than preserving
+  those unsupported abstraction contracts. New tests cover literal ellipsis,
+  absent and empty values, and the need for identical normalized keys.
+- Local Python 3.13 median of five runs, 1,000 identifications per run, on the
+  same recorded readout path: **33.16 microseconds before, 30.86 after**. This is a
+  local microbenchmark, not a throughput guarantee. The structural improvement
+  is one-time deduction and no classification search. No data I/O is introduced.
+
+Final verification: **893 Tolteca tests passed**, including installed-v2
+comparisons; **192 DB tests passed**, with 54 excluded by that repository's
+existing configuration. Scoped Ruff (existing CPY001 exclusion), formatting,
+type checking and `git diff --check` pass. The focused filename/catalog suite
+passed **133 tests** before expanding nested enum round-trip coverage in the
+final full run. The reference-data repository remains clean. `just qa` was not
+run; no dependencies were changed. The combined `just review` extract includes
+all uncommitted work from `94b87a0` (Tolteca) and `292ea6c` (DB), not a diff
+against an intermediate uncommitted iteration. No commit yet.
+
+### C10. Shared file-access entry point and instrument-owned declarations
+
+The root `tolteca_datamodels.file` module now assembles the LMT and TolTEC
+declarations and owns filename parsing, source records, and pandas/Arrow catalog
+construction. Instrument modules supply `FileSpec` data: regex captures,
+converters, prefix aliases, identity maps, retained kind-key fields and kind
+constants. All per-file deduction is in the common implementation.
+
+`LmtInfo.interface_instru` and `ToltecInfo.interface_instru` now contain
+predefined frozen `LmtInstruMixin` objects. The separate `InstruComponent`
+pair and `lmt_base/file.py` are removed. `ToltecDataKind` deliberately remains
+in `toltec/types.py`: its telescope entries describe inputs needed by TolTEC
+processing. The root layer assembles both domains; it need not be independent
+of them. No enum members, values or enum strings changed.
+
+The file-based access path complements DB-backed discovery. Shared metadata and
+catalog conventions connect them; this does not move ORM logic into datamodels,
+or header reading and filesystem searches into filename parsing. Current file
+stores, CLI selection and readers keep their responsibilities. Consumers in
+KIDs, DB ingestion and the older Web collector now import the root file API.
+
+Behavior and representation:
+
+- The combined accepted acquisition grammar is unchanged. Telescope and Wyatt
+  declarations are now separate; the readout pattern is split into ROACH and
+  auxiliary declarations to select the appropriate record. Every one of the
+  132 recorded filenames matches exactly one declaration.
+- The common frozen `FilepathInfo` contains all shared identity/kind fields.
+  The TolTEC subtype adds a required integer `roach`. Telescope and auxiliary
+  records no longer contain `roach=None`; catalog columns remain nullable.
+  LMT original-path metadata uses the common record, including its kind.
+- Source records retain their nullable top-level ROACH column as part of the
+  mixed catalog schema. The existing `ToltecFileAccessor` class name and
+  `.toltec_file` accessor name are unchanged.
+- The root `FilepathInfo.from_path` dispatches across both instruments.
+  The TolTEC subclass restricts parsing to ROACH records. Shared callers use
+  the root entry point rather than importing services from `toltec.file`.
+- Source/original-path precedence, writer UT, nullable unknown identities,
+  direct kind lookup, enum codecs, aliases and header-enrichment behavior stay
+  unchanged. No UIDs, observation values or numerical data are changed.
+
+Serialization follows Pydantic's
+[`SerializeAsAny` pattern](https://docs.pydantic.dev/latest/concepts/serialization/#serializeasany-annotation)
+to retain the subtype's ROACH field. A cached union TypeAdapter restores the
+registered record types from stored values, without repeating filename parsing.
+The Arrow reader removes null padding for subtype-only fields. Mixed JSON and
+Parquet tests check subtype preservation, null selection and every field value.
+Catalogs still preserve resolved source locations, not FileLoc's original
+spelling and parent context.
+
+Performance and self-review:
+
+- Registry assembly and the union adapter are each cached once, not once per
+  path. Four fresh-process import orders exercise the package-initialization
+  cycles and verify a single registry assembly.
+- Capture-conversion and kind-lookup counters verify eager, one-time deduction;
+  ordinary attribute reads/dumps and catalog queries do not re-identify files.
+- Compared every recorded path with a saved pre-change discovery snapshot.
+  All identifiers and kinds are equal; the only JSON shape difference is the
+  missing inapplicable ROACH field on the 12 telescope records.
+- A same-process warm comparison with the saved pre-change parser, median of
+  five runs of 3,000 calls: ROACH **58.06 → 57.50 µs/source**; telescope
+  **57.18 → 60.38 µs/source**. Telescope parsing tests more disjoint declarations;
+  this is a small measured cost, not a claimed speedup. Absolute timings depend
+  on concurrent workstation load. No header or numerical reads were added.
+- Initial full-suite collection caught an overbroad import replacement that
+  also changed `filestore` imports; those were restored. A new Parquet test
+  initially compared FileLoc construction context, which the existing flat
+  catalog intentionally does not preserve; it now checks resolved locations
+  and all record values instead.
+
+Final verification:
+
+- **897 Tolteca tests pass**, with the installed v2 interpreter enabled and
+  benchmarks disabled; **192 DB tests pass**, with the existing 54 deselections.
+  **10 focused Web product/view tests pass**. No tolerances were changed.
+- Ruff (existing CPY001 exclusion), formatting and type checking pass for all
+  changed/new Tolteca Python files. All three repositories pass
+  `git diff --check`; the reference-data checkout is clean.
+- Repository-wide Tolteca `ty check .` reports **13 diagnostics in unchanged
+  files**: Kidsproc accessor return types and older invalid-input/frozen-model
+  tests. These are not suppressed or modified in this change.
+- DB-scanner Ruff reports **23 existing findings**; checking the committed HEAD
+  version with the same command produces the same findings. The other changed
+  DB files introduce no Ruff findings.
+- Importing the legacy Web collector remains blocked before reaching our
+  changed import by its existing `from tollan.db import SqlaDB`; v3 Tollan
+  has no `tollan.db`. Its modern product/view tests pass, but that legacy
+  collector was not runtime-validated. No DB/Web redesign was attempted.
+
+`just qa` was not run. No commit, dependency upgrade, fixture write or
+repository-wide cleanup is included. The combined review is generated from
+each repository's HEAD by `just review`, including earlier uncommitted work,
+not from a previous uncommitted iteration.

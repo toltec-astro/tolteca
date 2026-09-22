@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from tollan.pipeline import Step, StepContext
 
-from tolteca_datamodels.toltec.file import SourceInfoModel
+from tolteca_datamodels.file import SourceInfoModel
 
 from .config import DataProdOutputConfig
 from .product import write_sweep_product

@@ -7,6 +7,8 @@ from typing import ClassVar, Literal, get_args
 
 import astropy.units as u
 
+from ..lmt_base.metadata import LmtInstruMixin
+
 __all__ = [
     "ToltecArrayNameT",
     "ToltecArrayType",
@@ -163,8 +165,25 @@ class ToltecInfo:
     interface_roach: ClassVar = {v: k for k, v in roach_interface.items()}
     roach_interfaces: ClassVar = list(roach_interface.values())
 
-    # interfaces
-    interfaces: ClassVar = [*roach_interfaces, "hwpr"]
+    # TolTEC-owned readout, auxiliary hardware, and housekeeping.
+    interface_instru: ClassVar[dict[str, LmtInstruMixin]] = {
+        **{
+            interface: LmtInstruMixin(
+                interface=interface, instru="toltec", instru_component="roach"
+            )
+            for interface in roach_interfaces
+        },
+        "hwpr": LmtInstruMixin(
+            interface="hwpr", instru="toltec", instru_component="hwpr"
+        ),
+        "wyatt": LmtInstruMixin(
+            interface="wyatt", instru="toltec", instru_component="wyatt"
+        ),
+        "toltec_hk": LmtInstruMixin(
+            interface="toltec_hk", instru="toltec", instru_component="hk"
+        ),
+    }
+    interfaces: ClassVar = list(interface_instru)
 
     # arrays
     arrays: ClassVar = list(range(3))

@@ -185,7 +185,7 @@ def test_original_filename_is_cached_and_serialized(base_tel_fields):
     parsed = meta.filepath_info_orig
     assert parsed is meta.filepath_info_orig
     assert parsed.ut == datetime(2025, 10, 31, tzinfo=UTC)
-    assert parsed.interface == "tel_toltec"
+    assert parsed.interface == "tel"
     assert parsed.suffix is None
     assert parsed.ext == "nc"
     assert (parsed.obsnum, parsed.subobsnum, parsed.scannum) == (145609, 0, 2)

@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
     from tollan.config import RuntimeContext
 
-    from tolteca_datamodels.toltec.file import SourceInfoModel
+    from tolteca_datamodels.file import SourceInfoModel
 
 __all__ = ["create_kids", "run_source"]
 

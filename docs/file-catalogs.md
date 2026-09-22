@@ -4,13 +4,13 @@ A file catalog is a pandas DataFrame with one row per source. Build one from
 paths, then select files using their observation numbers, interfaces, or suffixes:
 
 ```python
-from tolteca_datamodels.toltec.file import guess_info_from_sources
+from tolteca_datamodels.file import guess_info_from_sources
 
 catalog = guess_info_from_sources([
-    "/data/toltec8_145609_000_0002_2025_10_31_01_02_03_vnasweep.nc",
-    "/data/toltec9_145609_000_0002_2025_10_31_01_02_03_vnasweep.nc",
+    "/data/toltec8_145605_000_0001_2025_10_31_09_20_06_vnasweep.nc",
+    "/data/toltec9_145605_000_0001_2025_10_31_09_20_06_vnasweep.nc",
 ])
-selected = catalog.toltec_file.query("roach == 8 & obsnum == 145609")
+selected = catalog.toltec_file.query("roach == 8 & obsnum == 145605")
 records = selected.toltec_file.to_info_list()
 ```
 
@@ -23,10 +23,10 @@ remain in the catalog with unknown identifiers and `data_kind="Unknown"`.
 Use `guess_info_from_source()` for a single `SourceInfoModel`:
 
 ```python
-from tolteca_datamodels.toltec.file import guess_info_from_source
+from tolteca_datamodels.file import guess_info_from_source
 
 record = guess_info_from_source(
-    "/data/toltec8_145609_000_0002_2025_10_31_01_02_03_vnasweep.nc"
+    "/data/toltec8_145605_000_0001_2025_10_31_09_20_06_vnasweep.nc"
 )
 print(record.obsnum, record.roach, record.data_kind)
 print(record.file_ut, record.file_suffix, record.file_ext)
@@ -40,7 +40,7 @@ can provide observation identifiers even when its data kind is unknown.
 Records are frozen. To change input fields, construct and validate a fresh record:
 
 ```python
-from tolteca_datamodels.toltec.file import SourceInfoModel
+from tolteca_datamodels.file import SourceInfoModel
 
 updated = SourceInfoModel.model_validate({
     **record.model_dump(round_trip=True),
@@ -85,7 +85,7 @@ renamed file without opening either location:
 record = guess_info_from_source(
     "/downloads/sweep.nc",
     filepath_orig="/data_lmt/toltec/tcs/toltec8/"
-    "toltec8_145609_000_0002_2025_10_31_01_02_03_vnasweep.nc",
+    "toltec8_145605_000_0001_2025_10_31_09_20_06_vnasweep.nc",
 )
 print(record.source.path)       # /downloads/sweep.nc
 print(record.file_suffix)       # vnasweep
@@ -97,25 +97,54 @@ numbers. An unrecognized current filename falls back to `filepath_orig`.
 The recorded acquisition directory takes precedence when guessing the master.
 The source location itself is unchanged.
 
-Two `FilepathInfo` models expose the parsed fields: `record.filepath_info`
+Two properties expose parsed path records: `record.filepath_info`
 describes the effective path information, while `record.filepath_info_orig`
 describes only the recorded acquisition path. The latter is parsed on first
 access and cached. Either can be `None` when its information is unavailable.
 
+Once a `FilepathInfo` has been created, its segments and inferred identity are
+stored fields. Reading attributes, serializing the record and selecting catalog
+rows do not repeat filename identification. To describe another path, call
+`FilepathInfo.from_path(new_path)` to create a new record. Round-trip dumps
+retain all of these stored fields.
+
 | Field | Meaning |
 | --- | --- |
-| `interface` | Filename token, such as `toltec8` or `tel_toltec` |
-| `roach` | ROACH index, when encoded in the interface |
+| `prefix` | Literal filename prefix, such as `toltec8` or `tel_toltec` |
+| `interface` | Acquisition interface, such as `toltec8` or `tel` |
+| `instru`, `instru_component` | Paired instrument/component labels; `None` when unknown |
 | `master_str` | Acquisition master name from the directory, including names such as `simu` without a database record |
 | `obsnum`, `subobsnum`, `scannum` | Observation identifiers |
-| `ut` | UTC-aware filename date/time; `None` when absent |
+| `ut` | Writer's file-creation time encoded in the filename, in UTC at the filename's precision |
 | `suffix` | Filename suffix, such as `vnasweep`; `None` when absent |
 | `ext` | Extension without the leading dot |
+| `roach` | ROACH index; present on the TolTEC readout record |
+| `data_kind` | Filename-derived `ToltecDataKind`, or `Unknown` |
 
-`ut` is not filesystem modification time. A date-only telescope filename gives
-midnight UTC on that date, not the exact observation start time. Top-level
-record identifiers may be corrected from headers; the parsed path fields
-remain available for comparison.
+The model derives `interface` from `prefix`, then `instru` and
+`instru_component` from the interface during parsing. Telescope prefixes such as
+`tel_toltec` and `tel_toltec2` both identify interface `tel`, instrument `lmt`, and component
+`tcs`. Other prefixes retain their spelling as the interface token; parsing
+does not require it to be a registered readout. Unknown instrument or component
+values remain `None`. The shared parser returns a TolTEC record for a
+`toltec<N>` prefix, with the additional integer `roach` field. Other filename
+records do not have this field. Mixed catalogs expose it as a nullable column,
+so `file_roach.isna()` selects rows without a ROACH index.
+
+Instrument/component labels are paired strings: `tel` maps to `("lmt", "tcs")`,
+while `toltec_hk` maps to `("toltec", "hk")`. Housekeeping belongs to its
+instrument; a bare `hk` prefix does not identify one. ROACH, HWPR and Wyatt
+interfaces map to `toltec` with their respective components.
+
+`ut` records when the writer created the file, independently of header and
+telescope observation times. It is not filesystem modification time. A date-only
+telescope filename supplies only the creation date, represented as midnight UTC;
+it does not supply the time of day. Readout filenames include the creation time
+to the second. Both filename formats require their date/time segment.
+Top-level record identifiers may be corrected from headers; the parsed path
+fields remain available for comparison. Likewise, `record.data_kind` may be
+refined by header identification, while `record.filepath_info.data_kind`
+preserves the filename-derived kind.
 
 ## Complete KIDs records from headers
 
@@ -123,7 +152,7 @@ To recover identifiers from a renamed KIDs file, open it and enrich a record:
 
 ```python
 from tolteca_datamodels.toltec import open_toltec
-from tolteca_datamodels.toltec.file import SourceInfoModel, ToltecFileAccessor
+from tolteca_datamodels.file import SourceInfoModel, ToltecFileAccessor
 from tolteca_datamodels.toltec.kids.source import identify_source
 
 record = SourceInfoModel(source="sweep.nc")
@@ -140,8 +169,8 @@ header kind, for example a particular processed-sweep kind.
 
 Pass `check_filepath_orig=True` to check header identifiers against the recorded
 acquisition path. A mismatch raises `ValueError`. This optional check does not
-compare the current filename or treat the filename date as an observation-start
-timestamp.
+compare the current filename or require the writer's file-creation time to equal
+header or telescope times.
 
 `ToltecFileAccessor.from_info_list(records)` accepts any iterable of records,
 including an empty one. It does not open their sources. To recover records,
@@ -161,12 +190,26 @@ records = catalog.toltec_file.to_info_list("obsnum == 145609")
 
 | Structured field | Query alias |
 | --- | --- |
+| `filepath_info.prefix` | `file_prefix` |
 | `filepath_info.ut` | `file_ut` |
 | `filepath_info.suffix` | `file_suffix` |
 | `filepath_info.ext` | `file_ext` |
+| `filepath_info.data_kind` | `file_data_kind` |
 | `filepath_info_orig.ut` | `file_ut_orig` |
+| `filepath_info_orig.data_kind` | `file_data_kind_orig` |
 | `filepath_info_orig.suffix` | `file_suffix_orig` |
 | `filepath_info_orig.ext` | `file_ext_orig` |
+
+Select all telescope files by interface, or one telescope stream by prefix:
+
+```python
+telescope = catalog.toltec_file.query('interface == "tel"')
+supplementary = catalog.toltec_file.query('file_prefix == "tel_toltec2"')
+```
+
+Derived identity fields are also stored in the Arrow struct. For example,
+`filepath_info.instru_component == "roach"` selects ROACH files without
+reconstructing models for each row.
 
 The same rule applies to every parsed path field, such as `file_obsnum` or
 `file_master_str_orig`. Unqualified aliases refer to effective path information;
@@ -190,7 +233,8 @@ untrusted remote input.
 
 ## Use a record in configuration conditions
 
-The model's computed `file_ut`, `file_suffix`, and `file_ext` properties are
+The model's computed `file_prefix`, `file_ut`, `file_suffix`, and `file_ext`
+properties are
 included in ordinary Pydantic dumps. Request a JSON-compatible scalar
 projection when supplying a configuration validation context:
 
@@ -222,6 +266,6 @@ restored = pd.read_parquet("catalog.parquet", dtype_backend="pyarrow")
 selected = restored.toltec_file.query("file_suffix_orig == 'vnasweep'")
 ```
 
-Import `tolteca_datamodels.toltec.file` to register the accessor in a fresh
+Import `tolteca_datamodels.file` to register the accessor in a fresh
 process. Continue with [Reading observation data](raw-data.md) to open selected
 sources and work with their metadata and arrays.

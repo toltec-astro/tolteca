@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from tollan.utils.log import logger
 
-from ..file import SourceInfoModel, guess_info_from_source
+from ...file import SourceInfoModel, guess_info_from_source
 from ..toltecdb import ToltecDBRawObsMaster
 from ..types import ToltecDataKind
 from .core import ToltecKidsAccessor
@@ -14,7 +14,7 @@ from .core import ToltecKidsAccessor
 if TYPE_CHECKING:
     import xarray as xr
 
-    from ..file import FilepathInfo
+    from ...file import FilepathInfo
 
 __all__ = ["identify_source"]
 

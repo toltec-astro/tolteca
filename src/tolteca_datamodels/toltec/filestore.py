@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import xarray as xr
 from tollan.utils.log import logger
 
-from .file import ToltecFileAccessor, guess_info_from_sources
+from ..file import ToltecFileAccessor, guess_info_from_sources
 from .kids.source import identify_source
 from .obsspec import ObsSpec
 

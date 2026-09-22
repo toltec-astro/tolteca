@@ -11,8 +11,8 @@ from pydantic.dataclasses import dataclass
 from tollan.config.types import SkyCoordField, TimeQuantityField
 
 from ..core import metadata_dataclass_config
+from ..file import FilepathInfo
 from ..lmt_base import LmtRawObsMetadata
-from ..toltec.file import FilepathInfo
 from ..toltec.toltecdb import ToltecDBRawObsMaster
 
 __all__ = ["LmtTelMetadata"]
