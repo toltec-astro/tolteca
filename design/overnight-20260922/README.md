@@ -65,6 +65,7 @@ unnecessary dependency upgrades, or agent delegation.
 | 02b5 | Preserve native KIDs master codes | Complete; [step record](02b5-native-master.md). 956 full tests and fresh four-case exact integration pass; source labels and UIDs are unchanged. |
 | 02b6 | Consistent KIDs original-path name | Complete; [step record](02b6-original-path.md). 961 full tests pass. Rename to `filepath_orig`, preserving values and current missing-field behavior. |
 | 02b7 | Require raw observation type; audit remaining omissions | Complete; [step record](02b7-observation-type.md). 966 full tests and fresh exact integration pass. Missing type no longer silently changes tune block count. |
+| 02b8 | Native repeat and registered instrument component | Complete; [step record](02b8-native-repeat-component.md). 971 full tests pass; integer `repeat` and `toltec`/`roach` identity, with no extra reads. |
 | 02c | Focused telescope/catalog/no-op guide | Complete: `ef546a3`; see [step record](02c-observation-guide.md). Python examples, direct CLI and isolated Deploy invocation verified. |
 | 03a | Reduced channel-frequency coordinate | Complete: Tolteca `aabb582`; 67 tests including four exact v2 cases pass. See [step record](03a-reduced-frequency-coordinate.md). |
 | 03b | Remaining reducer / live context / output review | [Three reproduced lifecycle/alias gaps](03b-lifecycle-review.md); fixed in 03b1–03b3. Output boundary review continues. |
@@ -113,8 +114,9 @@ raw/reduced header-model boundary and requiredness are the next focused checks,
 not implicit parts of either correction.
 The 02b7 diagnostic measures 47 omitted-header cases and the raw accessor's
 behavior on reduced product children. Only missing raw observation type is
-fixed in that step. Next address the remaining raw required fields and native
-repeat/component semantics before choosing typed header-only catalog projection.
+fixed in that step. Native repeat/component semantics are aligned in 02b8.
+Next address the remaining raw required fields before choosing typed header-only
+catalog projection.
 Keep processed identification and standalone numerical-input inference distinct
 from complete raw acquisition metadata; do not use a reduced child's raw
 accessor metadata as an acquisition record.
@@ -176,3 +178,6 @@ After 02b7, 966 Tolteca tests pass (55.40 s), and a fresh exact integration pass
 in `run/overnight-slice-20260922-header-contract/`. Only the four missing raw
 observation-type cases differ in the before/after diagnostic. The automation
 remains active; the deadline is still 13:06:38 UTC.
+
+After 02b8, 971 Tolteca tests pass (54.62 s), actual-v2 parity enabled. Native
+repeat values and registered component labels are verified on all four inputs.

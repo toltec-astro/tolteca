@@ -127,7 +127,7 @@ class ToltecKidsIOSchema(Schema):
     cal_scannum: Mapping = NameMapping("Header.Toltec.TargSweepScanNum")
     n_chans_max: Mapping = NameMapping("Header.Toltec.MaxNumTones")
     filepath_orig: Mapping = NameMapping("Header.Toltec.Filename")
-    repeatvar: Mapping = NameMapping("Header.Toltec.RepeatLevel")
+    repeat: Mapping = NameMapping("Header.Toltec.RepeatLevel")
     adc_snap: Mapping = NameMapping.var("Header.Toltec.AdcSnapData")
     n_sweepsteps: Mapping = NameMapping(
         [
@@ -211,6 +211,7 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
 
         roach = self.get_scalar(ds, schema.roach)
         interface = ToltecInfo.roach_interface[roach]
+        identity = ToltecInfo.interface_instru[interface]
         master = self.get_scalar(ds, schema.master)
         t0 = Time(self.get_scalar(ds, schema.obs_start_time), format="unix")
         t1 = Time(self.get_scalar(ds, schema.obs_end_time), format="unix")
@@ -222,6 +223,8 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
             "roach": roach,
             "nw": roach,
             "interface": interface,
+            "instru": identity.instru,
+            "instru_component": identity.instru_component,
             "array_name": ToltecInfo.interface_array_name[interface],
             "master": ToltecDBRawObsMaster(master),
             "obsnum": self.get_scalar(ds, schema.obsnum),
@@ -252,8 +255,8 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
             base_fields["n_kids_design"] = self.get_dim(ds, schema.n_kids_design)
         if schema.filepath_orig in self:
             base_fields["filepath_orig"] = self.get_str(ds, schema.filepath_orig)
-        if schema.repeatvar in self:
-            base_fields["repeatvar"] = str(self.get_scalar(ds, schema.repeatvar))
+        if schema.repeat in self:
+            base_fields["repeat"] = self.get_scalar(ds, schema.repeat)
         if schema.adc_snap in self:
             # Keep the array reference, not the ADC snapshot payload.
             base_fields["adc_snap"] = self.get_name(schema.adc_snap)

@@ -27,7 +27,7 @@ def inspect_raw(path):
         "cal_scannum",
         "n_chans_max",
         "filepath_orig",
-        "repeatvar",
+        "repeat",
         "adc_snap",
         "f_lo_center",
         "n_sweepreps",
@@ -38,7 +38,7 @@ def inspect_raw(path):
         result = {
             "type": type(meta).__name__,
             "instru_component": meta.instru_component,
-            "repeatvar": meta.repeatvar,
+            "repeat": meta.repeat,
             "n_blocks": getattr(meta, "n_blocks", None),
             "cases": {},
         }

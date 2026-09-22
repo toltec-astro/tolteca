@@ -57,7 +57,7 @@ def test_named_dimensions_and_headers(raw, transpose, as_tree):
     assert meta.f_lo_center == 600e6
     assert meta.atten_drive == 7.25
     assert meta.filepath_orig == "original.nc"
-    assert meta.repeatvar == "0"
+    assert meta.repeat == 0
     adapter = TypeAdapter(ToltecSweepMetadata)
     restored = adapter.validate_json(adapter.dump_json(meta))
     assert restored.f_smp == meta.f_smp

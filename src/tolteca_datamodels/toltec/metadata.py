@@ -121,9 +121,9 @@ class ToltecRawObsMetadata(LmtRawObsMetadata):
         description="Original acquisition file path",
     )
 
-    repeatvar: str | None = Field(
+    repeat: int | None = Field(
         default=None,
-        description="Repeat level variable from netCDF",
+        description="Recorded acquisition repeat level",
     )
 
 
