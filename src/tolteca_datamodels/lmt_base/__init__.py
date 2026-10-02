@@ -1,13 +1,8 @@
-"""LMT base module - shared constructs for LMT telescope data.
-
-This module provides base classes and mixins that are used by both
-the LMT telescope package and instrument-specific packages (like TolTEC)
-to avoid circular dependencies.
-"""
+"""Shared LMT metadata models."""
 
 from __future__ import annotations
 
-from .file import FilepathInfo
+from ._filepath import FilepathInfoMixin, FilepathOrigMetadataMixin
 from .metadata import (
     LmtInstruMixin,
     LmtObsQuartetMixin,
@@ -15,7 +10,8 @@ from .metadata import (
 )
 
 __all__ = [
-    "FilepathInfo",
+    "FilepathInfoMixin",
+    "FilepathOrigMetadataMixin",
     "LmtInstruMixin",
     "LmtObsQuartetMixin",
     "LmtRawObsMetadata",
