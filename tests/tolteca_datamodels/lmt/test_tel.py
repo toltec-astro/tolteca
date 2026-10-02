@@ -7,10 +7,14 @@ import xarray as xr
 from dask.callbacks import Callback
 from pydantic import TypeAdapter
 from tollan.utils.fileloc import fileloc
+from tollan.utils.log import logger
 from xarray.backends.netCDF4_ import NetCDF4ArrayWrapper
 
 from tolteca_datamodels.lmt import (
-    LmtObsGoalType,
+    LmtMaster,
+    LmtObsGoal,
+    LmtObsPgm,
+    LmtRawObsMasterCode,
     LmtTelAccessor,
     LmtTelIOMapper,
     LmtTelMetadata,
@@ -61,16 +65,20 @@ def test_metadata_and_arrays(telescope, as_tree):
     meta = acc.meta
     assert acc.meta is meta
     assert isinstance(meta, LmtTelMetadata)
-    assert (meta.master, meta.master_str, meta.interface, meta.instru) == (
+    assert meta.master_code == LmtRawObsMasterCode.TCS.value
+    assert type(meta.master_code) is int
+    assert meta.master == LmtMaster.tcs
+    assert type(meta.master) is str
+    assert (meta.master_code, meta.master, meta.interface, meta.instru) == (
         0,
         "tcs",
         "tel",
         "lmt",
     )
     assert meta.instru_component == "tcs"
-    assert meta.obs_pgm == "Lissajous"
+    assert meta.obs_pgm == "lissajous"
     assert (meta.obsnum, meta.subobsnum, meta.scannum) == (10, 0, 1)
-    assert meta.obs_goal == LmtObsGoalType.pointing
+    assert meta.obs_goal == LmtObsGoal.pointing
     assert meta.t0.unix == 1761902400.0
     assert meta.t1.unix == 1761902401.0
     assert meta.t_int == 0 * u.s  # Not replaced by the elapsed span.
@@ -105,12 +113,34 @@ def test_metadata_and_arrays(telescope, as_tree):
     restored = adapter.validate_json(adapter.dump_json(meta, round_trip=True))
     assert restored.t0 == meta.t0
     assert restored.obs_goal == meta.obs_goal
-    assert restored.master == 0
-    assert restored.master_str == "tcs"
+    assert restored.master_code == 0
+    assert restored.master == "tcs"
     assert restored.filepath_orig == meta.filepath_orig
     assert restored.filepath_info_orig == meta.filepath_info_orig
     assert restored.target is not None
     assert restored.target.separation(meta.target).to_value(u.rad) == pytest.approx(0)
+
+
+def test_metadata_debug_log(data_lmt_path):
+    path = data_lmt_path / "tel/tel_toltec_2025-10-31_145609_00_0002.nc"
+    messages = []
+    sink = logger.add(
+        messages.append, level="DEBUG", filter="tolteca_datamodels.lmt.tel"
+    )
+    try:
+        with open_lmt_tel(path) as ds:
+            meta = ds.lmt_tel.meta
+            assert ds.lmt_tel.meta is meta
+    finally:
+        logger.remove(sink)
+
+    [message] = messages
+    assert message.record["level"].name == "DEBUG"
+    assert message.record["message"] == (
+        f"Read telescope metadata: uid_raw_obs_file={meta.uid_raw_obs_file}, "
+        f"obs_pgm={meta.obs_pgm}, obs_goal={meta.obs_goal}, "
+        f"filepath_orig={meta.filepath_orig}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -123,6 +153,7 @@ def test_metadata_and_arrays(telescope, as_tree):
         "Header.Dcs.ObsNum",
         "Header.Dcs.SubObsNum",
         "Header.Dcs.ScanNum",
+        "Header.TelescopeBackend.Master",
     ],
 )
 def test_established_headers_are_required(telescope, name):
@@ -137,10 +168,10 @@ def test_header_attributes(telescope):
         ds = ds.drop_vars(name)
     assert ds.lmt_tel.meta.interface == "tel"
     assert ds.lmt_tel.meta.obsnum == 10
-    assert ds.lmt_tel.meta.obs_goal == LmtObsGoalType.pointing
+    assert ds.lmt_tel.meta.obs_goal == LmtObsGoal.pointing
 
 
-def test_headers_are_authoritative_and_check_is_opt_in(telescope):
+def test_headers_are_authoritative(telescope):
     telescope["Header.Dcs.ObsNum"] = 999
     telescope.encoding["source"] = "/copied/tel_toltec_2025-10-30_000123_02_0003.nc"
     meta = telescope.lmt_tel.meta
@@ -148,36 +179,11 @@ def test_headers_are_authoritative_and_check_is_opt_in(telescope):
     assert meta.filepath_orig == "/data/tel_toltec2_2025-10-31_000010_00_0001.nc"
     assert meta.filepath_info_orig.obsnum == 10
     assert meta.filepath_info_orig.ut.isoformat() == "2025-10-31T00:00:00+00:00"
-    with pytest.raises(ValueError, match="Conflicting obsnum.*Header.Dcs.ObsNum"):
-        telescope.lmt_tel.mapper.get_metadata(telescope, check_filepath_orig=True)
 
 
-@pytest.mark.parametrize(
-    ("name", "header"),
-    [
-        ("obsnum", "Header.Dcs.ObsNum"),
-        ("subobsnum", "Header.Dcs.SubObsNum"),
-        ("scannum", "Header.Dcs.ScanNum"),
-        ("master", "Header.TelescopeBackend.Master"),
-    ],
-)
-def test_original_filename_consistency_check(telescope, name, header):
-    telescope[header] = telescope[header] + 1
-    acc = telescope.lmt_tel
-    assert getattr(acc.meta, name) == telescope[header].item()
-    with pytest.raises(ValueError, match=f"Conflicting {name}.*{header}"):
-        acc.mapper.get_metadata(acc.data_source, check_filepath_orig=True)
-
-
-def test_missing_master_is_explicitly_unknown(telescope):
-    ds = telescope.drop_vars("Header.TelescopeBackend.Master")
-    meta = ds.lmt_tel.mapper.get_metadata(ds, check_filepath_orig=True)
-    assert meta.master is None
-    assert meta.master_str is None
-
-
-def test_invalid_master_is_not_missing(telescope):
-    telescope["Header.TelescopeBackend.Master"] = 99
+@pytest.mark.parametrize("master_code", [1, 2, 3, 99])
+def test_invalid_master_is_not_missing(telescope, master_code):
+    telescope["Header.TelescopeBackend.Master"] = master_code
     with pytest.raises(ValueError):
         _ = telescope.lmt_tel.meta
 
@@ -187,8 +193,6 @@ def test_metadata_does_not_parse_original_filename_by_default(telescope):
     acc = telescope.lmt_tel
     assert acc.meta.filepath_orig == "unrecognized.nc"
     assert "filepath_info_orig" not in acc.meta.__dict__
-    with pytest.raises(ValueError):
-        acc.mapper.get_metadata(acc.data_source, check_filepath_orig=True)
 
 
 @pytest.mark.parametrize("chars", [False, True])
@@ -204,7 +208,7 @@ def test_fixed_width_text_headers(telescope, chars):
     meta = telescope.lmt_tel.meta
     assert meta.interface == "tel"
     assert meta.filepath_orig == filename.decode().strip(" \x00")
-    assert meta.obs_goal == LmtObsGoalType.pointing
+    assert meta.obs_goal == LmtObsGoal.pointing
 
 
 def test_dask_time_and_flags_do_not_compute_or_modify_source(telescope):
@@ -434,9 +438,29 @@ def test_empty_time(telescope):
 
 
 @pytest.mark.parametrize("goal", ["AzScan", "ElScan", "M3Offset", "", "new-goal"])
-def test_goal_values_are_not_reinterpreted(telescope, goal):
+def test_unrecognized_goals_are_rejected(telescope, goal):
     telescope["Header.Dcs.ObsGoal"] = goal
-    assert telescope.lmt_tel.meta.obs_goal == goal.lower()
+    with pytest.raises(ValueError, match="LmtObsGoal"):
+        _ = telescope.lmt_tel.meta
+
+
+@pytest.mark.parametrize("goal", list(LmtObsGoal))
+def test_reader_constructs_goal_enum(telescope, goal):
+    telescope["Header.Dcs.ObsGoal"] = goal.value.capitalize()
+    assert telescope.lmt_tel.meta.obs_goal is goal
+
+
+@pytest.mark.parametrize("program", ["", "new-program"])
+def test_unrecognized_programs_are_rejected(telescope, program):
+    telescope["Header.Dcs.ObsPgm"] = program
+    with pytest.raises(ValueError, match="LmtObsPgm"):
+        _ = telescope.lmt_tel.meta
+
+
+def test_reader_constructs_recorded_program_enums(telescope, lmtmc_records):
+    for program in {row["ObsPgm"] for row in lmtmc_records}:
+        ds = telescope.assign({"Header.Dcs.ObsPgm": program})
+        assert ds.lmt_tel.meta.obs_pgm is LmtObsPgm(program.lower())
 
 
 @pytest.mark.parametrize("size", [0, 1, 3])
@@ -508,7 +532,7 @@ def test_reference_telescope_files(data_lmt_path, monkeypatch):
                 assert meta.t_elapsed == (meta.t1 - meta.t0).to(u.s)
                 assert meta.t_elapsed is meta.t_elapsed
                 assert not reads
-                assert (meta.master, meta.master_str) == (0, "tcs")
+                assert (meta.master_code, meta.master) == (0, "tcs")
                 assert meta.uid_raw_obs_file == (
                     f"tcs-{meta.obsnum}-{meta.subobsnum}-{meta.scannum}-tel"
                 )
@@ -518,7 +542,7 @@ def test_reference_telescope_files(data_lmt_path, monkeypatch):
                 assert meta.subobsnum == expected["subobsnum"]
                 assert meta.scannum == expected["scannum"]
                 assert meta.t_int == expected["t_int"] * u.s
-                assert meta.obs_goal == goal
+                assert meta.obs_goal is LmtObsGoal(goal)
                 assert meta.filepath_info_orig.obsnum == meta.obsnum
                 assert meta.filepath_info_orig is meta.filepath_info_orig
                 assert meta.target is not None and meta.target_ref is not None
@@ -537,8 +561,4 @@ def test_reference_telescope_files(data_lmt_path, monkeypatch):
             np.testing.assert_array_equal(
                 ds.lmt_tel.az.isel(time=slice(0, 3)).values, expected_az
             )
-            mapper = LmtTelIOMapper.from_data_source(ds)
-            assert (
-                mapper.get_metadata(ds, check_filepath_orig=True).obsnum
-                == expected["obsnum"]
-            )
+            assert ds.lmt_tel.meta.obsnum == expected["obsnum"]

@@ -10,7 +10,7 @@ import astropy.units as u
 import numpy as np
 import pytest
 
-from tolteca_datamodels.lmt import open_lmt_tel
+from tolteca_datamodels.lmt import LmtObsPgm, open_lmt_tel
 
 
 @pytest.mark.parametrize(
@@ -40,7 +40,6 @@ def test_values_equal_v2(data_lmt_path, tmp_path, suffix, chunks):
         meta = tel.meta
         old = json.loads(expected["metadata"].item())
         for name in (
-            "master",
             "instru",
             "instru_component",
             "obsnum",
@@ -49,9 +48,10 @@ def test_values_equal_v2(data_lmt_path, tmp_path, suffix, chunks):
             "obs_goal",
         ):
             assert getattr(meta, name) == old[name], name
-        assert meta.master_str == old["master_name"]
+        assert meta.master_code == old["master"]
+        assert meta.master == old["master_name"]
         assert old["interface"] == "lmt" and meta.interface == "tel"
-        assert meta.obs_pgm == old["mapping_type"]
+        assert meta.obs_pgm == old["mapping_type"].lower()
         assert ds.encoding["source"] == old["source"]
         assert meta.filepath_info_orig.ut.isoformat() == old["file_timestamp"]
         assert meta.filepath_info_orig.suffix == old["file_suffix"]
@@ -97,12 +97,12 @@ def test_reference_lmtmc_rows(data_lmt_path):
             assert (meta.obsnum, meta.subobsnum, meta.scannum) == tuple(
                 map(int, row["ObsNum"].split("."))
             )
-            assert meta.obs_pgm == row["ObsPgm"]
+            assert meta.obs_pgm is LmtObsPgm(row["ObsPgm"].lower())
             assert meta.obs_goal == row["ObsGoal"].lower()
             # CSV is rounded to hundredths; do not round the reader's timer.
             assert meta.t_int.to_value(u.s) == pytest.approx(
                 float(row["IntegrationTime"]), abs=0.005
             )
-            assert meta.master == 0
-            assert meta.master_str == "tcs"
-            assert meta.filepath_info_orig.master_str == meta.master_str
+            assert meta.master_code == 0
+            assert meta.master == "tcs"
+            assert meta.filepath_info_orig.master == meta.master

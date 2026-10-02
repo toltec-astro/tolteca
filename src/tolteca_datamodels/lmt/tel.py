@@ -15,8 +15,8 @@ from tollan.accessor.xarray import XarrayAccessorBase, XarrayMapper
 from tollan.utils.fileloc import fileloc
 from tollan.utils.log import logger
 
-from ..toltec.toltecdb import ToltecDBRawObsMaster
 from .metadata import LmtTelMetadata
+from .types import LmtInfo, LmtObsGoal, LmtObsPgm, LmtRawObsMasterCode
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -34,7 +34,7 @@ class LmtTelIOSchema(Schema):
     obsnum: Mapping = NameMapping("Header.Dcs.ObsNum")
     subobsnum: Mapping = NameMapping("Header.Dcs.SubObsNum")
     scannum: Mapping = NameMapping("Header.Dcs.ScanNum")
-    master: Mapping = NameMapping("Header.TelescopeBackend.Master")
+    master_code: Mapping = NameMapping("Header.TelescopeBackend.Master")
     obs_pgm: Mapping = NameMapping("Header.Dcs.ObsPgm")
     obs_goal: Mapping = NameMapping("Header.Dcs.ObsGoal")
     t_int: Mapping = NameMapping("Header.Dcs.IntegrationTime")
@@ -70,20 +70,25 @@ class LmtTelIOMapper(XarrayMapper[LmtTelIOSchema]):
     def get_metadata(
         self,
         data_source: xr.Dataset | xr.DataArray,
-        *,
-        check_filepath_orig: bool = False,
     ) -> LmtTelMetadata:
-        """Read observation headers and the first/last telescope timestamps.
+        """Read telescope observation metadata.
 
-        Pointing arrays are not loaded. The integration timer is retained even
-        when zero; it need not equal the elapsed span between timestamps.
-        The required two entries of each target-coordinate header are the main
-        and reference positions, respectively, in radians. Header identifiers
-        are authoritative; a missing master is represented by None.
+        Parameters
+        ----------
+        data_source : xarray.Dataset or xarray.DataArray
+            Telescope data containing the mapped header and timestamp fields.
 
-        Set ``check_filepath_orig=True`` to compare observation identifiers and
-        available master information with the recorded original path. A mismatch
-        raises ValueError. The current source path is not used for metadata.
+        Returns
+        -------
+        LmtTelMetadata
+            Observation metadata. Start and end times use the first and last
+            telescope timestamps; integration time uses the header value.
+
+        Raises
+        ------
+        ValueError
+            If timestamps are empty or not one-dimensional, or target
+            coordinates do not contain main and reference entries.
         """
         ds = data_source
         schema = self.schema
@@ -108,19 +113,17 @@ class LmtTelIOMapper(XarrayMapper[LmtTelIOSchema]):
             dec.to_numpy() << u.rad,
             frame="icrs",
         )
+        master_code = LmtRawObsMasterCode(self.get_scalar(ds, schema.master_code))
         meta = LmtTelMetadata(
             interface=self.interface,
-            master=(
-                ToltecDBRawObsMaster(self.get_scalar(ds, schema.master))
-                if schema.master in self
-                else None
-            ),
+            master_code=master_code.value,
+            master=LmtInfo.master_code_master[master_code],
             obsnum=self.get_scalar(ds, schema.obsnum),
             subobsnum=self.get_scalar(ds, schema.subobsnum),
             scannum=self.get_scalar(ds, schema.scannum),
             filepath_orig=self.get_str(ds, schema.filepath_orig),
-            obs_pgm=self.get_str(ds, schema.obs_pgm),
-            obs_goal=self.get_str(ds, schema.obs_goal).lower(),
+            obs_pgm=LmtObsPgm(self.get_str(ds, schema.obs_pgm).lower()),
+            obs_goal=LmtObsGoal(self.get_str(ds, schema.obs_goal).lower()),
             t0=t0,
             t1=t1,
             # Header integration time is distinct from the TelTime span (t_elapsed).
@@ -130,30 +133,12 @@ class LmtTelIOMapper(XarrayMapper[LmtTelIOSchema]):
         )
         logger.debug(
             "Read telescope metadata: uid_raw_obs_file={}, "
-            "obs_pgm={}, filepath_orig={}",
+            "obs_pgm={}, obs_goal={}, filepath_orig={}",
             meta.uid_raw_obs_file,
             meta.obs_pgm,
+            meta.obs_goal,
             meta.filepath_orig,
         )
-        if check_filepath_orig:
-            filepath_info_orig = meta.filepath_info_orig
-            if filepath_info_orig is None:
-                msg = f"Unrecognized acquisition filename: {meta.filepath_orig}"
-                raise ValueError(msg)
-            for name in ("obsnum", "subobsnum", "scannum", "master"):
-                attribute = "master_str" if name == "master" else name
-                value = getattr(meta, attribute)
-                value_orig = getattr(filepath_info_orig, attribute)
-                if value is not None and value_orig is not None and value != value_orig:
-                    msg = (
-                        f"Conflicting {name}: "
-                        f"{self.get_name(getattr(schema, name))}="
-                        f"{getattr(meta, name)!r}, "
-                        f"filepath_orig={meta.filepath_orig!r} "
-                        f"identifies {value_orig!r}"
-                    )
-                    raise ValueError(msg)
-            logger.debug("Checked telescope identifiers against {}", meta.filepath_orig)
         return meta
 
 
@@ -162,17 +147,19 @@ class LmtTelIOMapper(XarrayMapper[LmtTelIOSchema]):
 class LmtTelAccessor(XarrayAccessorBase[LmtTelIOMapper]):
     """Access typed telescope metadata and lazy pointing arrays.
 
-    The source must contain the mapped telescope timestamp variable. Its values
-    and observation headers are read only when requested.
+    Parameters
+    ----------
+    data_source : xarray.Dataset or xarray.DataTree
+        Telescope dataset, or a tree with telescope data at its root. Keep it
+        open until the desired array slices have been loaded.
+    mapper : LmtTelIOMapper, optional
+        Field mapper. If omitted, resolve fields against the dataset.
 
     Examples
     --------
-    >>> with open_lmt_tel("tel_toltec_2025-10-31_145609_00_0002.nc") as ds:
+    >>> with open_lmt_tel(filepath) as ds:
     ...     meta = ds.lmt_tel.meta
     ...     az = ds.lmt_tel.az.isel(time=slice(0, 10)).load()
-
-    Keep the dataset open until the desired array slices have been loaded.
-    Metadata is cached on this accessor; it contains no open file handles.
     """
 
     def _validate(self) -> None:
@@ -183,12 +170,12 @@ class LmtTelAccessor(XarrayAccessorBase[LmtTelIOMapper]):
 
     @functools.cached_property
     def meta(self) -> LmtTelMetadata:
-        """Observation metadata, including main and reference sky positions."""
+        """Observation metadata."""
         return self.mapper.get_metadata(self.data_source)
 
     @functools.cached_property
     def t(self) -> xr.DataArray:
-        """Elapsed seconds from the first sample; computes on non-Dask inputs."""
+        """Elapsed seconds from the first sample."""
         tel_time = self.tel_time
         result = tel_time - tel_time.isel({tel_time.dims[0]: 0})
         result.attrs.update(units="s", long_name="Elapsed telescope time")
@@ -196,7 +183,7 @@ class LmtTelAccessor(XarrayAccessorBase[LmtTelIOMapper]):
 
     @property
     def tel_time(self) -> xr.DataArray:
-        """Native Unix timestamps, available for slicing before loading."""
+        """Telescope sample timestamps in Unix seconds."""
         return self.mapper.get_arr(self.data_source, self.mapper.schema.tel_time)
 
     @property
@@ -241,20 +228,32 @@ class LmtTelAccessor(XarrayAccessorBase[LmtTelIOMapper]):
 
     @functools.cached_property
     def hold_flag(self) -> xr.DataArray:
-        """Integer hold flags; computes on non-Dask inputs."""
+        """Telescope hold flags."""
         result = self.mapper.get_arr(self.data_source, self.mapper.schema.hold_flag)
         # The stored 'boolean' label is categorical, not a physical unit.
         return result.astype(int).u.unset()
 
 
 def open_lmt_tel(filepath: str | Path | FileLoc, **kwargs) -> xr.Dataset:
-    """Open telescope netCDF data lazily with the lmt_tel accessor registered.
+    """Open an LMT telescope netCDF file.
 
-    Additional arguments are passed to xarray.open_dataset. Use the returned
-    dataset as a context manager, or close it after loading the needed arrays.
-    The location must be local; remote files must be staged before opening.
-    A dataset without the telescope timestamp variable raises ValueError.
-    Identification does not read timestamp values or observation headers.
+    Parameters
+    ----------
+    filepath : str, pathlib.Path or FileLoc
+        Local telescope file. Remote files must be staged before opening.
+    **kwargs
+        Additional arguments passed to `xarray.open_dataset`.
+
+    Returns
+    -------
+    xarray.Dataset
+        Open dataset with the ``lmt_tel`` accessor. Use it as a context manager,
+        or close it after loading the required arrays.
+
+    Raises
+    ------
+    ValueError
+        If the location is remote or the dataset lacks telescope timestamps.
     """
     source = fileloc(filepath)
     if source.is_remote():

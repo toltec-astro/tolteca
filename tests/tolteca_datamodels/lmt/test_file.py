@@ -1,28 +1,30 @@
 """Literal filename segments and their derived acquisition identity."""
 
 from datetime import UTC, datetime
+from typing import assert_type
 
 import pytest
+from pydantic import ValidationError
 
-import tolteca_datamodels.file as file_module
-from tolteca_datamodels.file import (
-    FileIdentifier,
-    FilepathInfo,
-    guess_info_from_sources,
-)
-from tolteca_datamodels.toltec.file import RoachFilepathInfo
+import tolteca_datamodels._filepath as file_module
+from tolteca_datamodels.file import FilepathInfo
+from tolteca_datamodels.lmt import LmtFilepathInfo
+from tolteca_datamodels.lmt.types import LmtInfo
+from tolteca_datamodels.lmt_base.types import LabelT
+from tolteca_datamodels.toltec.file import ToltecFilepathInfo, guess_info_from_sources
+from tolteca_datamodels.toltec.types import ToltecDataKind
 
 
 @pytest.mark.parametrize(
     ("model", "filename", "expected"),
     [
         (
-            FilepathInfo,
+            LmtFilepathInfo,
             "tel_toltec_2025-10-31_145609_00_0002.nc",
             ("tel_toltec", "tel", "lmt", "tcs", "tcs"),
         ),
         (
-            RoachFilepathInfo,
+            ToltecFilepathInfo,
             "toltec8_145609_000_0002_2025_10_31_09_27_57.nc",
             ("toltec8", "toltec8", "toltec", "roach", None),
         ),
@@ -35,14 +37,14 @@ def test_identity_does_not_rewrite_filename_segments(
         row["FileName"].endswith(f"/{filename}")
         for row in [*lmtmc_records, *toltecdb_records]
     )
-    info = model.from_path(filename)
+    info = model.from_source(filename)
     assert info is not None
     assert (
         info.prefix,
         info.interface,
         info.instru,
         info.instru_component,
-        info.master_str,
+        info.master,
     ) == expected
     assert type(info.instru) is str
     assert type(info.instru_component) is str
@@ -54,64 +56,56 @@ def test_identity_does_not_rewrite_filename_segments(
     assert not model.model_computed_fields
 
 
-def test_copy_of_complete_record_preserves_identity():
-    original = FilepathInfo.from_path("tel_toltec_2025-10-31_145609_00_0002.nc")
-    assert original is not None
-    _ = original.model_dump()
-    replacement = RoachFilepathInfo.from_path(
-        "toltec8_145609_000_0002_2025_10_31_09_27_57.nc"
-    )
-    assert replacement is not None
-    copied = original.model_copy(update=replacement.model_dump(round_trip=True))
-    assert copied.interface == "toltec8"
-    assert copied.instru == "toltec"
-    assert copied.instru_component == "roach"
-    assert original.interface == "tel"
+def test_telescope_filepath_rejects_instrument_identity():
+    info = LmtFilepathInfo.from_source("tel_toltec_2025-10-31_145609_00_0002.nc")
+    assert info is not None
+    with pytest.raises(ValidationError, match="instru"):
+        LmtFilepathInfo.model_validate(info.model_dump() | {"instru": "toltec"})
 
 
 def test_base_parser_uses_declared_format():
-    info = FilepathInfo.from_path(
+    info = FilepathInfo.from_source(
         "/data_lmt/tel/tel_toltec_2025-10-31_145609_00_0002.nc"
     )
-    assert info is not None
+    assert type(info) is LmtFilepathInfo
+    assert_type(info.instru, LmtInfo.InstruT)
+    assert_type(info.instru_component, LabelT)
     assert info.prefix == "tel_toltec"
     assert info.ut == datetime(2025, 10, 31, tzinfo=UTC)
-    assert info.master_str == "tcs"
-    assert type(info) is FilepathInfo
+    assert info.master == "tcs"
     assert "roach" not in FilepathInfo.model_fields
-    assert FilepathInfo.from_path("unknown.nc", raise_on_error=False) is None
+    assert FilepathInfo.from_source("unknown.nc", raise_on_error=False) is None
     with pytest.raises(ValueError):
-        FilepathInfo.from_path(
+        FilepathInfo.from_source(
             "tel_toltec_2025-02-30_145609_00_0002.nc", raise_on_error=False
         )
 
 
-def test_processing_suffix_is_a_shared_record_field():
-    raw = FilepathInfo.from_path("tel_toltec_2025-10-31_145609_00_0002.nc")
-    assert raw is not None
-    assert raw.proc_suffix is None
-    assert "proc_suffix" in FilepathInfo.model_fields
-    assert "proc_suffix" not in RoachFilepathInfo.__annotations__
-    # Test the shared record's capability, not a telescope product-name grammar.
-    fields = raw.model_dump(round_trip=True)
-    fields["proc_suffix"] = "example_processing_tag"
-    processed = FilepathInfo.model_validate(fields)
-    assert processed.proc_suffix == "example_processing_tag"
-    assert (
-        FilepathInfo.model_validate_json(processed.model_dump_json(round_trip=True))
-        == processed
-    )
+def test_lmt_filepath_component_is_a_required_label(lmtmc_records):
+    info = LmtFilepathInfo.from_source(lmtmc_records[0]["FileName"])
+    assert info is not None
+    field = LmtFilepathInfo.model_fields["instru_component"]
+    assert field.annotation is LabelT
+    assert field.is_required()
+    with pytest.raises(ValidationError, match="instru_component"):
+        LmtFilepathInfo.model_validate(info.model_dump() | {"instru_component": None})
+
+
+def test_processing_suffix_belongs_to_toltec_filename_model():
+    assert "proc_suffix" not in FilepathInfo.model_fields
+    assert "proc_suffix" not in LmtFilepathInfo.model_fields
+    assert "proc_suffix" in ToltecFilepathInfo.__annotations__
 
 
 @pytest.mark.parametrize("directory", ["tel_toltec", "tel"])
 def test_misplaced_telescope_copy_does_not_change_master(directory):
     # Deliberately misplaced copy, not a telescope acquisition directory.
-    info = FilepathInfo.from_path(
+    info = FilepathInfo.from_source(
         f"/data_lmt/toltec/ics/{directory}/tel_toltec_2025-10-31_145609_00_0002.nc"
     )
-    assert info is not None
+    assert isinstance(info, LmtFilepathInfo)
     assert info.interface == "tel"
-    assert info.master_str == "tcs"
+    assert info.master == "tcs"
 
 
 @pytest.mark.parametrize(
@@ -119,7 +113,7 @@ def test_misplaced_telescope_copy_does_not_change_master(directory):
     [
         "toltec_145609_000_0002_2025_10_31_09_27_57.nc",
         "hk_145609_000_0002_2025_10_31_09_27_57.nc",
-        "tel_test_2025-10-31_145609_00_0002.nc",
+        "tel_test_2025-10-31_145609_00.nc",
         "toltec8_2025-10-31_145609_00_0002.nc",
         "tel_toltec_145609_000_0002_2025_10_31_09_27_57.nc",
         "toltec8_145609_000_0002.nc",
@@ -131,17 +125,27 @@ def test_misplaced_telescope_copy_does_not_change_master(directory):
 def test_malformed_acquisition_filenames_are_rejected(filename):
     # Deliberately invalid variants of recorded names, not acquisition examples.
     with pytest.raises(ValueError, match="Unrecognized acquisition filename"):
-        FilepathInfo.from_path(filename)
-    assert FilepathInfo.from_path(filename, raise_on_error=False) is None
+        FilepathInfo.from_source(filename)
+    assert FilepathInfo.from_source(filename, raise_on_error=False) is None
 
 
-def test_common_record_declarations_do_not_accept_readout_files():
+@pytest.mark.parametrize(
+    "prefix", ["tel_toltec", "tel_toltec2", "tel_dummy_instru", "tel_unregistered"]
+)
+def test_telescope_prefix_does_not_select_instrument(prefix):
+    # Dummy and unregistered labels exercise instrument-independent parsing.
+    info = LmtFilepathInfo.from_source(f"{prefix}_2025-10-31_145609_00_0002.nc")
+    assert type(info) is LmtFilepathInfo
+    assert info.prefix == prefix
+    assert (info.interface, info.instru, info.instru_component) == ("tel", "lmt", "tcs")
+    assert (info.obsnum, info.subobsnum, info.scannum) == (145609, 0, 2)
+
+
+def test_telescope_parser_does_not_accept_readout_files():
     name = "toltec8_145609_000_0002_2025_10_31_09_27_57.nc"
-    assert all(
-        pattern.match(name) is None
-        for pattern, parser in FileIdentifier.filename_pattern_parser.items()
-        if parser.filepath_info_cls is FilepathInfo
-    )
+    with pytest.raises(ValueError, match="does not identify LmtFilepathInfo"):
+        LmtFilepathInfo.from_source(name)
+    assert LmtFilepathInfo.from_source(name, raise_on_error=False) is None
 
 
 def test_telescope_prefix_and_interface_selection(monkeypatch):
@@ -153,19 +157,23 @@ def test_telescope_prefix_and_interface_selection(monkeypatch):
         ]
     )
     assert catalog["interface"].tolist() == ["tel", "tel", "toltec8"]
-    assert catalog["data_kind"].tolist() == ["LmtTel", "LmtTel", "VnaSweep"]
-    assert catalog.toltec_file.to_info_list()[1].file_prefix == "tel_toltec"
+    assert catalog["data_kind"].tolist() == [
+        ToltecDataKind.lmt_tel.value,
+        ToltecDataKind.lmt_tel.value,
+        ToltecDataKind.vnasweep.value,
+    ]
+    assert catalog["file_prefix"].iloc[1] == "tel_toltec"
 
     def unexpected(*args, **kwargs):
         pytest.fail("Selection recomputed per-row model identity")
 
-    monkeypatch.setattr(file_module.FileIdentifier, "parse_filepath", unexpected)
+    monkeypatch.setattr(file_module.FilepathInfo, "from_source", unexpected)
     for expression, indices in [
         ('interface == "tel"', [0, 1]),
         ('file_prefix == "tel_toltec" & obsnum == 145605', [1]),
-        ('filepath_info.prefix == "tel_toltec"', [0, 1]),
+        ('file_prefix == "tel_toltec"', [0, 1]),
         (
-            'filepath_info.instru == "lmt" & filepath_info.instru_component == "tcs"',
+            'file_instru == "lmt" & file_instru_component == "tcs"',
             [0, 1],
         ),
         ('file_instru == "toltec" & file_instru_component == "roach"', [2]),
