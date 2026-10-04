@@ -2,7 +2,7 @@
 
 Data views expose I/Q signals and their physical coordinates. Construct a view
 from a Dataset or a tree node containing data. ``data_source`` exposes the Dataset
-or current node's payload; ``_data_source`` retains the supplied container. Use
+or current node's payload. Use
 ``scope.kids.sweep`` or ``scope.kids.timestream`` to select data within a scope.
 A supplied mapper must describe the payload.
 """
@@ -38,30 +38,36 @@ def _validate_multi_channel(view: S21View) -> None:
 
 
 class KidsView[MapperT: Mapper](XarrayAccessorBase[MapperT]):
-    """Base class for KIDs data views.
+    """Base class for KIDs views over a Dataset payload.
 
-    The supplied Dataset or current tree node provides the payload. Subclasses
-    validate their required fields in ``_validate``.
+    Parameters
+    ----------
+    data_source : xarray.Dataset or xarray.DataTree
+        Dataset or tree node whose current payload supplies the fields.
+    mapper : Mapper, optional
+        Resolved field mappings for this payload. Omit to resolve default names.
 
     Type Parameters
     ---------------
     MapperT : Mapper
-        Type of mapper used for field resolution
+        Mapper type used for field resolution.
     """
 
 
 class S21View(KidsView[KidsMapper]):
-    """Base view providing common I/Q and S21 properties.
+    """I/Q transmission and amplitude, preserving lazy array operations.
 
-    All derived properties use standard arithmetic operations that are
-    compatible with both numpy arrays and dask arrays (lazy computation).
+    I and Q must describe the same samples with matching dimensions and
+    coordinates. Construction checks that both fields exist.
 
     Attributes
     ----------
-    mapper : KidsMapper
-        Field mapper for data access
-    data_source : xr.Dataset
-        Dataset containing the data
+    I, Q : xarray.DataArray
+        In-phase and quadrature samples.
+    S21 : xarray.DataArray
+        Complex transmission, ``I + 1j*Q``.
+    aS21, aS21_db : xarray.DataArray
+        Transmission magnitude and ``20*log10(abs(S21))``.
     """
 
     def _validate(self) -> None:
@@ -92,34 +98,25 @@ class S21View(KidsView[KidsMapper]):
 
     @property
     def aS21(self) -> xr.DataArray:
-        """Absolute value |S21|."""
+        """Absolute value ``abs(S21)``."""
         return xr.ufuncs.absolute(self.S21)
 
     @property
     def aS21_db(self) -> xr.DataArray:
-        """Amplitude |S21| in dB: 20*log10(|S21|)."""
+        """Amplitude ``abs(S21)`` in dB: 20*log10(``abs(S21)``)."""
         return 20 * xr.ufuncs.log10(self.aS21)
 
 
 class SweepView(S21View):
-    """Data view for single-channel frequency sweep.
+    """I/Q frequency sweep with one or more channels.
 
-    Provides access to I/Q data and derived S21 properties.
+    Requires I/Q fields and a frequency coordinate with frequency units.
+    Frequency ordering and sample alignment must be checked by the caller.
 
-    Properties
+    Attributes
     ----------
-    I : xr.DataArray
-        In-phase component (inherited)
-    Q : xr.DataArray
-        Quadrature component (inherited)
-    S21 : xr.DataArray
-        Complex transmission coefficient (inherited)
-    aS21 : xr.DataArray
-        Absolute value |S21| (inherited)
-    aS21_db : xr.DataArray
-        Amplitude in dB (inherited)
-    frequency : xr.DataArray
-        Frequency coordinate
+    frequency : xarray.DataArray
+        Physical frequency coordinate for the I/Q samples.
     """
 
     def _validate(self) -> None:
@@ -145,15 +142,12 @@ class SweepView(S21View):
 
 
 class MultiSweepView(SweepView):
-    """Data view for multi-channel frequency sweep.
+    """Two-dimensional frequency sweep with a mapped channel axis.
 
-    Extends SweepView with channel count property.
-    Inherits: I, Q, S21, aS21, aS21_db, frequency
-
-    Additional Properties
-    ---------------------
+    Attributes
+    ----------
     n_chans : int
-        Number of channels
+        Number of channels. Transmission and frequency properties are inherited.
     """
 
     def _validate(self) -> None:
@@ -174,25 +168,16 @@ class MultiSweepView(SweepView):
 
 
 class TimestreamView(S21View):
-    """Data view for single-channel timestream data.
+    """I/Q timestream with one or more channels and a recorded rate.
 
-    Provides access to I/Q data and derived S21. Time is one-dimensional and
-    labels the sample dimension, shared by all channels in multi-channel data.
+    Requires a one-dimensional time coordinate with time units that labels an
+    axis of both I and Q. The view does not evaluate timestamps or check sample
+    continuity; callers must supply complete, uniformly sampled input for PSD.
 
-    Properties
+    Attributes
     ----------
-    I : xr.DataArray
-        In-phase component (inherited)
-    Q : xr.DataArray
-        Quadrature component (inherited)
-    S21 : xr.DataArray
-        Complex transmission coefficient (inherited)
-    aS21 : xr.DataArray
-        Absolute value |S21| (inherited)
-    aS21_db : xr.DataArray
-        Amplitude in dB (inherited)
-    time : xr.DataArray
-        One-dimensional time coordinate on the shared sample dimension
+    time : xarray.DataArray
+        Shared time coordinate on the sample dimension.
     f_smp : astropy.units.Quantity
         Recorded sampling frequency, returned in Hz.
     """
@@ -231,15 +216,12 @@ class TimestreamView(S21View):
 
 
 class MultiTimestreamView(TimestreamView):
-    """Data view for multi-channel timestream data.
+    """Two-dimensional timestream with a mapped channel axis.
 
-    Extends TimestreamView with channel count property.
-    Inherits: I, Q, S21, aS21, aS21_db, time
-
-    Additional Properties
-    ---------------------
+    Attributes
+    ----------
     n_chans : int
-        Number of channels
+        Number of channels. Transmission, time, and rate properties are inherited.
     """
 
     def _validate(self) -> None:

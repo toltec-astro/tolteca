@@ -7,7 +7,7 @@ Key Features
 - Gradient and Savitzky-Golay derivative estimators (``method``).
 - Optional smoothing (``smooth``).
 - Single-channel and multi-channel sweep inputs.
-- Channel averaging of |D21| on a unified frequency grid.
+- Channel averaging of ``abs(D21)`` on a unified frequency grid.
 - Edge exclusion (``exclude_edge``) and grid selection
   (``f_lims``, ``f_step``, ``resample``).
 
@@ -128,7 +128,7 @@ Notes
 - Both derivative methods evaluate input arrays eagerly. Sweep samples occupy
   the last axis; channels, when present, precede it.
 - Matched D21 is complex dS21/df on the measured grid. Unified D21 is the real
-  mean of interpolated |D21| across channels, with zero in uncovered bins.
+  mean of interpolated ``abs(D21)`` across channels, with zero in uncovered bins.
   Both results have units of inverse Hz.
 - Multi-channel sweeps must share frequency offsets. Gradient uses the first
   channel's frequency grid; Savitzky-Golay uses its first frequency interval
@@ -234,13 +234,13 @@ class D21Analysis(Analysis[D21Mapper]):
     Parameters
     ----------
     f_lims : tuple of frequency quantities, optional
-        Bounds of the unified grid. Defaults to the measured frequency range;
+        Finite increasing bounds of the unified grid. Defaults to the measured range;
         the upper bound is excluded from the generated grid.
     f_step : frequency quantity, optional
-        Unified grid spacing. Defaults to the first channel's sample spacing
+        Positive finite unified grid spacing. Defaults to the first channel's spacing
         divided by ``resample``.
     resample : int, default 1
-        Sampling factor used when ``f_step`` is not supplied.
+        Positive sampling factor used when ``f_step`` is not supplied.
     exclude_edge : int, optional
         Samples excluded from each channel edge during unified interpolation.
         Defaults to ``smooth``; zero disables exclusion.
@@ -354,7 +354,10 @@ class D21Analysis(Analysis[D21Mapper]):
         Parameters
         ----------
         sweep_view : SweepView or MultiSweepView
-            Validated sweep supplying transmission and physical frequency.
+            Sweep supplying transmission and physical frequency.
+            Samples occupy the last axis with increasing frequencies. Channels
+            share sample spacing; Savitzky-Golay requires a uniform grid.
+            The caller must check these sampling requirements.
         output : xarray.DataTree, optional
             Tree in which to install the analysis namespace. Omit to prepare a
             standalone scope with the view's source stored at ``_input``.
@@ -455,7 +458,8 @@ class D21Analysis(Analysis[D21Mapper]):
         -------
         xarray.DataArray
             Eager complex derivative with the dimensions and coordinates of ``S21``.
-            Units are recorded as ``Hz^-1``. Attributes include the serialized
+            Units are recorded as ``Hz^-1``; input signal units are not propagated.
+            Attributes include the serialized
             analysis configuration.
         """
         if mapper is None:

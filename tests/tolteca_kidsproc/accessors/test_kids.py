@@ -639,7 +639,6 @@ class TestIntegration:
         sweep = sweep_dataset_1d.kids.sweep
 
         # Get complex S21
-        s21 = sweep.S21
 
         # Find resonance (minimum |S21|)
         as21 = sweep.aS21

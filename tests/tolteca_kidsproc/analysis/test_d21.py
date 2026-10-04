@@ -25,7 +25,9 @@ from tolteca_kidsproc.accessors.views import SweepView
 from tolteca_kidsproc.analysis.d21 import D21Analysis, D21Mapper, D21View
 
 
-@pytest.mark.parametrize("kind", ["dataset", "array", "tree", "timestream"])
+@pytest.mark.parametrize(
+    "kind", ["dataset", "empty_dataset", "array", "tree", "timestream"]
+)
 def test_rejects_non_sweep_inputs_before_reuse(simple_sweep, kind):
     analysis = D21Analysis()
     output = analysis(simple_sweep.kids.sweep)
@@ -35,13 +37,26 @@ def test_rejects_non_sweep_inputs_before_reuse(simple_sweep, kind):
     ).kids.timestream
     invalid = {
         "dataset": simple_sweep,
+        "empty_dataset": xr.Dataset(),
         "array": simple_sweep.I,
         "tree": output,
         "timestream": timestream,
     }[kind]
     with pytest.raises(TypeError, match="requires a sweep view"):
-        analysis(invalid, output=output)
+        analysis(invalid, output=output)  # ty: ignore[invalid-argument-type] -- Runtime rejection.
     xr.testing.assert_identical(output, before)
+
+
+@pytest.mark.parametrize("destination", ["dataset", "parent_without_output"])
+def test_rejects_invalid_destination(simple_sweep, destination):
+    """Result destinations must be trees and parent selection needs a tree."""
+    analysis = D21Analysis()
+    if destination == "dataset":
+        with pytest.raises(TypeError, match="output must be a DataTree"):
+            analysis(simple_sweep.kids.sweep, output=xr.Dataset())  # ty: ignore[invalid-argument-type] -- Runtime rejection.
+    else:
+        with pytest.raises(TypeError, match="requires an output tree"):
+            analysis(simple_sweep.kids.sweep, parent_namespace="scan")
 
 
 def test_input_view_preserves_custom_field_mapping(simple_sweep):
@@ -81,13 +96,16 @@ def test_schema_paths_control_tree_analysis(monkeypatch, multi_channel_sweep):
         parent_namespace="measurement",
     )
     scope = result["measurement"]
+    assert isinstance(scope, xr.DataTree)
+    namespace = scope["diagnostics/derivative"]
+    assert isinstance(namespace, xr.DataTree)
     assert "d21" not in scope.children
     assert analysis(scope["arrays"].kids.sweep, output=scope) is scope
     assert result is tree
     expected = analysis(multi_channel_sweep.copy(deep=False).kids.sweep).kids.d21
     for view in (
         scope.kids.d21,
-        D21View.from_namespace(scope["diagnostics/derivative"]),
+        D21View.from_namespace(namespace),
         D21View.from_namespace(scope.kids.d21.data_source),
         scope.copy(deep=False).kids.d21,
     ):
@@ -221,10 +239,11 @@ class TestD21AnalysisConfig:
         with pytest.raises(ValueError, match="exclude_edge cannot be negative"):
             D21Analysis(exclude_edge=-1)
 
-    def test_savgol_requires_minimum_smooth(self):
+    @pytest.mark.parametrize("smooth", [1, 2])
+    def test_savgol_requires_minimum_smooth(self, smooth):
         """Savgol method requires smooth >= 3."""
         with pytest.raises(ValueError, match="savgol requires smooth >= 3"):
-            d21_analysis = D21Analysis(method="savgol", smooth=2)
+            D21Analysis(method="savgol", smooth=smooth)
 
     def test_no_smooth_requires_gradient(self):
         """Zero smooth only works with gradient method."""
@@ -266,69 +285,32 @@ class TestD21AnalysisConfig:
 class TestD21Matched:
     """Test matched D21 computation on original frequency grid."""
 
-    def test_gradient_method_simple(self, simple_sweep):
-        """Gradient method computes D21 with correct shape."""
-        d21_analysis = D21Analysis(method="gradient", smooth=5)
-        d21 = d21_analysis.make_matched(simple_sweep.kids.sweep)
-
-        # Check output structure
-        assert isinstance(d21, xr.DataArray)
-        assert d21.shape == (101,)
-        assert d21.dtype == np.complex128
-
-        # Check coordinates match input
-        assert "sweep" in d21.dims
-        np.testing.assert_array_equal(
-            d21.coords["frequency"],
-            simple_sweep.coords["frequency"],
+    @pytest.mark.parametrize("method", ["gradient", "savgol"])
+    @pytest.mark.parametrize("fixture_name", ["simple_sweep", "multi_channel_sweep"])
+    def test_matched_output_contract(self, request, method, fixture_name):
+        """Both estimators retain signal coordinates, shape, and derivative units."""
+        source = request.getfixturevalue(fixture_name)
+        derivative = D21Analysis(method=method, smooth=5).make_matched(
+            source.kids.sweep
         )
+        assert derivative.dims == source.I.dims
+        assert derivative.shape == source.I.shape
+        assert np.iscomplexobj(derivative.values)
+        xr.testing.assert_identical(derivative.frequency, source.frequency)
+        assert derivative.attrs["units"] == "Hz^-1"
 
-        # Check attributes
-        assert "long_name" in d21.attrs
-        assert d21.attrs["units"] == "Hz^-1"
-
-    def test_savgol_method_simple(self, simple_sweep):
-        """Savitzky-Golay method computes D21 with correct shape."""
-        d21_analysis = D21Analysis(method="savgol", smooth=7)
-        d21 = d21_analysis.make_matched(simple_sweep.kids.sweep)
-
-        # Check output structure
-        assert isinstance(d21, xr.DataArray)
-        assert d21.shape == (101,)
-        assert d21.dtype == np.complex128
-
-    def test_gradient_no_smooth(self, simple_sweep):
-        """Gradient method works without smoothing."""
-        d21_analysis = D21Analysis(method="gradient", smooth=0)
-        d21 = d21_analysis.make_matched(simple_sweep.kids.sweep)
-
-        assert isinstance(d21, xr.DataArray)
-        assert d21.shape == (101,)
-
-    def test_multi_channel_gradient(self, multi_channel_sweep):
-        """Gradient method works on multi-channel data."""
-        d21_analysis = D21Analysis(method="gradient", smooth=5)
-        d21 = d21_analysis.make_matched(multi_channel_sweep.kids.multi_sweep)
-
-        # Check shape matches input
-        assert d21.shape == (10, 101)
-        assert "chan" in d21.dims
-        assert "sweep" in d21.dims
-
-    def test_multi_channel_savgol(self, multi_channel_sweep):
-        """Savgol method works on multi-channel data."""
-        d21_analysis = D21Analysis(method="savgol", smooth=7)
-        d21 = d21_analysis.make_matched(multi_channel_sweep.kids.multi_sweep)
-
-        # Check shape matches input
-        assert d21.shape == (10, 101)
-
-    def test_d21_is_complex(self, simple_sweep):
-        """D21 result is complex-valued."""
-        d21_analysis = D21Analysis(method="gradient", smooth=5)
-        d21 = d21_analysis.make_matched(simple_sweep.kids.sweep)
-
-        assert np.iscomplexobj(d21.values)
+    @pytest.mark.parametrize("method", ["gradient", "savgol"])
+    def test_derivative_of_quadratic_in_physical_units(self, method):
+        """A known complex polynomial fixes derivative sign, scale, and Hz units."""
+        x = np.linspace(-2, 2, 101)
+        frequency = (1000 + x) * u.MHz
+        signal = 2 * x**2 + 3j * x
+        source = make_kids_dataset(signal.real, signal.imag, frequency=frequency)
+        analysis = D21Analysis(method=method, smooth=0 if method == "gradient" else 7)
+        derivative = analysis.make_matched(source.kids.sweep)
+        expected = (4 * x + 3j) / 1e6
+        # The gradient uses one-sided differences at the two endpoints.
+        np.testing.assert_allclose(derivative[1:-1], expected[1:-1], rtol=1e-10)
 
     def test_d21_peak_at_resonance(self, simple_sweep):
         """D21 magnitude peaks near resonance frequency."""
@@ -341,18 +323,6 @@ class TestD21Matched:
 
         # Should be near 1.05 GHz (resonance)
         assert 1.04e9 < peak_freq < 1.06e9
-
-    def test_gradient_vs_savgol_similar(self, simple_sweep):
-        """Gradient and savgol methods produce similar results."""
-        d21_analysis_grad = D21Analysis(method="gradient", smooth=7)
-        d21_analysis_sav = D21Analysis(method="savgol", smooth=7)
-
-        d21_grad = d21_analysis_grad.make_matched(simple_sweep.kids.sweep)
-        d21_sav = d21_analysis_sav.make_matched(simple_sweep.kids.sweep)
-
-        # Should be similar (correlation > 0.9)
-        corr = np.corrcoef(np.abs(d21_grad.values), np.abs(d21_sav.values))[0, 1]
-        assert corr > 0.9
 
     def test_analysis_config_stored_in_attrs(self, simple_sweep):
         """Analysis configuration is stored in result attributes."""
@@ -544,64 +514,43 @@ class TestD21HighLevelAPI:
         )
         assert loaded == d21_analysis
 
-    def test_call_caching_skips_recomputation(self, simple_sweep):
-        """Second call with same config skips recomputation."""
-        d21_analysis = D21Analysis(method="gradient", smooth=5)
+    @pytest.mark.parametrize("change", ["none", "input", "configuration"])
+    def test_result_reuse_and_recomputation(self, simple_sweep, monkeypatch, change):
+        """Reuse skips computation; force and changed settings compute new results."""
+        calls = 0
+        make_matched = D21Analysis.make_matched
 
-        # First call computes
-        ds1 = d21_analysis(simple_sweep.kids.sweep)
+        def counted(analysis, *args, **kwargs):
+            nonlocal calls
+            calls += 1
+            return make_matched(analysis, *args, **kwargs)
 
-        # Get D21 values
-        mapper = D21Mapper.from_namespace(ds1.kids.d21.data_source)
-        d21_1 = ds1.kids.d21.d21
+        monkeypatch.setattr(D21Analysis, "make_matched", counted)
+        analysis = D21Analysis(method="gradient", smooth=5)
+        result = analysis(simple_sweep.kids.sweep)
+        before = result.kids.d21
+        input_data = simple_sweep.copy(deep=True)
+        if change == "input":
+            input_data["I"] *= 2
+            input_data["Q"] *= 2
+        elif change == "configuration":
+            analysis = D21Analysis(method="gradient", smooth=7)
 
-        # Second call should return same dataset (cached)
-        ds2 = d21_analysis(ds1["_input"].kids.sweep, output=ds1)
-
-        d21_2 = ds2.kids.d21.d21
-
-        # Should be equal (cached data)
-        assert np.array_equal(d21_1.values, d21_2.values)
-
-    def test_call_force_recomputes(self, simple_sweep):
-        """force=True recomputes even if cached."""
-        d21_analysis = D21Analysis(method="gradient", smooth=5)
-
-        # First call computes
-        ds1 = d21_analysis(simple_sweep.kids.sweep)
-
-        before = ds1.kids.d21.d21
-        # Force recomputation
-        ds2 = d21_analysis(ds1["_input"].kids.sweep, output=ds1, force=True)
-
-        # Should have new values (not same object)
-        mapper = D21Mapper.from_namespace(ds1.kids.d21.data_source)
-        d21_1 = ds1.kids.d21.d21
-        d21_2 = ds2.kids.d21.d21
-
-        assert before is not d21_2
-
-    def test_call_different_config_recomputes(self, simple_sweep):
-        """Calling with different config recomputes."""
-        d21_analysis1 = D21Analysis(method="gradient", smooth=5)
-        d21_analysis2 = D21Analysis(method="gradient", smooth=7)
-
-        # First call
-        ds1 = d21_analysis1(simple_sweep.kids.sweep)
-
-        # Different config should recompute
-        ds2 = d21_analysis2(ds1["_input"].kids.sweep, output=ds1)
-
-        # Should have different values (different smooth parameters)
-        mapper = D21Mapper.from_namespace(ds1.kids.d21.data_source)
-        d21_1 = ds1.kids.d21.d21
-        d21_2 = ds2.kids.d21.d21
-
-        # Different smoothing should produce different results
-        # But both should be valid complex arrays
-        assert d21_1.shape == d21_2.shape
-        assert np.iscomplexobj(d21_1.values)
-        assert np.iscomplexobj(d21_2.values)
+        returned = analysis(
+            input_data.kids.sweep, output=result, force=change == "input"
+        )
+        after = result.kids.d21
+        assert returned is result
+        assert calls == (1 if change == "none" else 2)
+        assert after.d21_analysis == analysis
+        if change == "none":
+            assert after.data_source is before.data_source
+        else:
+            assert after.data_source is not before.data_source
+            if change == "input":
+                np.testing.assert_allclose(after.d21, 2 * before.d21)
+            else:
+                assert not np.array_equal(after.d21.values, before.d21.values)
 
 
 # ============================================================================
@@ -647,7 +596,6 @@ class TestD21SchemaMapper:
         d21_analysis = D21Analysis(method="gradient", smooth=5)
         ds = d21_analysis(simple_sweep.kids.sweep)
 
-        mapper = D21Mapper.from_namespace(ds.kids.d21.data_source)
         d21 = ds.kids.d21.d21
 
         assert isinstance(d21, xr.DataArray)
@@ -749,26 +697,7 @@ class TestEdgeCases:
         from pydantic_core import ValidationError
 
         with pytest.raises(ValidationError, match="literal_error"):
-            D21Analysis(method="invalid")  # type: ignore[arg-type]
-
-    def test_empty_dataset_raises_error(self):
-        """Empty dataset raises appropriate error."""
-        d21_analysis = D21Analysis(method="gradient", smooth=5)
-        empty_ds = xr.Dataset()
-
-        with pytest.raises(TypeError, match="sweep view"):
-            d21_analysis(empty_ds)
-
-    def test_mismatched_dimensions(self, rng):
-        """Mismatched I/Q dimensions raise error."""
-        # xarray catches dimension mismatch at Dataset creation
-        with pytest.raises(ValueError, match="conflicting sizes"):
-            ds = xr.Dataset(
-                {
-                    "I": (["sweep"], rng.standard_normal(101)),
-                    "Q": (["sweep"], rng.standard_normal(50)),  # Different size
-                },
-            )
+            D21Analysis.model_validate({"method": "invalid"})
 
     def test_single_point_sweep(self):
         """Single-point sweep is invalid."""
@@ -784,13 +713,6 @@ class TestEdgeCases:
 
         with pytest.raises((ValueError, IndexError)):
             d21_analysis.make_matched(ds.kids.sweep)
-
-    def test_very_small_smooth_window(self, simple_sweep):
-        """Very small smooth window (< 3) fails for savgol."""
-        from pydantic_core import ValidationError
-
-        with pytest.raises(ValidationError, match="savgol requires smooth"):
-            D21Analysis(method="savgol", smooth=1)
 
 
 # ============================================================================
@@ -810,7 +732,6 @@ class TestIntegration:
         ds = d21_analysis(simple_sweep.kids.sweep)
 
         # Access results via mapper
-        mapper = D21Mapper.from_namespace(ds.kids.d21.data_source)
         d21_matched = ds.kids.d21.d21
         d21_unified = ds.kids.d21.d21_unified
 
@@ -858,22 +779,6 @@ class TestIntegration:
         cov = view.cov_unified
         assert cov.max() <= 10  # <= number of channels
         assert cov.sum() > 0  # Some overlap
-
-    def test_gradient_and_savgol_consistency(self, simple_sweep):
-        """Gradient and savgol methods produce consistent results."""
-        d21_analysis_grad = D21Analysis(method="gradient", smooth=7)
-        d21_analysis_sav = D21Analysis(method="savgol", smooth=7)
-
-        ds_grad = d21_analysis_grad(simple_sweep.kids.sweep)
-        ds_sav = d21_analysis_sav(simple_sweep.kids.sweep)
-
-        mapper = D21Mapper.from_namespace(ds_grad.kids.d21.data_source)
-        d21_grad = ds_grad.kids.d21.d21
-        d21_sav = ds_sav.kids.d21.d21
-
-        # Absolute values should be highly correlated
-        corr = np.corrcoef(np.abs(d21_grad.values), np.abs(d21_sav.values))[0, 1]
-        assert corr > 0.85
 
     def test_caching_with_multiple_configs(self, simple_sweep):
         """Multiple configs don't interfere with caching."""
@@ -944,14 +849,6 @@ def test_tree_boundary_preserves_science_and_replaces_frequency_grid(
     with xr.open_datatree(target, engine="zarr") as reopened:
         xr.testing.assert_identical(reopened.kids.d21.d21, view.d21)
         assert reopened.kids.d21.d21_analysis == analysis
-
-
-def test_d21_module_workflow_examples():
-    import doctest
-
-    from tolteca_kidsproc.analysis import d21
-
-    assert doctest.testmod(d21, raise_on_error=True).attempted > 0
 
 
 def test_namespace_owns_config_and_two_independent_outputs(simple_sweep, tmp_path):

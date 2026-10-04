@@ -221,7 +221,7 @@ def test_low_level_sampling_frequency_is_required_and_has_frequency_units():
     source = xr.DataArray(np.arange(64.0), dims="time", attrs={"f_smp": 100})
     analysis = PSDAnalysis(nperseg=16)
     with pytest.raises(TypeError, match="f_smp"):
-        analysis.make_psd(source)
+        analysis.make_psd(source)  # ty: ignore[missing-argument] -- Required at runtime.
     with pytest.raises(u.UnitConversionError):
         analysis.make_psd(source, f_smp=100 << u.s)
 
@@ -264,7 +264,7 @@ def test_high_level_requires_a_timestream_view(input_kind):
     else:
         supplied = AccessorBase(source, mapper=XarrayMapper.from_data_source(source))
     with pytest.raises(TypeError, match="requires a timestream view"):
-        PSDAnalysis()(supplied)
+        PSDAnalysis()(supplied)  # ty: ignore[invalid-argument-type] -- Runtime rejection.
 
 
 @pytest.mark.parametrize("payload_node", [False, True])
@@ -299,6 +299,7 @@ def test_timestream_facet_requires_explicit_output_to_modify_its_block():
     )
     tree = xr.DataTree.from_dict({"blocks/0/timestream": source})
     block = tree["blocks/0"]
+    assert isinstance(block, xr.DataTree)
     input_node = block["timestream"]
     facet = block.kids.timestream
     analysis = PSDAnalysis(nperseg=16)
@@ -323,7 +324,7 @@ def test_explicit_output_failure_preserves_existing_tree():
         PSDAnalysis()(source.kids.timestream, output=output)
     xr.testing.assert_identical(output, before)
     with pytest.raises(TypeError, match="output must be a DataTree"):
-        PSDAnalysis()(source.kids.timestream, output=xr.Dataset())
+        PSDAnalysis()(source.kids.timestream, output=xr.Dataset())  # ty: ignore[invalid-argument-type] -- Runtime rejection.
     with pytest.raises(TypeError, match="requires an output tree"):
         PSDAnalysis()(source.kids.timestream, parent_namespace="block")
 
@@ -470,6 +471,7 @@ def test_subtree_independence_and_export(tmp_path):
     )
     untouched = tree["elsewhere"].copy(deep=False)
     scope = tree["instrument"]
+    assert isinstance(scope, xr.DataTree)
     analysis = PSDAnalysis(nperseg=16)
     result = analysis(scope.kids.timestream, output=tree, parent_namespace="instrument")
     assert result is tree
@@ -547,7 +549,7 @@ def test_high_level_numerical_requirements(problem, message):
     else:
         source["I"] = source.I.astype(str)
     with pytest.raises(ValueError, match=message):
-        PSDAnalysis(**settings)(source.kids.timestream)
+        PSDAnalysis.model_validate(settings)(source.kids.timestream)
 
 
 def test_view_respects_explicit_field_mapping():
@@ -597,6 +599,7 @@ def test_schema_paths_control_writing_reading_and_detached_export(
     analysis = PSDAnalysis(nperseg=16)
     tree = xr.DataTree.from_dict({"measurement/arrays": source})
     scope = tree["measurement"]
+    assert isinstance(scope, xr.DataTree)
     assert (
         analysis(scope.kids.timestream, output=tree, parent_namespace="measurement")
         is tree
@@ -604,9 +607,11 @@ def test_schema_paths_control_writing_reading_and_detached_export(
     assert "psd" not in scope.children
     assert analysis(scope.kids.timestream, output=scope) is scope
     expected = analysis(source.kids.timestream).kids.psd.psd
+    namespace = scope["diagnostics/spectrum"]
+    assert isinstance(namespace, xr.DataTree)
     for view in (
         scope.kids.psd,
-        PSDView.from_namespace(scope["diagnostics/spectrum"]),
+        PSDView.from_namespace(namespace),
         PSDView.from_namespace(scope.kids.psd.data_source),
         scope.copy(deep=False).kids.psd,
     ):
@@ -660,15 +665,6 @@ def test_view_requires_analysis_results(missing):
         result["psd"].dataset = result["psd"].to_dataset().drop_vars(["I_psd", "Q_psd"])
     with pytest.raises(ValueError):
         PSDView.from_namespace(result)
-
-
-def test_module_workflow_examples():
-    import doctest
-
-    from tolteca_kidsproc.analysis import psd
-
-    result = doctest.testmod(psd, raise_on_error=True)
-    assert result.attempted > 0
 
 
 def test_exported_input_view_supports_recomputation(tmp_path):

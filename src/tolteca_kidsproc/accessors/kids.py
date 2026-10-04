@@ -282,7 +282,7 @@ class KidsAccessor(AccessorBase[XarraySourceT, KidsMapper]):
 
     @functools.cached_property
     def sweep(self) -> SweepView:
-        """Single-channel I/Q sweep view with a frequency coordinate."""
+        """I/Q sweep view with a frequency coordinate."""
         from .views import SweepView  # noqa: PLC0415
 
         return self._make_view_from_mapped_source(
@@ -298,7 +298,7 @@ class KidsAccessor(AccessorBase[XarraySourceT, KidsMapper]):
 
     @functools.cached_property
     def timestream(self) -> TimestreamView:
-        """Single-channel I/Q timestream view with a time coordinate."""
+        """I/Q timestream view with a shared time coordinate."""
         from .views import TimestreamView  # noqa: PLC0415
 
         return self._make_view_from_mapped_source(

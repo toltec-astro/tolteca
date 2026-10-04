@@ -1,14 +1,12 @@
-"""Generic KIDs data processing utilities.
+"""I/Q views, sweep derivatives, and timestream spectra for KIDs data.
 
-Provides reference implementations of schema and mapper classes for
-KIDs sweep and timestream data using tollan's accessor framework.
-
-Also provides xarray accessor registration for convenient dataset access.
+Import this package to register the ``kids`` accessor on xarray Datasets and
+DataTrees. Use ``accessors.make_kids_dataset`` to construct inputs and the
+``analysis`` package to compute D21 or PSD results.
 """
 
 from __future__ import annotations
 
-# Export reference schema and mapper implementations
 from .accessors.kids import (
     KidsAccessor,
     KidsMapper,

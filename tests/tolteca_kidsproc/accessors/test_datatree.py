@@ -5,9 +5,7 @@ Tests cover:
 - kids accessor availability on DataTree
 - Sweep data access via DataTree (parity with Dataset)
 - DataTree save/load round-trip for sweep data
-- D21Analysis high-level API: ds.kids.d21 accessor after analyzer(ds.kids.sweep)
-- D21View on a detached analysis namespace
-- D21View auto-resolution to hierarchical child node
+- Analysis hierarchy and producing configuration preserved by NetCDF
 - Metadata attributes preserved through DataTree save/load
 """
 
@@ -16,7 +14,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-import pytest
 import xarray as xr
 from astropy import units as u
 
@@ -24,7 +21,7 @@ from tolteca_kidsproc.accessors.dataset import (
     make_kids_dataset,
     open_datatree,
 )
-from tolteca_kidsproc.analysis.d21 import D21Analysis, D21Mapper, D21View
+from tolteca_kidsproc.analysis.d21 import D21Analysis, D21Mapper
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -61,10 +58,9 @@ class TestDataTreeOpenAndAccess:
         filepath = tmp_path / "test.nc"
         dt.to_netcdf(filepath)
 
-        result = open_datatree(filepath)
-
-        assert isinstance(result, xr.DataTree)
-        assert hasattr(result, "kids")
+        with open_datatree(filepath) as result:
+            assert isinstance(result, xr.DataTree)
+            assert hasattr(result, "kids")
 
     def test_datatree_sweep_accessor_available(self) -> None:
         """DataTree kids accessor exposes the sweep view."""
@@ -91,76 +87,18 @@ class TestDataTreeOpenAndAccess:
         filepath = tmp_path / "sweep.nc"
         dt.to_netcdf(filepath)
 
-        dt_loaded = open_datatree(filepath)
-
-        assert isinstance(dt_loaded, xr.DataTree)
-        assert dt_loaded.kids.sweep.S21 is not None
-        np.testing.assert_allclose(
-            dt_loaded.kids.sweep.S21.values,
-            ds.kids.sweep.S21.values,
-        )
+        with open_datatree(filepath) as dt_loaded:
+            assert isinstance(dt_loaded, xr.DataTree)
+            assert dt_loaded.kids.sweep.S21 is not None
+            np.testing.assert_allclose(
+                dt_loaded.kids.sweep.S21.values,
+                ds.kids.sweep.S21.values,
+            )
 
 
 # ============================================================================
-# TestDataTreeD21Integration
+# Analysis scope/view contracts live in analysis/test_d21.py and test_scope_views.py
 # ============================================================================
-
-
-class TestDataTreeD21Integration:
-    """Test D21 analysis integration via the DataTree + kids.d21 accessor."""
-
-    def test_d21_call_api_produces_accessible_results(self) -> None:
-        """D21Analysis.__call__ stores results accessible via ds.kids.d21."""
-        ds = _make_lorentzian_sweep()
-        analyzer = D21Analysis(method="gradient", smooth=5)
-        ds_with_d21 = analyzer(ds.kids.sweep)
-
-        # High-level accessor API
-        assert ds_with_d21.kids.d21.d21 is not None
-        assert ds_with_d21.kids.d21.d21_unified is not None
-
-    def test_d21_view_config_matches_analyzer(self) -> None:
-        """D21View.d21_analysis reflects the analyzer configuration."""
-        ds = _make_lorentzian_sweep()
-        analyzer = D21Analysis(method="gradient", smooth=5)
-        ds_with_d21 = analyzer(ds.kids.sweep)
-
-        config = ds_with_d21.kids.d21.d21_analysis
-
-        assert config.method == "gradient"
-        assert config.smooth == 5
-
-    def test_d21_view_on_detached_namespace(self) -> None:
-        """D21View represents the supplied detached analysis namespace."""
-        ds = _make_lorentzian_sweep()
-        ds_with_d21 = D21Analysis(method="gradient", smooth=5)(ds.kids.sweep)
-        # A detached namespace retains its configuration and both output leaves.
-        dt = ds_with_d21.kids.d21.data_source.copy(deep=False)
-
-        mapper = D21Mapper.from_namespace(dt)
-        assert mapper.namespace_path == "."
-        assert D21View.from_namespace(dt).d21 is not None
-        assert D21View.from_namespace(dt).d21_unified is not None
-
-    def test_d21_view_on_hierarchical_datatree_resolves_child(self) -> None:
-        """D21View auto-resolves to the child node in a hierarchical DataTree."""
-        ds = _make_lorentzian_sweep()
-        analyzer = D21Analysis(method="gradient", smooth=5)
-        ds_with_d21 = analyzer(ds.kids.sweep)
-
-        mapper = D21Mapper.from_data_source(ds_with_d21)
-        result_node = mapper.get_namespace(ds_with_d21)
-        assert D21View.from_namespace(result_node).d21 is not None
-        assert D21View.from_namespace(result_node).d21_unified is not None
-        assert ds_with_d21["_input"].kids.sweep.S21 is not None
-
-    def test_d21_view_raises_when_no_analysis_present(self) -> None:
-        """D21View raises KeyError when its namespace is absent."""
-        ds = _make_lorentzian_sweep()
-        dt = xr.DataTree(ds)
-
-        with pytest.raises(KeyError, match="tolteca_kidsproc.analysis.d21"):
-            _ = dt.kids.d21.d21
 
 
 # ============================================================================
@@ -180,10 +118,9 @@ class TestDataTreeMetadata:
         dt = xr.DataTree(ds)
         filepath = tmp_path / "metadata.nc"
         dt.to_netcdf(filepath)
-        dt_loaded = open_datatree(filepath)
-
-        assert dt_loaded.ds.attrs["obs_num"] == 42
-        assert dt_loaded.ds.attrs["array"] == "a1100"
+        with open_datatree(filepath) as dt_loaded:
+            assert dt_loaded.ds.attrs["obs_num"] == 42
+            assert dt_loaded.ds.attrs["array"] == "a1100"
 
     def test_hierarchical_child_structure_survives_save_load(
         self,
@@ -198,7 +135,10 @@ class TestDataTreeMetadata:
         data_path = "_input"
         expected = dt.kids.d21.d21_unified
         # Export the real-valued output; configuration stays on its namespace.
-        del dt[result_path][mapper.get_name(mapper.schema.d21_subpath)]
+        namespace = mapper.get_namespace(dt)
+        matched_path = mapper.get_name(mapper.schema.d21_subpath)
+        assert isinstance(matched_path, str)
+        del namespace[matched_path]
         dt[
             f"{result_path}/{mapper.get_name(mapper.schema.d21_unified_subpath)}"
         ].dataset = expected.to_dataset()

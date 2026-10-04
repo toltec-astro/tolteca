@@ -16,6 +16,7 @@ rebuild-lockfiles:
 qa:
     uv run pre-commit run --all-files
     uv run coverage run -m pytest
+    just doc-test
 
 # Run tests with coverage
 coverage:
@@ -53,7 +54,13 @@ clean:
 
 # Build the docs
 doc-build:
-    uv run --group docs sphinx-build -M html docs docs/_build -T
+    rm -rf docs/api
+    uv run --group docs sphinx-build -M html docs docs/_build -E -a -n -W --keep-going -T
+
+# Execute guide examples with Sphinx
+doc-test:
+    rm -rf docs/api
+    uv run --group docs sphinx-build -M doctest docs docs/_build -E -a -n -W --keep-going -T
 
 # Serve docs locally with live reload
 doc:

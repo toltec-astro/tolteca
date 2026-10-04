@@ -332,6 +332,8 @@ class PSDAnalysis(Analysis[PSDMapper]):
       along a supplied dimension.
     - Spectral computations are lazy and assume complete, uniformly sampled input.
       Select a time interval before calling to limit each task's memory use.
+    - SciPy validates window and detrending choices when the lazy result is
+      evaluated. Compute the result before treating an analysis as complete.
     """
 
     model_config = ConfigDict(extra="forbid")

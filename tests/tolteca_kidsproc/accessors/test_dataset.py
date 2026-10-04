@@ -356,12 +356,11 @@ class TestOpenDataTree:
         ds.to_netcdf(filepath)
 
         # Open with our wrapper
-        loaded_dt = open_datatree(filepath)
-
-        assert isinstance(loaded_dt, xr.DataTree)
-        assert "I" in loaded_dt.ds.data_vars
-        assert "Q" in loaded_dt.ds.data_vars
-        assert "frequency" in loaded_dt.ds.coords
+        with open_datatree(filepath) as loaded_dt:
+            assert isinstance(loaded_dt, xr.DataTree)
+            assert "I" in loaded_dt.ds.data_vars
+            assert "Q" in loaded_dt.ds.data_vars
+            assert "frequency" in loaded_dt.ds.coords
 
     def test_open_datatree_accessor_available(self, tmp_path, rng):
         """Test that .kids accessor is available on opened datatree."""
@@ -374,10 +373,9 @@ class TestOpenDataTree:
         ds.to_netcdf(filepath)
 
         # Open and verify accessor
-        loaded_dt = open_datatree(filepath)
-
-        assert hasattr(loaded_dt, "kids")
-        assert hasattr(loaded_dt.kids, "sweep")
+        with open_datatree(filepath) as loaded_dt:
+            assert hasattr(loaded_dt, "kids")
+            assert hasattr(loaded_dt.kids, "sweep")
 
 
 class TestEdgeCases:
@@ -452,13 +450,12 @@ class TestIntegration:
         ds.to_netcdf(filepath)
 
         # Load back
-        loaded = open_datatree(filepath)
-
-        # Verify
-        assert loaded.ds.sizes == ds.sizes
-        assert list(loaded.ds.coords.keys()) == list(ds.coords.keys())
-        np.testing.assert_array_equal(loaded.ds.I.values, ds.I.values)
-        np.testing.assert_array_equal(loaded.ds.Q.values, ds.Q.values)
+        with open_datatree(filepath) as loaded:
+            # Verify
+            assert loaded.ds.sizes == ds.sizes
+            assert list(loaded.ds.coords.keys()) == list(ds.coords.keys())
+            np.testing.assert_array_equal(loaded.ds.I.values, ds.I.values)
+            np.testing.assert_array_equal(loaded.ds.Q.values, ds.Q.values)
 
     def test_round_trip_netcdf_time(self, tmp_path, rng):
         """Test creating, saving, and loading timestream dataset."""
@@ -473,12 +470,11 @@ class TestIntegration:
         ds.to_netcdf(filepath)
 
         # Load back
-        loaded = open_datatree(filepath)
-
-        # Verify
-        assert loaded.ds.sizes == ds.sizes
-        assert "time" in loaded.ds.coords
-        np.testing.assert_array_equal(loaded.ds.time.values, ds.time.values)
+        with open_datatree(filepath) as loaded:
+            # Verify
+            assert loaded.ds.sizes == ds.sizes
+            assert "time" in loaded.ds.coords
+            np.testing.assert_array_equal(loaded.ds.time.values, ds.time.values)
 
     def test_round_trip_netcdf_both(self, tmp_path, rng):
         """Test creating, saving, and loading dataset with both coords."""
@@ -494,13 +490,14 @@ class TestIntegration:
         ds.to_netcdf(filepath)
 
         # Load back
-        loaded = open_datatree(filepath)
-
-        # Verify both coordinates preserved
-        assert "frequency" in loaded.ds.coords
-        assert "time" in loaded.ds.coords
-        np.testing.assert_array_equal(loaded.ds.frequency.values, ds.frequency.values)
-        np.testing.assert_array_equal(loaded.ds.time.values, ds.time.values)
+        with open_datatree(filepath) as loaded:
+            # Verify both coordinates preserved
+            assert "frequency" in loaded.ds.coords
+            assert "time" in loaded.ds.coords
+            np.testing.assert_array_equal(
+                loaded.ds.frequency.values, ds.frequency.values
+            )
+            np.testing.assert_array_equal(loaded.ds.time.values, ds.time.values)
 
     def test_accessor_workflow_frequency(self):
         """Test complete workflow with frequency dataset."""
