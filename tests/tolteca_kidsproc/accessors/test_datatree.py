@@ -5,8 +5,8 @@ Tests cover:
 - kids accessor availability on DataTree
 - Sweep data access via DataTree (parity with Dataset)
 - DataTree save/load round-trip for sweep data
-- D21Analysis high-level API: ds.kids.d21 accessor after analyzer(ds)
-- D21View fallback to root dataset on flat DataTree (no D21 child node)
+- D21Analysis high-level API: ds.kids.d21 accessor after analyzer(ds.kids.sweep)
+- D21View on a detached analysis namespace
 - D21View auto-resolution to hierarchical child node
 - Metadata attributes preserved through DataTree save/load
 """
@@ -113,7 +113,7 @@ class TestDataTreeD21Integration:
         """D21Analysis.__call__ stores results accessible via ds.kids.d21."""
         ds = _make_lorentzian_sweep()
         analyzer = D21Analysis(method="gradient", smooth=5)
-        ds_with_d21 = analyzer(ds)
+        ds_with_d21 = analyzer(ds.kids.sweep)
 
         # High-level accessor API
         assert ds_with_d21.kids.d21.d21 is not None
@@ -123,67 +123,43 @@ class TestDataTreeD21Integration:
         """D21View.d21_analysis reflects the analyzer configuration."""
         ds = _make_lorentzian_sweep()
         analyzer = D21Analysis(method="gradient", smooth=5)
-        ds_with_d21 = analyzer(ds)
+        ds_with_d21 = analyzer(ds.kids.sweep)
 
         config = ds_with_d21.kids.d21.d21_analysis
 
         assert config.method == "gradient"
         assert config.smooth == 5
 
-    def test_d21_view_on_flat_datatree_falls_back_to_root(self) -> None:
-        """D21View uses the root dataset when DataTree has no D21 child node."""
+    def test_d21_view_on_detached_namespace(self) -> None:
+        """D21View represents the supplied detached analysis namespace."""
         ds = _make_lorentzian_sweep()
-        ds_with_d21 = D21Analysis(method="gradient", smooth=5)(ds)
-        # Wrap the flat dataset (with D21 vars embedded) in a DataTree
-        dt = xr.DataTree(ds_with_d21)
+        ds_with_d21 = D21Analysis(method="gradient", smooth=5)(ds.kids.sweep)
+        # A detached namespace retains its configuration and both output leaves.
+        dt = ds_with_d21.kids.d21.data_source.copy(deep=False)
 
-        # No child named "tolteca_kidsproc.analysis.d21" → D21View falls back
-        assert "tolteca_kidsproc.analysis.d21" not in dt.children
-        assert dt.kids.d21.d21 is not None
-        assert dt.kids.d21.d21_unified is not None
+        mapper = D21Mapper.from_namespace(dt)
+        assert mapper.namespace_path == "."
+        assert D21View.from_namespace(dt).d21 is not None
+        assert D21View.from_namespace(dt).d21_unified is not None
 
     def test_d21_view_on_hierarchical_datatree_resolves_child(self) -> None:
         """D21View auto-resolves to the child node in a hierarchical DataTree."""
         ds = _make_lorentzian_sweep()
         analyzer = D21Analysis(method="gradient", smooth=5)
-        ds_with_d21 = analyzer(ds)
+        ds_with_d21 = analyzer(ds.kids.sweep)
 
-        # Retrieve schema-defined field names via mapper
         mapper = D21Mapper.from_data_source(ds_with_d21)
-        d21_key = mapper.get_name(mapper.schema.d21)
-        d21_unified_key = mapper.get_name(mapper.schema.d21_unified)
-        analysis_key = mapper.get_name(mapper.schema.analysis)
-        namespace = D21View._get_namespace_from_schema_cls()
-
-        # Build the D21 child dataset: D21 variables + analysis config in attrs
-        d21_child_ds = xr.Dataset(
-            {
-                d21_key: ds_with_d21[d21_key],
-                d21_unified_key: ds_with_d21[d21_unified_key],
-            },
-        )
-        d21_child_ds.attrs[analysis_key] = ds_with_d21.attrs[analysis_key]
-
-        # Hierarchical tree: raw sweep at root, D21 analysis in child node
-        dt = xr.DataTree.from_dict(
-            {
-                "/": ds,
-                f"/{namespace}": d21_child_ds,
-            },
-        )
-
-        # D21View auto-resolves to the child node
-        assert dt.kids.d21.d21 is not None
-        assert dt.kids.d21.d21_unified is not None
-        # Sweep data still accessible at root
-        assert dt.kids.sweep.S21 is not None
+        result_node = mapper.get_namespace(ds_with_d21)
+        assert D21View.from_namespace(result_node).d21 is not None
+        assert D21View.from_namespace(result_node).d21_unified is not None
+        assert ds_with_d21["_input"].kids.sweep.S21 is not None
 
     def test_d21_view_raises_when_no_analysis_present(self) -> None:
-        """D21View raises ValueError when no D21 analysis is stored in the data."""
+        """D21View raises KeyError when its namespace is absent."""
         ds = _make_lorentzian_sweep()
         dt = xr.DataTree(ds)
 
-        with pytest.raises(ValueError, match="No D21 analysis found"):
+        with pytest.raises(KeyError, match="tolteca_kidsproc.analysis.d21"):
             _ = dt.kids.d21.d21
 
 
@@ -216,31 +192,20 @@ class TestDataTreeMetadata:
         """Hierarchical DataTree child node structure is preserved through save/load."""
         ds = _make_lorentzian_sweep()
         analyzer = D21Analysis(method="gradient", smooth=5)
-        # Use a copy so that ds (the root) stays free of complex D21 variables
-        ds_with_d21 = analyzer(ds.copy())
-
-        mapper = D21Mapper.from_data_source(ds_with_d21)
-        d21_unified_key = mapper.get_name(mapper.schema.d21_unified)
-        analysis_key = mapper.get_name(mapper.schema.analysis)
-        namespace = D21View._get_namespace_from_schema_cls()
-
-        # Use only the real-valued unified D21 in the child (NetCDF-compatible)
-        d21_child_ds = xr.Dataset({d21_unified_key: ds_with_d21[d21_unified_key]})
-        d21_child_ds.attrs[analysis_key] = ds_with_d21.attrs[analysis_key]
-
-        dt = xr.DataTree.from_dict(
-            {
-                "/": ds,
-                f"/{namespace}": d21_child_ds,
-            },
-        )
+        dt = analyzer(ds.kids.sweep)
+        mapper = D21Mapper.from_data_source(dt)
+        result_path = mapper.namespace_path
+        data_path = "_input"
+        expected = dt.kids.d21.d21_unified
+        # Export the real-valued output; configuration stays on its namespace.
+        del dt[result_path][mapper.get_name(mapper.schema.d21_subpath)]
+        dt[
+            f"{result_path}/{mapper.get_name(mapper.schema.d21_unified_subpath)}"
+        ].dataset = expected.to_dataset()
         filepath = tmp_path / "hierarchical.nc"
         dt.to_netcdf(filepath)
-
-        dt_loaded = open_datatree(filepath)
-
-        # Child node structure preserved
-        assert namespace in dt_loaded.children
-        assert len(dt_loaded.children) == 1
-        # Sweep data still accessible at root
-        assert dt_loaded.kids.sweep.S21 is not None
+        with open_datatree(filepath) as loaded:
+            assert set(loaded.children) == {result_path, data_path}
+            assert loaded[data_path].kids.sweep.S21 is not None
+            xr.testing.assert_equal(loaded.kids.d21.d21_unified, expected)
+            assert loaded.kids.d21.d21_analysis == analyzer

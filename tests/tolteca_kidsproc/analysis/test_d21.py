@@ -11,13 +11,114 @@ Tests cover:
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import astropy.units as u
 import numpy as np
 import pytest
 import xarray as xr
+from tollan.accessor import SubpathMapping
 
 from tolteca_kidsproc.accessors.dataset import make_kids_dataset
+from tolteca_kidsproc.accessors.kids import KidsMapper
+from tolteca_kidsproc.accessors.views import SweepView
 from tolteca_kidsproc.analysis.d21 import D21Analysis, D21Mapper, D21View
+
+
+@pytest.mark.parametrize("kind", ["dataset", "array", "tree", "timestream"])
+def test_rejects_non_sweep_inputs_before_reuse(simple_sweep, kind):
+    analysis = D21Analysis()
+    output = analysis(simple_sweep.kids.sweep)
+    before = output.copy(deep=False)
+    timestream = make_kids_dataset(
+        np.ones(16), np.zeros(16), time=np.arange(16) * u.s, f_smp=1 << u.Hz
+    ).kids.timestream
+    invalid = {
+        "dataset": simple_sweep,
+        "array": simple_sweep.I,
+        "tree": output,
+        "timestream": timestream,
+    }[kind]
+    with pytest.raises(TypeError, match="requires a sweep view"):
+        analysis(invalid, output=output)
+    xr.testing.assert_identical(output, before)
+
+
+def test_input_view_preserves_custom_field_mapping(simple_sweep):
+    analysis = D21Analysis(method="gradient", smooth=5)
+    expected = analysis(simple_sweep.kids.sweep).kids.d21
+    names = {"I": "in_phase", "Q": "quadrature", "frequency": "probe_frequency"}
+    source = simple_sweep.rename(names)
+    original = KidsMapper.from_data_source(simple_sweep)
+    mapper = KidsMapper(
+        {
+            field: replace(resolved, name=names.get(resolved.name, resolved.name))
+            for field, resolved in original.mapped_fields.items()
+        }
+    )
+    view = SweepView(source, mapper=mapper)
+    result = analysis(view)
+    assert view.mapper is mapper
+    xr.testing.assert_identical(result["_input"].to_dataset(), source)
+    xr.testing.assert_allclose(
+        result.kids.d21.d21, expected.d21.rename({"frequency": "probe_frequency"})
+    )
+    xr.testing.assert_allclose(result.kids.d21.d21_unified, expected.d21_unified)
+
+
+def test_schema_paths_control_tree_analysis(monkeypatch, multi_channel_sweep):
+    schema = replace(
+        D21Mapper.schema,
+        _namespace=SubpathMapping.path("diagnostics/derivative"),
+        d21_subpath=SubpathMapping.path("arrays"),
+    )
+    monkeypatch.setattr(D21Mapper, "schema", schema)
+    tree = xr.DataTree.from_dict({"measurement/arrays": multi_channel_sweep})
+    analysis = D21Analysis(method="gradient", smooth=5)
+    result = analysis(
+        tree["measurement/arrays"].kids.sweep,
+        output=tree,
+        parent_namespace="measurement",
+    )
+    scope = result["measurement"]
+    assert "d21" not in scope.children
+    assert analysis(scope["arrays"].kids.sweep, output=scope) is scope
+    assert result is tree
+    expected = analysis(multi_channel_sweep.copy(deep=False).kids.sweep).kids.d21
+    for view in (
+        scope.kids.d21,
+        D21View.from_namespace(scope["diagnostics/derivative"]),
+        D21View.from_namespace(scope.kids.d21.data_source),
+        scope.copy(deep=False).kids.d21,
+    ):
+        xr.testing.assert_equal(view.d21, expected.d21)
+        xr.testing.assert_equal(view.d21_unified, expected.d21_unified)
+        assert view.d21_analysis == analysis
+
+
+@pytest.mark.parametrize("force", [False, True])
+def test_output_layout_is_checked_before_derivative_computation(
+    monkeypatch, simple_sweep, force
+):
+    analysis = D21Analysis()
+    tree = analysis(simple_sweep.kids.sweep)
+    before = tree.copy(deep=False)
+    monkeypatch.setattr(
+        D21Mapper,
+        "schema",
+        replace(
+            D21Mapper.schema, d21_unified_subpath=SubpathMapping.path("d21/unified")
+        ),
+    )
+    monkeypatch.setattr(
+        D21Analysis,
+        "make_matched",
+        lambda *args, **kwargs: pytest.fail("Layout must be checked before D21"),
+    )
+    with pytest.raises(ValueError, match="output subpaths must be separate"):
+        analysis(simple_sweep.kids.sweep, output=tree, force=force)
+    xr.testing.assert_identical(tree, before)
+
 
 # ============================================================================
 # Fixtures
@@ -262,7 +363,7 @@ class TestD21Matched:
         assert "tolteca_kidsproc.analysis.d21.analysis" in d21.attrs
 
         # Should be able to reload config
-        loaded = D21Analysis._load_from_attr(d21)
+        loaded = D21Analysis._load_from_attr(d21, mapper=D21Mapper.from_defaults())
         assert loaded == d21_analysis
 
 
@@ -424,20 +525,23 @@ class TestD21HighLevelAPI:
     def test_call_computes_both_matched_and_unified(self, multi_channel_sweep):
         """Calling d21_analysis computes both matched and unified D21."""
         d21_analysis = D21Analysis(method="gradient", smooth=5)
-        ds = d21_analysis(multi_channel_sweep)
+        ds = d21_analysis(multi_channel_sweep.kids.sweep)
 
         # Both should be present
-        mapper = D21Mapper.from_data_source(ds)
-        assert mapper.schema.d21 in mapper
-        assert mapper.schema.d21_unified in mapper
+        mapper = D21Mapper.from_namespace(ds.kids.d21.data_source)
+        assert mapper.schema.d21_subpath in mapper
+        assert mapper.schema.d21_unified_subpath in mapper
 
     def test_call_stores_config_in_attrs(self, simple_sweep):
         """Calling d21_analysis stores config in dataset attributes."""
         d21_analysis = D21Analysis(method="gradient", smooth=5)
-        ds = d21_analysis(simple_sweep)
+        ds = d21_analysis(simple_sweep.kids.sweep)
 
         # Should be able to reload config
-        loaded = D21Analysis._load_from_attr(ds)
+        loaded = D21Analysis._load_from_attr(
+            ds.kids.d21.data_source,
+            mapper=D21Mapper.from_namespace(ds.kids.d21.data_source),
+        )
         assert loaded == d21_analysis
 
     def test_call_caching_skips_recomputation(self, simple_sweep):
@@ -445,16 +549,16 @@ class TestD21HighLevelAPI:
         d21_analysis = D21Analysis(method="gradient", smooth=5)
 
         # First call computes
-        ds1 = d21_analysis(simple_sweep)
+        ds1 = d21_analysis(simple_sweep.kids.sweep)
 
         # Get D21 values
-        mapper = D21Mapper.from_data_source(ds1)
-        d21_1 = mapper.get_arr(ds1, mapper.schema.d21)
+        mapper = D21Mapper.from_namespace(ds1.kids.d21.data_source)
+        d21_1 = ds1.kids.d21.d21
 
         # Second call should return same dataset (cached)
-        ds2 = d21_analysis(ds1)
+        ds2 = d21_analysis(ds1["_input"].kids.sweep, output=ds1)
 
-        d21_2 = mapper.get_arr(ds2, mapper.schema.d21)
+        d21_2 = ds2.kids.d21.d21
 
         # Should be equal (cached data)
         assert np.array_equal(d21_1.values, d21_2.values)
@@ -464,17 +568,18 @@ class TestD21HighLevelAPI:
         d21_analysis = D21Analysis(method="gradient", smooth=5)
 
         # First call computes
-        ds1 = d21_analysis(simple_sweep)
+        ds1 = d21_analysis(simple_sweep.kids.sweep)
 
+        before = ds1.kids.d21.d21
         # Force recomputation
-        ds2 = d21_analysis(ds1, force=True)
+        ds2 = d21_analysis(ds1["_input"].kids.sweep, output=ds1, force=True)
 
         # Should have new values (not same object)
-        mapper = D21Mapper.from_data_source(ds1)
-        d21_1 = mapper.get_arr(ds1, mapper.schema.d21)
-        d21_2 = mapper.get_arr(ds2, mapper.schema.d21)
+        mapper = D21Mapper.from_namespace(ds1.kids.d21.data_source)
+        d21_1 = ds1.kids.d21.d21
+        d21_2 = ds2.kids.d21.d21
 
-        assert d21_1 is not d21_2
+        assert before is not d21_2
 
     def test_call_different_config_recomputes(self, simple_sweep):
         """Calling with different config recomputes."""
@@ -482,15 +587,15 @@ class TestD21HighLevelAPI:
         d21_analysis2 = D21Analysis(method="gradient", smooth=7)
 
         # First call
-        ds1 = d21_analysis1(simple_sweep)
+        ds1 = d21_analysis1(simple_sweep.kids.sweep)
 
         # Different config should recompute
-        ds2 = d21_analysis2(ds1)
+        ds2 = d21_analysis2(ds1["_input"].kids.sweep, output=ds1)
 
         # Should have different values (different smooth parameters)
-        mapper = D21Mapper.from_data_source(ds1)
-        d21_1 = mapper.get_arr(ds1, mapper.schema.d21)
-        d21_2 = mapper.get_arr(ds2, mapper.schema.d21)
+        mapper = D21Mapper.from_namespace(ds1.kids.d21.data_source)
+        d21_1 = ds1.kids.d21.d21
+        d21_2 = ds2.kids.d21.d21
 
         # Different smoothing should produce different results
         # But both should be valid complex arrays
@@ -521,29 +626,29 @@ class TestD21SchemaMapper:
     def test_mapper_from_data_source(self, simple_sweep):
         """Mapper can be created from dataset."""
         d21_analysis = D21Analysis(method="gradient", smooth=5)
-        ds = d21_analysis(simple_sweep)
+        ds = d21_analysis(simple_sweep.kids.sweep)
 
-        mapper = D21Mapper.from_data_source(ds)
+        mapper = D21Mapper.from_namespace(ds.kids.d21.data_source)
 
         assert isinstance(mapper, D21Mapper)
 
     def test_mapper_contains_method(self, simple_sweep):
         """Mapper 'in' operator checks for field presence."""
         d21_analysis = D21Analysis(method="gradient", smooth=5)
-        ds = d21_analysis(simple_sweep)
+        ds = d21_analysis(simple_sweep.kids.sweep)
 
-        mapper = D21Mapper.from_data_source(ds)
+        mapper = D21Mapper.from_namespace(ds.kids.d21.data_source)
 
         # Should have d21 after computation
-        assert mapper.schema.d21 in mapper
+        assert mapper.schema.d21_subpath in mapper
 
     def test_mapper_get_var(self, simple_sweep):
         """Mapper.get_arr() retrieves DataArray."""
         d21_analysis = D21Analysis(method="gradient", smooth=5)
-        ds = d21_analysis(simple_sweep)
+        ds = d21_analysis(simple_sweep.kids.sweep)
 
-        mapper = D21Mapper.from_data_source(ds)
-        d21 = mapper.get_arr(ds, mapper.schema.d21)
+        mapper = D21Mapper.from_namespace(ds.kids.d21.data_source)
+        d21 = ds.kids.d21.d21
 
         assert isinstance(d21, xr.DataArray)
 
@@ -566,14 +671,19 @@ class TestD21View:
 
     def test_view_requires_analysis_in_attrs(self, simple_sweep):
         """D21View requires analysis config in attrs."""
-        # Dataset without D21 analysis should fail
-        with pytest.raises(ValueError, match="No D21 analysis found"):
+        with pytest.raises(KeyError):
             D21View(simple_sweep)
+        result = D21Analysis()(simple_sweep.kids.sweep)
+        result["tolteca_kidsproc.analysis.d21"].attrs.clear()
+        with pytest.raises(
+            ValueError, match="Missing producing analysis configuration"
+        ):
+            D21View(result)
 
     def test_view_access_d21(self, simple_sweep):
         """D21View provides access to matched D21."""
         d21_analysis = D21Analysis(method="gradient", smooth=5)
-        ds = d21_analysis(simple_sweep)
+        ds = d21_analysis(simple_sweep.kids.sweep)
 
         view = D21View(ds)
         d21 = view.d21
@@ -584,7 +694,7 @@ class TestD21View:
     def test_view_access_d21_unified(self, multi_channel_sweep):
         """D21View provides access to unified D21."""
         d21_analysis = D21Analysis(method="gradient", smooth=5)
-        ds = d21_analysis(multi_channel_sweep)
+        ds = d21_analysis(multi_channel_sweep.kids.sweep)
 
         view = D21View(ds)
         d21_unified = view.d21_unified
@@ -595,7 +705,7 @@ class TestD21View:
     def test_view_access_f_unified(self, multi_channel_sweep):
         """D21View provides access to unified frequency."""
         d21_analysis = D21Analysis(method="gradient", smooth=5)
-        ds = d21_analysis(multi_channel_sweep)
+        ds = d21_analysis(multi_channel_sweep.kids.sweep)
 
         view = D21View(ds)
         f_unified = view.f_unified
@@ -605,7 +715,7 @@ class TestD21View:
     def test_view_access_cov_unified(self, multi_channel_sweep):
         """D21View provides access to coverage map."""
         d21_analysis = D21Analysis(method="gradient", smooth=5)
-        ds = d21_analysis(multi_channel_sweep)
+        ds = d21_analysis(multi_channel_sweep.kids.sweep)
 
         view = D21View(ds)
         cov = view.cov_unified
@@ -616,7 +726,7 @@ class TestD21View:
     def test_view_access_analysis_config(self, simple_sweep):
         """D21View provides access to analysis configuration."""
         d21_analysis = D21Analysis(method="gradient", smooth=5)
-        ds = d21_analysis(simple_sweep)
+        ds = d21_analysis(simple_sweep.kids.sweep)
 
         view = D21View(ds)
         config = view.d21_analysis
@@ -646,7 +756,7 @@ class TestEdgeCases:
         d21_analysis = D21Analysis(method="gradient", smooth=5)
         empty_ds = xr.Dataset()
 
-        with pytest.raises((ValueError, KeyError, AttributeError)):
+        with pytest.raises(TypeError, match="sweep view"):
             d21_analysis(empty_ds)
 
     def test_mismatched_dimensions(self, rng):
@@ -697,12 +807,12 @@ class TestIntegration:
         d21_analysis = D21Analysis(method="savgol", smooth=7, exclude_edge=5)
 
         # Compute D21 (high-level API)
-        ds = d21_analysis(simple_sweep)
+        ds = d21_analysis(simple_sweep.kids.sweep)
 
         # Access results via mapper
-        mapper = D21Mapper.from_data_source(ds)
-        d21_matched = mapper.get_arr(ds, mapper.schema.d21)
-        d21_unified = mapper.get_arr(ds, mapper.schema.d21_unified)
+        mapper = D21Mapper.from_namespace(ds.kids.d21.data_source)
+        d21_matched = ds.kids.d21.d21
+        d21_unified = ds.kids.d21.d21_unified
 
         # Verify results
         assert d21_matched.shape == (101,)
@@ -726,7 +836,7 @@ class TestIntegration:
         )
 
         # Compute D21
-        ds = d21_analysis(multi_channel_sweep)
+        ds = d21_analysis(multi_channel_sweep.kids.sweep)
 
         # Access via view
         view = D21View(ds)
@@ -754,12 +864,12 @@ class TestIntegration:
         d21_analysis_grad = D21Analysis(method="gradient", smooth=7)
         d21_analysis_sav = D21Analysis(method="savgol", smooth=7)
 
-        ds_grad = d21_analysis_grad(simple_sweep)
-        ds_sav = d21_analysis_sav(simple_sweep)
+        ds_grad = d21_analysis_grad(simple_sweep.kids.sweep)
+        ds_sav = d21_analysis_sav(simple_sweep.kids.sweep)
 
-        mapper = D21Mapper.from_data_source(ds_grad)
-        d21_grad = mapper.get_arr(ds_grad, mapper.schema.d21)
-        d21_sav = mapper.get_arr(ds_sav, mapper.schema.d21)
+        mapper = D21Mapper.from_namespace(ds_grad.kids.d21.data_source)
+        d21_grad = ds_grad.kids.d21.d21
+        d21_sav = ds_sav.kids.d21.d21
 
         # Absolute values should be highly correlated
         corr = np.corrcoef(np.abs(d21_grad.values), np.abs(d21_sav.values))[0, 1]
@@ -771,28 +881,168 @@ class TestIntegration:
         d21_analysis2 = D21Analysis(method="savgol", smooth=7)
 
         # Compute with first config
-        ds1 = d21_analysis1(simple_sweep)
+        ds1 = d21_analysis1(simple_sweep.kids.sweep)
 
         # Check config1 immediately
-        config1 = D21Analysis._load_from_attr(ds1)
+        config1 = D21Analysis._load_from_attr(
+            ds1.kids.d21.data_source,
+            mapper=D21Mapper.from_namespace(ds1.kids.d21.data_source),
+        )
         assert config1 is not None
         assert config1.method == "gradient"
         assert config1.smooth == 5
 
         # Compute with second config (should recompute)
-        ds2 = d21_analysis2(ds1)
+        ds2 = d21_analysis2(ds1["_input"].kids.sweep, output=ds1)
 
         # Check config2 immediately
-        config2 = D21Analysis._load_from_attr(ds2)
+        config2 = D21Analysis._load_from_attr(
+            ds2.kids.d21.data_source,
+            mapper=D21Mapper.from_namespace(ds2.kids.d21.data_source),
+        )
         assert config2 is not None
         assert config2.method == "savgol"
         assert config2.smooth == 7
 
         # Go back to first config (should recompute since attrs changed)
-        ds3 = d21_analysis1(ds2)
+        ds3 = d21_analysis1(ds2["_input"].kids.sweep, output=ds2)
 
         # Check config3 immediately
-        config3 = D21Analysis._load_from_attr(ds3)
+        config3 = D21Analysis._load_from_attr(
+            ds3.kids.d21.data_source,
+            mapper=D21Mapper.from_namespace(ds3.kids.d21.data_source),
+        )
         assert config3 is not None
         assert config3.method == "gradient"
         assert config3.smooth == 5
+
+
+def test_tree_boundary_preserves_science_and_replaces_frequency_grid(
+    simple_sweep, tmp_path
+):
+    original = simple_sweep.copy(deep=True)
+    first = D21Analysis(method="gradient", smooth=5, resample=1)(
+        simple_sweep.kids.sweep
+    )
+    analysis = D21Analysis(method="gradient", smooth=5, resample=2)
+    size_first = first.kids.d21.f_unified.size
+    updated = analysis(first["_input"].kids.sweep, output=first, force=True)
+    view = updated.kids.d21
+    xr.testing.assert_identical(simple_sweep, original)
+    xr.testing.assert_equal(
+        view.d21, analysis.make_matched(simple_sweep.kids.sweep).rename(view.d21.name)
+    )
+    xr.testing.assert_equal(
+        view.d21_unified,
+        analysis.make_unified(simple_sweep.kids.sweep).rename(view.d21_unified.name),
+    )
+    assert view.f_unified.size == 2 * size_first
+    assert set(updated.children) == {"_input", "tolteca_kidsproc.analysis.d21"}
+    assert "kids_node_type" not in updated["tolteca_kidsproc.analysis.d21"].attrs
+    target = tmp_path / "derivative.zarr"
+    updated.to_zarr(target)
+    with xr.open_datatree(target, engine="zarr") as reopened:
+        xr.testing.assert_identical(reopened.kids.d21.d21, view.d21)
+        assert reopened.kids.d21.d21_analysis == analysis
+
+
+def test_d21_module_workflow_examples():
+    import doctest
+
+    from tolteca_kidsproc.analysis import d21
+
+    assert doctest.testmod(d21, raise_on_error=True).attempted > 0
+
+
+def test_namespace_owns_config_and_two_independent_outputs(simple_sweep, tmp_path):
+    analysis = D21Analysis(method="gradient", smooth=5)
+    tree = analysis(simple_sweep.kids.sweep)
+    view = tree.kids.d21
+    namespace = view.data_source
+    assert namespace is tree["tolteca_kidsproc.analysis.d21"]
+    assert not namespace.dataset.variables
+    assert set(namespace.children) == {"d21", "d21_unified"}
+    key = view.mapper.get_name(view.mapper.schema.analysis)
+    assert key in namespace.attrs
+    for leaf in namespace.children.values():
+        assert key not in leaf.attrs
+        assert all(key not in var.attrs for var in leaf.dataset.variables.values())
+    assert view.d21_analysis is view.d21_analysis
+    assert view.d21_analysis == analysis
+    assert view.d21_analysis is not analysis
+    target = tmp_path / "d21-namespace.zarr"
+    namespace.to_zarr(target)
+    with xr.open_datatree(target, engine="zarr") as reopened:
+        restored = D21View.from_namespace(reopened)
+        assert restored.data_source is reopened
+        assert restored.d21_analysis == analysis
+        xr.testing.assert_identical(restored.d21, view.d21)
+        xr.testing.assert_identical(restored.d21_unified, view.d21_unified)
+
+
+def test_namespace_replacement_preserves_old_view_configuration(simple_sweep):
+    first = D21Analysis(method="gradient", smooth=5, resample=1)
+    tree = first(simple_sweep.kids.sweep)
+    before = tree.kids.d21
+    after_analysis = D21Analysis(method="gradient", smooth=7, resample=2)
+    assert after_analysis(tree["_input"].kids.sweep, output=tree) is tree
+    after = tree.kids.d21
+    assert before.d21_analysis == first
+    assert after.d21_analysis == after_analysis
+    assert before.data_source is not after.data_source
+    assert after.d21_unified.size == 2 * before.d21_unified.size
+    np.testing.assert_allclose(before.d21, first.make_matched(simple_sweep.kids.sweep))
+    np.testing.assert_allclose(
+        after.d21, after_analysis.make_matched(simple_sweep.kids.sweep)
+    )
+
+
+def test_output_candidates_are_preserved_when_recomputing(simple_sweep, monkeypatch):
+    from tollan.accessor import NameMapping
+
+    analysis = D21Analysis()
+    result = analysis(simple_sweep.kids.sweep)
+    namespace = result.kids.d21.data_source
+    schema = D21Mapper.schema
+    namespace["d21"].dataset = (
+        namespace["d21"].to_dataset().rename({schema.d21.names[0]: "derivative"})
+    )
+    namespace["d21_unified"].dataset = (
+        namespace["d21_unified"]
+        .to_dataset()
+        .rename(
+            {
+                schema.d21_unified.names[0]: "magnitude",
+                "f_unified": "frequency_grid",
+                "cov_unified": "coverage",
+            }
+        )
+    )
+    monkeypatch.setattr(
+        D21Mapper,
+        "schema",
+        replace(
+            schema,
+            d21=schema.d21_subpath / NameMapping.var(("absent", "derivative")),
+            d21_unified=schema.d21_unified_subpath
+            / NameMapping.var(("absent", "magnitude")),
+            f_unified=schema.d21_unified_subpath
+            / NameMapping.var(("absent_frequency", "frequency_grid")),
+            cov_unified=schema.d21_unified_subpath
+            / NameMapping.var(("absent_coverage", "coverage")),
+        ),
+    )
+    for view in (
+        D21View(result),
+        D21View.from_namespace(namespace),
+        D21View.from_namespace(namespace.copy(deep=False)),
+    ):
+        assert view.d21.name == "derivative"
+        assert view.d21_unified.name == "magnitude"
+        assert view.f_unified.name == "frequency_grid"
+        assert view.cov_unified.name == "coverage"
+    before = D21View(result)
+    assert analysis(simple_sweep.kids.sweep, output=result, force=True) is result
+    after = D21View(result)
+    xr.testing.assert_identical(after.d21, before.d21)
+    xr.testing.assert_identical(after.d21_unified, before.d21_unified)

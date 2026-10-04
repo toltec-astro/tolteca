@@ -85,7 +85,7 @@ def timestream_dataset_1d():
     i_data = np.cos(2 * np.pi * 10 * time.value) + noise_i
     q_data = np.sin(2 * np.pi * 10 * time.value) + noise_q
 
-    return make_kids_dataset(i_data, q_data, time=time)
+    return make_kids_dataset(i_data, q_data, time=time, f_smp=1000 << u.Hz)
 
 
 @pytest.fixture
@@ -94,8 +94,6 @@ def timestream_dataset_2d():
     n_channels = 5
     n_samples = 1000
     time = np.arange(n_samples) * 0.001
-    # Broadcast time to 2D to match data shape
-    time_2d = (np.ones((n_channels, 1)) * time) << u.s
 
     # Create multi-frequency deterministic timestreams
     i_data = np.zeros((n_channels, n_samples))
@@ -106,7 +104,7 @@ def timestream_dataset_2d():
         i_data[i, :] = np.cos(2 * np.pi * freq * time + phase) * (1 + 0.1 * i)
         q_data[i, :] = np.sin(2 * np.pi * freq * time + phase) * (1 + 0.1 * i)
 
-    return make_kids_dataset(i_data, q_data, time=time_2d)
+    return make_kids_dataset(i_data, q_data, time=time << u.s, f_smp=1000 << u.Hz)
 
 
 # KidsSchema Tests
@@ -291,9 +289,11 @@ class TestMultiSweepView:
         assert s21.shape == (10, 101)
         assert s21.dtype == np.complex128
 
-    def test_multi_sweep_view_n_chans(self, sweep_dataset_2d):
+    @pytest.mark.parametrize("transpose", [False, True])
+    def test_multi_sweep_view_n_chans(self, sweep_dataset_2d, transpose):
         """Test channel count property."""
-        view = sweep_dataset_2d.kids.multi_sweep
+        source = sweep_dataset_2d.transpose() if transpose else sweep_dataset_2d
+        view = source.kids.multi_sweep
         assert view.n_chans == 10
 
     def test_multi_sweep_view_frequency(self, sweep_dataset_2d):
@@ -311,6 +311,25 @@ class TestMultiSweepView:
 
 # TimestreamView Tests
 # ====================
+
+
+@pytest.mark.parametrize("kind", ["sweep", "timestream"])
+@pytest.mark.parametrize("unrelated_chan", [False, True])
+def test_multi_view_requires_channel_dimension_on_signals(kind, unrelated_chan):
+    values = np.ones((3, 16))
+    coordinate = (
+        {"frequency": np.broadcast_to(np.arange(16) + 1e9, values.shape) * u.Hz}
+        if kind == "sweep"
+        else {"time": np.arange(16) * u.s, "f_smp": 1 << u.Hz}
+    )
+    source = make_kids_dataset(values, values, **coordinate).rename(chan="other")
+    if unrelated_chan:
+        source = source.assign_coords(chan=[0, 1])
+        message = "Channel dimension must label an I/Q axis"
+    else:
+        message = "Missing required field 'chan'"
+    with pytest.raises(ValueError, match=message):
+        getattr(source.kids, f"multi_{kind}")
 
 
 class TestTimestreamView:
@@ -400,10 +419,35 @@ class TestMultiTimestreamView:
         assert view.I.shape == (5, 1000)
         assert view.Q.shape == (5, 1000)
 
-    def test_multi_timestream_view_n_chans(self, timestream_dataset_2d):
+    @pytest.mark.parametrize("transpose", [False, True])
+    def test_multi_timestream_view_n_chans(self, timestream_dataset_2d, transpose):
         """Test channel count property."""
-        view = timestream_dataset_2d.kids.multi_timestream
+        source = timestream_dataset_2d
+        if transpose:
+            source = source.transpose("time", "chan")
+        view = source.kids.multi_timestream
         assert view.n_chans == 5
+
+    def test_multi_timestream_time_is_shared(self, timestream_dataset_2d):
+        view = timestream_dataset_2d.kids.multi_timestream
+        assert view.time.dims == (view.I.dims[-1],)
+        assert view.time.shape == (1000,)
+        np.testing.assert_array_equal(view.time, np.arange(1000) * 0.001)
+
+    def test_rejects_per_channel_time(self, timestream_dataset_2d):
+        source = timestream_dataset_2d
+        time = source.time.broadcast_like(source.I)
+        source = source.assign_coords(time=time)
+        with pytest.raises(ValueError, match=r"Field 'time' must be 1-D"):
+            _ = source.kids.multi_timestream
+
+    def test_rejects_unrelated_time_dimension(self, timestream_dataset_2d):
+        source = timestream_dataset_2d.rename(time="sample")
+        source = source.assign_coords(
+            time=("other", np.arange(source.sizes["sample"]), {"units": "s"})
+        )
+        with pytest.raises(ValueError, match="Time must label an I/Q sample dimension"):
+            _ = source.kids.multi_timestream
 
     def test_multi_timestream_view_S21(self, timestream_dataset_2d):
         """Test S21 for multi-channel timestream (inherited from S21View)."""
@@ -479,10 +523,11 @@ class TestKidsAccessor:
         assert isinstance(view.S21, xr.DataArray)
         assert isinstance(view.aS21, xr.DataArray)
 
-    def test_accessor_d21_view_error_without_analysis(self, sweep_dataset_1d):
-        """Test D21 view raises ValueError when no D21 analysis in dataset."""
-        with pytest.raises(ValueError, match="No D21 analysis found"):
-            _ = sweep_dataset_1d.kids.d21
+    @pytest.mark.parametrize("analysis", ["d21", "psd"])
+    def test_analysis_view_error_without_namespace(self, sweep_dataset_1d, analysis):
+        """Analysis views require the namespace declared by their schema."""
+        with pytest.raises(KeyError, match=f"tolteca_kidsproc.analysis.{analysis}"):
+            _ = getattr(sweep_dataset_1d.kids, analysis)
 
 
 # Edge Cases and Error Handling

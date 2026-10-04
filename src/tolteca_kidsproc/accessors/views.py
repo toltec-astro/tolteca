@@ -1,12 +1,16 @@
 """Data view classes for KIDs accessors.
 
-Provides generic KidsView base class and specific view implementations for
-different data types (sweep, timestream, single/multi-channel).
+Data views expose I/Q signals and their physical coordinates. Construct a view
+from a Dataset or a tree node containing data. ``data_source`` exposes the Dataset
+or current node's payload; ``_data_source`` retains the supplied container. Use
+``scope.kids.sweep`` or ``scope.kids.timestream`` to select data within a scope.
+A supplied mapper must describe the payload.
 """
 
 from __future__ import annotations
 
 import xarray as xr
+from astropy import units as u
 from tollan.accessor import Mapper
 from tollan.accessor.xarray import XarrayAccessorBase
 
@@ -22,12 +26,22 @@ __all__ = [
 ]
 
 
+def _validate_multi_channel(view: S21View) -> None:
+    """Validate multi-channel I/Q data and its mapped channel dimension."""
+    mapper = view.mapper
+    mapper.validate_ndim(view.data_source, mapper.schema.I, 2)
+    mapper.validate_has_field(mapper.schema.chan_dim)
+    chan_dim = mapper.get_name(mapper.schema.chan_dim)
+    if chan_dim not in view.I.dims or chan_dim not in view.Q.dims:
+        msg = "Channel dimension must label an I/Q axis"
+        raise ValueError(msg)
+
+
 class KidsView[MapperT: Mapper](XarrayAccessorBase[MapperT]):
     """Base class for KIDs data views.
 
-    Provides common functionality for all KIDs data views. Inherits validation
-    framework from AccessorBase - subclasses can override _validate() to add
-    data compatibility checks.
+    The supplied Dataset or current tree node provides the payload. Subclasses
+    validate their required fields in ``_validate``.
 
     Type Parameters
     ---------------
@@ -143,27 +157,27 @@ class MultiSweepView(SweepView):
     """
 
     def _validate(self) -> None:
-        """Validate 2-D sweep data.
+        """Validate 2-D sweep data with a mapped channel dimension.
 
         Raises
         ------
         ValueError
-            If data is not 2-D
+            Data is not 2-D or the mapped channel dimension is absent from I/Q.
         """
         super()._validate()
-        self.mapper.validate_ndim(self.data_source, self.mapper.schema.I, 2)
+        _validate_multi_channel(self)
 
     @property
     def n_chans(self) -> int:
-        """Number of channels (first axis size)."""
-        i_data = self.I
-        return i_data.sizes[i_data.dims[0]]
+        """Length of the mapped channel dimension."""
+        return self.mapper.get_dim(self.data_source, self.mapper.schema.chan_dim)
 
 
 class TimestreamView(S21View):
     """Data view for single-channel timestream data.
 
-    Provides access to I/Q data and derived S21.
+    Provides access to I/Q data and derived S21. Time is one-dimensional and
+    labels the sample dimension, shared by all channels in multi-channel data.
 
     Properties
     ----------
@@ -178,7 +192,9 @@ class TimestreamView(S21View):
     aS21_db : xr.DataArray
         Amplitude in dB (inherited)
     time : xr.DataArray
-        Time coordinate
+        One-dimensional time coordinate on the shared sample dimension
+    f_smp : astropy.units.Quantity
+        Recorded sampling frequency, returned in Hz.
     """
 
     def _validate(self) -> None:
@@ -191,16 +207,27 @@ class TimestreamView(S21View):
         """
         super()._validate()
         self.mapper.validate_has_field(self.mapper.schema.time)
+        self.mapper.validate_has_field(self.mapper.schema.f_smp)
         self.mapper.validate_has_physical_type(
             self.data_source,
             self.mapper.schema.time,
             "time",
         )
+        self.mapper.validate_ndim(self.data_source, self.mapper.schema.time, 1)
+        time_dim = self.time.dims[0]
+        if time_dim not in self.I.dims or time_dim not in self.Q.dims:
+            msg = "Time must label an I/Q sample dimension"
+            raise ValueError(msg)
 
     @property
     def time(self) -> xr.DataArray:
-        """Time coordinate."""
+        """One-dimensional time coordinate shared by all channels."""
         return self.mapper.get_arr(self.data_source, self.mapper.schema.time)
+
+    @property
+    def f_smp(self) -> u.Quantity:
+        """Recorded sampling frequency in Hz, without evaluating timestamps."""
+        return self.mapper.get_value(self.data_source, self.mapper.schema.f_smp) << u.Hz
 
 
 class MultiTimestreamView(TimestreamView):
@@ -216,18 +243,17 @@ class MultiTimestreamView(TimestreamView):
     """
 
     def _validate(self) -> None:
-        """Validate 2-D timestream data.
+        """Validate 2-D timestream data with a mapped channel dimension.
 
         Raises
         ------
         ValueError
-            If data is not 2-D
+            Data is not 2-D or the mapped channel dimension is absent from I/Q.
         """
         super()._validate()
-        self.mapper.validate_ndim(self.data_source, self.mapper.schema.I, 2)
+        _validate_multi_channel(self)
 
     @property
     def n_chans(self) -> int:
-        """Number of channels (first axis size)."""
-        i_data = self.I
-        return i_data.sizes[i_data.dims[0]]
+        """Length of the mapped channel dimension."""
+        return self.mapper.get_dim(self.data_source, self.mapper.schema.chan_dim)

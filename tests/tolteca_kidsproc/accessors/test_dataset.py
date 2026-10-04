@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 import xarray as xr
 from astropy import units as u
+from tollan.accessor import NameMapping
 
 from tolteca_kidsproc.accessors.dataset import make_kids_dataset, open_datatree
 from tolteca_kidsproc.accessors.kids import KidsMapper
@@ -59,18 +62,28 @@ class TestMakeKidsDataset:
         assert "Q" in ds.data_vars
         assert ds.time.attrs["units"] == "s"
         np.testing.assert_array_equal(ds.time.values, time.value)
+        assert ds.kids.timestream.f_smp.to_value(u.Hz) == pytest.approx(99.9)
 
     def test_2d_time_only(self, rng):
         """Test creating 2-D timestream dataset with time."""
         time = np.linspace(0, 10, 1000) << u.s
-        time_2d = (np.ones((10, 1)) * time.value) << u.s
         s21 = rng.standard_normal((10, 1000)) + 1j * rng.standard_normal((10, 1000))
 
-        ds = make_kids_dataset(s21.real, s21.imag, time=time_2d)
+        ds = make_kids_dataset(s21.real, s21.imag, time=time, f_smp=99.9 << u.Hz)
 
         assert ds.sizes == {"chan": 10, "time": 1000}
         assert "time" in ds.coords
-        assert ds.time.dims == ("chan", "time")
+        assert ds.time.dims == ("time",)
+        np.testing.assert_array_equal(ds.time.values, time.value)
+        assert ds.kids.multi_timestream.time.size == 1000
+        assert ds.isel(chan=0).time.identical(ds.time)
+
+    def test_multi_channel_time_must_be_shared(self):
+        """Per-channel time arrays are not a shared sample axis."""
+        signal = np.zeros((3, 16))
+        time = np.broadcast_to(np.arange(16), signal.shape) * u.s
+        with pytest.raises(ValueError, match="Time must be 1-D"):
+            make_kids_dataset(signal, signal, time=time)
 
     def test_1d_both_frequency_and_time(self, rng):
         """Test creating 1-D dataset with both frequency and time."""
@@ -92,16 +105,15 @@ class TestMakeKidsDataset:
         freq = np.linspace(1e9, 1.1e9, 101) << u.Hz
         freq_2d = (np.ones((5, 1)) * freq.value) << u.Hz
         time = np.linspace(0, 1, 101) << u.s
-        time_2d = (np.ones((5, 1)) * time.value) << u.s
         s21 = rng.standard_normal((5, 101)) + 1j * rng.standard_normal((5, 101))
 
-        ds = make_kids_dataset(s21.real, s21.imag, frequency=freq_2d, time=time_2d)
+        ds = make_kids_dataset(s21.real, s21.imag, frequency=freq_2d, time=time)
 
         assert ds.sizes == {"chan": 5, "time": 101}
         assert "frequency" in ds.coords
         assert "time" in ds.coords
         assert ds.frequency.dims == ("chan", "time")
-        assert ds.time.dims == ("chan", "time")
+        assert ds.time.dims == ("time",)
 
     def test_1d_neither_frequency_nor_time(self):
         """Test creating 1-D S21-only dataset (no frequency or time)."""
@@ -141,6 +153,102 @@ class TestMakeKidsDataset:
         assert i_key in ds.data_vars
         assert q_key in ds.data_vars
         assert f_key in ds.coords
+
+    @pytest.mark.parametrize("provided", ["time", "rate", "both"])
+    def test_sampling_coordinates_use_mapper_and_units(self, monkeypatch, provided):
+        schema = replace(
+            KidsMapper.schema,
+            time=NameMapping.var("clock"),
+            f_smp=NameMapping.attr("sample_rate"),
+        )
+        monkeypatch.setattr(KidsMapper, "schema", schema)
+        sampling = {}
+        if provided in ("time", "both"):
+            sampling["time"] = (5000 + np.arange(32) * 10) << u.ms
+        if provided in ("rate", "both"):
+            sampling["f_smp"] = 0.1 << u.kHz
+        source = make_kids_dataset(np.ones(32), np.zeros(32), **sampling)
+        assert source.attrs["sample_rate"] == pytest.approx(100)
+        assert "f_smp" not in source.attrs
+        view = source.kids.timestream
+        assert view.f_smp.to_value(u.Hz) == pytest.approx(100)
+        assert view.time.name == "clock"
+        offset = 0 if provided == "rate" else 5
+        np.testing.assert_allclose(view.time.u.to(u.s), offset + np.arange(32) / 100)
+        assert view.time.u.unit == (u.s if provided == "rate" else u.ms)
+
+    def test_rate_constructs_shared_time_for_multiple_channels(self):
+        signal = np.ones((3, 32))
+        source = make_kids_dataset(signal, signal, f_smp=128 << u.Hz)
+        assert source.I.dims == ("chan", "time")
+        assert source.kids.multi_timestream.time.dims == ("time",)
+        np.testing.assert_array_equal(source.time, np.arange(32) / 128)
+
+    @pytest.mark.parametrize("recorded", [False, True])
+    @pytest.mark.parametrize(
+        ("times", "message"),
+        [
+            ([0, 0.01, 0.03], "uniformly spaced"),
+            ([0, 0.01, 0.025], "uniformly spaced"),
+            ([0.02, 0.01, 0], "strictly increasing"),
+            ([0, 0.01, 0.01], "strictly increasing"),
+            ([0, np.nan, 0.02], "finite"),
+        ],
+        ids=["missing_sample", "irregular", "decreasing", "duplicate", "nonfinite"],
+    )
+    def test_invalid_sampling_rejected_at_construction(self, times, message, recorded):
+        signal = np.ones(3)
+        rate = 100 << u.Hz if recorded else None
+        with pytest.raises(ValueError, match=message):
+            make_kids_dataset(signal, signal, time=times << u.s, f_smp=rate)
+
+    def test_time_and_rate_must_agree(self):
+        signal = np.ones(32)
+        with pytest.raises(ValueError, match="agree with f_smp"):
+            make_kids_dataset(
+                signal, signal, time=np.arange(32) / 100 << u.s, f_smp=50 << u.Hz
+            )
+
+    @pytest.mark.parametrize("rate", [0, -100, np.nan, np.inf])
+    def test_invalid_sampling_rate(self, rate):
+        signal = np.ones(32)
+        with pytest.raises(ValueError, match="finite and positive"):
+            make_kids_dataset(signal, signal, f_smp=rate << u.Hz)
+
+    def test_sampling_rate_requires_frequency_units(self):
+        signal = np.ones(32)
+        with pytest.raises(u.UnitConversionError):
+            make_kids_dataset(signal, signal, f_smp=100 << u.s)
+
+    def test_single_sample_requires_explicit_rate(self):
+        signal = np.ones(1)
+        time = np.array([5]) << u.s
+        with pytest.raises(ValueError, match="at least two"):
+            make_kids_dataset(signal, signal, time=time)
+        source = make_kids_dataset(signal, signal, time=time, f_smp=100 << u.Hz)
+        assert source.kids.timestream.f_smp == 100 << u.Hz
+        np.testing.assert_array_equal(source.time, [5])
+
+    @pytest.mark.parametrize("kind", ["sweep", "timestream"])
+    def test_custom_channel_dimension(self, monkeypatch, kind):
+        schema = replace(KidsMapper.schema, chan_dim=NameMapping.dim("detector"))
+        monkeypatch.setattr(KidsMapper, "schema", schema)
+        signal = np.ones((3, 16))
+        coordinate = (
+            {"frequency": np.broadcast_to(np.arange(16) + 1e9, signal.shape) * u.Hz}
+            if kind == "sweep"
+            else {"time": np.arange(16) * u.s, "f_smp": 1 << u.Hz}
+        )
+        source = make_kids_dataset(
+            signal, signal, mapper=KidsMapper.from_defaults(), **coordinate
+        )
+        assert source.I.dims[0] == "detector"
+        assert source.sizes["detector"] == 3
+        assert "chan" not in source.dims
+        for data in (source, source.transpose()):
+            view = getattr(data.kids, f"multi_{kind}")
+            assert view.n_chans == 3
+            assert view.I.data is data.I.data
 
     def test_frequency_units_conversion(self, rng):
         """Test frequency with different units."""
@@ -183,7 +291,7 @@ class TestMakeKidsDataset:
         time = np.linspace(0, 10, 50) << u.s
         s21 = rng.standard_normal(100) + 1j * rng.standard_normal(100)
 
-        with pytest.raises(ValueError, match="Frequency must match I/Q shape"):
+        with pytest.raises(ValueError, match="Time must be 1-D with length matching"):
             make_kids_dataset(s21.real, s21.imag, time=time)
 
     def test_invalid_frequency_units(self, rng):
@@ -415,7 +523,7 @@ class TestIntegration:
         time = np.linspace(0, 10, 1000) << u.s
         s21 = rng.standard_normal(1000) + 1j * rng.standard_normal(1000)
 
-        ds = make_kids_dataset(s21.real, s21.imag, time=time)
+        ds = make_kids_dataset(s21.real, s21.imag, time=time, f_smp=99.9 << u.Hz)
 
         # Access timestream view
         ts = ds.kids.timestream
