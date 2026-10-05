@@ -143,7 +143,9 @@ def test_telescope_prefix_does_not_select_instrument(prefix):
 
 def test_telescope_parser_does_not_accept_readout_files():
     name = "toltec8_145609_000_0002_2025_10_31_09_27_57.nc"
-    with pytest.raises(ValueError, match="does not identify LmtFilepathInfo"):
+    with pytest.raises(
+        ValueError, match="Unrecognized acquisition filename for LmtFilepathInfo"
+    ):
         LmtFilepathInfo.from_source(name)
     assert LmtFilepathInfo.from_source(name, raise_on_error=False) is None
 

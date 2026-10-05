@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from functools import cached_property
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, Field, computed_field
 from tollan.utils.typing import (
@@ -15,9 +16,13 @@ from .._filepath import FilepathInfo
 from ..core import metadata_model_config
 from .types import DatetimeT, LabelT, SeqNumT
 
+if TYPE_CHECKING:
+    from ..model_table import ModelColumnMapper
+
 __all__ = [
     "FilepathInfoMixin",
     "FilepathOrigMetadataMixin",
+    "make_filepath_info_column_mapper",
 ]
 
 
@@ -65,3 +70,53 @@ class FilepathOrigMetadataMixin[FilepathInfoT: FilepathInfo](BaseModel):
         return self._filepath_info_cls.from_source(
             self.filepath_orig, raise_on_error=False
         )
+
+
+def make_filepath_info_column_mapper(*extra_obs_fields: str) -> ModelColumnMapper:
+    """Create a column mapper for acquisition filepath information.
+
+    Parameters
+    ----------
+    *extra_obs_fields : str
+        Additional field names to expose without the ``file_`` prefix, alongside
+        interface, instru, instru_component, master, obsnum, subobsnum and scannum.
+        Names are literal, not regular expressions.
+
+    Returns
+    -------
+    ModelColumnMapper
+        Mapper producing ``file_*`` columns for scalar filepath fields and
+        unprefixed aliases for observation information. Missing attributes
+        produce None. Call the mapper with a filepath model class to create
+        column declarations.
+
+    Examples
+    --------
+    >>> mapper = make_filepath_info_column_mapper()
+    >>> columns = mapper(FilepathInfoMixin)
+    >>> columns["obsnum"].attr, columns["file_obsnum"].attr
+    ('obsnum', 'obsnum')
+    >>> "prefix" in columns, "file_prefix" in columns
+    (False, True)
+    """
+    # Filename models do not require table machinery until columns are requested.
+    from ..model_table import ModelColumnMapper, ScalarColumnRule  # noqa: PLC0415
+
+    obs_fields = [
+        "interface",
+        "instru",
+        "instru_component",
+        "master",
+        "obsnum",
+        "subobsnum",
+        "scannum",
+        *extra_obs_fields,
+    ]
+    return ModelColumnMapper(
+        name_rules=[
+            (r".+", r"file_\g<0>"),
+            ("|".join(map(re.escape, obs_fields)), r"\g<0>"),
+        ],
+        type_rules=[ScalarColumnRule()],
+        default=None,
+    )

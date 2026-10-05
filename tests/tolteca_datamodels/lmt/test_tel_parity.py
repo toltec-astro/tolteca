@@ -10,11 +10,21 @@ import astropy.units as u
 import numpy as np
 import pytest
 
-from tolteca_datamodels.lmt import LmtObsPgm, open_lmt_tel
+from tolteca_datamodels.lmt import open_lmt_tel
+from tolteca_datamodels.lmt.types import LmtObsPgm
 
 
 @pytest.mark.parametrize(
-    "suffix", ["145605_00_0001", "145606_00_0001", "145609_00_0001", "145609_00_0002"]
+    "suffix",
+    [
+        "145605_00_0001",
+        "145606_00_0001",
+        "145608_00_0001",
+        "145609_00_0001",
+        "145609_00_0002",
+        "145610_00_0002",
+        "145611_00_0002",
+    ],
 )
 @pytest.mark.parametrize("chunks", [None, {}])
 def test_values_equal_v2(data_lmt_path, tmp_path, suffix, chunks):

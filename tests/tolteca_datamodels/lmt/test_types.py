@@ -7,8 +7,12 @@ import pytest
 from astropy.coordinates import EarthLocation
 from pydantic import TypeAdapter, ValidationError
 
-from tolteca_datamodels.lmt import LmtMaster, LmtObsPgm, LmtRawObsMasterCode
-from tolteca_datamodels.lmt.types import LmtInfo
+from tolteca_datamodels.lmt.types import (
+    LmtInfo,
+    LmtMaster,
+    LmtObsPgm,
+    LmtRawObsMasterCode,
+)
 from tolteca_datamodels.lmt_base.metadata import LmtInstruMixin
 
 

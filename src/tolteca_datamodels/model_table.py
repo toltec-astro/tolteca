@@ -212,7 +212,7 @@ class TimeColumnRule(ColumnTypeRule):
 
 
 class SkyCoordColumnRule(ColumnTypeRule):
-    """Project selected angular coordinate attributes without changing frame.
+    """Project angular coordinate attributes and their frame name.
 
     Parameters
     ----------
@@ -223,6 +223,11 @@ class SkyCoordColumnRule(ColumnTypeRule):
     unit : str or astropy.units.UnitBase
         Angular output unit. Column names gain attribute and unit suffixes;
         ``attrs=["l", "b"], unit="deg"`` produces ``_l_deg`` and ``_b_deg``.
+
+    Notes
+    -----
+    The accompanying ``_frame`` column contains the coordinate's Astropy frame
+    name, such as ``"icrs"`` or ``"galactic"``. Coordinates are not transformed.
     """
 
     attrs: tuple[Annotated[str, Field(min_length=1)], ...] = Field(min_length=1)
@@ -255,6 +260,10 @@ class SkyCoordColumnRule(ColumnTypeRule):
                 converter=partial(_coordinate_value, attr=attr, unit=self.unit),
             )
             for attr in self.attrs
+        } | {
+            f"{column_name}_frame": ModelColumn(
+                name, dtype="string", converter=partial(rgetattr, attr="frame.name")
+            )
         }
 
 

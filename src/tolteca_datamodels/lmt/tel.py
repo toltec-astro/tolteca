@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import functools
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar
+from operator import attrgetter
+from typing import TYPE_CHECKING, ClassVar, Literal, cast, overload
 
 import astropy.units as u
 import xarray as xr
@@ -12,9 +13,10 @@ from astropy.coordinates import SkyCoord
 from astropy.time import Time
 from tollan.accessor import NameMapping, Schema
 from tollan.accessor.xarray import XarrayAccessorBase, XarrayMapper
-from tollan.utils.fileloc import fileloc
+from tollan.accessor.xarray.utils import unwrap_data_source
 from tollan.utils.log import logger
 
+from ..source import identify_reader, open_source
 from .metadata import LmtTelMetadata
 from .types import LmtInfo, LmtObsGoal, LmtObsPgm, LmtRawObsMasterCode
 
@@ -24,7 +26,24 @@ if TYPE_CHECKING:
     from tollan.accessor import Mapping
     from tollan.utils.fileloc import FileLoc
 
-__all__ = ["LmtTelAccessor", "LmtTelIOMapper", "LmtTelIOSchema", "open_lmt_tel"]
+    class LmtTelDataset(xr.Dataset):
+        """Dataset with a typed telescope accessor."""
+
+        lmt_tel: LmtTelAccessor
+
+    class LmtTelDataTree(xr.DataTree):
+        """DataTree with a typed telescope accessor."""
+
+        lmt_tel: LmtTelAccessor
+
+
+__all__ = [
+    "LmtTelAccessor",
+    "LmtTelIOMapper",
+    "LmtTelIOSchema",
+    "identify_lmt_tel",
+    "open_lmt_tel",
+]
 
 
 @dataclass
@@ -150,10 +169,15 @@ class LmtTelAccessor(XarrayAccessorBase[LmtTelIOMapper]):
     Parameters
     ----------
     data_source : xarray.Dataset or xarray.DataTree
-        Telescope dataset, or a tree with telescope data at its root. Keep it
+        Telescope dataset, or a tree with telescope data at its current node. Keep it
         open until the desired array slices have been loaded.
     mapper : LmtTelIOMapper, optional
         Field mapper. If omitted, resolve fields against the dataset.
+
+    Raises
+    ------
+    ValueError
+        If the dataset lacks the telescope timestamp variable.
 
     Examples
     --------
@@ -170,8 +194,21 @@ class LmtTelAccessor(XarrayAccessorBase[LmtTelIOMapper]):
 
     @functools.cached_property
     def meta(self) -> LmtTelMetadata:
-        """Observation metadata."""
+        """Cached observation metadata."""
         return self.mapper.get_metadata(self.data_source)
+
+    def read_metadata(self) -> LmtTelMetadata:
+        """Read current observation headers and timestamp endpoints.
+
+        Returns
+        -------
+        LmtTelMetadata
+            Fresh observation metadata. Previously cached ``meta`` is unchanged.
+            The source must remain open during the read.
+        """
+        data_source = unwrap_data_source(self._data_source)
+        mapper = type(self.mapper).from_data_source(data_source)
+        return mapper.get_metadata(data_source)
 
     @functools.cached_property
     def t(self) -> xr.DataArray:
@@ -234,36 +271,99 @@ class LmtTelAccessor(XarrayAccessorBase[LmtTelIOMapper]):
         return result.astype(int).u.unset()
 
 
-def open_lmt_tel(filepath: str | Path | FileLoc, **kwargs) -> xr.Dataset:
+@overload
+def identify_lmt_tel(
+    data_source: object, *, raise_on_error: Literal[True]
+) -> LmtTelAccessor: ...
+
+
+@overload
+def identify_lmt_tel(
+    data_source: object, *, raise_on_error: Literal[False] = False
+) -> LmtTelAccessor | None: ...
+
+
+@overload
+def identify_lmt_tel(
+    data_source: object, *, raise_on_error: bool
+) -> LmtTelAccessor | None: ...
+
+
+def identify_lmt_tel(
+    data_source: object, *, raise_on_error: bool = False
+) -> LmtTelAccessor | None:
+    """Get a telescope accessor for an already-open payload, or None.
+
+    Parameters
+    ----------
+    data_source : object
+        Opened data. Dataset and DataTree objects are supported; other types
+        are not recognized. For a DataTree, use the current node's dataset.
+    raise_on_error : bool, optional
+        Raise for unsupported types or accessor validation errors instead of
+        returning None. Default is False. Other exceptions always propagate.
+
+    Returns
+    -------
+    LmtTelAccessor or None
+        Registered telescope accessor, or None for unrecognized data. Repeated
+        calls reuse the accessor. Identification does not read headers or sample
+        arrays. Read ``accessor.meta`` to obtain and validate the observation
+        headers, or call ``accessor.read_metadata()`` to reread changed headers.
+
+    Raises
+    ------
+    TypeError
+        If the payload type is unsupported and ``raise_on_error=True``.
+    ValueError
+        If telescope timestamps are missing and ``raise_on_error=True``.
+
+    Notes
+    -----
+    This function neither opens nor closes the payload. The caller must keep it
+    open while using the accessor. Full metadata validation is deferred until
+    metadata is requested.
+
+    See Also
+    --------
+    open_lmt_tel : Open a telescope file as a Dataset.
+    """
+    return identify_reader(
+        data_source,
+        source_types=(xr.Dataset, xr.DataTree),
+        reader_factory=attrgetter("lmt_tel"),
+        raise_on_error=raise_on_error,
+    )
+
+
+def open_lmt_tel(source: str | Path | FileLoc, **kwargs) -> LmtTelDataset:
     """Open an LMT telescope netCDF file.
 
     Parameters
     ----------
-    filepath : str, pathlib.Path or FileLoc
+    source : str, pathlib.Path or FileLoc
         Local telescope file. Remote files must be staged before opening.
     **kwargs
         Additional arguments passed to `xarray.open_dataset`.
 
     Returns
     -------
-    xarray.Dataset
-        Open dataset with the ``lmt_tel`` accessor. Use it as a context manager,
-        or close it after loading the required arrays.
+    LmtTelDataset
+        Open dataset with an initialized ``lmt_tel`` accessor. Headers and sample
+        arrays are not read until requested. Use the dataset as a context manager,
+        or close it after loading the required arrays. If accessor initialization
+        fails, the dataset is closed before the exception is raised.
 
     Raises
     ------
     ValueError
         If the location is remote or the dataset lacks telescope timestamps.
+
+    See Also
+    --------
+    identify_lmt_tel : Get an accessor for an already-open payload.
     """
-    source = fileloc(filepath)
-    if source.is_remote():
-        msg = "Remote telescope files must be staged locally before opening"
-        raise ValueError(msg)
-    ds = xr.open_dataset(source.path, **kwargs)
-    try:
-        # Accessor initialization resolves the schema and validates structure only.
-        _ = ds.lmt_tel
-    except BaseException:
-        ds.close()
-        raise
-    return ds
+    ds = open_source(
+        source, opener=xr.open_dataset, identifier=identify_lmt_tel, **kwargs
+    )
+    return cast("LmtTelDataset", ds)

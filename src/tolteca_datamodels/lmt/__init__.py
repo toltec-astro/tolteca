@@ -1,20 +1,21 @@
-"""LMT telescope-specific data models.
-
-This package contains metadata and types specific to LMT telescope systems
-(TCS, environmental monitoring, etc.).
-"""
+"""LMT telescope data models."""
 
 from __future__ import annotations
 
-from .metadata import LmtTelMetadata
-from .tel import LmtTelAccessor, LmtTelIOMapper, LmtTelIOSchema, open_lmt_tel
-from .types import LmtObsGoalType
+from typing import TYPE_CHECKING
+
+from ._filepath import LmtFilepathInfo
+from .tel import LmtTelAccessor, identify_lmt_tel, open_lmt_tel
+from .types import LmtInfo
+
+if TYPE_CHECKING:
+    from .tel import LmtTelDataset as LmtTelDataset
+    from .tel import LmtTelDataTree as LmtTelDataTree
 
 __all__ = [
-    "LmtObsGoalType",
+    "LmtFilepathInfo",
+    "LmtInfo",
     "LmtTelAccessor",
-    "LmtTelIOMapper",
-    "LmtTelIOSchema",
-    "LmtTelMetadata",
+    "identify_lmt_tel",
     "open_lmt_tel",
 ]

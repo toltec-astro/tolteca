@@ -2,7 +2,8 @@
 
 from pydantic import TypeAdapter
 
-from tolteca_datamodels.lmt import LmtTelMetadata, open_lmt_tel
+from tolteca_datamodels.lmt import open_lmt_tel
+from tolteca_datamodels.lmt.metadata import LmtTelMetadata
 
 
 def test_recorded_telescope_timestamps_roundtrip_exactly(data_lmt_path):

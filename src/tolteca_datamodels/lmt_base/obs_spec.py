@@ -1,4 +1,4 @@
-"""Observation selector domains and layout for LMT data."""
+"""Observation selector field constraints and layout for LMT data."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Annotated, Any, ClassVar
 
 from pydantic import PlainSerializer, PlainValidator
 
-from ..obs_spec import FieldDomain, ObsSpecBase, Selector
+from ..obs_spec import FieldConstraint, ObsSpecBase, Selector
 
 __all__ = ["ObsSpec", "ObsSpecField"]
 
@@ -29,7 +29,8 @@ class ObsSpec(ObsSpecBase):
         Labels, numeric components, mixed sets, bounds or positional selections.
         Literal parts around a numeric selection specify its position in a
         label, for example ``foo(1,5)[-1]bar``. Bare numeric constraints on
-        labels require registered domains when the selector is applied.
+        labels require a context with numeric interpretations when the selector
+        is applied.
 
     Examples
     --------
@@ -45,13 +46,13 @@ class ObsSpec(ObsSpecBase):
     scannum: Selector = None
     interface: Selector = None
 
-    _field_domains: ClassVar = {
-        "master": FieldDomain(labels=True),
+    _field_constraints: ClassVar = {
+        "master": FieldConstraint(kind="label"),
         **{
-            name: FieldDomain(sequence=True)
+            name: FieldConstraint(kind="integer")
             for name in ("obsnum", "subobsnum", "scannum")
         },
-        "interface": FieldDomain(labels=True, sequence=True),
+        "interface": FieldConstraint(kind="mixed"),
     }
     _primary_field: ClassVar = "obsnum"
     # ASCII digits and selector punctuation; the shared parser validates syntax.

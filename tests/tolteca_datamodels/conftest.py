@@ -53,6 +53,12 @@ def kids_readout_settings(data_lmt_path):
 
 
 @pytest.fixture(scope="session")
+def kids_filepath_orig(kids_readout_settings):
+    """Return the recorded acquisition path for metadata-model tests."""
+    return kids_readout_settings["Header.Toltec.Filename"].decode().rstrip("\x00 ")
+
+
+@pytest.fixture(scope="session")
 def kids_design_data(data_lmt_path):
     """Read recorded design/ADC values for toy metadata datasets."""
     (path,) = (data_lmt_path / "toltec/tcs/toltec0").glob("*_targsweep.nc")

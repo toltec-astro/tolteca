@@ -11,14 +11,17 @@ from tollan.utils.log import logger
 from xarray.backends.netCDF4_ import NetCDF4ArrayWrapper
 
 from tolteca_datamodels.lmt import (
+    LmtTelAccessor,
+    identify_lmt_tel,
+    open_lmt_tel,
+)
+from tolteca_datamodels.lmt.metadata import LmtTelMetadata
+from tolteca_datamodels.lmt.tel import LmtTelIOMapper
+from tolteca_datamodels.lmt.types import (
     LmtMaster,
     LmtObsGoal,
     LmtObsPgm,
     LmtRawObsMasterCode,
-    LmtTelAccessor,
-    LmtTelIOMapper,
-    LmtTelMetadata,
-    open_lmt_tel,
 )
 
 
@@ -290,6 +293,7 @@ def test_accessor_requires_native_timestamps(telescope, as_tree, location):
     elif location == "dim":
         ds["unrelated"] = (name, [0.0, 1.0])
     obj = xr.DataTree(ds) if as_tree else ds
+    assert identify_lmt_tel(obj) is None
     with pytest.raises(ValueError, match="missing tel_time variable"):
         _ = obj.lmt_tel
 
@@ -334,8 +338,11 @@ def test_open_closes_on_initialization_failure(telescope, tmp_path, monkeypatch,
 
 
 def test_open_initializes_once_and_preserves_lifetime(telescope, tmp_path, monkeypatch):
+    from tolteca_datamodels.lmt import tel
+
     opened = []
     validated = []
+    identified = []
     closed = []
     telescope.set_close(lambda: closed.append(True))
     validate = LmtTelAccessor._validate
@@ -348,16 +355,50 @@ def test_open_initializes_once_and_preserves_lifetime(telescope, tmp_path, monke
         validated.append(self)
         validate(self)
 
+    def track_identify(data_source, *, raise_on_error=False):
+        identified.append((data_source, raise_on_error))
+        return identify_lmt_tel(data_source, raise_on_error=raise_on_error)
+
     monkeypatch.setattr(xr, "open_dataset", track_open)
     monkeypatch.setattr(LmtTelAccessor, "_validate", track_validate)
+    monkeypatch.setattr(tel, "identify_lmt_tel", track_identify)
     path = tmp_path / "renamed.nc"
     with open_lmt_tel(path, chunks={}) as ds:
         assert ds is telescope
+        assert len(identified) == 1
+        assert identified[0][0] is ds and identified[0][1] is True
         assert validated == [ds.lmt_tel]
         assert "meta" not in ds.lmt_tel.__dict__
         assert not closed
     assert opened == [(path, {"chunks": {}})]
     assert closed == [True]
+
+
+@pytest.mark.parametrize("as_tree", [False, True])
+def test_read_metadata_sees_changed_headers_without_replacing_cache(telescope, as_tree):
+    source = xr.DataTree(telescope) if as_tree else telescope
+    reader = identify_lmt_tel(source, raise_on_error=True)
+    cached = reader.meta
+    source["Header.Dcs.ObsNum"] = cached.obsnum + 1
+    refreshed = reader.read_metadata()
+    assert refreshed.obsnum == cached.obsnum + 1
+    assert reader.meta is cached
+    assert identify_lmt_tel(source) is reader
+    del source["Header.Source.Ra"]
+    with pytest.raises(KeyError, match="Header.Source.Ra"):
+        reader.read_metadata()
+
+
+@pytest.mark.parametrize("as_tree", [False, True])
+def test_read_metadata_resolves_repaired_headers(telescope, as_tree):
+    source = telescope.drop_vars("Header.Dcs.ObsGoal")
+    if as_tree:
+        source = xr.DataTree(source)
+    reader = identify_lmt_tel(source, raise_on_error=True)
+    with pytest.raises(KeyError, match="Header.Dcs.ObsGoal"):
+        reader.read_metadata()
+    source["Header.Dcs.ObsGoal"] = "Pointing"
+    assert reader.read_metadata().obs_goal is LmtObsGoal.pointing
 
 
 @pytest.mark.parametrize("condition", ["missing_header", "empty_time", "scalar_time"])
@@ -376,20 +417,6 @@ def test_open_defers_metadata_validation(telescope, tmp_path, monkeypatch, condi
         assert "meta" not in opened.lmt_tel.__dict__
         with pytest.raises(ValueError, match=message):
             _ = opened.lmt_tel.meta
-
-
-@pytest.mark.parametrize(
-    "source", ["host:/data/test.nc", "https://example.org/test.nc"]
-)
-def test_remote_open_requires_explicit_staging(monkeypatch, source):
-    def unexpected(*args, **kwargs):
-        pytest.fail("Remote source was passed to the local reader")
-
-    monkeypatch.setattr(xr, "open_dataset", unexpected)
-    with pytest.raises(ValueError, match="staged locally"):
-        open_lmt_tel(source)
-    with pytest.raises(ValueError, match="staged locally"):
-        open_lmt_tel(fileloc(source))
 
 
 def test_pointing_variable_is_not_shadowed_by_attribute(telescope):

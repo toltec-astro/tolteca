@@ -9,16 +9,16 @@ from astropy.coordinates import SkyCoord
 from astropy.time import Time
 from pydantic import TypeAdapter, ValidationError
 
-from tolteca_datamodels.lmt import (
-    LmtFilepathInfo,
+from tolteca_datamodels.lmt import LmtFilepathInfo
+from tolteca_datamodels.lmt.metadata import LmtTelMetadata
+from tolteca_datamodels.lmt.types import (
+    LmtInfo,
     LmtMaster,
     LmtObsGoal,
     LmtObsPgm,
     LmtRawObsMasterCode,
-    LmtTelMetadata,
 )
-from tolteca_datamodels.lmt.types import LmtInfo
-from tolteca_datamodels.lmt_base import LmtRawObsMetadata
+from tolteca_datamodels.lmt_base.metadata import LmtRawObsMetadata
 from tolteca_datamodels.lmt_base.types import LabelT
 
 

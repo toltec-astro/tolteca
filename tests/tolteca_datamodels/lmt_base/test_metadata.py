@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import dataclasses
-
 import astropy.units as u
 import pytest
 from astropy.time import Time
-from pydantic_core import ValidationError
+from pydantic import ValidationError
 
-from tolteca_datamodels.lmt_base import LmtRawObsMetadata
+from tolteca_datamodels.lmt_base.metadata import LmtRawObsMetadata
 
 
 class TestLmtObsQuartetMixin:
@@ -63,8 +61,8 @@ class TestLmtObsQuartetMixin:
             t1=Time("2024-01-01T01:00:00"),  # pyright: ignore[reportArgumentType]
             t_int=3600 * u.s,
         )
-        with pytest.raises(dataclasses.FrozenInstanceError):
-            meta.master = "new_value"  # ty: ignore[invalid-assignment]
+        with pytest.raises(ValidationError, match="frozen"):
+            meta.master = "new_value"
 
 
 class TestLmtInstruMixin:
@@ -117,7 +115,7 @@ class TestLmtInstruMixin:
 
 
 class TestLmtRawObsMetadata:
-    """Tests for LmtRawObsMetadata dataclass."""
+    """Tests for LmtRawObsMetadata."""
 
     def test_creation_with_all_fields(self):
         """Test creating metadata with all fields."""
@@ -214,8 +212,8 @@ class TestLmtRawObsMetadata:
             t_int=60 * u.s,
         )
 
-        with pytest.raises(dataclasses.FrozenInstanceError):
-            meta.obsnum = 999  # ty: ignore[invalid-assignment]
+        with pytest.raises(ValidationError, match="frozen"):
+            meta.obsnum = 999
 
     def test_multiple_inheritance(self):
         """Test that multiple inheritance works correctly."""
