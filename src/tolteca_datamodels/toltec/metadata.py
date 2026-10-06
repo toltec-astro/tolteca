@@ -1,174 +1,137 @@
-"""TolTEC metadata models.
-
-Pydantic dataclasses with Field descriptions for self-documenting metadata.
-All metadata classes are frozen (immutable) DTOs.
-
-"""
+"""TolTEC observation metadata."""
 
 from __future__ import annotations
 
-from functools import cached_property
-from typing import Literal
+from typing import TYPE_CHECKING, Any
 
-from pydantic import Field, computed_field
-from pydantic.dataclasses import dataclass
+from pydantic import Field, PrivateAttr
+from tollan.config import FrozenBaseModel
 from tollan.config.types import FrequencyQuantityField
 
-from ..core import metadata_dataclass_config
-from ..lmt_base import LmtRawObsMetadata
-from .toltecdb import ToltecDBRawObsMaster
-from .types import ToltecArrayNameT, ToltecMasterType
+from ..lmt_base._filepath import FilepathOrigMetadataMixin
+from ..lmt_base.metadata import LmtRawObsMetadata
+from ..lmt_base.types import SeqNumT
+from ._filepath import ToltecFilepathInfo
+from .types import RoachT, ToltecInfo
+
+if TYPE_CHECKING:
+    from astropy.table import QTable
 
 __all__ = [
+    "ToltecBlocksMetadata",
+    "ToltecRawObsBlockMetadata",
     "ToltecRawObsMetadata",
     "ToltecSweepMetadata",
-    "ToltecSweepMetadataHeader",
     "ToltecTimeStreamMetadata",
 ]
 
 
-@dataclass(config=metadata_dataclass_config, frozen=True, kw_only=True)
-class ToltecRawObsMetadata(LmtRawObsMetadata):
-    """TolTEC acquisition metadata and readout settings.
+class ToltecRawObsMetadata(
+    LmtRawObsMetadata, FilepathOrigMetadataMixin[ToltecFilepathInfo]
+):
+    """TolTEC acquisition metadata and readout settings."""
 
-    ``master`` retains the recorded controller code. ``master_str`` supplies
-    its readable name.
-    """
-
-    master: ToltecDBRawObsMaster = Field(description="Recorded acquisition master code")
-
-    @computed_field
-    @cached_property
-    def master_str(self) -> ToltecMasterType:
-        """Return the acquisition master's name."""
-        return ToltecDBRawObsMaster.get_master_type(self.master)
-
-    # Override parent fields with defaults where appropriate
-    instru: Literal["toltec", "lmt"] | str = Field(
-        default="toltec",
-        description="TolTEC instrument",
+    # Acquisition identity and mode.
+    instru: ToltecInfo.InstruT = Field(
+        default="toltec", description="TolTEC instrument"
     )
-
-    # TolTEC-specific fields
-    array_name: ToltecArrayNameT | str | None = Field(
-        default=None,
-        description="Array name",
+    master: ToltecInfo.MasterT = Field(description="Acquisition master label")
+    master_code: ToltecInfo.MasterCodeT = Field(description="Recorded master code")
+    obs_type: ToltecInfo.ObsTypeT | None = Field(
+        default=None, description="Acquisition type, independent of block data kind"
     )
-
-    roach: int | None = Field(
-        default=None,
-        description="ROACH board index",
+    obs_type_code: ToltecInfo.ObsTypeCodeT | None = Field(
+        default=None, description="Recorded acquisition type code"
     )
-
-    # Derived field for network index (alias for roach in v2)
-    nw: int | None = Field(
-        default=None,
-        description="Network index (alias for roach)",
-    )
-
-    # Observation type (from Header.Toltec.ObsType)
-    obs_type: int | None = Field(
-        default=None,
-        description="Observation type code",
-    )
-
-    # Instrument settings
-    atten_drive: float | None = Field(
-        default=None,
-        description="Drive attenuation in dB",
-    )
-    atten_sense: float | None = Field(
-        default=None,
-        description="Sense attenuation in dB",
-    )
-
-    # Calibration/association references
-    cal_roach: int | None = Field(
-        default=None,
-        description="Associated calibration ROACH index",
-    )
-    cal_obsnum: int | None = Field(
-        default=None,
-        description="Associated calibration observation number",
-    )
-    cal_subobsnum: int | None = Field(
-        default=None,
-        description="Associated calibration sub-observation number",
-    )
-    cal_scannum: int | None = Field(
-        default=None,
-        description="Associated calibration scan number",
-    )
-
-    # ADC snap data
-    adc_snap: str | None = Field(
-        default=None,
-        description="ADC snapshot data reference",
-    )
-
-    # Design/configuration parameters
-    n_kids_design: int | None = Field(
-        default=None,
-        description="Number of designed KIDs (loclen)",
-    )
-    n_chans_max: int | None = Field(
-        default=None,
-        description="Maximum number of tones",
-    )
-
     repeat: int | None = Field(
-        default=None,
-        description="Recorded acquisition repeat level",
+        default=None, description="Recorded acquisition repeat level"
     )
 
+    # Readout identity.
+    roach: RoachT | None = Field(default=None, description="ROACH board index")
+    nw: RoachT | None = Field(default=None, description="Network index (ROACH index)")
+    array: ToltecInfo.ArrayT | None = Field(
+        default=None, description="Detector array index"
+    )
+    array_name: ToltecInfo.ArrayNameT | None = Field(
+        default=None, description="Array name"
+    )
 
-@dataclass(config=metadata_dataclass_config, frozen=True, kw_only=True)
-class ToltecTimeStreamMetadata(ToltecRawObsMetadata):
-    """TolTEC time stream metadata with sample count and timing.
-
-    Metadata for time-series KIDs data. All TolTEC data has time dimension,
-    including sweeps which are time-series with frequency sweeping.
-    """
-
-    n_times: int = Field(description="Number of time samples")
+    # Acquisition size and programmed readout settings.
+    n_blocks_max: int = Field(ge=0, description="Allocated acquisition block capacity")
+    n_times: int = Field(ge=0, description="Number of time samples in this record")
     n_chans: int = Field(description="Number of readout channels")
+    n_chans_max: int | None = Field(default=None, description="Maximum number of tones")
+    n_kids_design: int | None = Field(
+        default=None, description="Number of designed KIDs"
+    )
+    n_sweepreps: int | None = Field(
+        default=None, description="Programmed samples per sweep step, when recorded"
+    )
     f_smp: FrequencyQuantityField = Field(description="Sample rate")
     f_lo_center: float | None = Field(
-        default=None,
-        description="Center LO frequency in Hz",
+        default=None, description="Center LO frequency in Hz"
+    )
+    atten_drive: float | None = Field(
+        default=None, description="Drive attenuation in dB"
+    )
+    atten_sense: float | None = Field(
+        default=None, description="Sense attenuation in dB"
+    )
+
+    # Associated calibration acquisition.
+    cal_roach: RoachT | None = Field(
+        default=None, description="Calibration ROACH index"
+    )
+    cal_obsnum: SeqNumT | None = Field(
+        default=None, description="Calibration observation number"
+    )
+    cal_subobsnum: SeqNumT | None = Field(
+        default=None, description="Calibration sub-observation number"
+    )
+    cal_scannum: SeqNumT | None = Field(
+        default=None, description="Calibration scan number"
     )
 
 
-@dataclass(config=metadata_dataclass_config, frozen=True, kw_only=True)
-class ToltecSweepMetadataHeader(ToltecTimeStreamMetadata):
-    """Sweep settings and sample metadata available without reading LO samples.
+class ToltecBlocksMetadata(FrozenBaseModel):
+    """Small, eager summary of a discovered block collection."""
 
-    ``n_blocks_max`` is allocated capacity, not the number of acquired sweeps.
-    The sample count and integration time describe the entire acquisition.
+    n_blocks: int = Field(ge=0, description="Number of discovered blocks")
+    n_chans: int = Field(ge=0, description="Fixed readout channel count")
+
+
+class ToltecRawObsBlockMetadata(ToltecRawObsMetadata):
+    """One block's complete scalar metadata and optional table projections.
+
+    Scalar records are self-contained. Table access is attached by a block view
+    and is excluded from JSON; scientific arrays live in DataTree leaves.
     """
+
+    n_blocks: int = Field(ge=1, description="Number of discovered acquisition blocks")
+    block: int = Field(ge=0, description="Zero-based acquisition block index")
+    _block_view: Any = PrivateAttr(default=None)
+
+    @property
+    def chan_axis_table(self) -> QTable | None:
+        """Channel rows for this block, when attached to a data view."""
+        return (
+            self._block_view.chan_axis_table if self._block_view is not None else None
+        )
+
+    @property
+    def probe_axis_table(self) -> QTable | None:
+        """Probe dwells for this block, when attached to a data view."""
+        return (
+            self._block_view.probe_axis_table if self._block_view is not None else None
+        )
+
+
+class ToltecTimeStreamMetadata(ToltecRawObsBlockMetadata):
+    """One TolTEC timestream block."""
+
+
+class ToltecSweepMetadata(ToltecRawObsBlockMetadata):
+    """One TolTEC sweep block and its programmed sweep settings."""
 
     n_sweepsteps: int = Field(description="Number of frequency steps per sweep")
-    n_sweepreps: int | None = Field(
-        default=None,
-        description="Number of repetitions per sweep step (for raw sweeps)",
-    )
-
-    n_blocks_max: int | None = Field(
-        default=None,
-        description="Maximum number of blocks",
-    )
-
-
-@dataclass(config=metadata_dataclass_config, frozen=True, kw_only=True)
-class ToltecSweepMetadata(ToltecSweepMetadataHeader):
-    """Sweep acquisition metadata including the number of recorded blocks.
-
-    A selected block has one sweep and its own sample count and integration time.
-    ``n_blocks`` retains the number of blocks in the full acquisition.
-    """
-
-    n_sweeps: int = Field(description="Number of sweeps (blocks for multi-block data)")
-    n_blocks: int | None = Field(
-        default=None,
-        description="Number of blocks (for multi-block data)",
-    )

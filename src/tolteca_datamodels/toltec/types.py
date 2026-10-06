@@ -3,19 +3,23 @@
 from __future__ import annotations
 
 from enum import Flag, StrEnum, auto
-from typing import ClassVar, Literal, get_args
+from typing import Annotated, ClassVar, Literal
 
 import astropy.units as u
+from pydantic import Field
+from tollan.utils.typing import get_literal_values
 
 from ..lmt_base.metadata import LmtInstruMixin
+from .toltecdb import ToltecDBRawObsMasterCode, ToltecDBRawObsTypeCode
 
 __all__ = [
+    "RoachT",
+    "ToltecArray",
     "ToltecArrayNameT",
-    "ToltecArrayType",
     "ToltecDataKind",
     "ToltecInfo",
+    "ToltecMaster",
     "ToltecMasterNameT",
-    "ToltecMasterType",
 ]
 
 
@@ -23,95 +27,97 @@ class ToltecDataKind(Flag):
     """TolTEC data kinds."""
 
     # Raw KIDs data
-    VnaSweep = auto()
+    vnasweep = auto()
     """A full range sweep on a regular grid."""
 
-    TargetSweep = auto()
+    targsweep = auto()
     """A target sweep on a list of frequencies."""
 
-    Tune = auto()
+    tune = auto()
     """A pack of two back-to-back target sweeps to improve the probe tones."""
 
-    RawSweep = VnaSweep | TargetSweep | Tune
+    raw_sweep = vnasweep | targsweep | tune
     """The sum of all sweep kinds."""
 
-    RawTimeStream = auto()
+    raw_timestream = auto()
     """A continuous capturing of the data at given probe tones."""
 
-    RawKidsData = RawSweep | RawTimeStream
+    raw_kids_data = raw_sweep | raw_timestream
     """The sum of all raw kids data kinds."""
 
     # Reduced KIDs data kinds
-    D21 = auto()
-    ReducedVnaSweep = auto()
-    ReducedTargetSweep = auto()
-    ReducedSweep = ReducedVnaSweep | ReducedTargetSweep
-    SolvedTimeStream = auto()
-    ReducedKidsData = D21 | ReducedSweep | SolvedTimeStream
+    d21 = auto()
+    reduced_vnasweep = auto()
+    reduced_targsweep = auto()
+    reduced_sweep = reduced_vnasweep | reduced_targsweep
+    solved_timestream = auto()
+    reduced_kids_data = d21 | reduced_sweep | solved_timestream
 
     # Raw and reduced sum types
-    Sweep = RawSweep | ReducedSweep
-    TimeStream = RawTimeStream | SolvedTimeStream
-    KidsData = RawKidsData | ReducedKidsData
+    sweep = raw_sweep | reduced_sweep
+    timestream = raw_timestream | solved_timestream
+    kids_data = raw_kids_data | reduced_kids_data
 
     # Observing-time reduction data types.
 
-    TargFreqsDat = auto()
+    targ_freqs_dat = auto()
     """The legacy targ_freqs.dat consumed by tlaloc."""
 
-    TargAmpsDat = auto()
+    targ_amps_dat = auto()
     """The legacy default_amps.dat consumed by tlaloc."""
 
-    KidsModelParamsTable = auto()
+    kids_model_params_table = auto()
     """The legacy kids model fitting result from kidscpp."""
 
-    KidsPropTable = auto()
+    kids_prop_table = auto()
     """The KIDs finding/fitting results."""
 
-    TonePropTable = auto()
+    tone_prop_table = auto()
     """The table listing tone properties, derived from KPT."""
 
-    ChanPropTable = auto()
+    chan_prop_table = auto()
     """The table listing channel properties, derived from KPT."""
 
-    ArrayPropTable = auto()
+    array_prop_table = auto()
     """The array property table derived from beammapping."""
 
-    PointingTable = auto()
+    pointing_table = auto()
     """The pointing property table derived from pointing observation."""
 
-    KidsTableData = KidsModelParamsTable | KidsPropTable | TonePropTable | ChanPropTable
-    TableData = KidsTableData | ArrayPropTable | PointingTable
+    kids_table_data = (
+        kids_model_params_table | kids_prop_table | tone_prop_table | chan_prop_table
+    )
+    table_data = kids_table_data | array_prop_table | pointing_table
 
     # Raw infrastructural kinds
-    Hwpr = auto()
+    hwpr = auto()
     """The half wave place rotation data."""
 
-    Wyatt = auto()
+    wyatt = auto()
     """The wyatt robot arm."""
 
-    LmtTel = auto()
+    lmt_tel = auto()
     """LMT telescope file"""
 
-    LmtTel2 = auto()
+    lmt_tel2 = auto()
     """Supplementary LMT telescope file with data at their original sample rate."""
 
-    HouseKeeping = auto()
+    housekeeping = auto()
     """The house keeping data."""
 
     # settings and configurations.
-    LmtOtScript = auto()
+    lmt_ot_script = auto()
     """LMT OT script."""
 
-    ToltecaConfig = auto()
+    tolteca_config = auto()
     """TolTECA Yaml config."""
 
-    Unknown = auto()
+    unknown = auto()
     """Unknown data."""
 
 
-class ToltecMasterType(StrEnum):
-    """Toltec master types."""
+class ToltecMaster(StrEnum):
+    """TolTEC acquisition masters."""
 
     tcs = auto()
     """The telescope control system."""
@@ -131,8 +137,8 @@ type ToltecMasterNameT = Literal[
 """Toltec master names."""
 
 
-class ToltecArrayType(StrEnum):
-    """Toltec array types."""
+class ToltecArray(StrEnum):
+    """TolTEC detector arrays."""
 
     a1100 = auto()
     """The 1.1 mm array."""
@@ -155,9 +161,33 @@ type ToltecArrayNameT = Literal[
 class ToltecInfo:
     """Toltec instrument information and constants."""
 
-    masters: ClassVar[list[ToltecMasterNameT]] = list(
-        get_args(ToltecMasterNameT.__value__),
-    )
+    type InstruT = Literal["toltec"]
+    type MasterT = ToltecMasterNameT
+    type MasterCodeT = Annotated[
+        int, Field(ge=min(ToltecDBRawObsMasterCode), le=max(ToltecDBRawObsMasterCode))
+    ]
+    type ObsTypeT = Literal["nominal", "timestream", "vna", "targ", "tune"]
+    type ObsTypeCodeT = Annotated[
+        int, Field(ge=min(ToltecDBRawObsTypeCode), le=max(ToltecDBRawObsTypeCode))
+    ]
+    type ArrayT = Annotated[int, Field(ge=0, le=2)]
+    type ArrayNameT = ToltecArrayNameT
+
+    obs_type_code_obs_type: ClassVar[dict[int, str]] = {
+        code.value: code.name.lower() for code in ToltecDBRawObsTypeCode
+    }
+    """Recorded acquisition types, independent of individual block data kinds."""
+
+    masters: ClassVar[list[ToltecMasterNameT]] = get_literal_values(ToltecMasterNameT)
+
+    master_code_master: ClassVar[dict[int, ToltecMaster]] = {
+        master_code.value: ToltecDBRawObsMasterCode.get_master(master_code)
+        for master_code in ToltecDBRawObsMasterCode
+    }
+    """Supported acquisition-master codes and their labels."""
+    master_master_code: ClassVar[dict[str, int]] = {
+        master: master_code for master_code, master in master_code_master.items()
+    }
 
     # roach interfaces
     roaches: ClassVar = list(range(13))
@@ -187,9 +217,9 @@ class ToltecInfo:
 
     # arrays
     arrays: ClassVar = list(range(3))
-    array_names: ClassVar[list[ToltecArrayNameT]] = list(
-        get_args(ToltecArrayNameT.__value__),
-    )
+    array_names: ClassVar[list[ToltecArrayNameT]] = get_literal_values(ToltecArrayNameT)
+    array_array_name: ClassVar = dict(zip(arrays, array_names, strict=True))
+    array_name_array: ClassVar = {v: k for k, v in array_array_name.items()}
 
     interface_array_name: ClassVar[dict[str, ToltecArrayNameT]] = {
         "toltec0": "a1100",
@@ -207,3 +237,8 @@ class ToltecInfo:
         "toltec12": "a2000",
     }
     fov_diameter: ClassVar = 4 << u.arcmin
+
+
+type RoachT = Annotated[
+    int, Field(ge=min(ToltecInfo.roaches), le=max(ToltecInfo.roaches))
+]
