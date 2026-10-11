@@ -5,24 +5,22 @@ from __future__ import annotations
 from functools import cached_property
 
 import astropy.units as u
-from pydantic import BaseModel, Field, computed_field
+from pydantic import Field, computed_field
 from tollan.config.types import TimeQuantityField, UnixTimeField
 
-from ..core import metadata_model_config
-from .funcs import make_quartet, make_uid_raw_obs, make_uid_raw_obs_file
+from ..core import FrozenDataModel
+from .funcs import make_quartet, make_uid_obs, make_uid_raw_obs, make_uid_raw_obs_file
 from .types import LabelT, SeqNumT
 
 __all__ = [
-    "LmtInstruMixin",
+    "InterfaceInfoMixin",
     "LmtObsQuartetMixin",
     "LmtRawObsMetadata",
 ]
 
 
-class LmtObsQuartetMixin(BaseModel):
+class LmtObsQuartetMixin(FrozenDataModel):
     """Mixin for the LMT observation quartet."""
-
-    model_config = metadata_model_config
 
     master: LabelT | None = Field(
         description="Acquisition master label",
@@ -38,20 +36,16 @@ class LmtObsQuartetMixin(BaseModel):
         return make_quartet(self.master, self.obsnum, self.subobsnum, self.scannum)
 
 
-class LmtInstruMixin(BaseModel):
-    """Mixin for LMT instrument metadata."""
+class InterfaceInfoMixin(FrozenDataModel):
+    """Complete identity and classification of a data interface."""
 
-    model_config = metadata_model_config
-
+    instru: LabelT = Field(description="Instrument whose data conventions apply")
+    producer: LabelT = Field(description="Instrument producing the data")
+    interface_kind: LabelT = Field(description="Class of acquisition interface")
     interface: LabelT = Field(description="Data interface identifier")
-    instru: LabelT = Field(description="Instrument name")
-    instru_component: LabelT | None = Field(
-        default=None,
-        description="Instrument component or subsystem",
-    )
 
 
-class LmtRawObsMetadata(LmtObsQuartetMixin, LmtInstruMixin):
+class LmtRawObsMetadata(LmtObsQuartetMixin, InterfaceInfoMixin):
     """LMT raw observation metadata."""
 
     t0: UnixTimeField = Field(description="Observation start time")
@@ -63,6 +57,12 @@ class LmtRawObsMetadata(LmtObsQuartetMixin, LmtInstruMixin):
     def t_elapsed(self) -> TimeQuantityField:
         """Elapsed observation time."""
         return (self.t1 - self.t0).to(u.s)
+
+    @computed_field
+    @cached_property
+    def uid_obs(self) -> LabelT | None:
+        """Identifier of the observation."""
+        return make_uid_obs(self.master, self.obsnum)
 
     @computed_field
     @cached_property

@@ -22,8 +22,10 @@ def meta():
         obsnum=145609,
         subobsnum=0,
         scannum=2,
-        instru="lmt",
+        instru="toltec",
+        producer="lmt",
         interface="tel",
+        interface_kind="tel",
         t0=Time("2025-10-31T09:27:56"),
         t1=Time("2025-10-31T09:28:56"),
         t_int=0 * u.s,
@@ -79,9 +81,12 @@ def test_computed_fields_are_readonly_and_not_roundtrip_inputs(meta):
 def test_toltec_original_path_retains_subclass_fields(meta):
     metadata_data = TypeAdapter(LmtRawObsMetadata).dump_python(meta, round_trip=True)
     metadata_data.update(
+        master=ToltecDBRawObsMasterCode.get_master(ToltecDBRawObsMasterCode.TCS),
         master_code=ToltecDBRawObsMasterCode.TCS,
         instru="toltec",
+        producer="toltec",
         interface="toltec8",
+        readout_code=8,
         roach=8,
         filepath_orig=(
             "/data_lmt/toltec/tcs/toltec8/"

@@ -22,7 +22,9 @@ class TestLmtObsQuartetMixin:
             subobsnum=2,
             scannum=5,
             instru="test",
+            producer="test",
             interface="test0",
+            interface_kind="test",
             t0=Time("2024-01-01T00:00:00"),  # pyright: ignore[reportArgumentType]
             t1=Time("2024-01-01T01:00:00"),  # pyright: ignore[reportArgumentType]
             t_int=3600 * u.s,
@@ -38,7 +40,9 @@ class TestLmtObsQuartetMixin:
             subobsnum=2,
             scannum=5,
             instru="test",
+            producer="test",
             interface="test0",
+            interface_kind="test",
             t0=Time("2024-01-01T00:00:00"),  # pyright: ignore[reportArgumentType]
             t1=Time("2024-01-01T01:00:00"),  # pyright: ignore[reportArgumentType]
             t_int=3600 * u.s,
@@ -56,7 +60,9 @@ class TestLmtObsQuartetMixin:
             subobsnum=2,
             scannum=5,
             instru="test",
+            producer="test",
             interface="test0",
+            interface_kind="test",
             t0=Time("2024-01-01T00:00:00"),  # pyright: ignore[reportArgumentType]
             t1=Time("2024-01-01T01:00:00"),  # pyright: ignore[reportArgumentType]
             t_int=3600 * u.s,
@@ -65,8 +71,8 @@ class TestLmtObsQuartetMixin:
             meta.master = "new_value"
 
 
-class TestLmtInstruMixin:
-    """Tests for LmtInstruMixin through LmtRawObsMetadata."""
+class TestInterfaceInfoMixin:
+    """Tests for InterfaceInfoMixin through LmtRawObsMetadata."""
 
     def test_required_fields(self):
         """Test that instru and interface are required."""
@@ -82,36 +88,22 @@ class TestLmtInstruMixin:
                 t_int=60 * u.s,
             )
 
-    def test_optional_instru_component(self):
-        """Test that instru_component is optional."""
+    def test_interface_kind_can_be_set(self):
+        """Test that interface_kind can be provided."""
         meta: LmtRawObsMetadata = LmtRawObsMetadata(
             master="lmt",
             obsnum=1,
             subobsnum=0,
             scannum=0,
             instru="test",
+            producer="test",
             interface="test0",
+            interface_kind="subsystem1",
             t0=Time("2024-01-01T00:00:00"),  # pyright: ignore[reportArgumentType]
             t1=Time("2024-01-01T01:00:00"),  # pyright: ignore[reportArgumentType]
             t_int=60 * u.s,
         )
-        assert meta.instru_component is None
-
-    def test_instru_component_can_be_set(self):
-        """Test that instru_component can be provided."""
-        meta: LmtRawObsMetadata = LmtRawObsMetadata(
-            master="lmt",
-            obsnum=1,
-            subobsnum=0,
-            scannum=0,
-            instru="test",
-            interface="test0",
-            instru_component="subsystem1",
-            t0=Time("2024-01-01T00:00:00"),  # pyright: ignore[reportArgumentType]
-            t1=Time("2024-01-01T01:00:00"),  # pyright: ignore[reportArgumentType]
-            t_int=60 * u.s,
-        )
-        assert meta.instru_component == "subsystem1"
+        assert meta.interface_kind == "subsystem1"
 
 
 class TestLmtRawObsMetadata:
@@ -121,7 +113,9 @@ class TestLmtRawObsMetadata:
         """Test creating metadata with all fields."""
         meta: LmtRawObsMetadata = LmtRawObsMetadata(
             instru="toltec",
+            producer="toltec",
             interface="toltec0",
+            interface_kind="roach",
             master="lmt",
             obsnum=12345,
             subobsnum=1,
@@ -152,7 +146,9 @@ class TestLmtRawObsMetadata:
             subobsnum=0,
             scannum=0,
             instru="test",
+            producer="test",
             interface="test0",
+            interface_kind="test",
             t0=t0,  # pyright: ignore[reportArgumentType]
             t1=t1,  # pyright: ignore[reportArgumentType]
             t_int=60 * u.s,
@@ -171,7 +167,9 @@ class TestLmtRawObsMetadata:
             subobsnum=0,
             scannum=0,
             instru="test",
+            producer="test",
             interface="test0",
+            interface_kind="test",
             t0=Time.now(),  # pyright: ignore[reportArgumentType]
             t1=Time.now(),  # pyright: ignore[reportArgumentType]
             t_int=120 * u.s,
@@ -189,7 +187,9 @@ class TestLmtRawObsMetadata:
             subobsnum=0,
             scannum=0,
             instru="test",
+            producer="test",
             interface="test0",
+            interface_kind="test",
             t0=Time.now(),  # pyright: ignore[reportArgumentType]
             t1=Time.now(),  # pyright: ignore[reportArgumentType]
             t_int=2 * u.min,
@@ -206,7 +206,9 @@ class TestLmtRawObsMetadata:
             subobsnum=0,
             scannum=0,
             instru="test",
+            producer="test",
             interface="test0",
+            interface_kind="test",
             t0=Time.now(),  # pyright: ignore[reportArgumentType]
             t1=Time.now(),  # pyright: ignore[reportArgumentType]
             t_int=60 * u.s,
@@ -223,7 +225,9 @@ class TestLmtRawObsMetadata:
             subobsnum=0,
             scannum=0,
             instru="test",
+            producer="test",
             interface="test0",
+            interface_kind="test",
             t0=Time.now(),  # pyright: ignore[reportArgumentType]
             t1=Time.now(),  # pyright: ignore[reportArgumentType]
             t_int=60 * u.s,
@@ -235,10 +239,10 @@ class TestLmtRawObsMetadata:
         assert hasattr(meta, "subobsnum")
         assert hasattr(meta, "scannum")
 
-        # Check fields from LmtInstruMixin
+        # Check fields from InterfaceInfoMixin
         assert hasattr(meta, "interface")
         assert hasattr(meta, "instru")
-        assert hasattr(meta, "instru_component")
+        assert hasattr(meta, "interface_kind")
 
         # Check own fields
         assert hasattr(meta, "t0")

@@ -4,48 +4,56 @@ from __future__ import annotations
 
 import re
 from functools import cached_property
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import Field, computed_field
 from tollan.utils.typing import (
     GenericBindingRequirement,
     resolve_concrete_generic_bindings,
 )
 
 from .._filepath import FilepathInfo
-from ..core import metadata_model_config
-from .types import DatetimeT, LabelT, SeqNumT
-
-if TYPE_CHECKING:
-    from ..model_table import ModelColumnMapper
+from ..core import FrozenDataModel
+from ..model_table import ModelColumn, ModelColumnMapper, ScalarColumnRule
+from .metadata import InterfaceInfoMixin, LmtObsQuartetMixin
+from .types import DatetimeT
 
 __all__ = [
     "FilepathInfoMixin",
     "FilepathOrigMetadataMixin",
-    "make_filepath_info_column_mapper",
 ]
 
 
-class FilepathInfoMixin(BaseModel):
+class FilepathInfoMixin(LmtObsQuartetMixin, InterfaceInfoMixin):
     """Observation information encoded in an acquisition filepath."""
 
+    _columns: ClassVar[dict[str, ModelColumn]]
+
     prefix: str
-    suffix: str | None = None
+    suffix: str | None
     ext: str
-    interface: LabelT
-    instru: LabelT
-    instru_component: LabelT
-    master: LabelT | None = None
-    obsnum: SeqNumT
-    subobsnum: SeqNumT
-    scannum: SeqNumT
     ut: DatetimeT
 
+    @classmethod
+    def __pydantic_on_complete__(cls) -> None:
+        super().__pydantic_on_complete__()
+        obs_fields = [
+            name
+            for name in cls.model_fields
+            if name not in {"prefix", "suffix", "ext", "ut", "proc_suffix"}
+        ]
+        cls._columns = ModelColumnMapper(
+            name_rules=[
+                (r".+", r"file_\g<0>"),
+                ("|".join(map(re.escape, obs_fields)), r"\g<0>"),
+            ],
+            type_rules=[ScalarColumnRule()],
+            default=None,
+        )(cls)
 
-class FilepathOrigMetadataMixin[FilepathInfoT: FilepathInfo](BaseModel):
+
+class FilepathOrigMetadataMixin[FilepathInfoT: FilepathInfo](FrozenDataModel):
     """Mixin for the original acquisition filepath and its parsed information."""
-
-    model_config = metadata_model_config
 
     # Runtime type: type[FilepathInfoT].
     _filepath_info_cls: ClassVar
@@ -70,53 +78,3 @@ class FilepathOrigMetadataMixin[FilepathInfoT: FilepathInfo](BaseModel):
         return self._filepath_info_cls.from_source(
             self.filepath_orig, raise_on_error=False
         )
-
-
-def make_filepath_info_column_mapper(*extra_obs_fields: str) -> ModelColumnMapper:
-    """Create a column mapper for acquisition filepath information.
-
-    Parameters
-    ----------
-    *extra_obs_fields : str
-        Additional field names to expose without the ``file_`` prefix, alongside
-        interface, instru, instru_component, master, obsnum, subobsnum and scannum.
-        Names are literal, not regular expressions.
-
-    Returns
-    -------
-    ModelColumnMapper
-        Mapper producing ``file_*`` columns for scalar filepath fields and
-        unprefixed aliases for observation information. Missing attributes
-        produce None. Call the mapper with a filepath model class to create
-        column declarations.
-
-    Examples
-    --------
-    >>> mapper = make_filepath_info_column_mapper()
-    >>> columns = mapper(FilepathInfoMixin)
-    >>> columns["obsnum"].attr, columns["file_obsnum"].attr
-    ('obsnum', 'obsnum')
-    >>> "prefix" in columns, "file_prefix" in columns
-    (False, True)
-    """
-    # Filename models do not require table machinery until columns are requested.
-    from ..model_table import ModelColumnMapper, ScalarColumnRule  # noqa: PLC0415
-
-    obs_fields = [
-        "interface",
-        "instru",
-        "instru_component",
-        "master",
-        "obsnum",
-        "subobsnum",
-        "scannum",
-        *extra_obs_fields,
-    ]
-    return ModelColumnMapper(
-        name_rules=[
-            (r".+", r"file_\g<0>"),
-            ("|".join(map(re.escape, obs_fields)), r"\g<0>"),
-        ],
-        type_rules=[ScalarColumnRule()],
-        default=None,
-    )

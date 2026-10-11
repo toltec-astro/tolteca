@@ -5,36 +5,80 @@ import pandas as pd
 __all__ = [
     "make_quartet",
     "make_uid_columns",
+    "make_uid_obs",
     "make_uid_raw_obs",
     "make_uid_raw_obs_file",
 ]
 
 
 def make_quartet(
-    master: str | None, obsnum: int | None, subobsnum: int | None, scannum: int | None
+    master: str | None,
+    obsnum: int | None,
+    subobsnum: int | None = None,
+    scannum: int | None = None,
 ) -> str | None:
     """Construct an observation identifier.
 
     Parameters
     ----------
     master : str or None
-        Acquisition master label.
+        Acquisition master label, omitted from the identifier if None.
     obsnum : int or None
         Observation number.
-    subobsnum : int or None
-        Sub-observation number.
-    scannum : int or None
-        Scan number.
+    subobsnum : int or None, optional
+        Sub-observation number. Default is None.
+    scannum : int or None, optional
+        Scan number. Default is None.
 
     Returns
     -------
     str or None
-        Observation identifier, or None if any input is None.
+        Observation identifier with an optional master and trailing numbers.
+        None if the observation number is missing or numeric components
+        contain a gap.
+
+    Examples
+    --------
+    >>> make_quartet("tcs", 1, 1, 1)
+    'tcs-1-1-1'
+    >>> make_quartet(None, 1, 1, 1)
+    '1-1-1'
+    >>> make_quartet("tcs", 1)
+    'tcs-1'
+    >>> make_quartet(None, 1)
+    '1'
+    >>> make_quartet("tcs", 1, None, 3) is None
+    True
     """
-    parts = (master, obsnum, subobsnum, scannum)
-    if any(part is None for part in parts):
+    if obsnum is None or (subobsnum is None and scannum is not None):
         return None
-    return "-".join(map(str, parts))
+    parts = (master, obsnum, subobsnum, scannum)
+    return "-".join(str(part) for part in parts if part is not None)
+
+
+def make_uid_obs(master: str | None, obsnum: int | None) -> str | None:
+    """Construct an observation identifier.
+
+    Parameters
+    ----------
+    master : str or None
+        Acquisition master label, omitted from the identifier if None.
+    obsnum : int or None
+        Observation number.
+
+    Returns
+    -------
+    str or None
+        Observation identifier, or None if the observation number is missing.
+
+    Examples
+    --------
+    >>> make_uid_obs("tcs", 1)
+    'tcs-1'
+    >>> make_uid_obs(None, 1)
+    '1'
+    """
+    return make_quartet(master, obsnum)
 
 
 def make_uid_raw_obs(
@@ -45,7 +89,7 @@ def make_uid_raw_obs(
     Parameters
     ----------
     master : str or None
-        Acquisition master label.
+        Acquisition master label, omitted from the identifier if None.
     obsnum : int or None
         Observation number.
     subobsnum : int or None
@@ -56,8 +100,10 @@ def make_uid_raw_obs(
     Returns
     -------
     str or None
-        Raw-observation identifier, or None if any input is None.
+        Raw-observation identifier, or None if any observation number is missing.
     """
+    if any(part is None for part in (obsnum, subobsnum, scannum)):
+        return None
     return make_quartet(master, obsnum, subobsnum, scannum)
 
 
@@ -73,7 +119,7 @@ def make_uid_raw_obs_file(
     Parameters
     ----------
     master : str or None
-        Acquisition master label.
+        Acquisition master label, omitted from the identifier if None.
     obsnum : int or None
         Observation number.
     subobsnum : int or None
@@ -86,7 +132,8 @@ def make_uid_raw_obs_file(
     Returns
     -------
     str or None
-        Raw-observation file identifier, or None if any input is None.
+        Raw-observation file identifier, or None if any observation number
+        or the interface is missing.
     """
     uid_raw_obs = make_uid_raw_obs(master, obsnum, subobsnum, scannum)
     if uid_raw_obs is None or interface is None:
@@ -119,9 +166,10 @@ def make_uid_columns(
     Returns
     -------
     pandas.DataFrame
-        Nullable string columns ``quartet``, ``uid_raw_obs`` and
+        Nullable string columns ``quartet``, ``uid_obs``, ``uid_raw_obs`` and
         ``uid_raw_obs_file``, preserving the input index and row order.
-        An identifier is null if any of its components is missing.
+        Quartets allow omitted trailing numbers. Each UID is null if components
+        required for its scope are missing; a missing master is omitted.
         Input Series are not modified.
 
     Raises
@@ -158,6 +206,7 @@ def make_uid_columns(
             name: pd.array([make_value(*row[:count]) for row in rows], dtype="string")
             for name, make_value, count in (
                 ("quartet", make_quartet, 4),
+                ("uid_obs", make_uid_obs, 2),
                 ("uid_raw_obs", make_uid_raw_obs, 4),
                 ("uid_raw_obs_file", make_uid_raw_obs_file, 5),
             )

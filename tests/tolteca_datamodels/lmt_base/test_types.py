@@ -6,15 +6,18 @@ import pytest
 from pydantic import ValidationError
 
 from tolteca_datamodels.lmt.metadata import LmtTelMetadata
+from tolteca_datamodels.lmt.types import LmtMaster, LmtRawObsMasterCode
 from tolteca_datamodels.lmt_base.metadata import (
     LmtObsQuartetMixin,
     LmtRawObsMetadata,
 )
 from tolteca_datamodels.lmt_base.types import LabelT
+from tolteca_datamodels.toltec.hwpr import ToltecHwprMetadata
 from tolteca_datamodels.toltec.metadata import (
     ToltecRawObsMetadata,
 )
-from tolteca_datamodels.toltec.types import ToltecInfo
+from tolteca_datamodels.toltec.toltecdb import ToltecDBRawObsMasterCode
+from tolteca_datamodels.toltec.types import ToltecMaster
 
 
 @pytest.mark.parametrize("name", ["obsnum", "subobsnum", "scannum"])
@@ -39,8 +42,9 @@ def test_zero_identifiers_and_json_roundtrip():
 @pytest.mark.parametrize(
     ("model", "label_type", "code_type"),
     [
-        (LmtTelMetadata, LabelT, int),
-        (ToltecRawObsMetadata, ToltecInfo.MasterT, ToltecInfo.MasterCodeT),
+        (LmtTelMetadata, LmtMaster, LmtRawObsMasterCode),
+        (ToltecRawObsMetadata, ToltecMaster, ToltecDBRawObsMasterCode),
+        (ToltecHwprMetadata, ToltecMaster, ToltecDBRawObsMasterCode),
     ],
 )
 def test_concrete_master_is_a_label_and_code_is_an_integer(
@@ -56,7 +60,7 @@ def test_concrete_master_is_a_label_and_code_is_an_integer(
 @pytest.mark.parametrize(
     "model", [LmtRawObsMetadata, LmtTelMetadata, ToltecRawObsMetadata]
 )
-@pytest.mark.parametrize("name", ["uid_raw_obs", "uid_raw_obs_file"])
+@pytest.mark.parametrize("name", ["uid_obs", "uid_raw_obs", "uid_raw_obs_file"])
 def test_raw_observation_uids_are_nullable_labels(model, name):
     assert set(get_args(model.model_computed_fields[name].return_type)) == {
         LabelT,

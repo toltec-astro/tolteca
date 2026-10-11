@@ -18,9 +18,20 @@ from tolteca_datamodels.toltec.toltecdb import ToltecDBRawObsMasterCode
 
 
 @pytest.mark.parametrize(
-    "missing", [None, "master", "obsnum", "subobsnum", "scannum", "interface"]
+    ("missing", "expected"),
+    [
+        (
+            None,
+            ("tcs-145610-0-2", "tcs-145610", "tcs-145610-0-2", "tcs-145610-0-2-tel"),
+        ),
+        ("master", ("145610-0-2", "145610", "145610-0-2", "145610-0-2-tel")),
+        ("obsnum", (None, None, None, None)),
+        ("subobsnum", (None, "tcs-145610", None, None)),
+        ("scannum", ("tcs-145610-0", "tcs-145610", None, None)),
+        ("interface", ("tcs-145610-0-2", "tcs-145610", "tcs-145610-0-2", None)),
+    ],
 )
-def test_uid_columns_preserve_inputs_and_row_order(missing):
+def test_uid_columns_preserve_inputs_and_row_order(missing, expected):
     table = pd.DataFrame(
         {
             "master": pd.array(["tcs"] * 3, dtype="string"),
@@ -39,29 +50,26 @@ def test_uid_columns_preserve_inputs_and_row_order(missing):
         table.master, table.obsnum, table.subobsnum, table.scannum, table.interface
     )
     pd.testing.assert_frame_equal(table, before)
-    assert result.columns.tolist() == ["quartet", "uid_raw_obs", "uid_raw_obs_file"]
-    quartets = ["tcs-145609-0-2", "tcs-145610-0-2", "tcs-145611-0-2"]
-    for name in ("quartet", "uid_raw_obs"):
-        pd.testing.assert_series_equal(
-            result[name],
-            pd.Series(
-                [
-                    quartets[0],
-                    quartets[1] if missing in (None, "interface") else None,
-                    quartets[2],
-                ],
-                index=table.index,
-                name=name,
-                dtype="string",
-            ),
-        )
-    uids = [f"{quartet}-tel" for quartet in quartets]
-    pd.testing.assert_series_equal(
-        result.uid_raw_obs_file,
-        pd.Series(
-            [uids[0], uids[1] if missing is None else None, uids[2]],
+    pd.testing.assert_frame_equal(
+        result,
+        pd.DataFrame(
+            [
+                (
+                    "tcs-145609-0-2",
+                    "tcs-145609",
+                    "tcs-145609-0-2",
+                    "tcs-145609-0-2-tel",
+                ),
+                expected,
+                (
+                    "tcs-145611-0-2",
+                    "tcs-145611",
+                    "tcs-145611-0-2",
+                    "tcs-145611-0-2-tel",
+                ),
+            ],
             index=table.index,
-            name="uid_raw_obs_file",
+            columns=["quartet", "uid_obs", "uid_raw_obs", "uid_raw_obs_file"],
             dtype="string",
         ),
     )
@@ -76,8 +84,54 @@ def test_uid_columns_empty_inputs_have_nullable_identifier_columns():
     )
     assert result.empty
     pd.testing.assert_index_equal(result.index, table.index)
-    for name in ("quartet", "uid_raw_obs", "uid_raw_obs_file"):
+    for name in ("quartet", "uid_obs", "uid_raw_obs", "uid_raw_obs_file"):
         assert str(result[name].dtype) == "string"
+
+
+@pytest.mark.parametrize("master", ["tcs", None])
+@pytest.mark.parametrize(
+    ("numbers", "suffix"),
+    [
+        ((1, 2, 3), "1-2-3"),
+        ((1, 2, None), "1-2"),
+        ((1, None, None), "1"),
+        ((0, 0, 0), "0-0-0"),
+        ((1, None, 3), None),
+        ((None, 2, 3), None),
+        ((None, None, 3), None),
+        ((None, 2, None), None),
+        ((None, None, None), None),
+    ],
+)
+def test_quartet_preserves_numeric_positions(master, numbers, suffix):
+    expected = (
+        f"{master}-{suffix}" if master is not None and suffix is not None else suffix
+    )
+    assert funcs.make_quartet(master, *numbers) == expected
+
+
+@pytest.mark.parametrize(
+    ("master", "numbers", "uid_obs", "uid_raw_obs"),
+    [
+        ("tcs", (1, 1, 1), "tcs-1", "tcs-1-1-1"),
+        (None, (1, 1, 1), "1", "1-1-1"),
+        ("tcs", (1, None, None), "tcs-1", None),
+        (None, (1, None, None), "1", None),
+        ("tcs", (1, 1, None), "tcs-1", None),
+        ("tcs", (1, None, 1), "tcs-1", None),
+        ("tcs", (None, 1, 1), None, None),
+        (None, (None, None, None), None, None),
+        (None, (0, 0, 0), "0", "0-0-0"),
+    ],
+)
+def test_uid_scope_requires_its_own_observation_numbers(
+    master, numbers, uid_obs, uid_raw_obs
+):
+    assert funcs.make_uid_obs(master, numbers[0]) == uid_obs
+    assert funcs.make_uid_raw_obs(master, *numbers) == uid_raw_obs
+    assert funcs.make_uid_raw_obs_file(master, *numbers, "tel") == (
+        None if uid_raw_obs is None else f"{uid_raw_obs}-tel"
+    )
 
 
 @pytest.mark.parametrize("column", ["obsnum", "subobsnum", "scannum", "interface"])
@@ -110,18 +164,9 @@ def test_file_uid_uses_observation_fields_and_shared_constructor(monkeypatch):
     assert funcs.make_uid_raw_obs_file(*values) == "observation-tel"
 
 
-@pytest.mark.parametrize("position", range(5))
-def test_file_uid_is_absent_when_any_component_is_missing(position):
-    assert (
-        funcs.make_uid_raw_obs_file(
-            None if position == 0 else "tcs",
-            None if position == 1 else 145609,
-            None if position == 2 else 0,
-            None if position == 3 else 2,
-            None if position == 4 else "tel",
-        )
-        is None
-    )
+@pytest.mark.parametrize("master", ["tcs", None])
+def test_file_uid_requires_interface(master):
+    assert funcs.make_uid_raw_obs_file(master, 145609, 0, 2, None) is None
 
 
 @pytest.fixture
@@ -131,8 +176,10 @@ def identified_metadata():
         obsnum=145609,
         subobsnum=0,
         scannum=2,
-        instru="lmt",
+        instru="toltec",
+        producer="lmt",
         interface="tel",
+        interface_kind="tel",
         t0=Time("2025-10-31T09:27:56"),
         t1=Time("2025-10-31T09:28:56"),
         t_int=60 * u.s,
@@ -146,14 +193,15 @@ def test_quartet_names(master):
     assert meta.quartet == f"{master}-145609-0-2"
 
 
-def test_unavailable_master_name(identified_metadata):
+def test_nullable_master_produces_unqualified_identifiers(identified_metadata):
     meta = type(identified_metadata).model_validate(
         identified_metadata.model_dump(round_trip=True) | {"master": None}
     )
     assert meta.master is None
-    assert meta.quartet is None
-    assert meta.uid_raw_obs is None
-    assert meta.uid_raw_obs_file is None
+    assert meta.quartet == "145609-0-2"
+    assert meta.uid_obs == "145609"
+    assert meta.uid_raw_obs == "145609-0-2"
+    assert meta.uid_raw_obs_file == "145609-0-2-tel"
 
 
 @pytest.mark.parametrize("master", [0, 99, True, 0.5])
@@ -168,6 +216,7 @@ def test_identifiers_are_derived_cached_and_serialized(identified_metadata):
     meta = identified_metadata
     expected = {
         "quartet": "simu-145609-0-2",
+        "uid_obs": "simu-145609",
         "uid_raw_obs": "simu-145609-0-2",
         "uid_raw_obs_file": "simu-145609-0-2-tel",
     }
@@ -201,6 +250,7 @@ def test_replacing_metadata_recomputes_identifiers(identified_metadata):
         meta.model_dump(round_trip=True) | {"interface": "tel2"}
     )
     assert other_interface.quartet == meta.quartet
+    assert other_interface.uid_obs == meta.uid_obs
     assert other_interface.uid_raw_obs == meta.uid_raw_obs
     assert other_interface.uid_raw_obs_file == "simu-145609-0-2-tel2"
     other_scan = type(meta).model_validate(
@@ -221,10 +271,12 @@ def test_master_stays_required():
 def test_toltec_inherits_interface_identifiers(identified_metadata, kids_filepath_orig):
     fields = identified_metadata.model_dump(round_trip=True)
     fields.update(
-        master="ics",
-        master_code=ToltecDBRawObsMasterCode.ICS.value,
+        master=ToltecDBRawObsMasterCode.get_master(ToltecDBRawObsMasterCode.ICS),
+        master_code=ToltecDBRawObsMasterCode.ICS,
         instru="toltec",
+        producer="toltec",
         interface="toltec0",
+        readout_code=12,
         roach=12,
         filepath_orig=kids_filepath_orig,
     )
@@ -233,6 +285,7 @@ def test_toltec_inherits_interface_identifiers(identified_metadata, kids_filepat
     )
     assert meta.master == "ics"
     assert meta.quartet == "ics-145609-0-2"
+    assert meta.uid_obs == "ics-145609"
     assert meta.uid_raw_obs == meta.quartet
     # Interface is authoritative even when the ROACH field differs.
     assert meta.uid_raw_obs_file == "ics-145609-0-2-toltec0"
@@ -244,6 +297,8 @@ def test_toltec_master_requires_a_recorded_code(
 ):
     fields = identified_metadata.model_dump(round_trip=True)
     fields["master_code"] = master_code
+    fields["master"] = ToltecDBRawObsMasterCode.get_master(ToltecDBRawObsMasterCode.TCS)
+    fields["readout_code"] = 0
     fields["instru"] = "toltec"
     fields["filepath_orig"] = kids_filepath_orig
     with pytest.raises(ValidationError, match="master_code"):

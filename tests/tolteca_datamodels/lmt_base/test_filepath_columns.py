@@ -3,38 +3,36 @@
 import pytest
 
 from tolteca_datamodels.lmt._filepath import LmtFilepathInfo
-from tolteca_datamodels.lmt.file import LmtFileAccessor
-from tolteca_datamodels.lmt_base._filepath import (
-    FilepathInfoMixin,
-    make_filepath_info_column_mapper,
+from tolteca_datamodels.toltec._filepath import (
+    ToltecFilepathInfo,
+    ToltecLmtFilepathInfo,
 )
-from tolteca_datamodels.toltec._filepath import ToltecFilepathInfo
-from tolteca_datamodels.toltec.file import ToltecFileAccessor
-from tolteca_dummy_instru.file import DummyInstruFileAccessor
-from tolteca_dummy_instru.filepath import DummyInstruFilepathInfo
+from tolteca_dummy_instru.filepath import (
+    DummyInstruFilepathInfo,
+    DummyInstruLmtFilepathInfo,
+)
 
 
 @pytest.mark.parametrize(
-    ("model_cls", "accessor_cls", "extra_obs_fields"),
+    ("model_cls", "specific_aliases"),
     [
-        (LmtFilepathInfo, LmtFileAccessor, ()),
-        (ToltecFilepathInfo, ToltecFileAccessor, ("roach",)),
-        (DummyInstruFilepathInfo, DummyInstruFileAccessor, ("channel",)),
+        (LmtFilepathInfo, ()),
+        (ToltecFilepathInfo, ("roach",)),
+        (DummyInstruFilepathInfo, ("channel",)),
     ],
 )
-def test_filepath_columns_and_observation_aliases(
-    model_cls, accessor_cls, extra_obs_fields
-):
-    columns = make_filepath_info_column_mapper(*extra_obs_fields)(model_cls)
+def test_filepath_columns_and_observation_aliases(model_cls, specific_aliases):
+    columns = model_cls._columns
     obs_fields = {
         "interface",
         "instru",
-        "instru_component",
+        "producer",
+        "interface_kind",
         "master",
         "obsnum",
         "subobsnum",
         "scannum",
-        *extra_obs_fields,
+        *specific_aliases,
     }
     expected = [
         alias
@@ -44,9 +42,6 @@ def test_filepath_columns_and_observation_aliases(
         )
     ]
     assert list(columns) == expected
-    assert {
-        name: accessor_cls._filepath_info_columns[name] for name in columns
-    } == columns
     assert all(column.default is None for column in columns.values())
     assert columns["file_ut"].dtype == "datetime64[ns, UTC]"
     for name in obs_fields:
@@ -56,10 +51,20 @@ def test_filepath_columns_and_observation_aliases(
     assert columns["master"].dtype == "string"
 
 
-def test_extra_aliases_do_not_modify_the_shared_mapping():
-    extended = make_filepath_info_column_mapper("prefix", "obsnum")
-    assert extended(FilepathInfoMixin)["prefix"].attr == "prefix"
-    assert "prefix" not in make_filepath_info_column_mapper()(FilepathInfoMixin)
-    # Extra names are literal; regex metacharacters must not select other fields.
-    columns = make_filepath_info_column_mapper("prefix|suffix")(FilepathInfoMixin)
-    assert "prefix" not in columns and "suffix" not in columns
+def test_concrete_columns_are_built_from_the_completed_model():
+    class Extended(DummyInstruFilepathInfo):
+        readout_code: int
+        payload: dict[str, int]
+
+    columns = Extended._columns
+    assert columns["readout_code"].attr == "readout_code"
+    assert columns["readout_code"].dtype == "Int64"
+    assert columns["readout_code"] == columns["file_readout_code"]
+    assert columns["channel"] == columns["file_channel"]
+    assert "payload" not in columns and "file_payload" not in columns
+    assert "readout_code" not in DummyInstruFilepathInfo._columns
+
+
+@pytest.mark.parametrize("model", [ToltecLmtFilepathInfo, DummyInstruLmtFilepathInfo])
+def test_thin_telescope_subclasses_keep_telescope_columns(model):
+    assert model._columns == LmtFilepathInfo._columns
