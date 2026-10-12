@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import IntEnum, StrEnum, auto
-from typing import ClassVar, Literal, Self
+from typing import ClassVar, Literal, Self, cast
 
 import astropy.units as u
 from pydantic import Field
@@ -15,7 +15,6 @@ from ..lmt_base.types import LabelT
 __all__ = [
     "LmtInfo",
     "LmtInterfaceInfo",
-    "LmtMaster",
     "LmtObsGoal",
     "LmtObsPgm",
     "LmtRawObsMasterCode",
@@ -30,20 +29,13 @@ class LmtInterfaceInfo(InterfaceInfoMixin):
     )
 
 
-class LmtMaster(StrEnum):
-    """LMT acquisition masters."""
-
-    tcs = auto()
-    """The telescope control system."""
-
-
 class LmtRawObsMasterCode(IntEnum):
     """Acquisition master codes in LMT telescope data."""
 
     TCS = 0
 
     @classmethod
-    def get_master(cls, master: Self) -> LmtMaster:
+    def get_master(cls, master: Self) -> LmtInfo.MasterT:
         """Return the acquisition master.
 
         Parameters
@@ -53,16 +45,17 @@ class LmtRawObsMasterCode(IntEnum):
 
         Returns
         -------
-        LmtMaster
+        LmtInfo.MasterT
             Corresponding master label.
         """
-        return LmtMaster(cls(master).name.lower())
+        return cast("LmtInfo.MasterT", cls(master).name.lower())
 
 
 class LmtInfo:
     """LMT telescope information, site constants, and readout interfaces."""
 
     type InstruT = Literal["lmt"]
+    type MasterT = Literal["tcs"]
 
     instru: ClassVar[InstruT] = get_literal_value(InstruT)
     name: ClassVar = "LMT"
@@ -76,12 +69,16 @@ class LmtInfo:
     }
     timezone_local: ClassVar = "America/Mexico_City"
 
-    master_code_master: ClassVar[dict[int, LmtMaster]] = {
+    master_description: ClassVar[dict[MasterT, str]] = {
+        "tcs": "Telescope control system",
+    }
+    """Descriptions of acquisition master labels."""
+    master_code_master: ClassVar[dict[int, MasterT]] = {
         master_code.value: LmtRawObsMasterCode.get_master(master_code)
         for master_code in LmtRawObsMasterCode
     }
     """Telescope acquisition-master codes and their labels."""
-    master_master_code: ClassVar[dict[str, int]] = {
+    master_master_code: ClassVar[dict[MasterT, int]] = {
         master: master_code for master_code, master in master_code_master.items()
     }
 

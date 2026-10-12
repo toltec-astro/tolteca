@@ -10,7 +10,7 @@ from tollan.config.types import SkyCoordField
 from ..lmt_base._filepath import FilepathOrigMetadataMixin
 from ..lmt_base.metadata import LmtRawObsMetadata
 from ._filepath import LmtFilepathInfo
-from .types import LmtInfo, LmtMaster, LmtObsGoal, LmtObsPgm, LmtRawObsMasterCode
+from .types import LmtInfo, LmtObsGoal, LmtObsPgm, LmtRawObsMasterCode
 
 __all__ = [
     "LmtTelInterfaceKindT",
@@ -32,7 +32,7 @@ class LmtTelMetadata(LmtRawObsMetadata, FilepathOrigMetadataMixin[LmtFilepathInf
     interface_kind: LmtTelInterfaceKindT = Field(
         description="Telescope data interface",
     )
-    master: LmtMaster = Field(description="Acquisition master label")
+    master: LmtInfo.MasterT = Field(description="Acquisition master label")
     master_code: LmtRawObsMasterCode = Field(
         description="Recorded acquisition master code",
     )
