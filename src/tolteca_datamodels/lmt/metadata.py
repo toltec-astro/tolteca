@@ -9,27 +9,32 @@ from tollan.config.types import SkyCoordField
 
 from ..lmt_base._filepath import FilepathOrigMetadataMixin
 from ..lmt_base.metadata import LmtRawObsMetadata
-from ..lmt_base.types import LabelT
 from ._filepath import LmtFilepathInfo
-from .types import LmtInfo, LmtObsGoal, LmtObsPgm
+from .types import LmtInfo, LmtMaster, LmtObsGoal, LmtObsPgm, LmtRawObsMasterCode
 
-__all__ = ["LmtTelMetadata"]
+__all__ = [
+    "LmtTelInterfaceKindT",
+    "LmtTelInterfaceT",
+    "LmtTelMetadata",
+]
+
+type LmtTelInterfaceT = Literal["tel"]
+type LmtTelInterfaceKindT = Literal["tel"]
 
 
 class LmtTelMetadata(LmtRawObsMetadata, FilepathOrigMetadataMixin[LmtFilepathInfo]):
     """LMT telescope control system (TCS) metadata."""
 
-    master: LabelT = Field(description="Acquisition master label")
-    master_code: int = Field(
+    producer: LmtInfo.InstruT = Field(
+        description="Large Millimeter Telescope",
+    )
+    interface: LmtTelInterfaceT = Field(description="Data interface identifier")
+    interface_kind: LmtTelInterfaceKindT = Field(
+        description="Telescope data interface",
+    )
+    master: LmtMaster = Field(description="Acquisition master label")
+    master_code: LmtRawObsMasterCode = Field(
         description="Recorded acquisition master code",
-    )
-    instru: LmtInfo.InstruT = Field(
-        default=LmtInfo.instru,
-        description="Large Millimeter Telescope.",
-    )
-    instru_component: Literal["tcs"] = Field(
-        default="tcs",
-        description="Telescope Control System.",
     )
     obs_pgm: LmtObsPgm = Field(description="Observation program")
     obs_goal: LmtObsGoal = Field(

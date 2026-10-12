@@ -5,7 +5,7 @@ from __future__ import annotations
 import functools
 from dataclasses import dataclass
 from operator import attrgetter
-from typing import TYPE_CHECKING, ClassVar, Literal, cast, overload
+from typing import TYPE_CHECKING, Literal, cast, overload
 
 import astropy.units as u
 import xarray as xr
@@ -13,11 +13,11 @@ from astropy.coordinates import SkyCoord
 from astropy.time import Time
 from tollan.accessor import NameMapping, Schema
 from tollan.accessor.xarray import XarrayAccessorBase, XarrayMapper
-from tollan.accessor.xarray.utils import unwrap_data_source
 from tollan.utils.log import logger
+from tollan.utils.typing import get_literal_value
 
 from ..source import identify_reader, open_source
-from .metadata import LmtTelMetadata
+from .metadata import LmtTelInterfaceKindT, LmtTelInterfaceT, LmtTelMetadata
 from .types import LmtInfo, LmtObsGoal, LmtObsPgm, LmtRawObsMasterCode
 
 if TYPE_CHECKING:
@@ -54,6 +54,7 @@ class LmtTelIOSchema(Schema):
     subobsnum: Mapping = NameMapping("Header.Dcs.SubObsNum")
     scannum: Mapping = NameMapping("Header.Dcs.ScanNum")
     master_code: Mapping = NameMapping("Header.TelescopeBackend.Master")
+    instru: Mapping = NameMapping("Header.Dcs.Receiver")
     obs_pgm: Mapping = NameMapping("Header.Dcs.ObsPgm")
     obs_goal: Mapping = NameMapping("Header.Dcs.ObsGoal")
     t_int: Mapping = NameMapping("Header.Dcs.IntegrationTime")
@@ -82,9 +83,6 @@ class LmtTelIOSchema(Schema):
 
 class LmtTelIOMapper(XarrayMapper[LmtTelIOSchema]):
     """Read telescope headers and pointing arrays using LmtTelIOSchema."""
-
-    interface: ClassVar[str] = "tel"
-    """Readout interface represented by this mapper."""
 
     def get_metadata(
         self,
@@ -134,9 +132,12 @@ class LmtTelIOMapper(XarrayMapper[LmtTelIOSchema]):
         )
         master_code = LmtRawObsMasterCode(self.get_scalar(ds, schema.master_code))
         meta = LmtTelMetadata(
-            interface=self.interface,
-            master_code=master_code.value,
+            producer=LmtInfo.instru,
+            interface=get_literal_value(LmtTelInterfaceT),
+            interface_kind=get_literal_value(LmtTelInterfaceKindT),
+            master_code=master_code,
             master=LmtInfo.master_code_master[master_code],
+            instru=self.get_str(ds, schema.instru).casefold(),
             obsnum=self.get_scalar(ds, schema.obsnum),
             subobsnum=self.get_scalar(ds, schema.subobsnum),
             scannum=self.get_scalar(ds, schema.scannum),
@@ -187,8 +188,10 @@ class LmtTelAccessor(XarrayAccessorBase[LmtTelIOMapper]):
     """
 
     def _validate(self) -> None:
-        """Reject sources without a mapped telescope timestamp variable."""
-        if not self.mapper.has_arr(self.data_source, self.mapper.schema.tel_time):
+        """Validate telescope structure."""
+        mapper = self.mapper
+        ds = self.data_source
+        if not mapper.has_arr(ds, mapper.schema.tel_time):
             msg = "Not an LMT telescope dataset: missing tel_time variable"
             raise ValueError(msg)
 
@@ -196,19 +199,6 @@ class LmtTelAccessor(XarrayAccessorBase[LmtTelIOMapper]):
     def meta(self) -> LmtTelMetadata:
         """Cached observation metadata."""
         return self.mapper.get_metadata(self.data_source)
-
-    def read_metadata(self) -> LmtTelMetadata:
-        """Read current observation headers and timestamp endpoints.
-
-        Returns
-        -------
-        LmtTelMetadata
-            Fresh observation metadata. Previously cached ``meta`` is unchanged.
-            The source must remain open during the read.
-        """
-        data_source = unwrap_data_source(self._data_source)
-        mapper = type(self.mapper).from_data_source(data_source)
-        return mapper.get_metadata(data_source)
 
     @functools.cached_property
     def t(self) -> xr.DataArray:
@@ -279,7 +269,9 @@ def identify_lmt_tel(
 
 @overload
 def identify_lmt_tel(
-    data_source: object, *, raise_on_error: Literal[False] = False
+    data_source: object,
+    *,
+    raise_on_error: Literal[False] = False,
 ) -> LmtTelAccessor | None: ...
 
 
@@ -307,9 +299,8 @@ def identify_lmt_tel(
     -------
     LmtTelAccessor or None
         Registered telescope accessor, or None for unrecognized data. Repeated
-        calls reuse the accessor. Identification does not read headers or sample
-        arrays. Read ``accessor.meta`` to obtain and validate the observation
-        headers, or call ``accessor.read_metadata()`` to reread changed headers.
+        calls reuse the accessor. Sample arrays are not read.
+        Read ``accessor.meta`` to validate observation headers.
 
     Raises
     ------

@@ -6,7 +6,7 @@ import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, ClassVar
 
-from .._filepath import FilepathInfo
+from .._filepath import FilepathInfo, register_filepath_parser
 from ..lmt_base._filepath import FilepathInfoMixin
 from ..lmt_base.types import LabelT
 from .types import LmtInfo
@@ -27,6 +27,8 @@ class LmtFilepathInfo(FilepathInfo, FilepathInfoMixin):
 
     ``ut`` records the writer's file-creation date, represented as midnight UTC.
     The full ``tel_*`` prefix is preserved; the interface is ``tel``.
+    The general telescope parser leaves instrument affiliation unknown.
+    Registered instrument-specific parsers can supply it in a result subclass.
 
     Examples
     --------
@@ -35,7 +37,8 @@ class LmtFilepathInfo(FilepathInfo, FilepathInfoMixin):
     ('tel_toltec', 'nc')
     """
 
-    instru: LmtInfo.InstruT
+    instru: LabelT | None = None
+    producer: LmtInfo.InstruT = LmtInfo.instru
     master: LabelT
 
     @staticmethod
@@ -45,11 +48,12 @@ class LmtFilepathInfo(FilepathInfo, FilepathInfoMixin):
 
     @staticmethod
     def _parse_interface(filepath_data: dict, path: Path) -> dict[str, object]:
-        """Identify the instrument and component for the telescope interface."""
-        identity = LmtInfo.interface_instru[filepath_data["interface"]]
+        """Identify the producer and class of the telescope interface."""
+        identity = LmtInfo.interface_interface_info[filepath_data["interface"]]
         return {
             "instru": identity.instru,
-            "instru_component": identity.instru_component,
+            "producer": identity.producer,
+            "interface_kind": identity.interface_kind,
         }
 
     @staticmethod
@@ -64,16 +68,21 @@ class LmtFilepathInfo(FilepathInfo, FilepathInfoMixin):
         """Identify TCS as the telescope acquisition master, regardless of directory."""
         return {"master": "tcs"}
 
-    _filename_patterns: ClassVar = {
-        re.compile(
-            r"^(?P<prefix>tel_[A-Za-z0-9_]+)_"
+    _parsers: ClassVar = (_parse_prefix, _parse_interface, _parse_ut, _parse_master)
+
+    @staticmethod
+    def _make_filename_pattern(prefix: str) -> re.Pattern[str]:
+        """Compile a telescope filename pattern with the given prefix expression."""
+        return re.compile(
+            rf"^(?P<prefix>{prefix})_"
             r"(?P<ut>\d{4}-\d{2}-\d{2})"
             r"_(?P<obsnum>\d+)_(?P<subobsnum>\d+)_(?P<scannum>\d+)"
             r"(?:_(?P<suffix>[^/.]+))?\.(?P<ext>.+)$"
-        ): (
-            _parse_prefix,
-            _parse_interface,
-            _parse_ut,
-            _parse_master,
-        ),
-    }
+        )
+
+
+register_filepath_parser(
+    pattern=LmtFilepathInfo._make_filename_pattern(r"tel_[A-Za-z0-9_]+"),
+    parsers=LmtFilepathInfo._parsers,
+    filepath_info_cls=LmtFilepathInfo,
+)

@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import re
-from typing import TYPE_CHECKING, ClassVar, cast
+from pathlib import PurePosixPath
+from typing import TYPE_CHECKING, ClassVar
 
-from tollan.utils.log import logger
-
-from ..file_store import FileStoreBase
-from ..lmt_base.obs_spec import ObsSpec
+from ..lmt_base.file_store import LmtFileStoreBase
 from ..toltec.file_store import ToltecFileStore
 from .obs_spec import obs_spec_context
 from .types import LmtInfo
@@ -17,12 +14,15 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
-    from ..obs_spec import ObsSpecContext
+    from tollan.config.types import SubPath, SubPathOrRoot
+
+    from ..file_store import SubstoreRegistryT
+    from ..lmt_base.obs_spec import ObsSpec
 
 __all__ = ["LmtFileStore"]
 
 
-class LmtFileStore(FileStoreBase[ObsSpec]):
+class LmtFileStore(LmtFileStoreBase):
     """Discover raw files in an LMT data tree.
 
     Parameters
@@ -44,94 +44,37 @@ class LmtFileStore(FileStoreBase[ObsSpec]):
     True
     >>> store.toltec.path == Path("/data_lmt/toltec")
     True
+    >>> from tolteca_datamodels.toltec.file_store import ToltecFileStore
+    >>> store.get_substore(ToltecFileStore) is store.toltec
+    True
     """
 
     _obs_spec_context: ClassVar = obs_spec_context
-    _substore_classes: ClassVar = {"toltec": ToltecFileStore}
+    _tel_subpath: ClassVar[SubPath] = PurePosixPath("tel")
+    _subpaths: ClassVar = (_tel_subpath,)
+    _substore_paths: ClassVar[SubstoreRegistryT] = {
+        ToltecFileStore: PurePosixPath("toltec")
+    }
 
     @property
     def toltec(self) -> ToltecFileStore:
         """TolTEC instrument file store."""
-        return cast("ToltecFileStore", self.get_substore("toltec"))
+        return self.get_substore(ToltecFileStore)
 
     @property
     def tel_path(self) -> Path:
         """Telescope acquisition directory."""
-        return self.path / "tel"
+        return self.path / self._tel_subpath
 
-    def get_obs_spec_context(
-        self, *, instru: str | re.Pattern[str] = ".*"
-    ) -> ObsSpecContext:
-        """Get selector context for the telescope and selected instrument stores.
-
-        Parameters
-        ----------
-        instru : str or compiled regex, optional
-            Instrument-name filter, as in `find_candidates`. Default is ".*".
-            Telescope labels are always included.
-
-        Returns
-        -------
-        ObsSpecContext
-            Combined label interpretations for selecting the discovered table.
-
-        Raises
-        ------
-        ValueError
-            If selected stores declare conflicting numeric values for a label.
-        """
-        return self._get_obs_spec_context(self._get_instru_file_stores(instru))
-
-    def find_candidates(
-        self, spec: ObsSpec | str, *, instru: str | re.Pattern[str] = ".*"
-    ) -> list[Path]:
-        """Find candidate paths in the telescope and instrument directories.
-
-        Parameters
-        ----------
-        spec : ObsSpec or str
-            Observation selector. An omitted or wildcard interface includes both
-            telescope and instrument trees. An explicit ``tel`` includes only the
-            telescope directory; constraints excluding ``tel`` skip that directory.
-        instru : str or compiled regex, optional
-            Regex selecting instrument stores to search, matched from the start
-            of each registered name. Defaults to ``".*"``. Telescope discovery
-            is unaffected.
-
-        Returns
-        -------
-        list of pathlib.Path
-            Unique candidate paths without reading headers. Telescope candidates
-            precede instrument candidates, retaining discovery order and the
-            first occurrence of each path. Candidates may not satisfy every
-            constraint; apply the complete selector after table population.
-            No matches or a nonexistent directory produce an empty list.
-        """
-        return self._find_candidates(spec, self._get_instru_file_stores(instru))
-
-    def _iter_candidate_patterns(self, spec: ObsSpec) -> Iterator[tuple[Path, str]]:
+    def _iter_candidate_patterns(
+        self, spec: ObsSpec, subpath: SubPathOrRoot
+    ) -> Iterator[str]:
+        if subpath != self._tel_subpath:
+            return
         if not spec.resolve_values(
             "interface", LmtInfo.interfaces, context=self._obs_spec_context
         ):
             return
         obsnum = f"{spec.obsnum:06d}" if isinstance(spec.obsnum, int) else "*"
         # The writer date precedes the observation number in telescope filenames.
-        yield self.tel_path, f"tel_*_{obsnum}_*.nc"
-
-    def _get_instru_file_stores(
-        self, instru: str | re.Pattern[str]
-    ) -> list[FileStoreBase[ObsSpec]]:
-        pattern = re.compile(instru)
-        selected = []
-        for name, store in self.substores.items():
-            included = pattern.match(name) is not None
-            logger.debug(
-                "{} instrument {} under {}: filter {!r}",
-                "Including" if included else "Skipping",
-                name,
-                self.path,
-                pattern.pattern,
-            )
-            if included:
-                selected.append(store)
-        return selected
+        yield f"tel_*_{obsnum}_*.nc"

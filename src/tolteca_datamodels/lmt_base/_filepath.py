@@ -7,6 +7,11 @@ from functools import cached_property
 from typing import ClassVar
 
 from pydantic import Field, computed_field
+from tollan.accessor.pandas.model_table import (
+    ModelColumn,
+    ModelColumnMapper,
+    ScalarColumnRule,
+)
 from tollan.utils.typing import (
     GenericBindingRequirement,
     resolve_concrete_generic_bindings,
@@ -14,7 +19,6 @@ from tollan.utils.typing import (
 
 from .._filepath import FilepathInfo
 from ..core import FrozenDataModel
-from ..model_table import ModelColumn, ModelColumnMapper, ScalarColumnRule
 from .metadata import InterfaceInfoMixin, LmtObsQuartetMixin
 from .types import DatetimeT
 

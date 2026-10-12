@@ -6,11 +6,28 @@ from enum import IntEnum, StrEnum, auto
 from typing import ClassVar, Literal, Self
 
 import astropy.units as u
+from pydantic import Field
 from tollan.utils.typing import get_literal_value
 
-from ..lmt_base.metadata import LmtInstruMixin
+from ..lmt_base.metadata import InterfaceInfoMixin
+from ..lmt_base.types import LabelT
 
-__all__ = ["LmtInfo", "LmtMaster", "LmtObsGoal", "LmtObsPgm", "LmtRawObsMasterCode"]
+__all__ = [
+    "LmtInfo",
+    "LmtInterfaceInfo",
+    "LmtMaster",
+    "LmtObsGoal",
+    "LmtObsPgm",
+    "LmtRawObsMasterCode",
+]
+
+
+class LmtInterfaceInfo(InterfaceInfoMixin):
+    """LMT interface information with optional instrument affiliation."""
+
+    instru: LabelT | None = Field(
+        default=None, description="Instrument whose data conventions apply"
+    )
 
 
 class LmtMaster(StrEnum):
@@ -69,14 +86,15 @@ class LmtInfo:
     }
 
     # LMT-owned telescope control.
-    interface_instru: ClassVar[dict[str, LmtInstruMixin]] = {
-        "tel": LmtInstruMixin(
+    interface_interface_info: ClassVar[dict[str, LmtInterfaceInfo]] = {
+        "tel": LmtInterfaceInfo(
             interface="tel",
-            instru=instru,
-            instru_component="tcs",
+            instru=None,
+            producer=instru,
+            interface_kind="tel",
         ),
     }
-    interfaces: ClassVar = list(interface_instru)
+    interfaces: ClassVar = list(interface_interface_info)
 
 
 class LmtObsPgm(StrEnum):
