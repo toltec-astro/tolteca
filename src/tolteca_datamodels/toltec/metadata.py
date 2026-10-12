@@ -2,27 +2,31 @@
 
 from __future__ import annotations
 
+from functools import cached_property
 from typing import TYPE_CHECKING, Any
 
+import xarray as xr
 from pydantic import Field, PrivateAttr
-from tollan.config import FrozenBaseModel
+from tollan.accessor.xarray import dataset_to_qtable
 from tollan.config.types import FrequencyQuantityField
 
 from ..lmt_base._filepath import FilepathOrigMetadataMixin
 from ..lmt_base.metadata import LmtRawObsMetadata
 from ..lmt_base.types import SeqNumT
 from ._filepath import ToltecFilepathInfo
-from .types import RoachT, ToltecInfo
+from .axes import ToltecAxisView
+from .toltec_db import ToltecDBRawObsMasterCode
+from .types import ToltecInfo
 
 if TYPE_CHECKING:
     from astropy.table import QTable
 
 __all__ = [
-    "ToltecBlocksMetadata",
     "ToltecRawObsBlockMetadata",
+    "ToltecRawObsBlocksMetadata",
     "ToltecRawObsMetadata",
     "ToltecSweepMetadata",
-    "ToltecTimeStreamMetadata",
+    "ToltecTimestreamMetadata",
 ]
 
 
@@ -32,11 +36,10 @@ class ToltecRawObsMetadata(
     """TolTEC acquisition metadata and readout settings."""
 
     # Acquisition identity and mode.
-    instru: ToltecInfo.InstruT = Field(
-        default="toltec", description="TolTEC instrument"
-    )
+    instru: ToltecInfo.InstruT = Field(description="TolTEC instrument")
+    producer: ToltecInfo.InstruT = Field(description="Instrument producing the data")
     master: ToltecInfo.MasterT = Field(description="Acquisition master label")
-    master_code: ToltecInfo.MasterCodeT = Field(description="Recorded master code")
+    master_code: ToltecDBRawObsMasterCode = Field(description="Recorded master code")
     obs_type: ToltecInfo.ObsTypeT | None = Field(
         default=None, description="Acquisition type, independent of block data kind"
     )
@@ -48,8 +51,13 @@ class ToltecRawObsMetadata(
     )
 
     # Readout identity.
-    roach: RoachT | None = Field(default=None, description="ROACH board index")
-    nw: RoachT | None = Field(default=None, description="Network index (ROACH index)")
+    readout_code: int = Field(description="Recorded readout code")
+    roach: ToltecInfo.RoachT | None = Field(
+        default=None, description="ROACH board index"
+    )
+    nw: ToltecInfo.RoachT | None = Field(
+        default=None, description="Network index (ROACH index)"
+    )
     array: ToltecInfo.ArrayT | None = Field(
         default=None, description="Detector array index"
     )
@@ -80,7 +88,7 @@ class ToltecRawObsMetadata(
     )
 
     # Associated calibration acquisition.
-    cal_roach: RoachT | None = Field(
+    cal_roach: ToltecInfo.RoachT | None = Field(
         default=None, description="Calibration ROACH index"
     )
     cal_obsnum: SeqNumT | None = Field(
@@ -94,22 +102,48 @@ class ToltecRawObsMetadata(
     )
 
 
-class ToltecBlocksMetadata(FrozenBaseModel):
-    """Small, eager summary of a discovered block collection."""
+class ToltecRawObsBlocksMetadata(ToltecRawObsMetadata):
+    """Acquisition metadata, block index and shared axes."""
 
     n_blocks: int = Field(ge=0, description="Number of discovered blocks")
-    n_chans: int = Field(ge=0, description="Fixed readout channel count")
+
+    _block_index: xr.Dataset | None = PrivateAttr(default=None)
+    _chan_axis: ToltecAxisView | None = PrivateAttr(default=None)
+    _probe_axis: ToltecAxisView | None = PrivateAttr(default=None)
+
+    @property
+    def block_index(self) -> xr.Dataset | None:
+        """Block kinds and selection bounds, when attached to acquisition data."""
+        return self._block_index
+
+    @cached_property
+    def block_index_table(self) -> QTable | None:
+        """Block-index QTable, materialized on first access when data is attached."""
+        if self.block_index is None:
+            return None
+        return dataset_to_qtable(
+            self.block_index,
+            dim="block",
+            columns={str(name): str(name) for name in self.block_index.variables},
+        )
+
+    @property
+    def chan_axis_table(self) -> QTable | None:
+        """Channel rows across blocks, when attached to acquisition data."""
+        return self._chan_axis.axis_table if self._chan_axis is not None else None
+
+    @property
+    def probe_axis_table(self) -> QTable | None:
+        """Probe dwells across blocks, when attached to acquisition data."""
+        return self._probe_axis.axis_table if self._probe_axis is not None else None
 
 
-class ToltecRawObsBlockMetadata(ToltecRawObsMetadata):
-    """One block's complete scalar metadata and optional table projections.
-
-    Scalar records are self-contained. Table access is attached by a block view
-    and is excluded from JSON; scientific arrays live in DataTree leaves.
-    """
+class ToltecRawObsBlockMetadata(ToltecRawObsBlocksMetadata):
+    """Acquisition identity and readout settings for one block."""
 
     n_blocks: int = Field(ge=1, description="Number of discovered acquisition blocks")
     block: int = Field(ge=0, description="Zero-based acquisition block index")
+
     _block_view: Any = PrivateAttr(default=None)
 
     @property
@@ -127,7 +161,7 @@ class ToltecRawObsBlockMetadata(ToltecRawObsMetadata):
         )
 
 
-class ToltecTimeStreamMetadata(ToltecRawObsBlockMetadata):
+class ToltecTimestreamMetadata(ToltecRawObsBlockMetadata):
     """One TolTEC timestream block."""
 
 

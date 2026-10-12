@@ -2,24 +2,20 @@
 
 from __future__ import annotations
 
-from enum import Flag, StrEnum, auto
+from enum import Flag, auto
 from typing import Annotated, ClassVar, Literal
 
 import astropy.units as u
 from pydantic import Field
-from tollan.utils.typing import get_literal_values
+from tollan.utils.typing import get_literal_value, get_literal_values
 
-from ..lmt_base.metadata import LmtInstruMixin
-from .toltecdb import ToltecDBRawObsMasterCode, ToltecDBRawObsTypeCode
+from ..lmt.types import LmtInfo
+from ..lmt_base.metadata import InterfaceInfoMixin
+from .toltec_db import ToltecDBRawObsMasterCode, ToltecDBRawObsTypeCode
 
 __all__ = [
-    "RoachT",
-    "ToltecArray",
-    "ToltecArrayNameT",
     "ToltecDataKind",
     "ToltecInfo",
-    "ToltecMaster",
-    "ToltecMasterNameT",
 ]
 
 
@@ -116,112 +112,104 @@ class ToltecDataKind(Flag):
     """Unknown data."""
 
 
-class ToltecMaster(StrEnum):
-    """TolTEC acquisition masters."""
-
-    tcs = auto()
-    """The telescope control system."""
-
-    ics = auto()
-    """The instrument control system."""
-
-    clip = auto()
-    """The ROACH manager."""
-
-
-type ToltecMasterNameT = Literal[
-    "tcs",
-    "ics",
-    "clip",
-]
-"""Toltec master names."""
-
-
-class ToltecArray(StrEnum):
-    """TolTEC detector arrays."""
-
-    a1100 = auto()
-    """The 1.1 mm array."""
-
-    a1400 = auto()
-    """The 1.4 mm array."""
-
-    a2000 = auto()
-    """The 2.0 mm array."""
-
-
-type ToltecArrayNameT = Literal[
-    "a1100",
-    "a1400",
-    "a2000",
-]
-"""Toltec array names."""
-
-
 class ToltecInfo:
     """Toltec instrument information and constants."""
 
     type InstruT = Literal["toltec"]
-    type MasterT = ToltecMasterNameT
-    type MasterCodeT = Annotated[
-        int, Field(ge=min(ToltecDBRawObsMasterCode), le=max(ToltecDBRawObsMasterCode))
-    ]
+    instru: ClassVar[InstruT] = get_literal_value(InstruT)
+    type MasterT = Literal["tcs", "ics", "clip"]
     type ObsTypeT = Literal["nominal", "timestream", "vna", "targ", "tune"]
     type ObsTypeCodeT = Annotated[
         int, Field(ge=min(ToltecDBRawObsTypeCode), le=max(ToltecDBRawObsTypeCode))
     ]
     type ArrayT = Annotated[int, Field(ge=0, le=2)]
-    type ArrayNameT = ToltecArrayNameT
+    type ArrayNameT = Literal["a1100", "a1400", "a2000"]
 
-    obs_type_code_obs_type: ClassVar[dict[int, str]] = {
-        code.value: code.name.lower() for code in ToltecDBRawObsTypeCode
+    obs_type_code_obs_type: ClassVar[dict[int, ObsTypeT]] = {
+        code.value: ToltecDBRawObsTypeCode.get_obs_type(code)
+        for code in ToltecDBRawObsTypeCode
     }
     """Recorded acquisition types, independent of individual block data kinds."""
 
-    masters: ClassVar[list[ToltecMasterNameT]] = get_literal_values(ToltecMasterNameT)
+    obs_type_data_kind: ClassVar[dict[ObsTypeT, ToltecDataKind]] = {
+        "nominal": ToltecDataKind.raw_timestream,
+        "timestream": ToltecDataKind.raw_timestream,
+        "vna": ToltecDataKind.vnasweep,
+        "targ": ToltecDataKind.targsweep,
+        "tune": ToltecDataKind.tune,
+    }
+    """Raw KIDs data kinds for acquisition observation-type labels."""
 
-    master_code_master: ClassVar[dict[int, ToltecMaster]] = {
+    masters: ClassVar[list[MasterT]] = get_literal_values(MasterT)
+    master_description: ClassVar[dict[MasterT, str]] = {
+        "tcs": "Telescope control system",
+        "ics": "Instrument control system",
+        "clip": "ROACH manager",
+    }
+    """Descriptions of acquisition master labels."""
+
+    master_code_master: ClassVar[dict[int, MasterT]] = {
         master_code.value: ToltecDBRawObsMasterCode.get_master(master_code)
         for master_code in ToltecDBRawObsMasterCode
     }
     """Supported acquisition-master codes and their labels."""
-    master_master_code: ClassVar[dict[str, int]] = {
+    master_master_code: ClassVar[dict[MasterT, int]] = {
         master: master_code for master_code, master in master_code_master.items()
     }
 
     # roach interfaces
     roaches: ClassVar = list(range(13))
+    type RoachT = Annotated[int, Field(ge=min(roaches), le=max(roaches))]
+
     roach_interface: ClassVar = {roach: f"toltec{roach}" for roach in roaches}
     interface_roach: ClassVar = {v: k for k, v in roach_interface.items()}
     roach_interfaces: ClassVar = list(roach_interface.values())
 
-    # TolTEC-owned readout, auxiliary hardware, and housekeeping.
-    interface_instru: ClassVar[dict[str, LmtInstruMixin]] = {
+    # TolTEC readouts, auxiliary streams, and companion telescope data.
+    interface_interface_info: ClassVar[dict[str, InterfaceInfoMixin]] = {
         **{
-            interface: LmtInstruMixin(
-                interface=interface, instru="toltec", instru_component="roach"
+            interface: InterfaceInfoMixin(
+                interface=interface,
+                instru="toltec",
+                producer="toltec",
+                interface_kind="roach",
             )
             for interface in roach_interfaces
         },
-        "hwpr": LmtInstruMixin(
-            interface="hwpr", instru="toltec", instru_component="hwpr"
+        "hwpr": InterfaceInfoMixin(
+            interface="hwpr", instru="toltec", producer="toltec", interface_kind="hwpr"
         ),
-        "wyatt": LmtInstruMixin(
-            interface="wyatt", instru="toltec", instru_component="wyatt"
+        "wyatt": InterfaceInfoMixin(
+            interface="wyatt",
+            instru="toltec",
+            producer="toltec",
+            interface_kind="wyatt",
         ),
-        "toltec_hk": LmtInstruMixin(
-            interface="toltec_hk", instru="toltec", instru_component="hk"
+        "toltec_hk": InterfaceInfoMixin(
+            interface="toltec_hk",
+            instru="toltec",
+            producer="toltec",
+            interface_kind="toltec_hk",
+        ),
+        "tel": InterfaceInfoMixin.model_validate(
+            LmtInfo.interface_interface_info["tel"].model_dump() | {"instru": instru}
         ),
     }
-    interfaces: ClassVar = list(interface_instru)
+    interfaces: ClassVar = list(interface_interface_info)
 
     # arrays
     arrays: ClassVar = list(range(3))
-    array_names: ClassVar[list[ToltecArrayNameT]] = get_literal_values(ToltecArrayNameT)
+    array_names: ClassVar[list[ArrayNameT]] = get_literal_values(ArrayNameT)
+    array_name_description: ClassVar[dict[ArrayNameT, str]] = {
+        "a1100": "1.1 mm detector array",
+        "a1400": "1.4 mm detector array",
+        "a2000": "2.0 mm detector array",
+    }
+    """Descriptions of detector array names."""
     array_array_name: ClassVar = dict(zip(arrays, array_names, strict=True))
     array_name_array: ClassVar = {v: k for k, v in array_array_name.items()}
 
-    interface_array_name: ClassVar[dict[str, ToltecArrayNameT]] = {
+    interface_array_name: ClassVar[dict[str, ArrayNameT]] = {
         "toltec0": "a1100",
         "toltec1": "a1100",
         "toltec2": "a1100",
@@ -237,8 +225,3 @@ class ToltecInfo:
         "toltec12": "a2000",
     }
     fov_diameter: ClassVar = 4 << u.arcmin
-
-
-type RoachT = Annotated[
-    int, Field(ge=min(ToltecInfo.roaches), le=max(ToltecInfo.roaches))
-]
