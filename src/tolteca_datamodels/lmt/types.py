@@ -49,9 +49,12 @@ class LmtInfo:
     """LMT telescope information, site constants, and readout interfaces."""
 
     type InstruT = Literal["lmt"]
+    type DataModelT = Literal["lmt"]
     type MasterT = Literal["tcs"]
 
     instru: ClassVar[InstruT] = get_literal_value(InstruT)
+    data_model: ClassVar[DataModelT] = get_literal_value(DataModelT)
+    """Data-model name for membership and handler selection."""
     name: ClassVar = "LMT"
     name_long: ClassVar = "Large Millimeter Telescope"
 
@@ -81,7 +84,7 @@ class LmtInfo:
         "tel": LmtInterfaceInfo(
             interface="tel",
             instru=instru,
-            data_models=["lmt"],
+            data_models=[data_model],
             interface_kind="tel",
         ),
     }

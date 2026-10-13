@@ -137,7 +137,10 @@ class LmtTelIOMapper(XarrayMapper[LmtTelIOSchema]):
             interface_kind=get_literal_value(LmtTelInterfaceKindT),
             master_code=master_code,
             master=LmtInfo.master_code_master[master_code],
-            data_models=["lmt", self.get_str(ds, schema.receiver).casefold()],
+            data_models=[
+                LmtInfo.data_model,
+                self.get_str(ds, schema.receiver).casefold(),
+            ],
             obsnum=self.get_scalar(ds, schema.obsnum),
             subobsnum=self.get_scalar(ds, schema.subobsnum),
             scannum=self.get_scalar(ds, schema.scannum),

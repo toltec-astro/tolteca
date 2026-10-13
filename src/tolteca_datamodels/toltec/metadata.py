@@ -13,7 +13,6 @@ from tollan.config.types import FrequencyQuantityField
 from ..lmt_base._filepath import FilepathOrigMetadataMixin
 from ..lmt_base.metadata import LmtRawObsMetadata
 from ..lmt_base.types import SeqNumT
-from ._filepath import ToltecFilepathInfo
 from .axes import ToltecAxisView
 from .toltec_db import ToltecDBRawObsMasterCode
 from .types import ToltecInfo
@@ -30,14 +29,11 @@ __all__ = [
 ]
 
 
-class ToltecRawObsMetadata(
-    LmtRawObsMetadata, FilepathOrigMetadataMixin[ToltecFilepathInfo]
-):
+class ToltecRawObsMetadata(LmtRawObsMetadata, FilepathOrigMetadataMixin):
     """TolTEC acquisition metadata and readout settings."""
 
     # Acquisition identity and mode.
     instru: ToltecInfo.InstruT = Field(description="TolTEC instrument")
-    producer: ToltecInfo.InstruT = Field(description="Instrument producing the data")
     master: ToltecInfo.MasterT = Field(description="Acquisition master label")
     master_code: ToltecDBRawObsMasterCode = Field(description="Recorded master code")
     obs_type: ToltecInfo.ObsTypeT | None = Field(

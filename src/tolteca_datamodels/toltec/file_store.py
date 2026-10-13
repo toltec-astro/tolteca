@@ -33,7 +33,7 @@ class ToltecFileStore(LmtFileStoreBase):
     _interfaces: ClassVar = tuple(
         interface
         for interface, info in ToltecInfo.interface_interface_info.items()
-        if info.producer == ToltecInfo.instru
+        if info.instru == ToltecInfo.instru
     )
 
     def _iter_candidate_patterns(

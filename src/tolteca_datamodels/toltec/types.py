@@ -112,11 +112,29 @@ class ToltecDataKind(Flag):
     """Unknown data."""
 
 
+def _make_roach_interface_info(
+    interfaces: list[str], *, instru: str, data_model: str
+) -> dict[str, InterfaceInfoMixin]:
+    """Describe the ROACH interfaces with a shared instrument and data model."""
+    return {
+        interface: InterfaceInfoMixin(
+            interface=interface,
+            instru=instru,
+            data_models=[data_model],
+            interface_kind="roach",
+        )
+        for interface in interfaces
+    }
+
+
 class ToltecInfo:
     """Toltec instrument information and constants."""
 
     type InstruT = Literal["toltec"]
     instru: ClassVar[InstruT] = get_literal_value(InstruT)
+    type DataModelT = Literal["toltec"]
+    data_model: ClassVar[DataModelT] = get_literal_value(DataModelT)
+    """Data-model name for membership and handler selection."""
     type MasterT = Literal["tcs", "ics", "clip"]
     type ObsTypeT = Literal["nominal", "timestream", "vna", "targ", "tune"]
     type ObsTypeCodeT = Annotated[
@@ -167,32 +185,29 @@ class ToltecInfo:
 
     # TolTEC readouts, auxiliary streams, and companion telescope data.
     interface_interface_info: ClassVar[dict[str, InterfaceInfoMixin]] = {
-        **{
-            interface: InterfaceInfoMixin(
-                interface=interface,
-                instru="toltec",
-                producer="toltec",
-                interface_kind="roach",
-            )
-            for interface in roach_interfaces
-        },
+        **_make_roach_interface_info(
+            roach_interfaces, instru=instru, data_model=data_model
+        ),
         "hwpr": InterfaceInfoMixin(
-            interface="hwpr", instru="toltec", producer="toltec", interface_kind="hwpr"
+            interface="hwpr",
+            instru=instru,
+            data_models=[data_model],
+            interface_kind="hwpr",
         ),
         "wyatt": InterfaceInfoMixin(
             interface="wyatt",
-            instru="toltec",
-            producer="toltec",
+            instru=instru,
+            data_models=[data_model],
             interface_kind="wyatt",
         ),
         "toltec_hk": InterfaceInfoMixin(
             interface="toltec_hk",
-            instru="toltec",
-            producer="toltec",
+            instru=instru,
+            data_models=[data_model],
             interface_kind="toltec_hk",
         ),
-        "tel": InterfaceInfoMixin.model_validate(
-            LmtInfo.interface_interface_info["tel"].model_dump() | {"instru": instru}
+        "tel": LmtInfo.interface_interface_info["tel"].model_copy(
+            update={"data_models": [LmtInfo.data_model, data_model]}
         ),
     }
     interfaces: ClassVar = list(interface_interface_info)
