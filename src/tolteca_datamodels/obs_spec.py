@@ -10,20 +10,29 @@ from numbers import Real
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Annotated, ClassVar, Literal, Self
 
+import numpy as np
 import pandas as pd
 from pydantic import (
-    BaseModel,
+    AfterValidator,
     ConfigDict,
     Field,
+    NegativeInt,
     NonNegativeInt,
+    PositiveInt,
+    TypeAdapter,
     field_serializer,
     field_validator,
 )
+from pydantic.dataclasses import dataclass as validated_dataclass
 from tollan.utils.log import logger
 from tollan.utils.slice import parse_slice
 
+from .types import FrozenDataModel
+
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
+
+    import numpy.typing as npt
 
 __all__ = [
     "ColumnSelector",
@@ -45,26 +54,31 @@ _FIELD_PATTERN = re.compile(
     r"(?:\[(?P<positions>[^\[\]]*)\])?"
     r"(?P<after>[a-zA-Z0-9_]*)"
 )
+_SELECTION_PATTERN = re.compile(r"(?P<values>[^\[\]]*)(?:\[(?P<positions>[^\[\]]*)\])?")
+_POSITION_LIST_PATTERN = re.compile(r"[+-]?\d+(?:,[+-]?\d+)+")
 _LEFT_SEPARATOR = "-"
 _RIGHT_SEPARATOR = "/"
 _BRACKETS = {"(": ")", "[": "]", "{": "}"}
+_CLOSING_BRACKETS = frozenset(_BRACKETS.values())
 _UNCONSTRAINED = {"", "*", "{}", "{,}"}
 
-type _ContextLabels = Mapping[
+_SELECTOR_CONFIG = ConfigDict(
+    strict=True, validate_default=True, arbitrary_types_allowed=True, extra="forbid"
+)
+type _SelectorLabel = Annotated[str, Field(pattern=rf"^{_LABEL_PATTERN.pattern}\z")]
+
+type _FieldLabelNumbers = Mapping[
     str,
-    Mapping[
-        Annotated[str, Field(pattern=rf"^{_LABEL_PATTERN.pattern}$")],
-        NonNegativeInt | None,
-    ],
+    Mapping[_SelectorLabel, NonNegativeInt | None],
 ]
 
 
-class ObsSpecContext(BaseModel):
+class ObsSpecContext(FrozenDataModel):
     """Label interpretations for observation selectors.
 
     Parameters
     ----------
-    labels : mapping, optional
+    field_label_numbers : mapping, optional
         Field names mapped to known labels and their nonnegative integer values.
         None marks an unnumbered label. Default is an empty mapping. Declarations
         are copied and exposed as read-only mappings.
@@ -84,48 +98,55 @@ class ObsSpecContext(BaseModel):
 
     Examples
     --------
-    >>> context = ObsSpecContext(labels={"interface": {"tel": None, "board1": 1}})
-    >>> context.labels["interface"]["board1"]
+    >>> context = ObsSpecContext(
+    ...     field_label_numbers={"interface": {"tel": None, "board1": 1}},
+    ... )
+    >>> context.field_label_numbers["interface"]["board1"]
     1
     """
 
-    model_config = ConfigDict(
-        strict=True, frozen=True, extra="forbid", validate_default=True
-    )
+    model_config = ConfigDict(extra="forbid")
 
-    labels: _ContextLabels = Field(default_factory=dict)
+    field_label_numbers: _FieldLabelNumbers = Field(default_factory=dict)
 
-    @field_validator("labels")
+    @field_validator("field_label_numbers")
     @classmethod
-    def _freeze_labels(cls, labels: _ContextLabels) -> _ContextLabels:
+    def _freeze_field_label_numbers(
+        cls, field_label_numbers: _FieldLabelNumbers
+    ) -> _FieldLabelNumbers:
         return MappingProxyType(
-            {name: MappingProxyType(values) for name, values in labels.items()}
+            {
+                name: MappingProxyType(values)
+                for name, values in field_label_numbers.items()
+            }
         )
 
-    @field_serializer("labels")
-    def _serialize_labels(
-        self, labels: _ContextLabels
+    @field_serializer("field_label_numbers")
+    def _serialize_field_label_numbers(
+        self, field_label_numbers: _FieldLabelNumbers
     ) -> dict[str, dict[str, int | None]]:
-        return {name: dict(values) for name, values in labels.items()}
+        return {name: dict(values) for name, values in field_label_numbers.items()}
 
     def __or__(self, other: ObsSpecContext) -> ObsSpecContext:
         if not isinstance(other, ObsSpecContext):
             return NotImplemented
-        combined = {name: dict(labels) for name, labels in self.labels.items()}
-        for name, labels in other.labels.items():
+        combined = {
+            name: dict(labels) for name, labels in self.field_label_numbers.items()
+        }
+        for name, labels in other.field_label_numbers.items():
             target = combined.setdefault(name, {})
             for label, number in labels.items():
                 if label in target and target[label] != number:
                     msg = f"Conflicting numeric interpretation for {name}={label!r}"
                     raise ValueError(msg)
                 target[label] = number
-        return ObsSpecContext(labels=combined)
+        return ObsSpecContext(field_label_numbers=combined)
 
 
 _CONTEXT_EMPTY = ObsSpecContext()
 
 
-@dataclass(frozen=True)
+@validated_dataclass(frozen=True, config=_SELECTOR_CONFIG)
 class ValueBounds:
     """Half-open bounds on nonnegative integer values.
 
@@ -135,16 +156,15 @@ class ValueBounds:
         Inclusive lower bound. Default is None, leaving the lower side unbounded.
     upper : int, optional
         Exclusive upper bound. Default is None, leaving the upper side unbounded.
+
+    Raises
+    ------
+    pydantic.ValidationError
+        If a bound is neither a nonnegative integer nor None.
     """
 
-    lower: int | None = None
-    upper: int | None = None
-
-    def __post_init__(self) -> None:
-        for value in (self.lower, self.upper):
-            if value is not None and (type(value) is not int or value < 0):
-                msg = f"Invalid value bound: {value!r}"
-                raise ValueError(msg)
+    lower: NonNegativeInt | None = None
+    upper: NonNegativeInt | None = None
 
     def __str__(self) -> str:
         lower = "" if self.lower is None else str(self.lower)
@@ -152,34 +172,45 @@ class ValueBounds:
         return f"({lower},{upper})"
 
 
-type FieldValue = int | str
-type FieldValues = FieldValue | tuple[FieldValue, ...] | ValueBounds | None
+type FieldValue = NonNegativeInt | _SelectorLabel
 
 
-def _normalize_values(values: FieldValues) -> FieldValues:
-    if values is None:
-        return None
-    if isinstance(values, ValueBounds):
-        return values
-    members = values if isinstance(values, tuple) else (values,)
-    if not members:
-        msg = f"Invalid selector values: {values!r}"
-        raise ValueError(msg)
-    for item in members:
-        if not (
-            (type(item) is int and item >= 0)
-            or (isinstance(item, str) and _LABEL_PATTERN.fullmatch(item))
-        ):
-            msg = f"Invalid selector values: {values!r}"
-            raise ValueError(msg)
-    return (
-        tuple(sorted(set(values), key=lambda item: (isinstance(item, str), item)))
-        if isinstance(values, tuple)
-        else values
-    )
+def _normalize_value_set(values: tuple[FieldValue, ...]) -> tuple[FieldValue, ...]:
+    return tuple(sorted(set(values), key=lambda item: (isinstance(item, str), item)))
 
 
-@dataclass(frozen=True)
+type _ValueSet[ValueT] = Annotated[
+    tuple[ValueT, ...], Field(min_length=1), AfterValidator(_normalize_value_set)
+]
+type FieldValues = FieldValue | _ValueSet[FieldValue] | ValueBounds | None
+_field_value_adapters = {
+    "label": TypeAdapter(
+        _SelectorLabel | _ValueSet[_SelectorLabel] | None, config=_SELECTOR_CONFIG
+    ),
+    "integer": TypeAdapter(
+        NonNegativeInt | _ValueSet[NonNegativeInt] | ValueBounds | None,
+        config=_SELECTOR_CONFIG,
+    ),
+    "mixed": TypeAdapter(FieldValues, config=_SELECTOR_CONFIG),
+}
+_slice_parts_adapter = TypeAdapter(
+    tuple[int | None, int | None, PositiveInt | NegativeInt | None],
+    config=ConfigDict(strict=True),
+)
+
+
+def _validate_position_slice(value: slice) -> slice:
+    _slice_parts_adapter.validate_python((value.start, value.stop, value.step))
+    return value
+
+
+type _PositionSlice = Annotated[slice, AfterValidator(_validate_position_slice)]
+type _Positions = (
+    _PositionSlice | Annotated[tuple[int, ...], Field(min_length=1)] | None
+)
+
+
+@validated_dataclass(frozen=True, config=_SELECTOR_CONFIG)
 class FieldSelection:
     """Value constraints with optional selection of distinct-value positions.
 
@@ -194,48 +225,33 @@ class FieldSelection:
         forward slice leaves positions unconstrained.
         Positions are ignored when the selected values have no common numeric
         ordering; the value constraint still applies.
+
+    Raises
+    ------
+    pydantic.ValidationError
+        If values or positions are invalid, including a zero slice step.
     """
 
     value_constraint: FieldValues = None
-    positions: slice | tuple[int, ...] | None = None
+    positions: _Positions = None
 
-    def __post_init__(self) -> None:
-        object.__setattr__(
-            self, "value_constraint", _normalize_values(self.value_constraint)
-        )
-        positions = self.positions
+    @field_validator("positions")
+    @classmethod
+    def _normalize_positions(cls, positions: _Positions) -> _Positions:
         if positions is None:
-            return
+            return None
         if isinstance(positions, slice):
-            if (
-                any(
-                    value is not None and type(value) is not int
-                    for value in (positions.start, positions.stop, positions.step)
-                )
-                or positions.step == 0
-            ):
-                msg = f"Invalid positional slice: {positions!r}"
-                raise ValueError(msg)
             if (
                 positions.start in (None, 0)
                 and positions.stop is None
                 and positions.step in (None, 1)
             ):
-                object.__setattr__(self, "positions", None)
-        elif (
-            isinstance(positions, tuple)
-            and positions
-            and all(type(item) is int for item in positions)
-        ):
-            positions = tuple(sorted(set(positions)))
-            object.__setattr__(
-                self,
-                "positions",
-                parse_slice(str(positions[0])) if len(positions) == 1 else positions,
-            )
+                return None
         else:
-            msg = f"Invalid positions: {positions!r}"
-            raise ValueError(msg)
+            positions = tuple(sorted(set(positions)))
+            if len(positions) == 1:
+                return parse_slice(str(positions[0]))
+        return positions
 
     def select_values(self, values: Sequence[int]) -> list[int]:
         """Select positions from ordered values.
@@ -280,7 +296,7 @@ class FieldSelection:
         return f"{value_text}[{position_text}]"
 
 
-@dataclass(frozen=True)
+@validated_dataclass(frozen=True, config=_SELECTOR_CONFIG)
 class FieldPattern:
     """A numeric selection between literal parts of a label.
 
@@ -292,17 +308,20 @@ class FieldPattern:
         Numeric bounds with optional positions for the numeric component.
     after : str
         Literal text following the numeric component; may be empty.
+
+    Raises
+    ------
+    pydantic.ValidationError
+        If literal parts are invalid or absent, or selection does not use
+        numeric bounds.
     """
 
-    before: str
+    before: Annotated[str, Field(pattern=rf"^{_LITERAL_PART_PATTERN.pattern}\z")]
     selection: FieldSelection
-    after: str
+    after: Annotated[str, Field(pattern=rf"^{_LITERAL_PART_PATTERN.pattern}\z")]
 
     def __post_init__(self) -> None:
-        if not (self.before or self.after) or any(
-            not _LITERAL_PART_PATTERN.fullmatch(part)
-            for part in (self.before, self.after)
-        ):
+        if not (self.before or self.after):
             msg = (
                 "A field pattern requires valid literal text around its "
                 "numeric selection"
@@ -346,7 +365,8 @@ def _parse_values(value: str) -> FieldValues:
 def _parse_selector(value: str) -> Selector:
     if pattern := _FIELD_PATTERN.fullmatch(value):
         bounds = ValueBounds(
-            *(int(part) if part else None for part in pattern.group("lower", "upper"))
+            int(pattern["lower"]) if pattern["lower"] else None,
+            int(pattern["upper"]) if pattern["upper"] else None,
         )
         positions = _parse_positions(pattern["positions"])
         if pattern["before"] or pattern["after"]:
@@ -354,7 +374,7 @@ def _parse_selector(value: str) -> Selector:
                 pattern["before"], FieldSelection(bounds, positions), pattern["after"]
             )
         return bounds if positions is None else FieldSelection(bounds, positions)
-    match = re.fullmatch(r"(?P<values>[^\[\]]*)(?:\[(?P<positions>[^\[\]]*)\])?", value)
+    match = _SELECTION_PATTERN.fullmatch(value)
     if match is None:
         msg = f"Invalid field selector: {value!r}"
         raise ValueError(msg)
@@ -368,7 +388,7 @@ def _parse_positions(text: str | None) -> slice | tuple[int, ...] | None:
     if text is None:
         return None
     if "," in text:
-        if not re.fullmatch(r"[+-]?\d+(?:,[+-]?\d+)+", text):
+        if not _POSITION_LIST_PATTERN.fullmatch(text):
             msg = f"Invalid positional list: {text!r}"
             raise ValueError(msg)
         return tuple(int(item) for item in text.split(","))
@@ -545,7 +565,9 @@ class _ColumnMatch:
         numeric_values = numbers.index[self._numeric_mask(numbers, constraint)]
         return self._values_without_bools.isin([*labels, *numeric_values])
 
-    def position_mask(self, mask: pd.Series, selection: FieldSelection) -> pd.Series:
+    def position_mask(
+        self, mask: npt.NDArray[np.bool_], selection: FieldSelection
+    ) -> pd.Series:
         if self._is_numeric:
             surviving = self.values.loc[mask]
             positions = selection.positions
@@ -556,20 +578,20 @@ class _ColumnMatch:
                     return self.values.eq(surviving.min()).fillna(value=False)
                 if positions.start == -1 and positions.stop is None:
                     return self.values.eq(surviving.max()).fillna(value=False)
-            values_available = sorted(surviving.dropna().unique())
+            values_available = np.sort(surviving.dropna().unique())
             return self.values.isin(selection.select_values(values_available))
         numbers = self._numbered_values
         present = numbers.index.isin(
             self._values_without_bools.loc[mask].dropna().unique()
         )
-        numbers_available = sorted(numbers.loc[present].dropna().unique())
+        numbers_available = np.sort(numbers.loc[present].dropna().unique())
         selected = numbers.index[
             numbers.isin(selection.select_values(numbers_available))
         ]
         return self._values_without_bools.isin(selected)
 
 
-@dataclass(frozen=True)
+@validated_dataclass(frozen=True, config=_SELECTOR_CONFIG)
 class FieldConstraint:
     """Additional value constraints for a selector field.
 
@@ -579,6 +601,11 @@ class FieldConstraint:
         Accepted selector values. Integer values are nonnegative. Mixed fields
         also accept literal parts around a numeric selection.
 
+    Raises
+    ------
+    pydantic.ValidationError
+        If kind is missing or is not one of the supported choices.
+
     Notes
     -----
     Positions are accepted syntactically for all kinds. Selection ignores
@@ -586,18 +613,6 @@ class FieldConstraint:
     """
 
     kind: Literal["label", "integer", "mixed"]
-
-    def __post_init__(self) -> None:
-        if self.kind not in ("label", "integer", "mixed"):
-            msg = f"Invalid field kind: {self.kind!r}"
-            raise ValueError(msg)
-
-    def _validate_member(self, value: FieldValue) -> None:
-        if (isinstance(value, str) and self.kind == "integer") or (
-            type(value) is int and self.kind == "label"
-        ):
-            msg = f"Value is not accepted by a {self.kind} field: {value!r}"
-            raise ValueError(msg)
 
     def normalize(self, selector: Selector) -> Selector:
         """Validate and normalize a field selector.
@@ -623,18 +638,11 @@ class FieldConstraint:
                 msg = "Literal parts around a numeric selection require a mixed field"
                 raise ValueError(msg)
             return selector
-        values = (
+        values = _field_value_adapters[self.kind].validate_python(
             selector.value_constraint
             if isinstance(selector, FieldSelection)
-            else _normalize_values(selector)
+            else selector
         )
-        if isinstance(values, ValueBounds):
-            if self.kind == "label":
-                msg = "Value bounds require an integer or mixed field"
-                raise ValueError(msg)
-        elif values is not None:
-            for item in values if isinstance(values, tuple) else (values,):
-                self._validate_member(item)
         if isinstance(selector, FieldSelection) and selector.positions is not None:
             return selector
         return values
@@ -670,7 +678,7 @@ def _split_field_tokens(text: str) -> tuple[list[str], list[str]]:
                 msg = f"Nested brackets in observation selector: {text!r}"
                 raise ValueError(msg)
             closing = _BRACKETS[char]
-        elif char in _BRACKETS.values():
+        elif char in _CLOSING_BRACKETS:
             if char != closing:
                 msg = f"Mismatched brackets in observation selector: {text!r}"
                 raise ValueError(msg)
@@ -889,7 +897,9 @@ class ObsSpecBase:
             each selector combine with OR.
         """
         for name, selector in self.constraints():
-            yield ColumnSelector(name, selector, label_numbers=context.labels.get(name))
+            yield ColumnSelector(
+                name, selector, label_numbers=context.field_label_numbers.get(name)
+            )
 
     def resolve_values(
         self,
@@ -920,7 +930,7 @@ class ObsSpecBase:
         selector = ColumnSelector(
             name,
             getattr(self, name),
-            label_numbers=context.labels.get(name),
+            label_numbers=context.field_label_numbers.get(name),
         )
         constraint = selector.value_constraint
         if constraint is None:
@@ -982,7 +992,9 @@ class ObsSpecBase:
         ValueError
             If a constrained field has no column.
         """
-        mask = pd.Series(data=True, index=table.index, dtype=bool)
+        # All predicates follow table row order. Combine their masks without
+        # converting between pandas' nullable and Arrow boolean representations.
+        mask = np.ones(len(table), dtype=bool)
         positional_match = None
         positional_constraint = self.positional_constraint
         for item in self.column_constraints(context=context):
@@ -990,7 +1002,7 @@ class ObsSpecBase:
                 msg = f"Table lacks selector field {item.name!r}"
                 raise ValueError(msg)
             match = _ColumnMatch(item, table[item.name])
-            mask &= match.value_mask()
+            mask &= match.value_mask().to_numpy(dtype=bool, na_value=False)
             if (
                 positional_constraint is not None
                 and item.name == positional_constraint[0]
@@ -1009,5 +1021,7 @@ class ObsSpecBase:
                     getattr(self, name),
                 )
             else:
-                mask &= positional_match.position_mask(mask, selection)
+                mask &= positional_match.position_mask(mask, selection).to_numpy(
+                    dtype=bool, na_value=False
+                )
         return table.loc[mask]
