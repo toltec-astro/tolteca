@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from functools import cached_property
-from typing import ClassVar
+from typing import Annotated, ClassVar
 
 from pydantic import Field, computed_field
 from tollan.accessor.pandas.model_table import (
@@ -25,23 +25,27 @@ __all__ = [
 ]
 
 
+class _FileOnly:
+    """Field projected only under its ``file_*`` name."""
+
+
 class FilepathInfoMixin(LmtObsQuartetMixin, InterfaceInfoMixin):
     """Observation information encoded in an acquisition filepath."""
 
     _columns: ClassVar[dict[str, ModelColumn]]
 
-    prefix: str
-    suffix: str | None
-    ext: str
-    ut: DatetimeT
+    prefix: Annotated[str, _FileOnly]
+    suffix: Annotated[str | None, _FileOnly]
+    ext: Annotated[str, _FileOnly]
+    ut: Annotated[DatetimeT, _FileOnly]
 
     @classmethod
     def __pydantic_on_complete__(cls) -> None:
         super().__pydantic_on_complete__()
         obs_fields = [
             name
-            for name in cls.model_fields
-            if name not in {"prefix", "suffix", "ext", "ut", "proc_suffix"}
+            for name, field in cls.model_fields.items()
+            if _FileOnly not in field.metadata
         ]
         cls._columns = ModelColumnMapper(
             name_rules=[

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Annotated, ClassVar
 
 from .._filepath import FilepathInfo, register_filepath_parser
 from ..lmt._filepath import _LmtFilepathInfo
-from ..lmt_base._filepath import FilepathInfoMixin
+from ..lmt_base._filepath import FilepathInfoMixin, _FileOnly
 from .types import ToltecInfo
 
 if TYPE_CHECKING:
@@ -25,7 +25,7 @@ class _ToltecFilepathInfo(FilepathInfo, FilepathInfoMixin):
     """Information encoded in a TolTEC acquisition filepath."""
 
     instru: ToltecInfo.InstruT
-    proc_suffix: str | None = None
+    proc_suffix: Annotated[str | None, _FileOnly] = None
     roach: ToltecInfo.RoachT | None = None
 
     @staticmethod

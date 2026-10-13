@@ -3,119 +3,169 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
-from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, NamedTuple
 
-from pydantic import BaseModel, ConfigDict
-from tollan.utils.dict import dict_from_regex_match
+from pydantic import ConfigDict
+from tollan.accessor.pandas.model_table import (
+    ModelColumn,
+    ModelColumnMapper,
+    ScalarColumnRule,
+)
 from tollan.utils.fileloc import FileLoc, fileloc
 
+from .core import FrozenDataModel
+
 if TYPE_CHECKING:
-    from typing import Self
+    from collections.abc import Callable
+    from pathlib import Path
 
-
-__all__ = ["FilepathInfo"]
+__all__ = ["FilepathInfo", "register_filepath_parser"]
 
 
 class _FilepathInfoParser(NamedTuple):
     """Filepath record type and ordered parsers for one filename pattern."""
 
+    pattern: re.Pattern[str]
     filepath_info_cls: type[FilepathInfo]
     parsers: tuple[Callable[[dict, Path], dict[str, object]], ...]
 
 
-_filename_pattern_parser: dict[re.Pattern[str], _FilepathInfoParser] = {}
+_filepath_parsers: list[_FilepathInfoParser] = []
+_filepath_column_mapper = ModelColumnMapper(
+    name_rules=[(r".+", r"file_\g<0>")],
+    type_rules=[ScalarColumnRule()],
+    default=None,
+)
 
 
-class FilepathInfo(BaseModel):
+def register_filepath_parser(
+    *,
+    pattern: str | re.Pattern[str],
+    parsers: tuple[Callable[[dict, Path], dict[str, object]], ...],
+    filepath_info_cls: type[FilepathInfo],
+) -> None:
+    """Register a filename pattern, field parsers, and result model.
+
+    Parameters
+    ----------
+    pattern : str or re.Pattern
+        Regular expression with named captures describing the filename.
+        Include anchors to match the complete filename.
+    parsers : tuple of callable
+        Ordered field converters. Each receives the captures updated by previous
+        converters and the source path, and returns a dict to merge into the
+        captures. An empty tuple uses the captures unchanged.
+    filepath_info_cls : type of FilepathInfo
+        Model used to validate the converted captures.
+
+    Raises
+    ------
+    TypeError
+        If filepath_info_cls is not a FilepathInfo subclass.
+
+    Notes
+    -----
+    Registering an identical entry again has no effect. When patterns overlap,
+    a result subclass takes precedence over its base class. Other ambiguities
+    raise when parsing the matching filename, before field conversion.
+    """
+    if not isinstance(filepath_info_cls, type) or not issubclass(
+        filepath_info_cls, FilepathInfo
+    ):
+        msg = "Expected a FilepathInfo subclass"
+        raise TypeError(msg)
+    parser = _FilepathInfoParser(re.compile(pattern), filepath_info_cls, parsers)
+    if parser in _filepath_parsers:
+        return
+    _filepath_parsers.append(parser)
+
+
+class FilepathInfo(FrozenDataModel):
     """Information encoded in a filepath.
 
     Use `from_source` to identify the filename and obtain its information model.
     """
 
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", polymorphic_serialization=True
-    )
+    model_config = ConfigDict(extra="forbid", polymorphic_serialization=True)
 
-    _filename_patterns: ClassVar[
-        dict[re.Pattern[str], tuple[Callable[[dict, Path], dict[str, object]], ...]]
-    ] = {}
-    # Subclasses associate filename patterns with ordered static parsers.
-    # Each parser receives the captures updated by preceding parsers, together
-    # with the source path, and returns a dict of additional or converted values.
+    _columns: ClassVar[dict[str, ModelColumn]]
 
     @classmethod
-    def __pydantic_init_subclass__(cls, **kwargs) -> None:
-        super().__pydantic_init_subclass__(**kwargs)
-        # An inherited pattern still belongs to the class that declared it.
-        for pattern, parsers in cls.__dict__.get("_filename_patterns", {}).items():
-            _filename_pattern_parser[pattern] = _FilepathInfoParser(
-                filepath_info_cls=cls, parsers=parsers
-            )
+    def __pydantic_on_complete__(cls) -> None:
+        super().__pydantic_on_complete__()
+        if "_columns" not in cls.__dict__:
+            cls._columns = _filepath_column_mapper(cls)
 
-    @classmethod
+    @staticmethod
     def from_source(
-        cls,
         source: str | Path | FileLoc,
         *,
-        accepted_types: tuple[type[FilepathInfo], ...] | None = None,
         raise_on_error: bool = True,
-    ) -> Self | None:
+    ) -> FilepathInfo | None:
         """Parse a local or remote path without opening the source.
 
         Parameters
         ----------
         source : str, pathlib.Path or FileLoc
             Location whose filename is to be parsed. The source need not exist.
-        accepted_types : tuple of FilepathInfo classes or None, optional
-            Restrict results to these classes and their subclasses. Default is
-            None, accepting the calling class and its subclasses. An explicit
-            tuple further narrows that selection; an empty tuple accepts none.
         raise_on_error : bool, optional
             Whether an unrecognized filename raises an error. Default is True.
-            This does not suppress errors in filenames matching an accepted type.
+            This does not suppress errors in recognized filenames.
 
         Returns
         -------
         FilepathInfo or None
-            An instance of the accepted subclass identified by the filename,
-            or None if no accepted type matches and ``raise_on_error=False``.
+            Parsed information for the most specialized registered filename
+            layout, or None for an unrecognized name with ``raise_on_error=False``.
 
         Raises
         ------
         ValueError
-            If no accepted type matches and ``raise_on_error=True``, or if
-            values in a matching filename are invalid.
+            If no filename pattern matches and ``raise_on_error=True``, or if
+            values in a matching filename are invalid, or matching registrations
+            do not resolve to one most-specific result type.
         KeyError
-            If a filename matching an accepted type names an unsupported interface.
+            If a recognized filename names an unsupported interface.
 
         Examples
         --------
-        >>> from tolteca_datamodels.lmt import LmtFilepathInfo
-        >>> from tolteca_datamodels.toltec import ToltecFilepathInfo
+        >>> from tolteca_datamodels.file import FilepathInfo
         >>> info = FilepathInfo.from_source(
         ...     "tel_toltec_2025-10-31_145609_00_0002.nc",
-        ...     accepted_types=(LmtFilepathInfo, ToltecFilepathInfo),
         ... )
-        >>> type(info).__name__
-        'LmtFilepathInfo'
+        >>> info.prefix, info.interface, info.obsnum
+        ('tel_toltec', 'tel', 145609)
         """
         source = fileloc(source)
         path = source.path
-        for pattern, parser in _filename_pattern_parser.items():
-            model_cls = parser.filepath_info_cls
-            if not issubclass(model_cls, cls):
-                continue
-            if accepted_types is not None and not issubclass(model_cls, accepted_types):
-                continue
-            captures = dict_from_regex_match(pattern, path.name)
-            if captures is None:
-                continue
+        matches = []
+        for parser in _filepath_parsers:
+            match = parser.pattern.match(path.name)
+            if match is not None:
+                matches.append((parser, match))
+        if len(matches) > 1:
+            matches = [
+                (parser, match)
+                for parser, match in matches
+                if not any(
+                    other.filepath_info_cls is not parser.filepath_info_cls
+                    and issubclass(other.filepath_info_cls, parser.filepath_info_cls)
+                    for other, _ in matches
+                )
+            ]
+            if len(matches) != 1:
+                names = ", ".join(p.filepath_info_cls.__name__ for p, _ in matches)
+                msg = f"Ambiguous acquisition filename: {source} ({names})"
+                raise ValueError(msg)
+        if matches:
+            parser, match = matches[0]
+            captures = match.groupdict()
             for parse in parser.parsers:
                 captures.update(parse(captures, path))
-            return model_cls.model_validate(captures)
+            # Regex captures are text; the filename-ingestion boundary converts
+            # them to the declared types before returning a strict data model.
+            return parser.filepath_info_cls.model_validate(captures, strict=False)
         if not raise_on_error:
             return None
-        msg = f"Unrecognized acquisition filename for {cls.__name__}: {source}"
+        msg = f"Unrecognized acquisition filename: {source}"
         raise ValueError(msg)
