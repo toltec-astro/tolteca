@@ -6,11 +6,9 @@ from enum import IntEnum, StrEnum, auto
 from typing import ClassVar, Literal, Self, cast
 
 import astropy.units as u
-from pydantic import Field
 from tollan.utils.typing import get_literal_value
 
 from ..lmt_base.metadata import InterfaceInfoMixin
-from ..lmt_base.types import LabelT
 
 __all__ = [
     "LmtInfo",
@@ -22,11 +20,7 @@ __all__ = [
 
 
 class LmtInterfaceInfo(InterfaceInfoMixin):
-    """LMT interface information with optional instrument affiliation."""
-
-    instru: LabelT | None = Field(
-        default=None, description="Instrument whose data conventions apply"
-    )
+    """Identity and data-model memberships of an LMT interface."""
 
 
 class LmtRawObsMasterCode(IntEnum):
@@ -86,8 +80,8 @@ class LmtInfo:
     interface_interface_info: ClassVar[dict[str, LmtInterfaceInfo]] = {
         "tel": LmtInterfaceInfo(
             interface="tel",
-            instru=None,
-            producer=instru,
+            instru=instru,
+            data_models=["lmt"],
             interface_kind="tel",
         ),
     }

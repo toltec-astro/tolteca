@@ -54,7 +54,7 @@ class LmtTelIOSchema(Schema):
     subobsnum: Mapping = NameMapping("Header.Dcs.SubObsNum")
     scannum: Mapping = NameMapping("Header.Dcs.ScanNum")
     master_code: Mapping = NameMapping("Header.TelescopeBackend.Master")
-    instru: Mapping = NameMapping("Header.Dcs.Receiver")
+    receiver: Mapping = NameMapping("Header.Dcs.Receiver")
     obs_pgm: Mapping = NameMapping("Header.Dcs.ObsPgm")
     obs_goal: Mapping = NameMapping("Header.Dcs.ObsGoal")
     t_int: Mapping = NameMapping("Header.Dcs.IntegrationTime")
@@ -132,12 +132,12 @@ class LmtTelIOMapper(XarrayMapper[LmtTelIOSchema]):
         )
         master_code = LmtRawObsMasterCode(self.get_scalar(ds, schema.master_code))
         meta = LmtTelMetadata(
-            producer=LmtInfo.instru,
+            instru=LmtInfo.instru,
             interface=get_literal_value(LmtTelInterfaceT),
             interface_kind=get_literal_value(LmtTelInterfaceKindT),
             master_code=master_code,
             master=LmtInfo.master_code_master[master_code],
-            instru=self.get_str(ds, schema.instru).casefold(),
+            data_models=["lmt", self.get_str(ds, schema.receiver).casefold()],
             obsnum=self.get_scalar(ds, schema.obsnum),
             subobsnum=self.get_scalar(ds, schema.subobsnum),
             scannum=self.get_scalar(ds, schema.scannum),

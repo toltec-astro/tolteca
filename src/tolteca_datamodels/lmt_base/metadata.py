@@ -8,7 +8,7 @@ import astropy.units as u
 from pydantic import Field, computed_field
 from tollan.config.types import TimeQuantityField, UnixTimeField
 
-from ..core import FrozenDataModel
+from ..core import DataModelsT, FrozenDataModel
 from .funcs import make_quartet, make_uid_obs, make_uid_raw_obs, make_uid_raw_obs_file
 from .types import LabelT, SeqNumT
 
@@ -39,8 +39,8 @@ class LmtObsQuartetMixin(FrozenDataModel):
 class InterfaceInfoMixin(FrozenDataModel):
     """Complete identity and classification of a data interface."""
 
-    instru: LabelT = Field(description="Instrument whose data conventions apply")
-    producer: LabelT = Field(description="Instrument producing the data")
+    instru: LabelT = Field(description="Instrument producing the data")
+    data_models: DataModelsT = Field(description="Applicable data models")
     interface_kind: LabelT = Field(description="Class of acquisition interface")
     interface: LabelT = Field(description="Data interface identifier")
 

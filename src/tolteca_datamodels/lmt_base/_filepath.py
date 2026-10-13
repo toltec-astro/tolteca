@@ -8,13 +8,10 @@ from typing import ClassVar
 
 from pydantic import Field, computed_field
 from tollan.accessor.pandas.model_table import (
+    ExplicitColumnRule,
     ModelColumn,
     ModelColumnMapper,
     ScalarColumnRule,
-)
-from tollan.utils.typing import (
-    GenericBindingRequirement,
-    resolve_concrete_generic_bindings,
 )
 
 from .._filepath import FilepathInfo
@@ -51,34 +48,27 @@ class FilepathInfoMixin(LmtObsQuartetMixin, InterfaceInfoMixin):
                 (r".+", r"file_\g<0>"),
                 ("|".join(map(re.escape, obs_fields)), r"\g<0>"),
             ],
-            type_rules=[ScalarColumnRule()],
+            type_rules=[
+                ExplicitColumnRule(
+                    columns={
+                        "data_models": ModelColumn(
+                            "data_models", dtype=object, converter=list
+                        ),
+                    }
+                ),
+                ScalarColumnRule(),
+            ],
             default=None,
         )(cls)
 
 
-class FilepathOrigMetadataMixin[FilepathInfoT: FilepathInfo](FrozenDataModel):
+class FilepathOrigMetadataMixin(FrozenDataModel):
     """Mixin for the original acquisition filepath and its parsed information."""
-
-    # Runtime type: type[FilepathInfoT].
-    _filepath_info_cls: ClassVar
 
     filepath_orig: str = Field(description="Original acquisition file path")
 
-    @classmethod
-    def __pydantic_init_subclass__(cls, **kwargs) -> None:
-        super().__pydantic_init_subclass__(**kwargs)
-        bindings = resolve_concrete_generic_bindings(
-            cls,
-            FilepathOrigMetadataMixin,
-            FilepathInfoT=GenericBindingRequirement("_filepath_info_cls", FilepathInfo),
-        )
-        if bindings is not None:
-            cls._filepath_info_cls = bindings["FilepathInfoT"]
-
     @computed_field(repr=False)
     @cached_property
-    def filepath_info_orig(self) -> FilepathInfoT | None:
+    def filepath_info_orig(self) -> FilepathInfo | None:
         """Information encoded in the original acquisition filepath."""
-        return self._filepath_info_cls.from_source(
-            self.filepath_orig, raise_on_error=False
-        )
+        return FilepathInfo.from_source(self.filepath_orig, raise_on_error=False)

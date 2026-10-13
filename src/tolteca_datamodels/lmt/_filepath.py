@@ -14,10 +14,10 @@ from .types import LmtInfo
 if TYPE_CHECKING:
     from pathlib import Path
 
-__all__ = ["LmtFilepathInfo"]
+__all__ = []
 
 
-class LmtFilepathInfo(FilepathInfo, FilepathInfoMixin):
+class _LmtFilepathInfo(FilepathInfo, FilepathInfoMixin):
     """Information encoded in an LMT acquisition filepath.
 
     Telescope filename example (the bracketed suffix is optional)::
@@ -27,18 +27,12 @@ class LmtFilepathInfo(FilepathInfo, FilepathInfoMixin):
 
     ``ut`` records the writer's file-creation date, represented as midnight UTC.
     The full ``tel_*`` prefix is preserved; the interface is ``tel``.
-    The general telescope parser leaves instrument affiliation unknown.
-    Registered instrument-specific parsers can supply it in a result subclass.
+    Telescope files belong to the LMT data model. Registered instrument-specific
+    parsers can identify additional data-model memberships.
 
-    Examples
-    --------
-    >>> info = LmtFilepathInfo.from_source("tel_toltec_2025-10-31_145609_00_0002.nc")
-    >>> info.prefix, info.ext
-    ('tel_toltec', 'nc')
     """
 
-    instru: LabelT | None = None
-    producer: LmtInfo.InstruT = LmtInfo.instru
+    instru: LmtInfo.InstruT
     master: LabelT
 
     @staticmethod
@@ -48,11 +42,11 @@ class LmtFilepathInfo(FilepathInfo, FilepathInfoMixin):
 
     @staticmethod
     def _parse_interface(filepath_data: dict, path: Path) -> dict[str, object]:
-        """Identify the producer and class of the telescope interface."""
+        """Identify the instrument and class of the telescope interface."""
         identity = LmtInfo.interface_interface_info[filepath_data["interface"]]
         return {
             "instru": identity.instru,
-            "producer": identity.producer,
+            "data_models": identity.data_models,
             "interface_kind": identity.interface_kind,
         }
 
@@ -82,7 +76,7 @@ class LmtFilepathInfo(FilepathInfo, FilepathInfoMixin):
 
 
 register_filepath_parser(
-    pattern=LmtFilepathInfo._make_filename_pattern(r"tel_[A-Za-z0-9_]+"),
-    parsers=LmtFilepathInfo._parsers,
-    filepath_info_cls=LmtFilepathInfo,
+    pattern=_LmtFilepathInfo._make_filename_pattern(r"tel_[A-Za-z0-9_]+"),
+    parsers=_LmtFilepathInfo._parsers,
+    filepath_info_cls=_LmtFilepathInfo,
 )

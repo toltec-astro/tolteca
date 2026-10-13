@@ -9,7 +9,6 @@ from tollan.config.types import SkyCoordField
 
 from ..lmt_base._filepath import FilepathOrigMetadataMixin
 from ..lmt_base.metadata import LmtRawObsMetadata
-from ._filepath import LmtFilepathInfo
 from .types import LmtInfo, LmtObsGoal, LmtObsPgm, LmtRawObsMasterCode
 
 __all__ = [
@@ -22,10 +21,10 @@ type LmtTelInterfaceT = Literal["tel"]
 type LmtTelInterfaceKindT = Literal["tel"]
 
 
-class LmtTelMetadata(LmtRawObsMetadata, FilepathOrigMetadataMixin[LmtFilepathInfo]):
+class LmtTelMetadata(LmtRawObsMetadata, FilepathOrigMetadataMixin):
     """LMT telescope control system (TCS) metadata."""
 
-    producer: LmtInfo.InstruT = Field(
+    instru: LmtInfo.InstruT = Field(
         description="Large Millimeter Telescope",
     )
     interface: LmtTelInterfaceT = Field(description="Data interface identifier")
