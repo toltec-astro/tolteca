@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from ..lmt_base.file_store import LmtFileStoreBase
 from ..toltec.file_store import ToltecFileStore
-from .obs_spec import obs_spec_context
+from ._obs_spec import _obs_spec_context
 from .types import LmtInfo
 
 if TYPE_CHECKING:
@@ -49,7 +49,7 @@ class LmtFileStore(LmtFileStoreBase):
     True
     """
 
-    _obs_spec_context: ClassVar = obs_spec_context
+    _obs_spec_context: ClassVar = _obs_spec_context
     _tel_subpath: ClassVar[SubPath] = PurePosixPath("tel")
     _subpaths: ClassVar = (_tel_subpath,)
     _substore_paths: ClassVar[SubstoreRegistryT] = {

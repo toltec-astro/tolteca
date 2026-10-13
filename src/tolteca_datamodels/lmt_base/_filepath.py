@@ -15,7 +15,7 @@ from tollan.accessor.pandas.model_table import (
 )
 
 from .._filepath import FilepathInfo
-from ..core import FrozenDataModel
+from ..types import FrozenDataModel
 from .metadata import InterfaceInfoMixin, LmtObsQuartetMixin
 from .types import DatetimeT
 
