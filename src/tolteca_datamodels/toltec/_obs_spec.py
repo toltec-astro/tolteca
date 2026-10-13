@@ -3,9 +3,7 @@
 from ..obs_spec import ObsSpecContext
 from .types import ToltecInfo
 
-__all__ = ["obs_spec_context"]
-
-obs_spec_context = ObsSpecContext(
+_obs_spec_context = ObsSpecContext(
     field_label_numbers={
         "interface": dict.fromkeys(ToltecInfo.interfaces) | ToltecInfo.interface_roach,
     },

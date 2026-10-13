@@ -6,7 +6,7 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, ClassVar
 
 from ..lmt_base.file_store import LmtFileStoreBase
-from .obs_spec import obs_spec_context
+from ._obs_spec import _obs_spec_context
 from .types import ToltecInfo
 
 if TYPE_CHECKING:
@@ -28,7 +28,7 @@ class ToltecFileStore(LmtFileStoreBase):
         TolTEC subtree, usually ``data_lmt/toltec``.
     """
 
-    _obs_spec_context: ClassVar = obs_spec_context
+    _obs_spec_context: ClassVar = _obs_spec_context
     _subpaths: ClassVar = (PurePosixPath("."),)
     _interfaces: ClassVar = tuple(
         interface
