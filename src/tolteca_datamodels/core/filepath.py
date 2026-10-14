@@ -13,7 +13,7 @@ from tollan.accessor.pandas.model_table import (
 )
 from tollan.utils.fileloc import FileLoc, fileloc
 
-from .core import FrozenDataModel
+from .types import FrozenDataModel
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -129,7 +129,7 @@ class FilepathInfo(FrozenDataModel):
 
         Examples
         --------
-        >>> from tolteca_datamodels.file import FilepathInfo
+        >>> from tolteca_datamodels.filepath import FilepathInfo
         >>> info = FilepathInfo.from_source(
         ...     "tel_toltec_2025-10-31_145609_00_0002.nc",
         ... )
