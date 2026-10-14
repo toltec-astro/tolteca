@@ -8,7 +8,7 @@ from typing import Annotated, Any, ClassVar
 
 from pydantic import PlainSerializer, PlainValidator
 
-from ..obs_spec import FieldConstraint, ObsSpecBase, Selector
+from ..core.obs_spec import FieldConstraint, ObsSpecBase, Selector
 
 __all__ = ["ObsSpec", "ObsSpecField"]
 

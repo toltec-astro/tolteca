@@ -14,8 +14,8 @@ from tollan.accessor.pandas.model_table import (
     ScalarColumnRule,
 )
 
-from .._filepath import FilepathInfo
-from ..types import FrozenDataModel
+from ..core.filepath import FilepathInfo
+from ..core.types import FrozenDataModel
 from .metadata import InterfaceInfoMixin, LmtObsQuartetMixin
 from .types import DatetimeT
 

@@ -8,7 +8,7 @@ import astropy.units as u
 from pydantic import Field, computed_field
 from tollan.config.types import TimeQuantityField, UnixTimeField
 
-from ..types import DataModelsT, FrozenDataModel
+from ..core.types import DataModelsT, FrozenDataModel
 from .funcs import make_quartet, make_uid_obs, make_uid_raw_obs, make_uid_raw_obs_file
 from .types import LabelT, SeqNumT
 

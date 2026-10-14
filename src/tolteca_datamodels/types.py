@@ -1,23 +1,5 @@
-"""Shared data-model types."""
+"""Shared data-model type exports."""
 
-from __future__ import annotations
-
-from typing import Annotated
-
-from pydantic import AfterValidator, BaseModel, ConfigDict
+from .core.types import DataModelsT, FrozenDataModel
 
 __all__ = ["DataModelsT", "FrozenDataModel"]
-
-
-def _unique_data_models(names: list[str]) -> list[str]:
-    return list(dict.fromkeys(names))
-
-
-type DataModelsT = Annotated[list[str], AfterValidator(_unique_data_models)]
-"""Applicable data-model names, without duplicates or precedence by order."""
-
-
-class FrozenDataModel(BaseModel):
-    """Read-only data model with strict validation of supplied and default values."""
-
-    model_config = ConfigDict(strict=True, frozen=True, validate_default=True)
