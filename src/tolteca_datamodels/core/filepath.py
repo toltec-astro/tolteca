@@ -122,10 +122,12 @@ class FilepathInfo(FrozenDataModel):
         ------
         ValueError
             If no filename pattern matches and ``raise_on_error=True``, or if
-            values in a matching filename are invalid, or matching registrations
-            do not resolve to one most-specific result type.
+            values in a matching filename are invalid.
         KeyError
             If a recognized filename names an unsupported interface.
+        RuntimeError
+            If matching registrations do not resolve to one most-specific result
+            type, regardless of raise_on_error.
 
         Examples
         --------
@@ -156,7 +158,7 @@ class FilepathInfo(FrozenDataModel):
             if len(matches) != 1:
                 names = ", ".join(p.filepath_info_cls.__name__ for p, _ in matches)
                 msg = f"Ambiguous acquisition filename: {source} ({names})"
-                raise ValueError(msg)
+                raise RuntimeError(msg)
         if matches:
             parser, match = matches[0]
             captures = match.groupdict()

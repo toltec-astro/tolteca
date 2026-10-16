@@ -2,11 +2,23 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, ClassVar
 
 from pydantic import AfterValidator, BaseModel, ConfigDict
 
-__all__ = ["DataModelsT", "FrozenDataModel"]
+__all__ = ["DataModelInfo", "DataModelsT", "FrozenDataModel"]
+
+
+class DataModelInfo:
+    """Identity and descriptive information about a data model.
+
+    Attributes
+    ----------
+    name : str
+        Name used in record memberships and data-model selection.
+    """
+
+    name: ClassVar[str]
 
 
 def _unique_data_models(names: list[str]) -> list[str]:
