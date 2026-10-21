@@ -183,6 +183,7 @@ class FileStoreBase[SpecT: ObsSpecBase](ABC):
         self,
         *selections: StoreView | str,
         exclude: Iterable[StoreView | str] | None = None,
+        store_types: tuple[type[FileStoreBase], ...] | None = None,
     ) -> StoreView:
         """Select declared paths and substores without changing this store.
 
@@ -193,7 +194,11 @@ class FileStoreBase[SpecT: ObsSpecBase](ABC):
             Their union is selected. Cannot be combined with ``exclude``.
         exclude : iterable of StoreView or str, optional
             Selections to remove instead. An empty iterable removes nothing.
-            Provide at least one positional selection or this argument.
+        store_types : tuple of FileStoreBase subclasses, optional
+            Keep locations managed by these store classes, including subclasses.
+            Parent selection does not include its children automatically.
+            An empty tuple selects nothing. Provide exactly one of selections,
+            exclude, or store_types.
 
         Returns
         -------
@@ -203,10 +208,10 @@ class FileStoreBase[SpecT: ObsSpecBase](ABC):
         Raises
         ------
         ValueError
-            If neither or both selection forms are supplied, a name is
+            If zero or multiple selection forms are supplied, a name is
             undeclared, or a selection belongs to an incompatible root.
         """
-        return self.view.partial(*selections, exclude=exclude)
+        return self.view.partial(*selections, exclude=exclude, store_types=store_types)
 
     def iter_glob_patterns(self, spec: ObsSpecBase | str) -> Iterable[str]:
         """Yield candidate patterns relative to this store's path.

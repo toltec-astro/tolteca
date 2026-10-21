@@ -192,6 +192,7 @@ class StoreView:
         self,
         *selections: StoreView | str,
         exclude: Iterable[StoreView | str] | None = None,
+        store_types: tuple[type[FileStoreBase], ...] | None = None,
     ) -> Self:
         """Select declared locations within the current view.
 
@@ -202,7 +203,11 @@ class StoreView:
             is kept within this view. Cannot be combined with ``exclude``.
         exclude : iterable of StoreView or str, optional
             Selections to remove instead. An empty iterable removes nothing.
-            Provide at least one positional selection or this argument.
+        store_types : tuple of FileStoreBase subclasses, optional
+            Keep locations managed by instances of these classes, including
+            subclasses. Each store is considered independently; selecting a
+            parent does not select its children. An empty tuple selects nothing.
+            Provide exactly one of selections, exclude, or store_types.
 
         Returns
         -------
@@ -213,12 +218,22 @@ class StoreView:
         Raises
         ------
         ValueError
-            If neither or both selection forms are supplied, a name is
+            If zero or multiple selection forms are supplied, a name is
             undeclared, or a selection belongs to an incompatible root.
         """
-        if bool(selections) == (exclude is not None):
-            msg = "Provide positional selections or exclude, but not both"
+        if sum((bool(selections), exclude is not None, store_types is not None)) != 1:
+            msg = "Provide positional selections, exclude, or store_types, exactly one"
             raise ValueError(msg)
+        if store_types is not None:
+            return self._narrow(
+                tuple(
+                    item
+                    for item in self._locations
+                    if issubclass(
+                        item.chain[-1] if item.chain else self._root_cls, store_types
+                    )
+                )
+            )
         choices = selections if exclude is None else exclude
         selected = set().union(*(self._selection_locations(s) for s in choices))
         return self._narrow(
