@@ -100,5 +100,166 @@
     "files_checked": 8,
     "broken_local_links": 0
   },
-  "scope": "Focused drive-fit validation; not a full regression of all pending v3 changes. Numerical arrays match the previously published report run exactly."
+  "scope": "Focused drive-fit validation; not a full regression of all pending v3 changes. Numerical arrays match the previously published report run exactly.",
+  "clean_environment": {
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.0 (main, Oct 14 2025, 21:10:22) [Clang 20.1.4 ]",
+    "commits": {
+      "tolteca": "4a961715a1cdd0b5824b43cc4bee6768bb99adac",
+      "tollan": "71d4373522d677de740c6c637d7751e52e714207",
+      "reference_data": "9cdbc76c4327b11e9ec45ce7895ef13b537d03a5"
+    },
+    "isolation": {
+      "new_virtual_environment": true,
+      "system_site_packages": false,
+      "workspace_read_denied": true,
+      "network_disabled_during_workflows": true,
+      "local_environment_variables_absent": true,
+      "package_sources": {
+        "tolteca_kids": "/private/tmp/tolteca-nw0-clean-20261021-rncwlcqt/tolteca-investigation/src/tolteca_kids/__init__.py",
+        "tollan": "/private/tmp/tolteca-nw0-clean-20261021-rncwlcqt/tollan-investigation/src/tollan/__init__.py"
+      }
+    },
+    "reference_files_verified": 8,
+    "fit": {
+      "dimensions": {
+        "power": 7,
+        "chan": 632,
+        "sample": 177,
+        "fit_sample": 177
+      },
+      "accepted": 505
+    },
+    "commit": {
+      "channels": 632,
+      "accepted": 505,
+      "filled": 127,
+      "percentile_limited": 48,
+      "continuous_attenuation_db": 8.352639266109954,
+      "written_attenuation_db": 8.25,
+      "residual_db": 0.10263926610996066,
+      "comparison": {
+        "chan": {
+          "max_abs_difference": 0.0,
+          "array_equal": true
+        },
+        "amp_best": {
+          "max_abs_difference": 0.0,
+          "array_equal": true
+        },
+        "power_policy_db": {
+          "max_abs_difference": 1.4210854715202004e-14,
+          "array_equal": false
+        },
+        "power_commit_db": {
+          "max_abs_difference": 7.105427357601002e-15,
+          "array_equal": false
+        },
+        "power_error_db": {
+          "max_abs_difference": 2.1316282072803006e-14,
+          "array_equal": false
+        }
+      }
+    },
+    "plots": {
+      "html_files": 636,
+      "broken_local_links": 0
+    },
+    "packages": {
+      "Flask": "3.1.3",
+      "Jinja2": "3.1.6",
+      "MarkupSafe": "3.0.4",
+      "PyYAML": "6.0.3",
+      "Pygments": "2.21.0",
+      "SQLAlchemy": "2.1.6",
+      "SQLAlchemy-Utils": "0.43.0",
+      "Werkzeug": "3.1.9",
+      "aiohappyeyeballs": "2.7.1",
+      "aiohttp": "3.14.5",
+      "aiosignal": "1.4.0",
+      "annotated-doc": "0.0.5",
+      "annotated-types": "0.8.0",
+      "astropy": "8.0.2",
+      "astropy-iers-data": "0.2026.10.19.0.52.1",
+      "attrs": "26.1.0",
+      "blinker": "1.9.0",
+      "certifi": "2026.10.19",
+      "cftime": "1.6.6.1",
+      "charset-normalizer": "3.5.2",
+      "choreographer": "1.4.0",
+      "click": "8.5.0",
+      "cloudpickle": "3.1.2",
+      "comm": "0.2.3",
+      "contourpy": "1.4.0",
+      "cycler": "0.12.1",
+      "dash": "4.4.1",
+      "dash_mantine_components": "2.8.0",
+      "dask": "2026.8.0",
+      "dill": "0.4.1",
+      "donfig": "0.8.1.post1",
+      "dtw-python": "1.9.0",
+      "filelock": "4.2.4",
+      "fonttools": "4.67.0",
+      "frozenlist": "1.8.0",
+      "fsspec": "2026.9.0",
+      "google-crc32c": "1.9.0",
+      "idna": "3.20",
+      "importlib_metadata": "9.0.1",
+      "itsdangerous": "2.2.0",
+      "janus": "2.0.0",
+      "kaleido": "1.5.0",
+      "kiwisolver": "1.5.1",
+      "locket": "1.0.0",
+      "logistro": "2.0.1",
+      "loguru": "0.7.3",
+      "markdown-it-py": "4.2.0",
+      "matplotlib": "3.11.2",
+      "mdurl": "0.1.2",
+      "msgspec": "0.22.0",
+      "multidict": "7.1.0",
+      "narwhals": "2.27.1",
+      "nest-asyncio": "1.6.0",
+      "netCDF4": "1.7.5",
+      "networkx": "3.7",
+      "numcodecs": "0.17.1",
+      "numpy": "2.5.4",
+      "packaging": "26.3",
+      "pandas": "3.0.6",
+      "partd": "1.4.2",
+      "pillow": "13.0.0",
+      "platformdirs": "4.13.5",
+      "plotly": "7.1.0",
+      "propcache": "0.5.4",
+      "pyaml": "26.7.0",
+      "pyarrow": "26.0.0",
+      "pydantic": "2.14.1",
+      "pydantic_core": "2.50.1",
+      "pyerfa": "2.0.1.5",
+      "pyparsing": "3.3.3",
+      "python-dateutil": "2.9.0.post0",
+      "python-dotenv": "1.2.4",
+      "requests": "2.34.2",
+      "retrying": "1.4.2",
+      "rich": "15.0.0",
+      "scipy": "1.18.1",
+      "setuptools": "84.2.1",
+      "shellingham": "1.5.4",
+      "simplejson": "4.2.0",
+      "six": "1.17.0",
+      "tollan": "3.0.1.dev89+g71d437352",
+      "tolteca": "0.1.dev153+g4a961715a",
+      "toolz": "1.2.0",
+      "typer": "0.27.3",
+      "typing-inspection": "0.4.4",
+      "typing_extensions": "4.16.0",
+      "tzlocal": "5.4.4",
+      "urllib3": "2.8.0",
+      "wrapt": "2.5.1",
+      "xarray": "2026.9.0",
+      "yarl": "1.25.1",
+      "zarr": "3.4.1",
+      "zipp": "4.1.1"
+    },
+    "required_instruction_correction": "Add --no-sources to uv pip install so the local tool.uv.sources workspace declaration is ignored; the explicitly installed pinned Tollan checkout satisfies the dependency."
+  }
 }

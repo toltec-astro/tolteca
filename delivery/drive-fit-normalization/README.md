@@ -39,14 +39,15 @@ git clone --branch delivery/drive-fit-normalization-20261021 \
 git clone https://github.com/toltec-astro/tollan.git tollan-investigation
 git -C tollan-investigation checkout 71d4373522d677de740c6c637d7751e52e714207
 uv venv --python 3.14 .venv-investigation
-uv pip install --python .venv-investigation/bin/python \
+uv pip install --no-sources --python .venv-investigation/bin/python \
   -e ./tollan-investigation -e ./tolteca-investigation
 ```
 
-The exact package versions from the validation environment are recorded in
-`environment.json`. `uv pip install` is used here rather than `uv sync` because
-TolTECA's development `tool.uv.sources` entry normally belongs to a larger
-workspace. No workspace generation is needed for these two workflows.
+The `--no-sources` option is required for this standalone installation: it
+ignores TolTECA's development workspace mapping while the explicit editable
+Tollan checkout supplies the pinned dependency. No workspace generation is
+needed. Package versions from the original report run are in `environment.json`;
+the clean standalone replay and its versions are in `snapshot-validation.json`.
 
 ## Reference inputs
 
@@ -120,6 +121,15 @@ requires `TOLTECA_DRIVE_FIT_DATA` pointing to the 31-sweep ICS 17068 directory;
 it skips if that data is unavailable. The original 45-test fit/commit/power
 validation is recorded in `provenance.json`. Snapshot-specific checks and
 workflow replay results are recorded in `snapshot-validation.json`.
+
+The standalone instructions were also tested from fresh GitHub clones in a new
+Python 3.14 environment on macOS arm64, with local workspace access blocked and
+network access disabled during computation. Both workflows completed for all
+632 channels. All committed amplitudes and channel flags matched the published
+comparison table exactly; power diagnostics differed by at most 2.14e-14 dB.
+The run produced 636 HTML pages with no broken local links. See the
+`clean_environment` entry in `snapshot-validation.json` for revisions, package
+versions, input checksum verification and numerical comparisons.
 
 ## Scope of the snapshot
 
