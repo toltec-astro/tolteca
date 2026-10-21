@@ -14,7 +14,7 @@ from tolteca_datamodels.lmt_base.metadata import (
     LmtRawObsMetadata,
 )
 from tolteca_datamodels.toltec.metadata import ToltecRawObsMetadata
-from tolteca_datamodels.toltec.toltecdb import ToltecDBRawObsMasterCode
+from tolteca_datamodels.toltec.toltec_db import ToltecDBRawObsMasterCode
 
 
 @pytest.mark.parametrize(
@@ -125,8 +125,11 @@ def test_quartet_preserves_numeric_positions(master, numbers, suffix):
     ],
 )
 def test_uid_scope_requires_its_own_observation_numbers(
-    master, numbers, uid_obs, uid_raw_obs
-):
+    master: str | None,
+    numbers: tuple[int | None, int | None, int | None],
+    uid_obs: str | None,
+    uid_raw_obs: str | None,
+) -> None:
     assert funcs.make_uid_obs(master, numbers[0]) == uid_obs
     assert funcs.make_uid_raw_obs(master, *numbers) == uid_raw_obs
     assert funcs.make_uid_raw_obs_file(master, *numbers, "tel") == (
@@ -176,8 +179,8 @@ def identified_metadata():
         obsnum=145609,
         subobsnum=0,
         scannum=2,
-        instru="toltec",
-        producer="lmt",
+        data_models=["toltec"],
+        instru="lmt",
         interface="tel",
         interface_kind="tel",
         t0=Time("2025-10-31T09:27:56"),
@@ -273,8 +276,8 @@ def test_toltec_inherits_interface_identifiers(identified_metadata, kids_filepat
     fields.update(
         master=ToltecDBRawObsMasterCode.get_master(ToltecDBRawObsMasterCode.ICS),
         master_code=ToltecDBRawObsMasterCode.ICS,
+        data_models=["toltec"],
         instru="toltec",
-        producer="toltec",
         interface="toltec0",
         readout_code=12,
         roach=12,
@@ -295,13 +298,24 @@ def test_toltec_inherits_interface_identifiers(identified_metadata, kids_filepat
 def test_toltec_master_requires_a_recorded_code(
     identified_metadata, kids_filepath_orig, master_code
 ):
-    fields = identified_metadata.model_dump(round_trip=True)
-    fields["master_code"] = master_code
-    fields["master"] = ToltecDBRawObsMasterCode.get_master(ToltecDBRawObsMasterCode.TCS)
-    fields["readout_code"] = 0
-    fields["instru"] = "toltec"
-    fields["filepath_orig"] = kids_filepath_orig
-    with pytest.raises(ValidationError, match="master_code"):
-        ToltecRawObsMetadata(
-            **fields, n_blocks_max=1, n_times=1000, n_chans=256, f_smp=500 * u.Hz
-        )
+    source_data = identified_metadata.model_dump(round_trip=True) | {
+        "master_code": master_code,
+        "master": ToltecDBRawObsMasterCode.get_master(ToltecDBRawObsMasterCode.TCS),
+        "readout_code": 0,
+        "data_models": ["toltec"],
+        "instru": "toltec",
+        "interface": "toltec0",
+        "interface_kind": "roach",
+        "filepath_orig": kids_filepath_orig,
+        "n_blocks_max": 1,
+        "n_times": 1000,
+        "n_chans": 256,
+        "f_smp": 500 * u.Hz,
+    }
+    # Establish a valid record before varying only the code under test.
+    ToltecRawObsMetadata.model_validate(
+        source_data | {"master_code": ToltecDBRawObsMasterCode.TCS}
+    )
+    with pytest.raises(ValidationError) as caught:
+        ToltecRawObsMetadata.model_validate(source_data)
+    assert {error["loc"] for error in caught.value.errors()} == {("master_code",)}

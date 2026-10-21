@@ -9,10 +9,10 @@ import pytest
 from astropy import units as u
 from tollan.config import RuntimeContext
 
-from tolteca_datamodels.toltec.filestore import build_input_catalog
-from tolteca_kids.product import open_sweep_product
+from tolteca_datamodels.toltec.file import read_info_from_sources
+from tolteca_kids.product import open_sweep_product, read_sweep_context
 from tolteca_kids.runner import run_source
-from tolteca_kids.sweep_reduce import SweepReduceView
+from tolteca_kids.sweep_reduce import SweepReduce
 
 
 @pytest.mark.parametrize(
@@ -28,7 +28,7 @@ def test_persisted_values_equal_v2(data_lmt_path, tmp_path, suffix, block):
     interpreter = os.environ.get("TOLTECA_V2_PYTHON")
     if not interpreter:
         pytest.skip("Set TOLTECA_V2_PYTHON to enable cross-environment parity tests")
-    sources = sorted((data_lmt_path / "toltec/tcs/toltec0").glob(f"*_{suffix}.nc"))
+    sources = sorted((data_lmt_path / "toltec/tcs/toltec0").glob(f"*1456*_{suffix}.nc"))
     if not sources:
         pytest.skip(f"No {suffix} fixture")
     reference = tmp_path / "v2.npz"
@@ -49,15 +49,21 @@ def test_persisted_values_equal_v2(data_lmt_path, tmp_path, suffix, block):
     runtime = runtime.with_config(
         overrides={
             "kids": {
-                "output": {"enabled": True, "path": str(tmp_path), "name": "product"}
+                "output": {
+                    "enabled": True,
+                    "path": str(tmp_path),
+                    "namespace": "product",
+                }
             }
         }
     )
-    info = build_input_catalog([sources[0]]).toltec_file.to_info_list()[0]
-    product = run_source(info, runtime)
+    info = next(iter(read_info_from_sources([sources[0]]).itertuples(index=False)))
+    product = run_source(info.source, runtime)
     assert product is not None
     with np.load(reference) as expected, open_sweep_product(product) as reopened:
-        view = SweepReduceView(reopened).selected_block
+        view = SweepReduce.view(
+            reopened, block=read_sweep_context(reopened, block=block).block
+        )
         for name in ("I", "Q", "unc_I", "unc_Q", "f_chan", "sweep", "frequency"):
             actual = getattr(view, name)
             assert actual is not None, name

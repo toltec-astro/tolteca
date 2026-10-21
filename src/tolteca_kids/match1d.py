@@ -386,7 +386,18 @@ class Match1DResult:
         raise ValueError(f"Unknown plot type: {type!r}")
 
     def make_mpl_fig(self, **kwargs):
-        """Return matplotlib figure (not implemented in v3)."""
+        """Create a Matplotlib figure.
+
+        Parameters
+        ----------
+        **kwargs
+            Reserved plotting options.
+
+        Raises
+        ------
+        NotImplementedError
+            Matplotlib output is not implemented.
+        """
         raise NotImplementedError
 
     def make_plotly_fig(self, **kwargs) -> go.Figure:

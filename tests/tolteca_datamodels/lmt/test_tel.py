@@ -10,19 +10,21 @@ from tollan.utils.fileloc import fileloc
 from tollan.utils.log import logger
 from xarray.backends.netCDF4_ import NetCDF4ArrayWrapper
 
+from tolteca_datamodels.core.file._resolution import _SourceReaderResolver
 from tolteca_datamodels.lmt import (
     LmtTelAccessor,
-    identify_lmt_tel,
     open_lmt_tel,
 )
+from tolteca_datamodels.lmt.filepath import LmtFilepathInfo
 from tolteca_datamodels.lmt.metadata import LmtTelMetadata
 from tolteca_datamodels.lmt.tel import LmtTelIOMapper
 from tolteca_datamodels.lmt.types import (
-    LmtMaster,
     LmtObsGoal,
     LmtObsPgm,
     LmtRawObsMasterCode,
 )
+from tolteca_datamodels.toltec.file import ToltecFileAccessor
+from tolteca_dummy_instru.file import DummyInstruFileAccessor
 
 
 @pytest.fixture
@@ -34,6 +36,7 @@ def telescope():
             "Header.Dcs.SubObsNum": 0,
             "Header.Dcs.ScanNum": 1,
             "Header.TelescopeBackend.Master": 0,
+            "Header.Dcs.Receiver": b"Toltec  \x00",
             "Header.Dcs.ObsPgm": b"Lissajous  \x00",
             "Header.Dcs.ObsGoal": b"Pointing  \x00",
             "Header.Dcs.IntegrationTime": 0.0,
@@ -68,17 +71,17 @@ def test_metadata_and_arrays(telescope, as_tree):
     meta = acc.meta
     assert acc.meta is meta
     assert isinstance(meta, LmtTelMetadata)
-    assert meta.master_code == LmtRawObsMasterCode.TCS.value
-    assert type(meta.master_code) is int
-    assert meta.master == LmtMaster.tcs
-    assert type(meta.master) is str
+    assert meta.master_code is LmtRawObsMasterCode.TCS
+    assert meta.master == "tcs"
     assert (meta.master_code, meta.master, meta.interface, meta.instru) == (
         0,
         "tcs",
         "tel",
         "lmt",
     )
-    assert meta.instru_component == "tcs"
+    assert meta.interface_kind == "tel"
+    assert meta.data_models == ["lmt", "toltec"]
+    assert not hasattr(acc, "data_models")
     assert meta.obs_pgm == "lissajous"
     assert (meta.obsnum, meta.subobsnum, meta.scannum) == (10, 0, 1)
     assert meta.obs_goal == LmtObsGoal.pointing
@@ -157,6 +160,7 @@ def test_metadata_debug_log(data_lmt_path):
         "Header.Dcs.SubObsNum",
         "Header.Dcs.ScanNum",
         "Header.TelescopeBackend.Master",
+        "Header.Dcs.Receiver",
     ],
 )
 def test_established_headers_are_required(telescope, name):
@@ -166,12 +170,22 @@ def test_established_headers_are_required(telescope, name):
 
 def test_header_attributes(telescope):
     ds = telescope
-    for name in ("Header.Dcs.ObsPgm", "Header.Dcs.ObsGoal"):
+    for name in (
+        "Header.Dcs.ObsPgm",
+        "Header.Dcs.ObsGoal",
+        "Header.Dcs.Receiver",
+    ):
         ds.attrs[name] = ds[name].item()
         ds = ds.drop_vars(name)
     assert ds.lmt_tel.meta.interface == "tel"
     assert ds.lmt_tel.meta.obsnum == 10
     assert ds.lmt_tel.meta.obs_goal == LmtObsGoal.pointing
+    identified = _SourceReaderResolver(
+        handlers={ToltecFileAccessor: ToltecFileAccessor._reader_rules}
+    )(ds)
+    assert identified is not None
+    assert isinstance(identified.reader, LmtTelAccessor)
+    assert identified.reader.data_source is ds
 
 
 def test_headers_are_authoritative(telescope):
@@ -196,6 +210,106 @@ def test_metadata_does_not_parse_original_filename_by_default(telescope):
     acc = telescope.lmt_tel
     assert acc.meta.filepath_orig == "unrecognized.nc"
     assert "filepath_info_orig" not in acc.meta.__dict__
+
+
+@pytest.mark.parametrize("as_tree", [False, True])
+def test_instrument_identification_is_independent_of_filenames(
+    telescope, as_tree, monkeypatch
+):
+    def unexpected(*args, **kwargs):
+        pytest.fail("Receiver identification requested full metadata")
+
+    monkeypatch.setattr(LmtTelIOMapper, "get_metadata", unexpected)
+    telescope["Header.File.Name"] = "unrecognized.nc"
+    telescope.encoding["source"] = "tel_dummy_instru_2025-10-31_000010_00_0001.nc"
+    source = xr.DataTree(telescope) if as_tree else telescope
+    identified = _SourceReaderResolver(
+        handlers={ToltecFileAccessor: ToltecFileAccessor._reader_rules}
+    )(source)
+    assert identified is not None
+    reader, _ = identified
+    assert isinstance(reader, LmtTelAccessor)
+    assert "meta" not in reader.__dict__
+    assert (
+        _SourceReaderResolver(
+            handlers={DummyInstruFileAccessor: DummyInstruFileAccessor._reader_rules}
+        )(source)
+        is None
+    )
+    assert (
+        _SourceReaderResolver(
+            handlers={ToltecFileAccessor: ToltecFileAccessor._reader_rules}
+        )(source).handlers
+        == identified.handlers
+    )
+    assert isinstance(source.lmt_tel, type(reader))
+
+
+@pytest.mark.parametrize("as_tree", [False, True])
+def test_dcs_receiver_overrides_backend_receiver(telescope, as_tree):
+    telescope["Header.TelescopeBackend.Receiver"] = "Dummy_Instru"
+    source = xr.DataTree(telescope) if as_tree else telescope
+    identified = _SourceReaderResolver(
+        handlers={ToltecFileAccessor: ToltecFileAccessor._reader_rules}
+    )(source)
+    assert identified is not None
+    reader, _ = identified
+    assert isinstance(reader, LmtTelAccessor)
+    assert reader.meta.data_models == ["lmt", "toltec"]
+    assert (
+        _SourceReaderResolver(
+            handlers={DummyInstruFileAccessor: DummyInstruFileAccessor._reader_rules}
+        )(source)
+        is None
+    )
+
+
+def test_missing_dcs_receiver_has_no_fallback(telescope):
+    telescope["Header.TelescopeBackend.Receiver"] = "Toltec"
+    source = telescope.drop_vars("Header.Dcs.Receiver")
+    # General structural identification remains usable before metadata validation.
+    assert isinstance(source.lmt_tel, LmtTelAccessor)
+    assert (
+        _SourceReaderResolver(
+            handlers={ToltecFileAccessor: ToltecFileAccessor._reader_rules}
+        )(source)
+        is None
+    )
+    assert (
+        _SourceReaderResolver(
+            handlers={DummyInstruFileAccessor: DummyInstruFileAccessor._reader_rules}
+        )(source)
+        is None
+    )
+    with pytest.raises(KeyError, match="Receiver"):
+        _ = source.lmt_tel.meta
+
+
+def test_reference_receiver_identification_reads_only_receiver_header(
+    data_lmt_path, monkeypatch
+):
+    getitem = NetCDF4ArrayWrapper.__getitem__
+    reads = []
+
+    def tracked(array, key):
+        reads.append(array.variable_name)
+        return getitem(array, key)
+
+    paths = list((data_lmt_path / "tel").glob("*.nc"))
+    assert paths
+    monkeypatch.setattr(NetCDF4ArrayWrapper, "__getitem__", tracked)
+    for path in paths:
+        with xr.open_dataset(path) as data:
+            reads.clear()
+            identified = _SourceReaderResolver(
+                handlers={ToltecFileAccessor: ToltecFileAccessor._reader_rules}
+            )(data)
+            assert identified is not None
+            reader, _ = identified
+            assert isinstance(reader, LmtTelAccessor)
+            assert reads == ["Header.Dcs.Receiver"]
+            assert reader.meta.data_models == ["lmt", "toltec"]
+            assert not data["Data.TelescopeBackend.TelAzAct"].variable._in_memory
 
 
 @pytest.mark.parametrize("chars", [False, True])
@@ -293,7 +407,6 @@ def test_accessor_requires_native_timestamps(telescope, as_tree, location):
     elif location == "dim":
         ds["unrelated"] = (name, [0.0, 1.0])
     obj = xr.DataTree(ds) if as_tree else ds
-    assert identify_lmt_tel(obj) is None
     with pytest.raises(ValueError, match="missing tel_time variable"):
         _ = obj.lmt_tel
 
@@ -338,11 +451,8 @@ def test_open_closes_on_initialization_failure(telescope, tmp_path, monkeypatch,
 
 
 def test_open_initializes_once_and_preserves_lifetime(telescope, tmp_path, monkeypatch):
-    from tolteca_datamodels.lmt import tel
-
     opened = []
     validated = []
-    identified = []
     closed = []
     telescope.set_close(lambda: closed.append(True))
     validate = LmtTelAccessor._validate
@@ -355,50 +465,16 @@ def test_open_initializes_once_and_preserves_lifetime(telescope, tmp_path, monke
         validated.append(self)
         validate(self)
 
-    def track_identify(data_source, *, raise_on_error=False):
-        identified.append((data_source, raise_on_error))
-        return identify_lmt_tel(data_source, raise_on_error=raise_on_error)
-
     monkeypatch.setattr(xr, "open_dataset", track_open)
     monkeypatch.setattr(LmtTelAccessor, "_validate", track_validate)
-    monkeypatch.setattr(tel, "identify_lmt_tel", track_identify)
     path = tmp_path / "renamed.nc"
     with open_lmt_tel(path, chunks={}) as ds:
         assert ds is telescope
-        assert len(identified) == 1
-        assert identified[0][0] is ds and identified[0][1] is True
         assert validated == [ds.lmt_tel]
         assert "meta" not in ds.lmt_tel.__dict__
         assert not closed
     assert opened == [(path, {"chunks": {}})]
     assert closed == [True]
-
-
-@pytest.mark.parametrize("as_tree", [False, True])
-def test_read_metadata_sees_changed_headers_without_replacing_cache(telescope, as_tree):
-    source = xr.DataTree(telescope) if as_tree else telescope
-    reader = identify_lmt_tel(source, raise_on_error=True)
-    cached = reader.meta
-    source["Header.Dcs.ObsNum"] = cached.obsnum + 1
-    refreshed = reader.read_metadata()
-    assert refreshed.obsnum == cached.obsnum + 1
-    assert reader.meta is cached
-    assert identify_lmt_tel(source) is reader
-    del source["Header.Source.Ra"]
-    with pytest.raises(KeyError, match="Header.Source.Ra"):
-        reader.read_metadata()
-
-
-@pytest.mark.parametrize("as_tree", [False, True])
-def test_read_metadata_resolves_repaired_headers(telescope, as_tree):
-    source = telescope.drop_vars("Header.Dcs.ObsGoal")
-    if as_tree:
-        source = xr.DataTree(source)
-    reader = identify_lmt_tel(source, raise_on_error=True)
-    with pytest.raises(KeyError, match="Header.Dcs.ObsGoal"):
-        reader.read_metadata()
-    source["Header.Dcs.ObsGoal"] = "Pointing"
-    assert reader.read_metadata().obs_goal is LmtObsGoal.pointing
 
 
 @pytest.mark.parametrize("condition", ["missing_header", "empty_time", "scalar_time"])
@@ -485,7 +561,8 @@ def test_unrecognized_programs_are_rejected(telescope, program):
 
 
 def test_reader_constructs_recorded_program_enums(telescope, lmtmc_records):
-    for program in {row["ObsPgm"] for row in lmtmc_records}:
+    # Map is recorded in tel_toltec_2026-01-10_148435_00_0002.nc on Unity.
+    for program in {row["ObsPgm"] for row in lmtmc_records} | {"Map"}:
         ds = telescope.assign({"Header.Dcs.ObsPgm": program})
         assert ds.lmt_tel.meta.obs_pgm is LmtObsPgm(program.lower())
 
@@ -552,6 +629,7 @@ def test_reference_telescope_files(data_lmt_path, monkeypatch):
                         "Header.Dcs.ScanNum",
                         "Header.File.Name",
                         "Header.TelescopeBackend.Master",
+                        "Header.Dcs.Receiver",
                     ]
                 )
                 reads.clear()
@@ -564,12 +642,13 @@ def test_reference_telescope_files(data_lmt_path, monkeypatch):
                     f"tcs-{meta.obsnum}-{meta.subobsnum}-{meta.scannum}-tel"
                 )
                 assert meta.interface == "tel"
-                assert meta.instru_component == "tcs"
+                assert meta.interface_kind == "tel"
                 assert meta.obsnum == expected["obsnum"]
                 assert meta.subobsnum == expected["subobsnum"]
                 assert meta.scannum == expected["scannum"]
                 assert meta.t_int == expected["t_int"] * u.s
                 assert meta.obs_goal is LmtObsGoal(goal)
+                assert isinstance(meta.filepath_info_orig, LmtFilepathInfo)
                 assert meta.filepath_info_orig.obsnum == meta.obsnum
                 assert meta.filepath_info_orig is meta.filepath_info_orig
                 assert meta.target is not None and meta.target_ref is not None

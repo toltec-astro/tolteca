@@ -1,0 +1,37 @@
+{
+  "tolteca_base_commit": "542c86a0a955edaa4a293521c55a18221952cbb1",
+  "tollan_commit": "71d4373522d677de740c6c637d7751e52e714207",
+  "legacy_sources": {
+    "roach_tone_power.py": {
+      "original_path": "/Users/ma/Codes/toltec/toltec_astro/tolteca/src/tolteca_kids/roach_tone_power.py",
+      "sha256": "605d1bf054fc0b497a92b44c1e540ad068557e3593ade2c2a2eae323b1fd51e1"
+    },
+    "dispatch_drivefit.py": {
+      "original_path": "/Users/ma/Codes/toltec/toltec_astro/taco_recipes/scripts/drivefit/dispatch_drivefit.py",
+      "sha256": "aecde5ec0c28b0f175ac92939ac1c38dbd9589c7e92a6d35b0c40bf6077f644d"
+    }
+  },
+  "source_snapshot": "Captured working-tree source contents and deletions, with design/ restricted to adding or updating spec.md. Other already tracked design files retain their base-commit versions. New design notes, probes and slides are omitted; the requested report and its renderer are included under delivery/. Finder metadata and environment/build/cache files are omitted.",
+  "captured_utc": "2026-10-21T17:28:05.019237+00:00",
+  "concurrent_edits": "Later local edits are not part of this point-in-time snapshot.",
+  "reference_data": {
+    "repository": "https://github.com/toltec-astro/tolteca_ref_data.git",
+    "commit": "9cdbc76c4327b11e9ec45ce7895ef13b537d03a5",
+    "remote_verification": {
+      "method": "Fresh clone from GitHub and selective Git LFS pull; file size and SHA-256 matched published provenance records.",
+      "files": 8,
+      "bytes": 73190080,
+      "fit_obsnum": 145484,
+      "fit_subobsnums": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "commit_target_obsnum": 145485
+    }
+  }
+}

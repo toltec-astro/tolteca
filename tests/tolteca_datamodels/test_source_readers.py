@@ -5,64 +5,32 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import ClassVar
 
+import pandas as pd
 import pytest
 import xarray as xr
+from tollan.accessor.pandas.model_table import ModelColumn
 from xarray.backends.netCDF4_ import NetCDF4ArrayWrapper
 
+from tolteca_datamodels.core.file import accessor as file_module
+from tolteca_datamodels.core.file._resolution import _SourceReaderResolver
+from tolteca_datamodels.core.source import (
+    SourceOpener,
+    SourceReaderRules,
+)
+from tolteca_datamodels.core.types import DataModelInfo
 from tolteca_datamodels.file import FileAccessor
-from tolteca_datamodels.lmt import LmtTelAccessor, identify_lmt_tel
+from tolteca_datamodels.lmt import LmtTelAccessor
+from tolteca_datamodels.lmt.file import LmtFileAccessor
 from tolteca_datamodels.lmt.tel import LmtTelIOMapper
-from tolteca_datamodels.model_table import ModelColumn
-from tolteca_datamodels.source import identify_source
+from tolteca_datamodels.toltec.types import ToltecDataModel
 
 
-def test_reader_order_and_deferred_metadata():
-    payload = object()
-    calls = []
-
-    class Reader:
-        def read_metadata(self):
-            calls.append("metadata")
-            return SimpleNamespace(obsnum=1)
-
-    reader = Reader()
-
-    def miss(data):
-        assert data is payload
-        calls.append("miss")
-
-    def match(data):
-        assert data is payload
-        calls.append("match")
-        return reader
-
-    def unexpected(data):
-        pytest.fail("Identification continued after a match")
-
-    identified = identify_source(payload, readers=(miss, match, unexpected))
-    assert identified is reader
-    assert calls == ["miss", "match"]
-    assert identified.read_metadata().obsnum == 1
-    assert calls == ["miss", "match", "metadata"]
-    assert identify_source(payload, readers=(miss,)) is None
-    assert identify_source(payload, readers=()) is None
-
-
-@pytest.mark.parametrize("error_type", [ValueError, KeyError, RuntimeError])
-def test_identification_exceptions_are_not_misses(error_type):
-    def failed(data):
-        msg = "Invalid payload"
-        raise error_type(msg)
-
-    def unexpected(data):
-        pytest.fail("Identification continued after an exception")
-
-    with pytest.raises(error_type, match="Invalid payload"):
-        identify_source(object(), readers=(failed, unexpected))
+class _TextDataModel(DataModelInfo):
+    name = "text"
 
 
 @pytest.mark.parametrize("container", ["dataset", "tree", "node"])
-def test_telescope_identification_does_not_read_or_close(
+def test_known_telescope_binding_does_not_read_or_close(
     data_lmt_path, monkeypatch, container
 ):
     path = data_lmt_path / "tel/tel_toltec_2025-10-31_145609_00_0002.nc"
@@ -80,43 +48,31 @@ def test_telescope_identification_does_not_read_or_close(
             patch.setattr(NetCDF4ArrayWrapper, "__getitem__", unexpected_read)
             patch.setattr(xr.Dataset, "close", unexpected_read)
             patch.setattr(xr.DataTree, "close", unexpected_read)
-            reader = identify_source(source, readers=(identify_lmt_tel,))
+            identified = _SourceReaderResolver(
+                handlers={
+                    "lmt": LmtFileAccessor._reader_rules,
+                }
+            )(source, choices={"lmt": LmtTelAccessor})
+            assert identified is not None
+            reader, _ = identified
             assert isinstance(reader, LmtTelAccessor)
-            assert reader is source.lmt_tel
-            assert identify_lmt_tel(source, raise_on_error=True) is reader
+            assert isinstance(source.lmt_tel, type(reader))
             assert "meta" not in reader.__dict__
         assert reader.meta.obsnum == 145609
         assert reader.az.isel(time=0).item() is not None
 
 
-@pytest.mark.parametrize("strict", [False, True])
-def test_telescope_identity_does_not_require_valid_metadata(data_lmt_path, strict):
+def test_telescope_binding_does_not_require_valid_metadata(data_lmt_path):
     path = data_lmt_path / "tel/tel_toltec_2025-10-31_145609_00_0002.nc"
     with xr.open_dataset(path) as dataset:
         corrupt = dataset.drop_vars("Header.Source.Ra")
-        reader = identify_lmt_tel(corrupt, raise_on_error=strict)
+        reader = corrupt.lmt_tel
         assert reader is not None
         with pytest.raises(KeyError, match="Header.Source.Ra"):
             _ = reader.meta
-    assert identify_lmt_tel(path) is None
-    assert identify_lmt_tel(xr.Dataset()) is None
 
 
-@pytest.mark.parametrize("source", [object(), "tel.nc", xr.DataArray([1])])
-def test_strict_telescope_identification_rejects_unsupported_types(source):
-    assert identify_lmt_tel(source) is None
-    with pytest.raises(TypeError, match="Dataset or DataTree"):
-        identify_lmt_tel(source, raise_on_error=True)
-
-
-@pytest.mark.parametrize("source", [xr.Dataset(), xr.DataTree()])
-def test_strict_telescope_identification_rejects_missing_timestamps(source):
-    assert identify_lmt_tel(source) is None
-    with pytest.raises(ValueError, match="missing tel_time variable"):
-        identify_lmt_tel(source, raise_on_error=True)
-
-
-def test_telescope_identification_checks_structure_once(data_lmt_path, monkeypatch):
+def test_named_telescope_accessor_checks_structure_once(data_lmt_path, monkeypatch):
     path = data_lmt_path / "tel/tel_toltec_2025-10-31_145609_00_0002.nc"
     checks = []
     has_arr = LmtTelIOMapper.has_arr
@@ -127,60 +83,30 @@ def test_telescope_identification_checks_structure_once(data_lmt_path, monkeypat
 
     monkeypatch.setattr(LmtTelIOMapper, "has_arr", track_check)
     with xr.open_dataset(path) as dataset:
-        reader = identify_lmt_tel(dataset)
+        reader = dataset.lmt_tel
         assert reader is not None
-        assert identify_lmt_tel(dataset, raise_on_error=True) is reader
         assert dataset.lmt_tel is reader
         assert checks == [reader.mapper.schema.tel_time]
 
 
-@pytest.mark.parametrize("strict", [False, True])
-@pytest.mark.parametrize("error_type", [KeyError, RuntimeError])
-def test_telescope_identification_propagates_unexpected_failures(
-    monkeypatch, error_type, strict
-):
-    error = error_type("Unexpected validation failure")
-
-    def fail(self):
-        raise error
-
-    monkeypatch.setattr(LmtTelAccessor, "_validate", fail)
-    with pytest.raises(error_type) as exc:
-        identify_lmt_tel(xr.Dataset(), raise_on_error=strict)
-    assert exc.value is error
-
-
-def test_telescope_value_error_is_a_nonmatch_unless_strict(monkeypatch):
-    error = ValueError("Incompatible telescope payload")
-
-    def fail(self):
-        raise error
-
-    monkeypatch.setattr(LmtTelAccessor, "_validate", fail)
-    assert identify_lmt_tel(xr.Dataset()) is None
-    with pytest.raises(ValueError) as exc:
-        identify_lmt_tel(xr.Dataset(), raise_on_error=True)
-    assert exc.value is error
-
-
-def test_shared_metadata_loop_supports_non_xarray_readers(tmp_path):
+def test_shared_metadata_loop_supports_non_xarray_readers(tmp_path, monkeypatch):
     class TextReader:
         def __init__(self, data):
             self.data = data
 
-        def read_metadata(self):
+        @property
+        def meta(self):
             return SimpleNamespace(title=self.data.readline().strip())
 
-    def identify_text(data):
-        return TextReader(data) if isinstance(data, TextIOBase) else None
+    def prepare_record(data):
+        return {} if isinstance(data, TextIOBase) else None
 
-    class TextFiles(FileAccessor):
-        _io_obj_types = (TextIOBase,)
-        _source_readers = (identify_text,)
-        _metadata_file_extensions = (".txt",)
+    class TextFiles(FileAccessor[_TextDataModel]):
+        _source_opener = SourceOpener(rules=(({"ext": "txt"}, Path.open),))
+        _reader_rules = SourceReaderRules(
+            rules=(({}, TextReader),), prepare_record=prepare_record
+        )
         _metadata_columns: ClassVar = {"title": ModelColumn("title", dtype="string")}
-
-        _source_opener = Path.open
 
     path = tmp_path / "observation.txt"
     path.write_text("Owned text\n")
@@ -192,3 +118,63 @@ def test_shared_metadata_loop_supports_non_xarray_readers(tmp_path):
         assert table.title.tolist() == ["Owned text", "Borrowed text"]
         assert not borrowed.closed
         assert "io_obj" not in table
+
+
+@pytest.mark.parametrize("operation", ["read", "open"])
+def test_table_rules_use_current_values_and_batch_matching(
+    tmp_path, monkeypatch, operation
+):
+    """Temporary text payloads exercise format dispatch, not instrument readers."""
+    opened = []
+    batches = []
+    match = file_module.FileAccessor._get_opener_choices
+
+    def batch(accessor):
+        batches.append(len(accessor._obj))
+        return match(accessor)
+
+    monkeypatch.setattr(file_module.FileAccessor, "_get_opener_choices", batch)
+
+    def opener(path):
+        resource = path.open()
+        opened.append(resource)
+        return resource
+
+    class TextReader:
+        def __init__(self, data):
+            self.data = data
+
+        @property
+        def meta(self):
+            return SimpleNamespace(title=self.data.readline().strip())
+
+    class TextFiles(FileAccessor[ToltecDataModel]):
+        _source_opener = SourceOpener(
+            rules=(({"ext": "txt", "suffix": "current"}, opener),)
+        )
+        _reader_rules = SourceReaderRules(
+            rules=(({}, TextReader),),
+            prepare_record=lambda data: {} if isinstance(data, TextIOBase) else None,
+        )
+        _metadata_columns: ClassVar = {"title": ModelColumn("title", dtype="string")}
+
+        @staticmethod
+        def _guess_derived_columns(table):
+            return pd.DataFrame({"suffix": "current"}, index=table.index)
+
+    cached = tmp_path / "cached"
+    cached.write_text("model parameters")
+    location = "archive:/toltec8_145605_000_0001_2025_10_31_09_20_06_tune.txt"
+    table = TextFiles.from_sources([{"source": cached, "source_loc": location}])
+    # A handler's derived values override filename snapshots for rule selection.
+    assert table.suffix.tolist() == ["current"]
+    assert table.file_suffix.tolist() == ["tune"]
+    if operation == "read":
+        result = TextFiles(table).update_from_source_metadata()
+    else:
+        with TextFiles(table).open(on_error="raise") as result:
+            TextFiles(result).update_from_source_metadata(inplace=True)
+            assert not opened[0].closed
+    assert result.title.tolist() == ["model parameters"]
+    assert batches == [1]
+    assert len(opened) == 1 and opened[0].closed

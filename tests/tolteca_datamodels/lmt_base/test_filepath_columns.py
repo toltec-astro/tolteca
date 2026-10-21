@@ -4,24 +4,24 @@ from typing import Annotated
 
 import pytest
 
-from tolteca_datamodels.lmt._filepath import _LmtFilepathInfo
-from tolteca_datamodels.lmt_base._filepath import _FileOnly
-from tolteca_datamodels.toltec._filepath import (
-    _ToltecFilepathInfo,
-    _ToltecLmtFilepathInfo,
+from tolteca_datamodels.lmt.filepath import LmtFilepathInfo
+from tolteca_datamodels.lmt_base.filepath import _FileOnly
+from tolteca_datamodels.toltec.filepath import (
+    ToltecFilepathInfo,
+    ToltecLmtFilepathInfo,
 )
-from tolteca_dummy_instru._filepath import (
-    _DummyInstruFilepathInfo,
-    _DummyInstruLmtFilepathInfo,
+from tolteca_dummy_instru.filepath import (
+    DummyInstruFilepathInfo,
+    DummyInstruLmtFilepathInfo,
 )
 
 
 @pytest.mark.parametrize(
     ("model_cls", "specific_aliases"),
     [
-        (_LmtFilepathInfo, ()),
-        (_ToltecFilepathInfo, ("roach",)),
-        (_DummyInstruFilepathInfo, ("channel",)),
+        (LmtFilepathInfo, ()),
+        (ToltecFilepathInfo, ("roach",)),
+        (DummyInstruFilepathInfo, ("channel",)),
     ],
 )
 def test_filepath_columns_and_observation_aliases(model_cls, specific_aliases):
@@ -55,7 +55,7 @@ def test_filepath_columns_and_observation_aliases(model_cls, specific_aliases):
 
 
 @pytest.mark.parametrize(
-    "model_cls", [_LmtFilepathInfo, _ToltecFilepathInfo, _DummyInstruFilepathInfo]
+    "model_cls", [LmtFilepathInfo, ToltecFilepathInfo, DummyInstruFilepathInfo]
 )
 def test_memberships_are_independent_lists_in_both_aliases(model_cls):
     from types import SimpleNamespace
@@ -74,7 +74,7 @@ def test_memberships_are_independent_lists_in_both_aliases(model_cls):
 
 
 def test_concrete_columns_are_built_from_the_completed_model():
-    class Extended(_DummyInstruFilepathInfo):
+    class Extended(DummyInstruFilepathInfo):
         readout_code: int
         payload: dict[str, int]
         filename_note: Annotated[str | None, _FileOnly] = None
@@ -92,9 +92,9 @@ def test_concrete_columns_are_built_from_the_completed_model():
     assert columns["file_filename_note"].attr == "filename_note"
     assert columns["file_filename_note"].dtype == "string"
     assert Inherited._columns == columns
-    assert "readout_code" not in _DummyInstruFilepathInfo._columns
+    assert "readout_code" not in DummyInstruFilepathInfo._columns
 
 
-@pytest.mark.parametrize("model", [_ToltecLmtFilepathInfo, _DummyInstruLmtFilepathInfo])
+@pytest.mark.parametrize("model", [ToltecLmtFilepathInfo, DummyInstruLmtFilepathInfo])
 def test_thin_telescope_subclasses_keep_telescope_columns(model):
-    assert model._columns == _LmtFilepathInfo._columns
+    assert model._columns == LmtFilepathInfo._columns

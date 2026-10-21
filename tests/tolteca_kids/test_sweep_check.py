@@ -2,27 +2,26 @@
 
 from __future__ import annotations
 
+import astropy.units as u
 import numpy as np
 import pytest
 import xarray as xr
-import astropy.units as u
+from tollan.pipeline import PIPELINE_CONTEXT_KEY, get_pipeline_contexts
 
 from tolteca_kids import (
     SweepBitMask,
     SweepCheck,
     SweepCheckConfig,
     SweepCheckContext,
-    SweepCheckData,
+    SweepCheckView,
 )
 from tolteca_kidsproc.analysis.d21 import D21Analysis
-from tollan.pipeline import get_pipeline_contexts, PIPELINE_CONTEXT_KEY
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
-_SWEEP_NS = "tolteca_datamodels.toltec.kids.sweep"
+_SWEEP_SUBPATH = "sweep"
 
 
 def make_reduced_datatree(
@@ -82,25 +81,25 @@ def make_reduced_datatree(
 
     ds_reduced = xr.Dataset(
         {
-            f"{_SWEEP_NS}.I": (["chan", "sweep"], I),
-            f"{_SWEEP_NS}.Q": (["chan", "sweep"], Q),
-            f"{_SWEEP_NS}.unc_I": (["chan", "sweep"], unc_I),
-            f"{_SWEEP_NS}.unc_Q": (["chan", "sweep"], unc_Q),
-            "f_lo": (["chan"], f_lo),
+            "I": (["chan", "sweep"], I),
+            "Q": (["chan", "sweep"], Q),
+            "unc_I": (["chan", "sweep"], unc_I),
+            "unc_Q": (["chan", "sweep"], unc_Q),
+            "f_chan": (["chan"], f_lo),
         },
         coords={"sweep": sweep, "chan": np.arange(n_chans)},
     )
     return xr.DataTree(
         dataset=xr.Dataset(),
-        children={_SWEEP_NS: xr.DataTree(dataset=ds_reduced)},
+        children={_SWEEP_SUBPATH: xr.DataTree(dataset=ds_reduced)},
     )
 
 
 def _run_sweep_check(dt: xr.DataTree, **kwargs) -> SweepCheckContext:
-    """Run SweepCheck with fine D21 step (avoid giant grid in tests)."""
+    """Run SweepCheck with enough D21 bins for the production chunk windows."""
     cfg = SweepCheckConfig(
         d21_analysis=D21Analysis(
-            f_step=10_000 << u.Hz,  # 10 kHz — coarse enough for tests
+            f_step=1_000 << u.Hz,  # 1 kHz — enough bins for the v2 D21 windows
             smooth=5,
             method="savgol",
         ),
@@ -180,11 +179,11 @@ class TestPipelineMechanics:
         ctx = SweepCheck.get_context(dt)
         assert ctx.completed is True
 
-    def test_data_is_sweep_check_data(self):
+    def test_data_is_sweep_check_view(self):
         dt = make_reduced_datatree()
         _run_sweep_check(dt)
         ctx = SweepCheck.get_context(dt)
-        assert isinstance(ctx.data, SweepCheckData)
+        assert isinstance(ctx.data, SweepCheckView)
 
     def test_config_stored_in_context(self):
         dt = make_reduced_datatree()
@@ -202,7 +201,7 @@ class TestPipelineMechanics:
     def test_return_context_flag(self):
         dt = make_reduced_datatree()
         cfg = SweepCheckConfig(
-            d21_analysis=D21Analysis(f_step=10_000 << u.Hz, smooth=5)
+            d21_analysis=D21Analysis(f_step=1_000 << u.Hz, smooth=5)
         )
         step = SweepCheck(cfg)
         result_dt, ctx = step(dt, return_context=True)
@@ -364,20 +363,22 @@ class TestBitmaskHelpers:
 
 class TestAlias:
     def test_aliased_step_has_independent_context(self):
-        SweepCheckPass1 = SweepCheck.alias("pass1")
-        SweepCheckPass2 = SweepCheck.alias("pass2")
-        assert SweepCheckPass1.context_key != SweepCheckPass2.context_key
-        assert "SweepCheck" in SweepCheckPass1.context_key
-        assert "pass1" in SweepCheckPass1.context_key
+        alias_first = "pass1"
+        alias_second = "pass2"
+        assert SweepCheck.get_context_key(
+            alias=alias_first
+        ) != SweepCheck.get_context_key(alias=alias_second)
+        assert "SweepCheck" in SweepCheck.get_context_key(alias=alias_first)
+        assert "pass1" in SweepCheck.get_context_key(alias=alias_first)
 
     def test_alias_runs_independently(self):
         dt = make_reduced_datatree(n_chans=3, n_steps=50)
-        SweepCheckPass1 = SweepCheck.alias("pass1")
+        alias_first = "pass1"
         cfg = SweepCheckConfig(
             chunk_size=15,
             n_chunks_min=3,
-            d21_analysis=D21Analysis(f_step=10_000 << u.Hz, smooth=5),
+            d21_analysis=D21Analysis(f_step=1_000 << u.Hz, smooth=5),
         )
-        SweepCheckPass1(cfg)(dt)
-        assert SweepCheckPass1.has_context(dt)
+        SweepCheck(cfg, alias=alias_first)(dt)
+        assert SweepCheck.has_context(dt, alias=alias_first)
         assert not SweepCheck.has_context(dt)

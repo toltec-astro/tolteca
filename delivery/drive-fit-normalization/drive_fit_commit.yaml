@@ -1,0 +1,24 @@
+input_discovery:
+  inputs:
+  - sources:
+    - glob: /Users/ma/Codes/toltec/dev_toltec/python/toltec_astro_dev/run/data_lmt/toltec/tcs/toltec0/toltec0_145485_*_targsweep.nc
+    - glob: /Users/ma/Codes/toltec/dev_toltec/python/toltec_astro_dev/run/data_lmt/toltec/tcs/toltec7/toltec7_145485_*_targsweep.nc
+    - glob: /Users/ma/Codes/toltec/dev_toltec/python/toltec_astro_dev/run/data_lmt/toltec/tcs/toltec11/toltec11_145485_*_targsweep.nc
+drive_fit_commit:
+  reference: /Users/ma/Codes/toltec/dev_toltec/python/run/drive-fit-normalization-20261021/dataprod_toltec/scratch/145484-1-1/145484-1-1_drive_fit_f0a4c793e33706f0751d227f488dbf7e3e5b850a812a6d8d2610165bdaf521de/drive-fit-145484-normalization/index.yaml
+  commit:
+    adrv_max: 30.0
+    adrv_fill_perc: 50.0
+    adrv_ref_perc: 10.0
+    adrv_ref_step: 0.25
+  plot:
+    enabled: true
+  output:
+    enabled: true
+    path: /Users/ma/Codes/toltec/dev_toltec/python/run/drive-fit-normalization-20261021/dataprod_toltec
+    namespace: scratch
+    run:
+      name: drive-fit-commit-145485-normalization-plots
+    registration: false
+  tlaloc_output:
+    enabled: false

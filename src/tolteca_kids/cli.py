@@ -3,23 +3,27 @@
 import json
 import re
 from pathlib import Path  # noqa: TC003 -- Typer inspects these types at runtime
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 import typer
+from pydantic_core import to_jsonable_python
 from tollan.config import RuntimeContext
 from tollan.utils.cli import split_cli_args
+from tollan.utils.fileloc import fileloc
 from tollan.utils.log import logger
 from tollan.utils.typer import TollanTyper
 
-from tolteca_datamodels.filestore import FileAccess
-from tolteca_datamodels.toltec.filestore import build_input_catalog
+from tolteca_datamodels.data_model import DataModelSet
+from tolteca_datamodels.input_discovery import InputDiscovery
+from tolteca_datamodels.lmt_base.obs_spec import ObsSpec
 
 from .core import Kids
-from .runner import create_kids, run_source
+from .dataprod_output import DataProdOutput
+from .runner import _input_table, create_kids, run_inputs
 
 app = TollanTyper(
     name=f"tolteca_{Kids.subconfig_key}",
-    help="Process TolTEC KIDs files or observation selectors.",
+    help="Process configured inputs, exact file locations, or observation selectors.",
     no_args_is_help=True,
     subcommand_metavar="",
     context_settings={
@@ -30,102 +34,208 @@ app = TollanTyper(
 )
 
 
+def _discovery_inputs(sources: list[str], data_lmt_path: Path | None) -> list[dict]:
+    """Translate positional shorthand into discovery entries."""
+    entries: list[dict] = []
+    for source in sources:
+        try:
+            spec = ObsSpec.parse(source)
+        except ValueError:
+            if entries and "sources" in entries[-1]:
+                entries[-1]["sources"].append(source)
+            else:
+                entries.append({"sources": [source]})
+            continue
+        if data_lmt_path is None:
+            msg = f"An observation selector requires --data_lmt_path: {source}"
+            raise typer.BadParameter(msg)
+        entries.append({"data_lmt_path": str(data_lmt_path), "obs_spec": str(spec)})
+    if not entries and data_lmt_path is not None:
+        entries.append({"data_lmt_path": str(data_lmt_path)})
+    return entries
+
+
 @app.callback(invoke_without_command=True)
 @RuntimeContext.add_cli_options()
-def main(  # noqa: PLR0913 -- CLI options form the public command signature
+def main(  # noqa: C901, PLR0913 -- CLI options and inspection branches
     ctx: typer.Context,
     sources: Annotated[
         list[str] | None,
-        typer.Argument(help="Files, quoted globs, or observation selectors."),
+        typer.Argument(
+            help="Exact locations or ObsSpec; replaces input_discovery.inputs."
+        ),
     ] = None,
     *,
     data_lmt_path: Annotated[
-        Path | None, typer.Option(help="Raw data tree used for observation selectors.")
+        Path | None,
+        typer.Option(help="Acquisition tree for positional ObsSpec (default *)."),
     ] = None,
     dataprod_toltec_path: Annotated[
-        Path | None, typer.Option(help="Data product root; does not enable output.")
+        Path | None,
+        typer.Option(help="Default kids.output.path; does not enable output."),
     ] = None,
     select: Annotated[
-        str | None, typer.Option(help="Override files.select, a pandas catalog query.")
+        str | None,
+        typer.Option(
+            help="Override kids.input.select, applied after opening candidates."
+        ),
     ] = None,
     show_inputs: Annotated[
-        bool, typer.Option(help="Print the selected metadata catalog and exit.")
+        bool,
+        typer.Option(help="Print the selected, header-populated input table and exit."),
     ] = False,
     show_config: Annotated[
         bool, typer.Option(help="Print effective config for each input and exit.")
     ] = False,
     dry_run: Annotated[
-        bool, typer.Option(help="Resolve inputs and config, then run a no-op pipeline.")
+        bool, typer.Option(help="Prepare inputs and config, then run a no-op pipeline.")
     ] = False,
 ) -> None:
-    """Process inputs with dotted --kids.* overrides before -- and inputs after it."""
-    key = Kids.subconfig_key
+    """Process configured inputs or positional shorthand.
+
+    Parameters
+    ----------
+    ctx : typer.Context
+        CLI invocation and runtime configuration options.
+    sources : list of str, optional
+        Exact file locations or observation selectors, replacing configured
+        discovery entries. Put positional inputs after ``--``. Locations are
+        literal; configure ``{glob: ...}`` entries to expand patterns.
+    data_lmt_path : pathlib.Path, optional
+        Acquisition root for positional selectors. With no positional inputs,
+        supplies a wildcard discovery entry only if none are configured.
+    dataprod_toltec_path : pathlib.Path, optional
+        Default product root. Explicit ``kids.output.path`` takes precedence;
+        supplying a root does not enable output.
+    select : str, optional
+        Query overriding ``kids.input.select``, applied after opening candidates
+        and reading their metadata. If omitted, use the configured selection.
+    show_inputs : bool, optional
+        Print the selected table and exit, including an empty selection.
+        Default is False.
+    show_config : bool, optional
+        Print effective configuration for each selected input and exit.
+        Default is False.
+    dry_run : bool, optional
+        Run the no-op pipeline without reduction or product output.
+        Default is False.
+
+    Notes
+    -----
+    Dotted ``--kids.*`` and ``--input_discovery.*`` overrides take precedence
+    over shorthand options. Inspection flags exit before per-file execution;
+    ``show_inputs`` takes precedence over ``show_config``.
+    """
+    keys = (Kids.subconfig_key, InputDiscovery.subconfig_key, "db", "data_prod")
     cli_args, sources = split_cli_args(
-        rf"{re.escape(key)}\..+", [*(sources or []), *ctx.args]
+        rf"(?:{'|'.join(map(re.escape, keys))})\..+", [*(sources or []), *ctx.args]
     )
     sources = [source for source in sources if source != "--"]
-    if not sources:
-        msg = "Provide at least one input file or observation selector"
-        raise typer.BadParameter(msg)
     unknown = [source for source in sources if source.startswith("-")]
     if unknown:
         msg = f"Unknown options: {', '.join(unknown)}"
         raise typer.BadParameter(msg)
-
-    # Only these explicit options populate shared discovery settings. User
-    # dotted options were already restricted to the KIDs namespace above.
-    options = {
-        "data_lmt_path": data_lmt_path,
-        "dataprod_toltec_path": dataprod_toltec_path,
-        "select": select,
-    }
-    cli_args = [
-        arg
-        for name, value in options.items()
-        if value is not None
-        for arg in (f"--{FileAccess.subconfig_key}.{name}", str(value))
-    ] + cli_args
-    runtime = RuntimeContext.from_cli_ctx(ctx, cli_args=cli_args)
-    inputs = FileAccess(runtime).config
-    logger.debug("Input selection settings: {}", inputs)
-    catalog = build_input_catalog(sources, data_root=inputs.data_lmt_path)
-    if inputs.select is not None:
-        n_inputs = len(catalog)
-        catalog = catalog.toltec_file.query(inputs.select)
-        logger.debug(
-            "Catalog selection {!r}: {} -> {} inputs",
-            inputs.select,
-            n_inputs,
-            len(catalog),
+    shorthand = []
+    if sources:
+        shorthand += [
+            f"--{InputDiscovery.subconfig_key}.inputs",
+            json.dumps(_discovery_inputs(sources, data_lmt_path)),
+        ]
+    if select is not None:
+        shorthand += [f"--{Kids.subconfig_key}.input.select", json.dumps(select)]
+    runtime = RuntimeContext.from_cli_ctx(ctx, cli_args=[*shorthand, *cli_args])
+    if dataprod_toltec_path is not None:
+        runtime = runtime.with_config(
+            defaults=Kids.prepare_runtime_config_data(
+                {"output": {"path": str(dataprod_toltec_path)}}
+            )
         )
-    logger.info("Selected {} input(s)", len(catalog))
-    if show_inputs:
-        typer.echo(catalog.to_json(orient="records", indent=2, date_format="iso"))
-        return
-    if catalog.empty:
-        msg = "No inputs selected"
-        raise typer.BadParameter(msg)
-    for info in catalog.toltec_file.to_info_list():
-        if show_config:
-            kids = create_kids(
-                runtime,
-                context_input=info.model_dump(
-                    mode="json",
-                    context={"flat": True},
-                    exclude={"filepath_info", "filepath_info_orig"},
-                ),
-            )
-            effective = {
-                FileAccess.subconfig_key: inputs.model_dump(mode="json"),
-                key: kids.config.model_dump(mode="json"),
+    if not sources and data_lmt_path is not None:
+        runtime = runtime.with_config(
+            defaults={
+                InputDiscovery.subconfig_key: {
+                    "inputs": _discovery_inputs([], data_lmt_path)
+                }
             }
-            typer.echo(f"{info.filepath}\n{json.dumps(effective, indent=2)}")
-        else:
-            product = run_source(info, runtime, dry_run=dry_run)
-            status = "no-op completed" if dry_run else "completed without output"
-            typer.echo(
-                str(product) if product is not None else f"{info.filepath}: {status}"
+        )
+    discovery = InputDiscovery(runtime)
+    if not discovery.config.inputs:
+        msg = "Provide input_discovery configuration or positional inputs"
+        raise typer.BadParameter(msg)
+    candidates = discovery.discover(
+        data_models=DataModelSet.from_select(
+            selection=["toltec"],
+        ),
+        on_error="record",
+    )
+    with candidates.toltec_file.open(
+        update_from_metadata=True, on_error="record"
+    ) as opened:
+        selected = Kids(runtime).input.select(opened)
+        logger.info("Selected {} input(s)", len(selected))
+        if show_inputs:
+            serialized = _input_table(selected).assign(
+                **{
+                    name: selected[name].map(
+                        lambda source: fileloc(cast("Any", source)).url
+                    )
+                    for name in ("source", "source_loc")
+                }
             )
+            typer.echo(
+                serialized.to_json(
+                    orient="records",
+                    indent=2,
+                    date_format="iso",
+                    default_handler=to_jsonable_python,
+                )
+            )
+            return
+        if selected.empty:
+            msg = "No inputs selected"
+            raise typer.BadParameter(msg)
+        if show_config:
+            for row in _input_table(selected).itertuples(index=False):
+                row = cast("Any", row)
+                kids = create_kids(runtime, context_input=row._asdict())
+                effective = {
+                    InputDiscovery.subconfig_key: discovery.config.model_dump(
+                        mode="json"
+                    ),
+                    Kids.subconfig_key: kids.config.model_dump(mode="json"),
+                }
+                typer.echo(
+                    f"{fileloc(row.source).path}\n{json.dumps(effective, indent=2)}"
+                )
+            return
+        _run_selected_inputs(selected, runtime, dry_run=dry_run)
+
+
+def _run_selected_inputs(selected, runtime, *, dry_run):
+    """Run opened inputs, report publication outcomes and set the exit status."""
+    publication_failed = False
+    for uid, working in run_inputs(selected, runtime, dry_run=dry_run):
+        if dry_run:
+            source = fileloc(working["tolteca_kids"].attrs["source"]).path
+            typer.echo(f"{source}: no-op completed")
+            continue
+        output = (
+            DataProdOutput.get_context(working)
+            if DataProdOutput.has_context(working)
+            else None
+        )
+        if output is not None and not output.completed:
+            publication_failed = True
+            messages = "; ".join(failure.message for failure in output.failures)
+            typer.echo(f"{uid}: output failed: {messages}", err=True)
+            continue
+        product = None if output is None else output.data
+        typer.echo(
+            str(product) if product is not None else f"{uid}: completed without output"
+        )
+
+    if publication_failed:
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

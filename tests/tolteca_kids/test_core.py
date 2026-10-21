@@ -1,72 +1,81 @@
 """Reducer-only pipeline, result views, and durable product tests."""
 
 import json
+from typing import Any, cast
 
 import numpy as np
 import pytest
 import xarray as xr
 import zarr
-from pydantic import ValidationError
+from pydantic import Field, ValidationError
 from tollan.accessor.xarray import ensure_datatree
 from tollan.config import RuntimeContext
 from tollan.pipeline import PIPELINE_CONTEXT_KEY, SequentialPipeline
 from typer.testing import CliRunner
 
-from tolteca_datamodels.file import SourceInfoModel
-from tolteca_datamodels.toltec.filestore import build_input_catalog
-from tolteca_datamodels.toltec.kids import SweepReducer
-from tolteca_datamodels.toltec.kids.source import identify_source
+import tolteca_kids.sweep_reduce as sweep_reduce_module
+from tests.kids_helpers import apply_step
+from tolteca_datamodels.data_prod import DataProdIndex
+from tolteca_datamodels.toltec.file import (
+    get_info_from_source,
+    guess_info_from_sources,
+    read_info_from_sources,
+)
+from tolteca_kids import BlockCreate
 from tolteca_kids.cli import app
+from tolteca_kids.config import DataProdOutputConfig, SweepReduceConfig
 from tolteca_kids.core import Kids, KidsConfig
 from tolteca_kids.dataprod_output import DataProdOutput
 from tolteca_kids.noop import NoOp
 from tolteca_kids.product import (
     open_sweep_product,
-    read_sweep_manifest,
+    read_product_provenance,
+    read_sweep_context,
     write_sweep_product,
 )
 from tolteca_kids.runner import create_kids, run_source
-from tolteca_kids.sweep_reduce import SweepReduce, SweepReduceView
+from tolteca_kids.sweep_reduce import SweepReduce
 
 
 @pytest.fixture
-def raw_sweep():
-    values = np.arange(24, dtype=float).reshape(12, 2)
-    return xr.Dataset(
-        {
-            "Data.Toltec.Is": (("time", "chan"), values),
-            "Data.Toltec.Qs": (("time", "chan"), -values),
-            "Data.Toltec.LoFreq": ("time", np.repeat([99.0, 100.0, 101.0], 4)),
-            "Header.Toltec.LoCenterFreq": 100.0,
-            "Header.Toltec.RoachIndex": 0,
-            "Header.Toltec.ObsNum": 1,
-            "Header.Toltec.SubObsNum": 0,
-            "Header.Toltec.ScanNum": 0,
-            "Header.Toltec.ObsType": 3,
-        }
-    )
+def raw_sweep(target_sweep_path):
+    with xr.open_dataset(target_sweep_path) as native:
+        return native.toltec_kids.select_channels([8, 9]).load()
 
 
 def test_pipeline_owns_steps_and_preserves_working_tree(raw_sweep):
     kids = Kids(RuntimeContext())
     assert kids.sweep_reduce is kids.sweep_reduce
-    assert kids.sweep_pipeline.steps == [kids.sweep_reduce, kids.output]
+    assert kids.sweep_pipeline.steps == [
+        kids.sweep_reduce,
+        kids.sweep_check,
+        kids.sweep_check_plot,
+        kids.kids_find,
+        kids.tone_prepare,
+    ]
     original = raw_sweep.copy(deep=True)
     working = ensure_datatree(raw_sweep)
     working["unrelated"] = xr.DataTree(dataset=xr.Dataset({"a": 3}))
-    assert kids.sweep_pipeline(working) is working
-    view = SweepReduceView(working)
-    expected = SweepReducer()(raw_sweep).toltec_kids.sweep
+    kids.block_identify(working)
+    kids.block_create(working)
+    block = working["blocks/0"]
+    assert kids.sweep_pipeline(block) is block
+    view = SweepReduce.view(working, block=0)
+    expected = apply_step(
+        SweepReduce(),
+        BlockCreate()(ensure_datatree(raw_sweep)).toltec_kids.blocks[0].tree,
+    ).toltec_kids.sweep
     xr.testing.assert_identical(view.I, expected.I)
     xr.testing.assert_identical(view.unc_I, expected.unc_I)
     xr.testing.assert_identical(raw_sweep, original)
     assert "unrelated" in working.children
-    assert view.context.completed
-    assert view.context.config == kids.config.sweep_reduce
-    assert PIPELINE_CONTEXT_KEY not in working.attrs
-    assert isinstance(
-        working[SweepReduce.result_path()].attrs[SweepReduce.context_key], dict
+    assert not SweepReduce.has_context(working)
+    assert SweepReduce.get_context(block).completed
+    assert SweepReduce.get_context(block).config == kids.config.sweep_reduce
+    assert block.attrs[PIPELINE_CONTEXT_KEY][SweepReduce] is SweepReduce.get_context(
+        block
     )
+    assert SweepReduce.get_context(block).data.I.data is view.I.data
 
 
 def test_standalone_step_and_repeat_preserve_results(raw_sweep):
@@ -75,45 +84,49 @@ def test_standalone_step_and_repeat_preserve_results(raw_sweep):
     result, context = step(working, return_context=True)
     assert result is working
     assert context.completed
-    first_I = SweepReduce.view(working).I
+    first_I = SweepReduce.view(working, block=0).I
     assert first_I is not None
     first = first_I.data
     step(working)
-    second_I = SweepReduce.view(working).I
+    second_I = SweepReduce.view(working, block=0).I
     assert second_I is not None
     assert second_I.data is first
-    assert SweepReduce.get_context(working) == context
+    assert SweepReduce.get_context(working).model_dump() == context.model_dump()
 
 
 def test_aliases_keep_separate_result_nodes(raw_sweep):
     working = ensure_datatree(raw_sweep)
-    other = SweepReduce.alias("second_pass")
+    other = "second_pass"
     pipeline = SequentialPipeline(
         steps=[
             SweepReduce(),
-            other(force=True),
+            SweepReduce(force=True, alias=other),
         ]
     )
     pipeline(working)
-    assert SweepReduce.view(working).unc_I is not None
-    assert other.view(working).unc_I is not None
-    assert other.get_context(working).completed
-    assert other.get_context(working).config.force
+    assert SweepReduce.view(working, block=0).unc_I is not None
+    assert SweepReduce.view(working, block=0, alias=other).unc_I is not None
+    assert SweepReduce.get_context(working, alias=other).completed
+    assert SweepReduce.get_context(working, alias=other).config.force
     assert not SweepReduce.get_context(working).config.force
 
 
 def test_alias_context_recreates_the_right_step_after_serialization(raw_sweep):
     working = ensure_datatree(raw_sweep)
     _, original = SweepReduce()(working, return_context=True)
-    alias = SweepReduce.alias("repeat")
-    _, aliased = alias()(working, return_context=True)
+    alias = "repeat"
+    _, aliased = SweepReduce(alias=alias)(working, return_context=True)
     assert type(original.make_step()) is SweepReduce
-    assert type(aliased.make_step()) is alias
-    assert type(SweepReduce.view(working).context.make_step()) is SweepReduce
-    assert type(alias.view(working).context.make_step()) is alias
-    restored = alias.context_cls.model_validate_json(aliased.model_dump_json())
-    assert type(restored.make_step()) is alias
+    assert type(aliased.make_step()) is SweepReduce
+    assert type(SweepReduce.get_context(working).make_step()) is SweepReduce
+    assert (
+        type(SweepReduce.get_context(working, alias=alias).make_step()) is SweepReduce
+    )
+    restored = SweepReduce.load_context(SweepReduce.dump_context(aliased))
+    assert type(restored.make_step()) is SweepReduce
     assert restored.model_dump() == aliased.model_dump()
+    assert restored.make_step().config.alias == alias
+    assert original.config.alias is None
 
 
 @pytest.mark.parametrize("primary_first", [False, True])
@@ -123,104 +136,128 @@ def test_alias_reuses_its_result_without_recomputing(
     working = ensure_datatree(raw_sweep)
     working["unrelated"] = xr.DataTree(dataset=xr.Dataset({"a": 3}))
     calls = []
-    reduce = SweepReducer._reduce
+    reduce = sweep_reduce_module.reduce_sweep_samples
 
-    def count(reducer, data):
-        calls.append(data)
-        return reduce(reducer, data)
+    def count(reducer, *args, **kwargs):
+        calls.append(args)
+        return reduce(reducer, *args, **kwargs)
 
-    monkeypatch.setattr(SweepReducer, "_reduce", count)
+    monkeypatch.setattr(sweep_reduce_module, "reduce_sweep_samples", count)
     primary = None
     if primary_first:
         SweepReduce()(working)
-        primary = SweepReduce.view(working).data_source.copy(deep=True)
-    alias = SweepReduce.alias("cached")
-    alias()(working)
-    first = alias.view(working).I
+        primary = SweepReduce.view(working, block=0).data_source.copy(deep=True)
+    alias = "cached"
+    SweepReduce(alias=alias)(working)
+    first = SweepReduce.view(working, block=0, alias=alias).I
     assert first is not None
     assert len(calls) == 1
-    alias()(working)
-    repeated = alias.view(working).I
+    SweepReduce(alias=alias)(working)
+    repeated = SweepReduce.view(working, block=0, alias=alias).I
     assert repeated is not None
     assert repeated.data is first.data
     assert len(calls) == 1
-    alias(force=True)(working)
-    forced = alias.view(working).I
+    SweepReduce(force=True, alias=alias)(working)
+    forced = SweepReduce.view(working, block=0, alias=alias).I
     assert forced is not None
     assert forced.data is not first.data
     xr.testing.assert_identical(forced, first)
     assert len(calls) == 2
     assert working["unrelated"]["a"].item() == 3
     if primary_first:
-        xr.testing.assert_identical(SweepReduce.view(working).data_source, primary)
+        xr.testing.assert_identical(
+            SweepReduce.view(working, block=0).data_source, primary
+        )
     else:
-        assert SweepReduce.result_path() not in working
+        assert "sweep" not in working["blocks/0"]
 
 
 def test_alias_keeps_its_cache_when_primary_is_replaced(raw_sweep, monkeypatch):
     working = ensure_datatree(raw_sweep)
-    alias = SweepReduce.alias("cached")
-    alias()(working)
-    aliased = alias.view(working).I
+    alias = "cached"
+    SweepReduce(alias=alias)(working)
+    aliased = SweepReduce.view(working, block=0, alias=alias).I
     assert aliased is not None
     SweepReduce(force=True)(working)
-    primary = SweepReduce.view(working).I
+    primary = SweepReduce.view(working, block=0).I
     assert primary is not None
     assert primary.data is not aliased.data
 
-    def unexpected(*args):
+    def unexpected(*args, **kwargs):
         pytest.fail("unforced repeat computed an already available result")
 
-    monkeypatch.setattr(SweepReducer, "_reduce", unexpected)
-    alias()(working)
-    repeated = alias.view(working).I
+    monkeypatch.setattr(sweep_reduce_module, "reduce_sweep_samples", unexpected)
+    SweepReduce(alias=alias)(working)
+    repeated = SweepReduce.view(working, block=0, alias=alias).I
     assert repeated is not None
     assert repeated.data is aliased.data
 
 
 def test_alias_cache_still_checks_numerical_configuration(raw_sweep):
-    working = ensure_datatree(raw_sweep)
-    alias = SweepReduce.alias("different_config")
-    without_uncertainty = SweepReducer(compute_uncertainty=False)(raw_sweep)
-    working[alias.result_path()] = without_uncertainty[SweepReducer.__module__]
-    assert alias.view(working).unc_I is None
-    alias()(working)
-    assert alias.view(working).unc_I is not None
+    working = BlockCreate()(ensure_datatree(raw_sweep))
+    alias = "different_config"
+    without_uncertainty = apply_step(
+        SweepReduce(compute_uncertainty=False),
+        working.toltec_kids.blocks[0].detach(),
+    )
+    working[f"blocks/0/{SweepReduce.result_path(alias=alias)}"] = without_uncertainty[
+        "sweep"
+    ]
+    assert SweepReduce.view(working, block=0, alias=alias).unc_I is None
+    SweepReduce(alias=alias)(working)
+    assert SweepReduce.view(working, block=0, alias=alias).unc_I is not None
 
 
 def test_output_alias_context_recreates_the_right_step(tmp_path, raw_sweep):
     working = ensure_datatree(raw_sweep)
     original = DataProdOutput(path=tmp_path).create_context(working)
-    alias = DataProdOutput.alias("second")
-    aliased = alias(path=tmp_path).create_context(working)
+    alias = "second"
+    aliased = DataProdOutput(path=tmp_path, alias=alias).create_context(working)
     assert type(original.make_step()) is DataProdOutput
-    assert type(aliased.make_step()) is alias
+    assert type(aliased.make_step()) is DataProdOutput
     assert DataProdOutput.get_context(working) is original
-    assert alias.get_context(working) is aliased
-    DataProdOutput.set_context(working, original)
-    alias.set_context(working, aliased)
-    assert type(DataProdOutput.view(working).context.make_step()) is DataProdOutput
-    assert type(alias.view(working).context.make_step()) is alias
+    assert DataProdOutput.get_context(working, alias=alias) is aliased
+    restored = DataProdOutput.load_context(DataProdOutput.dump_context(aliased))
+    assert restored.model_dump() == aliased.model_dump()
+    assert restored.make_step().config.alias == alias
+    assert original.config.alias is None
+    assert type(DataProdOutput.get_context(working).make_step()) is DataProdOutput
+    assert (
+        type(DataProdOutput.get_context(working, alias=alias).make_step())
+        is DataProdOutput
+    )
 
 
-def test_pipeline_reducer_settings_are_fixed(raw_sweep):
-    with pytest.raises(ValidationError, match="extra_forbidden"):
-        SweepReduce(reducer={"compute_uncertainty": False})
+def test_pipeline_passes_reducer_settings(raw_sweep):
+    kids = Kids(
+        RuntimeContext(
+            {
+                "kids": {
+                    "sweep_reduce": {
+                        "compute_uncertainty": False,
+                    }
+                }
+            }
+        )
+    )
     working = ensure_datatree(raw_sweep)
-    SweepReduce()(working)
-    assert SweepReduce.view(working).unc_I is not None
-    assert SweepReduce.view(working).unc_Q is not None
+    kids.block_create(working)
+    kids.sweep_pipeline(working["blocks/0"])
+    assert SweepReduce.view(working, block=0).unc_I is None
+    assert SweepReduce.view(working, block=0).unc_Q is None
 
 
 def test_disabled_pipeline_does_not_reduce(raw_sweep, monkeypatch):
     def unexpected(*args, **kwargs):
         pytest.fail("disabled stage invoked the reducer")
 
-    monkeypatch.setattr(SweepReducer, "__call__", unexpected)
+    monkeypatch.setattr(SweepReduce, "__call__", unexpected)
     kids = Kids(RuntimeContext({"kids": {"sweep_reduce": {"enabled": False}}}))
     working = ensure_datatree(raw_sweep)
-    assert kids.sweep_pipeline(working) is working
-    assert not SweepReduce.has_context(working)
+    kids.block_create(working)
+    block = working["blocks/0"]
+    assert kids.sweep_pipeline(block) is block
+    assert not SweepReduce.has_context(block)
 
 
 def test_invalid_block_keeps_incomplete_context_without_arrays(raw_sweep, tmp_path):
@@ -231,7 +268,8 @@ def test_invalid_block_keeps_incomplete_context_without_arrays(raw_sweep, tmp_pa
     context = SweepReduce.get_context(working)
     assert not context.completed
     assert context.config.block == 1
-    assert SweepReduce.view(working).I is None
+    assert context.data is None
+    assert "sweep" not in working["blocks/0"]
     with pytest.raises(ValueError, match="not completed"):
         write_sweep_product(working, tmp_path / "failed")
     assert not (tmp_path / "failed").exists()
@@ -257,10 +295,8 @@ def test_reduction_context_is_attached_during_run(raw_sweep, monkeypatch):
     assert seen == [context]
     assert seen[0] is context
     assert context.completed
-    assert SweepReduce.get_context(working) == context
-    assert isinstance(
-        working[SweepReduce.result_path()].attrs[SweepReduce.context_key], dict
-    )
+    assert SweepReduce.get_context(working).model_dump() == context.model_dump()
+    assert working.attrs[PIPELINE_CONTEXT_KEY][SweepReduce] is context
     assert PIPELINE_CONTEXT_KEY not in raw_sweep.attrs
 
 
@@ -268,7 +304,7 @@ def test_failed_rerun_replaces_success_context_and_cannot_publish(raw_sweep, tmp
     working = ensure_datatree(raw_sweep)
     SweepReduce(block=0)(working)
     first = SweepReduce.get_context(working)
-    first_I = SweepReduce.view(working).I
+    first_I = SweepReduce.view(working, block=0).I
     assert first_I is not None
     values = first_I.data
     with pytest.raises(IndexError, match="Block 1 out of range"):
@@ -278,7 +314,7 @@ def test_failed_rerun_replaces_success_context_and_cannot_publish(raw_sweep, tmp
     assert current.config.block == 1
     assert not current.completed
     assert first.completed
-    after_failure = SweepReduce.view(working).I
+    after_failure = SweepReduce.view(working, block=0).I
     assert after_failure is not None
     assert after_failure.data is values
     with pytest.raises(ValueError, match="not completed"):
@@ -286,7 +322,7 @@ def test_failed_rerun_replaces_success_context_and_cannot_publish(raw_sweep, tmp
     assert not (tmp_path / "failed").exists()
     SweepReduce(block=0)(working)
     assert SweepReduce.get_context(working).completed
-    after_retry = SweepReduce.view(working).I
+    after_retry = SweepReduce.view(working, block=0).I
     assert after_retry is not None
     assert after_retry.data is values
 
@@ -295,25 +331,17 @@ def test_failed_alias_keeps_the_primary_result_and_context(raw_sweep):
     working = ensure_datatree(raw_sweep)
     SweepReduce()(working)
     before = SweepReduce.get_context(working)
-    result = SweepReduce.view(working).data_source.copy(deep=True)
-    alias = SweepReduce.alias("invalid_block")
+    result = SweepReduce.view(working, block=0).data_source.copy(deep=True)
+    alias = "invalid_block"
     with pytest.raises(IndexError, match="Block 1 out of range"):
-        alias(block=1)(working)
-    assert alias.has_context(working)
-    assert not alias.get_context(working).completed
+        SweepReduce(block=1, alias=alias)(working)
+    assert SweepReduce.has_context(working, alias=alias)
+    assert not SweepReduce.get_context(working, alias=alias).completed
     assert SweepReduce.get_context(working) == before
-    xr.testing.assert_identical(SweepReduce.view(working).data_source, result)
+    xr.testing.assert_identical(SweepReduce.view(working, block=0).data_source, result)
 
 
-def test_conditional_recipe_and_handler_isolation(tmp_path, raw_sweep):
-    raw_sweep = raw_sweep.assign(
-        {
-            "Header.Toltec.Filename": (
-                "/data_lmt/toltec/tcs/toltec0/"
-                "toltec0_000001_000_0000_2025_10_31_01_02_03_targsweep.nc"
-            )
-        }
-    )
+def test_conditional_recipe_and_handler_isolation(tmp_path, target_sweep_path):
     recipe = tmp_path / "10_kids.yaml"
     recipe.write_text("""
 - source: {kids: {sweep_reduce: {force: false}}}
@@ -321,18 +349,10 @@ def test_conditional_recipe_and_handler_isolation(tmp_path, raw_sweep):
   source: {kids: {sweep_reduce: {force: true}}}
 """)
     rc = RuntimeContext.from_cli(config_paths=[tmp_path])
-    info = identify_source(
-        raw_sweep, SourceInfoModel(source=str(tmp_path / "input.nc"))
-    )
-    first = Kids(
-        rc.with_config(
-            validation_context=info.model_dump(
-                mode="json",
-                context={"flat": True},
-                exclude={"filepath_info", "filepath_info_orig"},
-            )
-        )
-    )
+    guessed = get_info_from_source(target_sweep_path)
+    assert guessed is not None
+    info = next(read_info_from_sources([target_sweep_path]).itertuples(index=False))
+    first = Kids(rc.with_config(validation_context=cast("Any", info)._asdict()))
     second = Kids(
         rc.with_config(validation_context={"roach": 8, "file_suffix": "targsweep"})
     )
@@ -354,7 +374,7 @@ def test_conditional_recipe_and_handler_isolation(tmp_path, raw_sweep):
         {"sweep_reduc": {}},
         {"kids_find": {}},
         {"sweep_reduce": {"detect_blocks": False}},
-        {"sweep_reduce": {"reducer": {"compute_uncertanty": False}}},
+        {"sweep_reduce": {"compute_uncertanty": False}},
     ],
 )
 def test_unknown_config_is_rejected(config):
@@ -368,23 +388,42 @@ def test_config_roundtrip():
 
 
 def test_export_reopen_and_exclusive_destination(tmp_path, raw_sweep):
-    raw_sweep = raw_sweep.assign_coords(time=np.arange(12), chan=[8, 9])
+    raw_sweep = raw_sweep.assign_coords(time=np.arange(raw_sweep.sizes["time"]))
     working = ensure_datatree(raw_sweep)
-    Kids(RuntimeContext()).sweep_pipeline(working)
-    path = write_sweep_product(working, tmp_path / "product")
+    kids = Kids(RuntimeContext())
+    kids.block_create(working)
+    kids.sweep_pipeline(working["blocks/0"])
+    path = write_sweep_product(
+        working,
+        tmp_path / "product",
+        output_config=DataProdOutputConfig(
+            run={"name": {"generator": "counter", "value": 0, "key": "test"}}
+        ),
+    )
     with open_sweep_product(path) as reopened:
-        actual = SweepReduceView(reopened)
-        expected = SweepReduceView(working)
-        xr.testing.assert_identical(actual.data_source, expected.data_source)
-        assert actual.context == expected.context
+        actual = SweepReduce.view(reopened, block=0)
+        expected = SweepReduce.view(working, block=0)
+        expected_dataset = expected.data_source
+        xr.testing.assert_identical(actual.data_source, expected_dataset)
+        assert (
+            read_sweep_context(reopened).model_dump()
+            == SweepReduce.get_context(working["blocks/0"]).model_dump()
+        )
+        assert not SweepReduce.has_context(reopened)
         assert not reopened.dataset.data_vars
         assert "Data.Toltec.Is" not in actual.data_source
         assert "time" not in actual.data_source.dims
         signal = actual.I
         assert signal is not None
-        np.testing.assert_array_equal(signal.chan, [8, 9])
+        np.testing.assert_array_equal(signal.iqlen, [8, 9])
     with pytest.raises(FileExistsError):
-        write_sweep_product(working, path)
+        write_sweep_product(
+            working,
+            tmp_path / "product",
+            output_config=DataProdOutputConfig(
+                run={"name": {"generator": "counter", "value": 0, "key": "other"}}
+            ),
+        )
 
 
 def test_incomplete_product_rejected(tmp_path):
@@ -396,14 +435,21 @@ def test_product_has_consolidated_metadata_before_completion(tmp_path, raw_sweep
     working = ensure_datatree(raw_sweep)
     SweepReduce()(working)
     path = write_sweep_product(working, tmp_path / "product")
-    assert (path / "arrays.zarr" / ".zmetadata").is_file()
+    assert (path / "array.zarr" / ".zmetadata").is_file()
     with xr.open_datatree(
-        path / "arrays.zarr", engine="zarr", consolidated=True
+        path / "array.zarr", engine="zarr", consolidated=True
     ) as tree:
-        xr.testing.assert_identical(
-            SweepReduce.view(tree).data_source, SweepReduce.view(working).data_source
+        assert set(tree.children) == {"toltec0"}
+        assert not tree.dataset.variables
+        assert tree["toltec0"].toltec_kids.meta.uid_raw_obs_file == (
+            working.toltec_kids.meta.uid_raw_obs_file
         )
-    assert read_sweep_manifest(path).arrays == "arrays.zarr"
+        expected = SweepReduce.view(working, block=0)
+        snapshot = expected.data_source
+        xr.testing.assert_identical(
+            SweepReduce.view(tree["toltec0"], block=0).data_source, snapshot
+        )
+    assert read_product_provenance(path).inputs["toltec0"].config is None
 
 
 def test_failed_consolidation_does_not_publish_completion(
@@ -420,7 +466,7 @@ def test_failed_consolidation_does_not_publish_completion(
     path = tmp_path / "product"
     with pytest.raises(OSError, match="consolidation failure"):
         write_sweep_product(working, path)
-    assert not (path / "manifest.json").exists()
+    assert not list(path.rglob("array.zarr"))
     with pytest.raises(FileNotFoundError):
         open_sweep_product(path)
 
@@ -442,10 +488,10 @@ def test_reader_uses_consolidated_metadata_without_child_metadata_reads(
 
     monkeypatch.setattr(LocalStore, "get", record)
     with open_sweep_product(path) as tree:
-        assert SweepReduce.view(tree).context.completed
+        assert read_sweep_context(tree).completed
     assert ".zmetadata" in keys
     assert not any(
-        key.startswith(SweepReduce.result_path())
+        key.startswith("toltec0/")
         and key.endswith((".zattrs", ".zarray", ".zgroup", "zarr.json"))
         for key in keys
     )
@@ -456,13 +502,14 @@ def test_reader_uses_native_fallback_without_consolidated_metadata(tmp_path, raw
     SweepReduce()(working)
     path = write_sweep_product(working, tmp_path / "product")
     # Keep the test's original index for inspection, but make it unavailable.
-    (path / "arrays.zarr" / ".zmetadata").rename(tmp_path / "metadata.saved")
-    with (
-        pytest.warns(RuntimeWarning, match="non-consolidated metadata"),
-        open_sweep_product(path) as tree,
-    ):
+    (path / "array.zarr" / ".zmetadata").rename(tmp_path / "metadata.saved")
+    expected = SweepReduce.view(working, block=0)
+    snapshot = expected.data_source
+    with pytest.warns(RuntimeWarning, match="non-consolidated metadata"):
+        tree = open_sweep_product(path)
+    with tree:
         xr.testing.assert_identical(
-            SweepReduce.view(tree).data_source, SweepReduce.view(working).data_source
+            SweepReduce.view(tree, block=0).data_source, snapshot
         )
 
 
@@ -474,19 +521,27 @@ def test_export_excludes_live_context_without_mutating_working_tree(
     NoOp()(working)
     live_context = NoOp.get_context(working)
     SweepReduce()(working)
-    reduced = SweepReduce.view(working).data_source
-    live_store = reduced.attrs[PIPELINE_CONTEXT_KEY]
-    assert live_store is working.attrs[PIPELINE_CONTEXT_KEY]
+    reduced = SweepReduce.view(working, block=0).data_source
+    live_store = working.attrs[PIPELINE_CONTEXT_KEY]
+    assert PIPELINE_CONTEXT_KEY not in reduced.attrs
     expected = reduced.copy(deep=False)
-    expected.attrs.pop(PIPELINE_CONTEXT_KEY)
+    context = SweepReduce.get_context(working)
     path = write_sweep_product(working, tmp_path / "product")
     with open_sweep_product(path) as reopened:
-        saved = SweepReduce.view(reopened)
+        saved = SweepReduce.view(reopened, block=0)
         xr.testing.assert_identical(saved.data_source, expected)
-        assert saved.context.completed
-        assert saved.data_source.attrs["user_label"] == "interactive test"
+        serialized = reopened["tolteca_kids"].attrs[SweepReduce.context_key]
+        assert isinstance(serialized, str)
+        assert "step_cls" not in json.loads(serialized)
+        restored = read_sweep_context(reopened)
+        assert restored.model_dump() == context.model_dump()
+        assert restored.completed
+        assert restored.data is None
+        assert context.data is not None
+        assert not SweepReduce.has_context(reopened)
+        assert reopened.attrs["user_label"] == "interactive test"
         assert PIPELINE_CONTEXT_KEY not in saved.data_source.attrs
-    assert reduced.attrs[PIPELINE_CONTEXT_KEY] is live_store
+    assert SweepReduce.context_key not in reduced.attrs
     assert working.attrs[PIPELINE_CONTEXT_KEY] is live_store
     assert NoOp.get_context(working) is live_context
     assert PIPELINE_CONTEXT_KEY not in raw_sweep.attrs
@@ -499,13 +554,13 @@ def test_export_does_not_silently_discard_unknown_opaque_metadata(tmp_path, raw_
     path = tmp_path / "product"
     with pytest.raises(TypeError, match="Invalid attribute"):
         write_sweep_product(working, path)
-    assert not (path / "manifest.json").exists()
-    assert "unsupported_resource" in SweepReduce.view(working).data_source.attrs
+    assert not list(path.rglob("array.zarr"))
+    assert "unsupported_resource" in working.attrs
 
 
-def test_manifest_and_effective_config_replay(tmp_path, target_sweep_path):
+def test_resolved_workflow_config_replay(tmp_path, target_sweep_path, monkeypatch):
     source = target_sweep_path
-    info = build_input_catalog([source]).toltec_file.to_info_list()[0]
+    info = next(iter(read_info_from_sources([source]).itertuples(index=False)))
     runtime = RuntimeContext(
         [
             {
@@ -514,7 +569,7 @@ def test_manifest_and_effective_config_replay(tmp_path, target_sweep_path):
                         "output": {
                             "enabled": True,
                             "path": str(tmp_path),
-                            "name": "first",
+                            "namespace": "first",
                         }
                     }
                 }
@@ -525,34 +580,55 @@ def test_manifest_and_effective_config_replay(tmp_path, target_sweep_path):
             },
         ]
     )
-    path = run_source(info, runtime)
+    path = run_source(cast("str", info.source), runtime)
     assert path is not None
-    manifest = read_sweep_manifest(path)
-    assert manifest.input == info
-    assert manifest.config is not None
-    assert manifest.config.sweep_reduce.block == 0
-    offset = manifest.time_created.utcoffset()
+    provenance = read_product_provenance(path).inputs["toltec0"]
+    assert provenance.uid_raw_obs_file == info.uid_raw_obs_file
+    assert provenance.source is not None
+    assert provenance.source.path == target_sweep_path
+    assert provenance.config is not None
+    assert provenance.config.sweep_reduce.block == 0
+    index = DataProdIndex.read(path)
+    # Immutable product index is a publication-time snapshot. Completion is
+    # recorded on the namespace invocation after all output publications finish.
+    from tolteca_datamodels.data_prod_store import DataProdStore
+
+    completed = (
+        DataProdStore(tmp_path, namespace="first").read_namespace().runs[index.run.uid]
+    )
+    assert completed.status == "completed"
+    offset = completed.time_completed.utcoffset()
     assert offset is not None
     assert offset.total_seconds() == 0
-    payload = json.loads((path / "manifest.json").read_text())
-    assert isinstance(payload["input"]["source"], dict)
-    assert isinstance(payload["input"]["data_kind"], int)
-    assert "file_suffix" not in payload["input"]
-    assert "filepath_info_orig" not in payload["input"]
+    payload = index.provenance["inputs"]["toltec0"]
+    assert isinstance(payload["source"], dict)
+    assert "input" not in payload
+    assert "data_kind" not in payload
+    assert payload["config"]["sweep_reduce"]["compute_uncertainty"] is True
     snapshot = tmp_path / "replay.yaml"
     snapshot.write_text(
         json.dumps(
             Kids.prepare_runtime_config_data(
-                manifest.config.model_dump(mode="json", round_trip=True)
+                provenance.config.model_dump(mode="json", round_trip=True)
             )
         )
     )
+
+    class LaterSweepConfig(SweepReduceConfig):
+        compute_uncertainty: bool = False
+
+    class LaterKidsConfig(KidsConfig):
+        sweep_reduce: LaterSweepConfig = Field(default_factory=LaterSweepConfig)
+
+    monkeypatch.setattr(Kids, "config_model_cls", LaterKidsConfig)
+    assert not Kids(RuntimeContext()).config.sweep_reduce.compute_uncertainty
+
     result = CliRunner().invoke(
         app,
         [
             "--config_paths",
             str(snapshot),
-            "--kids.output.name",
+            "--kids.output.namespace",
             "replayed",
             "--",
             str(source),
@@ -561,54 +637,50 @@ def test_manifest_and_effective_config_replay(tmp_path, target_sweep_path):
     assert result.exit_code == 0, result.exception
     with (
         open_sweep_product(path) as first,
-        open_sweep_product(tmp_path / "replayed") as replayed,
+        open_sweep_product(
+            tmp_path / "replayed/145606-0-1/dp_raw_obs_proc"
+        ) as replayed,
     ):
         xr.testing.assert_identical(
-            SweepReduce.view(first).data_source,
-            SweepReduce.view(replayed).data_source,
+            SweepReduce.view(first, block=0).data_source,
+            SweepReduce.view(replayed, block=0).data_source,
         )
 
 
-@pytest.mark.parametrize(
-    ("key", "value"), [("format", "unknown"), ("arrays", "../outside.zarr")]
-)
-def test_invalid_manifest_rejected_before_array_open(
-    tmp_path, raw_sweep, monkeypatch, key, value
+@pytest.mark.parametrize("missing", [False, True])
+def test_invalid_provenance_rejected_before_array_open(
+    tmp_path, raw_sweep, monkeypatch, missing
 ):
     working = ensure_datatree(raw_sweep)
     SweepReduce()(working)
     path = write_sweep_product(working, tmp_path / "product")
-    manifest = path / "manifest.json"
-    payload = json.loads(manifest.read_text())
-    payload[key] = value
-    manifest.write_text(json.dumps(payload))
+    index = DataProdIndex.read(path)
+    provenance = None if missing else dict(index.provenance, format="unknown")
+    index.model_copy(update={"provenance": provenance}).write(path, overwrite=True)
 
     def unexpected(*args, **kwargs):
-        pytest.fail("invalid manifest attempted to open arrays")
+        pytest.fail("invalid provenance attempted to open arrays")
 
     monkeypatch.setattr(xr, "open_datatree", unexpected)
     with pytest.raises(ValidationError):
         open_sweep_product(path)
 
 
-def test_manifest_config_must_match_saved_context(tmp_path, target_sweep_path):
-    source = target_sweep_path
-    info = build_input_catalog([source]).toltec_file.to_info_list()[0]
-    runtime = RuntimeContext(
-        {
-            "kids": {
-                "output": {"enabled": True, "path": str(tmp_path), "name": "product"}
-            }
-        }
-    )
-    path = run_source(info, runtime)
-    assert path is not None
-    manifest = path / "manifest.json"
-    payload = json.loads(manifest.read_text())
-    payload["config"]["sweep_reduce"]["block"] = 0
-    manifest.write_text(json.dumps(payload))
-    with pytest.raises(ValueError, match="configuration disagree"):
-        open_sweep_product(path)
+def test_workflow_and_later_step_settings_have_separate_snapshots(
+    tmp_path, target_sweep_path
+):
+    from tolteca_kids.runner import run_data
+
+    with xr.open_dataset(target_sweep_path) as raw:
+        working = run_data(raw, target_sweep_path, RuntimeContext())
+        SweepReduce(compute_uncertainty=False, force=True)(working)
+        path = write_sweep_product(working, tmp_path)
+    request = read_product_provenance(path).inputs["toltec0"].config
+    assert request.sweep_reduce.compute_uncertainty
+    with open_sweep_product(path) as saved:
+        context = read_sweep_context(saved)
+        assert not context.config.compute_uncertainty
+        assert SweepReduce.view(saved, block=context.block).unc_I is None
 
 
 @pytest.mark.parametrize("unit", [None, "adu", "V"])
@@ -620,7 +692,7 @@ def test_preserve_signal_units(tmp_path, raw_sweep, unit):
     SweepReduce()(working)
     path = write_sweep_product(working, tmp_path / "product")
     with open_sweep_product(path) as reopened:
-        view = SweepReduce.view(reopened)
+        view = SweepReduce.view(reopened, block=0)
         for name in ("I", "Q", "unc_I", "unc_Q"):
             array = getattr(view, name)
             assert array.u.unit_str == unit
@@ -639,7 +711,7 @@ def test_cli_config_and_reduction(tmp_path, target_sweep_path, monkeypatch):
         def unexpected(*args, **kwargs):
             pytest.fail("--show_config invoked reduction")
 
-        patch.setattr(SweepReducer, "__call__", unexpected)
+        patch.setattr(SweepReduce, "__call__", unexpected)
         result = runner.invoke(
             app,
             [
@@ -663,8 +735,8 @@ def test_cli_config_and_reduction(tmp_path, target_sweep_path, monkeypatch):
         ],
     )
     assert result.exit_code == 0, result.exception
-    with open_sweep_product(product / "source") as tree:
-        assert SweepReduce.get_context(tree).completed
+    with open_sweep_product(product / "scratch/145606-0-1/dp_raw_obs_proc") as tree:
+        assert read_sweep_context(tree).completed
     result = runner.invoke(
         app,
         [
@@ -675,37 +747,52 @@ def test_cli_config_and_reduction(tmp_path, target_sweep_path, monkeypatch):
             str(product),
         ],
     )
-    assert result.exit_code != 0
+    assert result.exit_code == 0, result.exception
+    indexes = list(
+        (product / "scratch/145606-0-1/dp_raw_obs_proc").glob("*/index.yaml")
+    )
+    assert len(indexes) == 2
 
 
-def test_prepare_does_not_read_signal(tmp_path, raw_sweep):
+def test_prepare_does_not_read_signal(target_sweep_path):
     import dask.array as da
     from dask import delayed
+
+    raw_sweep = xr.load_dataset(target_sweep_path)
 
     @delayed
     def unexpected():
         pytest.fail("metadata preparation read I/Q arrays")
 
     raw_sweep["Data.Toltec.Is"].data = da.from_delayed(
-        unexpected(), shape=(12, 2), dtype=float
+        unexpected(), shape=raw_sweep["Data.Toltec.Is"].shape, dtype=float
     )
     raw_sweep["Data.Toltec.Qs"].data = da.from_delayed(
-        unexpected(), shape=(12, 2), dtype=float
+        unexpected(), shape=raw_sweep["Data.Toltec.Qs"].shape, dtype=float
     )
-    info = identify_source(
-        raw_sweep, SourceInfoModel(source=str(tmp_path / "source.nc"))
-    )
+    table = guess_info_from_sources([target_sweep_path])
+    with table.toltec_file.open(io_objs=[raw_sweep]) as opened:
+        info = next(opened.drop(columns=["io_obj"]).itertuples(index=False))
     kids = Kids(
-        RuntimeContext().with_config(
-            validation_context=info.model_dump(
-                mode="json",
-                context={"flat": True},
-                exclude={"filepath_info", "filepath_info_orig"},
-            )
-        )
+        RuntimeContext().with_config(validation_context=cast("Any", info)._asdict())
     )
     assert info.roach == 0
     assert kids.config.sweep_reduce.enabled
+
+
+def test_pipeline_output_config_does_not_create_products(tmp_path):
+    products = tmp_path / "products"
+    runtime = RuntimeContext({"kids": {"output": {"path": str(products)}}})
+    kids = Kids(runtime)
+    assert kids.config.output.path == products
+    assert kids.config.output.enabled is False
+    assert not products.exists()
+
+
+@pytest.mark.parametrize("name", ["data_lmt_path", "dataprod_toltec_path", "select"])
+def test_kids_config_does_not_accept_file_access_settings(name):
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        KidsConfig.model_validate({name: "unused"})
 
 
 def test_cli_product_root_is_used_by_enabled_output(tmp_path, target_sweep_path):
@@ -724,16 +811,16 @@ def test_cli_product_root_is_used_by_enabled_output(tmp_path, target_sweep_path)
         ],
     )
     assert result.exit_code == 0, result.exception
-    with open_sweep_product(products / "source") as tree:
-        assert SweepReduce.get_context(tree).completed
+    with open_sweep_product(products / "scratch/145606-0-1/dp_raw_obs_proc") as tree:
+        assert read_sweep_context(tree).completed
 
 
-def test_create_kids_defaults_and_input_context_are_isolated(tmp_path):
-    shared = tmp_path / "shared"
+def test_create_kids_output_settings_and_input_context_are_isolated(tmp_path):
+    base = tmp_path / "base"
     conditional = tmp_path / "conditional"
     runtime = RuntimeContext(
         [
-            {"source": {"files": {"dataprod_toltec_path": str(shared)}}},
+            {"source": {"kids": {"output": {"path": str(base)}}}},
             {
                 "enable_if": "roach == 7",
                 "source": {"kids": {"output": {"path": str(conditional)}}},
@@ -742,62 +829,77 @@ def test_create_kids_defaults_and_input_context_are_isolated(tmp_path):
     )
     first = create_kids(runtime, context_input={"roach": 0})
     second = create_kids(runtime, context_input={"roach": 7})
-    assert first.config.output.path == shared
+    assert first.config.output.path == base
     assert second.config.output.path == conditional
-    assert first.config.output.path == shared
-    assert "kids" not in runtime.config_dict
+    assert first.config.output.path == base
+    assert runtime.config_dict["kids"] == {"output": {"path": str(base)}}
     assert "roach" not in runtime.runtime_info.validation_context
-    assert not shared.exists()
+    assert not base.exists()
     assert not conditional.exists()
 
 
-def test_python_runner_uses_shared_product_root(tmp_path, target_sweep_path):
+def test_python_runner_uses_pipeline_output_path(tmp_path, target_sweep_path):
     source = tmp_path / "source.nc"
     source.symlink_to(target_sweep_path)
     products = tmp_path / "products"
-    info = build_input_catalog([source]).toltec_file.to_info_list()[0]
+    info = next(iter(read_info_from_sources([source]).itertuples(index=False)))
     runtime = RuntimeContext(
         {
-            "files": {"dataprod_toltec_path": str(products)},
-            "kids": {"output": {"enabled": True}},
+            "kids": {"output": {"enabled": True, "path": str(products)}},
         }
     )
-    assert run_source(info, runtime) == products / "source"
-    assert runtime.config_dict["kids"] == {"output": {"enabled": True}}
-    with open_sweep_product(products / "source") as tree:
-        assert SweepReduce.get_context(tree).completed
+    assert (
+        run_source(cast("str", info.source), runtime).parent
+        == products / "scratch/145606-0-1/dp_raw_obs_proc"
+    )
+    assert runtime.config_dict["kids"] == {
+        "output": {"enabled": True, "path": str(products)}
+    }
+    with open_sweep_product(products / "scratch/145606-0-1/dp_raw_obs_proc") as tree:
+        assert read_sweep_context(tree).completed
 
 
 @pytest.mark.parametrize("suffix", ["targsweep", "vnasweep", "tune"])
 def test_reference_file_through_runner(data_lmt_path, tmp_path, suffix):
     paths = sorted(
-        (data_lmt_path / "toltec" / "tcs" / "toltec0").glob(f"*_{suffix}.nc")
+        (data_lmt_path / "toltec" / "tcs" / "toltec0").glob(f"*1456*_{suffix}.nc")
     )
     if not paths:
         pytest.skip(f"No {suffix} fixture")
     source = paths[0]
-    info = build_input_catalog([source]).toltec_file.to_info_list()[0]
+    info = next(iter(read_info_from_sources([source]).itertuples(index=False)))
     runtime = RuntimeContext(
         {
             "kids": {
-                "output": {"enabled": True, "path": str(tmp_path), "name": "product"}
+                "output": {
+                    "enabled": True,
+                    "path": str(tmp_path),
+                    "namespace": "product",
+                }
             }
         }
     )
-    path = run_source(info, runtime)
+    path = run_source(cast("str", info.source), runtime)
     assert path is not None
     with open_sweep_product(path) as reopened, xr.open_dataset(source) as raw:
-        actual = SweepReduceView(reopened)
-        expected = SweepReducer()(raw).toltec_kids.sweep
-        xr.testing.assert_identical(actual.I, expected.I)
-        xr.testing.assert_identical(actual.unc_I, expected.unc_I)
-        assert actual.context.block_index == expected.n_blocks - 1
+        expected = apply_step(SweepReduce(), raw).toltec_kids.blocks
+        assert reopened.toltec_kids.blocks.n_blocks == expected.n_blocks
+        for block in reopened.toltec_kids.blocks:
+            actual = SweepReduce.view(reopened, block=block.meta.block)
+            reference = expected[block.meta.block].sweep
+            for name in ("I", "Q", "unc_I", "unc_Q", "frequency"):
+                np.testing.assert_array_equal(
+                    getattr(actual, name), getattr(reference, name)
+                )
+        assert read_sweep_context(reopened).block == expected.n_blocks - 1
 
 
-def test_output_step_and_metadata_view(tmp_path, raw_sweep, monkeypatch):
+def test_output_step_and_metadata_view(tmp_path, target_sweep_path, monkeypatch):
     from tolteca_kids import dataprod_output
 
-    info = identify_source(raw_sweep, SourceInfoModel(source="source.nc"))
+    raw_sweep = xr.load_dataset(target_sweep_path)
+    table = read_info_from_sources([target_sweep_path]).assign(test_label="run")
+    info = next(table.itertuples(index=False))
     kids = Kids(
         RuntimeContext(
             {
@@ -805,7 +907,7 @@ def test_output_step_and_metadata_view(tmp_path, raw_sweep, monkeypatch):
                     "output": {
                         "enabled": True,
                         "path": str(tmp_path),
-                        "name": "{obsnum:06d}-{roach}",
+                        "namespace": "ql",
                     }
                 }
             }
@@ -813,79 +915,83 @@ def test_output_step_and_metadata_view(tmp_path, raw_sweep, monkeypatch):
     )
     working = ensure_datatree(raw_sweep)
     working["tolteca_kids"] = xr.DataTree()
-    working["tolteca_kids"].attrs["input"] = info.model_dump(
-        mode="json",
-        round_trip=True,
+    working["tolteca_kids"].attrs["source"] = info.source
+    # Product placement follows acquisition metadata, not arbitrary row columns.
+    working["tolteca_kids"].attrs["input_row"] = dict(
+        cast("Any", info)._asdict(), obsnum=999
     )
     seen = []
 
     def inspect(data, *args, **kwargs):
         context = DataProdOutput.get_context(data)
         assert not context.completed
-        assert context.product_path is None
+        assert context.data is None
         seen.append(context)
-        return write_sweep_product(data, *args, **kwargs)
+        from tolteca_kids.product import write_kids_product
 
-    monkeypatch.setattr(dataprod_output, "write_sweep_product", inspect)
-    kids.sweep_pipeline(working)
-    context = DataProdOutput.view(working).context
+        return write_kids_product(data, *args, **kwargs)
+
+    monkeypatch.setattr(dataprod_output, "write_kids_product", inspect)
+    kids.block_create(working)
+    kids.sweep_pipeline(working["blocks/0"])
+    kids.output(working)
+    context = DataProdOutput.get_context(working)
     assert context.completed
-    assert context.product_path is not None
-    assert context.product_path == tmp_path / "000001-0"
+    assert context.data is not None
+    assert context.data.parent == tmp_path / "ql/145606-0-1/dp_raw_obs_proc"
     assert context.config == kids.config.output
     assert seen == [context]
     assert seen[0].completed
-    manifest = read_sweep_manifest(context.product_path)
-    assert manifest.config == kids.config
-    assert manifest.input == info
+    provenance = read_product_provenance(context.data).inputs["toltec0"]
+    assert provenance.config == kids.config
+    assert provenance.uid_raw_obs_file == info.uid_raw_obs_file
+    assert provenance.source is not None
+    assert provenance.source.path == target_sweep_path
+    assert "input_row" not in provenance.model_dump()
     assert "tolteca_kids" not in raw_sweep
     assert PIPELINE_CONTEXT_KEY not in raw_sweep.attrs
-    with pytest.raises(FileExistsError):
-        kids.output(working)
-    failed = DataProdOutput.get_context(working)
-    assert not failed.completed
-    assert failed.product_path is None
+    kids.output(working)
+    repeated = DataProdOutput.get_context(working)
+    assert repeated.completed
+    assert repeated.data != context.data
     assert context.completed
-    assert read_sweep_manifest(context.product_path) == manifest
+    assert read_product_provenance(context.data).inputs["toltec0"] == provenance
 
 
 def test_output_missing_input_keeps_incomplete_context(tmp_path):
     working = xr.DataTree()
-    with pytest.raises(KeyError):
-        DataProdOutput(path=tmp_path)(working)
+    DataProdOutput(path=tmp_path)(working)
     assert DataProdOutput.has_context(working)
     context = DataProdOutput.get_context(working)
     assert not context.completed
-    assert context.product_path is None
+    assert context.data is None
+    assert context.failures[0].kind == "missing_input"
     assert list(tmp_path.iterdir()) == []
 
 
 def test_output_disabled_and_standalone(tmp_path, target_sweep_path):
     source = tmp_path / "source.nc"
     source.symlink_to(target_sweep_path)
-    info = build_input_catalog([source]).toltec_file.to_info_list()[0]
-    assert run_source(info, RuntimeContext()) is None
+    info = next(iter(read_info_from_sources([source]).itertuples(index=False)))
+    assert run_source(cast("str", info.source), RuntimeContext()) is None
     assert list(tmp_path.iterdir()) == [source]
     with xr.open_dataset(source) as raw:
         working = ensure_datatree(raw)
         SweepReduce()(working)
         working["tolteca_kids"] = xr.DataTree()
-        working["tolteca_kids"].attrs["input"] = info.model_dump(
-            mode="json",
-            round_trip=True,
-        )
-        step = DataProdOutput(path=tmp_path, name="standalone")
+        working["tolteca_kids"].attrs["source"] = info.source
+        step = DataProdOutput(path=tmp_path, namespace="standalone")
         _, context = step(working, return_context=True)
     assert context.completed
-    assert context.product_path == tmp_path / "standalone"
+    assert context.data.parent == tmp_path / "standalone/145606-0-1/dp_raw_obs_proc"
 
 
 def test_cli_multiple_inputs_with_per_input_config(tmp_path, data_lmt_path):
-    sources = sorted((data_lmt_path / "toltec/tcs/toltec0").glob("*sweep.nc"))
+    sources = sorted((data_lmt_path / "toltec/tcs/toltec0").glob("*1456*sweep.nc"))
     assert len(sources) == 2
     config = tmp_path / "recipe.yaml"
     config.write_text("""
-- source: {kids: {output: {name: '{stem}'}}}
+- source: {kids: {output: {namespace: scratch}}}
 - enable_if: obsnum == 145606 & atten_drive == 7.25
   source: {kids: {sweep_reduce: {force: true}}}
 """)
@@ -903,12 +1009,12 @@ def test_cli_multiple_inputs_with_per_input_config(tmp_path, data_lmt_path):
         ],
     )
     assert result.exit_code == 0, result.exception
-    products = sorted(output.iterdir())
+    products = sorted((output / "scratch").glob("*/dp_raw_obs_proc"))
     assert len(products) == 2
     for obsnum, product in zip((145605, 145606), products, strict=True):
         with open_sweep_product(product) as tree:
-            view = SweepReduce.view(tree)
-            assert view.context.config.force == (obsnum == 145606)
+            view = SweepReduce.view(tree, block=0)
+            assert read_sweep_context(tree).config.force == (obsnum == 145606)
             assert view.unc_I is not None
             assert view.unc_Q is not None
 
@@ -933,11 +1039,10 @@ def test_cli_explicit_disabled_output_overrides_shorthand(tmp_path, target_sweep
     assert not output.exists()
 
 
-@pytest.mark.parametrize("name", ["../escape", "/absolute", "", ".."])
-def test_output_name_cannot_escape_root(tmp_path, raw_sweep, name):
-    working = ensure_datatree(raw_sweep)
-    working["tolteca_kids"] = xr.DataTree()
-    working["tolteca_kids"].attrs["input"] = {"source": "source.nc"}
-    with pytest.raises(ValueError, match="single directory component"):
-        DataProdOutput(path=tmp_path, name=name)(working)
+@pytest.mark.parametrize("field", ["namespace", "tag"])
+@pytest.mark.parametrize("value", ["../escape", "/absolute", "", ".."])
+def test_output_components_cannot_escape_root(tmp_path, field, value):
+    message = "relative path" if field == "namespace" else "one path component"
+    with pytest.raises(ValueError, match=message):
+        DataProdOutput(path=tmp_path, **{field: value})
     assert list(tmp_path.iterdir()) == []

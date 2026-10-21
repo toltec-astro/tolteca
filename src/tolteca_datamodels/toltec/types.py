@@ -9,14 +9,22 @@ import astropy.units as u
 from pydantic import Field
 from tollan.utils.typing import get_literal_value, get_literal_values
 
-from ..lmt.types import LmtInfo
+from ..core.types import DataModelInfo
+from ..lmt.types import LmtDataModel, LmtInfo
 from ..lmt_base.metadata import InterfaceInfoMixin
 from .toltec_db import ToltecDBRawObsMasterCode, ToltecDBRawObsTypeCode
 
 __all__ = [
     "ToltecDataKind",
+    "ToltecDataModel",
     "ToltecInfo",
 ]
+
+
+class ToltecDataModel(DataModelInfo):
+    """TolTEC data-model information, including telescope companions."""
+
+    name = "toltec"
 
 
 class ToltecDataKind(Flag):
@@ -132,9 +140,6 @@ class ToltecInfo:
 
     type InstruT = Literal["toltec"]
     instru: ClassVar[InstruT] = get_literal_value(InstruT)
-    type DataModelT = Literal["toltec"]
-    data_model: ClassVar[DataModelT] = get_literal_value(DataModelT)
-    """Data-model name for membership and handler selection."""
     type MasterT = Literal["tcs", "ics", "clip"]
     type ObsTypeT = Literal["nominal", "timestream", "vna", "targ", "tune"]
     type ObsTypeCodeT = Annotated[
@@ -186,28 +191,28 @@ class ToltecInfo:
     # TolTEC readouts, auxiliary streams, and companion telescope data.
     interface_interface_info: ClassVar[dict[str, InterfaceInfoMixin]] = {
         **_make_roach_interface_info(
-            roach_interfaces, instru=instru, data_model=data_model
+            roach_interfaces, instru=instru, data_model=ToltecDataModel.name
         ),
         "hwpr": InterfaceInfoMixin(
             interface="hwpr",
             instru=instru,
-            data_models=[data_model],
+            data_models=[ToltecDataModel.name],
             interface_kind="hwpr",
         ),
         "wyatt": InterfaceInfoMixin(
             interface="wyatt",
             instru=instru,
-            data_models=[data_model],
+            data_models=[ToltecDataModel.name],
             interface_kind="wyatt",
         ),
         "toltec_hk": InterfaceInfoMixin(
             interface="toltec_hk",
             instru=instru,
-            data_models=[data_model],
+            data_models=[ToltecDataModel.name],
             interface_kind="toltec_hk",
         ),
         "tel": LmtInfo.interface_interface_info["tel"].model_copy(
-            update={"data_models": [LmtInfo.data_model, data_model]}
+            update={"data_models": [LmtDataModel.name, ToltecDataModel.name]}
         ),
     }
     interfaces: ClassVar = list(interface_interface_info)

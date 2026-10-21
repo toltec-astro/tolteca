@@ -1,0 +1,37 @@
+{
+  "before": {
+    "fit": "/Users/ma/Codes/toltec/dev_toltec/python/run/drive-fit-steps-20261020/parity/products/scratch/ics-17068-0-0/ics-17068-0-0_drive_fit_ecd415f6f2cc3ed79cb9e90a13166d6e3f41cfef76b67d1662f140743ad82965/54eff608-4f2a-4c6a-b3ce-67f5724f2e8a/index.yaml",
+    "commit": "/Users/ma/Codes/toltec/dev_toltec/python/run/drive-fit-steps-20261020/commit-parity-current/products/scratch/ics-17068-30-0/ics-17068-30-0_drive_fit_commit/3976e951-63c2-4721-b431-bd714b368225/index.yaml"
+  },
+  "after": {
+    "fit": "/Users/ma/Codes/toltec/dev_toltec/python/run/drive-fit-normalization-20261021/calibration/products/scratch/ics-17068-0-0/ics-17068-0-0_drive_fit_ecd415f6f2cc3ed79cb9e90a13166d6e3f41cfef76b67d1662f140743ad82965/fbc19b1f-9474-4d90-8816-f0db94846662",
+    "commit": "/Users/ma/Codes/toltec/dev_toltec/python/run/drive-fit-normalization-20261021/calibration/products/scratch/ics-17068-30-0/ics-17068-30-0_drive_fit_commit/f0c6d2f5-bce3-4f4a-a2bc-c11ee8234518"
+  },
+  "networks": [
+    {
+      "network": 0,
+      "channels": 685,
+      "accepted": 483,
+      "filled": 202,
+      "percentile_limited": 49,
+      "fit_arrays_exact": true,
+      "matching_policy_exact": true,
+      "old_attenuation_db": 13.75,
+      "exact_attenuation_db": 13.636541480144714,
+      "new_attenuation_db": 13.5,
+      "old_model_error_db": -0.11345851985527844,
+      "new_model_error_db": 0.13654148014471446,
+      "max_amplitude_change": 0.004585293671422519,
+      "max_emitted_amplitude_change": 2.220446049250313e-16,
+      "reference_bins": 654,
+      "target_bins": 654,
+      "reference_phase_headers": 0,
+      "target_phase_header": false,
+      "waveform_error_before_db": null,
+      "waveform_error_after_db": null
+    }
+  ],
+  "power_source": "/Users/ma/Codes/toltec/toltec_astro/tolteca/src/tolteca_kids/roach_tone_power.py",
+  "power_source_sha256": "605d1bf054fc0b497a92b44c1e540ad068557e3593ade2c2a2eae323b1fd51e1",
+  "waveform_assumption": "Output retains the target sweep's recorded phases and masks; calculated prediction, not a measured post-commit sweep."
+}

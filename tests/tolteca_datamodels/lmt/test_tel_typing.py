@@ -15,27 +15,17 @@ if TYPE_CHECKING:
         LmtTelAccessor,
         LmtTelDataset,
         LmtTelDataTree,
-        identify_lmt_tel,
         open_lmt_tel,
     )
     from tolteca_datamodels.lmt.metadata import LmtTelMetadata
 
     def _check_telescope_types(
-        source: str | Path | FileLoc, tree: LmtTelDataTree, *, strict: bool
+        source: str | Path | FileLoc, tree: LmtTelDataTree
     ) -> None:
         dataset = open_lmt_tel(source=source)
         assert_type(dataset, LmtTelDataset)
         assert_type(dataset.lmt_tel, LmtTelAccessor)
         assert_type(dataset.lmt_tel.meta, LmtTelMetadata)
-        assert_type(identify_lmt_tel(dataset), LmtTelAccessor | None)
-        assert_type(
-            identify_lmt_tel(dataset, raise_on_error=False), LmtTelAccessor | None
-        )
-        assert_type(identify_lmt_tel(dataset, raise_on_error=True), LmtTelAccessor)
-        assert_type(
-            identify_lmt_tel(dataset, raise_on_error=strict), LmtTelAccessor | None
-        )
-        assert_type(dataset.lmt_tel.read_metadata(), LmtTelMetadata)
         with dataset as opened:
             assert_type(opened, LmtTelDataset)
             assert_type(opened.lmt_tel, LmtTelAccessor)

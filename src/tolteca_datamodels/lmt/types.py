@@ -8,15 +8,23 @@ from typing import ClassVar, Literal, Self, cast
 import astropy.units as u
 from tollan.utils.typing import get_literal_value
 
+from ..core.types import DataModelInfo
 from ..lmt_base.metadata import InterfaceInfoMixin
 
 __all__ = [
+    "LmtDataModel",
     "LmtInfo",
     "LmtInterfaceInfo",
     "LmtObsGoal",
     "LmtObsPgm",
     "LmtRawObsMasterCode",
 ]
+
+
+class LmtDataModel(DataModelInfo):
+    """LMT telescope data-model information."""
+
+    name = "lmt"
 
 
 class LmtInterfaceInfo(InterfaceInfoMixin):
@@ -49,12 +57,9 @@ class LmtInfo:
     """LMT telescope information, site constants, and readout interfaces."""
 
     type InstruT = Literal["lmt"]
-    type DataModelT = Literal["lmt"]
     type MasterT = Literal["tcs"]
 
     instru: ClassVar[InstruT] = get_literal_value(InstruT)
-    data_model: ClassVar[DataModelT] = get_literal_value(DataModelT)
-    """Data-model name for membership and handler selection."""
     name: ClassVar = "LMT"
     name_long: ClassVar = "Large Millimeter Telescope"
 
@@ -84,7 +89,7 @@ class LmtInfo:
         "tel": LmtInterfaceInfo(
             interface="tel",
             instru=instru,
-            data_models=[data_model],
+            data_models=[LmtDataModel.name],
             interface_kind="tel",
         ),
     }
@@ -98,6 +103,7 @@ class LmtObsPgm(StrEnum):
     targsweep = auto()
     tune = auto()
     lissajous = auto()
+    map = auto()
 
 
 class LmtObsGoal(StrEnum):

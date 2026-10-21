@@ -1,0 +1,22 @@
+input_discovery:
+  inputs:
+  - sources:
+    - glob: /Users/ma/Codes/toltec/dev_toltec/python/toltec_astro_dev/run/data_lmt/toltec/tcs/toltec0/toltec0_145484_*_targsweep.nc
+    - glob: /Users/ma/Codes/toltec/dev_toltec/python/toltec_astro_dev/run/data_lmt/toltec/tcs/toltec7/toltec7_145484_*_targsweep.nc
+    - glob: /Users/ma/Codes/toltec/dev_toltec/python/toltec_astro_dev/run/data_lmt/toltec/tcs/toltec11/toltec11_145484_*_targsweep.nc
+drive_fit:
+  select: null
+  fit:
+    channels: null
+    n_adrvs_min: 5
+    weight_window_Qr: 12000.0
+    a_ref: 0.2
+  plot:
+    enabled: true
+  output:
+    enabled: true
+    path: /Users/ma/Codes/toltec/dev_toltec/python/run/drive-fit-normalization-20261021/dataprod_toltec
+    namespace: scratch
+    run:
+      name: drive-fit-145484-normalization
+    registration: false

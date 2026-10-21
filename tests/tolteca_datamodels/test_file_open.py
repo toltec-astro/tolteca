@@ -2,33 +2,68 @@
 
 from dataclasses import dataclass
 from io import StringIO, TextIOBase
+from types import SimpleNamespace
 from typing import ClassVar
 
 import pandas as pd
 import pytest
+from tollan.accessor.pandas.model_table import ModelColumn
 from tollan.utils.fileloc import fileloc
 
+from tests.source_helpers import patch_metadata_read
+from tolteca_datamodels.core.file import source_trace_issues
+from tolteca_datamodels.core.obs_spec import FieldConstraint, ObsSpecBase, Selector
+from tolteca_datamodels.core.source import (
+    SourceOpener,
+    SourceReaderRules,
+)
+from tolteca_datamodels.core.source.opener import _local_path
+from tolteca_datamodels.core.types import DataModelInfo
 from tolteca_datamodels.file import FileAccessor
-from tolteca_datamodels.obs_spec import FieldConstraint, ObsSpecBase, Selector
+
+
+class _TextDataModel(DataModelInfo):
+    name = "text"
+
+
+class _UnconfiguredDataModel(DataModelInfo):
+    name = "unconfigured"
+
+
+class _ChannelDataModel(DataModelInfo):
+    name = "channel"
 
 
 @pytest.fixture
-def text_files(tmp_path):
+def text_files(tmp_path, monkeypatch):
     path = tmp_path / "observation.txt"
     path.write_text("observation\n")
     owned = []
 
-    def open_text(path):
-        resource = path.open()
+    def open_text(source):
+        resource = _local_path(source).open()
         owned.append(resource)
         return resource
 
-    class TextFiles(FileAccessor):
-        _io_obj_types = (TextIOBase,)
-        _source_opener = open_text
+    class TextReader:
+        def __init__(self, source):
+            self.source = source
 
-        def _read_metadata(self, rows, *, diagnostics):
-            self._obj["readable"] = [row.io_obj.readable() for _, row in rows]
+        @property
+        def meta(self):
+            return SimpleNamespace(readable=self.source.readable())
+
+    def prepare_record(data):
+        return {} if isinstance(data, TextIOBase) else None
+
+    class TextFiles(FileAccessor[_TextDataModel]):
+        _source_opener = SourceOpener(rules=(({"ext": "txt"}, open_text),))
+        _reader_rules = SourceReaderRules(
+            rules=(({}, TextReader),), prepare_record=prepare_record
+        )
+        _metadata_columns: ClassVar = {
+            "readable": ModelColumn("readable", dtype="boolean")
+        }
 
     return TextFiles, path, owned
 
@@ -46,6 +81,9 @@ def test_non_xarray_scope_borrows_deduplicates_and_uses_subclass_metadata(text_f
             assert len(owned) == 1
             assert live.io_obj.iloc[0] is live.io_obj.iloc[2] is owned[0]
             assert live.io_obj.iloc[1] is borrowed
+            assert "readable" not in live
+            assert live.accessor_obj.iloc[0].source is owned[0]
+            accessor_cls(live).update_from_source_metadata(inplace=True)
             assert live.readable.tolist() == [True] * 3
             pd.testing.assert_index_equal(live.index, table.index)
             assert live.attrs == table.attrs
@@ -53,43 +91,55 @@ def test_non_xarray_scope_borrows_deduplicates_and_uses_subclass_metadata(text_f
                 assert nested.io_obj.iloc[0] is owned[0]
                 assert nested.io_obj.iloc[1] is borrowed
             assert "io_obj" not in nested
+            assert "accessor_obj" not in nested
             assert not owned[0].closed and not borrowed.closed
         assert owned[0].closed and not borrowed.closed
         assert "io_obj" not in live
+        assert "accessor_obj" not in live
         assert live.readable.tolist() == [True] * 3
         pd.testing.assert_frame_equal(table, before)
 
 
-def test_metadata_failure_cleans_up_temporary_column_and_owned_handles(text_files):
+def test_metadata_failure_cleans_up_temporary_column_and_owned_handles(
+    text_files, monkeypatch
+):
     accessor_cls, path, owned = text_files
-    temporary_tables = []
 
-    class FailedFiles(accessor_cls):
-        def _read_metadata(self, rows, *, diagnostics):
-            temporary_tables.append(self._obj)
-            msg = "Metadata failed"
-            raise RuntimeError(msg)
+    def fail(reader):
+        msg = "Metadata failed"
+        raise RuntimeError(msg)
+
+    patch_metadata_read(monkeypatch, accessor_cls._reader_rules, fail)
+    FailedFiles = accessor_cls
 
     table = FailedFiles.from_sources([path])
     before = table.copy()
-    with (
-        pytest.raises(RuntimeError, match="Metadata failed"),
-        FailedFiles(table).open(),
-    ):
-        pytest.fail("The scope yielded despite a metadata failure")
-    assert len(owned) == len(temporary_tables) == 1
+
+    def read():
+        with FailedFiles(table).open() as live:
+            assert live.accessor_obj.iloc[0] is not None
+            tables.append(live)
+            FailedFiles(live).update_from_source_metadata(inplace=True)
+
+    tables = []
+    with pytest.raises(RuntimeError, match="Metadata failed"):
+        read()
+    assert len(owned) == 1
     assert owned[0].closed
-    assert "io_obj" not in temporary_tables[0]
+    assert "io_obj" not in tables[0] and "accessor_obj" not in tables[0]
     pd.testing.assert_frame_equal(table, before)
 
 
-def test_base_accessor_does_not_choose_a_file_reader(tmp_path):
-    table = FileAccessor.from_sources([tmp_path / "observation.txt"])
+def test_unsupported_format_is_reported_by_generic_opening(tmp_path):
+    class Unconfigured(FileAccessor[_UnconfiguredDataModel]):
+        pass
+
+    table = Unconfigured.from_sources([tmp_path / "observation.txt"])
     with (
-        pytest.raises(NotImplementedError, match="No source opener"),
-        FileAccessor(table).open(),
+        pytest.raises(ValueError, match="No source opener matches"),
+        Unconfigured(table).open(on_error="raise"),
     ):
-        pytest.fail("The base accessor selected a file reader")
+        pytest.fail("The unconfigured accessor selected a file reader")
 
 
 def test_local_source_aliases_share_handle_without_reusing_it_for_remote(text_files):
@@ -98,17 +148,18 @@ def test_local_source_aliases_share_handle_without_reusing_it_for_remote(text_fi
         [path, path.as_uri(), fileloc(path), f"archive:{path}"]
     )
 
-    # Read the three usable rows while keeping the remote row and its diagnostic.
-    class Files(accessor_cls):
-        def _read_metadata(self, rows, *, diagnostics):
-            assert [position for position, _ in rows] == [0, 1, 2]
-
-    with Files(table).open() as live:
+    with accessor_cls(table).open() as live:
         assert len(owned) == 1
         assert all(obj is owned[0] for obj in live.io_obj.iloc[:3])
         assert live.io_obj.iloc[3] is None
-        assert live.diagnostics.iloc[3][-1].stage == "open"
-        assert "staged locally" in live.diagnostics.iloc[3][-1].message
+        accessor_cls(live).update_from_source_metadata(inplace=True)
+        assert live.readable.iloc[:3].all()
+        assert pd.isna(live.readable.iloc[3])
+        assert live.source_trace.map(source_trace_issues).iloc[3][-1].stage == "open"
+        assert (
+            "staged locally"
+            in live.source_trace.map(source_trace_issues).iloc[3][-1].message
+        )
         assert not owned[0].closed
     assert owned[0].closed
 
@@ -121,7 +172,7 @@ def test_subclass_declares_selector_layout_without_lmt_fields():
         _field_constraints: ClassVar = {"channel": FieldConstraint(kind="integer")}
         _primary_field: ClassVar = "channel"
 
-    class ChannelFiles(FileAccessor):
+    class ChannelFiles(FileAccessor[_ChannelDataModel]):
         _obs_spec_cls = ChannelSpec
 
     table = ChannelFiles.from_sources(["one", "two", "three"])
@@ -132,5 +183,9 @@ def test_subclass_declares_selector_layout_without_lmt_fields():
     pd.testing.assert_frame_equal(
         ChannelFiles(table).query_obs_spec(ChannelSpec.parse("(1,3)")), expected
     )
+
+    class Unconfigured(FileAccessor[_UnconfiguredDataModel]):
+        pass
+
     with pytest.raises(NotImplementedError, match="No observation-selector class"):
-        FileAccessor(table).query_obs_spec("1")
+        Unconfigured(table).query_obs_spec("1")

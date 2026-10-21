@@ -3,12 +3,13 @@
 import pytest
 from pydantic import ValidationError
 
-from tolteca_datamodels.lmt._filepath import LmtFilepathInfo
+from tolteca_datamodels.filepath import FilepathInfo
+from tolteca_datamodels.lmt.filepath import LmtFilepathInfo
 from tolteca_datamodels.lmt_base.metadata import (
     InterfaceInfoMixin,
     LmtObsQuartetMixin,
 )
-from tolteca_datamodels.toltec._filepath import ToltecFilepathInfo
+from tolteca_datamodels.toltec.filepath import ToltecFilepathInfo
 from tolteca_dummy_instru.filepath import DummyInstruFilepathInfo
 
 
@@ -45,7 +46,9 @@ from tolteca_dummy_instru.filepath import DummyInstruFilepathInfo
 )
 def filepath_case(request):
     model, source, master, suffix = request.param
-    return model.from_source(source), master, suffix
+    result = FilepathInfo.from_source(source)
+    assert isinstance(result, model)
+    return result, master, suffix
 
 
 def test_parser_supplies_nullable_values(filepath_case):

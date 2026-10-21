@@ -9,13 +9,13 @@ from pathlib import Path
 import pytest
 from tollan.utils.fileloc import fileloc
 
-from tolteca_datamodels.file import FilepathInfo
-from tolteca_datamodels.lmt import LmtFilepathInfo
+from tolteca_datamodels.filepath import FilepathInfo
+from tolteca_datamodels.lmt.filepath import LmtFilepathInfo
 from tolteca_datamodels.toltec.file import (
-    ToltecFilepathInfo,
     get_info_from_source,
     guess_info_from_sources,
 )
+from tolteca_datamodels.toltec.filepath import ToltecFilepathInfo
 from tolteca_datamodels.toltec.types import ToltecDataKind
 
 
@@ -23,11 +23,15 @@ def test_lmtmc_filenames(lmtmc_records):
     assert len(lmtmc_records) == 12
     for row in lmtmc_records:
         info = FilepathInfo.from_source(row["FileName"])
-        assert type(info) is LmtFilepathInfo
+        assert isinstance(info, LmtFilepathInfo)
         assert info.prefix == "tel_toltec"
         assert info.interface == row["Instrument"] == "tel"
         assert Path(row["FileName"]).parent.name == info.interface
-        assert (info.instru, info.instru_component) == ("lmt", "tcs")
+        assert (info.data_models, info.instru, info.interface_kind) == (
+            ["lmt", "toltec"],
+            "lmt",
+            "tel",
+        )
         assert (info.obsnum, info.subobsnum, info.scannum) == tuple(
             map(int, row["ObsNum"].split("."))
         ), row["FileName"]
@@ -38,7 +42,7 @@ def test_lmtmc_filenames(lmtmc_records):
         assert source.file_prefix == info.prefix
         assert source.file_ut == info.ut
         assert source.obsnum == info.obsnum
-        assert source.data_kind == ToltecDataKind.lmt_tel.value
+        assert source.data_kind_toltec == ToltecDataKind.lmt_tel.value
 
 
 def test_toltecdb_filenames(toltecdb_records):
@@ -56,7 +60,7 @@ def test_toltecdb_filenames(toltecdb_records):
         assert Path(row["FileName"]).parent.name == info.interface
         assert type(info.roach) is int
         assert info.roach == row["RoachIndex"]
-        assert (info.instru, info.instru_component) == ("toltec", "roach")
+        assert (info.data_models, info.interface_kind) == (["toltec"], "roach")
         assert info.master == row["master_label"].lower()
         assert (info.obsnum, info.subobsnum, info.scannum) == (
             row["ObsNum"],
@@ -70,7 +74,7 @@ def test_toltecdb_filenames(toltecdb_records):
         assert source.file_prefix == info.prefix
         assert source.file_ut == info.ut
         assert source.obsnum == info.obsnum
-        assert source.data_kind == kind.value
+        assert source.data_kind_toltec == kind.value
         assert info.ut is not None
         assert (
             type(info).model_validate_json(info.model_dump_json(round_trip=True))
@@ -143,13 +147,13 @@ def test_recorded_catalog_selection(lmtmc_records, toltecdb_records, monkeypatch
     assert [
         str(fileloc(r.source).path) for r in list(telescopes.itertuples(index=False))
     ] == [row["FileName"] for row in lmtmc_records]
-    assert catalog.toltec_file.query("data_kind == lmt_tel.value").index.equals(
+    assert catalog.toltec_file.query("data_kind_toltec == lmt_tel.value").index.equals(
         telescopes.index
     )
     sweeps = catalog.toltec_file.query('file_suffix == "vnasweep"')
     assert [
         str(fileloc(r.source).path) for r in list(sweeps.itertuples(index=False))
     ] == [row["FileName"] for row in toltecdb_records if row["kind_label"] == "VNA"]
-    assert catalog.toltec_file.query("data_kind == vnasweep.value").index.equals(
+    assert catalog.toltec_file.query("data_kind_toltec == vnasweep.value").index.equals(
         sweeps.index
     )

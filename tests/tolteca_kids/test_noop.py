@@ -6,12 +6,14 @@ import pytest
 import xarray as xr
 from tollan.accessor.xarray import ensure_datatree
 from tollan.config import RuntimeContext
+from tollan.pipeline import StepFailureKind
+from tollan.utils.fileloc import fileloc
 from typer.testing import CliRunner
 from xarray.backends.netCDF4_ import NetCDF4ArrayWrapper, NetCDF4DataStore
 
-from tolteca_datamodels.file import SourceInfoModel, guess_info_from_source
-from tolteca_datamodels.toltec.kids import SweepReducer
+from tolteca_datamodels.toltec.file import get_info_from_source
 from tolteca_datamodels.toltec.types import ToltecDataKind
+from tolteca_kids import SweepReduce
 from tolteca_kids.cli import app
 from tolteca_kids.core import Kids
 from tolteca_kids.dataprod_output import DataProdOutput
@@ -31,21 +33,20 @@ def test_noop_live_context_and_array_identity():
 
 def test_telescope_noop_retains_its_source_kind(data_lmt_path, monkeypatch):
     source = data_lmt_path / "tel/tel_toltec_2025-10-31_145609_00_0002.nc"
-    info = guess_info_from_source(source)
+    info = get_info_from_source(source)
     assert info is not None
     contexts = []
     reads = []
     read_array = NetCDF4ArrayWrapper._getitem
 
     def run(cls, data, context):
-        current = SourceInfoModel.model_validate(data["tolteca_kids"].attrs["input"])
-        assert current.data_kind == ToltecDataKind.LmtTel
-        assert current.interface == "tel"
-        assert current.obsnum == 145609
-        assert current.master == "tcs"
-        assert current.filepath_orig is not None
+        current = data["tolteca_kids"].attrs["input_row"]
+        assert current["data_kind_toltec"] == ToltecDataKind.lmt_tel.value
+        assert current["interface"] == "tel"
+        assert current["obsnum"] == 145609
+        assert current["master"] == "tcs"
+        assert current["file_prefix"] == info.file_prefix
         contexts.append(context)
-        return True
 
     def read(array, key):
         if array.variable_name.startswith("Data."):
@@ -56,15 +57,22 @@ def test_telescope_noop_retains_its_source_kind(data_lmt_path, monkeypatch):
 
     monkeypatch.setattr(NoOp, "run", classmethod(run))
     monkeypatch.setattr(NetCDF4ArrayWrapper, "_getitem", read)
-    assert run_source(info, RuntimeContext(), dry_run=True) is None
+    assert run_source(info.source, RuntimeContext(), dry_run=True) is None
     assert len(contexts) == 1
     assert contexts[0].completed
     assert len(reads) == 2
 
 
 @pytest.mark.parametrize("action", ["--show_inputs", "--dry_run"])
+@pytest.mark.parametrize(
+    "selection",
+    [
+        "interface == 'tel' & master == 'tcs' & obsnum == 145609",
+        "bits_any_set(data_kind_toltec, lmt_tel | lmt_tel2) & obsnum == 145609",
+    ],
+)
 def test_cli_selects_renamed_telescope_by_header(
-    data_lmt_path, tmp_path, monkeypatch, action
+    data_lmt_path, tmp_path, monkeypatch, action, selection
 ):
     import json
 
@@ -94,25 +102,31 @@ def test_cli_selects_renamed_telescope_by_header(
         [
             str(downloaded),
             "--select",
-            "interface == 'tel' & master == 'tcs' & obsnum == 145609",
+            selection,
             action,
         ],
     )
     assert result.exit_code == 0, result.output
     if action == "--show_inputs":
         [row] = json.loads(result.stdout)
-        assert row["source"] == str(downloaded)
-        assert row["data_kind"] == "LmtTel"
-        assert row["filepath_info"]["prefix"] == "tel_toltec"
-        assert len(closed) == 1
+        assert row["source"] == downloaded.as_uri()
+        assert row["data_kind_toltec"] == ToltecDataKind.lmt_tel.value
+        assert "data_kind_str" not in row
+        assert row["filepath_info"] is None
+        assert row["file_prefix"] is None
     else:
         assert f"{downloaded}: no-op completed" in result.stdout
-        assert len(closed) == 2
-    assert len(time_reads) == 2 * len(closed)
+    # guess_or_read identifies the renamed source during discovery; preparation
+    # reopens it for execution and retains the already populated metadata.
+    assert len(closed) == 2
+    assert len(time_reads) == 2
 
 
+@pytest.mark.parametrize(
+    "selector", ["tcs-145609/0", "tcs-145609/toltec(0,5)", "tcs-145609/(0,5)[-1]"]
+)
 def test_cli_noop_selection_config_logging_and_no_products(
-    data_lmt_path, tmp_path, monkeypatch
+    data_lmt_path, tmp_path, monkeypatch, selector
 ):
     from tollan.utils import typer as typer_utils
     from tollan.utils.log import reset_logger
@@ -154,9 +168,13 @@ def test_cli_noop_selection_config_logging_and_no_products(
     def unexpected(*args, **kwargs):
         pytest.fail("dry-run invoked computation or product output")
 
+    from tolteca_kids import BlockCreate, BlockIdentify
+
     monkeypatch.setattr(Kids, "noop_pipeline", property(pipeline))
     monkeypatch.setattr(NoOp, "run", classmethod(run))
-    monkeypatch.setattr(SweepReducer, "__call__", unexpected)
+    monkeypatch.setattr(BlockCreate, "__call__", unexpected)
+    monkeypatch.setattr(BlockIdentify, "__call__", unexpected)
+    monkeypatch.setattr(SweepReduce, "__call__", unexpected)
     monkeypatch.setattr(DataProdOutput, "run", unexpected)
     result = CliRunner().invoke(
         app,
@@ -175,7 +193,7 @@ def test_cli_noop_selection_config_logging_and_no_products(
             "--kids.sweep_reduce.force",
             "true",
             "--",
-            "tcs-145609/0",
+            selector,
         ],
     )
     assert result.exit_code == 0, result.output
@@ -187,10 +205,9 @@ def test_cli_noop_selection_config_logging_and_no_products(
     logs = log_output.getvalue() + result.output
     for message in (
         "ObsSpec",
-        "Input metadata",
+        "Resolving configuration with input context",
         "Effective KIDs configuration",
-        "Starting step",
-        "Finished step",
+        "No-op: skipping computation and product output",
         "no-op completed",
     ):
         assert message in logs
@@ -200,7 +217,7 @@ def test_cli_noop_selection_config_logging_and_no_products(
 def test_cli_paths_load_ordered_runtime_sources(
     data_lmt_path, tmp_path, monkeypatch, repeated
 ):
-    from tolteca_kids import cli
+    from tolteca_kids import runner
 
     source = (
         data_lmt_path / "toltec/tcs/toltec0/"
@@ -221,13 +238,13 @@ def test_cli_paths_load_ordered_runtime_sources(
         "CONFIG_OVERRIDE: true\nkids: {sweep_reduce: {block: 1}}\n"
     )
     snapshots = []
-    run_source = cli.run_source
+    run_input = runner.run_input
 
-    def capture_runtime(info, runtime, **kwargs):
+    def capture_runtime(data, row, runtime, **kwargs):
         snapshots.append(runtime.config_dict)
-        return run_source(info, runtime, **kwargs)
+        return run_input(data, row, runtime, **kwargs)
 
-    monkeypatch.setattr(cli, "run_source", capture_runtime)
+    monkeypatch.setattr(runner, "run_input", capture_runtime)
     env_args = ["--env_paths", str(first)]
     if repeated:
         env_args.append("--env_paths")
@@ -311,52 +328,51 @@ def test_cli_header_selection_and_conditional_config(
     if action == "--show_inputs":
         [row] = json.loads(result.stdout)
         assert row["obsnum"] == 145606
-        assert row["metadata"]["atten_drive"] == 7.25
+        assert row["atten_drive"] == 7.25
     else:
         source, payload = result.stdout.split("\n", 1)
         assert "145606" in source
         assert json.loads(payload)["kids"]["sweep_reduce"]["force"]
 
 
-def test_noop_failure_logs_step_and_propagates(monkeypatch):
-    from tollan.utils.log import logger
-
+def test_noop_failure_is_recorded_and_propagates(monkeypatch):
     def fail(cls, data, context):
         msg = "test step failure"
         raise ValueError(msg)
 
     monkeypatch.setattr(NoOp, "run", classmethod(fail))
-    messages = []
-    sink = logger.add(messages.append, level="DEBUG")
-    try:
-        with pytest.raises(ValueError, match="test step failure"):
-            Kids(RuntimeContext()).noop_pipeline(xr.DataTree())
-    finally:
-        logger.remove(sink)
-    assert any("NoOp failed" in message for message in messages)
+    working = xr.DataTree()
+    with pytest.raises(ValueError, match="test step failure"):
+        Kids(RuntimeContext()).noop_pipeline(working)
+    context = NoOp.get_context(working)
+    assert not context.completed
+    assert len(context.failures) == 1
+    assert context.failures[0].kind is StepFailureKind.exception
+    assert context.failures[0].message == "test step failure"
+    assert context.failures[0].exception_type == "ValueError"
 
 
 @pytest.mark.parametrize(
     "kind",
     [
-        ToltecDataKind.VnaSweep,
-        ToltecDataKind.TargetSweep,
-        ToltecDataKind.Tune,
-        ToltecDataKind.RawTimeStream,
+        ToltecDataKind.vnasweep,
+        ToltecDataKind.targsweep,
+        ToltecDataKind.tune,
+        ToltecDataKind.raw_timestream,
     ],
 )
 def test_reference_noop_reads_only_headers_and_closes_files(
     data_lmt_path, tmp_path, monkeypatch, kind
 ):
     records = [
-        guess_info_from_source(path)
+        get_info_from_source(path)
         for path in sorted((data_lmt_path / "toltec/tcs/toltec0").glob("*.nc"))
     ]
-    matching = [info for info in records if info is not None and info.data_kind == kind]
+    matching = [info for info in records if info.data_kind_toltec == kind.value]
     if not matching:
         pytest.skip(f"No {kind.name} reference fixture")
     info = matching[0]
-    source = info.filepath
+    source = fileloc(info.source).path
     original_stat = source.stat()
     reads = []
     closed = []
@@ -378,7 +394,7 @@ def test_reference_noop_reads_only_headers_and_closes_files(
     def run(cls, data, context):
         assert cls.get_context(data) is context
         assert not context.completed
-        assert data["tolteca_kids"].attrs["input"]["data_kind"] == kind.value
+        assert data["tolteca_kids"].attrs["input_row"]["data_kind_toltec"] == kind.value
         contexts.append(context)
         return noop_run(data, context)
 
@@ -388,7 +404,7 @@ def test_reference_noop_reads_only_headers_and_closes_files(
     monkeypatch.setattr(NetCDF4ArrayWrapper, "_getitem", read)
     monkeypatch.setattr(NetCDF4DataStore, "close", close)
     monkeypatch.setattr(NoOp, "run", classmethod(run))
-    monkeypatch.setattr(SweepReducer, "__call__", unexpected)
+    monkeypatch.setattr(SweepReduce, "__call__", unexpected)
     monkeypatch.setattr(DataProdOutput, "run", unexpected)
     selector = f"tcs-{info.obsnum}-{info.subobsnum}-{info.scannum}/{info.roach}"
     output = tmp_path / "products"
@@ -400,7 +416,7 @@ def test_reference_noop_reads_only_headers_and_closes_files(
             "--data_lmt_path",
             str(data_lmt_path),
             "--select",
-            f"data_kind == '{kind.name}'",
+            f"data_kind_toltec == {kind.name}.value",
             "--dry_run",
             "--kids.output.enabled",
             "true",
@@ -412,8 +428,8 @@ def test_reference_noop_reads_only_headers_and_closes_files(
     assert result.stdout.count("no-op completed") == 1
     assert len(contexts) == 1 and contexts[0].completed
     assert reads and all(name.startswith("Header.") for name in reads)
-    # Catalog discovery and execution each open and close their own source.
-    assert len(closed) == 2
+    # Input preparation retains its handle for execution.
+    assert len(closed) == 1
     assert not output.exists()
     assert source.stat().st_mtime_ns == original_stat.st_mtime_ns
     assert source.stat().st_size == original_stat.st_size
@@ -441,7 +457,7 @@ def test_cli_noop_failure_closes_source(timestream_path, monkeypatch, failure):
     result = CliRunner().invoke(app, [str(source), "--dry_run", *args])
     assert result.exit_code != 0
     assert "no-op completed" not in result.stdout
-    assert len(closed) == 2
+    assert len(closed) == 1
     if failure == "step":
         assert len(contexts) == 1 and not contexts[0].completed
         assert isinstance(result.exception, ValueError)

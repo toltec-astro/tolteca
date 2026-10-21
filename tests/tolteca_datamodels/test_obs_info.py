@@ -4,14 +4,17 @@ import pandas as pd
 import pytest
 from pydantic import ValidationError
 
-from tolteca_datamodels.file import FilepathInfo
-from tolteca_datamodels.lmt import LmtFilepathInfo
-from tolteca_datamodels.lmt_base._filepath import FilepathInfoMixin
+from tolteca_datamodels.filepath import FilepathInfo
+from tolteca_datamodels.lmt.filepath import LmtFilepathInfo
+from tolteca_datamodels.lmt_base.filepath import FilepathInfoMixin
 from tolteca_datamodels.lmt_base.metadata import LmtRawObsMetadata
 from tolteca_datamodels.lmt_base.types import SeqNumT
 from tolteca_datamodels.toltec.file import (
-    ToltecFilepathInfo,
     guess_info_from_sources,
+)
+from tolteca_datamodels.toltec.filepath import (
+    ToltecFilepathInfo,
+    ToltecLmtFilepathInfo,
 )
 
 
@@ -20,16 +23,12 @@ def test_shared_filepath_values_belong_to_observation_mixin():
     assert {"prefix", "suffix", "ext", "obsnum", "ut"} <= (
         FilepathInfoMixin.model_fields.keys()
     )
-    assert all(
-        field.is_required()
-        for name, field in FilepathInfoMixin.model_fields.items()
-        if name not in {"suffix", "master"}
-    )
+    assert all(field.is_required() for field in FilepathInfoMixin.model_fields.values())
 
 
-@pytest.fixture(params=[LmtFilepathInfo, ToltecFilepathInfo])
+@pytest.fixture(params=[ToltecLmtFilepathInfo, ToltecFilepathInfo])
 def concrete_filepath_info(request, lmtmc_records, toltecdb_records):
-    rows = lmtmc_records if request.param is LmtFilepathInfo else toltecdb_records
+    rows = lmtmc_records if request.param is ToltecLmtFilepathInfo else toltecdb_records
     info = FilepathInfo.from_source(rows[0]["FileName"])
     assert type(info) is request.param
     return info
@@ -40,8 +39,7 @@ def concrete_filepath_info(request, lmtmc_records, toltecdb_records):
     [
         "prefix",
         "interface",
-        "instru",
-        "instru_component",
+        "interface_kind",
         "obsnum",
         "subobsnum",
         "scannum",
@@ -51,8 +49,7 @@ def concrete_filepath_info(request, lmtmc_records, toltecdb_records):
 )
 def test_concrete_filepath_requires_guaranteed_values(concrete_filepath_info, name):
     model = type(concrete_filepath_info)
-    assert model.model_fields[name].is_required()
-    data = concrete_filepath_info.model_dump()
+    data = concrete_filepath_info.model_dump(round_trip=True)
     del data[name]
     with pytest.raises(ValidationError, match=name):
         model.model_validate(data)
@@ -61,10 +58,11 @@ def test_concrete_filepath_requires_guaranteed_values(concrete_filepath_info, na
 
 
 def test_telescope_master_is_required(lmtmc_records):
-    parsed = LmtFilepathInfo.from_source(lmtmc_records[0]["FileName"])
-    assert parsed is not None and parsed.master == "tcs"
+    parsed = FilepathInfo.from_source(lmtmc_records[0]["FileName"])
+    assert isinstance(parsed, LmtFilepathInfo)
+    assert parsed.master == "tcs"
     assert LmtFilepathInfo.model_fields["master"].is_required()
-    data = parsed.model_dump()
+    data = parsed.model_dump(round_trip=True)
     del data["master"]
     with pytest.raises(ValidationError, match="master"):
         LmtFilepathInfo.model_validate(data)
@@ -72,23 +70,28 @@ def test_telescope_master_is_required(lmtmc_records):
         LmtFilepathInfo.model_validate(data | {"master": None})
 
 
-def test_concrete_filepath_rejects_wrong_instrument(concrete_filepath_info):
-    data = concrete_filepath_info.model_dump() | {"instru": "other"}
-    with pytest.raises(ValidationError, match="instru"):
-        type(concrete_filepath_info).model_validate(data)
+def test_toltec_readout_requires_instrument(toltecdb_records):
+    info = FilepathInfo.from_source(toltecdb_records[0]["FileName"])
+    assert info is not None
+    data = info.model_dump(round_trip=True, exclude={"instru"})
+    for affiliation in ({}, {"instru": None}, {"instru": "other"}):
+        with pytest.raises(ValidationError, match="instru"):
+            ToltecFilepathInfo.model_validate(data | affiliation)
 
 
 @pytest.mark.parametrize("name", ["obsnum", "subobsnum", "scannum"])
 def test_concrete_observation_numbers_remain_nonnegative(concrete_filepath_info, name):
     model = type(concrete_filepath_info)
-    data = concrete_filepath_info.model_dump()
+    data = concrete_filepath_info.model_dump(round_trip=True)
     with pytest.raises(ValidationError, match=name):
         model.model_validate(data | {name: -1})
-    assert getattr(model.model_validate(data | {name: "0"}), name) == 0
+    with pytest.raises(ValidationError, match=name):
+        model.model_validate(data | {name: "0"})
+    assert getattr(model.model_validate(data | {name: 0}), name) == 0
 
 
 def test_concrete_filepaths_keep_timezone_validation(concrete_filepath_info):
-    data = concrete_filepath_info.model_dump()
+    data = concrete_filepath_info.model_dump(round_trip=True)
     data["ut"] = data["ut"].replace(tzinfo=None)
     with pytest.raises(ValidationError, match="ut"):
         type(concrete_filepath_info).model_validate(data)
@@ -114,18 +117,22 @@ def test_partial_models_do_not_turn_unknown_filenames_into_matches():
 def test_catalog_projects_all_common_identifiers(data_lmt_path):
     paths = [
         data_lmt_path / "tel/tel_toltec_2025-10-31_145609_00_0002.nc",
-        next((data_lmt_path / "toltec/tcs/toltec0").glob("*_tune.nc")),
+        next((data_lmt_path / "toltec/tcs/toltec0").glob("*145609*_tune.nc")),
     ]
     catalog = guess_info_from_sources(paths)
     assert "master_code" not in catalog
     assert catalog["master"].tolist() == ["tcs", "tcs"]
+    assert catalog["data_models"].tolist() == [["lmt", "toltec"], ["toltec"]]
     assert catalog["instru"].tolist() == ["lmt", "toltec"]
-    assert catalog["instru_component"].tolist() == ["tcs", "roach"]
-    assert len(catalog.toltec_file.query("instru == 'toltec' & master == 'tcs'")) == 1
+    assert catalog["interface_kind"].tolist() == ["tel", "roach"]
+    mask = catalog.data_models.map(
+        lambda names: isinstance(names, list) and "toltec" in names
+    )
+    assert len(catalog.loc[mask].toltec_file.query("master == 'tcs'")) == 2
     for name in (
         "interface",
-        "instru",
-        "instru_component",
+        "data_models",
+        "interface_kind",
         "master",
         "obsnum",
         "subobsnum",
@@ -136,9 +143,10 @@ def test_catalog_projects_all_common_identifiers(data_lmt_path):
         )
 
 
-def test_concrete_filepath_optional_values_and_roundtrips(concrete_filepath_info):
+def test_concrete_filepath_nullable_values_and_roundtrips(concrete_filepath_info):
     info = concrete_filepath_info
     model = type(info)
-    assert model.model_validate_json(info.model_dump_json()) == info
-    assert model.model_validate(info.model_dump()) == info
-    assert model.model_validate(info.model_dump() | {"suffix": None}).suffix is None
+    assert model.model_validate_json(info.model_dump_json(round_trip=True)) == info
+    data = info.model_dump(round_trip=True)
+    assert model.model_validate(data) == info
+    assert model.model_validate(data | {"suffix": None}).suffix is None

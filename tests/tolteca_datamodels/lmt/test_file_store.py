@@ -1,64 +1,92 @@
 """Instrument selection and delegation in the LMT acquisition tree."""
 
-import re
-from inspect import signature
-from pathlib import Path
-from typing import assert_type, cast
+from pathlib import Path, PurePosixPath
+from typing import ClassVar, assert_type
 
 import pytest
 
-from tolteca_datamodels.file_store import FileStoreBase
+from tolteca_datamodels.core.file_store import FileStoreBase, StoreView, Substore
+from tolteca_datamodels.core.obs_spec import ObsSpecContext
 from tolteca_datamodels.lmt.file_store import LmtFileStore
-from tolteca_datamodels.lmt.obs_spec import obs_spec_context as lmt_obs_spec_context
+from tolteca_datamodels.lmt_base.file_store import LmtFileStoreBase
 from tolteca_datamodels.lmt_base.obs_spec import ObsSpec
-from tolteca_datamodels.obs_spec import ObsSpecContext
-from tolteca_datamodels.toltec.file_store import ToltecFileStore
-from tolteca_datamodels.toltec.obs_spec import (
-    obs_spec_context as toltec_obs_spec_context,
+from tolteca_datamodels.toltec._obs_spec import (
+    _obs_spec_context as toltec_obs_spec_context,
 )
+from tolteca_datamodels.toltec.file_store import ToltecFileStore
 from tolteca_datamodels.toltec.types import ToltecInfo
 
 
 @pytest.mark.parametrize(
-    ("pattern", "names"),
+    "names",
     [
-        (".*", ["toltec", "rsr", "sequoia"]),
-        ("toltec", ["toltec"]),
-        ("toltec|rsr", ["toltec", "rsr"]),
-        ("(?!rsr)", ["toltec", "sequoia"]),
-        ("^(toltec|rsr)$", ["toltec", "rsr"]),
-        ("tol", ["toltec"]),
-        ("tec", []),
-        ("tcs|toltec0|tel", []),
-        ("TOLTEC", []),
-        (re.compile("(?i)toltec"), ["toltec"]),
+        ["toltec", "rsr", "sequoia"],
+        ["toltec"],
+        ["toltec", "rsr"],
+        ["toltec", "sequoia"],
     ],
 )
-def test_regex_matches_only_registered_instrument_names(
-    tmp_path, monkeypatch, pattern, names
-):
+def test_named_selections_choose_registered_children(tmp_path, names):
     calls = []
 
     # Stand-ins exercise registry delegation, not unimplemented acquisition layouts.
-    class Store(FileStoreBase[ObsSpec]):
-        def _iter_candidate_patterns(self, spec):
+    class Store(LmtFileStoreBase):
+        _subpaths = (PurePosixPath("."),)
+
+        def _iter_local_glob_patterns(self, spec, subpath):
             calls.append((self.path, spec))
             return []
 
-    monkeypatch.setattr(
-        LmtFileStore,
-        "substores",
-        property(
-            lambda self: {
-                name: Store(self.path / name) for name in ("toltec", "rsr", "sequoia")
-            }
-        ),
-    )
+    class RsrStore(Store):
+        pass
+
+    class SequoiaStore(Store):
+        pass
+
+    class ToltecStore(Store):
+        pass
+
+    class Root(LmtFileStore):
+        _substore_paths: ClassVar = {}
+        toltec = Substore(ToltecStore, subpath="toltec")
+        rsr = Substore(RsrStore, subpath="rsr")
+        sequoia = Substore(SequoiaStore, subpath="sequoia")
+
     spec = ObsSpec.parse("tcs-145609")
-    store = LmtFileStore(tmp_path)
-    assert store.find_candidates(spec, instru=pattern) == []
+    store = Root(tmp_path)
+    assert store.partial(*names).glob_obs_spec(spec) == []
     assert [path for path, _ in calls] == [tmp_path / name for name in names]
     assert all(delegated is spec for _, delegated in calls)
+
+
+def test_nested_substore_selection_needs_no_layout_knowledge(tmp_path, monkeypatch):
+    class Child(LmtFileStoreBase):
+        _subpaths = (PurePosixPath("."),)
+        _obs_spec_context = toltec_obs_spec_context
+
+        def _iter_local_glob_patterns(self, spec, subpath):
+            yield "*.nc"
+
+    class Root(LmtFileStore):
+        _substore_paths: ClassVar = {}
+        instrument = Substore(Child, subpath="instruments/toltec")
+
+    root = Root(tmp_path)
+    telescope = root.tel.path / "tel_toltec_2025-10-31_145609_00_0002.nc"
+    instrument = (
+        tmp_path
+        / "instruments/toltec"
+        / ("toltec0_145609_000_0001_2025_10_31_09_26_59_tune.nc")
+    )
+    calls = []
+
+    def glob(path, pattern):
+        calls.append(path)
+        return iter([telescope] if path == root.tel.path else [instrument])
+
+    monkeypatch.setattr(Path, "glob", glob)
+    assert root.partial(Root.instrument).glob_obs_spec("145609/{tel,0}") == [instrument]
+    assert calls == [instrument.parent]
 
 
 @pytest.mark.parametrize(
@@ -70,9 +98,9 @@ def test_excluded_instrument_is_not_searched_but_telescope_remains(
     def unexpected(*args, **kwargs):
         pytest.fail("An excluded instrument was searched")
 
-    monkeypatch.setattr(ToltecFileStore, "find_candidates", unexpected)
+    monkeypatch.setattr(ToltecFileStore, "_iter_local_glob_patterns", unexpected)
     store = LmtFileStore(data_lmt_path)
-    paths = store.find_candidates(selector, instru="(?!toltec)")
+    paths = store.tel.glob_obs_spec(selector)
     assert len(paths) == 2
     assert all(path.parent == data_lmt_path / "tel" for path in paths)
 
@@ -93,12 +121,18 @@ def test_unconstrained_interface_probes_telescope_and_instrument(
 
     monkeypatch.setattr(Path, "glob", record_glob)
     store = LmtFileStore(data_lmt_path)
-    paths = store.find_candidates(selector)
-    assert searched == [store.tel_path] + [store.toltec.path] * len(
-        ToltecInfo.interfaces
-    )
-    assert len(paths) == 4
-    assert sum(path.parent == store.tel_path for path in paths) == 2
+    paths = store.glob_obs_spec(selector)
+    assert searched == [store.tel.path] + [
+        store.toltec.path
+        for interface, info in ToltecInfo.interface_interface_info.items()
+        if info.instru == "toltec"
+    ]
+    assert len(paths) == 5
+    assert sum(path.parent == store.tel.path for path in paths) == 2
+    # Auxiliary candidates are gathered before the full ObsSpec table filter.
+    assert [path.name for path in paths if path.parent.name == "hwpr"] == [
+        "hwpr_156755_000_0002_2026_05_16_12_33_28.nc"
+    ]
 
 
 @pytest.mark.parametrize(
@@ -123,14 +157,14 @@ def test_constrained_interface_excluding_tel_does_not_probe_telescope(
     glob = Path.glob
 
     def guarded_glob(path, pattern):
-        assert path != store.tel_path, "Excluded telescope directory was probed"
+        assert path != store.tel.path, "Excluded telescope directory was probed"
         searched.append(path)
         return glob(path, pattern)
 
     monkeypatch.setattr(Path, "glob", guarded_glob)
-    store.find_candidates(selector)
+    store.glob_obs_spec(selector)
     assert searched
-    assert set(searched) == {store.toltec.path}
+    assert all(path.is_relative_to(store.toltec.path) for path in searched)
 
 
 @pytest.mark.parametrize("selector", ["145609/tel", "145609/{tel}"])
@@ -141,72 +175,100 @@ def test_telescope_only_does_not_probe_instrument_stores(
     glob = Path.glob
 
     def guarded_glob(path, pattern):
-        assert path == store.tel_path, "Telescope-only selection probed an instrument"
+        assert path == store.tel.path, "Telescope-only selection probed an instrument"
         return glob(path, pattern)
 
     monkeypatch.setattr(Path, "glob", guarded_glob)
-    paths = store.find_candidates(selector)
+    paths = store.glob_obs_spec(selector)
     assert len(paths) == 2
-    assert all(path.parent == store.tel_path for path in paths)
+    assert all(path.parent == store.tel.path for path in paths)
 
 
-def test_default_pattern_preserves_instrument_discovery(data_lmt_path):
+def test_default_search_includes_instrument_discovery(data_lmt_path):
     store = LmtFileStore(data_lmt_path)
-    assert store.find_candidates("145609/0") == store.toltec.find_candidates("145609/0")
+    assert store.glob_obs_spec("145609/0") == store.toltec.glob_obs_spec("145609/0")
+
+
+def test_lmt_root_is_not_a_managed_location(data_lmt_path, monkeypatch):
+    def glob(root, pattern):
+        assert root != data_lmt_path
+        return iter(())
+
+    monkeypatch.setattr(Path, "glob", glob)
+    store = LmtFileStore(data_lmt_path)
+    assert store.glob_obs_spec("145609") == []
+
+
+@pytest.mark.parametrize(
+    ("subpath", "patterns"),
+    [
+        (PurePosixPath("tel"), ["tel_*_145609_*.nc"]),
+        (PurePosixPath("."), []),
+        (PurePosixPath("other"), []),
+    ],
+)
+def test_telescope_patterns_apply_only_to_telescope_subpath(
+    tmp_path, subpath, patterns
+):
+    store = LmtFileStore(tmp_path)
+    spec = ObsSpec.parse("145609/tel")
+    assert list(store._iter_local_glob_patterns(spec, subpath)) == patterns
 
 
 def test_candidates_keep_discovery_order_and_first_occurrence(
     data_lmt_path, monkeypatch
 ):
     store = LmtFileStore(data_lmt_path)
-    telescope = sorted(store.tel_path.glob("*145609*.nc"), reverse=True)
-    instrument = sorted(store.toltec.path.glob("*/*/*145609*.nc"), reverse=True)
+    telescope = sorted(store.tel.path.glob("*145609*.nc"), reverse=True)
+    instrument = list(store.toltec.glob_obs_spec("145609/toltec0"))
     assert len(telescope) == len(instrument) == 2
 
     # Repeated candidates exercise deduplication independently of traversal order.
-    candidates = {store.tel_path: telescope, store.toltec.path: instrument}
+    candidates = {store.tel.path: telescope}
+    candidates[store.toltec.path] = instrument
 
     def glob(path, pattern):
-        matches = candidates[path]
+        matches = (
+            candidates.get(path, [])
+            if "toltec0" in pattern or path == store.tel.path
+            else []
+        )
         return iter(matches + matches[:1])
 
     monkeypatch.setattr(Path, "glob", glob)
-    assert store.find_candidates("145609") == telescope + instrument
+    assert store.glob_obs_spec("145609") == telescope + instrument
 
 
-def test_typed_child_is_the_delegated_instance(tmp_path):
+def test_typed_child_view_and_delegated_instance(tmp_path):
     store = LmtFileStore(tmp_path)
     assert_type(store.path, Path)
-    assert_type(store.toltec, ToltecFileStore)
+    assert_type(store.toltec, StoreView)
+    assert_type(store.substores[ToltecFileStore], ToltecFileStore)
     assert isinstance(store, FileStoreBase)
-    assert isinstance(store.toltec, FileStoreBase)
-    assert isinstance(store.toltec, ToltecFileStore)
-    assert store.toltec is store.toltec
-    assert store.toltec is store.substores["toltec"]
+    assert isinstance(store.toltec, StoreView)
+    assert store.toltec == store.toltec
     assert store.toltec.path == tmp_path / "toltec"
-    assert store.toltec.substores == {}
-    LmtFileStore.register_substore("toltec", ToltecFileStore)
-    assert store.get_substore("toltec") is store.toltec
+    assert store.substores[ToltecFileStore].substores == {}
 
 
-def test_instrument_filter_keeps_descendants_of_the_selected_child(
+def test_selected_descendant_is_reached_through_unselected_parents(
     tmp_path, monkeypatch
 ):
-    class Nested(FileStoreBase[ObsSpec]):
-        _obs_spec_context = ObsSpecContext(labels={"interface": {"nested1": 1}})
+    class Nested(LmtFileStoreBase):
+        _subpaths = (PurePosixPath("."),)
 
-        def _iter_candidate_patterns(self, spec):
-            yield self.path, "*.nc"
+        def _iter_local_glob_patterns(self, spec, subpath):
+            yield "*.nc"
 
-    class Instrument(FileStoreBase[ObsSpec]):
-        def _iter_candidate_patterns(self, spec):
+    class Instrument(LmtFileStoreBase):
+        def _iter_local_glob_patterns(self, spec, subpath):
             return ()
 
     class Root(LmtFileStore):
         pass
 
-    Instrument.register_substore("nested", Nested)
-    Root.register_substore("instrument", Instrument)
+    Instrument.register_substore(Nested, "nested", name="nested")
+    Root.register_substore(Instrument, "instrument", name="instrument")
     path = tmp_path / "instrument/nested/example.nc"
     calls = []
 
@@ -216,11 +278,8 @@ def test_instrument_filter_keeps_descendants_of_the_selected_child(
 
     monkeypatch.setattr(Path, "glob", glob)
     root = Root(tmp_path)
-    assert root.find_candidates("1", instru="^instrument$") == [path]
-    assert calls == [root.tel_path, path.parent]
-    assert root.get_obs_spec_context(instru="^instrument$") == (
-        lmt_obs_spec_context | Nested._obs_spec_context
-    )
+    assert root.partial("instrument").instrument.nested.glob_obs_spec("1") == [path]
+    assert calls == [path.parent]
 
 
 @pytest.mark.parametrize("store_cls", [LmtFileStore, ToltecFileStore])
@@ -235,13 +294,12 @@ def test_store_path_is_read_only(tmp_path, store_cls, path_type):
     assert store.path == tmp_path / "missing"
 
 
-def test_cached_child_remains_consistent_with_read_only_path(tmp_path):
+def test_child_remains_consistent_with_read_only_path(tmp_path):
     store = LmtFileStore(tmp_path)
-    child = store.toltec
+    child = store.substores[ToltecFileStore]
     with pytest.raises(AttributeError):
         store.path = tmp_path / "other"  # ty: ignore[invalid-assignment] -- test runtime protection
-    assert store.toltec is child
-    assert store.substores["toltec"] is child
+    assert store.substores[ToltecFileStore] is child
     assert child.path == store.path / "toltec"
 
 
@@ -249,67 +307,42 @@ def test_stores_retain_identity_equality(tmp_path):
     first, second = LmtFileStore(tmp_path), LmtFileStore(tmp_path)
     assert first != second
     stores = {first, second}
-    assert first.toltec is first.toltec
+    assert first.substores[ToltecFileStore] is first.substores[ToltecFileStore]
     assert len(stores) == 2
     assert first in stores
 
 
-def test_only_lmt_search_accepts_instrument_filter():
-    assert set(signature(FileStoreBase.find_candidates).parameters) == {"self", "spec"}
-    assert set(signature(ToltecFileStore.find_candidates).parameters) == {
-        "self",
-        "spec",
-    }
-    assert set(signature(LmtFileStore.find_candidates).parameters) == {
-        "self",
-        "spec",
-        "instru",
-    }
-
-
-def test_invalid_instrument_regex_fails_before_discovery(tmp_path, monkeypatch):
-    def unexpected(*args, **kwargs):
-        pytest.fail("Invalid filter reached directory discovery")
-
-    monkeypatch.setattr(Path, "glob", unexpected)
-    with pytest.raises(re.PatternError):
-        LmtFileStore(tmp_path).find_candidates("145609/{tel,0}", instru="[")
-
-
 def test_instrument_filter_is_per_search(data_lmt_path):
     store = LmtFileStore(data_lmt_path)
-    expected = store.find_candidates("145609/{tel,0}")
-    telescope = store.find_candidates("145609/{tel,0}", instru="(?!toltec)")
+    expected = store.glob_obs_spec("145609/{tel,0}")
+    telescope = store.tel.glob_obs_spec("145609/{tel,0}")
     assert len(telescope) == 2
-    assert all(path.parent == store.tel_path for path in telescope)
-    assert expected == telescope + store.toltec.find_candidates("145609/{tel,0}")
+    assert all(path.parent == store.tel.path for path in telescope)
+    assert expected == telescope + store.toltec.glob_obs_spec("145609/{tel,0}")
     assert len(expected) > len(telescope)
-    assert store.find_candidates("145609/{tel,0}") == expected
-    assert not hasattr(store, "instru")
+    assert store.glob_obs_spec("145609/{tel,0}") == expected
 
 
 def test_additional_typed_child_uses_shared_discovery(tmp_path):
     calls = []
 
     # A new instrument contributes its own layout without changing discovery.
-    class Store(FileStoreBase[ObsSpec]):
-        def _iter_candidate_patterns(self, spec):
+    class Store(LmtFileStoreBase):
+        _subpaths = (PurePosixPath("."),)
+
+        def _iter_local_glob_patterns(self, spec, subpath):
             calls.append((self.path, spec))
             return []
 
     class ExtendedLmtFileStore(LmtFileStore):
-        @property
-        def rsr(self) -> Store:
-            return cast("Store", self.get_substore("rsr"))
-
-    ExtendedLmtFileStore.register_substore("rsr", Store)
+        rsr = Substore(Store, subpath="rsr")
 
     store = ExtendedLmtFileStore(tmp_path)
-    assert_type(store.rsr, Store)
-    assert store.rsr is store.substores["rsr"]
-    assert store.toltec is store.substores["toltec"]
+    assert_type(store.rsr, StoreView)
+    assert store.rsr.path == store.substores[Store].path
+    assert store.toltec.path == store.substores[ToltecFileStore].path
     spec = ObsSpec.parse("tcs-145609")
-    assert store.find_candidates(spec, instru="rsr") == []
+    assert store.rsr.glob_obs_spec(spec) == []
     assert calls == [(tmp_path / "rsr", spec)]
 
 
@@ -338,14 +371,16 @@ def test_additional_typed_child_uses_shared_discovery(tmp_path):
     ],
 )
 def test_delegated_stores_resolve_one_spec_in_their_own_context(
-    tmp_path, monkeypatch, text, expected
+    tmp_path, text, expected
 ):
     resolved = {}
 
     # Synthetic declarations test the extension point, not acquisition filenames.
-    class Store(FileStoreBase[ObsSpec]):
-        def _iter_candidate_patterns(self, spec):
-            interfaces = list(self._obs_spec_context.labels["interface"])
+    class Store(LmtFileStoreBase):
+        _subpaths = (PurePosixPath("."),)
+
+        def _iter_local_glob_patterns(self, spec, subpath):
+            interfaces = list(self._obs_spec_context.field_label_numbers["interface"])
             resolved[self.path.name] = spec.resolve_values(
                 "interface", interfaces, context=self._obs_spec_context
             )
@@ -356,45 +391,14 @@ def test_delegated_stores_resolve_one_spec_in_their_own_context(
 
     class FooStore(Store):
         _obs_spec_context = ObsSpecContext(
-            labels={"interface": {f"bar{i}": i for i in range(4)}},
+            field_label_numbers={"interface": {f"bar{i}": i for i in range(4)}},
         )
 
-    monkeypatch.setattr(
-        LmtFileStore,
-        "substores",
-        property(
-            lambda self: {
-                "toltec": ToltecStore(self.path / "toltec"),
-                "foo": FooStore(self.path / "foo"),
-            }
-        ),
-    )
-    assert LmtFileStore(tmp_path).find_candidates(text) == []
+    class Root(LmtFileStore):
+        _substore_paths: ClassVar = {
+            ToltecStore: PurePosixPath("toltec"),
+            FooStore: PurePosixPath("foo"),
+        }
+
+    assert Root(tmp_path).glob_obs_spec(text) == []
     assert resolved == expected
-
-
-def test_selector_contexts_follow_instrument_scope(tmp_path, monkeypatch):
-    class Store(FileStoreBase[ObsSpec]):
-        _obs_spec_context = ObsSpecContext(labels={"interface": {"bar1": 1}})
-
-        def _iter_candidate_patterns(self, spec):
-            pytest.fail("Context composition must not discover files")
-
-    original = LmtFileStore.substores
-    monkeypatch.setattr(
-        LmtFileStore,
-        "substores",
-        property(
-            lambda self: dict(original.fget(self)) | {"foo": Store(self.path / "foo")}
-        ),
-    )
-    store = LmtFileStore(tmp_path)
-    assert (
-        store.get_obs_spec_context(instru="foo")
-        == lmt_obs_spec_context | Store._obs_spec_context
-    )
-    assert store.get_obs_spec_context(instru="no_matches") is lmt_obs_spec_context
-    assert (
-        store.get_obs_spec_context(instru="toltec")
-        == lmt_obs_spec_context | toltec_obs_spec_context
-    )

@@ -7,9 +7,13 @@ TolTECA documentation
 
    readme
    guide
+   datamodels-api
    kids-inputs
    kids-reduction
-   obsspec
+   kids-pipeline-api
+   drive-fit
+   drive-fit-api
+   obs_spec
 .. toctree::
    :maxdepth: 2
    :caption: KIDs signal processing

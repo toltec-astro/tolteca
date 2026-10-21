@@ -1,21 +1,4 @@
-"""Diagnostic plot functions for the KIDs reduction pipeline.
-
-These are pure functions that take v3 pipeline data structures and return
-plotly figures, mirroring the v2 ``KidsFindPlot`` step.  They can be called
-from scripts or from tolteca_web callbacks.
-
-Main entry point
-----------------
-``make_kids_find_figs(dt, kids_find_context, cfg_kf)``
-
-Returns a dict of ``go.Figure`` objects:
-
-* ``peaks``           — |D21| / |S21| peaks + raw S21 traces (3-panel)
-* ``peak_props``      — Qr vs height/SNR scatter (4-panel)
-* ``d21_summary``     — D21 bitmask heatmap + Qr/SNR/FWHM/height rows
-* ``s21_summary``     — S21 bitmask heatmap + same rows
-* ``det_summary``     — Detection bitmask heatmap + f/Qr rows
-"""
+"""Diagnostic plots for KIDs reduction."""
 
 from __future__ import annotations
 
@@ -198,7 +181,20 @@ def make_s21_summary_fig(ctx_kf: KidsFindContext, cfg_kf: KidsFindConfig) -> go.
 
 
 def make_det_summary_fig(ctx_kf: KidsFindContext, cfg_kf: KidsFindConfig) -> go.Figure:
-    """Detection bitmask + f/Qr heatmap rows."""
+    """Plot detection flags, frequencies, and quality factors.
+
+    Parameters
+    ----------
+    ctx_kf : KidsFindContext
+        Completed detection results.
+    cfg_kf : KidsFindConfig
+        Detection settings used for quality-factor display limits.
+
+    Returns
+    -------
+    plotly.graph_objects.Figure
+        Detection summary.
+    """
     ctd = ctx_kf.data
     det_groups = ctd.det_groups
     seg_data_items = [
@@ -505,9 +501,19 @@ def make_peak_props_fig(
 # ── Matched-detection figure (3-panel) ───────────────────────────────────────
 
 def make_matched_fig(matched: Match1DResult, ref_name: str) -> go.Figure:
-    """3-panel figure: phi distribution / match lines / DTW density.
+    """Plot phase differences, matched tones, and alignment density.
 
-    Mirrors v2 ``KidsFindPlot.make_matched_fig``.
+    Parameters
+    ----------
+    matched : Match1DResult
+        Matched detections.
+    ref_name : str
+        Label for the reference detections.
+
+    Returns
+    -------
+    plotly.graph_objects.Figure
+        Matching summary.
     """
     fig = make_subplots(
         3, 1,
@@ -593,20 +599,23 @@ def make_kids_find_figs(
     ctx_kf: KidsFindContext,
     cfg_kf: KidsFindConfig,
 ) -> dict[str, go.Figure]:
-    """Generate all diagnostic figures for a KidsFind result.
+    """Plot KID detection results.
 
     Parameters
     ----------
-    dt : xr.DataTree
-        Raw sweep DataTree (from ``_build_datatree_from_zarr``).
+    dt : xarray.DataTree
+        Sweep data used for detection.
     ctx_kf : KidsFindContext
-        Populated KidsFindContext (from ``KidsFind.run()``).
+        Completed detection results.
     cfg_kf : KidsFindConfig
-        The KidsFindConfig used during the run.
+        Detection settings used for display limits and reference labels.
 
     Returns
     -------
-    dict mapping figure name → ``go.Figure``.
+    dict of str to plotly.graph_objects.Figure
+        Figures keyed by ``peaks``, ``peak_props``, ``d21_summary``,
+        ``s21_summary`` and ``det_summary``, with ``matched`` and ``matched_ref``
+        when the corresponding results are available.
     """
     figs: dict[str, go.Figure] = {
         "peaks": make_peaks_fig(dt, ctx_kf),

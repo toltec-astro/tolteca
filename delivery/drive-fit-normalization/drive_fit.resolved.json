@@ -1,0 +1,99 @@
+{
+  "fit": {
+    "enabled": true,
+    "alias": null,
+    "artifacts": {
+      "alias": null,
+      "arrays": {
+        "alias": null
+      },
+      "table": {
+        "alias": null
+      }
+    },
+    "n_adrvs_min": 5,
+    "weight_window_Qr": 12000.0,
+    "a_ref": 0.2,
+    "channels": null
+  },
+  "plot": {
+    "enabled": true,
+    "alias": null,
+    "artifacts": {
+      "alias": null,
+      "summary": {
+        "alias": null,
+        "save": true,
+        "save_formats": [
+          "html"
+        ],
+        "save_plotly": {
+          "html": {
+            "auto_open": false,
+            "auto_play": false,
+            "include_plotlyjs": true,
+            "full_html": true
+          },
+          "image": {
+            "width": 1600,
+            "height": null,
+            "scale": 1.0
+          }
+        },
+        "show_plotly": {
+          "host": "127.0.0.1",
+          "port": 8050
+        },
+        "channels": null
+      },
+      "grid": {
+        "alias": null,
+        "save": true,
+        "save_formats": [
+          "html"
+        ],
+        "save_plotly": {
+          "html": {
+            "auto_open": false,
+            "auto_play": false,
+            "include_plotlyjs": true,
+            "full_html": true
+          },
+          "image": {
+            "width": 1600,
+            "height": null,
+            "scale": 1.0
+          }
+        },
+        "show_plotly": {
+          "host": "127.0.0.1",
+          "port": 8050
+        },
+        "channels": null,
+        "page_size": 12,
+        "columns": 4
+      },
+      "sweeps": {
+        "alias": null,
+        "channels": null
+      }
+    },
+    "fit_alias": null
+  },
+  "output": {
+    "enabled": true,
+    "alias": null,
+    "artifacts": null,
+    "registration": false,
+    "path": "/Users/ma/Codes/toltec/dev_toltec/python/run/drive-fit-normalization-20261021/dataprod_toltec",
+    "namespace": "scratch",
+    "run": {
+      "uid": null,
+      "name": "drive-fit-145484-normalization"
+    },
+    "tag": "main",
+    "n_chans_per_chunk": 16,
+    "n_samples_per_chunk": 1024
+  },
+  "select": null
+}

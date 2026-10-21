@@ -44,8 +44,8 @@ def toltec0_data_path(data_lmt_path: Path) -> Path:
 
 @pytest.fixture(scope="session")
 def real_vnasweep_file(toltec0_data_path: Path) -> Path:
-    """Path to the first available ``*_vnasweep.nc`` reference file."""
-    files = sorted(toltec0_data_path.glob("*_vnasweep.nc"))
+    """Path to the recorded 145605 ``vnasweep`` reference file."""
+    files = sorted(toltec0_data_path.glob("*145605*_vnasweep.nc"))
     if not files:
         pytest.skip(f"No *_vnasweep.nc files found in {toltec0_data_path}")
     return files[0]
@@ -53,8 +53,8 @@ def real_vnasweep_file(toltec0_data_path: Path) -> Path:
 
 @pytest.fixture(scope="session")
 def real_targsweep_file(toltec0_data_path: Path) -> Path:
-    """Path to the first available ``*_targsweep.nc`` reference file."""
-    files = sorted(toltec0_data_path.glob("*_targsweep.nc"))
+    """Path to the recorded 145606 ``targsweep`` reference file."""
+    files = sorted(toltec0_data_path.glob("*145606*_targsweep.nc"))
     if not files:
         pytest.skip(f"No *_targsweep.nc files found in {toltec0_data_path}")
     return files[0]
@@ -62,8 +62,8 @@ def real_targsweep_file(toltec0_data_path: Path) -> Path:
 
 @pytest.fixture(scope="session")
 def real_tune_file(toltec0_data_path: Path) -> Path:
-    """Path to the first available ``*_tune.nc`` reference file."""
-    files = sorted(toltec0_data_path.glob("*_tune.nc"))
+    """Path to the recorded 145609 ``tune`` reference file."""
+    files = sorted(toltec0_data_path.glob("*145609*_tune.nc"))
     if not files:
         pytest.skip(f"No *_tune.nc files found in {toltec0_data_path}")
     return files[0]

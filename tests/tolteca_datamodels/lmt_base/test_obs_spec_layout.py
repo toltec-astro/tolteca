@@ -5,8 +5,8 @@ from dataclasses import FrozenInstanceError
 import pandas as pd
 import pytest
 
+from tolteca_datamodels.core.obs_spec import FieldSelection, ValueBounds
 from tolteca_datamodels.lmt_base.obs_spec import ObsSpec
-from tolteca_datamodels.obs_spec import FieldSelection, ValueBounds
 
 
 @pytest.mark.parametrize(
@@ -24,6 +24,7 @@ from tolteca_datamodels.obs_spec import FieldSelection, ValueBounds
             {"master": "tcs", "obsnum": 1, "subobsnum": 1, "scannum": 1},
         ),
         ("1", {"obsnum": 1}),
+        ("1/2", {"obsnum": 1, "interface": 2}),
         ("*-1", {"subobsnum": 1}),
         ("tcs-*-1", {"master": "tcs", "subobsnum": 1}),
         ("tcs-*", {"master": "tcs"}),
@@ -133,6 +134,25 @@ def test_normalized_text_uses_validated_field_positions(data, text):
 
 
 @pytest.mark.parametrize(
+    ("text", "constraints", "canonical"),
+    [
+        ("1000-*-*-7", {"obsnum": 1000, "interface": 7}, "1000/7"),
+        (
+            "1000-2-*-7",
+            {"obsnum": 1000, "subobsnum": 2, "interface": 7},
+            "1000-2/7",
+        ),
+        ("1000-*-2-*", {"obsnum": 1000, "scannum": 2}, "1000-*-2"),
+    ],
+)
+def test_text_gap_normalization_preserves_field_positions(text, constraints, canonical):
+    spec = ObsSpec.parse(text)
+    assert dict(spec.constraints()) == constraints
+    assert str(spec) == canonical
+    assert ObsSpec.parse(canonical) == spec
+
+
+@pytest.mark.parametrize(
     "text",
     [
         "",
@@ -148,6 +168,7 @@ def test_normalized_text_uses_validated_field_positions(data, text):
         "1000-1-2-3-4",
         "1000-1/2/3/4",
         "1000/1-2",
+        "1/foo-2",
         "1000-{1,no}",
         "1000-{1,}",
         "1000-[1:2:3:4]",
@@ -185,7 +206,7 @@ def test_immutable_normalized_sets_and_validation():
     ):
         with pytest.raises(ValueError):
             # Invalid constructor inputs deliberately bypass static constraints.
-            ObsSpec(**kwargs)  # ty: ignore[invalid-argument-type]
+            ObsSpec(**kwargs)
 
 
 def test_primary_wildcard_is_not_a_master_wildcard():

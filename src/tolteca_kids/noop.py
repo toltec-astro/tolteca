@@ -21,7 +21,6 @@ class NoOp(Step[StepConfig, NoOpContext]):
     """Complete a step without reading arrays or producing results."""
 
     @classmethod
-    def run(cls, data: xr.DataTree, context: NoOpContext) -> bool:
+    def run(cls, data: xr.DataTree, context: NoOpContext) -> None:
         """Leave the input unchanged apart from the attached step context."""
         logger.debug("No-op: skipping computation and product output")
-        return True

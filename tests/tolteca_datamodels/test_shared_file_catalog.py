@@ -2,13 +2,19 @@
 
 from typing import ClassVar
 
+from tollan.accessor.pandas.model_table import ModelColumn
+
+from tolteca_datamodels.core.types import DataModelInfo
 from tolteca_datamodels.file import FileAccessor
-from tolteca_datamodels.model_table import ModelColumn
 from tolteca_datamodels.toltec.file import get_info_from_source
 
 
+class _ObservationsDataModel(DataModelInfo):
+    name = "observations"
+
+
 def test_subclass_owns_its_projection_factory():
-    class ObservationFiles(FileAccessor):
+    class ObservationFiles(FileAccessor[_ObservationsDataModel]):
         _observation_columns: ClassVar = FileAccessor._source_columns | {
             "obsnum": ModelColumn("obsnum", default=None, dtype="Int64"),
         }

@@ -46,7 +46,7 @@ assert view.psd_common.I.dims == ("f_psd",)
 
 | Setting | User-visible behavior |
 | --- | --- |
-| `nperseg` | Samples per segment; capped at the available input length |
+| `nperseg` | Samples per segment; defaults to 1024 and is capped at the available input length |
 | `noverlap=None` | Half the effective segment length; explicit overlap must be smaller than that length |
 | `window` | SciPy window name; use `hann` for the default |
 | `detrend` | `"constant"`, `"linear"`, or `False` |
@@ -109,6 +109,23 @@ median, mad_std = reduce_median_mad(
     spectra_only.sel(f_psd=slice(8, 32)), dim="f_psd"
 )
 assert median.signal.ndim == mad_std.signal.ndim == 0
+```
+
+## Compute directly from numerical samples
+
+Use `PSDAnalysis.compute_psd` without constructing a model when the input is a
+NumPy array and all spectral settings are supplied explicitly. The sampling rate
+is a plain value in Hz. The returned frequency and power arrays contain no unit
+metadata. Use `analysis.make_psd` above for configured, lazy xarray computations
+with units.
+
+```{testcode}
+frequency, power = PSDAnalysis.compute_psd(
+    signal, f_smp=128.0, window="hann", nperseg=128, noverlap=64,
+    detrend="constant", scaling="density", return_onesided=True, axis=-1,
+)
+np.testing.assert_array_equal(frequency, spectra_only.f_psd.values)
+np.testing.assert_array_equal(power, spectra_only.signal.values)
 ```
 
 ## Store and reuse results

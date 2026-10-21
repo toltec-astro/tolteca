@@ -1,0 +1,81 @@
+{
+  "before": {
+    "fit": "/Users/ma/Codes/toltec/dev_toltec/python/run/drive-fit-full-20261021/dataprod_toltec/scratch/145484-1-1/145484-1-1_drive_fit_f0a4c793e33706f0751d227f488dbf7e3e5b850a812a6d8d2610165bdaf521de/drive-fit-145484-all/index.yaml",
+    "commit": "/Users/ma/Codes/toltec/dev_toltec/python/run/drive-fit-full-20261021/dataprod_toltec/scratch/145485-0-1/145485-0-1_drive_fit_commit/drive-fit-commit-145485-all/index.yaml"
+  },
+  "after": {
+    "fit": "/Users/ma/Codes/toltec/dev_toltec/python/run/drive-fit-normalization-20261021/dataprod_toltec/scratch/145484-1-1/145484-1-1_drive_fit_f0a4c793e33706f0751d227f488dbf7e3e5b850a812a6d8d2610165bdaf521de/drive-fit-145484-normalization/index.yaml",
+    "commit": "/Users/ma/Codes/toltec/dev_toltec/python/run/drive-fit-normalization-20261021/dataprod_toltec/scratch/145485-0-1/145485-0-1_drive_fit_commit/drive-fit-commit-145485-normalization-plots/index.yaml"
+  },
+  "networks": [
+    {
+      "network": 0,
+      "channels": 632,
+      "accepted": 505,
+      "filled": 127,
+      "percentile_limited": 48,
+      "fit_arrays_exact": true,
+      "matching_policy_exact": true,
+      "old_attenuation_db": 6.25,
+      "exact_attenuation_db": 8.352639266109954,
+      "new_attenuation_db": 8.25,
+      "old_model_error_db": 2.1026392661099607,
+      "new_model_error_db": 0.10263926610996066,
+      "max_amplitude_change": 2.220446049250313e-16,
+      "max_emitted_amplitude_change": 2.220446049250313e-16,
+      "reference_bins": 632,
+      "target_bins": 632,
+      "reference_phase_headers": 7,
+      "target_phase_header": true,
+      "waveform_error_before_db": 2.326036623795509,
+      "waveform_error_after_db": 0.326036623795507
+    },
+    {
+      "network": 7,
+      "channels": 389,
+      "accepted": 245,
+      "filled": 144,
+      "percentile_limited": 25,
+      "fit_arrays_exact": true,
+      "matching_policy_exact": true,
+      "old_attenuation_db": 7.0,
+      "exact_attenuation_db": 7.983698716040735,
+      "new_attenuation_db": 7.75,
+      "old_model_error_db": 0.9836987160407347,
+      "new_model_error_db": 0.23369871604073467,
+      "max_amplitude_change": 2.220446049250313e-16,
+      "max_emitted_amplitude_change": 2.220446049250313e-16,
+      "reference_bins": 389,
+      "target_bins": 389,
+      "reference_phase_headers": 7,
+      "target_phase_header": true,
+      "waveform_error_before_db": 0.9650429678455161,
+      "waveform_error_after_db": 0.21504296784551968
+    },
+    {
+      "network": 11,
+      "channels": 472,
+      "accepted": 24,
+      "filled": 448,
+      "percentile_limited": 3,
+      "fit_arrays_exact": true,
+      "matching_policy_exact": true,
+      "old_attenuation_db": 12.0,
+      "exact_attenuation_db": 12.787755319615957,
+      "new_attenuation_db": 12.75,
+      "old_model_error_db": 0.7877553196159539,
+      "new_model_error_db": 0.03775531961595391,
+      "max_amplitude_change": 2.220446049250313e-16,
+      "max_emitted_amplitude_change": 2.220446049250313e-16,
+      "reference_bins": 472,
+      "target_bins": 472,
+      "reference_phase_headers": 7,
+      "target_phase_header": true,
+      "waveform_error_before_db": 0.8402509208477751,
+      "waveform_error_after_db": 0.09025092084777508
+    }
+  ],
+  "power_source": "/Users/ma/Codes/toltec/toltec_astro/tolteca/src/tolteca_kids/roach_tone_power.py",
+  "power_source_sha256": "605d1bf054fc0b497a92b44c1e540ad068557e3593ade2c2a2eae323b1fd51e1",
+  "waveform_assumption": "Output retains the target sweep's recorded phases and masks; calculated prediction, not a measured post-commit sweep."
+}

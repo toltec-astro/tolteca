@@ -15,8 +15,11 @@ API
 ---
 - High-level: ``analysis(sweep_view)`` returns a DataTree containing both results
   and the input sweep. Use ``output=tree`` to install results in an existing scope.
-- Low-level: ``analysis.make_matched(sweep_view)`` and
-  ``analysis.make_unified(sweep_view)`` return standalone DataArrays.
+- Mid-level: ``analysis.make_matched(sweep_view)`` and
+  ``analysis.make_unified(sweep_view)`` use configured settings to return
+  standalone DataArrays.
+- Low-level: ``D21Analysis.compute_matched`` and ``compute_unified`` accept
+  NumPy arrays and explicit numerical settings and return NumPy arrays.
 - Result access: ``result.kids.d21`` or ``D21View(result)`` exposes the matched
   derivative, unified magnitude, frequency, coverage, and saved configuration.
 - Detached result access: ``D21View.from_namespace(node)`` reads an already
@@ -47,7 +50,7 @@ True
 >>> result.kids.sweep.S21.identical(sweep.kids.sweep.S21)
 True
 
-2. Low-level API: compute standalone arrays from a multi-channel sweep.
+2. Mid-level API: compute standalone arrays from a multi-channel sweep.
 
 >>> f_chans = np.linspace(1e9, 1.1e9, 10)
 >>> f_sweep = np.linspace(-5e6, 5e6, 101)
@@ -122,6 +125,20 @@ True
 ...         assert restored.d21_analysis == analysis
 ...         xr.testing.assert_identical(restored.d21, view.d21)
 ...         xr.testing.assert_identical(restored.d21_unified, view.d21_unified)
+
+7. Low-level API: differentiate and combine numerical arrays with explicit settings.
+
+>>> f = np.linspace(1e9, 1.01e9, 101)
+>>> s21 = 1 / (1 + 1j * (f - 1.005e9) / 1e6)
+>>> d21 = D21Analysis.compute_matched(s21, f, smooth=5, method="gradient")
+>>> f_common, magnitude, coverage = D21Analysis.compute_unified(
+...     d21, f, f_lims=(float(f.min()), float(f.max())),
+...     f_step=100_000.0, exclude_edge=5,
+... )
+>>> d21.shape == s21.shape
+True
+>>> f_common.shape == magnitude.shape == coverage.shape
+True
 
 Notes
 -----
@@ -255,8 +272,10 @@ class D21Analysis(Analysis[D21Mapper]):
     -----
     - High-level API: call with a sweep view to compute and store both results
       in a DataTree. Use ``output`` to choose an existing destination.
-    - Low-level API: ``make_matched`` and ``make_unified`` return standalone
-      DataArrays for further numerical work.
+    - Mid-level API: ``make_matched`` and ``make_unified`` return standalone
+      DataArrays for further numerical work using this configuration.
+    - Low-level API: ``compute_matched`` and ``compute_unified`` accept numerical
+      arrays and explicit settings without constructing an analysis instance.
     - Both numerical methods evaluate the input arrays eagerly.
     """
 
@@ -437,6 +456,85 @@ class D21Analysis(Analysis[D21Mapper]):
             ),
         }
 
+    @classmethod
+    def compute_matched(
+        cls,
+        s21: npt.NDArray,
+        frequency: npt.NDArray,
+        *,
+        smooth: int,
+        method: D21SmoothMethod,
+    ) -> npt.NDArray:
+        """Differentiate complex transmission on a numerical frequency grid.
+
+        Parameters
+        ----------
+        s21 : numpy.ndarray
+            Complex transmission, shaped ``(sample,)`` or ``(chan, sample)``.
+        frequency : numpy.ndarray
+            Increasing frequencies in Hz, shaped like ``s21``. Channels share
+            sample spacing; the first channel supplies the differentiation grid.
+        smooth : int
+            Window length in samples. Zero disables smoothing for gradient;
+            Savitzky-Golay requires at least three samples and uniform spacing.
+        method : {"gradient", "savgol"}
+            Uniform-filter smoothing followed by a gradient, or a quadratic
+            Savitzky-Golay derivative.
+
+        Returns
+        -------
+        numpy.ndarray
+            Complex derivative with the input shape, per Hz. Inputs are unchanged.
+
+        Raises
+        ------
+        ValueError
+            The method is unknown or the numerical estimator rejects its inputs.
+        """
+        if method == "gradient":
+            if smooth > 0:
+                s21_smooth = uniform_filter1d(s21, size=smooth, mode="mirror", axis=-1)
+            else:
+                s21_smooth = s21
+            # Get 1-D frequency
+            if frequency.ndim == 1:  # noqa: SIM108
+                frequency_1d = frequency
+            else:
+                # dim is [chan, sweep]
+                frequency_1d = frequency[0, :]
+
+            d21 = np.gradient(s21_smooth, frequency_1d, axis=-1)
+        elif method == "savgol":
+            # Get frequency spacing (works for both 1-D and 2-D)
+            if frequency.ndim == 1:
+                deltaf = frequency[1] - frequency[0]
+            else:
+                # dim is [chan, sweep]
+                deltaf = frequency[0, 1] - frequency[0, 0]
+
+            # Savgol filter computes derivative directly
+            d21_real = savgol_filter(
+                s21.real,
+                window_length=smooth,
+                polyorder=2,
+                deriv=1,
+                delta=deltaf,
+                axis=-1,
+            )
+            d21_imag = savgol_filter(
+                s21.imag,
+                window_length=smooth,
+                polyorder=2,
+                deriv=1,
+                delta=deltaf,
+                axis=-1,
+            )
+            d21 = make_complex(d21_real, d21_imag)
+        else:
+            msg = f"Unknown method: {method}"
+            raise ValueError(msg)
+        return d21
+
     def make_matched(
         self,
         sweep_view: MultiSweepView | SweepView,
@@ -468,52 +566,7 @@ class D21Analysis(Analysis[D21Mapper]):
         s21: npt.NDArray[np.complex128] = sweep_view.S21.values
         fs_Hz = sweep_view.frequency.u.to("Hz").values
 
-        # Compute derivative based on method
-        method = self.method
-        smooth = self._smooth  # this is computed in validator
-
-        if method == "gradient":
-            if smooth is not None and smooth > 0:
-                s21_smooth = uniform_filter1d(s21, size=smooth, mode="mirror", axis=-1)
-            else:
-                s21_smooth = s21
-            # Get 1-D frequency
-            if fs_Hz.ndim == 1:  # noqa: SIM108
-                fs_Hz_1d = fs_Hz
-            else:
-                # dim is [chan, sweep]
-                fs_Hz_1d = fs_Hz[0, :]
-
-            d21 = np.gradient(s21_smooth, fs_Hz_1d, axis=-1)
-        elif method == "savgol":
-            # Get frequency spacing (works for both 1-D and 2-D)
-            if fs_Hz.ndim == 1:
-                deltaf = fs_Hz[1] - fs_Hz[0]
-            else:
-                # dim is [chan, sweep]
-                deltaf = fs_Hz[0, 1] - fs_Hz[0, 0]
-
-            # Savgol filter computes derivative directly
-            d21_real = savgol_filter(
-                s21.real,
-                window_length=smooth,
-                polyorder=2,
-                deriv=1,
-                delta=deltaf,
-                axis=-1,
-            )
-            d21_imag = savgol_filter(
-                s21.imag,
-                window_length=smooth,
-                polyorder=2,
-                deriv=1,
-                delta=deltaf,
-                axis=-1,
-            )
-            d21 = make_complex(d21_real, d21_imag)
-        else:
-            msg = f"Unknown method: {method}"
-            raise ValueError(msg)
+        d21 = self.compute_matched(s21, fs_Hz, smooth=self._smooth, method=self.method)
         result = xr.DataArray(
             d21,
             dims=sweep_view.S21.dims,
@@ -525,6 +578,85 @@ class D21Analysis(Analysis[D21Mapper]):
         )
         self._dump_to_attr(result, mapper=mapper)
         return result
+
+    @classmethod
+    def compute_unified(
+        cls,
+        d21: npt.NDArray,
+        frequency: npt.NDArray,
+        *,
+        f_lims: tuple[float, float],
+        f_step: float,
+        exclude_edge: int,
+    ) -> tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
+        """Average derivative magnitudes on an explicitly specified frequency grid.
+
+        Parameters
+        ----------
+        d21 : numpy.ndarray
+            Complex derivatives, shaped ``(sample,)`` or ``(chan, sample)``.
+        frequency : numpy.ndarray
+            Increasing measured frequencies in Hz, with the same shape as ``d21``.
+        f_lims : tuple of float
+            Lower and upper bounds in Hz. The upper bound is excluded.
+        f_step : float
+            Positive output-grid spacing in Hz.
+        exclude_edge : int
+            Nonnegative number of samples excluded from each channel edge.
+
+        Returns
+        -------
+        frequency_unified : numpy.ndarray
+            One-dimensional output frequency grid in Hz.
+        magnitude : numpy.ndarray
+            Mean of the interpolated absolute derivatives at each output bin,
+            in the same units as ``d21``. Uncovered bins contain zero.
+        coverage : numpy.ndarray
+            Number of contributing channels at each output bin. Inputs are unchanged.
+
+        Raises
+        ------
+        ValueError
+            Edge exclusion leaves insufficient samples or the numerical grid
+            cannot be constructed.
+        """
+        if frequency.ndim == 1:
+            frequency = frequency[np.newaxis, :]
+            d21 = d21[np.newaxis, :]
+        if exclude_edge > 0:
+            if 2 * exclude_edge > frequency.shape[-1]:
+                msg = f"insufficient number of data points for {exclude_edge=}."
+                raise ValueError(msg)
+            edge_slice = slice(exclude_edge, -exclude_edge)
+        else:
+            edge_slice = slice(None, None)
+
+        frequency_unified = np.arange(*f_lims, f_step)
+        magnitude_matched = np.abs(d21)
+        magnitude = np.zeros(frequency_unified.shape, dtype=np.double)
+        coverage = np.zeros(frequency_unified.shape, dtype=int)
+        chan_min = np.min(frequency, axis=1)
+        chan_max = np.max(frequency, axis=1)
+        for i in range(frequency.shape[0]):
+            selected = (frequency_unified >= chan_min[i]) & (
+                frequency_unified <= chan_max[i]
+            )
+            interpolated = np.interp(
+                frequency_unified[selected],
+                frequency[i, edge_slice],
+                magnitude_matched[i, edge_slice],
+                left=np.nan,
+                right=np.nan,
+            )
+            covered = ~np.isnan(interpolated)
+            interpolated[~covered] = 0
+            magnitude[selected] += interpolated
+            coverage[selected] += covered.astype(dtype=int)
+
+        covered = coverage > 0
+        magnitude[covered] /= coverage[covered]
+        magnitude[np.isnan(magnitude)] = 0
+        return frequency_unified, magnitude, coverage
 
     def make_unified(
         self,
@@ -562,7 +694,8 @@ class D21Analysis(Analysis[D21Mapper]):
         """
         if mapper is None:
             mapper = self._mapper_cls.from_defaults()
-        fs = sweep_view.frequency.u.quantity
+        # Unified-grid construction and interpolation are eager NumPy operations.
+        fs = sweep_view.frequency.u.to("Hz").to_numpy() << u.Hz
         if _d21_matched is None:
             d21_matched = self.make_matched(sweep_view, mapper=mapper).values
         else:
@@ -582,64 +715,19 @@ class D21Analysis(Analysis[D21Mapper]):
         if f_step is None:
             f_step = (fs[0, 1] - fs[0, 0]) / self.resample
 
-        # Validate edge exclusion (use validated private attribute)
-        exclude_edge = self._exclude_edge
-
-        if exclude_edge > 0:
-            if 2 * exclude_edge > fs.shape[-1]:
-                msg = f"insufficient number of data points for {exclude_edge=}."
-                raise ValueError(msg)
-            edge_slice = slice(exclude_edge, -exclude_edge)
-        else:
-            edge_slice = slice(None, None)
-
-        smooth = self._smooth
-        method = self.method
         logger.debug(
             f"build unified D21 with {f_min=} {f_max=} {f_step=}"
-            f" {exclude_edge=} {smooth=} {method=} "
-            f"from original f_min={fs.min()} f_max={fs.max()}",
+            f" exclude_edge={self._exclude_edge} smooth={self._smooth}"
+            f" method={self.method!r} from original f_min={fs.min()} f_max={fs.max()}",
         )
-
-        # Create unified frequency grid with units
-        fs_unified = (
-            np.arange(
-                f_min.to_value(u.Hz),
-                f_max.to_value(u.Hz),
-                f_step.to_value(u.Hz),
-            )
-            << u.Hz
+        frequency, ad21_unified, ad21_unified_cov = self.compute_unified(
+            d21_matched,
+            fs.to_value(u.Hz),
+            f_lims=(f_min.to_value(u.Hz), f_max.to_value(u.Hz)),
+            f_step=f_step.to_value(u.Hz),
+            exclude_edge=self._exclude_edge,
         )
-
-        # Get absolute D21 values
-        ad21_matched = np.abs(d21_matched)
-        ad21_unified = np.zeros(fs_unified.shape, dtype=np.double)
-        ad21_unified_cov = np.zeros(fs_unified.shape, dtype=int)
-
-        # Get channel boundaries (convert to Hz for comparison)
-        chan_min = np.min(fs, axis=1).to_value(u.Hz)
-        chan_max = np.max(fs, axis=1).to_value(u.Hz)
-        fs_unified_Hz = fs_unified.to_value(u.Hz)
-
-        # Interpolate each channel to unified grid
-        for i in range(fs.shape[0]):
-            m = (fs_unified_Hz >= chan_min[i]) & (fs_unified_Hz <= chan_max[i])
-            tmp = np.interp(
-                fs_unified_Hz[m],
-                fs[i, edge_slice].to_value(u.Hz),
-                ad21_matched[i, edge_slice],
-                left=np.nan,
-                right=np.nan,
-            )
-            cov = ~np.isnan(tmp)
-            tmp[~cov] = 0
-            ad21_unified[m] += tmp
-            ad21_unified_cov[m] += cov.astype(dtype=int)
-
-        # Normalize by coverage and clean up
-        m = ad21_unified_cov > 0
-        ad21_unified[m] /= ad21_unified_cov[m]
-        ad21_unified[np.isnan(ad21_unified)] = 0
+        fs_unified = frequency << u.Hz
 
         # Get mapped coordinate names from schema
         f_unified_key = mapper.get_name(mapper.schema.f_unified)

@@ -53,7 +53,8 @@ def _make_zarr_dataset(
         lo_center_hz + lo_sweep_range / 2,
         n_steps,
     )
-    tone_freq = np.linspace(-800e3, 800e3, n_chan)  # offsets around LO centre
+    # Span enough frequencies for the production D21 statistics windows.
+    tone_freq = np.linspace(-8e6, 8e6, n_chan)
 
     I = rng.normal(0.5, 0.05, (n_chan, n_steps)).astype(np.float32)
     Q = rng.normal(0.0, 0.05, (n_chan, n_steps)).astype(np.float32)
@@ -63,6 +64,8 @@ def _make_zarr_dataset(
             "I": xr.DataArray(I, dims=["chan", "sample"]),
             "Q": xr.DataArray(Q, dims=["chan", "sample"]),
             "tone_freq": xr.DataArray(tone_freq, dims=["chan"]),
+            "tone_amp": xr.DataArray(np.linspace(0.2, 1.0, n_chan), dims=["chan"]),
+            "tone_mask": xr.DataArray(np.ones(n_chan, dtype=bool), dims=["chan"]),
         },
         coords={"lo_freq": xr.DataArray(lo_freq, dims=["sample"])},
         attrs={"lo_center_freq_hz": lo_center_hz},
@@ -96,35 +99,35 @@ class TestBuildDatatreeFromZarr:
     def test_has_sweep_child(self):
         ds = _make_zarr_dataset()
         dt = _build_datatree_from_zarr(ds)
-        from tolteca_kids.pipeline import _SWEEP_NS
-        assert _SWEEP_NS in dt.children
+        from tolteca_kids.pipeline import _SWEEP_SUBPATH
+        assert _SWEEP_SUBPATH in dt.children
 
     def test_sweep_child_has_I_Q(self):
         ds = _make_zarr_dataset()
         dt = _build_datatree_from_zarr(ds)
-        from tolteca_kids.pipeline import _SWEEP_NS
-        ds_child = dt[_SWEEP_NS].dataset
-        assert f"{_SWEEP_NS}.I" in ds_child.data_vars
-        assert f"{_SWEEP_NS}.Q" in ds_child.data_vars
+        from tolteca_kids.pipeline import _SWEEP_SUBPATH
+        ds_child = dt[_SWEEP_SUBPATH].dataset
+        assert "I" in ds_child.data_vars
+        assert "Q" in ds_child.data_vars
 
     def test_chan_sweep_dims(self):
         ds = _make_zarr_dataset(n_chan=4, n_steps=20)
         dt = _build_datatree_from_zarr(ds)
-        from tolteca_kids.pipeline import _SWEEP_NS
-        I_da = dt[_SWEEP_NS].dataset[f"{_SWEEP_NS}.I"]
+        from tolteca_kids.pipeline import _SWEEP_SUBPATH
+        I_da = dt[_SWEEP_SUBPATH].dataset["I"]
         assert I_da.dims == ("chan", "sweep")
         assert I_da.shape == (4, 20)
 
-    def test_f_lo_coord_shape(self):
+    def test_f_chan_coord_shape(self):
         ds = _make_zarr_dataset(n_chan=5, n_steps=10)
         dt = _build_datatree_from_zarr(ds)
-        from tolteca_kids.pipeline import _SWEEP_NS
-        f_lo = dt[_SWEEP_NS].dataset.coords["f_lo"]
+        from tolteca_kids.pipeline import _SWEEP_SUBPATH
+        f_lo = dt[_SWEEP_SUBPATH].dataset.coords["f_chan"]
         assert f_lo.shape == (5,)
 
     def test_reduced_sweep_view_ok(self):
         """ReducedSweepView must be constructable from the DataTree."""
-        from tolteca_datamodels.toltec.kids import ReducedSweepView
+        from tolteca_kids import ReducedSweepView
         ds = _make_zarr_dataset()
         dt = _build_datatree_from_zarr(ds)
         view = ReducedSweepView(dt)

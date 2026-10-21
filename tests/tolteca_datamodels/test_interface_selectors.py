@@ -5,10 +5,9 @@ from typing import ClassVar
 
 import pandas as pd
 import pytest
+from pydantic import ValidationError
 
-from tolteca_datamodels.lmt.obs_spec import obs_spec_context as lmt_obs_spec_context
-from tolteca_datamodels.lmt_base.obs_spec import ObsSpec
-from tolteca_datamodels.obs_spec import (
+from tolteca_datamodels.core.obs_spec import (
     FieldConstraint,
     FieldPattern,
     FieldSelection,
@@ -17,8 +16,10 @@ from tolteca_datamodels.obs_spec import (
     Selector,
     ValueBounds,
 )
-from tolteca_datamodels.toltec.obs_spec import (
-    obs_spec_context as toltec_obs_spec_context,
+from tolteca_datamodels.lmt._obs_spec import _obs_spec_context as lmt_obs_spec_context
+from tolteca_datamodels.lmt_base.obs_spec import ObsSpec
+from tolteca_datamodels.toltec._obs_spec import (
+    _obs_spec_context as toltec_obs_spec_context,
 )
 from tolteca_datamodels.toltec.types import ToltecInfo
 
@@ -34,7 +35,7 @@ def test_parsed_selector_carries_no_instrument_context():
         ({"toltec1": 1, "toltec3": 3}, ["toltec3"]),
         ({"bar1": 1, "bar2": 2}, ["bar2"]),
     ):
-        context = ObsSpecContext(labels={"interface": numbers})
+        context = ObsSpecContext(field_label_numbers={"interface": numbers})
         assert spec.select(table, context=context).interface.tolist() == expected
         assert spec.resolve_values(
             "interface", table.interface.tolist(), context=context
@@ -182,7 +183,7 @@ def test_logical_interface_has_no_parallel_roach_field():
         "interface",
     ]
     with pytest.raises(TypeError):
-        ObsSpec(roach=1)
+        ObsSpec(roach=1)  # ty: ignore[unknown-argument] -- Test rejection of the removed field.
     assert ObsSpec.parse("1/toltec1").interface == "toltec1"
     assert ObsSpec.parse("1/1").interface == 1
 
@@ -218,13 +219,13 @@ def test_mixed_column_numeric_bounds_and_unrestricted_values(text, expected):
 
 
 def test_field_kind_is_required():
-    with pytest.raises(TypeError):
-        FieldConstraint()
+    with pytest.raises(ValidationError, match="Field required"):
+        FieldConstraint()  # ty: ignore[missing-argument] -- Test required-field validation.
 
 
 @pytest.mark.parametrize("kind", ["", "number", "labels", None])
 def test_invalid_field_kind_raises(kind):
-    with pytest.raises(ValueError, match="Invalid field kind"):
+    with pytest.raises(ValidationError, match="literal_error"):
         FieldConstraint(kind=kind)
 
 
@@ -240,7 +241,7 @@ def test_prefixed_matching_is_generic_and_not_interface_specific():
         {"device": ["camera", "detector2", "detector3", "sensor3", None]}
     )
     numbers = {"device": {"detector2": 2, "detector3": 3, "sensor3": 3}}
-    context = ObsSpecContext(labels=numbers)
+    context = ObsSpecContext(field_label_numbers=numbers)
     assert DeviceSpec.parse("{camera,2}").select(
         table, context=context
     ).index.tolist() == [0, 1]
@@ -266,7 +267,7 @@ def test_one_selector_resolves_against_available_values(text, expected):
     available = ["tel", "toltec0", "toltec1", "toltec4", "toltec10", "bar1", "bar3"]
     spec = ObsSpec.parse(f"1/{text}")
     context = toltec_obs_spec_context | ObsSpecContext(
-        labels={"interface": {"bar1": 1, "bar3": 3}},
+        field_label_numbers={"interface": {"bar1": 1, "bar3": 3}},
     )
     assert spec.resolve_values("interface", available, context=context) == expected
     table = pd.DataFrame({"obsnum": [1] * len(available), "interface": available})
@@ -277,6 +278,7 @@ def test_one_selector_resolves_against_available_values(text, expected):
 
 def test_prefix_is_preserved_and_positions_are_deferred():
     spec = ObsSpec.parse("1/toltec(1,5)[-1]")
+    assert str(spec) == "1/toltec(1,5)[-1:]"
     assert spec.interface == FieldPattern(
         "toltec", FieldSelection(ValueBounds(1, 5), slice(-1, None)), ""
     )
@@ -297,7 +299,7 @@ def test_positions_order_numeric_components_not_labels():
         {"obsnum": [1] * 4, "interface": ["toltec2", "toltec10", "bar10", "tel"]}
     )
     context = toltec_obs_spec_context | ObsSpecContext(
-        labels={"interface": {"bar10": 10}}
+        field_label_numbers={"interface": {"bar10": 10}}
     )
     assert ObsSpec.parse("1/()[-1]").select(table, context=context).index.tolist() == [
         1,
@@ -391,7 +393,7 @@ def test_digit_ending_literal_is_not_split_into_an_inferred_number():
         assert MixedSpec.parse(value).select(table).value.tolist() == [value]
     assert MixedSpec.parse("1").select(table).empty
     numbers = {"foo00": 0, "foo01": 1, "foo10": 0, "foo11": 1}
-    context = ObsSpecContext(labels={"value": numbers})
+    context = ObsSpecContext(field_label_numbers={"value": numbers})
     assert MixedSpec.parse("1").select(table, context=context).value.tolist() == [
         "foo01",
         "foo11",

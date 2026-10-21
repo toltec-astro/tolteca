@@ -1,0 +1,2553 @@
+{
+  "copied_on": "2026-10-21",
+  "remote_root": "unity-toltec4:/nese/toltec/data_lmt",
+  "local_root": "data_lmt",
+  "selection": {
+    "master": "tcs",
+    "obsnums": [
+      145480,
+      145481,
+      145482,
+      145483,
+      145484,
+      145485,
+      145486
+    ],
+    "networks": [
+      0,
+      7,
+      11
+    ],
+    "arrays": {
+      "0": "a1100",
+      "7": "a1400",
+      "11": "a2000"
+    },
+    "fit_obsnum": 145484,
+    "fit_subobsnums": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "scan": 1
+  },
+  "total_bytes": 473045080,
+  "verification": "Each local size and SHA-256 equals the source on Unity; within each network all seven fit sweeps have identical tone frequencies, amplitudes, phases and masks.",
+  "metadata_source": {
+    "path": "test_fixtures/lmtmc_drive_fit.csv",
+    "source": "/Users/ma/Codes/toltec/work_toltec/tune_analysis/lmtmc_stats/lmtmc_all.csv",
+    "selection": "ObsNum 145480\u2013145486, all 14 acquisition rows; original columns and values retained."
+  },
+  "files": [
+    {
+      "path": "tel/tel_toltec_2025-10-31_145480_00_0001.nc",
+      "bytes": 567916,
+      "sha256": "8fde146ee20636c16575a022f17c3385021d27054dd37d925622d88755922597"
+    },
+    {
+      "path": "tel/tel_toltec_2025-10-31_145481_00_0001.nc",
+      "bytes": 358396,
+      "sha256": "d7d3f18f527c3acbcd5517c980f7b0aa28cb9f185f0d5285ed2bc5090b81c417"
+    },
+    {
+      "path": "tel/tel_toltec_2025-10-31_145482_00_0001.nc",
+      "bytes": 363052,
+      "sha256": "ba37f57c60871f67ca1ff6542cbf12079f2157402d7db0924e889d4d30ffbc26"
+    },
+    {
+      "path": "tel/tel_toltec_2025-10-31_145483_00_0001.nc",
+      "bytes": 1223636,
+      "sha256": "8303224fca8ee56a0e2f6d5a77bcab3b6bcbb8bee940984823201bdcbba77cd8"
+    },
+    {
+      "path": "tel/tel_toltec_2025-10-31_145484_00_0001.nc",
+      "bytes": 1243812,
+      "sha256": "8938b95f6e861829de7aef1b38d49485e4afc99ee90a448a93f902f926d3e99d"
+    },
+    {
+      "path": "tel/tel_toltec_2025-10-31_145484_01_0001.nc",
+      "bytes": 347532,
+      "sha256": "78d2aabb0d5bd7047e5c987b16d654c3f8b6c767bd4bad67769dac0e7a06b967"
+    },
+    {
+      "path": "tel/tel_toltec_2025-10-31_145484_02_0001.nc",
+      "bytes": 332400,
+      "sha256": "7728000fdc7abd1098336705643031f80c98b22b271b9a4259e208fc03ff5e69"
+    },
+    {
+      "path": "tel/tel_toltec_2025-10-31_145484_03_0001.nc",
+      "bytes": 373140,
+      "sha256": "931816655f2cc7b621df9ed251508c4a8a299bcd4f6e497ec20ee6705f81bb48"
+    },
+    {
+      "path": "tel/tel_toltec_2025-10-31_145484_04_0001.nc",
+      "bytes": 397196,
+      "sha256": "2abc4e5d24262be9e1cf8e240b1e8fa691faffd3fa8442d33f6d24c2bca1d3c7"
+    },
+    {
+      "path": "tel/tel_toltec_2025-10-31_145484_05_0001.nc",
+      "bytes": 378572,
+      "sha256": "396576d6dd6cf8b01fe86528f3044600f7f6acc05bfed90a7be347a830802dbb"
+    },
+    {
+      "path": "tel/tel_toltec_2025-10-31_145484_06_0001.nc",
+      "bytes": 321148,
+      "sha256": "52b711126c5b74dbfad6e62039f1a0acd318f39d6d1a53e2e30b41bdec41a333"
+    },
+    {
+      "path": "tel/tel_toltec_2025-10-31_145484_07_0001.nc",
+      "bytes": 367708,
+      "sha256": "80dea9ded43d36c933c12a626fa0a9838005024823f9aa62245faebba54b66f5"
+    },
+    {
+      "path": "tel/tel_toltec_2025-10-31_145485_00_0001.nc",
+      "bytes": 361112,
+      "sha256": "49fbd23a53252a7fbf878768b8b1eaea165bb04d37a47ce3c49f9f5bdce21a7b"
+    },
+    {
+      "path": "tel/tel_toltec_2025-10-31_145486_00_0001.nc",
+      "bytes": 1187940,
+      "sha256": "356c925cccec1984e4ebc8d0f5662e6704c9ddd88b64ec061f315a5e9262fca9"
+    },
+    {
+      "path": "toltec/tcs/toltec0/toltec0_145480_000_0001_2025_10_31_02_45_08_vnasweep.nc",
+      "bytes": 39540464,
+      "sha256": "58c9ebd3265bb96fa7508eeb9111b629828eff063eba54f1c0d1afb78adcd234",
+      "identity": {
+        "ObsNum": 145480,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 2,
+        "RoachIndex": 0,
+        "TargSweepObsNum": 145479,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 675190000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 1000,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            1000
+          ],
+          "sha256": "1c669bf4d7d7063e3f4a661b520cbf9ad4a2e65f3ca37d7e9a47eec19c898e3f"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            1000
+          ],
+          "sha256": "293c74c4fbb53d81624af7b050d629b72d5de797a51f5e933c1227016d18d959"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            1000
+          ],
+          "sha256": "e4190bf93e24bcf8e8861a8901d31a4f22c435c951faa399ade31357df139aec"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            1000
+          ],
+          "sha256": "7677adb202fd16370cf7f0152f7f6fcf63cc790447abf1aef9caa71ed0546c2c"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "94812ba3a82b6c0b1407adcaebade0bd0f0b8d9f1355a9309f1f3166243c00a4"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec0/toltec0_145481_000_0001_2025_10_31_02_49_12_targsweep.nc",
+      "bytes": 9435000,
+      "sha256": "74a5ab7517a63149aed3bb96170c37cbccc0d312d344438373be834b9876198c",
+      "identity": {
+        "ObsNum": 145481,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 0,
+        "TargSweepObsNum": 145480,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 675190000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 652,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            652
+          ],
+          "sha256": "5e31464229a43c4fbf4dc994540aaed07fe83ade35ba659fbe8cdf54f70dd873"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            652
+          ],
+          "sha256": "85524446ef446875b7e22f9ee0f0e56693c2a59aa4167d5bb0bcbf526ad9da21"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            652
+          ],
+          "sha256": "65ef48eb993efa0f5a6bead32142c4c51a504028c7d97479f33d75ba260cb47c"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            652
+          ],
+          "sha256": "03bdf8f911bf6877148799b0a8e1b091ea127221fc5198cad856cb71f57c3f46"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec0/toltec0_145482_000_0001_2025_10_31_02_50_11_targsweep.nc",
+      "bytes": 9263256,
+      "sha256": "00afa2f51acafececb583aa54d6aa40399b300a987ebdf9f2a7176340cba638c",
+      "identity": {
+        "ObsNum": 145482,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 0,
+        "TargSweepObsNum": 145481,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 675190000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 640,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            640
+          ],
+          "sha256": "c2a2ae0686f84faab83300c72add190b7467e33861e6d55aee3df6e31465e526"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            640
+          ],
+          "sha256": "b19dd551b9238fa5999ed7284a921197189115b8e111eb323409597ab4ab7925"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            640
+          ],
+          "sha256": "ed07ce8b9a09d9104d336ceafdbbfef7f85a7c7198cf416e0070a54b4bc366ca"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            640
+          ],
+          "sha256": "0a827de6fcac6fc2293db86537566d96ad12b556d1e33b72d95c052b575e324d"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec0/toltec0_145483_000_0001_2025_10_31_02_51_08_tune.nc",
+      "bytes": 18264744,
+      "sha256": "76ad676046f05f26a46c036dcbd0e6bf6ad449a8d4efa72c7ef33baba1204593",
+      "identity": {
+        "ObsNum": 145483,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 4,
+        "RoachIndex": 0,
+        "TargSweepObsNum": 145482,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 675190000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 632,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            2,
+            632
+          ],
+          "sha256": "c5b5c92b0d8861e564847018baab1457de8e1dbd0a324adb45776733094d6ba2"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            2,
+            632
+          ],
+          "sha256": "d8c82595af8c5af5e15eacd0cc4d3e3edf98aad8a8ff3d6329c0dbbf89ae9079"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            2,
+            632
+          ],
+          "sha256": "0cd21e588c9d7179e13190a635990964d3e55181d0a2c903980f979beac422fc"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            2,
+            632
+          ],
+          "sha256": "9c99486ad27991bef681b2d5f51063b70852e7694ff97b51e4826ca089d8ee68"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec0/toltec0_145484_000_0001_2025_10_31_02_56_25_tune.nc",
+      "bytes": 18264744,
+      "sha256": "a57709ccf5c21059b9674df7432a8c935e801790dc4a826a6a18dc35276e6933",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 4,
+        "RoachIndex": 0,
+        "TargSweepObsNum": 145483,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 675190000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 632,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            2,
+            632
+          ],
+          "sha256": "03f4c1d46b86b45fd4759e42c23582f5ecdf2e130d93027383305b044b9f9e79"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            2,
+            632
+          ],
+          "sha256": "9a38d72d73a9685280907bd3605117f67953e2a3f3291de4ad03ab951982c2f1"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            2,
+            632
+          ],
+          "sha256": "0cd21e588c9d7179e13190a635990964d3e55181d0a2c903980f979beac422fc"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            2,
+            632
+          ],
+          "sha256": "5cd64f3f29186045e18dda8993b07e1a221675c6526eba11458e89feb0fe3ed3"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec0/toltec0_145484_001_0001_2025_10_31_02_57_39_targsweep.nc",
+      "bytes": 9148760,
+      "sha256": "cdae3a862f390b2f62e431bac13c23103d2dad86d32e352f44b7e0ed70c10552",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 1,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 0,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 675190000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 4.0
+      },
+      "n_chans": 632,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "f9ef481f2acaa6930de518a122e2c37ee481c513d1de2d053cb51dd0eab81565"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "cd10c39e33f02c9668ae7006d7a57e8f962ca851dacadf9b0ef7685e89a2a1f9"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "563124868e40614b042dbe6092e22b7907612f539d40acd9c9c00a7defeb7e2d"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "3436f0820ef95b8e75951ac77da9a082669570863c19f78412c13a90e5da6a47"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec0/toltec0_145484_002_0001_2025_10_31_02_58_29_targsweep.nc",
+      "bytes": 9148760,
+      "sha256": "12edb0bbafcee99a8773e74d3197b3ed08626facc2d05b65af5294dd6c79a3fc",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 2,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 0,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 1,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 675190000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 6.0
+      },
+      "n_chans": 632,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "f9ef481f2acaa6930de518a122e2c37ee481c513d1de2d053cb51dd0eab81565"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "cd10c39e33f02c9668ae7006d7a57e8f962ca851dacadf9b0ef7685e89a2a1f9"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "563124868e40614b042dbe6092e22b7907612f539d40acd9c9c00a7defeb7e2d"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "3436f0820ef95b8e75951ac77da9a082669570863c19f78412c13a90e5da6a47"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec0/toltec0_145484_003_0001_2025_10_31_02_59_20_targsweep.nc",
+      "bytes": 9148760,
+      "sha256": "27138ab4ab171a7c26c675650884918279b77ecd22dbf9b6c8490dbe27ca8b56",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 3,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 0,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 2,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 675190000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 8.0
+      },
+      "n_chans": 632,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "f9ef481f2acaa6930de518a122e2c37ee481c513d1de2d053cb51dd0eab81565"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "cd10c39e33f02c9668ae7006d7a57e8f962ca851dacadf9b0ef7685e89a2a1f9"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "563124868e40614b042dbe6092e22b7907612f539d40acd9c9c00a7defeb7e2d"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "3436f0820ef95b8e75951ac77da9a082669570863c19f78412c13a90e5da6a47"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec0/toltec0_145484_004_0001_2025_10_31_03_00_08_targsweep.nc",
+      "bytes": 9148760,
+      "sha256": "f3006f29612206eba1d6cd5b5d4810add9a34a59ce06c4da2475f3d25897d968",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 4,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 0,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 3,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 675190000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 632,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "f9ef481f2acaa6930de518a122e2c37ee481c513d1de2d053cb51dd0eab81565"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "cd10c39e33f02c9668ae7006d7a57e8f962ca851dacadf9b0ef7685e89a2a1f9"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "563124868e40614b042dbe6092e22b7907612f539d40acd9c9c00a7defeb7e2d"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "3436f0820ef95b8e75951ac77da9a082669570863c19f78412c13a90e5da6a47"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec0/toltec0_145484_005_0001_2025_10_31_03_01_01_targsweep.nc",
+      "bytes": 9148760,
+      "sha256": "4d1ad6bfe90f44b1788c6c43e2014f4b38616cc0c0fb534dcee9a089a51c63fa",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 5,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 0,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 4,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 675190000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 12.0
+      },
+      "n_chans": 632,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "f9ef481f2acaa6930de518a122e2c37ee481c513d1de2d053cb51dd0eab81565"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "cd10c39e33f02c9668ae7006d7a57e8f962ca851dacadf9b0ef7685e89a2a1f9"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "563124868e40614b042dbe6092e22b7907612f539d40acd9c9c00a7defeb7e2d"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "3436f0820ef95b8e75951ac77da9a082669570863c19f78412c13a90e5da6a47"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec0/toltec0_145484_006_0001_2025_10_31_03_01_45_targsweep.nc",
+      "bytes": 9148760,
+      "sha256": "956a0bc56e9d5ad998c672e157aa7faf8ac0f3e84484b2c8583dea0c924064c5",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 6,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 0,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 5,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 675190000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 14.0
+      },
+      "n_chans": 632,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "f9ef481f2acaa6930de518a122e2c37ee481c513d1de2d053cb51dd0eab81565"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "cd10c39e33f02c9668ae7006d7a57e8f962ca851dacadf9b0ef7685e89a2a1f9"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "563124868e40614b042dbe6092e22b7907612f539d40acd9c9c00a7defeb7e2d"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "3436f0820ef95b8e75951ac77da9a082669570863c19f78412c13a90e5da6a47"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec0/toltec0_145484_007_0001_2025_10_31_03_02_28_targsweep.nc",
+      "bytes": 9148760,
+      "sha256": "d0ed8b6f6139caebca3aebea0e9e0097ae04a613f1fbb6fa2da43b8dc303e095",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 7,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 0,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 6,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 675190000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 16.0
+      },
+      "n_chans": 632,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "f9ef481f2acaa6930de518a122e2c37ee481c513d1de2d053cb51dd0eab81565"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "cd10c39e33f02c9668ae7006d7a57e8f962ca851dacadf9b0ef7685e89a2a1f9"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "563124868e40614b042dbe6092e22b7907612f539d40acd9c9c00a7defeb7e2d"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "3436f0820ef95b8e75951ac77da9a082669570863c19f78412c13a90e5da6a47"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec0/toltec0_145485_000_0001_2025_10_31_03_04_09_targsweep.nc",
+      "bytes": 9148760,
+      "sha256": "e687a6311c00d5942c0f134f6a54dd69e5c341af0f62918817ecce00a121e79c",
+      "identity": {
+        "ObsNum": 145485,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 0,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 7,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 675190000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 7.25
+      },
+      "n_chans": 632,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "f9ef481f2acaa6930de518a122e2c37ee481c513d1de2d053cb51dd0eab81565"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "cd10c39e33f02c9668ae7006d7a57e8f962ca851dacadf9b0ef7685e89a2a1f9"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "563124868e40614b042dbe6092e22b7907612f539d40acd9c9c00a7defeb7e2d"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            632
+          ],
+          "sha256": "3436f0820ef95b8e75951ac77da9a082669570863c19f78412c13a90e5da6a47"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "94812ba3a82b6c0b1407adcaebade0bd0f0b8d9f1355a9309f1f3166243c00a4"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec0/toltec0_145486_000_0001_2025_10_31_03_05_07_tune.nc",
+      "bytes": 18321992,
+      "sha256": "a1bbd15a4111546ab7e46b2dc6a2afaa618079d614e8f8c5af12ed9c124818f1",
+      "identity": {
+        "ObsNum": 145486,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 4,
+        "RoachIndex": 0,
+        "TargSweepObsNum": 145485,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 675190000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 7.25
+      },
+      "n_chans": 634,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            2,
+            634
+          ],
+          "sha256": "fc6a2c4ddf9d169efea99234661ac0d8a25266174413c4e799408541a576b6e0"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            2,
+            634
+          ],
+          "sha256": "bac6a4effffda9011eadfc74b94c5908aa78c7a3523e681b68995849df76c900"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            2,
+            634
+          ],
+          "sha256": "b0bf8866b105791b9325f6ebc0702eae4e94139f2dcca42242b04f09d2377f49"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            2,
+            634
+          ],
+          "sha256": "cc3e8aec7d8898d85e3f0309ebb6593b81167dca50467cda2a38d2ca870734a0"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "94812ba3a82b6c0b1407adcaebade0bd0f0b8d9f1355a9309f1f3166243c00a4"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec11/toltec11_145480_000_0001_2025_10_31_02_45_08_vnasweep.nc",
+      "bytes": 39538224,
+      "sha256": "01553d5c306eaa1b7a5bbfebd467e6bcf70d20d1e9a6db60a2f0aff62b301a6e",
+      "identity": {
+        "ObsNum": 145480,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 2,
+        "RoachIndex": 11,
+        "TargSweepObsNum": 145479,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 726195000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 1000,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            1000
+          ],
+          "sha256": "1c669bf4d7d7063e3f4a661b520cbf9ad4a2e65f3ca37d7e9a47eec19c898e3f"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            1000
+          ],
+          "sha256": "7063763e6fc80e6df241689773d51ff1ee1b4516a8e1a7ead0b164d21260d316"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            1000
+          ],
+          "sha256": "e4190bf93e24bcf8e8861a8901d31a4f22c435c951faa399ade31357df139aec"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            1000
+          ],
+          "sha256": "91fa5ca94101013714a59ce0c35e2f19111dea04e656505a9954153e506e9b89"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "94812ba3a82b6c0b1407adcaebade0bd0f0b8d9f1355a9309f1f3166243c00a4"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec11/toltec11_145481_000_0001_2025_10_31_02_49_12_targsweep.nc",
+      "bytes": 7128528,
+      "sha256": "a25b1504c3827f5ff6f92d093ad16e303c5633256568f93d2db131b8b3797c74",
+      "identity": {
+        "ObsNum": 145481,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 11,
+        "TargSweepObsNum": 145480,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 726195000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 491,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            491
+          ],
+          "sha256": "6fa2801306b752ef46276dcb08ea248a5765b55a1e01b2c15003218b33162a03"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            491
+          ],
+          "sha256": "30649582e74402652bd8f3a587230297cb9d6b898200dafd8cc5f7734b23d37c"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            491
+          ],
+          "sha256": "cd9bf55ffdc02fde8df143162cafaa8a34569d42874ffa18fc14dc92646d0a79"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            491
+          ],
+          "sha256": "824d3ce9617fc8251841db6fa5613604cb3955db5e77a17e4200fa97f3735eba"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec11/toltec11_145482_000_0001_2025_10_31_02_50_11_targsweep.nc",
+      "bytes": 6899536,
+      "sha256": "2be77d17846e1e7e7791c6964e1b5fac3ca106c97febafdcff75061de20678e0",
+      "identity": {
+        "ObsNum": 145482,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 11,
+        "TargSweepObsNum": 145481,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 726195000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 475,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            475
+          ],
+          "sha256": "d5cc741d26d59aa23b57da639aae2fe8f8eed31dce8209b20c3e658b3c99bba1"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            475
+          ],
+          "sha256": "6a3a7c3c589dc4df9c9d2202370894b8fc34867374538a7d89e4bf12433da85f"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            475
+          ],
+          "sha256": "15102122c60dcbd4610f695df8a8e005b289cdec9f4b7363dad5d3ef9ae70e17"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            475
+          ],
+          "sha256": "9fb28ab76a3d158dcf05eb3f10d367151beef0289683d52dfe5406831d748c0d"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec11/toltec11_145483_000_0001_2025_10_31_02_51_08_tune.nc",
+      "bytes": 13682664,
+      "sha256": "9f928d67d09ede4508ad5a7175b8320f962603ce42d2a753c69e3187b67f433e",
+      "identity": {
+        "ObsNum": 145483,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 4,
+        "RoachIndex": 11,
+        "TargSweepObsNum": 145482,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 726195000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 472,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            2,
+            472
+          ],
+          "sha256": "486c6e01c4bb3ec621b023895fff74f9df688cada45c6efd2999b44766e4277c"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            2,
+            472
+          ],
+          "sha256": "676e578885292c964c9cc55162156a0fad32a6d054f884ddab2e5ece40390ba9"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            2,
+            472
+          ],
+          "sha256": "95263e89a86fe8ee8206a2eb44a26095f916d4226637d7c75733b4eb0e15667d"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            2,
+            472
+          ],
+          "sha256": "f8e4c5ba99c05d2433fb7564373750093a8fa40932a68797d3ee9d387c2c2bbe"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec11/toltec11_145484_000_0001_2025_10_31_02_56_25_tune.nc",
+      "bytes": 13682664,
+      "sha256": "d6b23307627b8a707d8c1dc95b5c3eac28ce36aaf1decf971debdede277f3af8",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 4,
+        "RoachIndex": 11,
+        "TargSweepObsNum": 145483,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 726195000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 472,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            2,
+            472
+          ],
+          "sha256": "dc4f3be134b56b6f68e29aec0cd6a96a18a46badbcde37ab404a2a5ac52c00b0"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            2,
+            472
+          ],
+          "sha256": "88de5c1791838ecfe9c19a124b39b2648ceef46f3f60e7d8c49968e360d14f05"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            2,
+            472
+          ],
+          "sha256": "95263e89a86fe8ee8206a2eb44a26095f916d4226637d7c75733b4eb0e15667d"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            2,
+            472
+          ],
+          "sha256": "f745235a88ddf823418e6fa387a719c5981d30211508f780752ee5d936cb8010"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec11/toltec11_145484_001_0001_2025_10_31_02_57_39_targsweep.nc",
+      "bytes": 6856600,
+      "sha256": "286e4fae225562a5029944b44a69b8ddcf7e3d3acfd4deeebaae0599bd81a943",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 1,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 11,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 726195000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 4.0
+      },
+      "n_chans": 472,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "a701de94a4393efdbe319a0dff308f119f0a765936ad2c302f13207807738288"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "7832bedf0967df49bcd817f6f017d30280b62985347063bca5493db791f5f80e"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "c1dea622be2f4f05f659ff45b81ce02ee1c08a97e407ef8582eba4c2272d10cb"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "8bfe885cdf96f4b3a34340dd055cab9835433995cf2283b7f30b0e76b29fbdbe"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec11/toltec11_145484_002_0001_2025_10_31_02_58_29_targsweep.nc",
+      "bytes": 6856600,
+      "sha256": "94b9d527bce4846ade425855c04186c531e5410fab8ee9c7235e65502681b749",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 2,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 11,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 1,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 726195000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 6.0
+      },
+      "n_chans": 472,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "a701de94a4393efdbe319a0dff308f119f0a765936ad2c302f13207807738288"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "7832bedf0967df49bcd817f6f017d30280b62985347063bca5493db791f5f80e"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "c1dea622be2f4f05f659ff45b81ce02ee1c08a97e407ef8582eba4c2272d10cb"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "8bfe885cdf96f4b3a34340dd055cab9835433995cf2283b7f30b0e76b29fbdbe"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec11/toltec11_145484_003_0001_2025_10_31_02_59_20_targsweep.nc",
+      "bytes": 6856600,
+      "sha256": "dcee55c4549825b8e1f9b069aa128ff1b1d3b86b26fb8d36036841762d1ff00f",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 3,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 11,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 2,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 726195000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 8.0
+      },
+      "n_chans": 472,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "a701de94a4393efdbe319a0dff308f119f0a765936ad2c302f13207807738288"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "7832bedf0967df49bcd817f6f017d30280b62985347063bca5493db791f5f80e"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "c1dea622be2f4f05f659ff45b81ce02ee1c08a97e407ef8582eba4c2272d10cb"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "8bfe885cdf96f4b3a34340dd055cab9835433995cf2283b7f30b0e76b29fbdbe"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec11/toltec11_145484_004_0001_2025_10_31_03_00_08_targsweep.nc",
+      "bytes": 6856600,
+      "sha256": "9531843e75bfa490d2c12067e99fc62853b4960420168e06066eef089bdb72f5",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 4,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 11,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 3,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 726195000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 472,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "a701de94a4393efdbe319a0dff308f119f0a765936ad2c302f13207807738288"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "7832bedf0967df49bcd817f6f017d30280b62985347063bca5493db791f5f80e"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "c1dea622be2f4f05f659ff45b81ce02ee1c08a97e407ef8582eba4c2272d10cb"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "8bfe885cdf96f4b3a34340dd055cab9835433995cf2283b7f30b0e76b29fbdbe"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec11/toltec11_145484_005_0001_2025_10_31_03_01_01_targsweep.nc",
+      "bytes": 6856600,
+      "sha256": "f416a3e776b180dffe3b1eb408485665028f7f074b520e4b0dc21153f1e51495",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 5,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 11,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 4,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 726195000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 12.0
+      },
+      "n_chans": 472,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "a701de94a4393efdbe319a0dff308f119f0a765936ad2c302f13207807738288"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "7832bedf0967df49bcd817f6f017d30280b62985347063bca5493db791f5f80e"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "c1dea622be2f4f05f659ff45b81ce02ee1c08a97e407ef8582eba4c2272d10cb"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "8bfe885cdf96f4b3a34340dd055cab9835433995cf2283b7f30b0e76b29fbdbe"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec11/toltec11_145484_006_0001_2025_10_31_03_01_46_targsweep.nc",
+      "bytes": 6856600,
+      "sha256": "15475a145906250c301e41e0ee9e932fa483c720decd0e1c5ef688b908dcc406",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 6,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 11,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 5,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 726195000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 14.0
+      },
+      "n_chans": 472,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "a701de94a4393efdbe319a0dff308f119f0a765936ad2c302f13207807738288"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "7832bedf0967df49bcd817f6f017d30280b62985347063bca5493db791f5f80e"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "c1dea622be2f4f05f659ff45b81ce02ee1c08a97e407ef8582eba4c2272d10cb"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "8bfe885cdf96f4b3a34340dd055cab9835433995cf2283b7f30b0e76b29fbdbe"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec11/toltec11_145484_007_0001_2025_10_31_03_02_28_targsweep.nc",
+      "bytes": 6856600,
+      "sha256": "53bd7097b615ae35834867f5f3bb81d1c086ab75a796461107dd73f32e289c58",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 7,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 11,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 6,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 726195000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 16.0
+      },
+      "n_chans": 472,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "a701de94a4393efdbe319a0dff308f119f0a765936ad2c302f13207807738288"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "7832bedf0967df49bcd817f6f017d30280b62985347063bca5493db791f5f80e"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "c1dea622be2f4f05f659ff45b81ce02ee1c08a97e407ef8582eba4c2272d10cb"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "8bfe885cdf96f4b3a34340dd055cab9835433995cf2283b7f30b0e76b29fbdbe"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec11/toltec11_145485_000_0001_2025_10_31_03_04_09_targsweep.nc",
+      "bytes": 6856600,
+      "sha256": "4857c8fe6ebe860eeac0471087a364f1c0264302127425984e8521ac4c45077c",
+      "identity": {
+        "ObsNum": 145485,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 11,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 7,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 726195000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 9.25
+      },
+      "n_chans": 472,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "a701de94a4393efdbe319a0dff308f119f0a765936ad2c302f13207807738288"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "7832bedf0967df49bcd817f6f017d30280b62985347063bca5493db791f5f80e"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "c1dea622be2f4f05f659ff45b81ce02ee1c08a97e407ef8582eba4c2272d10cb"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            472
+          ],
+          "sha256": "8bfe885cdf96f4b3a34340dd055cab9835433995cf2283b7f30b0e76b29fbdbe"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "94812ba3a82b6c0b1407adcaebade0bd0f0b8d9f1355a9309f1f3166243c00a4"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec11/toltec11_145486_000_0001_2025_10_31_03_05_07_tune.nc",
+      "bytes": 13224680,
+      "sha256": "bf7b204e10edeb88f3aec34dbeabdc04122d87aa204bf98238069301355a32b2",
+      "identity": {
+        "ObsNum": 145486,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 4,
+        "RoachIndex": 11,
+        "TargSweepObsNum": 145485,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 726195000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 4.0,
+        "Header.Toltec.DriveAtten": 9.25
+      },
+      "n_chans": 456,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            2,
+            456
+          ],
+          "sha256": "5442c58963ea97f2e63aee52408cbbd7d35f72840103117594cafe8da908fcbe"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            2,
+            456
+          ],
+          "sha256": "8a8c1c514e4d2da4d20a3b938563cf7c912832d831f270ec4c75163a00a279e1"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            2,
+            456
+          ],
+          "sha256": "bf02713b2599eda0137c986a7a5afd89d2d9b29bf2ef569acef7cc0e4e021dea"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            2,
+            456
+          ],
+          "sha256": "02940df4cfb72a6c7b10c7cdce8d579ed381c2da02a450d99e787212fc40d64e"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "94812ba3a82b6c0b1407adcaebade0bd0f0b8d9f1355a9309f1f3166243c00a4"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec7/toltec7_145480_000_0001_2025_10_31_02_45_08_vnasweep.nc",
+      "bytes": 39540336,
+      "sha256": "58193335a33d1e8496b4b544b1ebddc865805a8a91ec4d75f54799eecb83b9aa",
+      "identity": {
+        "ObsNum": 145480,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 2,
+        "RoachIndex": 7,
+        "TargSweepObsNum": 145479,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 693500000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 8.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 1000,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            1000
+          ],
+          "sha256": "1c669bf4d7d7063e3f4a661b520cbf9ad4a2e65f3ca37d7e9a47eec19c898e3f"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            1000
+          ],
+          "sha256": "adcff4ed7822187f4ff1efef77693a2877333fd47ce9ba881bb0a89f4b995385"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            1000
+          ],
+          "sha256": "e4190bf93e24bcf8e8861a8901d31a4f22c435c951faa399ade31357df139aec"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            1000
+          ],
+          "sha256": "7b26907703c9768efb0fadd13d4bd2c283f0e8df332058af87016413d7184b23"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "94812ba3a82b6c0b1407adcaebade0bd0f0b8d9f1355a9309f1f3166243c00a4"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec7/toltec7_145481_000_0001_2025_10_31_02_49_12_targsweep.nc",
+      "bytes": 5599256,
+      "sha256": "5ecb8b39324d6222edc2e9a258ebbbbf7c565e1ba7263ddb950fd3d747d78a0f",
+      "identity": {
+        "ObsNum": 145481,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 7,
+        "TargSweepObsNum": 145480,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 693500000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 8.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 384,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            384
+          ],
+          "sha256": "7e9bb45094a2d42b0963f42a703277af87df7481be26290d2f7df568c14bbbdd"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            384
+          ],
+          "sha256": "683be7c5eed5a4c914125af668398cb91c60484537e9039fb9d3d5c9a4565028"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            384
+          ],
+          "sha256": "178d518b9e86ff5ceb06c8ccc2e95523bcfedadf9d94730d26c32844379401f8"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            384
+          ],
+          "sha256": "96ebe578027137f5c4862b22bc56fc0201fd859a6f5f18f002b93ebd2811c844"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec7/toltec7_145482_000_0001_2025_10_31_02_50_11_targsweep.nc",
+      "bytes": 5642192,
+      "sha256": "e00f3dd9cee3c8b659c034d400783015b10d3cadb4bb9c6f594af2d0b68beb90",
+      "identity": {
+        "ObsNum": 145482,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 7,
+        "TargSweepObsNum": 145481,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 693500000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 8.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 387,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            387
+          ],
+          "sha256": "0ca8facbd2241647e406fe03882fcc4e8bff139d6dd8c3e365071cf85b5d8946"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            387
+          ],
+          "sha256": "79d42258c59beba7c787131899d83c09851775973ae99538dd8136d4faf22db3"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            387
+          ],
+          "sha256": "d5a316ee67faeb84e85c84de7be1fc835c90f2723f8584d607f19bb1adbdcb52"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            387
+          ],
+          "sha256": "e3d5f006c48f43544f344bb1132d82b48d9f672cc9fe18e96f282b6719d1afe2"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec7/toltec7_145483_000_0001_2025_10_31_02_51_08_tune.nc",
+      "bytes": 11308984,
+      "sha256": "a6886128344dd88b0c788b464c71eb24a671849541a18b90f84bb11385b3325a",
+      "identity": {
+        "ObsNum": 145483,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 4,
+        "RoachIndex": 7,
+        "TargSweepObsNum": 145482,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 693500000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 8.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 389,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            2,
+            389
+          ],
+          "sha256": "d1cebf41b5ca30a7f5d9d31646a2730ff05a9f30669aa3b34906c71b185f010b"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            2,
+            389
+          ],
+          "sha256": "70a1bf50e944673dcddcbaf8ee11c50196b13ddcfac71f59fcd668e70d4fdd4f"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            2,
+            389
+          ],
+          "sha256": "cb1cb286d51c08c5fde7143ce13f8a7a3e19ad78a65d3cf5c43ee6cc46914fea"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            2,
+            389
+          ],
+          "sha256": "1db6d6e5c4076cc860ce1a9e8145e7ef9868dc9aeadfe21f4930aa6ef3e49948"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec7/toltec7_145484_000_0001_2025_10_31_02_56_25_tune.nc",
+      "bytes": 11308984,
+      "sha256": "8a62fc4446406b523fa859f272be300f6fe0f21b209950cbb7f261997b6fa026",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 4,
+        "RoachIndex": 7,
+        "TargSweepObsNum": 145483,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 693500000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 8.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 389,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            2,
+            389
+          ],
+          "sha256": "5d372604ed45bac22d9be4836d850e64dae0d1f99e0cdf04fd54728943f5f63b"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            2,
+            389
+          ],
+          "sha256": "8f8a55b2032b8ad273120ddff65e3c8aee999982d29d807b435503f3d358eb0c"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            2,
+            389
+          ],
+          "sha256": "cb1cb286d51c08c5fde7143ce13f8a7a3e19ad78a65d3cf5c43ee6cc46914fea"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            2,
+            389
+          ],
+          "sha256": "198cec080f6bac1cec9af38a578ee9bcc04712b3198555449ba8e3b2879298a0"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec7/toltec7_145484_001_0001_2025_10_31_02_57_39_targsweep.nc",
+      "bytes": 5670816,
+      "sha256": "802ba340be5b27f1324fe4f91737cb89e988f61ca97a7da58bfa55d940b925b2",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 1,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 7,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 693500000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 8.0,
+        "Header.Toltec.DriveAtten": 4.0
+      },
+      "n_chans": 389,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "e0d0ad899d9a41dcccdba92766e5ab09ae4ae9c1676635dd163d1df8894a6a11"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "bb07d9b5fa30d778c3f0d6e5c2cd30d7f74e3ab2f0be428ece94ab7fa1288e4e"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "4ae8c0128da59f7b137e49c06c8811f8900ae29a236da73ed031d714427beaec"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "05cc3146aca8cce10f10f34f9cb420871f7ba463979d35ab9f875ccdd73f6d83"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec7/toltec7_145484_002_0001_2025_10_31_02_58_29_targsweep.nc",
+      "bytes": 5670816,
+      "sha256": "b9d9263c878cf991148430bde6595fe472b32d731ab5a16742029003e5c07d74",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 2,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 7,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 1,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 693500000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 8.0,
+        "Header.Toltec.DriveAtten": 6.0
+      },
+      "n_chans": 389,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "e0d0ad899d9a41dcccdba92766e5ab09ae4ae9c1676635dd163d1df8894a6a11"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "bb07d9b5fa30d778c3f0d6e5c2cd30d7f74e3ab2f0be428ece94ab7fa1288e4e"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "4ae8c0128da59f7b137e49c06c8811f8900ae29a236da73ed031d714427beaec"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "05cc3146aca8cce10f10f34f9cb420871f7ba463979d35ab9f875ccdd73f6d83"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec7/toltec7_145484_003_0001_2025_10_31_02_59_20_targsweep.nc",
+      "bytes": 5670816,
+      "sha256": "448fe6a0e96f4625664f54b1cec279d52efeb0d214080bdf9c51c75b499cde7c",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 3,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 7,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 2,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 693500000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 8.0,
+        "Header.Toltec.DriveAtten": 8.0
+      },
+      "n_chans": 389,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "e0d0ad899d9a41dcccdba92766e5ab09ae4ae9c1676635dd163d1df8894a6a11"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "bb07d9b5fa30d778c3f0d6e5c2cd30d7f74e3ab2f0be428ece94ab7fa1288e4e"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "4ae8c0128da59f7b137e49c06c8811f8900ae29a236da73ed031d714427beaec"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "05cc3146aca8cce10f10f34f9cb420871f7ba463979d35ab9f875ccdd73f6d83"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec7/toltec7_145484_004_0001_2025_10_31_03_00_08_targsweep.nc",
+      "bytes": 5670816,
+      "sha256": "7a6787b752829df9330a779403ed6c79096591ec801d6606d96cb14d08857e99",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 4,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 7,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 3,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 693500000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 8.0,
+        "Header.Toltec.DriveAtten": 10.0
+      },
+      "n_chans": 389,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "e0d0ad899d9a41dcccdba92766e5ab09ae4ae9c1676635dd163d1df8894a6a11"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "bb07d9b5fa30d778c3f0d6e5c2cd30d7f74e3ab2f0be428ece94ab7fa1288e4e"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "4ae8c0128da59f7b137e49c06c8811f8900ae29a236da73ed031d714427beaec"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "05cc3146aca8cce10f10f34f9cb420871f7ba463979d35ab9f875ccdd73f6d83"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec7/toltec7_145484_005_0001_2025_10_31_03_01_01_targsweep.nc",
+      "bytes": 5670816,
+      "sha256": "c4a04471e358912151350c00883d0bcb04a5c1c62b52cccfb82f35e625203d17",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 5,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 7,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 4,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 693500000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 8.0,
+        "Header.Toltec.DriveAtten": 12.0
+      },
+      "n_chans": 389,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "e0d0ad899d9a41dcccdba92766e5ab09ae4ae9c1676635dd163d1df8894a6a11"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "bb07d9b5fa30d778c3f0d6e5c2cd30d7f74e3ab2f0be428ece94ab7fa1288e4e"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "4ae8c0128da59f7b137e49c06c8811f8900ae29a236da73ed031d714427beaec"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "05cc3146aca8cce10f10f34f9cb420871f7ba463979d35ab9f875ccdd73f6d83"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec7/toltec7_145484_006_0001_2025_10_31_03_01_45_targsweep.nc",
+      "bytes": 5670816,
+      "sha256": "61fd487071d7d86de8805e1ce1c372261926e0eec41183b54318e3f137587557",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 6,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 7,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 5,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 693500000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 8.0,
+        "Header.Toltec.DriveAtten": 14.0
+      },
+      "n_chans": 389,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "e0d0ad899d9a41dcccdba92766e5ab09ae4ae9c1676635dd163d1df8894a6a11"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "bb07d9b5fa30d778c3f0d6e5c2cd30d7f74e3ab2f0be428ece94ab7fa1288e4e"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "4ae8c0128da59f7b137e49c06c8811f8900ae29a236da73ed031d714427beaec"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "05cc3146aca8cce10f10f34f9cb420871f7ba463979d35ab9f875ccdd73f6d83"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec7/toltec7_145484_007_0001_2025_10_31_03_02_28_targsweep.nc",
+      "bytes": 5670816,
+      "sha256": "a2ac817194c9d279853fef631dfb92db989071a4592fd4ceac7cd8da6f67d05e",
+      "identity": {
+        "ObsNum": 145484,
+        "SubObsNum": 7,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 7,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 6,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 693500000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 8.0,
+        "Header.Toltec.DriveAtten": 16.0
+      },
+      "n_chans": 389,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "e0d0ad899d9a41dcccdba92766e5ab09ae4ae9c1676635dd163d1df8894a6a11"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "bb07d9b5fa30d778c3f0d6e5c2cd30d7f74e3ab2f0be428ece94ab7fa1288e4e"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "4ae8c0128da59f7b137e49c06c8811f8900ae29a236da73ed031d714427beaec"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "05cc3146aca8cce10f10f34f9cb420871f7ba463979d35ab9f875ccdd73f6d83"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "753d6a3be5d0eb809bb107944a1a1bf255de3da2cb9d6e5d994d9482027b4c91"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec7/toltec7_145485_000_0001_2025_10_31_03_04_09_targsweep.nc",
+      "bytes": 5670816,
+      "sha256": "b9b81ec4acbedc31d10f48789613c3b8a42f73559f94202d8138415c90b2e43e",
+      "identity": {
+        "ObsNum": 145485,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 3,
+        "RoachIndex": 7,
+        "TargSweepObsNum": 145484,
+        "TargSweepSubObsNum": 7,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 693500000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 8.0,
+        "Header.Toltec.DriveAtten": 7.0
+      },
+      "n_chans": 389,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "e0d0ad899d9a41dcccdba92766e5ab09ae4ae9c1676635dd163d1df8894a6a11"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "bb07d9b5fa30d778c3f0d6e5c2cd30d7f74e3ab2f0be428ece94ab7fa1288e4e"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "4ae8c0128da59f7b137e49c06c8811f8900ae29a236da73ed031d714427beaec"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            1,
+            389
+          ],
+          "sha256": "05cc3146aca8cce10f10f34f9cb420871f7ba463979d35ab9f875ccdd73f6d83"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "94812ba3a82b6c0b1407adcaebade0bd0f0b8d9f1355a9309f1f3166243c00a4"
+        }
+      }
+    },
+    {
+      "path": "toltec/tcs/toltec7/toltec7_145486_000_0001_2025_10_31_03_05_07_tune.nc",
+      "bytes": 11165864,
+      "sha256": "e6d1a9ae5652058f9422e2b29eb7a00b0ddcae96031a6450b2a34559147c98c4",
+      "identity": {
+        "ObsNum": 145486,
+        "SubObsNum": 0,
+        "ScanNum": 1,
+        "Master": 0,
+        "ObsType": 4,
+        "RoachIndex": 7,
+        "TargSweepObsNum": 145485,
+        "TargSweepSubObsNum": 0,
+        "TargSweepScanNum": 1,
+        "LoCenterFreq": 693500000.0
+      },
+      "settings": {
+        "Header.Toltec.SenseAtten": 8.0,
+        "Header.Toltec.DriveAtten": 7.0
+      },
+      "n_chans": 384,
+      "comb": {
+        "Header.Toltec.ToneFreq": {
+          "shape": [
+            2,
+            384
+          ],
+          "sha256": "cf8d629ed6f6c87665b4ae5cd0a1e4392992f809c97042522607fe95c45a2528"
+        },
+        "Header.Toltec.ToneAmp": {
+          "shape": [
+            2,
+            384
+          ],
+          "sha256": "9c8c83850a2b375954ba60cbef495f9a3bb622c8b76bc83e945ca95206e9dd0c"
+        },
+        "Header.Toltec.ToneMask": {
+          "shape": [
+            2,
+            384
+          ],
+          "sha256": "5b88fb7d1bc62e33aa54d9da9251503a936b8e1cf1551f73a85461c7adee5411"
+        },
+        "Header.Toltec.TonePhase": {
+          "shape": [
+            2,
+            384
+          ],
+          "sha256": "0e7dec2d1282c2bae187bcdcd55d3b31fb4ed02f5c74ece76c98faab848d12c9"
+        },
+        "Header.Toltec.ToneAmpsMode": {
+          "shape": [
+            64
+          ],
+          "sha256": "94812ba3a82b6c0b1407adcaebade0bd0f0b8d9f1355a9309f1f3166243c00a4"
+        }
+      }
+    }
+  ]
+}

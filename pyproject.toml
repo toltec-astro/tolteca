@@ -22,11 +22,13 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
 ]
 dependencies = [
+    "kaleido>=1.5",
   "typer",
-  "pydantic>=2.0",
+  "pydantic>=2.13",
   "astropy",
   "xarray>=2024.0",
   "zarr>=3",
+  "fsspec[http]>=2026.7",
   "pandas>=2.2",
   "pyarrow>=18",
   "netcdf4",
@@ -35,6 +37,7 @@ dependencies = [
   "dtw-python",
   "networkx",
   "dill",
+  "filelock>=3.32.5",
   "tollan",
 ]
 
@@ -82,6 +85,8 @@ homepage = "https://github.com/toltec-astro/tolteca"
 [project.scripts]
 tolteca = "tolteca.cli:app"
 tolteca_kids = "tolteca_kids.cli:app"
+tolteca_drive_fit = "tolteca_kids.drive_fit.cli:app"
+tolteca_drive_fit_commit = "tolteca_kids.drive_fit_commit.cli:app"
 
 [build-system]
 requires = ["setuptools>=80", "setuptools_scm>=8"]
@@ -110,7 +115,7 @@ version_file = "src/tolteca/_version.py"
 
 [tool.pytest.ini_options]
 minversion = "9.0"
-testpaths = ["tests", "src/tolteca_kidsproc"]
+testpaths = ["tests", "src/tolteca_datamodels", "src/tolteca_kidsproc"]
 # Source examples run once here; Sphinx doc-test executes the guides.
 norecursedirs = [".*", "docs[\\/]_build", "docs[\\/]generated", "examples"]
 doctest_plus = "enabled"
@@ -143,9 +148,10 @@ filterwarnings = [
 include = ["src", "tests"]
 exclude = [
   "docs/conf.py",
+  # Executed and verified in the separate v2 comparison environment.
+  "tests/tolteca_datamodels/toltec/v2_axis_reference.py",
   # TODO: pre-existing type errors; fix separately
   "src/tolteca_kids",
-  "tests/tolteca_datamodels/toltec/kids",
   "tests/tolteca_kids",
 ]
 
@@ -181,6 +187,7 @@ lint.ignore = [
   "PYI051", # redundant union of Literal and str; useful for IDE completion
   "COM812", # trailing comma (conflicts with ruff formatter)
   "ISC001", # implicit string concatenation (conflicts with ruff formatter)
+  "CPY001", # project does not use per-file copyright notices
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -198,8 +205,8 @@ lint.ignore = [
 ]
 
 # Retain unaudited domains' existing exceptions; kidsproc uses both checks.
-"src/{tolteca,tolteca_datamodels,tolteca_dummy_instru,tolteca_kids}/**" = ["D102"]
-"tests/{tolteca_datamodels,tolteca_dummy_instru,tolteca_kids}/**" = ["F841"]
+"src/{tolteca,tolteca_kids}/**" = ["D102"]
+"tests/tolteca_kids/**" = ["F841"]
 
 "docs/conf.py" = [
   "D",      # pydocstyle
@@ -221,8 +228,19 @@ runtime-evaluated-base-classes = [
   "pydantic.BaseModel",
   "sqlalchemy.orm.DeclarativeBase",
   "tollan.config.FrozenBaseModel",
+  "tolteca_datamodels.core.types.FrozenDataModel",
+  "tolteca_datamodels.types.FrozenDataModel",
+  "tolteca_datamodels.core.filepath.FilepathInfo",
+  "tolteca_datamodels.core.input_discovery.entries.InputDiscoveryEntry",
+  "tolteca_datamodels.core.input_discovery.InputDiscoveryEntry",
+  "tolteca_datamodels.core.input_discovery.entries.FileStoreInputDiscovery",
+  "tolteca_datamodels.core.input_discovery.FileStoreInputDiscovery",
+  "tolteca_datamodels.lmt_base.input_discovery.LmtBaseFileStoreInputDiscovery",
+  "tolteca_datamodels.lmt_base.metadata.InterfaceInfoMixin",
+  "tolteca_datamodels.lmt_base.metadata.LmtRawObsMetadata",
 ]
 runtime-evaluated-decorators = [
+  "pydantic.computed_field",
   "pydantic.validate_call",
   "pydantic.dataclasses.dataclass",
 ]
@@ -233,10 +251,14 @@ extend-immutable-calls = [
   "tollan.accessor.NameMapping.attr",
   "tollan.accessor.NameMapping.var",
   "tollan.accessor.NameMapping.dim",
+  "tollan.accessor.NameMapping.path",
+  "tollan.accessor.SubpathMapping.path",
+  "tollan.accessor.schema.SubpathMapping.path",
   "tollan.accessor.schema.NameMapping",
   "tollan.accessor.schema.NameMapping.attr",
   "tollan.accessor.schema.NameMapping.var",
   "tollan.accessor.schema.NameMapping.dim",
+  "tollan.accessor.schema.NameMapping.path",
 ]
 
 [tool.ruff.lint.pydocstyle]

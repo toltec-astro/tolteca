@@ -1,153 +1,877 @@
-"""Write and reopen self-contained reduced sweep products."""
+"""Publish and reopen acquisition-level KIDs products.
+
+Products use ``dp_raw_obs_proc/index.yaml`` in a `DataProdStore`. Each run
+contains one Zarr tree and a YAML index with publication provenance.
+The YAML associations identify the primary raw product by UID.
+
+Each interface's acquisition/block tree occupies ``<interface>`` directly under
+the Zarr root, including products with only one interface.
+`open_sweep_product` and `open_timestream_product` select an interface and return
+its scientific tree. Readers also accept a `DataProdIndex` from DPDB without
+opening YAML. Supply ``interface`` when more than one is present.
+"""
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from contextlib import nullcontext
+from dataclasses import dataclass
+from hashlib import sha256
+from http import HTTPStatus
 from importlib.metadata import version
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, override
+from urllib.parse import quote
 
+import fsspec
 import xarray as xr
-from pydantic import AwareDatetime, ConfigDict
-from tollan.accessor.xarray import ensure_dataset
-from tollan.config import FrozenBaseModel
-from tollan.pipeline import PIPELINE_CONTEXT_KEY
+from aiohttp import ClientError
+from fsspec.implementations.asyn_wrapper import AsyncFileSystemWrapper
+from fsspec.implementations.cached import SimpleCacheFileSystem
+from fsspec.implementations.http import HTTPFileSystem
+from fsspec.implementations.local import LocalFileSystem
+from fsspec.utils import atomic_write
+from pydantic import ConfigDict
+from tollan.accessor import NameMapping, Schema
+from tollan.accessor.xarray import XarrayMapper
+from tollan.config import FrozenBaseModel, RuntimeInfo
+from tollan.pipeline import PIPELINE_CONTEXT_KEY, ArtifactContext
+from tollan.utils.fileloc import FileLoc
+from zarr.storage import FsspecStore, LocalStore
 
-from tolteca_datamodels.file import SourceInfoModel
+from tolteca_datamodels.data_prod import (
+    DataProdIndex,
+    DataProdIndexAssoc,
+    DataProdIndexLocation,
+    DataProdIndexSource,
+    make_raw_obs_product_uid,
+)
+from tolteca_datamodels.data_prod_store import DataProdPublication, DataProdStore
+from tolteca_datamodels.toltec.kids.core import ToltecKidsIOMapper
 
-from .config import KidsConfig
-from .sweep_reduce import SweepReduce, SweepReduceView
+from ._reduction import select_block
+from .accessor import ToltecKidsTreeMapper
+from .blocks import NODE_TYPE
+from .config import DataProdOutputConfig, KidsConfig
+from .sweep import ToltecSweepMapper
+from .sweep_check_view import SweepCheckMapper
+from .sweep_reduce import SweepReduce, SweepReduceContext
+from .timestream_reduce import TimestreamReduce, TimestreamReduceContext
 
 if TYPE_CHECKING:
-    from .config import DataProdOutputConfig
+    from collections.abc import Mapping
+
+    from tollan.accessor import Mapping as SchemaMapping
 
 __all__ = [
-    "SweepProductManifest",
+    "KidsInputProvenance",
+    "KidsRunProvenance",
+    "make_kids_product_index",
+    "open_kids_product",
     "open_sweep_product",
-    "read_sweep_manifest",
+    "open_timestream_product",
+    "read_product_interfaces",
+    "read_product_provenance",
+    "read_sweep_context",
+    "read_timestream_context",
+    "write_kids_product",
     "write_sweep_product",
+    "write_timestream_product",
 ]
 
 
-class SweepProductManifest(FrozenBaseModel):
-    """Completion metadata for a self-contained reduced sweep product.
+class KidsInputProvenance(FrozenBaseModel):
+    """Selected acquisition file and its resolved workflow configuration.
 
-    ``input`` preserves the source record, including its structured location.
-    ``config`` contains the effective pipeline settings, after conditional
-    configuration has been resolved. Either can be None for direct exports of
-    in-memory calculations without that information. Arrays and execution
-    contexts remain in the Zarr store.
+    Parameters
+    ----------
+    uid_raw_obs_file : str
+        Canonical identity of the selected acquisition file.
+    source : FileLoc or None, optional
+        Input requested by the caller. None when no input location was supplied.
+    source_loc : FileLoc or None, optional
+        Resolved input location used by the file reader, when known.
+    config : KidsConfig or None, optional
+        Full workflow settings after defaults, overrides and conditions resolve.
+        None for independently invoked steps without a workflow snapshot; their
+        saved execution records retain the individual step settings.
     """
 
     model_config = ConfigDict(extra="forbid")
-    format: Literal["tolteca.reduced-sweep.v2"]
-    arrays: Literal["arrays.zarr"]
-    time_created: AwareDatetime
-    input: SourceInfoModel | None = None
+    uid_raw_obs_file: str
+    source: FileLoc | None = None
+    source_loc: FileLoc | None = None
     config: KidsConfig | None = None
-    software: dict[str, str]
 
 
-def read_sweep_manifest(path: Path) -> SweepProductManifest:
-    """Read completion metadata without opening or computing numerical arrays.
+class KidsRunProvenance(FrozenBaseModel):
+    """Inputs, publication settings and environment of one KIDs publication.
 
-    Raises FileNotFoundError if the completion marker is absent and a Pydantic
-    validation error for invalid metadata or an unsupported product format.
-    Use :func:`open_sweep_product` to also validate the saved step context.
+    Parameters
+    ----------
+    runtime_info : RuntimeInfo
+        Publication runtime, including host and process information.
+    software : dict of str to str
+        Installed package versions at publication.
+    output : DataProdOutputConfig
+        Settings used to publish this run.
+    inputs : dict of str to KidsInputProvenance
+        Selected acquisition files and their workflow settings, keyed by interface.
+    format : str, optional
+        Provenance format identifier; defaults to ``tolteca.kids.run.v1``.
     """
-    return SweepProductManifest.model_validate_json(
-        (Path(path) / "manifest.json").read_text()
+
+    model_config = ConfigDict(extra="forbid")
+    format: Literal["tolteca.kids.run.v1"] = "tolteca.kids.run.v1"
+    runtime_info: RuntimeInfo
+    software: dict[str, str]
+    output: DataProdOutputConfig
+    inputs: dict[str, KidsInputProvenance]
+
+
+@dataclass
+class _ProductSchema(Schema):
+    """Acquisition collection in a published scientific tree."""
+
+    interfaces: SchemaMapping = NameMapping.path(".")
+
+
+class _ProductMapper(XarrayMapper[_ProductSchema]):
+    """Interface locations beneath a product root."""
+
+    def get_interfaces(self, tree):
+        nodes = self.get_node(tree, self.schema.interfaces).children.values()
+        return {node.toltec_kids.meta.interface: node.path for node in nodes}
+
+
+def read_product_provenance(path: Path | DataProdIndex) -> KidsRunProvenance:
+    """Read a completed KIDs run's provenance without opening arrays.
+
+    Parameters
+    ----------
+    path : pathlib.Path or DataProdIndex
+        DB descriptor, product directory, main index, or pinned run index.
+
+    Returns
+    -------
+    KidsRunProvenance
+        Actual workflow snapshots, selected inputs and publication environment.
+
+    Raises
+    ------
+    pydantic.ValidationError
+        The index does not contain valid KIDs run provenance.
+    """
+    index = _product_index(path)
+    return KidsRunProvenance.model_validate(index.provenance)
+
+
+def _product_index(source):
+    return (
+        source
+        if isinstance(source, DataProdIndex)
+        else DataProdIndex.read(DataProdStore.resolve_index(source))
     )
+
+
+class _PublishedHTTPFileSystem(HTTPFileSystem):
+    """Publish complete cached HTTP objects and retain confirmed absences."""
+
+    def __init__(self, *args, missing_cache, **kwargs):
+        self._missing_cache = missing_cache
+        self._missing_cache.mkdir(parents=True, exist_ok=True)
+        super().__init__(*args, **kwargs)
+
+    @override
+    async def _get_file(self, rpath, lpath, *args, **kwargs):
+        # Simplecache considers any final cache filename readable. Stage the
+        # body beside it so concurrent readers never open an incomplete object.
+        with atomic_write(lpath) as target:
+            await super()._get_file(rpath, target, *args, **kwargs)
+
+    @override
+    async def _exists(self, path, strict=True, **kwargs):
+        marker = self._missing_cache / sha256(path.encode()).hexdigest()
+        if marker.exists():
+            return False
+        # Simplecache checks existence before downloading the same object.
+        # HEAD avoids transferring its body twice; GET-only hosts retain the
+        # original fsspec check. Service errors must not become fill chunks.
+        session = await self.set_session()
+        try:
+            async with session.head(
+                self.encode_url(path), **(self.kwargs | kwargs)
+            ) as response:
+                if response.status in (
+                    HTTPStatus.METHOD_NOT_ALLOWED,
+                    HTTPStatus.NOT_IMPLEMENTED,
+                ):
+                    exists = await super()._exists(path, strict=strict, **kwargs)
+                else:
+                    self._raise_not_found_for_status(response, path)
+                    exists = True
+        except FileNotFoundError:
+            exists = False
+        except ClientError:
+            if strict:
+                raise
+            return False
+        if not exists and strict:
+            # Zarr omits all-fill chunks. Their confirmed absence is part of a
+            # cached selection, and remains valid for this completed run URI.
+            marker.touch()
+        return exists
+
+
+def _arrays_store(index, *, location=None, cache=None):
+    items = [
+        item
+        for item in index.data_items
+        if item.meta.get("format") == "zarr"
+        and (location is None or item.location == location)
+    ]
+    if len(items) != 1:
+        msg = "Select one registered Zarr source with location"
+        raise ValueError(msg)
+    uri = index.get_source_uri(items[0])
+    fs, path = fsspec.core.url_to_fs(uri)
+    if isinstance(fs, LocalFileSystem):
+        return LocalStore(path, read_only=True)
+    if cache is None:
+        return FsspecStore.from_url(uri, read_only=True)
+    if isinstance(fs, HTTPFileSystem):
+        fs = _PublishedHTTPFileSystem(
+            missing_cache=Path(cache) / "missing", **fs.storage_options
+        )
+    # Simplecache uses synchronous target methods. Wrap the completed cache,
+    # rather than enabling asynchronous methods on its HTTP target.
+    cached = SimpleCacheFileSystem(fs=fs, cache_storage=str(cache))
+    return FsspecStore(
+        AsyncFileSystemWrapper(cached, asynchronous=True), path=path, read_only=True
+    )
+
+
+def _open_product_tree(
+    source, *, location=None, cache=None, group=None, create_default_indexes=False
+):
+    index = _product_index(source)
+    KidsRunProvenance.model_validate(index.provenance)
+    return xr.open_datatree(
+        _arrays_store(index, location=location, cache=cache),
+        engine="zarr",
+        consolidated=None,
+        zarr_format=2,
+        create_default_indexes=create_default_indexes,
+        group=group,
+    )
+
+
+def read_product_interfaces(
+    path: Path | DataProdIndex,
+    *,
+    location: str | None = None,
+    cache: Path | None = None,
+) -> dict[str, str]:
+    """Locate saved interfaces using scientific metadata without reading arrays.
+
+    Parameters
+    ----------
+    path : pathlib.Path or DataProdIndex
+        Product directory, pinned run index, or descriptor obtained from DPDB.
+    location : str or None, optional
+        Registered location key. Required when several Zarr copies are listed.
+    cache : pathlib.Path or None, optional
+        Persistent cache for immutable remote Zarr objects. None reads remotely
+        without a disk cache. Local artifacts are read directly.
+
+    Returns
+    -------
+    dict of str to str
+        Interface names and their paths within the Zarr tree.
+    """
+    with _open_product_tree(path, location=location, cache=cache) as tree:
+        return _ProductMapper.from_data_source(tree).get_interfaces(tree)
+
+
+def read_sweep_context(
+    data: xr.DataTree, *, block: int = -1, alias: str | None = None
+) -> SweepReduceContext:
+    """Read saved sweep execution metadata without restoring live context data.
+
+    Parameters
+    ----------
+    data : xarray.DataTree
+        Open interface or block tree.
+    block : int, optional
+        Block to inspect in an interface tree; -1 selects the last block.
+        An execution record on the supplied node is read directly.
+    alias : str or None, optional
+        Invocation label; None selects the primary invocation.
+
+    Returns
+    -------
+    SweepReduceContext
+        Detached execution metadata with data=None.
+    """
+    key = SweepReduce.get_context_key(alias=alias)
+    if "tolteca_kids" not in data.children or key not in data["tolteca_kids"].attrs:
+        data = select_block(data, block).tree
+    return SweepReduce.load_context(data["tolteca_kids"].attrs[key])
+
+
+def read_timestream_context(
+    data: xr.DataTree, *, block: int = -1, alias: str | None = None
+) -> TimestreamReduceContext:
+    """Read saved timestream execution metadata without restoring live data.
+
+    Parameters
+    ----------
+    data : xarray.DataTree
+        Open interface or block tree.
+    block : int, optional
+        Block to inspect in an interface tree; -1 selects the last block.
+        An execution record on the supplied node is read directly.
+    alias : str or None, optional
+        Invocation label; None selects the primary invocation.
+
+    Returns
+    -------
+    TimestreamReduceContext
+        Detached execution metadata with data=None.
+    """
+    key = TimestreamReduce.get_context_key(alias=alias)
+    if "tolteca_kids" not in data.children or key not in data["tolteca_kids"].attrs:
+        data = select_block(data, block).tree
+    return TimestreamReduce.load_context(data["tolteca_kids"].attrs[key])
+
+
+def _product_tree(data, config):
+    from .dataprod_output import DataProdOutput  # noqa: PLC0415 -- import cycle
+
+    contexts = [
+        context for _, records in _step_records(data) for context in records.values()
+    ]
+    include_raw = any(c.step_cls is TimestreamReduce for c in contexts) or not any(
+        c.step_cls is SweepReduce for c in contexts
+    )
+    product = data.toltec_kids._get_export_tree(include_raw=include_raw)
+    for node, records in _step_records(data):
+        target = product[node.relative_to(data)]
+        target["tolteca_kids"] = xr.DataTree(
+            dataset=xr.Dataset(
+                attrs={
+                    key: context.step_cls.dump_context(context)
+                    for key, context in records.items()
+                    if context.step_cls is not DataProdOutput
+                }
+            )
+        )
+    for node in product.subtree:
+        node.dataset = node.dataset.drop_encoding()
+        node.attrs.pop(PIPELINE_CONTEXT_KEY, None)
+    _set_product_chunks(product, config)
+    return product
+
+
+def _set_product_chunks(tree, config):
+    """Apply output chunk sizes through the acquisition and sweep mappings."""
+    check_mapper = SweepCheckMapper.from_defaults()
+    check_schema = check_mapper.schema
+    for node in tree.subtree:
+        if check_mapper.has_attr(node, check_schema.config):
+            chan_dim = check_mapper.get_name(check_schema.chan_dim)
+            for field in (
+                check_schema.samples_subpath,
+                check_schema.channels_subpath,
+                check_schema.chunks_subpath,
+            ):
+                _set_array_chunks(
+                    check_mapper.get_node(node, field),
+                    {chan_dim: config.n_chans_per_chunk},
+                    chan_dim=chan_dim,
+                )
+        kind = node.attrs.get(NODE_TYPE)
+        if kind in {"acquisition", "block"}:
+            tree_mapper = ToltecKidsTreeMapper.from_data_source(node)
+            raw = tree_mapper.get_node(node, tree_mapper.schema.acquisition)
+            mapper = ToltecKidsIOMapper.from_data_source(raw)
+            chan_dim = mapper.get_name(mapper.schema.n_chans)
+            _set_array_chunks(
+                raw,
+                {
+                    chan_dim: config.n_chans_per_chunk,
+                    mapper.get_name(mapper.schema.n_times): config.n_samples_per_chunk,
+                },
+                chan_dim=chan_dim,
+            )
+        elif kind == "sweep":
+            mapper = ToltecSweepMapper.from_data_source(node)
+            chan_dim = mapper.get_arr(node, mapper.schema.f_chan).dims[0]
+            _set_array_chunks(
+                node, {chan_dim: config.n_chans_per_chunk}, chan_dim=chan_dim
+            )
+
+
+def _set_array_chunks(node, chunks, *, chan_dim):
+    """Set physical chunks without fragmenting small channel coordinates."""
+    ds = node.to_dataset(inherit=False)
+    for name, variable in ds.variables.items():
+        if not set(variable.dims).intersection(chunks):
+            continue
+        if variable.dims == (chan_dim,):
+            continue
+        sizes = {
+            dim: min(size, chunks.get(dim, size))
+            for dim, size in variable.sizes.items()
+        }
+        if variable.chunks is not None:
+            ds[name] = ds[name].chunk(sizes)
+        ds[name].encoding["chunks"] = tuple(sizes.values())
+    node.dataset = ds
+
+
+def _input_provenance(data, workflow_config):
+    attrs = data["tolteca_kids"].attrs if "tolteca_kids" in data.children else {}
+    return KidsInputProvenance(
+        uid_raw_obs_file=data.toltec_kids.meta.uid_raw_obs_file,
+        source=attrs.get("source"),
+        source_loc=attrs.get("source_loc"),
+        config=attrs.get("config", workflow_config),
+    )
+
+
+def _step_records(tree):
+    """Visit execution records without adding contexts to scientific leaves."""
+    for node in tree.subtree:
+        records = node.attrs.get(PIPELINE_CONTEXT_KEY)
+        if records:
+            yield node, records
+
+
+def _validate_saved(original, saved):
+    for node, records in _step_records(original):
+        target = saved[node.relative_to(original)]
+        for key, context in records.items():
+            if key not in target["tolteca_kids"].attrs:
+                continue
+            restored = context.step_cls.load_context(target["tolteca_kids"].attrs[key])
+            if restored.model_dump() != context.model_dump():
+                msg = "Step context did not round-trip"
+                raise ValueError(msg)
+            if context.completed and isinstance(
+                context, (SweepReduceContext, TimestreamReduceContext)
+            ):
+                assert context.data is not None
+                view = context.step_cls.view(
+                    target, block=context.block, alias=context.config.alias
+                )
+                if dict(view.data_source.sizes) != dict(context.data.data_source.sizes):
+                    msg = "Reduced array dimensions did not round-trip"
+                    raise ValueError(msg)
+
+
+def make_kids_product_index(
+    master: str, obsnum: int, subobsnum: int, scannum: int
+) -> DataProdIndex:
+    """Describe a processed acquisition before reserving its output run.
+
+    Parameters
+    ----------
+    master : str
+        Acquisition master, such as ``tcs`` or ``ics``.
+    obsnum, subobsnum, scannum : int
+        Acquisition quartet values from the input metadata.
+
+    Returns
+    -------
+    DataProdIndex
+        Processed product identity and primary raw-product association, without
+        artifact sources. Pass it to DataProdStore.publication before processing.
+    """
+    uid = make_raw_obs_product_uid(master, obsnum, subobsnum, scannum)
+    return DataProdIndex(
+        uid=f"{uid}_proc",
+        meta={
+            "tag": "raw_obs_proc",
+            "data_prod_type": "dp_raw_obs_proc",
+            "name": f"{uid}_proc",
+            "master": master,
+            "obsnum": obsnum,
+            "subobsnum": subobsnum,
+            "scannum": scannum,
+        },
+        assocs=[
+            DataProdIndexAssoc(
+                data_prod_assoc_type="dpa_raw_obs_proc_raw_obs",
+                uid=uid,
+                is_primary=True,
+            )
+        ],
+    )
+
+
+def write_kids_product(  # noqa: PLR0913 -- Independent publication inputs.
+    data: xr.DataTree | Mapping[str, xr.DataTree],
+    store: DataProdStore | Path,
+    *,
+    output_config: DataProdOutputConfig | None = None,
+    publication: DataProdPublication | None = None,
+    workflow_config: KidsConfig | None = None,
+    artifacts: ArtifactContext | None = None,
+) -> Path:
+    """Publish selected interfaces of one acquisition as a processed product.
+
+    Parameters
+    ----------
+    data : xarray.DataTree or mapping of str to xarray.DataTree
+        Prepared scientific trees, optionally keyed by interface. The caller
+        keeps their input resources open until publication finishes.
+    store : DataProdStore or pathlib.Path
+        Store or root for the default namespace.
+    output_config : DataProdOutputConfig or None, optional
+        Output settings; defaults to automatic allocation and tag ``main``.
+    publication : DataProdPublication or None, optional
+        Staging area with its tag already held by the caller. None acquires the
+        tag for export; runners acquire it before computation.
+    workflow_config : KidsConfig or None, optional
+        Resolved workflow used for these inputs. Per-input snapshots retained by
+        the runner take precedence. None records no full workflow snapshot for
+        independently invoked steps; their execution records remain available.
+    artifacts : ArtifactContext or None, optional
+        Prepared acquisition artifacts. Exported in the same atomic publication.
+
+    Returns
+    -------
+    pathlib.Path
+        Pinned run directory containing array.zarr and
+        index.yaml. The product inventory records the run and requested tag.
+
+    Raises
+    ------
+    ValueError
+        Interfaces describe different acquisitions or saved data fails validation.
+    FileExistsError
+        The requested run UID, name or counter value is already reserved.
+    """
+    config = output_config or DataProdOutputConfig()
+    if not isinstance(store, DataProdStore):
+        store = DataProdStore(store, namespace=config.namespace)
+    config = config.model_copy(
+        update={"path": store.path.resolve(), "namespace": store.namespace}
+    )
+    trees = (
+        {data.toltec_kids.meta.interface: data}
+        if isinstance(data, xr.DataTree)
+        else dict(data)
+    )
+    metadata = {name: tree.toltec_kids.meta for name, tree in trees.items()}
+    uids = {
+        make_raw_obs_product_uid(m.master, m.obsnum, m.subobsnum, m.scannum)
+        for m in metadata.values()
+    }
+    if len(uids) != 1 or any(name != meta.interface for name, meta in metadata.items()):
+        msg = "A KIDs product requires interfaces of one acquisition"
+        raise ValueError(msg)
+    uid = uids.pop()
+    first = next(iter(metadata.values()))
+    index = make_kids_product_index(
+        first.master, first.obsnum, first.subobsnum, first.scannum
+    )
+    scope = (
+        nullcontext(publication)
+        if publication is not None
+        else store.publication(index, primary_uid=uid, run=config.run, tag=config.tag)
+    )
+    with scope as pending:
+        return _write_run(
+            trees,
+            pending,
+            config,
+            index,
+            workflow_config=workflow_config,
+            prepared=artifacts,
+        )
+
+
+def _write_run(  # noqa: PLR0913 -- Caller-owned publication and prepared data.
+    trees, publication, config, index, *, workflow_config, prepared
+):
+    """Export and validate arrays before committing the run inventory."""
+    path = publication.path
+    arrays = "array.zarr"
+    output = xr.DataTree()
+    for name, tree in trees.items():
+        output[name] = _product_tree(tree, config)
+    output.to_zarr(path / arrays, mode="w-", zarr_format=2, consolidated=True)
+    with xr.open_datatree(path / arrays, engine="zarr", consolidated=True) as saved:
+        groups = _ProductMapper.from_data_source(saved).get_interfaces(saved)
+        for name, tree in trees.items():
+            _validate_saved(tree, saved[groups[name]])
+
+    artifacts = [(arrays, "zarr"), ("index.yaml", "data_prod_index")]
+    for interface, tree in trees.items():
+        for node, records in _step_records(tree):
+            for key, context in records.items():
+                spec = context.config.artifacts
+                if not context.completed or not context.artifacts or spec is None:
+                    continue
+                destination = (
+                    path
+                    / "artifacts"
+                    / interface
+                    / node.relative_to(tree)
+                    / quote(key, safe="")
+                )
+                artifacts.extend(
+                    (item.path.relative_to(path).as_posix(), item.format)
+                    for item in spec.write(context.artifacts, path=destination)
+                )
+
+    for key, artifact in (prepared or {}).items():
+        destination = path / "artifacts" / quote(key, safe="")
+        artifacts.extend(
+            (item.path.relative_to(path).as_posix(), item.format)
+            for item in artifact.spec.write(artifact.data, path=destination)
+        )
+
+    provenance = KidsRunProvenance(
+        inputs={
+            name: _input_provenance(tree, workflow_config)
+            for name, tree in trees.items()
+        },
+        output=config,
+        software={
+            name: version(name)
+            for name in (
+                "tolteca",
+                "tollan",
+                "numpy",
+                "scipy",
+                "astropy",
+                "xarray",
+                "zarr",
+            )
+        },
+        runtime_info=publication.runtime_info.model_copy(
+            update={"config_sources": None, "validation_context": {}},
+        ),
+    )
+    index = index.model_copy(
+        update={
+            "provenance": provenance.model_dump(mode="json", round_trip=True),
+            "data_items": [
+                DataProdIndexSource(
+                    source_uri=filename,
+                    location="run",
+                    meta={
+                        "type": "artifact",
+                        "format": format_name,
+                        "run_uid": str(publication.run.uid),
+                    },
+                    availability_state="available",
+                )
+                for filename, format_name in artifacts
+            ],
+            "locations": {
+                "run": DataProdIndexLocation(root_uri=".", location_type="local")
+            },
+        }
+    )
+    return publication.commit(index)
 
 
 def write_sweep_product(
     data: xr.DataTree,
-    path: Path,
+    path: DataProdStore | Path,
     *,
-    input_info: SourceInfoModel | None = None,
     output_config: DataProdOutputConfig | None = None,
 ) -> Path:
-    """Write a new reduced product, marking it complete only after verification.
+    """Publish a completed sweep through a data-product store.
 
-    Only the reducer result is exported, not the raw root or live resources.
-    The reserved Tollan live-context store is omitted; the reduction step's
-    JSON-compatible metadata is retained.
-    Zarr metadata is consolidated before verification and publication.
-    Existing destinations are never overwritten. A failed write may leave an
-    incomplete directory for inspection; readers require its completion manifest.
+    Parameters
+    ----------
+    data : xarray.DataTree
+        Tree with a completed SweepReduce invocation.
+    path : DataProdStore or pathlib.Path
+        Store or root; the acquisition determines the product directory.
+    output_config : DataProdOutputConfig or None, optional
+        Namespace and run settings, or defaults when None.
+
+    Returns
+    -------
+    pathlib.Path
+        Pinned run directory.
     """
-    view = SweepReduce.view(data)
-    context = view.context
-    if not context.completed:
-        msg = "Sweep reduction is not completed"
-        raise ValueError(msg)
-    path = Path(path)
-    manifest = SweepProductManifest(
-        format="tolteca.reduced-sweep.v2",
-        arrays="arrays.zarr",
-        time_created=datetime.now(UTC),
-        input=input_info,
-        config=(
-            KidsConfig(sweep_reduce=context.config, output=output_config)
-            if output_config is not None
-            else None
-        ),
-        software={
-            name: version(name)
-            for name in ("tolteca", "tollan", "numpy", "xarray", "zarr")
-        },
+    scopes = (
+        [data]
+        if SweepReduce.has_context(data)
+        else [block.tree for block in data.toltec_kids.blocks]
     )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.mkdir()
-    # Remove source-backend encodings; data values and unit attrs are retained.
-    dataset = ensure_dataset(view.data_source).drop_encoding()
-    # Raw attrs can carry live contexts from earlier steps on the working tree.
-    # drop_encoding() supplies a fresh attrs dict; leave the live tree untouched.
-    dataset.attrs.pop(PIPELINE_CONTEXT_KEY, None)
-    node = xr.DataTree(dataset=dataset)
-    product = xr.DataTree(children={SweepReduce.result_path(): node})
-    # Format 2 preserves fixed-byte netCDF headers without relying on an
-    # unstable Zarr 3 dtype extension or converting their values to text.
-    product.to_zarr(path / manifest.arrays, mode="w-", zarr_format=2, consolidated=True)
-    with xr.open_datatree(
-        path / manifest.arrays, engine="zarr", consolidated=True
-    ) as reopened:
-        restored = SweepReduce.view(reopened)
-        if dict(restored.data_source.sizes) != dict(view.data_source.sizes):
-            msg = "Reduced array dimensions did not round-trip"
+    for scope in scopes:
+        context = SweepReduce.get_context(scope)
+        if not context.completed or context.data is None:
+            msg = "Sweep reduction is not completed"
             raise ValueError(msg)
-        if restored.context != context:
-            msg = "Step context did not round-trip"
-            raise ValueError(msg)
-    # The manifest is the completion marker, not a claim that partial arrays
-    # are already available to catalog consumers.
-    temporary = path / "manifest.pending"
-    temporary.write_text(manifest.model_dump_json(indent=2, round_trip=True) + "\n")
-    temporary.rename(path / "manifest.json")
-    return path
+    return write_kids_product(data, path, output_config=output_config)
 
 
-def open_sweep_product(path: Path) -> xr.DataTree:
-    """Open a completed local product; the caller owns the returned tree.
+def write_timestream_product(
+    data: xr.DataTree,
+    path: DataProdStore | Path,
+    *,
+    output_config: DataProdOutputConfig | None = None,
+) -> Path:
+    """Publish a completed timestream through a data-product store.
 
-    Use consolidated metadata when available. For a store without it, xarray
-    reads the individual metadata files and emits a performance warning.
+    Parameters
+    ----------
+    data : xarray.DataTree
+        Tree with a completed TimestreamReduce invocation.
+    path : DataProdStore or pathlib.Path
+        Store or root; the acquisition determines the product directory.
+    output_config : DataProdOutputConfig or None, optional
+        Namespace and run settings, or defaults when None.
+
+    Returns
+    -------
+    pathlib.Path
+        Pinned run directory.
     """
-    path = Path(path)
-    manifest = read_sweep_manifest(path)
-    result = xr.open_datatree(path / manifest.arrays, engine="zarr", consolidated=None)
+    scopes = (
+        [data]
+        if TimestreamReduce.has_context(data)
+        else [block.tree for block in data.toltec_kids.blocks]
+    )
+    for scope in scopes:
+        context = TimestreamReduce.get_context(scope)
+        if not context.completed or context.data is None:
+            msg = "Timestream reduction is not completed"
+            raise ValueError(msg)
+    return write_kids_product(data, path, output_config=output_config)
+
+
+def open_kids_product(
+    path: Path | DataProdIndex,
+    *,
+    interface: str | None = None,
+    location: str | None = None,
+    cache: Path | None = None,
+    create_default_indexes: bool = True,
+) -> xr.DataTree:
+    """Open one published interface tree with lazy arrays.
+
+    Parameters
+    ----------
+    path : pathlib.Path or DataProdIndex
+        DB descriptor, product directory or YAML run index.
+    interface : str or None, optional
+        Interface to select; required when the product has more than one.
+    location : str or None, optional
+        Registered location key. Required when several Zarr copies are listed.
+    cache : pathlib.Path or None, optional
+        Persistent cache for immutable remote Zarr objects. None disables the
+        disk cache. Local artifacts are read directly.
+        Separate processes can share a local HTTP cache. Interrupted downloads
+        are retried on the next read; cached selections remain available offline.
+    create_default_indexes : bool, optional
+        Build coordinate indexes for label-based selection, default True. False
+        keeps dimension coordinates lazy; use positional selection or explicitly
+        create an index before label-based selection.
+
+    Returns
+    -------
+    xarray.DataTree
+        Scientific tree. Close it after reading the required arrays.
+    """
+    index = _product_index(path)
+    if interface is None:
+        groups = read_product_interfaces(index, location=location, cache=cache)
+        if len(groups) != 1:
+            msg = f"Select an interface: {tuple(groups)}"
+            raise ValueError(msg)
+        interface = next(iter(groups))
+    return _open_product_tree(
+        index,
+        location=location,
+        cache=cache,
+        group=interface,
+        create_default_indexes=create_default_indexes,
+    )
+
+
+def _open_reduced_product(path, interface, step, load_context, **options):
+    tree = open_kids_product(path, interface=interface, **options)
     try:
-        context = SweepReduceView(result).context
+        context = load_context(tree)
         if not context.completed:
-            msg = "Incomplete sweep reduction"
-            raise ValueError(msg)  # noqa: TRY301 -- close the tree on validation failure
-        if (
-            manifest.config is not None
-            and manifest.config.sweep_reduce != context.config
-        ):
-            msg = "Manifest and saved reduction configuration disagree"
-            raise ValueError(msg)  # noqa: TRY301 -- close the tree on validation failure
-    except Exception:
-        result.close()
+            msg = "Incomplete reduction"
+            raise ValueError(msg)  # noqa: TRY301 -- close tree on failure
+        _ = step.view(tree, block=context.block, alias=context.config.alias).data_source
+    except BaseException:
+        tree.close()
         raise
-    return result
+    return tree
+
+
+def open_sweep_product(
+    path: Path | DataProdIndex,
+    *,
+    interface: str | None = None,
+    location: str | None = None,
+    cache: Path | None = None,
+) -> xr.DataTree:
+    """Open a published sweep and validate its saved reduction metadata.
+
+    Parameters
+    ----------
+    path : pathlib.Path or DataProdIndex
+        DB descriptor, product directory or run index.
+    interface : str or None, optional
+        Interface to select for multi-interface products.
+    location : str or None, optional
+        Registered location key when the descriptor lists several Zarr copies.
+    cache : pathlib.Path or None, optional
+        Persistent cache for immutable remote Zarr objects; None disables it.
+
+    Returns
+    -------
+    xarray.DataTree
+        Lazy scientific tree; the caller closes it after use.
+    """
+    return _open_reduced_product(
+        path, interface, SweepReduce, read_sweep_context, location=location, cache=cache
+    )
+
+
+def open_timestream_product(
+    path: Path | DataProdIndex,
+    *,
+    interface: str | None = None,
+    location: str | None = None,
+    cache: Path | None = None,
+) -> xr.DataTree:
+    """Open a published timestream and validate its saved reduction metadata.
+
+    Parameters
+    ----------
+    path : pathlib.Path or DataProdIndex
+        DB descriptor, product directory or run index.
+    interface : str or None, optional
+        Interface to select for multi-interface products.
+    location : str or None, optional
+        Registered location key when the descriptor lists several Zarr copies.
+    cache : pathlib.Path or None, optional
+        Persistent cache for immutable remote Zarr objects; None disables it.
+
+    Returns
+    -------
+    xarray.DataTree
+        Lazy scientific tree; the caller closes it after use.
+    """
+    return _open_reduced_product(
+        path,
+        interface,
+        TimestreamReduce,
+        read_timestream_context,
+        location=location,
+        cache=cache,
+    )

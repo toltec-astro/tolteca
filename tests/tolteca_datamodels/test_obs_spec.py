@@ -7,8 +7,7 @@ from typing import ClassVar
 import pandas as pd
 import pytest
 
-from tolteca_datamodels import obs_spec
-from tolteca_datamodels.obs_spec import (
+from tolteca_datamodels.core.obs_spec import (
     ColumnSelector,
     FieldConstraint,
     FieldSelection,
@@ -17,6 +16,7 @@ from tolteca_datamodels.obs_spec import (
     Selector,
     ValueBounds,
 )
+from tolteca_datamodels.core.obs_spec import selectors as obs_spec
 
 
 @dataclass(frozen=True)
@@ -382,7 +382,7 @@ def test_column_constraints_bind_each_field_once_with_context():
     from tolteca_datamodels.lmt_base.obs_spec import ObsSpec
 
     numbers = {"bar1": 1, "bar2": 2}
-    context = ObsSpecContext(labels={"interface": numbers})
+    context = ObsSpecContext(field_label_numbers={"interface": numbers})
     spec = ObsSpec.parse("tcs-1/{tel,1}")
     assert list(spec.column_constraints(context=context)) == [
         ColumnSelector("master", "tcs"),
@@ -394,11 +394,10 @@ def test_column_constraints_bind_each_field_once_with_context():
 @pytest.mark.parametrize(
     "text", ["*", "1", "tcs-145609-0-0/toltec1", "1/{tel,1,3}", "1/(1,5)"]
 )
-def test_value_only_parsing_does_not_allocate_positional_selections(monkeypatch, text):
+def test_value_only_parsing_has_no_positional_constraint(text):
     from tolteca_datamodels.lmt_base.obs_spec import ObsSpec
 
-    def unexpected(self):
-        pytest.fail("Value-only fields need no intermediate FieldSelection")
-
-    monkeypatch.setattr(FieldSelection, "__post_init__", unexpected)
-    assert ObsSpec.parse(str(ObsSpec.parse(text))) == ObsSpec.parse(text)
+    spec = ObsSpec.parse(text)
+    assert spec.positional_constraint is None
+    assert all(not isinstance(value, FieldSelection) for _, value in spec.constraints())
+    assert ObsSpec.parse(str(spec)) == spec

@@ -2,9 +2,9 @@
 
 import pytest
 
-from tolteca_datamodels import obs_spec
+from tolteca_datamodels.core.obs_spec import FieldSelection, ValueBounds
+from tolteca_datamodels.core.obs_spec import base as obs_spec
 from tolteca_datamodels.lmt_base.obs_spec import ObsSpec
-from tolteca_datamodels.obs_spec import FieldSelection, ValueBounds
 
 
 def test_lmt_identifiers_and_interface_slot():
@@ -85,7 +85,9 @@ def test_unbounded_numeric_tokens_anchor_and_constrain_the_primary_field(token):
     assert ObsSpec.parse(f"{token}-1") == ObsSpec(obsnum=ValueBounds(), subobsnum=1)
 
 
-@pytest.mark.parametrize("text", ["tcs", "{tcs,ics}", "tcs/tel"])
+@pytest.mark.parametrize(
+    "text", ["tcs", "{tcs,ics}", "tcs/tel", "_", "foo(1,2)", "1.0", "?", "@"]
+)
 def test_missing_primary_is_rejected(text):
     with pytest.raises(ValueError, match="primary field"):
         ObsSpec.parse(text)
@@ -112,30 +114,29 @@ def test_primary_recognition_never_skips_invalid_fields(text):
 
 
 @pytest.mark.parametrize(
-    "token",
-    ["0123", "*", "{}", "{,}", "()", "(,)", "{1,3}[-1]", "(1,5)[+1:3:2]", "[-1,-3]"],
+    ("token", "constraint"),
+    [
+        ("0123", 123),
+        ("{1,3}[-1]", FieldSelection((1, 3), slice(-1, None))),
+        ("(1,5)[+1:3:2]", FieldSelection(ValueBounds(1, 5), slice(1, 3, 2))),
+        ("[-1,-3]", FieldSelection(None, (-3, -1))),
+    ],
 )
-def test_primary_recognition_accepts_digits_and_grammar_punctuation(token):
-    assert ObsSpec._primary_pattern.fullmatch(token)
-    assert ObsSpec.parse(f"tcs-{token}").obsnum == ObsSpec.parse(token).obsnum
+def test_primary_constraint_is_independent_of_master_prefix(token, constraint):
+    assert dict(ObsSpec.parse(token).constraints()) == {"obsnum": constraint}
+    assert dict(ObsSpec.parse(f"tcs-{token}").constraints()) == {
+        "master": "tcs",
+        "obsnum": constraint,
+    }
 
 
-@pytest.mark.parametrize(
-    "token",
-    ["tcs", "_", "foo(1,2)", "1.0", "?", "@", "1/2", " 1", "1\n", "\uff11", "[\u0661]"],
-)
-def test_primary_recognition_excludes_other_characters(token):
-    assert ObsSpec._primary_pattern.fullmatch(token) is None
-
-
-@pytest.mark.parametrize("text", ["[\u0661]", "tcs-[\u0661]"])
-def test_primary_positions_require_ascii_digits(text):
+@pytest.mark.parametrize("text", ["[\u0661]", "tcs-[\u0661]", "\uff11"])
+def test_primary_values_and_positions_require_ascii_digits(text):
     with pytest.raises(ValueError):
         ObsSpec.parse(text)
 
 
 @pytest.mark.parametrize("token", ["::", "{1,}", "[::0]", "(1:2)"])
-def test_primary_recognition_leaves_grammar_validation_to_shared_parser(token):
-    assert ObsSpec._primary_pattern.fullmatch(token)
+def test_malformed_primary_selectors_are_rejected(token):
     with pytest.raises(ValueError):
         ObsSpec.parse(token)

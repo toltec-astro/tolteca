@@ -1,5 +1,10 @@
 # TolTEC Kids Submodule - Migration Guide
 
+> Historical prototype migration note. For the current reader and processing
+> APIs, use [the input guide](docs/guide.md) and
+> [the KIDs reduction guide](docs/kids-reduction.md). The typed KIDs opener is
+> `open_toltec_kids()`; the old `open_toltec()` name is no longer exported.
+
 ## Overview
 
 The TolTEC data reduction workflow has been refactored to follow best practices from `kidsproc` and `D21Analysis`, separating raw I/O from data processing with proper namespacing.
@@ -16,7 +21,8 @@ ds_reduced = reduce_raw_sweep(ds)  # Creates variables: "I", "Q", etc.
 
 ### New Approach (Recommended)
 ```python
-from tolteca_datamodels.toltec import open_toltec, SweepReducer
+from tolteca_datamodels.toltec import open_toltec
+from tolteca_datamodels.toltec.kids import SweepReducer
 
 ds = open_toltec("sweep.nc")
 reducer = SweepReducer(detect_blocks=True, compute_uncertainty=True)
@@ -173,7 +179,8 @@ pytest tests/tolteca_datamodels/ -k "toltec" -v
 
 ### Basic Reduction
 ```python
-from tolteca_datamodels.toltec import open_toltec, SweepReducer
+from tolteca_datamodels.toltec import open_toltec
+from tolteca_datamodels.toltec.kids import SweepReducer
 
 # Load and reduce
 ds = open_toltec("vnasweep.nc")
@@ -189,7 +196,8 @@ print(f"Reduced to {view.I.shape[1]} sweeps, {view.I.shape[0]} channels")
 
 ### Multi-Block Tune File
 ```python
-from tolteca_datamodels.toltec import open_toltec, SweepReducer
+from tolteca_datamodels.toltec import open_toltec
+from tolteca_datamodels.toltec.kids import SweepReducer
 
 ds = open_toltec("tune.nc")
 reducer = SweepReducer(detect_blocks=True)

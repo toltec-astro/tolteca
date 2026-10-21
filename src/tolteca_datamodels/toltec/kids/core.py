@@ -1,97 +1,60 @@
-"""TolTEC KIDs data I/O schema, mapper, and accessor.
+"""Native TolTEC KIDs acquisition metadata and array access."""
 
-This module defines:
-1. Raw I/O schema (ToltecKidsIOSchema) - Maps to raw netCDF variable names
-2. Mapper (ToltecKidsIOMapper) - Provides access to raw data and metadata
-3. Main accessor (ToltecKidsAccessor) - xarray accessor for TolTEC data
-
-ToltecKidsIOMapper uses ToltecKidsIOSchema and provides get_metadata() to build
-ToltecSweepMetadata or ToltecTimeStreamMetadata from a dataset.
-For reduced data variables (Data.Kids.*), see sweep.py and timestream.py.
-"""
+# ruff: noqa: E741 -- Preserve the physical I/Q schema names.
 
 from __future__ import annotations
 
 import functools
+from contextlib import ExitStack
 from dataclasses import dataclass
-from itertools import pairwise
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
 import xarray as xr
 from astropy import units as u
-from astropy.table import QTable
 from astropy.time import Time
 from tollan.accessor import FieldLocation, NameMapping, Schema
-from tollan.accessor.xarray import XarrayMapper
+from tollan.accessor.xarray import XarrayAccessorBase, XarrayMapper, unwrap_data_source
 
-from ..metadata import (
-    ToltecSweepMetadata,
-    ToltecSweepMetadataHeader,
-    ToltecTimeStreamMetadata,
-)
-from ..toltecdb import ToltecDBRawObsMaster, ToltecDBRawObsType
+from ...core.source.opener import _open_netcdf
+from ..axes import ToltecAxisView
+from ..metadata import ToltecRawObsMetadata
+from ..toltec_db import ToltecDBRawObsMasterCode
 from ..types import ToltecDataKind, ToltecInfo
+from .blocks import ToltecBlockIndex, _find_lo_block_slices
 
 if TYPE_CHECKING:
+    from pathlib import Path
     from typing import Any
 
+    from astropy.table import QTable
     from tollan.accessor import Mapping
+    from tollan.utils.fileloc import FileLoc
+
+    class ToltecKidsDataset(xr.Dataset):
+        """Dataset with a typed TolTEC KIDs accessor."""
+
+        toltec_kids: ToltecKidsAccessor
+
+    class ToltecKidsDataTree(xr.DataTree):
+        """DataTree with a typed TolTEC KIDs accessor."""
+
+        toltec_kids: ToltecKidsAccessor
+
 
 __all__ = [
     "ToltecKidsAccessor",
     "ToltecKidsIOMapper",
     "ToltecKidsIOSchema",
+    "open_toltec_kids",
 ]
+
+_TIMESTREAM_LO_CHECK_SAMPLES = 64
 
 
 @dataclass
 class ToltecKidsIOSchema(Schema):
-    """Schema for raw TolTEC KIDs data I/O.
-
-    Maps to raw netCDF variable and dimension names. ToltecKidsAccessor uses
-    this schema to provide access to raw data and metadata without processing.
-
-    **Data Variables (Raw):**
-    - I, Q: Raw in-phase and quadrature data (Data.Toltec.Is/Qs)
-
-    **Dimension Counts:**
-    - n_times: Number of acquired samples (time / ntimes)
-    - n_chans: Number of readout channels (iqlen / n_chans)
-    - n_kids_design: Number of designed detector positions (loclen)
-    - n_blocks: Number of explicitly indexed blocks (block)
-    - n_blocks_max: Allocated sweep capacity (numSweeps)
-
-    **Tone/LO Metadata:**
-    - f_tones: ROACH tone frequencies (Header.Toltec.ToneFreq)
-    - f_los: LO frequency data (Data.Toltec.LoFreq)
-    - f_lo_center: Center LO frequency (Header.Toltec.LoCenterFreq)
-    - mask_tones: Tone enable/disable mask (Header.Toltec.ToneMask)
-    - amp_tones: Tone amplitude values (Header.Toltec.ToneAmp)
-    - phase_tones: Tone phase values (Header.Toltec.TonePhase)
-
-    **Observation Metadata:**
-    - roach: ROACH board index (Header.Toltec.RoachIndex)
-    - obsnum: Observation number (Header.Toltec.ObsNum)
-    - subobsnum: Sub-observation number (Header.Toltec.SubObsNum)
-    - scannum: Scan number (Header.Toltec.ScanNum)
-    - f_smp: Sample frequency (Header.Toltec.SampleFreq)
-    - obs_type: Observation type (Header.Toltec.ObsType)
-    - obs_start_time: Observation start time scalar (Header.Toltec.ObsStartTime)
-    - kind_str: Data kind string (Header.Kids.kind)
-    - n_sweepsteps: Number of sweep steps (Header.Toltec.NumSweepSteps)
-    - n_sweepreps: Samples per sweep step
-      (Header.Toltec.NumSamplesPerSweepStep)
-
-    **Instrument Settings:**
-    - atten_drive: Drive attenuation (Header.Toltec.DriveAtten)
-    - atten_sense: Sense attenuation (Header.Toltec.SenseAtten)
-
-    Notes
-    -----
-    This schema maps directly to the raw netCDF structure and does NOT
-    include namespacing since it represents the actual file format.
-    """
+    """Schema for TolTEC KIDs acquisition data."""
 
     # Raw I/Q data fields
     I: Mapping = NameMapping.var(("Data.Toltec.Is", "I"))
@@ -107,25 +70,29 @@ class ToltecKidsIOSchema(Schema):
     # Tone/channel axis data
     f_tones: Mapping = NameMapping.var("Header.Toltec.ToneFreq")
     f_los: Mapping = NameMapping.var("Data.Toltec.LoFreq")
+    f_sweep: Mapping = NameMapping.var(("sweep", "nsweeps", "frequency"))
     f_lo_center: Mapping = NameMapping("Header.Toltec.LoCenterFreq")
     mask_tones: Mapping = NameMapping.var("Header.Toltec.ToneMask")
     amp_tones: Mapping = NameMapping.var(
-        ("Header.Toltec.ToneAmp", "Header.Toltec.ToneAmps"),
+        ("Header.Toltec.ToneAmp", "Header.Toltec.ToneAmps")
     )
     phase_tones: Mapping = NameMapping.var("Header.Toltec.TonePhase")
 
+    # Recorded per-channel model parameters
+    model_params: Mapping = NameMapping.var("Header.Toltec.ModelParams")
+    model_params_header: Mapping = NameMapping.var("Header.Toltec.ModelParamsHeader")
+
     # Observation metadata
-    master: Mapping = NameMapping("Header.Toltec.Master")
-    roach: Mapping = NameMapping("Header.Toltec.RoachIndex")
+    master_code: Mapping = NameMapping("Header.Toltec.Master")
+    readout_code: Mapping = NameMapping("Header.Toltec.RoachIndex")
     obsnum: Mapping = NameMapping("Header.Toltec.ObsNum")
     subobsnum: Mapping = NameMapping("Header.Toltec.SubObsNum")
     scannum: Mapping = NameMapping("Header.Toltec.ScanNum")
     f_smp: Mapping = NameMapping("Header.Toltec.SampleFreq")
-    obs_type: Mapping = NameMapping("Header.Toltec.ObsType")
+    obs_type_code: Mapping = NameMapping("Header.Toltec.ObsType")
     kind_str: Mapping = NameMapping(("Header.Kids.kind", "kind_str"))
     obs_start_time: Mapping = NameMapping("Header.Toltec.ObsStartTime")
     obs_end_time: Mapping = NameMapping("Header.Toltec.ObsEndTime")
-    cal_roach: Mapping = NameMapping("Header.Toltec.RoachIndex")
     cal_obsnum: Mapping = NameMapping("Header.Toltec.TargSweepObsNum")
     cal_subobsnum: Mapping = NameMapping("Header.Toltec.TargSweepSubObsNum")
     cal_scannum: Mapping = NameMapping("Header.Toltec.TargSweepScanNum")
@@ -149,122 +116,139 @@ class ToltecKidsIOSchema(Schema):
     # Instrument settings
     atten_drive: Mapping = NameMapping("Header.Toltec.DriveAtten")
     atten_sense: Mapping = NameMapping("Header.Toltec.SenseAtten")
-    atten_in: Mapping = NameMapping(("Header.Toltec.AttenIn", "atten_in"))
-    atten_out: Mapping = NameMapping(("Header.Toltec.AttenOut", "atten_out"))
 
 
 class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
-    """Mapper for TolTEC KIDs data.
-
-    Provides access to raw TolTEC netCDF files using ToltecKidsIOSchema
-    and constructs TolTEC metadata dataclasses from a dataset.
+    """Mapper for TolTEC KIDs acquisition data.
 
     Examples
     --------
+    With the reference observation under ``data_lmt`` in the working directory:
+
     >>> import xarray as xr
-    >>> ds = xr.open_dataset("toltec_raw.nc")
-    >>> mapper = ToltecKidsIOMapper.from_data_source(ds)
-    >>> roach = mapper.get_scalar(ds, mapper.schema.roach)
-    >>> f_tone = mapper.get_arr(ds, mapper.schema.f_tones)
-    >>> meta = mapper.get_metadata(ds)
+    >>> from tolteca_datamodels.toltec.kids import ToltecKidsIOMapper
+    >>> filepath = (
+    ...     "data_lmt/toltec/tcs/toltec0/"
+    ...     "toltec0_145606_000_0001_2025_10_31_09_22_14_targsweep.nc"
+    ... )
+    >>> with xr.open_dataset(filepath) as ds:
+    ...     mapper = ToltecKidsIOMapper.from_data_source(ds)
+    ...     readout_code = mapper.get_scalar(ds, mapper.schema.readout_code)
+    ...     f_tone = mapper.get_arr(ds, mapper.schema.f_tones).load()
+    ...     meta = mapper.get_metadata(ds)
+    >>> meta.obsnum, int(readout_code)
+    (145606, 0)
     """
 
-    def get_metadata(
-        self,
-        data_source: xr.Dataset,
-        block: int | None = None,
-    ) -> ToltecSweepMetadata | ToltecTimeStreamMetadata | list[ToltecSweepMetadata]:
-        """Read typed observation metadata without loading detector arrays.
-
-        Required identifiers, acquisition times, and sample rate must be present.
-        Raw acquisitions also require their observation type, attenuation,
-        calibration identifiers, maximum tone count, original path, repeat
-        level, and LO center frequency. Processed data may omit those settings.
-        Raw design dimensions and the ADC snapshot variable must also exist;
-        the snapshot is retained as a variable-name reference, without reading it.
-        Raw sweeps require recorded repetitions, sweep capacity and a time dimension.
-        Acquisition times come from the file headers; integration time is sample
-        count divided by rate.
-
-        A dataset with an explicit block dimension returns one metadata object
-        per block. A flat acquisition returns one file-level object, including
-        the number of sweeps it contains. Pass block to select one sweep.
-        Flat tune block boundaries require reading the one-dimensional LO
-        frequency array; detector I/Q arrays are never read.
+    def get_metadata(self, data_source: xr.Dataset) -> ToltecRawObsMetadata:
+        """Read acquisition metadata without loading sample arrays.
 
         Parameters
         ----------
-        data_source : xr.Dataset
-            Open dataset payload to read from.
-        block : int or None, optional
-            Select one recorded sweep block. None reads the whole acquisition.
+        data_source : xarray.Dataset
+            Unpartitioned raw KIDs acquisition.
 
         Returns
         -------
-        ToltecSweepMetadata or ToltecTimeStreamMetadata or list
-            One metadata instance, or a list for an explicitly block-indexed
-            sweep dataset when block is None.
-        """
-        ds = data_source
-        schema = self.schema
-        is_multi_block = self.has_dim(ds, schema.n_blocks)
-        n_blocks = self.get_dim(ds, schema.n_blocks) if is_multi_block else 1
-        data_kind = self._get_data_kind(ds)
-        is_raw = bool(data_kind & ToltecDataKind.RawKidsData)
-        if (
-            (is_multi_block or data_kind != ToltecDataKind.Tune)
-            and block is not None
-            and not 0 <= block < n_blocks
-        ):
-            msg = f"Block {block} out of range [0, {n_blocks})"
-            raise ValueError(msg)
+        ToltecRawObsMetadata
+            Recorded acquisition settings and dimension counts. Block discovery
+            and axis data require an explicit `get_blocks` call.
 
-        base_fields = self._get_metadata_fields(ds, is_raw=is_raw)
-        if data_kind & ToltecDataKind.Sweep:
-            return self._get_sweep_metadata(
-                ds,
-                base_fields,
-                n_blocks if is_multi_block else None,
-                block,
-                data_kind,
-            )
-        return self._get_timestream_metadata(ds, base_fields, is_raw=is_raw)
-
-    def get_metadata_header(
-        self, data_source: xr.Dataset
-    ) -> ToltecSweepMetadataHeader | ToltecTimeStreamMetadata:
-        """Read raw acquisition metadata from headers and dimension lengths.
-
-        Return common sample metadata for a timestream or header sweep metadata
-        with programmed steps, repetitions and allocated capacity. Actual sweep
-        counts are not part of this record. No LO, I/Q, detector-position or ADC
-        array is read. Times, units and required fields follow ``get_metadata``.
-
-        Accept an unpartitioned raw acquisition. Processed or explicitly
-        block-indexed datasets raise ValueError; use ``get_metadata`` for those.
+        Raises
+        ------
+        ValueError
+            If the input is processed or explicitly block-indexed data.
         """
         ds = data_source
         if self.has_dim(ds, self.schema.n_blocks):
-            msg = "Header metadata requires an unpartitioned acquisition"
+            msg = "Acquisition metadata requires an unpartitioned acquisition"
             raise ValueError(msg)
         kind = self._get_data_kind(ds)
-        if not kind & ToltecDataKind.RawKidsData:
-            msg = "Header metadata requires a raw KIDs acquisition"
+        if not kind & ToltecDataKind.raw_kids_data:
+            msg = "Acquisition metadata requires a raw KIDs acquisition"
             raise ValueError(msg)
-        fields = self._get_metadata_fields(ds, is_raw=True)
-        if kind & ToltecDataKind.Sweep:
-            fields.update(self._get_sweep_metadata_fields(ds, is_raw=True))
-            fields.update(self._get_sample_metadata_fields(ds, fields, is_raw=True))
-            return ToltecSweepMetadataHeader(**fields)
-        return self._get_timestream_metadata(ds, fields, is_raw=True)
+        values = self._get_metadata_fields(ds, is_raw=True)
+        values.update(self._get_sample_metadata_fields(ds, values, is_raw=True))
+        return ToltecRawObsMetadata(**values)
+
+    def get_blocks(
+        self,
+        data_source: xr.Dataset,
+        *,
+        acquisition: ToltecRawObsMetadata | None = None,
+    ) -> ToltecBlockIndex:
+        """Read the block index and columnar channel/probe axes.
+
+        Parameters
+        ----------
+        data_source : xarray.Dataset
+            Native acquisition or supported indexed/processed KIDs dataset.
+        acquisition : ToltecRawObsMetadata, optional
+            Already-read acquisition headers for this unpartitioned raw source.
+
+        Returns
+        -------
+        ToltecBlockIndex
+            Recorded index, columnar axes and acquisition metadata enriched with
+            block counts. No processing tree or detector-data products are created.
+
+        Notes
+        -----
+        Current-file discovery preserves tune LO-reset boundaries. Mixed-file
+        sweep/timestream boundary detection is deferred. Axis preparation reads
+        tone headers and LO samples, but no detector I/Q or ADC arrays.
+        Nominal/timestream acquisitions check bounded LO windows at each end
+        and assume a constant interior when those samples agree. Disagreement
+        falls back to a full LO scan.
+        """
+        from tolteca_kids.block_identify import BlockIdentify  # noqa: PLC0415
+
+        return BlockIdentify._identify(self, data_source, acquisition=acquisition)
+
+    @classmethod
+    def _empty_axis(cls, dim):
+        integer_names = (
+            ("block", "chan")
+            if dim == "chan_entry"
+            else ("block", "step", "n_samples", "sample_start", "sample_end")
+        )
+        columns = {name: np.array([], dtype=np.int64) for name in integer_names}
+        frequency_names = (
+            ("f_tone", "f_chan") if dim == "chan_entry" else ("f_lo", "f_sweep")
+        )
+        columns.update({name: np.array([]) * u.Hz for name in frequency_names})
+        if dim == "chan_entry":
+            columns.update(
+                tone_mask=np.array([], dtype=bool),
+                tone_amp=np.array([]),
+                tone_phase=np.array([]) * u.rad,
+            )
+        return cls._axis_dataset(columns, dim=dim)
+
+    def _get_block_indexers(self, ds, kind, *, f_los=None):
+        """Locate acquired blocks without reading detector arrays."""
+        schema = self.schema
+        if self.has_dim(ds, schema.n_blocks):
+            name = self.get_name(schema.n_blocks)
+            return [{name: index} for index in range(self.get_dim(ds, schema.n_blocks))]
+        if kind != ToltecDataKind.tune:
+            return [{}]
+        los = (
+            f_los if f_los is not None else self.get_arr(ds, schema.f_los)
+        ).to_numpy()
+        name = self.get_name(schema.n_times)
+        return [{name: part} for part in _find_lo_block_slices(los, split_resets=True)]
 
     def _get_metadata_fields(self, ds, *, is_raw):
         """Read common observation and readout fields."""
         schema = self.schema
-        roach = self.get_scalar(ds, schema.roach)
+        readout_code = self.get_scalar(ds, schema.readout_code)
+        # Current KIDs readout codes coincide with detector-board indices.
+        roach = readout_code
         interface = ToltecInfo.roach_interface[roach]
-        identity = ToltecInfo.interface_instru[interface]
-        master = self.get_scalar(ds, schema.master)
+        identity = ToltecInfo.interface_interface_info[interface]
+        array_name = ToltecInfo.interface_array_name[interface]
+        master_code = ToltecDBRawObsMasterCode(self.get_scalar(ds, schema.master_code))
         t0 = Time(self.get_scalar(ds, schema.obs_start_time), format="unix")
         t1 = Time(self.get_scalar(ds, schema.obs_end_time), format="unix")
         f_smp = self._get_frequency(ds, schema.f_smp)
@@ -272,13 +256,18 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
             msg = "Sample frequency must be positive"
             raise ValueError(msg)
         base_fields: dict[str, Any] = {
+            "readout_code": readout_code,
             "roach": roach,
             "nw": roach,
+            "cal_roach": roach,
             "interface": interface,
             "instru": identity.instru,
-            "instru_component": identity.instru_component,
-            "array_name": ToltecInfo.interface_array_name[interface],
-            "master": ToltecDBRawObsMaster(master),
+            "data_models": identity.data_models,
+            "interface_kind": identity.interface_kind,
+            "array_name": array_name,
+            "array": ToltecInfo.array_name_array[array_name],
+            "master_code": master_code,
+            "master": ToltecInfo.master_code_master[master_code],
             "obsnum": self.get_scalar(ds, schema.obsnum),
             "subobsnum": self.get_scalar(ds, schema.subobsnum),
             "scannum": self.get_scalar(ds, schema.scannum),
@@ -289,12 +278,13 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         }
         # A raw sweep's shape cannot distinguish tune from VNA/target. Its
         # recorded type determines how acquired blocks are counted.
-        if is_raw or schema.obs_type in self:
-            base_fields["obs_type"] = self.get_scalar(ds, schema.obs_type)
+        if is_raw or schema.obs_type_code in self:
+            code = self.get_scalar(ds, schema.obs_type_code)
+            base_fields["obs_type_code"] = code
+            base_fields["obs_type"] = ToltecInfo.obs_type_code_obs_type[code]
         for key in (
             "atten_drive",
             "atten_sense",
-            "cal_roach",
             "cal_obsnum",
             "cal_subobsnum",
             "cal_scannum",
@@ -308,10 +298,17 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
             base_fields["n_kids_design"] = self.get_dim(ds, schema.n_kids_design)
         if is_raw or schema.filepath_orig in self:
             base_fields["filepath_orig"] = self.get_str(ds, schema.filepath_orig)
-        if is_raw or schema.adc_snap in self:
-            # Keep the array reference, not the ADC snapshot payload.
-            base_fields["adc_snap"] = self.get_arr(ds, schema.adc_snap).name
 
+        if is_raw or schema.n_blocks_max in self:
+            base_fields["n_blocks_max"] = self.get_dim(ds, schema.n_blocks_max)
+        else:
+            base_fields["n_blocks_max"] = (
+                self.get_dim(ds, schema.n_blocks) if schema.n_blocks in self else 1
+            )
+        if (
+            is_raw and base_fields.get("obs_type") in {"vna", "targ", "tune"}
+        ) or schema.n_sweepreps in self:
+            base_fields["n_sweepreps"] = self.get_scalar(ds, schema.n_sweepreps)
         return base_fields
 
     def _get_data_kind(self, data_source: xr.Dataset) -> ToltecDataKind:
@@ -320,113 +317,30 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         if self.schema.kind_str in self:
             kind_str = self.get_str(data_source, self.schema.kind_str)
             kind_map = {
-                "d21": ToltecDataKind.D21,
-                "processed_sweep": ToltecDataKind.ReducedSweep,
-                "processed_timestream": ToltecDataKind.SolvedTimeStream,
-                "SolvedTimeStream": ToltecDataKind.SolvedTimeStream,
+                "d21": ToltecDataKind.d21,
+                "processed_sweep": ToltecDataKind.reduced_sweep,
+                "processed_timestream": ToltecDataKind.solved_timestream,
+                "SolvedTimeStream": ToltecDataKind.solved_timestream,
             }
-            return kind_map.get(kind_str, ToltecDataKind.Unknown)
+            return kind_map.get(kind_str, ToltecDataKind.unknown)
 
-        # Check for obs_type (raw data)
-        if self.schema.obs_type in self:
-            obs_type = self.get_scalar(data_source, self.schema.obs_type)
-            try:
-                raw_obs_type = ToltecDBRawObsType(obs_type)
-            except (TypeError, ValueError):
-                return ToltecDataKind.Unknown
-            return ToltecDBRawObsType.get_data_kind(raw_obs_type)
+        # Auxiliary readouts share acquisition headers, including ObsType.
+        # A raw KIDs classification additionally requires the I/Q payload pair.
+        if not (self.schema.I in self and self.schema.Q in self):
+            return ToltecDataKind.unknown
 
-        # A time/sweep dimension alone is shared by unrelated data such as
-        # telescope pointing. Structural inference requires the raw I/Q pair.
-        if self.schema.I in self and self.schema.Q in self:
-            if self.schema.n_sweepsteps in self:
-                return ToltecDataKind.RawSweep
-            if self.schema.n_times in self:
-                return ToltecDataKind.RawTimeStream
+        # Decode the recorded acquisition type before classifying raw KIDs data.
+        if self.schema.obs_type_code in self:
+            obs_type_code = self.get_scalar(data_source, self.schema.obs_type_code)
+            obs_type = ToltecInfo.obs_type_code_obs_type.get(obs_type_code)
+            return ToltecInfo.obs_type_data_kind.get(obs_type, ToltecDataKind.unknown)
 
-        return ToltecDataKind.Unknown
+        if self.schema.n_sweepsteps in self:
+            return ToltecDataKind.raw_sweep
+        if self.schema.n_times in self:
+            return ToltecDataKind.raw_timestream
 
-    def _get_sweep_metadata(
-        self,
-        data_source: xr.Dataset,
-        base_fields: dict[str, Any],
-        n_blocks_dim: int | None,
-        block: int | None,
-        data_kind: ToltecDataKind,
-    ) -> ToltecSweepMetadata | list[ToltecSweepMetadata]:
-        """Construct sweep metadata instance(s)."""
-        ds = data_source
-        schema = self.schema
-        # None denotes a flat acquisition; zero is still an explicit dimension.
-        is_multi_block = n_blocks_dim is not None
-        n_blocks = n_blocks_dim if is_multi_block else 1
-        is_raw = bool(data_kind & ToltecDataKind.RawKidsData)
-        sweep_fields = base_fields.copy()
-        sweep_fields.update(self._get_sweep_metadata_fields(ds, is_raw=is_raw))
-
-        slices = [slice(None)]
-        if not is_multi_block and data_kind == ToltecDataKind.Tune:
-            # numSweeps is allocated capacity; LO resets count recorded sweeps.
-            f_los = self.get_arr(ds, schema.f_los).to_numpy()
-            if f_los.ndim != 1 or not np.all(np.isfinite(f_los) & (f_los > 0)):
-                msg = "Tune LO frequencies must be a positive finite 1-D array"
-                raise ValueError(msg)
-            edges = [0, *(np.flatnonzero(np.diff(f_los) < 0) + 1), len(f_los)]
-            slices = [slice(a, b) for a, b in pairwise(edges)]
-            n_blocks = len(slices)
-        if not is_multi_block and block is not None and not 0 <= block < n_blocks:
-            msg = f"Block {block} out of range [0, {n_blocks})"
-            raise ValueError(msg)
-
-        sweep_fields["n_blocks"] = n_blocks
-        sweep_fields.setdefault("n_blocks_max", n_blocks)
-        if is_multi_block:
-            if block is not None:
-                return self._get_single_block_sweep_metadata(
-                    sweep_fields, ds, block, is_raw=is_raw
-                )
-            return [
-                self._get_single_block_sweep_metadata(
-                    sweep_fields, ds, i, is_raw=is_raw
-                )
-                for i in range(n_blocks)
-            ]
-
-        if block is not None and schema.n_times in self:
-            ds = ds.isel({self.get_name(schema.n_times): slices[block]})
-        sweep_fields["n_sweeps"] = n_blocks if block is None else 1
-        sweep_fields.update(
-            self._get_sample_metadata_fields(ds, sweep_fields, is_raw=is_raw)
-        )
-        return ToltecSweepMetadata(**sweep_fields)
-
-    def _get_single_block_sweep_metadata(self, base_fields, ds, block_idx, *, is_raw):
-        """Get sweep metadata for a specific explicitly indexed block."""
-        block_fields = base_fields.copy()
-        ds = ds.isel({self.get_name(self.schema.n_blocks): block_idx})
-        block_fields["n_sweeps"] = 1
-        block_fields.update(
-            self._get_sample_metadata_fields(ds, block_fields, is_raw=is_raw)
-        )
-        return ToltecSweepMetadata(**block_fields)
-
-    def _get_timestream_metadata(self, data_source, base_fields, *, is_raw):
-        """Construct timestream metadata instance."""
-        ts_fields = base_fields.copy()
-        ts_fields.update(
-            self._get_sample_metadata_fields(data_source, ts_fields, is_raw=is_raw)
-        )
-        return ToltecTimeStreamMetadata(**ts_fields)
-
-    def _get_sweep_metadata_fields(self, ds, *, is_raw):
-        """Read programmed sweep settings and allocated capacity."""
-        schema = self.schema
-        fields = {"n_sweepsteps": self.get_scalar(ds, schema.n_sweepsteps)}
-        if is_raw or schema.n_sweepreps in self:
-            fields["n_sweepreps"] = self.get_scalar(ds, schema.n_sweepreps)
-        if is_raw or schema.n_blocks_max in self:
-            fields["n_blocks_max"] = self.get_dim(ds, schema.n_blocks_max)
-        return fields
+        return ToltecDataKind.unknown
 
     def _get_sample_metadata_fields(self, ds, base_fields, *, is_raw):
         """Read sample counts, integration time and the scalar LO center."""
@@ -454,158 +368,364 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         """Read a scalar frequency, using Hz when the header has no unit."""
         value = self.get_scalar(ds, field)
         unit = (
-            self.get_arr(ds, field).u.unit or u.Hz
-            if self.has_arr(ds, field)
-            else u.Hz
+            self.get_arr(ds, field).u.unit or u.Hz if self.has_arr(ds, field) else u.Hz
         )
         return u.Quantity(value, unit).to(u.Hz)
 
     def _get_f_lo_center(self, data_source: xr.Dataset) -> float | None:
-        """Resolve LO center frequency from dataset.
-
-        Checks the f_lo_center field first (as attr or data variable), then
-        falls back to the mean of f_los if available.
-
-        Parameters
-        ----------
-        data_source : xr.Dataset
-            Dataset to read from
-
-        Returns
-        -------
-        float or None
-            LO center frequency in Hz, or None if not determinable
-        """
-        if self.schema.f_lo_center in self:
-            if self.has_attr(data_source, self.schema.f_lo_center):
-                return float(self.get_scalar(data_source, self.schema.f_lo_center))
-            if self.has_arr(data_source, self.schema.f_lo_center):
-                val = self.get_arr(data_source, self.schema.f_lo_center)
-                if hasattr(val, "values"):
-                    return (
-                        float(val.mean().values) if val.size > 1 else float(val.values)
-                    )
-                return float(val)
+        """Read the LO center in Hz, falling back to the mean acquired LO."""
+        field = self.schema.f_lo_center
+        if field in self:
+            if self.has_arr(data_source, field):
+                arr = self.get_arr(data_source, field)
+                return u.Quantity(arr.to_numpy().mean(), arr.u.unit or u.Hz).to_value(
+                    u.Hz
+                )
+            return self._get_frequency(data_source, field).to_value(u.Hz)
         if self.schema.f_los in self:
-            f_los = self.get_arr(data_source, self.schema.f_los)
-            return float(f_los.mean().values)
+            arr = self.get_arr(data_source, self.schema.f_los)
+            return u.Quantity(arr.to_numpy().mean(), arr.u.unit or u.Hz).to_value(u.Hz)
         return None
 
-    def get_chan_axis_data(self, data_source: xr.Dataset) -> QTable:
-        """Get channel axis data as an astropy QTable.
+    def get_model_params(
+        self, data_source: xr.Dataset, *, block: int = 0
+    ) -> xr.Dataset | None:
+        """Project recorded model parameters into lazy channel columns.
 
         Parameters
         ----------
-        data_source : xr.Dataset
-            Dataset to read from
+        data_source : xarray.Dataset
+            Acquisition or already-selected native block data.
+        block : int, optional
+            Zero-based header row to select when the block dimension remains;
+            default is 0. Ignored for an already-selected block.
 
         Returns
         -------
-        QTable
-            Table with channel metadata including:
-            - channel: Channel index
-            - f_tone: Tone frequency
-            - f_chan: Channel frequency (tone + LO center)
-            - tone_mask: Enabled/disabled mask
-            - tone_amp: Tone amplitude (if available)
-            - tone_phase: Tone phase (if available)
-        """
-        n_chans = self.get_dim(data_source, self.schema.n_chans)
-
-        table = QTable()
-        table["channel"] = np.arange(n_chans)
-
-        if self.schema.f_tones in self:
-            f_tones = self.get_arr(data_source, self.schema.f_tones)
-            table["f_tone"] = f_tones.values * u.Hz
-
-        f_lo_center = self._get_f_lo_center(data_source)
-        if "f_tone" in table.colnames and f_lo_center is not None:
-            table["f_chan"] = table["f_tone"] + f_lo_center * u.Hz
-
-        if self.schema.mask_tones in self:
-            table["tone_mask"] = self.get_arr(
-                data_source, self.schema.mask_tones
-            ).values
-        if self.schema.amp_tones in self:
-            table["tone_amp"] = self.get_arr(data_source, self.schema.amp_tones).values
-        if self.schema.phase_tones in self:
-            table["tone_phase"] = (
-                self.get_arr(data_source, self.schema.phase_tones).values * u.rad
-            )
-
-        meta = self.get_metadata(data_source)
-        table.meta["roach"] = getattr(meta, "roach", None)
-        table.meta["array_name"] = getattr(meta, "array_name", None)
-
-        return table
-
-    def get_sweep_axis_data(self, data_source: xr.Dataset) -> QTable:
-        """Get sweep axis data as an astropy QTable.
-
-        Parameters
-        ----------
-        data_source : xr.Dataset
-            Dataset to read from
-
-        Returns
-        -------
-        QTable
-            Table with sweep step metadata including:
-            - sweep_id: Sweep step index
-            - f_sweep: Sweep frequency offset from LO center
-            - f_lo: LO frequency at this sweep step
+        xarray.Dataset or None
+            Recorded parameter columns in header order, with original channel
+            IDs as the ``chan`` coordinate. Only column names are loaded here.
+            No units are inferred. None means both model headers are absent.
 
         Raises
         ------
         ValueError
-            If dataset has no frequency dimension
+            Headers are incomplete, malformed, or have inconsistent dimensions.
         """
-        ds = data_source
-        is_sweep = (
-            "sweep" in ds.dims or "nsweeps" in ds.dims or "frequency" in ds.coords
+        schema = self.schema
+        present = [
+            field in self for field in (schema.model_params, schema.model_params_header)
+        ]
+        if not any(present):
+            return None
+        if not all(present):
+            msg = "Model parameters require both ModelParams and ModelParamsHeader"
+            raise ValueError(msg)
+        header = self.get_arr(data_source, schema.model_params_header)
+        # xarray's netCDF decoder joins the native trailing character dimension.
+        if header.ndim != 1 or header.dtype.kind not in "SU":
+            msg = "ModelParamsHeader must be a one-dimensional string array"
+            raise ValueError(msg)
+        names = [
+            name.decode() if isinstance(name, bytes) else str(name)
+            for name in header.values
+        ]
+        if any(not name or name == "chan" for name in names) or len(set(names)) != len(
+            names
+        ):
+            msg = "ModelParamsHeader requires nonempty unique names other than 'chan'"
+            raise ValueError(msg)
+        params = self.get_arr(data_source, schema.model_params)
+        if schema.n_blocks_max in self:
+            dim = self.get_name(schema.n_blocks_max)
+            if dim in params.dims:
+                params = params.isel({dim: block})
+        param_dim = header.dims[0]
+        chan_dim = self.get_name(schema.n_chans)
+        if (
+            params.ndim != 2  # noqa: PLR2004 -- parameter and channel axes
+            or params.dims[0] != param_dim
+            or params.sizes[param_dim] != len(names)
+            or params.shape[1] != data_source.sizes[chan_dim]
+        ):
+            msg = "ModelParams dimensions must match names and readout channels"
+            raise ValueError(msg)
+        columns = {
+            name: xr.DataArray(params.isel({param_dim: i}).variable, dims="chan")
+            for i, name in enumerate(names)
+        }
+        # Parameters have individually defined physical meanings. The native
+        # array has no per-column units; preserve v2's unitless recorded values.
+        for column in columns.values():
+            column.attrs = {}
+        return xr.Dataset(
+            columns,
+            coords={"chan": data_source[chan_dim].values},
+            attrs={"parameter_names": names},
         )
-        if not is_sweep:
-            msg = "Dataset is not sweep data (no frequency coordinate)"
-            raise ValueError(msg)
 
-        freq_coord = None
-        for coord_name in ["sweep", "nsweeps", "frequency"]:
-            if coord_name in ds.coords:
-                freq_coord = ds.coords[coord_name]
-                break
-            if coord_name in ds.dims:
-                freq_coord = ds[coord_name] if coord_name in ds else None
-                if freq_coord is not None:
-                    break
+    def _read_chan_axis(self, ds, values):
+        """Read one tone row, respecting frequency and phase units."""
+        schema = self.schema
+        n_chans = values["n_chans"]
+        table = {
+            "block": np.full(n_chans, values["block"]),
+            "chan": ds[self.get_name(schema.n_chans)].values,
+        }
 
-        if freq_coord is None:
-            msg = "Could not find frequency coordinate"
-            raise ValueError(msg)
+        def read(field, unit=None):
+            arr = self.get_arr(ds, field)
+            if schema.n_blocks_max in self:
+                dim = self.get_name(schema.n_blocks_max)
+                if dim in arr.dims:
+                    arr = arr.isel({dim: values["block"]})
+            data = arr.to_numpy().reshape(-1)
+            if len(data) != n_chans:
+                msg = f"Tone axis has {len(data)} channels; expected {n_chans}"
+                raise ValueError(msg)
+            if unit is not None:
+                data = u.Quantity(data, arr.u.unit or unit).to(unit)
+            return data
 
-        table = QTable()
-        table["sweep_id"] = np.arange(len(freq_coord))
+        if schema.f_tones in self:
+            table["f_tone"] = read(schema.f_tones, u.Hz)
+            if values.get("f_lo_center") is not None:
+                table["f_chan"] = table["f_tone"] + values["f_lo_center"] * u.Hz
+        table["tone_mask"] = (
+            read(schema.mask_tones).astype(bool)
+            if schema.mask_tones in self
+            else np.ones(n_chans, dtype=bool)
+        )
+        table["tone_amp"] = read(schema.amp_tones)
+        table["tone_phase"] = (
+            read(schema.phase_tones, u.rad)
+            if schema.phase_tones in self
+            else np.zeros(n_chans) * u.rad
+        )
+        return self._axis_dataset(table, dim="chan_entry")
 
-        f_lo_center = self._get_f_lo_center(data_source)
-        if f_lo_center is not None:
-            freq_vals = freq_coord.values
-            if np.abs(freq_vals).max() < 10e6:  # noqa: PLR2004
-                f_sweep = freq_vals
-                f_lo = f_sweep + f_lo_center
-            else:
-                f_lo = freq_vals
-                f_sweep = f_lo - f_lo_center
-            table["f_sweep"] = f_sweep * u.Hz
-            table["f_lo"] = f_lo * u.Hz
+    @staticmethod
+    def _axis_dataset(columns, *, dim):
+        return xr.Dataset(
+            {
+                name: xr.DataArray(
+                    np.asarray(value),
+                    dims=dim,
+                    attrs={"units": str(value.unit)}
+                    if isinstance(value, u.Quantity)
+                    else {},
+                )
+                for name, value in columns.items()
+            }
+        )
+
+    @staticmethod
+    def _get_constant_timestream_lo(f_los):
+        """Return the sampled constant LO in Hz, or None to request a full scan."""
+        n_samples = f_los.size
+        if not n_samples:
+            return None
+        dim = f_los.dims[0]
+        window = _TIMESTREAM_LO_CHECK_SAMPLES
+        if n_samples <= 2 * window:
+            samples = f_los.to_numpy()
         else:
-            table["f_lo"] = freq_coord.values * u.Hz
+            samples = np.concatenate(
+                [
+                    f_los.isel({dim: slice(0, window)}).to_numpy(),
+                    f_los.isel({dim: slice(-window, None)}).to_numpy(),
+                ]
+            )
+        # TODO: Revisit this acquisition-type assumption for mixed-block files;
+        # matching endpoints do not establish that the interior is constant.
+        if np.all(samples == samples[0]) and np.isfinite(samples[0]):
+            return u.Quantity(samples[0], f_los.u.unit or u.Hz).to_value(u.Hz)
+        return None
 
-        meta = self.get_metadata(data_source)
-        table.meta["roach"] = getattr(meta, "roach", None)
-        table.meta["array_name"] = getattr(meta, "array_name", None)
-        table.meta["f_lo_center"] = f_lo_center
+    def _read_probe_axis(self, ds, values, f_los, *, sample_start, is_sweep):
+        """Describe acquired LO steps with exclusive acquisition sample bounds."""
+        center = values.get("f_lo_center")
+        constant_lo = None
+        if f_los is not None and f_los.ndim != 1:
+            msg = "Probe LO frequencies must be a 1-D array"
+            raise ValueError(msg)
+        if (
+            f_los is not None
+            and not is_sweep
+            and values.get("obs_type") in {"nominal", "timestream"}
+        ):
+            constant_lo = self._get_constant_timestream_lo(f_los)
+        if constant_lo is not None:
+            frequencies = np.asarray([constant_lo])
+            starts = np.asarray([sample_start])
+            counts = np.asarray([values["n_times"]])
+        elif f_los is not None:
+            los = u.Quantity(f_los.to_numpy(), f_los.u.unit or u.Hz).to_value(u.Hz)
+            starts = (
+                np.r_[0, np.flatnonzero(np.diff(los) != 0) + 1]
+                if los.size
+                else np.array([], dtype=int)
+            )
+            frequencies = los[starts]
+            counts = np.diff(np.r_[starts, len(los)])
+            starts += sample_start
+        elif not is_sweep:
+            frequencies = np.asarray([center]) if center is not None else None
+            starts = np.asarray([sample_start])
+            counts = np.asarray([values["n_times"]])
+        else:
+            # Processed sweeps store one datum per frequency coordinate.
+            if not self.has_arr(ds, self.schema.f_sweep):
+                msg = "Could not find sweep LO samples or frequency coordinate"
+                raise ValueError(msg)
+            coord = self.get_arr(ds, self.schema.f_sweep)
+            frequencies = u.Quantity(coord.to_numpy(), coord.u.unit or u.Hz).to_value(
+                u.Hz
+            )
+            if (
+                center is not None
+                and frequencies.size
+                and np.abs(frequencies).max() < 10e6  # noqa: PLR2004
+            ):
+                frequencies = frequencies + center
+            starts = np.arange(len(frequencies)) + sample_start
+            counts = np.ones(len(frequencies), dtype=int)
+        table = {
+            "block": np.full(len(counts), values["block"]),
+            "step": np.arange(len(counts)),
+            "n_samples": counts,
+            "sample_start": starts,
+            "sample_end": starts + counts,
+        }
+        if frequencies is not None:
+            table["f_lo"] = frequencies * u.Hz
+            if center is not None:
+                table["f_sweep"] = (frequencies - center) * u.Hz
+        return self._axis_dataset(table, dim="probe")
 
-        return table
+    def get_chan_axis_table(self, data_source: xr.Dataset, block: int = 0) -> QTable:
+        """Read the channel axis for one acquired block.
+
+        Parameters
+        ----------
+        data_source : xarray.Dataset
+            Acquisition containing tone headers.
+        block : int, optional
+            Zero-based block index; default is 0.
+
+        Returns
+        -------
+        astropy.table.QTable
+            Channel indices, tone/channel frequencies in Hz, masks, amplitudes
+            and phases in radians.
+        """
+        return _block_axis_table(self.get_blocks(data_source), "chan", block)
+
+    def get_probe_axis_table(self, data_source: xr.Dataset, block: int = 0) -> QTable:
+        """Read the probe axis for one acquired block.
+
+        Parameters
+        ----------
+        data_source : xarray.Dataset
+            Raw or processed KIDs acquisition.
+        block : int, optional
+            Zero-based block index; default is 0.
+
+        Returns
+        -------
+        astropy.table.QTable
+            LO frequencies and offsets in Hz, actual sample counts, and
+            inclusive start/exclusive end indices in acquisition samples.
+
+        Raises
+        ------
+        ValueError
+            If the block is out of range.
+        """
+        return _block_axis_table(self.get_blocks(data_source), "probe", block)
+
+
+def _block_axis_table(index, axis, block):
+    if not 0 <= block < index.meta.n_blocks:
+        msg = f"Block {block} out of range for this acquisition"
+        raise ValueError(msg)
+    meta = index.meta
+    table = ToltecAxisView(getattr(index, axis)).select_block(block).axis_table
+    table.meta.update(
+        roach=meta.roach,
+        array_name=meta.array_name,
+        block=block,
+        f_lo_center=meta.f_lo_center,
+    )
+    return table
+
+
+def open_toltec_kids(
+    source: str | Path | FileLoc,
+    *,
+    decode_coords: Literal["coordinates", "all"] | bool | None = "all",
+    decode_times: bool = True,
+    **kwargs,
+) -> ToltecKidsDataset:
+    """Open a recognized TolTEC KIDs netCDF file.
+
+    Parameters
+    ----------
+    source : str, pathlib.Path or FileLoc
+        Local netCDF file. Remote files must be staged before opening.
+    decode_coords : {"coordinates", "all"}, bool or None, optional
+        Coordinate decoding passed to `xarray.open_dataset`. Default is "all".
+    decode_times : bool, optional
+        Whether to decode time variables. Default is True.
+    **kwargs
+        Additional arguments passed to `xarray.open_dataset`.
+
+    Returns
+    -------
+    ToltecKidsDataset
+        Dataset with an initialized ``toltec_kids`` accessor and a recognized
+        data kind. Opening reads classification information, not full metadata
+        or signal arrays.
+        Close the dataset after loading the arrays needed by the caller.
+
+    Raises
+    ------
+    ValueError
+        If the location is remote or the dataset is not recognized as KIDs data.
+        The dataset is closed if accessor initialization or classification fails.
+
+    Examples
+    --------
+    With the reference observation under ``data_lmt`` in the working directory:
+
+    >>> from tolteca_datamodels.toltec import open_toltec_kids
+    >>> filepath = (
+    ...     "data_lmt/toltec/tcs/toltec0/"
+    ...     "toltec0_145606_000_0001_2025_10_31_09_22_14_targsweep.nc"
+    ... )
+    >>> with open_toltec_kids(filepath) as ds:
+    ...     meta = ds.toltec_kids.meta
+    ...     f_tone = ds.toltec_kids.f_tone.load()
+    >>> meta.uid_raw_obs_file
+    'tcs-145606-0-1-toltec0'
+    """
+    with ExitStack() as stack:
+        dataset = cast(
+            "ToltecKidsDataset",
+            stack.enter_context(
+                _open_netcdf(
+                    source,
+                    decode_coords=decode_coords,
+                    decode_times=decode_times,
+                    **kwargs,
+                )
+            ),
+        )
+        if dataset.toltec_kids.data_kind == ToltecDataKind.unknown:
+            msg = "Not a recognized TolTEC KIDs dataset"
+            raise ValueError(msg)
+        stack.pop_all()
+    return dataset
 
 
 # Main Accessor
@@ -613,315 +733,140 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
 
 
 @xr.register_dataset_accessor("toltec_kids")
-@xr.register_datatree_accessor("toltec_kids")
-class ToltecKidsAccessor:
-    """TolTEC-specific accessor for KIDs data.
+class ToltecKidsAccessor(XarrayAccessorBase[ToltecKidsIOMapper]):
+    """Read native TolTEC KIDs headers, arrays and acquisition structure.
 
-    Provides access to TolTEC instrument-specific metadata, tone properties,
-    and reduced data views. Registered for both ``xr.Dataset`` and
-    ``xr.DataTree`` so that it works on raw datasets and on the DataTree
-    returned by ``SweepReducer`` / ``TimestreamReducer``.
-
-    Properties
+    Parameters
     ----------
-    meta : ToltecSweepMetadata or ToltecTimeStreamMetadata
-        Complete metadata dataclass with all observation info
-    data_kind : ToltecDataKind
-        Data kind flag (VnaSweep, TargetSweep, RawTimeStream, etc.)
-    f_tone : xr.DataArray
-        ROACH tone frequencies
-    f_lo : xr.DataArray or float
-        LO frequency (array for sweeps, scalar for fixed)
-    f_chan : xr.DataArray
-        Channel frequencies (f_tone + f_lo_center)
-    tone_mask : xr.DataArray
-        Tone enable/disable mask
-    tone_amp : xr.DataArray
-        Tone amplitude values
-    tone_phase : xr.DataArray
-        Tone phase values
-    sweep : ReducedSweepView
-        View of the reduced sweep child node (when DataTree is available)
-    timestream : ReducedTimestreamView
-        View of the reduced timestream/PSD child node (when DataTree is available)
+    data_source : xarray.Dataset or xarray.DataTree
+        Open native acquisition at the supplied dataset or current tree node.
+    mapper : ToltecKidsIOMapper, optional
+        Mapper for this data layout. If omitted, resolve one from the source.
+        A supplied mapper can be shared with other sources of the same layout.
 
     Examples
     --------
-    Access metadata:
-        >>> meta = ds.toltec_kids.meta
-        >>> meta.roach
-        0
-        >>> meta.obsnum
-        12345
-        >>> meta.f_smp
-        <Quantity 488.28125 Hz>
+    With the reference observation under ``data_lmt`` in the working directory:
 
-    Access tone properties:
-        >>> ds.toltec_kids.f_tone
-        <xr.DataArray 'f_tone' (channel: 256)>
-        >>> ds.toltec_kids.f_chan
-        <xr.DataArray 'f_chan' (channel: 256)>
-
-    Access reduced data via DataTree:
-        >>> dt = SweepReducer()(ds)
-        >>> view = dt.toltec_kids.sweep
-        >>> view.sweep         # averaged sweep Dataset
-        >>> view.has_blocks    # True if multi-block
+    >>> from tolteca_datamodels.toltec import open_toltec_kids
+    >>> filepath = (
+    ...     "data_lmt/toltec/tcs/toltec0/"
+    ...     "toltec0_145606_000_0001_2025_10_31_09_22_14_targsweep.nc"
+    ... )
+    >>> with open_toltec_kids(filepath) as ds:
+    ...     meta = ds.toltec_kids.meta
+    ...     f_tone = ds.toltec_kids.f_tone.load()
+    ...     index = ds.toltec_kids.block_index
+    >>> meta.obsnum
+    145606
     """
 
-    def __init__(self, xarray_obj: xr.Dataset | xr.DataTree) -> None:
-        self._obj = xarray_obj
-        # Mapper operates on a plain Dataset — use root dataset for DataTree
-        self._root_ds: xr.Dataset = (
-            xarray_obj.dataset if isinstance(xarray_obj, xr.DataTree) else xarray_obj
+    @property
+    def data_source(self) -> xr.Dataset:
+        """Native acquisition dataset at the supplied node."""
+        return cast("xr.Dataset", unwrap_data_source(self._data_source))
+
+    @functools.cached_property
+    def meta(self) -> ToltecRawObsMetadata | None:
+        """Acquisition metadata; not yet available for native processed products."""
+        if self.mapper.schema.kind_str in self.mapper:
+            # TODO: expose shared acquisition identity or an acquisition reference.
+            return None
+        return self.mapper.get_metadata(self.data_source)
+
+    @functools.cached_property
+    def block_index(self) -> ToltecBlockIndex:
+        """Explicit block inspection, reading LO/tone axes but no detector arrays."""
+        acquisition = (
+            self.meta
+            if self.mapper.schema.kind_str not in self.mapper
+            and not self.mapper.has_dim(self.data_source, self.mapper.schema.n_blocks)
+            else None
         )
-        self.mapper = ToltecKidsIOMapper.from_data_source(self._root_ds)
-
-    # Metadata properties
-    # ===================
-
-    @functools.cached_property
-    def meta(self):
-        """Get metadata as dataclass instance(s).
-
-        Constructs appropriate metadata dataclass based on data kind.
-        For multi-block data, returns list of metadata instances (one per block).
-
-        Returns
-        -------
-        ToltecSweepMetadata or ToltecTimeStreamMetadata or list
-            Metadata instance for single-block data, or list of metadata
-            instances for multi-block data (one per block)
-
-        Examples
-        --------
-        Single-block sweep data:
-            >>> meta = ds.toltec_kids.meta
-            >>> meta.roach
-            0
-            >>> meta.obsnum
-            12345
-            >>> meta.n_sweepsteps
-            491
-            >>> meta.f_smp
-            <Quantity 488.28125 Hz>
-
-        Multi-block sweep data:
-            >>> meta_list = ds.toltec_kids.meta
-            >>> len(meta_list)
-            2
-            >>> meta_list[0].n_sweeps
-            1
-            >>> meta_list[0].f_lo_center
-            4500000000.0
-
-        Convenience fields:
-            >>> meta = ds.toltec_kids.meta
-            >>> meta.array_name
-            'a1100'
-            >>> meta.interface
-            'toltec0'
-        """
-        return self.mapper.get_metadata(self._root_ds)
-
-    @functools.cached_property
-    def meta_header(self) -> ToltecSweepMetadataHeader | ToltecTimeStreamMetadata:
-        """Raw acquisition headers and sample counts, without loading data arrays.
-
-        Sweep records include programmed steps, repetitions and allocated block
-        capacity. Use ``meta`` when the actual acquired sweep count is needed.
-        Only unpartitioned raw acquisitions support this property.
-        """
-        return self.mapper.get_metadata_header(self._root_ds)
+        return self.mapper.get_blocks(self.data_source, acquisition=acquisition)
 
     # Tone/Channel properties
     # =======================
 
     @functools.cached_property
-    def f_tone(self) -> xr.DataArray | None:
-        """ROACH tone frequencies.
+    def adc_snap(self) -> xr.DataArray:
+        """Lazy ADC snapshot array."""
+        return self.mapper.get_arr(self.data_source, self.mapper.schema.adc_snap)
 
-        Returns
-        -------
-        xr.DataArray or None
-            Tone frequencies in Hz, or None if not present
-        """
+    @functools.cached_property
+    def f_tone(self) -> xr.DataArray | None:
+        """ROACH tone frequencies in Hz."""
         if self.mapper.schema.f_tones not in self.mapper:
             return None
-        return self.mapper.get_arr(self._root_ds, self.mapper.schema.f_tones)
+        return self.mapper.get_arr(self.data_source, self.mapper.schema.f_tones)
 
     @functools.cached_property
     def f_lo(self) -> xr.DataArray | float | None:
-        """LO frequency.
-
-        Returns
-        -------
-        xr.DataArray, float, or None
-            LO frequency in Hz (array for sweeps, scalar for fixed),
-            or None if not present
-        """
+        """LO frequency in Hz."""
         if self.mapper.schema.f_los not in self.mapper:
             return None
 
-        name = self.mapper.get_name(self.mapper.schema.f_los)
-        # Check if it's a coordinate/variable (array) or attr (scalar)
-        if name in self._root_ds.coords:
-            return self.mapper.get_arr(self._root_ds, self.mapper.schema.f_los)
-        if name in self._root_ds:
-            return self.mapper.get_arr(self._root_ds, self.mapper.schema.f_los)
-        if name in self._root_ds.attrs:
-            return self._root_ds.attrs[name]
-        return None
+        field = self.mapper.schema.f_los
+        if self.mapper.has_arr(self.data_source, field):
+            return self.mapper.get_arr(self.data_source, field)
+        return self.mapper.get_scalar(self.data_source, field)
 
     @functools.cached_property
     def f_chan(self) -> xr.DataArray | None:
-        """Channel frequencies (f_tone + f_lo_center).
-
-        Returns
-        -------
-        xr.DataArray or None
-            Channel frequencies in Hz, or None if not present
-        """
+        """Channel frequencies in Hz."""
         f_tone = self.f_tone
         if f_tone is None:
             return None
-        f_lo_center = self.mapper._get_f_lo_center(self._root_ds)
+        f_lo_center = self.mapper._get_f_lo_center(self.data_source)
         if f_lo_center is None:
             return None
         return f_tone + f_lo_center
 
     @functools.cached_property
     def tone_mask(self) -> xr.DataArray | None:
-        """Tone enable/disable mask.
-
-        Returns
-        -------
-        xr.DataArray or None
-            Boolean mask where True indicates enabled tone.
-            For multi-block data, has 'block' dimension.
-            Returns None if not present.
-        """
+        """Tone mask, with True indicating an enabled tone."""
         if self.mapper.schema.mask_tones not in self.mapper:
             return None
-        arr = self.mapper.get_arr(self._root_ds, self.mapper.schema.mask_tones)
-        # Note: For multi-block data after reduce_raw_sweep with concat,
-        # the block dimension is automatically preserved
-        return arr
+        return self.mapper.get_arr(self.data_source, self.mapper.schema.mask_tones)
 
     @functools.cached_property
     def tone_amp(self) -> xr.DataArray | None:
-        """Tone amplitude values.
-
-        Returns
-        -------
-        xr.DataArray or None
-            Tone amplitudes.
-            For multi-block data, has 'block' dimension.
-            Returns None if not present.
-        """
+        """Tone amplitudes."""
         if self.mapper.schema.amp_tones not in self.mapper:
             return None
-        arr = self.mapper.get_arr(self._root_ds, self.mapper.schema.amp_tones)
-        return arr
+        return self.mapper.get_arr(self.data_source, self.mapper.schema.amp_tones)
 
     @functools.cached_property
     def tone_phase(self) -> xr.DataArray | None:
-        """Tone phase values.
-
-        Returns
-        -------
-        xr.DataArray or None
-            Tone phases in radians.
-            For multi-block data, has 'block' dimension.
-            Returns None if not present.
-        """
+        """Tone phases in radians."""
         if self.mapper.schema.phase_tones not in self.mapper:
             return None
-        arr = self.mapper.get_arr(self._root_ds, self.mapper.schema.phase_tones)
-        return arr
+        return self.mapper.get_arr(self.data_source, self.mapper.schema.phase_tones)
 
     # Data Kind Identification
     # ========================
 
     @functools.cached_property
     def data_kind(self) -> ToltecDataKind:
-        """Identify KIDs data from type headers or raw I/Q structure.
-
-        Explicit kind and observation-type headers take precedence. Without
-        them, structural identification requires mapped I/Q variables and a
-        sweep-step count or time dimension; otherwise the result is Unknown.
-        Signal values are not read.
-
-        Returns
-        -------
-        ToltecDataKind
-            Data kind flag indicating the type of KIDs data
-        """
-        return self.mapper._get_data_kind(self._root_ds)
-
-    # Reduced Data Views
-    # ==================
-
-    @functools.cached_property
-    def sweep(self):
-        """View of the reduced sweep child node.
-
-        Returns a :class:`ReducedSweepView` backed by the current object.
-        When the object is a DataTree returned by :class:`SweepReducer`, the
-        view transparently resolves the reduced sweep child node.
-
-        Returns
-        -------
-        ReducedSweepView
-            View providing access to averaged sweep data and uncertainties.
-
-        Examples
-        --------
-        >>> dt = SweepReducer()(ds_raw)
-        >>> view = dt.toltec_kids.sweep
-        >>> view.sweep       # averaged sweep Dataset
-        >>> view.has_blocks  # True if multi-block data
-        """
-        from .sweep import ReducedSweepView  # noqa: PLC0415
-
-        return ReducedSweepView(self._obj)
-
-    @functools.cached_property
-    def timestream(self):
-        """View of the reduced timestream / PSD child node.
-
-        Returns a :class:`ReducedTimestreamView` backed by the current object.
-        When the object is a DataTree returned by :class:`TimestreamReducer`,
-        the view transparently resolves the reduced timestream child node.
-
-        Returns
-        -------
-        ReducedTimestreamView
-            View providing access to PSD data and summary statistics.
-
-        Examples
-        --------
-        >>> dt = TimestreamReducer()(ds_ts)
-        >>> view = dt.toltec_kids.timestream
-        >>> view.f_psd           # PSD frequency axis
-        >>> view.I_psd           # I-channel PSD
-        >>> view.I_psd_median    # median PSD value in stat freq range
-        """
-        from .timestream import ReducedTimestreamView  # noqa: PLC0415
-
-        return ReducedTimestreamView(self._obj)
+        """Native file classification from the recorded headers."""
+        return self.mapper._get_data_kind(self.data_source)
 
     # Axis Data Methods
     # =================
 
-    def get_chan_axis_data(self) -> QTable:
+    def get_chan_axis_table(self, block: int = 0) -> QTable:
         """Get channel axis data as an astropy QTable.
+
+        Parameters
+        ----------
+        block : int, optional
+            Zero-based block index; default is 0.
 
         Returns
         -------
         QTable
             Table with channel metadata including:
-            - channel: Channel index
+            - chan: Channel index
             - f_tone: Tone frequency
             - f_chan: Channel frequency (tone + LO center)
             - tone_mask: Enabled/disabled mask
@@ -930,34 +875,57 @@ class ToltecKidsAccessor:
 
         Examples
         --------
-        >>> chan_data = ds.toltec_kids.get_chan_axis_data()
-        >>> chan_data['f_chan']  # Access channel frequencies
-        >>> enabled = chan_data[chan_data['tone_mask']]  # Filter enabled
-        """
-        return self.mapper.get_chan_axis_data(self._root_ds)
+        With the reference observation under ``data_lmt`` in the working directory:
 
-    def get_sweep_axis_data(self) -> QTable:
-        """Get sweep axis data as an astropy QTable.
+        >>> from tolteca_datamodels.toltec import open_toltec_kids
+        >>> filepath = (
+        ...     "data_lmt/toltec/tcs/toltec0/"
+        ...     "toltec0_145606_000_0001_2025_10_31_09_22_14_targsweep.nc"
+        ... )
+        >>> with open_toltec_kids(filepath) as ds:
+        ...     chan_data = ds.toltec_kids.get_chan_axis_table()
+        >>> frequencies = chan_data["f_chan"]
+        >>> enabled = chan_data[chan_data["tone_mask"]]
+        """
+        return _block_axis_table(self.block_index, "chan", block)
+
+    def get_probe_axis_table(self, block: int = 0) -> QTable:
+        """Get probe axis data as an astropy QTable.
+
+        Parameters
+        ----------
+        block : int, optional
+            Zero-based block index; default is 0.
 
         Returns
         -------
         QTable
-            Table with sweep step metadata including:
-            - sweep_id: Sweep step index
+            Table with probe step metadata including:
+            - step: Block-local probe step index
             - f_sweep: Sweep frequency offset from LO center
             - f_lo: LO frequency at this sweep step
+            - n_samples: Actual samples acquired at this step
+            - sample_start, sample_end: Acquisition sample bounds (end exclusive)
 
         Raises
         ------
         ValueError
-            If dataset has no frequency dimension
+            If the block is out of range
 
         Examples
         --------
-        >>> sweep_data = ds.toltec_kids.get_sweep_axis_data()
-        >>> sweep_data['f_sweep']  # Access sweep frequencies
+        With the reference observation under ``data_lmt`` in the working directory:
+
+        >>> from tolteca_datamodels.toltec import open_toltec_kids
+        >>> filepath = (
+        ...     "data_lmt/toltec/tcs/toltec0/"
+        ...     "toltec0_145606_000_0001_2025_10_31_09_22_14_targsweep.nc"
+        ... )
+        >>> with open_toltec_kids(filepath) as ds:
+        ...     sweep_data = ds.toltec_kids.get_probe_axis_table()
+        >>> frequencies = sweep_data["f_sweep"]
         """
-        return self.mapper.get_sweep_axis_data(self._root_ds)
+        return _block_axis_table(self.block_index, "probe", block)
 
     def select_channels(self, query: str | slice | list | np.ndarray) -> xr.Dataset:
         """Select channels by various criteria.
@@ -966,41 +934,58 @@ class ToltecKidsAccessor:
         ----------
         query : str, slice, list, or ndarray
             Channel selection criteria:
-            - str: Query expression (e.g., "tone_mask == True")
+            - str: Name of a boolean channel-table column (e.g., "tone_mask")
             - slice: Index slice (e.g., slice(0, 10))
             - list/array: List of channel indices or boolean mask
 
         Returns
         -------
         xr.Dataset
-            Dataset with selected channels
+            Dataset with selected channels and original channel IDs retained
+            as dimension coordinates. Repeated selections are positional within
+            the current subset; detector and tone/model header rows stay aligned.
 
         Examples
         --------
-        Select enabled channels:
-            >>> ds_enabled = ds.toltec_kids.select_channels("tone_mask")
+        With the reference observation under ``data_lmt`` in the working directory,
+        select enabled channels, a positional slice, or individual positions:
 
-        Select first 10 channels:
-            >>> ds_subset = ds.toltec_kids.select_channels(slice(0, 10))
-
-        Select by index list:
-            >>> ds_subset = ds.toltec_kids.select_channels([0, 5, 10, 15])
+        >>> from tolteca_datamodels.toltec import open_toltec_kids
+        >>> filepath = (
+        ...     "data_lmt/toltec/tcs/toltec0/"
+        ...     "toltec0_145606_000_0001_2025_10_31_09_22_14_targsweep.nc"
+        ... )
+        >>> with open_toltec_kids(filepath) as ds:
+        ...     ds_enabled = ds.toltec_kids.select_channels("tone_mask")
+        ...     ds_first = ds.toltec_kids.select_channels(slice(0, 10))
+        ...     ds_subset = ds.toltec_kids.select_channels([0, 5, 10, 15])
+        ...     selected_tones = ds_subset.toltec_kids.f_tone.load()
+        ...     selected_count = ds_subset.toltec_kids.meta.n_chans
+        >>> selected_count
+        4
         """
-        ds = self._root_ds
+        ds = self.data_source
 
-        # Get channel dimension name
-        i_data = self.mapper.get_arr(self._root_ds, self.mapper.schema.I)
-        chan_dim = i_data.dims[0]
+        chan_dim = self.mapper.get_name(self.mapper.schema.n_chans)
+        if chan_dim is None:
+            msg = "Missing readout channel dimension"
+            raise ValueError(msg)
+        # Seed IDs before slicing, so repeated/reordered selections retain them.
+        ds = ds.assign_coords({chan_dim: ds[chan_dim]})
 
         if isinstance(query, str):
-            # Query expression using channel data
-            chan_table = self.get_chan_axis_data()
-            # Simple query parsing (e.g., "tone_mask")
+            chan_table = self.get_chan_axis_table()
             if query in chan_table.colnames:
                 mask = chan_table[query]
+                if mask.dtype.kind != "b":
+                    msg = f"Channel selection column {query!r} must be boolean"
+                    raise ValueError(msg)
                 indices = np.where(mask)[0]
             else:
-                msg = f"Query '{query}' not recognized. Available columns: {chan_table.colnames}"
+                msg = (
+                    f"Query '{query}' not recognized. "
+                    f"Available columns: {chan_table.colnames}"
+                )
                 raise ValueError(msg)
         elif isinstance(query, slice):
             indices = query
@@ -1008,4 +993,20 @@ class ToltecKidsAccessor:
             # List or array
             indices = query
 
-        return ds.isel({chan_dim: indices})
+        indexers: dict[Any, Any] = {chan_dim: indices}
+        for field in (
+            self.mapper.schema.f_tones,
+            self.mapper.schema.mask_tones,
+            self.mapper.schema.amp_tones,
+            self.mapper.schema.phase_tones,
+            self.mapper.schema.model_params,
+        ):
+            if field in self.mapper:
+                array = self.mapper.get_arr(ds, field)
+                dim = array.dims[-1]
+                if ds.sizes[dim] != ds.sizes[chan_dim]:
+                    msg = f"Header {array.name!r} does not match readout channels"
+                    raise ValueError(msg)
+                indexers[dim] = indices
+                ds = ds.assign_coords({dim: (dim, ds[chan_dim].values)})
+        return ds.isel(indexers)

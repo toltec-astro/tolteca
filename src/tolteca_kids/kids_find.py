@@ -18,7 +18,7 @@ from tollan.utils.table import TableValidator
 from tollan.pipeline import Step, StepConfig, StepContext
 from typing_extensions import assert_never
 
-from tolteca_datamodels.toltec.kids import ReducedSweepView
+from .sweep import ReducedSweepView
 
 from .match1d import Match1D, Match1DResult
 from .peaks1d import Peaks1D, Peaks1DResult
@@ -92,7 +92,7 @@ class SegmentBitMask(IntFlag):
 class KidsFindConfig(StepConfig):
     """The kids finding config."""
 
-    model_config = ConfigDict(protected_namespaces=(), validate_default=True)
+    model_config = ConfigDict(protected_namespaces=())
 
     Qr_min: float = Field(
         default=1000,
@@ -241,7 +241,7 @@ class KidsFindContext(StepContext["KidsFind", KidsFindConfig]):
     """The context class for kids finding."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    data: KidsFindData = Field(default_factory=KidsFindData)
+    data: KidsFindData = Field(default_factory=KidsFindData, exclude=True)
 
 
 class KidsFind(Step[KidsFindConfig, KidsFindContext]):
@@ -253,14 +253,14 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
 
     @classmethod
     @timeit
-    def run(cls, data: xr.DataTree, context):  # noqa: PLR0915, C901, PLR0912
+    def run(cls, data: xr.DataTree, context) -> None:  # noqa: PLR0915, C901
         """Run kids find."""
         cfg = context.config
         ctd = context.data
         ctd_sc = SweepCheck.get_context(data).data
 
         # Load sweep data from xr.DataTree (replaces MultiSweep in v2)
-        arrays = _extract_sweep_arrays(data)
+        arrays = _extract_sweep_arrays(ctd_sc.sweep.data_source if ctd_sc is not None else data)
         n_chans = arrays.n_chans
         s21_f = arrays.frequency  # Quantity [n_chans, n_steps] Hz
         s21_data = arrays.S21 << u.dimensionless_unscaled  # complex Quantity
@@ -268,24 +268,17 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
         s21_f_max = np.max(s21_f.to_value(u.Hz), axis=1) << u.Hz
         s21_f_step = s21_f[0, 1] - s21_f[0, 0]
 
-        # Build channel axis table from ReducedSweepView f_lo
-        # (replaces swp.meta["chan_axis_data"] in v2)
+        # Preserve the recorded input probes, as v2's chan_axis_data did.
         view = ReducedSweepView(data)
-        f_lo_da = view.f_lo
-        if f_lo_da is not None:
-            f_lo_hz = f_lo_da.values
-        else:
-            f_lo_hz = np.linspace(
-                float(s21_f_min.to_value(u.Hz).mean()),
-                float(s21_f_max.to_value(u.Hz).mean()),
-                n_chans,
-            )
-        tbl_chans_all = QTable({
-            "id": np.arange(n_chans),
-            "f_chan": f_lo_hz << u.Hz,
-            "mask_tone": np.ones(n_chans, dtype=bool),
-            "amp_tone": np.ones(n_chans),
-        })
+        axis = view.chan_axis_table
+        tbl_chans_all = QTable(
+            {
+                "id": axis["chan"],
+                "f_chan": attach_unit(axis["f_chan"], u.Hz),
+                "mask_tone": np.asarray(axis["tone_mask"], dtype=bool),
+                "amp_tone": axis["tone_amp"],
+            }
+        )
 
         _tbl_validator = TableValidator()
 
@@ -836,7 +829,6 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
                 postproc_hook=_match_postproc,
                 **match_kw,
             )
-        return True
 
     @staticmethod
     @timeit

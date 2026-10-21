@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from tolteca_datamodels.lmt import open_lmt_tel
+from tolteca_datamodels.lmt.filepath import LmtFilepathInfo
 from tolteca_datamodels.lmt.types import LmtObsPgm
 
 
@@ -50,19 +51,20 @@ def test_values_equal_v2(data_lmt_path, tmp_path, suffix, chunks):
         meta = tel.meta
         old = json.loads(expected["metadata"].item())
         for name in (
-            "instru",
-            "instru_component",
             "obsnum",
             "subobsnum",
             "scannum",
             "obs_goal",
         ):
             assert getattr(meta, name) == old[name], name
+        assert meta.instru == old["instru"] == "lmt"
+        assert old["instru_component"] == "tcs" and meta.interface_kind == "tel"
         assert meta.master_code == old["master"]
         assert meta.master == old["master_name"]
         assert old["interface"] == "lmt" and meta.interface == "tel"
         assert meta.obs_pgm == old["mapping_type"].lower()
         assert ds.encoding["source"] == old["source"]
+        assert isinstance(meta.filepath_info_orig, LmtFilepathInfo)
         assert meta.filepath_info_orig.ut.isoformat() == old["file_timestamp"]
         assert meta.filepath_info_orig.suffix == old["file_suffix"]
         assert meta.filepath_info_orig.ext == old["file_ext"].removeprefix(".")
@@ -95,13 +97,18 @@ def test_values_equal_v2(data_lmt_path, tmp_path, suffix, chunks):
 
 def test_reference_lmtmc_rows(data_lmt_path):
     # The deployment points at the reference repository's data_lmt directory.
-    csv_path = data_lmt_path.resolve().parent / "test_fixtures" / "lmtmc_slice.csv"
-    with csv_path.open(newline="") as stream:
-        rows = {Path(row["FileName"]).name: row for row in csv.DictReader(stream)}
+    fixtures = data_lmt_path.resolve().parent / "test_fixtures"
+    rows = {}
+    for name in ("lmtmc_slice.csv", "lmtmc_drive_fit.csv"):
+        with (fixtures / name).open(newline="") as stream:
+            rows.update(
+                {Path(row["FileName"]).name: row for row in csv.DictReader(stream)}
+            )
     for path in sorted((data_lmt_path / "tel").glob("tel*.nc")):
         row = rows[path.name]
         with open_lmt_tel(path) as ds:
             meta = ds.lmt_tel.meta
+            assert isinstance(meta.filepath_info_orig, LmtFilepathInfo)
             assert meta.filepath_orig == row["FileName"]
             assert meta.interface == row["Instrument"]
             assert (meta.obsnum, meta.subobsnum, meta.scannum) == tuple(

@@ -1,0 +1,529 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Absolute power normalization in TolTEC drive-fit commit</title><style>
+*{box-sizing:border-box}
+
+body{margin:0;
+background:#fff;
+color:#171717;
+font:18px/1.58 Georgia,'Times New Roman',serif}
+
+main{width:min(100% - 48px,800px);
+margin:56px auto 72px}
+
+h1{font-size:31px;
+line-height:1.25;
+text-align:center;
+font-weight:normal;
+margin:0 25px 12px}
+
+.dateline{text-align:center;
+font-size:15px;
+margin-bottom:38px;
+color:#444}
+
+h2{font-size:23px;
+line-height:1.3;
+font-weight:normal;
+margin:36px 0 16px}
+
+h3{font-size:19px;
+line-height:1.4;
+font-weight:normal;
+font-style:italic;
+margin:27px 0 12px}
+
+p{margin:0 0 14px}
+a{color:inherit;
+text-decoration-color:#999;
+text-underline-offset:3px}
+
+.abstract{margin:0 32px 34px;
+font-size:16.5px;
+line-height:1.56}
+
+.abstract h2{text-align:center;
+font-size:19px;
+margin:0 0 13px}
+
+code{font:0.81em/1.45 ui-monospace,Menlo,monospace;
+overflow-wrap:anywhere}
+
+.equation{display:flex;
+align-items:center;
+justify-content:center;
+position:relative;
+gap:16px;
+margin:26px 0;
+padding:5px 40px;
+min-height:45px}
+
+.equation img{max-width:100%;
+height:auto}
+
+.equation-number{position:absolute;
+right:0;
+font-size:16px}
+
+.math-inline{display:inline-block;
+max-width:100%;
+object-fit:contain}
+
+.table-caption,figcaption{font-size:15.5px;
+line-height:1.5}
+
+.table-caption{margin:24px 0 9px}
+
+table{border-collapse:collapse;
+width:100%;
+font-size:15px;
+line-height:1.5;
+margin:0 0 24px;
+border-top:1.2px solid #222;
+border-bottom:1.2px solid #222;
+font-variant-numeric:tabular-nums}
+
+thead{border-bottom:0.7px solid #777}
+
+th{font-weight:normal}
+td,th{padding:8px 6px;
+text-align:right}
+
+td:first-child,th:first-child{text-align:left}
+
+figure{margin:32px 0}
+figure>img{display:block;
+width:100%;
+height:auto;
+margin:0 0 12px}
+
+figcaption{margin:0 4px}
+ol{padding-left:25px;
+font-size:15.5px}
+li{padding-left:5px;
+margin-bottom:10px}
+
+.supplement{border-top:1px solid #aaa;
+margin-top:32px;
+padding-top:16px;
+font-size:14px;
+line-height:1.8}
+
+.supplement a{white-space:nowrap}
+.supplement span{padding:0 7px;
+color:#888}
+
+@media(max-width:650px){body{font-size:17px}
+main{width:calc(100% - 30px);
+margin-top:30px}
+h1{font-size:26px;
+margin-left:0;
+margin-right:0}
+.abstract{margin-left:0;
+margin-right:0}
+.equation{padding-left:0;
+padding-right:28px}
+table{font-size:12px}
+td,th{padding:7px 3px}
+}
+
+@media print{@page{size:A4;
+margin:20mm}
+body{font-size:11pt;
+line-height:1.45}
+main{width:auto;
+margin:0}
+h1{font-size:20pt}
+h2{font-size:15pt;
+break-after:avoid}
+h3{font-size:12pt;
+break-after:avoid}
+.abstract{font-size:10pt}
+.equation,figure,table{break-inside:avoid}
+p{orphans:3;
+widows:3}
+.table-caption,figcaption{font-size:9pt}
+table{font-size:9pt}
+.supplement{display:none}
+}
+
+</style></head><body><main><article><h1>Absolute power normalization in TolTEC drive-fit commit</h1>
+<p class="dateline">Technical note · 21 October 2026</p>
+<section class="abstract"><h2>Abstract</h2>
+<p>Drive-fit commit converts independently selected resonator drive levels into
+a single tone comb and a common attenuation. This conversion requires an
+absolute normalization as well as the correct ratios between tone amplitudes.
+We show that the v2 prescription, inherited by the initial v3 implementation,
+omits the change in the sum of squared comb amplitudes under the fixed total
+DAC power model used by <code>RoachTonePower</code>. The required attenuation is the
+negative logarithm of the summed requested fractional powers. Applying this
+expression to a seven-sweep TolTEC reference sequence reduces the predicted
+power excess from 2.103, 0.984 and 0.788 dB to 0.103, 0.234 and 0.038 dB for
+networks 0, 7 and 11, respectively. The residuals follow from retaining
+downward quantization in 0.25 dB steps. The fitted drive levels and relative
+emitted amplitudes are unchanged. A calculation using recorded tone phases
+also demonstrates the limit of this result: Tlaloc fixes the waveform peak,
+and changes in crest factor leave an additional residual that the fixed total
+power approximation does not describe.</p>
+</section><h2>1. Introduction</h2>
+<p>A drive-fit sequence samples the resonator response at several values of the
+common drive attenuation. The resulting fit assigns a preferred attenuation
+to each channel. Those preferences cannot be applied independently to the
+hardware attenuator. Instead, commit must construct a new set of relative
+tone amplitudes and choose one common attenuation such that the individual
+tones reproduce their selected powers.</p>
+<p>Correct amplitude ratios determine the ratios of tone powers, but do not
+determine their common scale. In particular, normalizing the largest amplitude
+to unity does not determine the total power of a multitone waveform. The
+question addressed here is whether the commit attenuation is consistent with
+the power distribution assumed by the existing <code>RoachTonePower</code> model [1].</p>
+<p>We first derive the normalization within that model and identify the missing
+term in the earlier recipe [2]. We then evaluate the change on a compact
+initialization sequence covering one network in each TolTEC array, with a
+longer calibration sequence as an additional check. Finally, we compare the
+fixed total power prediction with the waveform normalization implemented by
+Tlaloc [3]. These are calculations from recorded sweeps; no post-commit power
+measurement is available in this comparison.</p>
+<h2>2. Power model and attenuation solution</h2>
+<h3>2.1. Reference and output combs</h3>
+<p>Let <img class="math-inline" src="manuscript-math/d695ee26aac15570.svg" alt="a_j" style="width:13.33px;height:13.33px;vertical-align:-5.33px"> denote the nonnegative amplitude of emitted reference tone <img class="math-inline" src="manuscript-math/f3a97567ca6ce0f2.svg" alt="j" style="width:5.33px;height:16.00px;vertical-align:-4.00px">.
+Under the fixed total DAC power approximation, its fractional power is</p>
+<div class="equation" id="eq-1"><img class="math-display" src="manuscript-math/3e4088b68749def5.svg" alt="S_a=\sum_j a_j^2, \qquad r_j=\frac{a_j^2}{S_a}." style="width:184.00px;"><span class="equation-number">(1)</span></div>
+<p>The sum includes the entire emitted reference comb, including tones that are
+not selected for fitting or subsequently matched to the output. Here and
+below, a tone means a distinct active DAC frequency bin. Masked bins do not
+contribute. If several input rows address the same bin, Tlaloc retains the
+last assignment; the emitted amplitude is that of the controlling row [3].
+Counting overwritten rows as additional emitted tones gives an incorrect
+denominator.</p>
+<p>Let <img class="math-inline" src="manuscript-math/5553deb28ce74073.svg" alt="m(i)" style="width:29.33px;height:16.00px;vertical-align:-4.00px"> identify the reference tone matched to output tone <img class="math-inline" src="manuscript-math/859ad9e94556c3b6.svg" alt="i" style="width:5.33px;height:13.33px;vertical-align:-1.33px">, and let
+<img class="math-inline" src="manuscript-math/e43d81e7cd6cb38f.svg" alt="A_i" style="width:16.00px;height:16.00px;vertical-align:-4.00px"> be its selected attenuation in dB, after filling rejected fits and
+applying the percentile cutoff. The desired power, expressed as a fraction
+of the reference total DAC power, is</p>
+<div class="equation" id="eq-2"><img class="math-display" src="manuscript-math/422599ce7103ec90.svg" alt="t_i=r_{m(i)}10^{-A_i/10}, \qquad p_i^\star=10\log_{10}r_{m(i)}-A_i." style="width:368.00px;"><span class="equation-number">(2)</span></div>
+<p>The logarithmic quantity <img class="math-inline" src="manuscript-math/48ca28bd0aff5637.svg" alt="p_i^\star" style="width:24.00px;height:21.33px;vertical-align:-6.67px"> refers to the drive-attenuator output,
+relative to total DAC power. It is not an absolute detector-input power in
+dBm; downstream losses and an absolute power calibration are not included.
+For output coefficients <img class="math-inline" src="manuscript-math/5aba112656e9efa1.svg" alt="b_i" style="width:13.33px;height:16.00px;vertical-align:-4.00px"> and common attenuation <img class="math-inline" src="manuscript-math/cf98d8cb03ca26c3.svg" alt="A" style="width:10.67px;height:12.00px;vertical-align:-0.00px">, the same model
+predicts</p>
+<div class="equation" id="eq-3"><img class="math-display" src="manuscript-math/3a991705adbb5ffc.svg" alt="p_i(b,A)=10\log_{10}\!\left(\frac{b_i^2}{\sum_k b_k^2}\right)-A." style="width:241.33px;"><span class="equation-number">(3)</span></div>
+<p>All logarithmic powers in this note are in dB. Equation (3) is the v2
+per-tone DAC power expression [1], with the common drive attenuation
+subtracted and the arbitrary total-power offset removed.</p>
+<h3>2.2. The absolute normalization</h3>
+<p>Correct relative powers require <img class="math-inline" src="manuscript-math/5aba112656e9efa1.svg" alt="b_i" style="width:13.33px;height:16.00px;vertical-align:-4.00px"> to be proportional to <img class="math-inline" src="manuscript-math/1413298a4dc5dd42.svg" alt="\sqrt{t_i}" style="width:30.67px;height:24.00px;vertical-align:-5.33px">.
+Writing <img class="math-inline" src="manuscript-math/c77b859a927e88b8.svg" alt="T=\sum_i t_i" style="width:52.00px;height:29.33px;vertical-align:-16.00px"> and choosing the conventional maximum amplitude of
+unity gives</p>
+<div class="equation" id="eq-4"><img class="math-display" src="manuscript-math/4845b66cf359b8d1.svg" alt="b_i=\sqrt{\frac{t_i}{\max_k t_k}}, \qquad \frac{b_i^2}{\sum_k b_k^2}=\frac{t_i}{T}." style="width:220.00px;"><span class="equation-number">(4)</span></div>
+<p>Substitution into equation (3) yields
+<img class="math-inline" src="manuscript-math/5e5990895e98f01c.svg" alt="p_i(b,A)=p_i^\star-10\log_{10}T-A" style="width:208.00px;height:21.33px;vertical-align:-6.67px">.
+Thus all requested powers are recovered simultaneously by</p>
+<div class="equation" id="eq-5"><img class="math-display" src="manuscript-math/580f1a9a4b94bd11.svg" alt="A_\star=-10\log_{10}T        =-10\log_{10}\!\left(\sum_i r_{m(i)}10^{-A_i/10}\right)." style="width:377.33px;"><span class="equation-number">(5)</span></div>
+<p>The reference denominator in equation (1) and the output sum in equation (5)
+have different roles. The former defines each tone's power during the
+reference measurement; the latter is the total power requested for the new
+comb. The solution therefore permits different reference and output tone
+counts. It must not renormalize the reference fractions over only the matched
+subset. Multiple output rows sharing one DAC bin can represent only one
+emitted power; conflicting requests for that bin have no simultaneous solution.
+A passive attenuator also requires <img class="math-inline" src="manuscript-math/4b2f6e243b26fced.svg" alt="T\leq1" style="width:37.33px;height:14.67px;vertical-align:-2.67px">; a larger requested total cannot
+be realized by attenuation alone.</p>
+<h3>2.3. Missing term in the earlier prescription</h3>
+<p>For a common reference and output tone set, write
+<img class="math-inline" src="manuscript-math/9ceb1a544f63d631.svg" alt="\ell_i=a_i/\max_j a_j" style="width:97.33px;height:26.67px;vertical-align:-14.67px">. With percentile reference attenuation <img class="math-inline" src="manuscript-math/801d31ef33732cb6.svg" alt="R" style="width:10.67px;height:12.00px;vertical-align:-0.00px">, the
+earlier recipe [2] computes</p>
+<div class="equation" id="eq-6"><img class="math-display" src="manuscript-math/e1623b9322d8809f.svg" alt="q_i=\ell_i10^{(R-A_i)/20}, \qquad b_i=\frac{q_i}{q_{\max}}, \qquad A_{\rm old}=R-20\log_{10}q_{\max}." style="width:497.33px;"><span class="equation-number">(6)</span></div>
+<p>These expressions precede attenuation quantization. The relative
+coefficients agree with equation (4), but the attenuation compensates only
+for the maximum coefficient. Combining equations (5) and (6) gives the
+omitted term explicitly:</p>
+<div class="equation" id="eq-7"><img class="math-display" src="manuscript-math/a667d22253b5bdb6.svg" alt="A_\star-A_{\rm old} =10\log_{10}\!\left(\frac{\sum_i\ell_i^2}{\sum_i b_i^2}\right)." style="width:230.67px;"><span class="equation-number">(7)</span></div>
+<p>The percentile reference <img class="math-inline" src="manuscript-math/801d31ef33732cb6.svg" alt="R" style="width:10.67px;height:12.00px;vertical-align:-0.00px"> cancels from the normalization, although the
+cutoff still affects the selected values <img class="math-inline" src="manuscript-math/e43d81e7cd6cb38f.svg" alt="A_i" style="width:16.00px;height:16.00px;vertical-align:-4.00px">. Equation (7) explains why a
+change in amplitude distribution generally requires a change in common
+attenuation even when the largest coefficient remains unity. The sign and
+magnitude depend on the comb; the correction is not a universal additive offset.</p>
+<p>As an analytic example, consider two equal reference tones with requested
+attenuations of 10 and 20 dB and no cutoff. Both prescriptions give
+<img class="math-inline" src="manuscript-math/ff0fabd000637740.svg" alt="b=(1,\sqrt{0.1})" style="width:98.67px;height:24.00px;vertical-align:-5.33px">. The earlier attenuation is 10 dB, whereas the requested
+total fractional power is <img class="math-inline" src="manuscript-math/646528ae30859173.svg" alt="T=0.055" style="width:68.00px;height:13.33px;vertical-align:-1.33px">, giving <img class="math-inline" src="manuscript-math/effe947ca36a8e01.svg" alt="A_\star=12.596373" style="width:117.33px;height:16.00px;vertical-align:-4.00px"> dB. The
+earlier setting therefore exceeds both requested tone powers by 2.596373 dB.
+This discrepancy follows without specifying the absolute DAC power.</p>
+<h3>2.4. Attenuation quantization</h3>
+<p>Retaining the existing downward rounding with step <img class="math-inline" src="manuscript-math/d318306e519cbbd9.svg" alt="s" style="width:8.00px;height:9.33px;vertical-align:-1.33px"> gives</p>
+<div class="equation" id="eq-8"><img class="math-display" src="manuscript-math/14d60216015f8a18.svg" alt="A_{\rm out}=s\left\lfloor\frac{A_\star}{s}\right\rfloor, \qquad \Delta p_i=p_i(b,A_{\rm out})-p_i^\star=A_\star-A_{\rm out}." style="width:440.00px;"><span class="equation-number">(8)</span></div>
+<p>The residual is common to all emitted tones and satisfies
+<img class="math-inline" src="manuscript-math/5117ef0bd8d2d953.svg" alt="0\leq\Delta p_i&lt;s" style="width:78.67px;height:16.00px;vertical-align:-4.00px">. For <img class="math-inline" src="manuscript-math/9af6e957ee6a96e0.svg" alt="s=0.25" style="width:56.00px;height:13.33px;vertical-align:-1.33px"> dB, the two-tone example gives
+<img class="math-inline" src="manuscript-math/552ea55c617d7d89.svg" alt="A_{\rm out}=12.50" style="width:85.33px;height:16.00px;vertical-align:-4.00px"> dB and <img class="math-inline" src="manuscript-math/74cb9a1ddc9ff406.svg" alt="\Delta p_i=0.096373" style="width:109.33px;height:16.00px;vertical-align:-4.00px"> dB. This bound follows
+from the chosen rounding rule within the fixed total power model; it is not
+a bound on instrumental or fitted-power uncertainty. Nearest-step rounding
+would address a different objective. The present calculation retains the
+configured rule and percentile cutoff.</p>
+<h2>3. Reference observations and numerical methods</h2>
+<p>The primary data are the 2025 October 31 initialization sequence, observation
+145484, subobservations 1–7, scan 1. The seven target sweeps span drive
+attenuations of 4–16 dB in 2 dB increments. Commit is evaluated against the
+standalone target sweep 145485/0/1. The three networks contain 1,493 channels
+in total, with one distinct emitted DAC bin per channel. The output uses the
+target's input-probe ordering; no intervening finding operation or tone-list
+replacement is introduced.</p>
+<p class="table-caption">Table 1. Channel populations in the compact reference sequence. “Cutoff” counts accepted selections whose attenuation is increased to the tenth percentile. Filled channels receive the median accepted attenuation.</p>
+<table>
+<thead>
+<tr>
+<th>Network</th>
+<th>Array</th>
+<th style="text-align:right">Channels</th>
+<th style="text-align:right">Accepted</th>
+<th style="text-align:right">Filled</th>
+<th style="text-align:right">Cutoff</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>a1100</td>
+<td style="text-align:right">632</td>
+<td style="text-align:right">505</td>
+<td style="text-align:right">127</td>
+<td style="text-align:right">48</td>
+</tr>
+<tr>
+<td>7</td>
+<td>a1400</td>
+<td style="text-align:right">389</td>
+<td style="text-align:right">245</td>
+<td style="text-align:right">144</td>
+<td style="text-align:right">25</td>
+</tr>
+<tr>
+<td>11</td>
+<td>a2000</td>
+<td style="text-align:right">472</td>
+<td style="text-align:right">24</td>
+<td style="text-align:right">448</td>
+<td style="text-align:right">3</td>
+</tr>
+</tbody>
+</table>
+<p>The fit uses <code>a_ref=0.2</code> and <code>weight_window_Qr=12000</code>. Commit retains
+<code>adrv_max=30 dB</code>, median filling, a tenth-percentile lower cutoff on selected
+attenuation, and <img class="math-inline" src="manuscript-math/9af6e957ee6a96e0.svg" alt="s=0.25" style="width:56.00px;height:13.33px;vertical-align:-1.33px"> dB. Filled values are assigned operating levels,
+not independently determined resonator optima. In particular, only 24 of the
+472 network-11 channels have accepted selections (Table 1); the normalization
+calculation does not improve this acceptance rate.</p>
+<p>The two workflow runs differ in their commit normalization. The nonlinear
+fit, tone matching, filling and cutoff calculations are held fixed. Power
+residuals are evaluated independently by executing the original v2
+<code>RoachTonePower.P_dac_dbm_per_tone</code> expression on the emitted reference and
+output combs [1, 4]. The same arbitrary total DAC power is used in both,
+so it cancels in the difference. Positive residuals mean excess output power
+relative to equation (2). These are deterministic forward calculations,
+not estimates of measurement scatter.</p>
+<p>The baseline is the initial v3 fit and commit applied to these data, isolating
+the attenuation change. It does not assert complete v2 fit parity: a previously
+identified difference between the measured LO midpoint and the header LO
+value affects the network-11 v2/v3 fit comparison. The LO convention and the
+fit kernel are held unchanged here.</p>
+<p>For an additional check, we use the 31-sweep, network-0 calibration ICS 17068
+from 2022 December 11. Its 685 channel rows occupy 654 distinct DAC bins.
+The 31 overwritten rows provide a case in which row count and emitted-tone
+count differ.</p>
+<h2>4. Results</h2>
+<h3>4.1. Compact initialization sequence</h3>
+<p>Table 2 gives the previous attenuation, the continuous solution from equation
+(5), and the quantized setting. The correction increases the written
+attenuation by 2.00, 0.75 and 0.75 dB for networks 0, 7 and 11. Because the
+relative coefficients are unchanged, these changes reduce every tone's
+predicted power in the corresponding network by the same amount.</p>
+<p class="table-caption">Table 2. Attenuation settings and fixed total power residuals for the compact reference. All entries are in dB. Residuals are evaluated after quantization; displayed precision describes the numerical calculation, not instrumental accuracy.</p>
+<table>
+<thead>
+<tr>
+<th>Network</th>
+<th style="text-align:right">Previous <img class="math-inline" src="manuscript-math/cf98d8cb03ca26c3.svg" alt="A" style="width:10.67px;height:12.00px;vertical-align:-0.00px"></th>
+<th style="text-align:right"><img class="math-inline" src="manuscript-math/f97eab3b775fd072.svg" alt="A_\star" style="width:25.33px;height:16.00px;vertical-align:-4.00px"></th>
+<th style="text-align:right"><img class="math-inline" src="manuscript-math/96338fd24e6472b9.svg" alt="A_{\rm out}" style="width:28.00px;height:16.00px;vertical-align:-4.00px"></th>
+<th style="text-align:right">Previous <img class="math-inline" src="manuscript-math/595fb8bff72eb331.svg" alt="\Delta p" style="width:21.33px;height:16.00px;vertical-align:-4.00px"></th>
+<th style="text-align:right">Corrected <img class="math-inline" src="manuscript-math/595fb8bff72eb331.svg" alt="\Delta p" style="width:21.33px;height:16.00px;vertical-align:-4.00px"></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td style="text-align:right">6.25</td>
+<td style="text-align:right">8.352639</td>
+<td style="text-align:right">8.25</td>
+<td style="text-align:right">+2.102639</td>
+<td style="text-align:right">+0.102639</td>
+</tr>
+<tr>
+<td>7</td>
+<td style="text-align:right">7.00</td>
+<td style="text-align:right">7.983699</td>
+<td style="text-align:right">7.75</td>
+<td style="text-align:right">+0.983699</td>
+<td style="text-align:right">+0.233699</td>
+</tr>
+<tr>
+<td>11</td>
+<td style="text-align:right">12.00</td>
+<td style="text-align:right">12.787755</td>
+<td style="text-align:right">12.75</td>
+<td style="text-align:right">+0.787755</td>
+<td style="text-align:right">+0.037755</td>
+</tr>
+</tbody>
+</table>
+<p>The residuals all lie within the interval predicted by equation (8)
+(Figure 1a). Every pre-existing fit data array, including selected attenuation
+and flags, is exactly equal between runs. Match indices, frequency residuals,
+filled attenuations and cutoff decisions are also equal. The largest change
+in an output amplitude coefficient is <img class="math-inline" src="manuscript-math/abbfbd080d55215f.svg" alt="2.22\times10^{-16}" style="width:88.00px;height:17.33px;vertical-align:-1.33px">, consistent with
+floating-point rounding. The independent forward calculation agrees with the
+stored per-tone power diagnostics to within <img class="math-inline" src="manuscript-math/acd63893ad9a24f0.svg" alt="2\times10^{-13}" style="width:66.67px;height:17.33px;vertical-align:-1.33px"> dB.</p>
+<figure id="fig-residuals">
+<img src="comparison/normalization-residuals.svg" alt="Two-panel comparison of computed power residuals. Panel a compares previous and corrected fixed total power predictions for the compact sequence and historical calibration. Panel b compares corrected fixed total power and waveform-peak predictions for the three compact-sequence networks.">
+<figcaption>Figure 1. Computed power residuals relative to the selected, filled and cutoff-adjusted drive levels. (a) Previous and corrected fixed total power calculations; the final pair is the historical network-0 calibration. Connecting lines identify paired calculations, not a continuous sequence. (b) Corrected residuals under fixed total power and Tlaloc waveform-peak normalization, using recorded phases for the compact sequence. The shaded interval, 0–0.25 dB, is the quantization range for the fixed total power model; it does not constrain the waveform model. Markers represent deterministic comb calculations, not measurements with statistical error bars.</figcaption>
+</figure>
+<h3>4.2. Historical calibration and quantization</h3>
+<p>For ICS 17068, equation (5) gives <img class="math-inline" src="manuscript-math/7e0198afe82cf005.svg" alt="A_\star=13.636541" style="width:117.33px;height:16.00px;vertical-align:-4.00px"> dB. The written
+attenuation changes from 13.75 to 13.50 dB, and the fixed total power residual
+changes from −0.113459 to +0.136541 dB. In this case, the magnitude of the
+quantized residual becomes slightly larger: the previous setting happened
+to be closer to the continuous solution. A correct continuous normalization
+followed by downward rounding therefore need not improve the absolute
+residual for every comb.</p>
+<p>The 483 accepted selections, 202 filled values and 49 cutoff-limited selections
+are unchanged. Coefficients controlling emitted DAC bins agree within
+<img class="math-inline" src="manuscript-math/abbfbd080d55215f.svg" alt="2.22\times10^{-16}" style="width:88.00px;height:17.33px;vertical-align:-1.33px">. Overwritten entries differ by up to 0.0045853, because
+their recorded power fractions now refer to the controlling bin; these entries
+do not alter the synthesized waveform. No tone-phase headers are recorded in
+this sequence, so an equivalent waveform calculation is not available.</p>
+<h2>5. Waveform normalization and physical interpretation</h2>
+<p>The fixed total power model is not identical to the DAC synthesis procedure.
+Tlaloc constructs a complex waveform by inverse FFT and divides both I and Q
+by its maximum complex magnitude [3]. It therefore fixes the waveform peak.
+Redistributing amplitudes can change the peak-to-RMS ratio, or crest factor,
+and hence change the total power even when the peak remains fixed.</p>
+<p>Let <img class="math-inline" src="manuscript-math/83301c6c3550331a.svg" alt="M_a" style="width:21.33px;height:16.00px;vertical-align:-4.00px"> and <img class="math-inline" src="manuscript-math/738ceea21cfab63a.svg" alt="M_b" style="width:21.33px;height:16.00px;vertical-align:-4.00px"> be the maximum complex magnitudes of the unnormalized
+reference and output waveforms, respectively. With the same inverse-FFT
+convention in both, the residual relative to the selected reference power is</p>
+<div class="equation" id="eq-9"><img class="math-display" src="manuscript-math/899b2a3f1c0d3811.svg" alt="\Delta p_i^{\rm peak} =20\log_{10}\!\left(\frac{b_i}{a_{m(i)}}\right)  +A_i-A_{\rm out}+20\log_{10}\!\left(\frac{M_a}{M_b}\right)." style="width:400.00px;"><span class="equation-number">(9)</span></div>
+<p>Writing <img class="math-inline" src="manuscript-math/16fcf0543224a409.svg" alt="S_b=\sum_i b_i^2" style="width:66.67px;height:32.00px;vertical-align:-16.00px">, the difference from the fixed total power
+prediction is</p>
+<div class="equation" id="eq-10"><img class="math-display" src="manuscript-math/f0232711fe494b64.svg" alt="\Delta p_i^{\rm peak}-\Delta p_i =20\log_{10}\!\left(\frac{M_a}{M_b}\right)  +10\log_{10}\!\left(\frac{S_b}{S_a}\right)." style="width:348.00px;"><span class="equation-number">(10)</span></div>
+<p>This is the change associated with the two combs' crest factors. It is common
+to the tones in this calculation, but depends on amplitudes, phases and
+frequency-bin placement. It cannot in general be inferred from the largest
+tone amplitude alone.</p>
+<p>Every sweep in the compact reference has recorded phases, which are constant
+over the seven fitted drive levels within each network. Equation (9) is
+evaluated using the recorded frequency bins and phases, assuming that commit
+retains the target sweep's phases and masks. Table 3 and Figure 1b give the
+result.</p>
+<p class="table-caption">Table 3. Power residuals under waveform-peak normalization. The last column is the corrected waveform residual minus the corrected fixed total power residual. All values are in dB and are conditional predictions from recorded waveform parameters.</p>
+<table>
+<thead>
+<tr>
+<th>Network</th>
+<th style="text-align:right">Previous <img class="math-inline" src="manuscript-math/e87ffaf0de461d83.svg" alt="\Delta p^{\rm peak}" style="width:46.67px;height:20.00px;vertical-align:-4.00px"></th>
+<th style="text-align:right">Corrected <img class="math-inline" src="manuscript-math/e87ffaf0de461d83.svg" alt="\Delta p^{\rm peak}" style="width:46.67px;height:20.00px;vertical-align:-4.00px"></th>
+<th style="text-align:right">Crest-factor contribution</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td style="text-align:right">+2.326037</td>
+<td style="text-align:right">+0.326037</td>
+<td style="text-align:right">+0.223397</td>
+</tr>
+<tr>
+<td>7</td>
+<td style="text-align:right">+0.965043</td>
+<td style="text-align:right">+0.215043</td>
+<td style="text-align:right">−0.018656</td>
+</tr>
+<tr>
+<td>11</td>
+<td style="text-align:right">+0.840251</td>
+<td style="text-align:right">+0.090251</td>
+<td style="text-align:right">+0.052496</td>
+</tr>
+</tbody>
+</table>
+<p>The attenuation correction reduces the waveform-model residual in all three
+networks, but does not eliminate it. Network 0 retains a 0.326 dB excess,
+larger than one attenuation step, despite satisfying the fixed total power
+bound. This is consistent with the 0.223 dB crest-factor contribution in
+equation (10), added to the 0.103 dB quantization residual.</p>
+<p>These results establish consistency with a specified power model, rather
+than an absolute calibration of resonator power. The accepted drive levels
+themselves have fitting uncertainty, filled channels lack accepted optima,
+and the waveform calculation assumes the recorded phases and masks are
+retained. A post-commit measurement would be needed to assess actual power
+recovery, including analog-chain effects. Neither the model residuals nor
+the number of computed digits supplies that measurement uncertainty.</p>
+<h2>6. Conclusions</h2>
+<p>Under the fixed total DAC power approximation, the common attenuation is
+determined by the sum of the requested fractional tone powers. Normalization
+by the largest amplitude gives the correct relative comb but omits the
+sum-of-squares term required for the absolute power scale. The corrected
+expression leaves the fitted drive levels and emitted relative amplitudes
+unchanged and reduces the compact reference's power discrepancies to the
+residual imposed by the retained attenuation quantization.</p>
+<p>Two qualifications matter. Downward rounding does not minimize absolute
+error for every comb, as the historical calibration illustrates. In addition,
+Tlaloc's peak-normalized waveform introduces a crest-factor term beyond the
+fixed total power approximation. The present correction resolves the
+attenuation calculation within that approximation; the waveform calculation
+quantifies the remaining model dependence for the available reference data.</p>
+<h2>Appendix A. Computational record</h2>
+<p>V3 stores each fitted channel's reference <code>power_fraction</code> using the complete
+acquired comb. This makes equation (5) reproducible when only a subset of
+channels is fitted or later matched. Fit products lacking these fractions
+must be regenerated. The commit product records <code>atten_drive_exact</code> and the
+per-tone quantities <code>power_policy_db</code>, <code>power_commit_db</code> and <code>power_error_db</code>.
+The output amplitude file is a replacement vector in target input-probe
+order, not a further multiplication by the target input amplitudes. The
+existing Tlaloc file contract is retained.</p>
+<p>The comparison uses the initial v3 products in <code>run/drive-fit-full-20261021/</code>
+and corrected products in <code>run/drive-fit-normalization-20261021/</code>. The latter
+directory contains the exact workflow configurations, product manifests,
+per-channel ECSV comparisons and JSON summaries. The <a href="probes/drive_fit_normalization.py">comparison program</a>
+evaluates the original forward model independently of the attenuation solver.
+Analytic and numerical checks include the two-tone example, invariance to
+common amplitude scaling, changed tone counts, channel subsets, masking and
+repeated DAC bins. Implementation validation and source hashes are recorded
+in <a href="provenance.json">provenance.json</a>.
+The <a href="probes/render_drive_fit_normalization_report.py">manuscript renderer</a>
+typesets this note and generates Figure 1 from the saved numerical comparisons.</p>
+<p>The calculation describes the TolTECA working tree based on revision
+<code>542c86a0a955edaa4a293521c55a18221952cbb1</code>, including the uncommitted v3 port.
+The recipe reference is <code>taco_recipes</code> revision
+<code>c9e73647f8096cda48485a9f551eef5cfb467a48</code>; the fit reference is
+<code>kid_phase_fit</code> revision <code>4f4c9a71e51d88e41980c5932bd973722a6906a0</code>.
+No live instrument settings were installed for this comparison.</p>
+<h2>References</h2>
+<ol>
+<li>TolTECA v2, <code>tolteca_kids/roach_tone_power.py</code>,
+<code>RoachTonePower.P_dac_dbm_per_tone</code>. Local production source;
+SHA-256 <code>605d1bf054fc0b497a92b44c1e540ad068557e3593ade2c2a2eae323b1fd51e1</code>.</li>
+<li><code>taco_recipes</code>, <code>scripts/drivefit/dispatch_drivefit.py</code>,
+<code>DriveFitCommit.compute_ampcor</code>; revision given in Appendix A.</li>
+<li>Tlaloc, <code>src/ToltecRoachManager.cc</code>, <code>dac_comb</code>. Local C++ source for
+frequency quantization, masking, bin assignment and common complex-waveform
+peak normalization; source hash in <a href="provenance.json">provenance.json</a>.</li>
+<li><a href="probes/drive_fit_normalization.py">Drive-fit normalization comparison program</a> and
+<a href="drive-fit-power-audit-20261020.md">preceding power audit</a>.
+The <a href="drive-fit-workflow-spec.md">workflow specification</a> records the
+operational contract.</li>
+</ol>
+</article>
+<footer class="supplement" aria-label="Supplementary material">
+Supplementary material:
+<a href="index.html#plots">channel plots</a><span>·</span>
+<a href="index.html#configs">workflow configurations</a><span>·</span>
+<a href="comparison/summary.json">numerical results</a><span>·</span>
+<a href="comparison/normalization-residuals.pdf">Figure 1 (PDF)</a><span>·</span>
+<a href="report.md">manuscript source</a>
+</footer></main></body></html>

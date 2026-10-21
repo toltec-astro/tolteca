@@ -3,14 +3,14 @@
 import pandas as pd
 import pytest
 
-from tolteca_datamodels.lmt.obs_spec import obs_spec_context as lmt_obs_spec_context
+from tolteca_datamodels.core.obs_spec import ColumnSelector, ObsSpecContext
+from tolteca_datamodels.lmt._obs_spec import _obs_spec_context as lmt_obs_spec_context
 from tolteca_datamodels.lmt.types import LmtInfo
 from tolteca_datamodels.lmt_base.obs_spec import ObsSpec
-from tolteca_datamodels.obs_spec import ColumnSelector, ObsSpecContext
-from tolteca_datamodels.toltec.file import ToltecFileAccessor
-from tolteca_datamodels.toltec.obs_spec import (
-    obs_spec_context as toltec_obs_spec_context,
+from tolteca_datamodels.toltec._obs_spec import (
+    _obs_spec_context as toltec_obs_spec_context,
 )
+from tolteca_datamodels.toltec.file import ToltecFileAccessor
 from tolteca_datamodels.toltec.types import ToltecInfo
 
 
@@ -32,7 +32,7 @@ def test_roach_bounds_resolve_one_declared_context(monkeypatch, dtype, text):
     result = ObsSpec.parse(text).select(
         table, context=lmt_obs_spec_context | toltec_obs_spec_context
     )
-    assert calls == [[*LmtInfo.interfaces, *ToltecInfo.interfaces]]
+    assert calls == [list(dict.fromkeys([*LmtInfo.interfaces, *ToltecInfo.interfaces]))]
     expected = ["toltec3"] * 1000 if "[-1]" in text else ["toltec1", "toltec3"] * 1000
     assert result.interface.tolist() == expected
 
@@ -132,7 +132,7 @@ def test_contexts_can_share_numeric_components():
         {"obsnum": [1, 1, 1, 2], "interface": ["toltec1", "bar1", "bar3", "bar4"]}
     )
     context = toltec_obs_spec_context | ObsSpecContext(
-        labels={"interface": {"bar1": 1, "bar3": 3, "bar4": 4}},
+        field_label_numbers={"interface": {"bar1": 1, "bar3": 3, "bar4": 4}},
     )
     spec = ObsSpec.parse("1/(1,5)[0]")
     assert spec.select(table, context=context).index.tolist() == [
@@ -187,7 +187,7 @@ def test_reusing_spec_does_not_cache_table_values():
 )
 @pytest.mark.parametrize(
     ("text", "positions"),
-    [("[0]", [1]), ("[-1]", [0, 2]), ("[:1]", [1]), ("[-1:]", [0, 2])],
+    [("[0]", [1]), ("[-1]", [0, 2]), ("[:1]", [1])],
 )
 def test_numeric_extrema_keep_duplicate_rows_and_indexes(dtype, text, positions):
     table = pd.DataFrame(
@@ -221,4 +221,55 @@ def test_numeric_extrema_preserve_large_integers(dtype, lower, text, position):
     table = pd.DataFrame({"obsnum": pd.array([lower, lower + 1, None], dtype=dtype)})
     pd.testing.assert_frame_equal(
         ObsSpec.parse(text).select(table), table.iloc[[position]]
+    )
+
+
+@pytest.mark.parametrize(
+    "number_dtype", ["object", "Int64", "UInt64", "Float64", "int64[pyarrow]"]
+)
+@pytest.mark.parametrize("label_dtype", ["object", "string[python]", "string[pyarrow]"])
+@pytest.mark.parametrize(
+    ("positions", "expected"),
+    [
+        ("[::2]", [3, 5]),
+        ("[-3:-1]", [1, 3]),
+        ("[-1,1]", [0, 1, 4]),
+        ("[::-2]", [0, 1, 4]),
+    ],
+)
+def test_positions_after_mixed_dtype_filters(
+    number_dtype, label_dtype, positions, expected
+):
+    table = pd.DataFrame(
+        {
+            "obsnum": pd.array([9, 3, None, 7, 9, 1, 100, 200], dtype=number_dtype),
+            "master": pd.array(["tcs"] * 6 + ["ics", None], dtype=label_dtype),
+        },
+        index=pd.MultiIndex.from_tuples([(2, 0), (2, 0), (1, 1), (1, 1)] * 2),
+    )
+    original = table.copy(deep=True)
+    selected = ObsSpec.parse(f"tcs-{positions}").select(table)
+    pd.testing.assert_frame_equal(selected, table.iloc[expected])
+    pd.testing.assert_frame_equal(table, original)
+
+
+@pytest.mark.parametrize(
+    ("dtype", "lower"),
+    [("UInt64", 2**63), ("uint64[pyarrow]", 2**63), ("object", 2**70)],
+)
+@pytest.mark.parametrize(
+    ("text", "expected"), [("[-2:]", [0, 2, 4]), ("[::2]", [1, 2])]
+)
+def test_sorted_positions_preserve_large_integer_precision(
+    dtype, lower, text, expected
+):
+    table = pd.DataFrame(
+        {
+            "obsnum": pd.array(
+                [lower + 1, lower, lower + 2, None, lower + 1], dtype=dtype
+            )
+        }
+    )
+    pd.testing.assert_frame_equal(
+        ObsSpec.parse(text).select(table), table.iloc[expected]
     )

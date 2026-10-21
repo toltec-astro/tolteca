@@ -8,7 +8,7 @@ import astropy.units as u
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from tolteca_datamodels.lmt.types import LmtInfo
+from tolteca_datamodels.lmt.types import LmtInfo, LmtInterfaceInfo
 from tolteca_datamodels.lmt_base.metadata import InterfaceInfoMixin
 from tolteca_datamodels.toltec import ToltecInfo
 from tolteca_datamodels.toltec.types import ToltecDataKind
@@ -295,32 +295,35 @@ class TestToltecInfo:
             **{
                 f"toltec{roach}": InterfaceInfoMixin(
                     interface=f"toltec{roach}",
+                    data_models=["toltec"],
                     instru="toltec",
-                    producer="toltec",
                     interface_kind="roach",
                 )
                 for roach in range(13)
             },
             "hwpr": InterfaceInfoMixin(
                 interface="hwpr",
+                data_models=["toltec"],
                 instru="toltec",
-                producer="toltec",
                 interface_kind="hwpr",
             ),
             "wyatt": InterfaceInfoMixin(
                 interface="wyatt",
+                data_models=["toltec"],
                 instru="toltec",
-                producer="toltec",
                 interface_kind="wyatt",
             ),
             "toltec_hk": InterfaceInfoMixin(
                 interface="toltec_hk",
+                data_models=["toltec"],
                 instru="toltec",
-                producer="toltec",
                 interface_kind="toltec_hk",
             ),
-            "tel": InterfaceInfoMixin(
-                interface="tel", instru="toltec", producer="lmt", interface_kind="tel"
+            "tel": LmtInterfaceInfo(
+                interface="tel",
+                data_models=["lmt", "toltec"],
+                instru="lmt",
+                interface_kind="tel",
             ),
         }
         assert "toltec" not in ToltecInfo.interface_interface_info

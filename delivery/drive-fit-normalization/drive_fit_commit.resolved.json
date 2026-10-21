@@ -1,0 +1,80 @@
+{
+  "reference": "/Users/ma/Codes/toltec/dev_toltec/python/run/drive-fit-normalization-20261021/dataprod_toltec/scratch/145484-1-1/145484-1-1_drive_fit_f0a4c793e33706f0751d227f488dbf7e3e5b850a812a6d8d2610165bdaf521de/drive-fit-145484-normalization/index.yaml",
+  "commit": {
+    "enabled": true,
+    "alias": null,
+    "artifacts": {
+      "alias": null,
+      "arrays": {
+        "alias": null
+      },
+      "table": {
+        "alias": null
+      },
+      "settings": {
+        "alias": null
+      }
+    },
+    "match": {
+      "method": "dtw_python"
+    },
+    "match_shift_max": "10.0 MHz",
+    "adrv_max": 30.0,
+    "adrv_fill_perc": 50.0,
+    "adrv_ref_perc": 10.0,
+    "adrv_ref_step": 0.25
+  },
+  "plot": {
+    "enabled": true,
+    "alias": null,
+    "artifacts": {
+      "alias": null,
+      "summary": {
+        "alias": null,
+        "save": true,
+        "save_formats": [
+          "html"
+        ],
+        "save_plotly": {
+          "html": {
+            "auto_open": false,
+            "auto_play": false,
+            "include_plotlyjs": true,
+            "full_html": true
+          },
+          "image": {
+            "width": 1600,
+            "height": null,
+            "scale": 1.0
+          }
+        },
+        "show_plotly": {
+          "host": "127.0.0.1",
+          "port": 8050
+        }
+      }
+    }
+  },
+  "output": {
+    "enabled": true,
+    "alias": null,
+    "artifacts": null,
+    "registration": false,
+    "path": "/Users/ma/Codes/toltec/dev_toltec/python/run/drive-fit-normalization-20261021/dataprod_toltec",
+    "namespace": "scratch",
+    "run": {
+      "uid": null,
+      "name": "drive-fit-commit-145485-normalization-plots"
+    },
+    "tag": "main",
+    "n_chans_per_chunk": 16,
+    "n_samples_per_chunk": 1024
+  },
+  "tlaloc_output": {
+    "enabled": false,
+    "alias": null,
+    "artifacts": null,
+    "path": null
+  },
+  "select": null
+}

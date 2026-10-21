@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import Field
 from tollan.config.types import SkyCoordField
 
-from ..lmt_base._filepath import FilepathOrigMetadataMixin
+from ..lmt_base.filepath import FilepathOrigMetadataMixin
 from ..lmt_base.metadata import LmtRawObsMetadata
 from .types import LmtInfo, LmtObsGoal, LmtObsPgm, LmtRawObsMasterCode
 

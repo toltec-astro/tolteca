@@ -9,7 +9,6 @@ import pytest
 from astropy.time import Time
 from pydantic import ValidationError
 
-from tolteca_datamodels.toltec import ToltecInfo
 from tolteca_datamodels.toltec.metadata import (
     ToltecRawObsMetadata,
     ToltecSweepMetadata,
@@ -22,7 +21,7 @@ from tolteca_datamodels.toltec.toltec_db import ToltecDBRawObsMasterCode
 def base_obs_fields(kids_filepath_orig: str) -> dict[str, Any]:
     """Common observation fields for all TolTEC metadata."""
     return {
-        "producer": "toltec",
+        "instru": "toltec",
         "filepath_orig": kids_filepath_orig,
         "obsnum": 12345,
         "subobsnum": 1,
@@ -49,12 +48,12 @@ class TestToltecRawObsMetadata:
             **base_obs_fields,
             master="ics",
             master_code=ToltecDBRawObsMasterCode.ICS,
-            instru="toltec",
+            data_models=["toltec"],
         )
-        assert_type(meta.instru, ToltecInfo.InstruT)
+        assert_type(meta.data_models, list[str])
         assert meta.obsnum == 12345
         assert meta.master_code == ToltecDBRawObsMasterCode.ICS
-        assert meta.instru == "toltec"
+        assert meta.data_models == ["toltec"]
         assert meta.interface_kind == "roach"
         assert meta.roach is None
         assert meta.array_name is None
@@ -71,10 +70,10 @@ class TestToltecRawObsMetadata:
                 n_times=1000,
                 n_chans=256,
                 f_smp=500 * u.Hz,
-                **base_obs_fields,
+                **(base_obs_fields | {"instru": instru}),
                 master="ics",
                 master_code=ToltecDBRawObsMasterCode.ICS,
-                instru=instru,
+                data_models=["toltec"],
             )
 
     def test_roach_field(self, base_obs_fields: dict[str, Any]) -> None:
@@ -88,7 +87,7 @@ class TestToltecRawObsMetadata:
                 **base_obs_fields,
                 master="clip",
                 master_code=ToltecDBRawObsMasterCode.CLIP,
-                instru="toltec",
+                data_models=["toltec"],
                 roach=roach_idx,
             )
             assert meta.roach == roach_idx
@@ -103,7 +102,7 @@ class TestToltecRawObsMetadata:
             **base_obs_fields,
             master="ics",
             master_code=ToltecDBRawObsMasterCode.ICS,
-            instru="toltec",
+            data_models=["toltec"],
         )
         assert meta.roach is None
 
@@ -118,7 +117,7 @@ class TestToltecRawObsMetadata:
                 **base_obs_fields,
                 master="ics",
                 master_code=ToltecDBRawObsMasterCode.ICS,
-                instru="toltec",
+                data_models=["toltec"],
                 array_name=array,
             )
             assert meta.array_name == array
@@ -133,7 +132,7 @@ class TestToltecRawObsMetadata:
             **base_obs_fields,
             master="ics",
             master_code=ToltecDBRawObsMasterCode.ICS,
-            instru="toltec",
+            data_models=["toltec"],
         )
         assert meta.array_name is None
 
@@ -148,7 +147,7 @@ class TestToltecRawObsMetadata:
                 **base_obs_fields,
                 master=ToltecDBRawObsMasterCode.get_master(master_code),
                 master_code=master_code,
-                instru="toltec",
+                data_models=["toltec"],
             )
             assert meta.master_code == master_code
             assert meta.master == ToltecDBRawObsMasterCode.get_master(master_code)
@@ -168,7 +167,7 @@ class TestToltecRawObsMetadata:
             **base_obs_fields,
             master="ics",
             master_code=ToltecDBRawObsMasterCode.ICS,
-            instru="toltec",
+            data_models=["toltec"],
         )
         assert isinstance(meta, LmtRawObsMetadata)
         # Should have all base fields
@@ -189,12 +188,12 @@ class TestToltecRawObsMetadata:
             **base_obs_fields,
             master="ics",
             master_code=ToltecDBRawObsMasterCode.ICS,
-            instru="toltec",
+            data_models=["toltec"],
         )
         with pytest.raises(ValidationError, match="frozen"):
-            meta.obsnum = 99999
+            setattr(meta, "obsnum", 99999)  # noqa: B010 -- Test frozen validation.
         with pytest.raises(ValidationError, match="frozen"):
-            meta.roach = 5
+            setattr(meta, "roach", 5)  # noqa: B010 -- Test frozen validation.
 
     def test_keyword_only_enforcement(self, base_obs_fields: dict[str, Any]) -> None:
         """Test that all fields are keyword-only."""
@@ -224,7 +223,7 @@ class TestToltecSweepMetadata:
             **base_obs_fields,
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
-            instru="toltec",
+            data_models=["toltec"],
             roach=0,
             n_chans=512,
             n_times=1000,
@@ -247,7 +246,7 @@ class TestToltecSweepMetadata:
             **base_obs_fields,
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
-            instru="toltec",
+            data_models=["toltec"],
             roach=0,
             n_chans=256,
             n_times=500,
@@ -268,7 +267,7 @@ class TestToltecSweepMetadata:
             **base_obs_fields,
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
-            instru="toltec",
+            data_models=["toltec"],
             roach=0,
             n_chans=512,
             n_times=1000,
@@ -290,7 +289,7 @@ class TestToltecSweepMetadata:
             **base_obs_fields,
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
-            instru="toltec",
+            data_models=["toltec"],
             roach=0,
             n_chans=512,
             n_times=1000,
@@ -298,7 +297,7 @@ class TestToltecSweepMetadata:
             f_smp=488.28125 * u.Hz,
         )
         with pytest.raises(ValidationError, match="frozen"):
-            meta.n_blocks = 500
+            setattr(meta, "n_blocks", 500)  # noqa: B010 -- Test frozen validation.
 
     def test_missing_required_sweep_fields(
         self,
@@ -310,7 +309,7 @@ class TestToltecSweepMetadata:
                 **base_obs_fields,
                 master="tcs",
                 master_code=ToltecDBRawObsMasterCode.TCS,
-                instru="toltec",
+                data_models=["toltec"],
                 roach=0,
                 # Missing: n_blocks, block, n_chans, f_smp
             )
@@ -328,7 +327,7 @@ class TestToltecTimestreamMetadata:
             **base_obs_fields,
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
-            instru="toltec",
+            data_models=["toltec"],
             roach=0,
             n_times=10000,
             n_chans=512,
@@ -348,7 +347,7 @@ class TestToltecTimestreamMetadata:
             **base_obs_fields,
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
-            instru="toltec",
+            data_models=["toltec"],
             roach=0,
             n_times=5000,
             n_chans=256,
@@ -368,7 +367,7 @@ class TestToltecTimestreamMetadata:
             **base_obs_fields,
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
-            instru="toltec",
+            data_models=["toltec"],
             roach=0,
             n_times=10000,
             n_chans=512,
@@ -390,7 +389,7 @@ class TestToltecTimestreamMetadata:
             **base_obs_fields,
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
-            instru="toltec",
+            data_models=["toltec"],
             roach=0,
             n_times=10000,
             n_chans=512,
@@ -409,14 +408,14 @@ class TestToltecTimestreamMetadata:
             **base_obs_fields,
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
-            instru="toltec",
+            data_models=["toltec"],
             roach=0,
             n_times=10000,
             n_chans=512,
             f_smp=488.28125 * u.Hz,
         )
         with pytest.raises(ValidationError, match="frozen"):
-            meta.n_times = 20000
+            setattr(meta, "n_times", 20000)  # noqa: B010 -- Test frozen validation.
 
     def test_missing_required_timestream_fields(
         self,
@@ -428,7 +427,7 @@ class TestToltecTimestreamMetadata:
                 **base_obs_fields,
                 master="tcs",
                 master_code=ToltecDBRawObsMasterCode.TCS,
-                instru="toltec",
+                data_models=["toltec"],
                 roach=0,
                 # Missing: n_samples, n_chans, f_smp
             )

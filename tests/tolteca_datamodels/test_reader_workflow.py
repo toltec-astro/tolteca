@@ -1,142 +1,78 @@
-"""Shared identification policy, opening ownership and concrete entry points."""
+"""Format policies and typed opening ownership."""
 
-from io import StringIO
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import xarray as xr
 from tollan.utils.fileloc import fileloc
 from xarray.backends.netCDF4_ import NetCDF4ArrayWrapper
 
-from tolteca_datamodels.lmt import identify_lmt_tel, open_lmt_tel
-from tolteca_datamodels.source import identify_reader, open_source
-from tolteca_datamodels.toltec import open_toltec
-from tolteca_datamodels.toltec.kids.core import identify_toltec_kids
-from tolteca_dummy_instru.data import identify_dummy_instru, open_dummy_instru
+from tolteca_datamodels.core.file import FileAccessor
+from tolteca_datamodels.core.source import (
+    SourceOpener,
+    SourceReaderRules,
+    source_opener,
+)
+from tolteca_datamodels.core.source import opener as source_module
+from tolteca_datamodels.lmt import open_lmt_tel
+from tolteca_datamodels.toltec import open_toltec_hwpr, open_toltec_kids
+from tolteca_dummy_instru.data import open_dummy_instru
 
 
-class _Reader:
-    def __init__(self, payload):
-        self.payload = payload
+def test_opener_rules_use_projected_columns_and_location_fallback(monkeypatch):
+    def specific(path):
+        pytest.fail("Selecting an opener must not open the source")
 
-    def read_metadata(self):
-        pytest.fail("Identification or opening read full metadata")
-
-
-@pytest.mark.parametrize("strict", [False, True])
-def test_shared_identification_preserves_payload_and_defers_metadata(strict):
-    payload = xr.Dataset()
-    reader = identify_reader(
-        payload,
-        source_types=(xr.Dataset,),
-        reader_factory=_Reader,
-        raise_on_error=strict,
+    policy = SourceOpener(
+        rules=(({"ext": "nc", "suffix": "tune"}, specific), *source_opener.rules)
     )
-    assert reader.payload is payload
+    monkeypatch.setattr(FileAccessor, "_source_opener", policy)
+    table = pd.DataFrame(
+        {
+            "file_ext": pd.array(["nc", "nc", None, "nc.gz"], dtype="string"),
+            "file_suffix": pd.array(["tune", None, None, "tune"], dtype="string"),
+            "source_loc": ["a.nc", "b.nc", "archive:/renamed.ecsv", "c.nc.gz"],
+            "data_kind": ["unrelated"] * 4,
+        },
+        index=[5, 3, 5, 1],
+    )
+    table["source"] = table.source_loc
+    before = table.copy()
+    choices = FileAccessor(table, accessor_types=())._get_opener_choices()
+    assert [row[FileAccessor] for row in choices] == [
+        specific,
+        source_module._open_netcdf,
+        source_module._open_ecsv,
+        None,
+    ]
+    pd.testing.assert_frame_equal(table, before)
 
 
-def test_unsupported_type_does_not_invoke_factory():
-    def unexpected(data):
-        pytest.fail("Unsupported payload reached the factory")
+def test_scalar_open_accepts_externally_parsed_record_and_actual_cached_path(tmp_path):
+    from tolteca_datamodels.filepath import FilepathInfo
 
-    options = {"source_types": (xr.Dataset,), "reader_factory": unexpected}
-    assert identify_reader("file.nc", **options) is None
-    with pytest.raises(TypeError, match="Expected Dataset, got str"):
-        identify_reader("file.nc", raise_on_error=True, **options)
-
-
-def test_value_error_policy_preserves_original_exception_in_strict_mode():
-    error = ValueError("Unsupported layout")
-
-    def reject(data):
-        raise error
-
-    options = {"source_types": (xr.Dataset,), "reader_factory": reject}
-    assert identify_reader(xr.Dataset(), **options) is None
-    with pytest.raises(ValueError) as exc:
-        identify_reader(xr.Dataset(), raise_on_error=True, **options)
-    assert exc.value is error
+    location = "archive:/toltec8_145605_000_0001_2025_10_31_09_20_06_tune.txt"
+    info = FilepathInfo.from_source(location)
+    policy = SourceOpener(rules=(({"ext": "txt", "suffix": "tune"}, Path.open),))
+    cached = tmp_path / "cached-without-extension"
+    cached.write_text("model parameters")
+    with pytest.raises(ValueError, match="No source opener"):
+        policy.open({}, source=cached)
+    with policy.open(info, source=cached) as data:
+        assert data.read() == "model parameters"
 
 
-@pytest.mark.parametrize("strict", [False, True])
-@pytest.mark.parametrize("error_type", [TypeError, KeyError, RuntimeError, OSError])
-def test_other_factory_errors_always_propagate(strict, error_type):
-    error = error_type("Reader failure")
-
-    def fail(data):
-        raise error
-
-    with pytest.raises(error_type) as exc:
-        identify_reader(
-            xr.Dataset(),
-            source_types=(xr.Dataset,),
-            reader_factory=fail,
-            raise_on_error=strict,
-        )
-    assert exc.value is error
-
-
-@pytest.mark.parametrize("error_type", [ValueError, RuntimeError, KeyboardInterrupt])
-def test_shared_open_closes_on_identification_failure(error_type):
-    data = xr.Dataset()
-    closed = []
-    data.set_close(lambda: closed.append(True))
-    error = error_type("Identification failed")
-
-    def identify(payload, *, raise_on_error=False):
-        assert payload is data
-        assert raise_on_error is True
-        raise error
-
-    with pytest.raises(error_type) as exc:
-        open_source("input.nc", opener=lambda _: data, identifier=identify)
-    assert exc.value is error
-    assert closed == [True]
-
-
-def test_shared_open_does_not_identify_after_backend_failure():
-    error = OSError("Backend failure")
-
-    def fail(source):
-        raise error
-
-    def unexpected(*args, **kwargs):
-        pytest.fail("Identification followed an unsuccessful open")
-
-    with pytest.raises(OSError) as exc:
-        open_source("input.nc", opener=fail, identifier=unexpected)
-    assert exc.value is error
-
-
-def test_shared_open_without_identifier_leaves_resource_to_caller():
-    data = xr.Dataset()
-    closed = []
-    data.set_close(lambda: closed.append(True))
-    with open_source("unrecognized.nc", opener=lambda _: data) as opened:
-        assert opened is data
-        assert not closed
-    assert closed == [True]
-
-
-def test_shared_open_supports_non_xarray_resources(tmp_path):
-    path = tmp_path / "observation.txt"
-    path.write_text("observation\n")
-    with open_source(path, opener=Path.open, encoding="utf-8") as opened:
-        assert opened.read() == "observation\n"
-    assert opened.closed
-
-
-def test_shared_open_closes_non_xarray_resource_on_identification_failure():
-    data = StringIO("unrecognized")
-
-    def reject(payload, *, raise_on_error):
-        assert payload is data and raise_on_error
-        msg = "Unsupported text"
-        raise ValueError(msg)
-
-    with pytest.raises(ValueError, match="Unsupported text"):
-        open_source("input.txt", opener=lambda _: data, identifier=reject)
-    assert data.closed
+def test_missing_filename_attribute_is_not_an_explicit_null():
+    policy = SourceOpener(rules=(({"ext": "nc", "suffix": None}, Path.open),))
+    assert policy({"ext": "nc"}) is None
+    assert policy({"ext": "nc", "suffix": None}) is Path.open
+    assert (
+        FileAccessor(
+            FileAccessor.from_sources([], accessor_types=()), accessor_types=()
+        )._get_opener_choices()
+        == []
+    )
 
 
 @pytest.mark.parametrize("explicit_parent", [False, True])
@@ -156,26 +92,23 @@ def test_open_preserves_validated_fileloc_resolution(
         opened.append((path, kwargs))
         return xr.Dataset()
 
-    def identify(data, *, raise_on_error):
-        assert raise_on_error is True
-        return _Reader(data)
-
-    with open_source(source, opener=opener, identifier=identify, chunks={}):
+    monkeypatch.setattr(xr, "open_dataset", opener)
+    with source_opener.open({"ext": "nc"}, source=source, chunks={}):
         pass
     assert opened == [(expected, {"chunks": {}})]
     assert source.root.local_parent_path == parent
 
 
 @pytest.mark.parametrize("source", ["", "ftp://example.org/input.nc"])
-def test_invalid_source_does_not_reach_opener_or_identifier(source):
+def test_invalid_source_does_not_reach_opener(source, monkeypatch):
     def unexpected(*args, **kwargs):
-        pytest.fail("An invalid location reached the opener or identifier")
+        pytest.fail("An invalid location reached the opener")
 
+    monkeypatch.setattr(xr, "open_dataset", unexpected)
     with pytest.raises(ValueError):
-        open_source(source, opener=unexpected, identifier=unexpected)
+        source_opener.open({"ext": "nc"}, source=source)
 
 
-@pytest.mark.parametrize("opener", [open_lmt_tel, open_toltec, open_dummy_instru])
 @pytest.mark.parametrize("source_factory", [str, fileloc])
 @pytest.mark.parametrize(
     "source",
@@ -186,31 +119,39 @@ def test_invalid_source_does_not_reach_opener_or_identifier(source):
         "http://localhost/input.nc",
     ],
 )
-def test_remote_locations_do_not_reach_local_backend(
-    opener, source_factory, source, monkeypatch
+def test_default_policy_rejects_remote_locations_before_opening(
+    source_factory, source, monkeypatch
+):
+    def unexpected(*args, **kwargs):
+        pytest.fail("Remote location was passed to the opener")
+
+    monkeypatch.setattr(xr, "open_dataset", unexpected)
+    with pytest.raises(ValueError, match="staged locally"):
+        source_opener.open({"ext": "nc"}, source=source_factory(source))
+
+
+@pytest.mark.parametrize(
+    "opener", [open_lmt_tel, open_toltec_kids, open_toltec_hwpr, open_dummy_instru]
+)
+@pytest.mark.parametrize("source_factory", [str, fileloc])
+def test_concrete_openers_reject_remote_locations_before_local_backend(
+    opener, source_factory, monkeypatch
 ):
     def unexpected(*args, **kwargs):
         pytest.fail("Remote location was passed to the local backend")
 
     monkeypatch.setattr(xr, "open_dataset", unexpected)
     with pytest.raises(ValueError, match="staged locally"):
-        opener(source=source_factory(source))
+        opener(source=source_factory("file://archive/data/input.nc"))
 
 
 @pytest.mark.parametrize(
-    ("opener", "identifier"),
-    [
-        (open_lmt_tel, identify_lmt_tel),
-        (open_toltec, identify_toltec_kids),
-        (open_dummy_instru, identify_dummy_instru),
-    ],
+    "opener", [open_lmt_tel, open_toltec_kids, open_toltec_hwpr, open_dummy_instru]
 )
-def test_concrete_openers_close_unrecognized_datasets(opener, identifier, monkeypatch):
+def test_concrete_openers_close_unrecognized_datasets(opener, monkeypatch):
     data = xr.Dataset()
     closed = []
     data.set_close(lambda: closed.append(True))
-    assert identifier(data) is None
-    assert not closed
     monkeypatch.setattr(xr, "open_dataset", lambda *args, **kwargs: data)
     with pytest.raises(ValueError):
         opener("unrecognized.nc")
@@ -226,25 +167,28 @@ def test_concrete_openers_close_unrecognized_datasets(opener, identifier, monkey
 def test_concrete_openers_preserve_identity_options_and_lazy_reads(
     family, source_factory, data_lmt_path, monkeypatch
 ):
+    def unexpected_selection(*args, **kwargs):
+        pytest.fail("A typed opener must bind its known reader without selection")
+
+    monkeypatch.setattr(SourceReaderRules, "identify", unexpected_selection)
+    monkeypatch.setattr(SourceReaderRules, "__call__", unexpected_selection)
     if family == "lmt":
         path = data_lmt_path / "tel/tel_toltec_2025-10-31_145609_00_0002.nc"
         data = xr.open_dataset(path)
-        opener, identifier, accessor_name = open_lmt_tel, identify_lmt_tel, "lmt_tel"
+        opener, accessor_name = open_lmt_tel, "lmt_tel"
     elif family == "toltec":
-        path = next((data_lmt_path / "toltec/tcs/toltec0").glob("*_tune.nc"))
+        path = next((data_lmt_path / "toltec/tcs/toltec0").glob("*145609*_tune.nc"))
         data = xr.open_dataset(path)
-        opener, identifier, accessor_name = (
-            open_toltec,
-            identify_toltec_kids,
+        opener, accessor_name = (
+            open_toltec_kids,
             "toltec_kids",
         )
     else:
         # Deliberately incomplete headers verify that opening only identifies.
         path = data_lmt_path / "missing-dummy.nc"
         data = xr.Dataset(attrs={"instru": "dummy_instru"})
-        opener, identifier, accessor_name = (
+        opener, accessor_name = (
             open_dummy_instru,
-            identify_dummy_instru,
             "dummy_instru",
         )
     opened, closed, reads = [], [], []
@@ -272,7 +216,7 @@ def test_concrete_openers_preserve_identity_options_and_lazy_reads(
         with opener(source=source_factory(path), chunks={}) as result:
             assert result is data
             reader = getattr(result, accessor_name)
-            assert identifier(result, raise_on_error=True) is reader
+            assert getattr(result, accessor_name) is reader
             assert "meta" not in reader.__dict__
             assert not closed
     assert closed == [True]
@@ -284,7 +228,7 @@ def test_concrete_openers_preserve_identity_options_and_lazy_reads(
 
 
 def test_toltec_open_preserves_caller_decoding_options(data_lmt_path, monkeypatch):
-    path = next((data_lmt_path / "toltec/tcs/toltec0").glob("*_targsweep.nc"))
+    path = next((data_lmt_path / "toltec/tcs/toltec0").glob("*145606*_targsweep.nc"))
     opened = []
     with xr.open_dataset(path) as data:
 
@@ -293,6 +237,6 @@ def test_toltec_open_preserves_caller_decoding_options(data_lmt_path, monkeypatc
             return data
 
         monkeypatch.setattr(xr, "open_dataset", track_open)
-        with open_toltec(path, decode_coords=False, decode_times=False):
+        with open_toltec_kids(path, decode_coords=False, decode_times=False):
             pass
     assert opened == [(path, {"decode_coords": False, "decode_times": False})]

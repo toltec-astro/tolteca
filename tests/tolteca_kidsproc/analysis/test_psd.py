@@ -19,6 +19,61 @@ from tollan.utils.xarray import reduce_median_mad
 from tolteca_kidsproc.analysis import PSDAnalysis, PSDMapper, PSDView
 
 
+@pytest.mark.parametrize("complex_signal", [False, True])
+@pytest.mark.parametrize("axis", [0, -1])
+@pytest.mark.parametrize("scaling", ["density", "spectrum"])
+def test_numerical_psd_without_model_or_xarray(complex_signal, axis, scaling):
+    values = np.random.default_rng(43).normal(size=(3, 128))
+    if complex_signal:
+        values = values + 1j * values[::-1]
+    if axis == 0:
+        values = values.T
+    values.setflags(write=False)
+    settings = {
+        "window": "hamming",
+        "nperseg": 32,
+        "noverlap": 7,
+        "detrend": False,
+        "scaling": scaling,
+        "return_onesided": not complex_signal,
+        "axis": axis,
+    }
+    expected_f, expected_power = welch(values, fs=128.0, **settings)
+    frequency, power = PSDAnalysis.compute_psd(values, f_smp=128.0, **settings)
+    np.testing.assert_array_equal(frequency, expected_f)
+    np.testing.assert_array_equal(power, expected_power)
+    assert not np.shares_memory(power, values)
+
+
+def test_configured_psd_resolves_settings_before_lazy_numerical_call(monkeypatch):
+    calls = []
+    compute = PSDAnalysis.compute_psd
+
+    def record(cls, values, **kwargs):
+        calls.append(kwargs)
+        return compute(values, **kwargs)
+
+    monkeypatch.setattr(PSDAnalysis, "compute_psd", classmethod(record))
+    data = xr.DataArray(np.arange(17.0), dims="sample", name="signal").u.set(u.V)
+    analysis = PSDAnalysis(nperseg=32)
+    spectra = analysis.make_psd(data, dim="sample", f_smp=0.128 << u.kHz)
+    assert calls == []
+    spectra.compute()
+    assert calls == [
+        {
+            "f_smp": 128.0,
+            "window": "hann",
+            "nperseg": 17,
+            "noverlap": 8,
+            "detrend": "constant",
+            "scaling": "density",
+            "return_onesided": True,
+            "axis": -1,
+        }
+    ]
+    assert spectra.signal.u.unit == u.V**2 / u.Hz
+
+
 def _timestream(*, n_samples=64, n_chans=None):
     shape = (n_samples,) if n_chans is None else (n_chans, n_samples)
     dims = ("time",) if n_chans is None else ("chan", "time")
@@ -64,7 +119,7 @@ def test_multi_channel_kids_time_axis_through_psd_and_export(tmp_path):
         np.testing.assert_allclose(reopened.kids.psd.psd_common_mad_std.I, common_mad)
 
 
-def test_low_level_calculations_compose_high_level_outputs():
+def test_configured_calculations_compose_high_level_outputs():
     source = _timestream(n_samples=128, n_chans=4).chunk({"chan": 2, "time": 32})
     source["I"] = source.I.u.set(u.V)
     source["Q"] = source.Q.u.set(u.V)
@@ -192,7 +247,7 @@ def test_high_level_uses_all_input_mappings_and_ignores_other_series(monkeypatch
 
 @pytest.mark.parametrize("scaling", ["density", "spectrum"])
 @pytest.mark.parametrize("unit", [None, u.one, u.mV])
-def test_low_level_quantities_and_signal_units(scaling, unit):
+def test_configured_quantities_and_signal_units(scaling, unit):
     values = np.arange(64.0)
     source = xr.DataArray(
         values,
@@ -217,7 +272,7 @@ def test_low_level_quantities_and_signal_units(scaling, unit):
     assert source.u.unit == unit
 
 
-def test_low_level_sampling_frequency_is_required_and_has_frequency_units():
+def test_configured_sampling_frequency_is_required_and_has_frequency_units():
     source = xr.DataArray(np.arange(64.0), dims="time", attrs={"f_smp": 100})
     analysis = PSDAnalysis(nperseg=16)
     with pytest.raises(TypeError, match="f_smp"):

@@ -5,8 +5,11 @@ API
 - High-level: ``analysis(timestream_view)`` computes I/Q spectra and frequency-band
   statistics from a ``TimestreamView`` or ``MultiTimestreamView``. Set
   ``compute_common=True`` to include median and scaled-MAD spectra across channels.
-- Low-level: ``analysis.make_psd(data, f_smp=..., dim=...)`` computes spectra for
-  arbitrary numerical DataArrays or Dataset variables with explicit sampling.
+- Mid-level: ``analysis.make_psd(data, f_smp=..., dim=...)`` computes spectra for
+  arbitrary numerical DataArrays or Dataset variables using configured spectral
+  settings and an explicit sampling rate.
+- Low-level: ``PSDAnalysis.compute_psd`` accepts a numerical array, a sampling
+  rate in Hz, and explicit spectral settings; it returns frequency and power arrays.
 - Tollan utility: ``reduce_median_mad(data, dim=...)`` summarizes selected values
   along any dimension. Select or normalize spectra before reducing them when needed.
 - Result access: ``result.kids.psd``, ``PSDView(result)``, or
@@ -48,7 +51,7 @@ True
 >>> result.kids.timestream.data_source.identical(source)
 True
 
-2. Low-level API: analyse any time series with an explicit sample rate.
+2. Mid-level API: analyse any time series with an explicit sample rate.
 
 >>> temperature = xr.DataArray(
 ...     np.sin(2 * np.pi * 8 * time), dims="sample", name="temperature",
@@ -143,6 +146,15 @@ configuration. Export the enclosing scope to retain the input as well.
 ...         assert restored.psd_analysis == analysis
 ...         xr.testing.assert_equal(restored.psd, block.kids.psd.psd)
 
+7. Low-level API: estimate numerical spectra without an analysis instance.
+
+>>> frequency, power = PSDAnalysis.compute_psd(
+...     signal.real, f_smp=128.0, window="hann", nperseg=256, noverlap=128,
+...     detrend="constant", scaling="density", return_onesided=True, axis=-1,
+... )
+>>> frequency[np.argmax(power)]
+np.float64(8.0)
+
 Notes
 -----
 The high-level call uses the view's I/Q, shared time coordinate, and recorded
@@ -158,7 +170,8 @@ it does not infer the rate from attributes or timestamps. Signal units come from
 complex input uses a shared two-sided grid in NumPy FFT order. Unnamed DataArrays
 use the variable name ``data``.
 
-Spectral calculations stay lazy; timestamps are not evaluated. Each spectral
+``__call__`` and ``make_psd`` construct lazy results without evaluating timestamps;
+``compute_psd`` evaluates numerical arrays eagerly. Each spectral
 task uses a complete time series. Both scatter
 estimates use the median absolute deviation multiplied by 1.4826, with NaNs
 propagated. Band statistics describe variation across frequency bins; common
@@ -195,9 +208,10 @@ from tollan.config.types import (
 from tollan.utils import xarray as xarray_utils
 
 if TYPE_CHECKING:
+    import numpy.typing as npt
     from tollan.accessor import Mapping
 
-    from ..accessors.views import TimestreamView
+    from ..accessors.views import TimestreamView as KidsTimestreamView
 
 __all__ = ["PSDAnalysis", "PSDMapper", "PSDSchema", "PSDView"]
 
@@ -327,11 +341,14 @@ class PSDAnalysis(Analysis[PSDMapper]):
     -----
     - High-level: calling the analysis returns a DataTree with individual spectra,
       band statistics, and an optional common spectrum.
-    - Low-level: ``make_psd`` returns standalone spectra. Use
+    - Mid-level: ``make_psd`` returns standalone spectra. Use
       ``tollan.utils.xarray.reduce_median_mad`` to summarize selected values
       along a supplied dimension.
-    - Spectral computations are lazy and assume complete, uniformly sampled input.
-      Select a time interval before calling to limit each task's memory use.
+    - Low-level: ``compute_psd`` returns numerical frequency and power arrays
+      using explicit settings, without an analysis instance or xarray container.
+    - Configured computations are lazy; ``compute_psd`` evaluates arrays eagerly.
+      All levels assume complete, uniformly sampled input. Select a time interval
+      before calling to limit each task's memory use.
     - SciPy validates window and detrending choices when the lazy result is
       evaluated. Compute the result before treating an analysis as complete.
     """
@@ -399,7 +416,7 @@ class PSDAnalysis(Analysis[PSDMapper]):
 
     def __call__(
         self,
-        timestream_view: TimestreamView,
+        timestream_view: KidsTimestreamView,
         *,
         output: xr.DataTree | None = None,
         parent_namespace: str | None = None,
@@ -485,6 +502,7 @@ class PSDAnalysis(Analysis[PSDMapper]):
         return (mapper.schema.psd_subpath, mapper.schema.psd_common_subpath)
 
     def _can_reuse(self, timestream_view, result, *, mapper):
+        names = self._get_signals(timestream_view).data_vars
         try:
             spectra = mapper.get_node(result, mapper.schema.psd_subpath).to_dataset()
         except KeyError:
@@ -495,7 +513,7 @@ class PSDAnalysis(Analysis[PSDMapper]):
             and "f_psd" in spectra.coords
             and all(
                 f"{name}_{statistic}" in spectra
-                for name in ("I", "Q")
+                for name in names
                 for statistic in ("psd", "psd_median", "psd_mad_std")
             )
         ):
@@ -508,12 +526,16 @@ class PSDAnalysis(Analysis[PSDMapper]):
             return False
         return all(
             f"{name}_{statistic}" in common.dataset
-            for name in ("I", "Q")
+            for name in names
             for statistic in ("psd_common", "psd_common_mad_std")
         )
 
+    def _get_signals(self, timestream_view):
+        """Select the signals to analyse under their semantic names."""
+        return xr.Dataset({"I": timestream_view.I, "Q": timestream_view.Q})
+
     def _compute_result(self, timestream_view, *, mapper):
-        signals = xr.Dataset({"I": timestream_view.I, "Q": timestream_view.Q})
+        signals = self._get_signals(timestream_view)
         spectra = self.make_psd(
             signals, f_smp=timestream_view.f_smp, dim=timestream_view.time.dims[0]
         )
@@ -545,6 +567,76 @@ class PSDAnalysis(Analysis[PSDMapper]):
             msg = "PSDAnalysis requires numerical time series"
             raise ValueError(msg)
         return data[names]
+
+    @classmethod
+    def compute_psd(  # noqa: PLR0913 -- Numerical settings are explicit, without a config model.
+        cls,
+        values: npt.NDArray,
+        *,
+        f_smp: float,
+        window: str,
+        nperseg: int,
+        noverlap: int,
+        detrend: str | bool,
+        scaling: Literal["density", "spectrum"],
+        return_onesided: bool,
+        axis: int,
+    ) -> tuple[npt.NDArray, npt.NDArray]:
+        """Estimate Welch spectra from numerical samples and explicit settings.
+
+        Parameters
+        ----------
+        values : numpy.ndarray
+            Complete, uniformly sampled numerical series. Other axes identify
+            independent series; this call does not inspect timestamps.
+        f_smp : float
+            Positive sampling frequency in Hz.
+        window : str
+            SciPy window name.
+        nperseg : int
+            Segment length in samples, no larger than the available time span.
+        noverlap : int
+            Overlap between segments, nonnegative and smaller than ``nperseg``.
+        detrend : {"constant", "linear", False}
+            Trend to remove from each segment.
+        scaling : {"density", "spectrum"}
+            Spectral density per Hz or power spectrum.
+        return_onesided : bool
+            True requests nonnegative frequencies for real input. Complex input
+            always produces a two-sided spectrum.
+        axis : int
+            Sample axis; independent series occupy the remaining axes.
+
+        Returns
+        -------
+        frequency : numpy.ndarray
+            One-dimensional frequencies in Hz; two-sided output uses FFT order.
+        power : numpy.ndarray
+            Power estimates with the sample axis replaced by frequency bins.
+            Values have squared input units per Hz for density, or squared input
+            units for spectrum. Unit metadata is not attached. Inputs are unchanged.
+
+        Raises
+        ------
+        ValueError
+            SciPy rejects the numerical inputs or spectral settings.
+        """
+        return welch(
+            values,
+            fs=f_smp,
+            window=window,
+            nperseg=nperseg,
+            noverlap=noverlap,
+            detrend=detrend,
+            scaling=scaling,
+            return_onesided=return_onesided,
+            axis=axis,
+        )
+
+    @classmethod
+    def _compute_psd_values(cls, values, **kwargs):
+        """Select power values for an xarray task with a shared frequency coordinate."""
+        return cls.compute_psd(values, **kwargs)[1]
 
     def make_psd(
         self,
@@ -616,25 +708,24 @@ class PSDAnalysis(Analysis[PSDMapper]):
             coords={"f_psd": xr.DataArray(frequencies, dims="f_psd").u.set(u.Hz)}
         )
 
-        def spectrum(values):
-            return welch(
-                values,
-                fs=fs,
-                window=self.window,
-                nperseg=nperseg,
-                noverlap=self.noverlap,
-                detrend=self.detrend,
-                scaling=self.scaling,
-                return_onesided=onesided,
-                axis=-1,
-            )[1]
-
         for name, signal in ds.data_vars.items():
             chunks = {dim: self.batch_size for dim in signal.dims if dim != time_dim}
             chunks[time_dim] = -1
             psd = xr.apply_ufunc(
-                spectrum,
+                self._compute_psd_values,
                 signal.chunk(chunks),
+                kwargs={
+                    "f_smp": fs,
+                    "window": self.window,
+                    "nperseg": nperseg,
+                    "noverlap": (
+                        nperseg // 2 if self.noverlap is None else self.noverlap
+                    ),
+                    "detrend": self.detrend,
+                    "scaling": self.scaling,
+                    "return_onesided": onesided,
+                    "axis": -1,
+                },
                 input_core_dims=[[time_dim]],
                 output_core_dims=[["f_psd"]],
                 keep_attrs=False,

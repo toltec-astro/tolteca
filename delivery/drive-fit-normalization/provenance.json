@@ -1,0 +1,35 @@
+{
+  "source_sha256": {
+    "/Users/ma/Codes/toltec/dev_toltec/python/tolteca/src/tolteca_kids/drive_fit/computation.py": "8bea28bf19834c457812d2ef55ff779fa9419921548641b512798a1da2e925b6",
+    "/Users/ma/Codes/toltec/dev_toltec/python/tolteca/src/tolteca_kids/drive_fit_commit/core.py": "6e89f6ae3a135b7f993f4bbdae16d9e01331df2abee74a5302121b2bee181467",
+    "/Users/ma/Codes/toltec/dev_toltec/python/tolteca/src/tolteca_kids/drive_fit_commit/step.py": "1f9942a3db67bbf806c003b85bc5e16f13e5e3ba2123db5aa9a13f21ec576855",
+    "/Users/ma/Codes/toltec/dev_toltec/python/tolteca/src/tolteca_kids/drive_fit_commit/plot.py": "89fa95605a3d63109f44ad7f352cc891d95624c0b67a107c1946114da9d68c37",
+    "/Users/ma/Codes/toltec/dev_toltec/python/tolteca/tests/tolteca_kids/test_drive_fit_commit.py": "7ee79809b61855b40b83aaa10d7c171c59305698f611007af863a1dcaf246bcb",
+    "/Users/ma/Codes/toltec/dev_toltec/python/tolteca/docs/drive-fit.md": "5577c329bdfd8a817ac80d6ff27fac06fdff5ec1220fe809da2027adbd173e8e",
+    "/Users/ma/Codes/toltec/dev_toltec/python/tolteca/design/drive-fit-workflow-spec.md": "d69c798c72b86e68d0ab59894aebb6de30fc87b7e2a04787cac4f0ef6ef78146",
+    "/Users/ma/Codes/toltec/dev_toltec/python/tolteca/.gitignore": "daba926cfa51a21973399e415a6f84421ec8515304f18a315b217bb9820ef468",
+    "/Users/ma/Codes/toltec/dev_toltec/python/tolteca/src/tolteca_kids/drive_fit/power.py": "85b3e6bc11b1b57f7edc883bbe3cfc454e1ec9d3b65ec9ab80ee45aec27c93a7",
+    "/Users/ma/Codes/toltec/dev_toltec/python/tolteca/tests/tolteca_kids/test_drive_fit_power.py": "1c9547ab6586d89a487a310282818f6cf0dea6b6c31b298d7289c6fc49a1e741",
+    "/Users/ma/Codes/toltec/dev_toltec/python/tolteca/design/probes/drive_fit_normalization.py": "af7721d19533d816d43764e980c8ff52295a485a5517e934400299385ccb3ba0",
+    "/Users/ma/Codes/toltec/dev_toltec/python/tolteca/design/drive-fit-normalization-20261021.md": "2b7d465646c0901455a46f2256fe07d35cf41d71d44c32e0ec1756eb7b964e7f",
+    "/Users/ma/Codes/toltec/toltec_astro/tolteca/src/tolteca_kids/roach_tone_power.py": "605d1bf054fc0b497a92b44c1e540ad068557e3593ade2c2a2eae323b1fd51e1",
+    "/Users/ma/Codes/toltec/toltec_astro/taco_recipes/scripts/drivefit/dispatch_drivefit.py": "aecde5ec0c28b0f175ac92939ac1c38dbd9589c7e92a6d35b0c40bf6077f644d",
+    "/Users/ma/Codes/toltec/dev_toltec/cpp/tlaloc/src/ToltecRoachManager.cc": "9085c9e142e7d7db5568291db247dee6d3fd365c4ae293f50adf611c25919725",
+    "/Users/ma/Codes/toltec/dev_toltec/python/run/drive-fit-normalization-20261021/drive_fit.yaml": "f93c0106acc121fd187ba2f97439c6cbc7dfa005e85d8a8651f7d2d14a5c0cf1",
+    "/Users/ma/Codes/toltec/dev_toltec/python/run/drive-fit-normalization-20261021/drive_fit_commit.yaml": "58d9c1e3405fa32421d63d2d41f256e307cb522b268a804e4aa62ff6e5c4c52b",
+    "/Users/ma/Codes/toltec/dev_toltec/python/tolteca/design/probes/drive_fit_power_audit.py": "7baa2a4bf25d431bd303ef2e0edf9e5751d1623e8228ea5722b7875a11b50f09",
+    "/Users/ma/Codes/toltec/dev_toltec/python/tolteca/design/probes/drive_fit_commit_parity.py": "07d133a692d3f67809aed5adb0360925df997bf511242994f43fa5536dcdc406"
+  },
+  "lo_reader_unchanged": true,
+  "fit_kernel_changed": false,
+  "baseline": "turn-entry working copy; cumulative workspace diff is separately relative to Git HEAD",
+  "validation": {
+    "focused_tests": 45,
+    "ruff": "passed",
+    "ty": "passed",
+    "strict_sphinx": "passed",
+    "full_compact_sequence": "1493 channels, both workflows",
+    "historical_calibration": "685 channels, both workflows",
+    "live_instrument_write": false
+  }
+}

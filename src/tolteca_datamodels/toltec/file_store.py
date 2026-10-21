@@ -26,6 +26,17 @@ class ToltecFileStore(LmtFileStoreBase):
     ----------
     path : str or pathlib.Path
         TolTEC subtree, usually ``data_lmt/toltec``.
+
+    Notes
+    -----
+    Use ObsSpec to constrain the master and interface. Candidate searches use
+    fixed-depth globs beneath the store root; they do not search recursively.
+
+    Examples
+    --------
+    >>> store = ToltecFileStore("/data_lmt/toltec")
+    >>> list(store.iter_glob_patterns("tcs-1/toltec7"))
+    ['tcs/toltec7/toltec7_000001_*.nc']
     """
 
     _obs_spec_context: ClassVar = _obs_spec_context
@@ -36,15 +47,13 @@ class ToltecFileStore(LmtFileStoreBase):
         if info.instru == ToltecInfo.instru
     )
 
-    def _iter_candidate_patterns(
+    def _iter_local_glob_patterns(
         self, spec: ObsSpec, subpath: SubPathOrRoot
     ) -> Iterator[str]:
         master = str(spec.master) if isinstance(spec.master, str) else "*"
         obsnum = f"{spec.obsnum:06d}" if isinstance(spec.obsnum, int) else "*"
         for interface in spec.resolve_values(
-            "interface",
-            self._interfaces,
-            context=self._obs_spec_context,
+            "interface", self._interfaces, context=self._obs_spec_context
         ):
             filename = (
                 f"{interface}_{obsnum}_*.nc"

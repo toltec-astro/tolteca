@@ -11,13 +11,14 @@ from pydantic import ValidationError
 from tollan.utils.fileloc import fileloc
 from xarray.backends.netCDF4_ import NetCDF4ArrayWrapper, NetCDF4DataStore
 
+from tolteca_datamodels.core.file import source_trace_issues
 from tolteca_datamodels.lmt import open_lmt_tel
 from tolteca_datamodels.lmt.file import LmtFileAccessor
 
 
 @pytest.fixture
 def tel_paths(data_lmt_path):
-    return sorted((data_lmt_path / "tel").glob("*.nc"))
+    return sorted((data_lmt_path / "tel").glob("*1456*.nc"))
 
 
 def test_read_and_query_reference_observations(tel_paths, lmtmc_records):
@@ -25,8 +26,11 @@ def test_read_and_query_reference_observations(tel_paths, lmtmc_records):
     records = {Path(row["FileName"]).name: row for row in lmtmc_records}
     table = LmtFileAccessor.from_sources(tel_paths, mode="read")
     assert table.source.tolist() == tel_paths
+    assert table.data_models.tolist() == [["lmt", "toltec"]] * len(table)
     assert table.instru.unique().tolist() == ["lmt"]
-    assert not {"data_kind", "roach", "metadata", "filepath_info"} & set(table)
+    assert not {"data_kind", "data_kind_toltec", "metadata"} & set(table)
+    assert table.filepath_info.notna().all()
+    assert table.roach.isna().all()
     for row in table.itertuples(index=False):
         assert isinstance(row.source, Path)
         expected = records[row.source.name]
@@ -79,12 +83,13 @@ def test_guess_never_opens_and_does_not_classify_instrument_files(
         pytest.fail("Filename guesses opened a file")
 
     monkeypatch.setattr(xr, "open_dataset", unexpected)
-    monkeypatch.setattr(LmtFileAccessor, "_source_opener", xr.open_dataset)
     kids_path = next((data_lmt_path / "toltec").rglob("*.nc"))
     table = LmtFileAccessor.from_sources([tel_paths[0], kids_path, "unknown.nc"])
     assert table.iloc[0].uid_raw_obs_file == "tcs-145605-0-1-tel"
     assert table.iloc[0].file_prefix == "tel_toltec"
-    assert table.iloc[1:].obsnum.isna().all()
+    assert pd.notna(table.iloc[1].obsnum)
+    assert table.iloc[1].file_prefix == kids_path.name.split("_")[0]
+    assert pd.isna(table.iloc[2].obsnum)
     assert table.iloc[1:].uid_raw_obs_file.isna().all()
     assert "obs_goal" not in table
 
@@ -105,7 +110,6 @@ def test_mode_controls_reads_and_recovers_renamed_file(
             yield data
 
     monkeypatch.setattr(xr, "open_dataset", tracked)
-    monkeypatch.setattr(LmtFileAccessor, "_source_opener", xr.open_dataset)
     table = LmtFileAccessor.from_sources([tel_paths[0], renamed], mode=mode)
     expected = {
         "guess": [],
@@ -135,7 +139,7 @@ def test_reads_local_source_not_remote_identification_location(tel_paths, tmp_pa
     table["batch"] = ["first"]
     table.attrs["label"] = "cached observation"
     before = table.copy(deep=True)
-    enriched = table.lmt_file.read_metadata()
+    enriched = table.lmt_file.update_from_source_metadata()
     pd.testing.assert_frame_equal(table, before)
     assert enriched.obsnum.iloc[0] == 145605
     assert enriched.file_obsnum.iloc[0] == 145611
@@ -165,7 +169,6 @@ def test_borrowed_objects_stay_open(tel_paths, monkeypatch, as_tree):
 
         obj.set_close(track_close)
         monkeypatch.setattr(xr, "open_dataset", unexpected)
-        monkeypatch.setattr(LmtFileAccessor, "_source_opener", xr.open_dataset)
         table = LmtFileAccessor.from_sources(
             [{"source": obj, "source_loc": tel_paths[0]}], mode="read"
         )
@@ -196,10 +199,10 @@ def test_header_only_reads_close_each_owned_file(tel_paths, monkeypatch):
 
     monkeypatch.setattr(NetCDF4ArrayWrapper, "__getitem__", header_only)
     monkeypatch.setattr(xr, "open_dataset", tracked)
-    monkeypatch.setattr(LmtFileAccessor, "_source_opener", xr.open_dataset)
     table = LmtFileAccessor.from_sources(tel_paths, mode="read")
     assert closed == tel_paths
-    assert len(read) == len(tel_paths) * 12
+    assert len(read) == len(tel_paths) * 13
+    assert read.count("Header.Dcs.Receiver") == len(tel_paths)
     assert len(table) == len(tel_paths)
 
 
@@ -229,11 +232,11 @@ def test_open_queries_headers_and_loads_pointing_without_reopening(
         return getitem(array, key)
 
     monkeypatch.setattr(xr, "open_dataset", open_data)
-    monkeypatch.setattr(LmtFileAccessor, "_source_opener", xr.open_dataset)
     monkeypatch.setattr(NetCDF4DataStore, "close", close)
     monkeypatch.setattr(NetCDF4ArrayWrapper, "_getitem", read)
     with table.lmt_file.open() as live:
         assert opened == tel_paths and not closed
+        live.lmt_file.update_from_source_metadata(inplace=True)
         assert live.io_obj.iloc[-1] is live.io_obj.iloc[-2]
         pd.testing.assert_index_equal(live.index, table.index)
         selected = live.lmt_file.query(
@@ -255,7 +258,7 @@ def test_open_queries_headers_and_loads_pointing_without_reopening(
 
 @pytest.mark.parametrize("as_tree", [False, True])
 @pytest.mark.parametrize("supplied_as", ["source", "io_objs", "column"])
-def test_open_borrows_remote_resource_and_refreshes_from_it(
+def test_open_borrows_remote_resource_and_populates_metadata(
     tel_paths, monkeypatch, as_tree, supplied_as
 ):
     location = fileloc(f"archive:/data_lmt/tel/{tel_paths[0].name}")
@@ -274,18 +277,17 @@ def test_open_borrows_remote_resource_and_refreshes_from_it(
 
         with monkeypatch.context() as patch:
             patch.setattr(xr, "open_dataset", unexpected)
-            patch.setattr(LmtFileAccessor, "_source_opener", xr.open_dataset)
             patch.setattr(xr.Dataset, "close", unexpected)
             patch.setattr(xr.DataTree, "close", unexpected)
             io_objs = [obj] if supplied_as == "io_objs" else None
             with table.lmt_file.open(io_objs=io_objs) as live:
                 assert live.io_obj.iloc[0] is obj
+                live.lmt_file.update_from_source_metadata(inplace=True)
                 assert live.obsnum.tolist() == [145605]
                 cached = obj.lmt_tel.meta
-                obj["Header.Dcs.ObsGoal"] = "Pointing"
-                refreshed = live.lmt_file.read_metadata()
+                refreshed = live.lmt_file.update_from_source_metadata(force=True)
                 assert refreshed.io_obj.iloc[0] is obj
-                assert refreshed.obs_goal.tolist() == ["pointing"]
+                assert refreshed.obs_goal.tolist() == ["calibration"]
                 assert obj.lmt_tel.meta is cached
                 assert cached.obs_goal == "calibration"
             assert "io_obj" not in live
@@ -296,9 +298,16 @@ def test_open_borrows_remote_resource_and_refreshes_from_it(
 def test_partial_refresh_preserves_remote_rows_and_duplicate_indices(
     tel_paths, monkeypatch
 ):
-    table = LmtFileAccessor.from_sources([tel_paths[0], tel_paths[-1]], mode="read")
-    table["source"] = [f"archive:{tel_paths[0]}", tel_paths[-1]]
-    table.index = [8, 8]
+    table = LmtFileAccessor.from_sources([f"archive:{tel_paths[0]}", tel_paths[-1]])
+    with (
+        xr.open_dataset(tel_paths[0]) as first,
+        xr.open_dataset(tel_paths[-1]) as last,
+        table.lmt_file.open(
+            io_objs=[first, last], update_from_metadata=True
+        ) as populated,
+    ):
+        table = populated
+    table.index = pd.Index([8, 8])
     open_dataset = xr.open_dataset
 
     @contextmanager
@@ -308,8 +317,7 @@ def test_partial_refresh_preserves_remote_rows_and_duplicate_indices(
             yield data.assign({"Header.Dcs.IntegrationTime": 12.5})
 
     monkeypatch.setattr(xr, "open_dataset", changed)
-    monkeypatch.setattr(LmtFileAccessor, "_source_opener", xr.open_dataset)
-    assert table.lmt_file.read_metadata(inplace=True) is None
+    assert table.lmt_file.update_from_source_metadata(inplace=True, force=True) is None
     assert table.t_int_s.tolist() == [0.0, 12.5]
     assert table.index.tolist() == [8, 8]
 
@@ -330,33 +338,32 @@ def test_bad_header_propagates_and_leaves_table_unchanged(tel_paths, monkeypatch
             closed.append(path)
 
     monkeypatch.setattr(xr, "open_dataset", corrupt_second)
-    monkeypatch.setattr(LmtFileAccessor, "_source_opener", xr.open_dataset)
     with pytest.raises(KeyError):
-        table.lmt_file.read_metadata(inplace=True)
+        table.lmt_file.update_from_source_metadata(inplace=True, on_error="raise")
     assert closed == paths
     pd.testing.assert_frame_equal(table, before)
 
 
 def test_unsupported_and_non_telescope_resources(data_lmt_path, tel_paths):
     kids = next((data_lmt_path / "toltec").rglob("*.nc"))
-    sources = [kids, "no-reader.ecsv", f"archive:{tel_paths[0]}"]
+    sources = [kids, "no-reader.unsupported", f"archive:{tel_paths[0]}"]
     guessed = LmtFileAccessor.from_sources(sources)
-    refreshed = guessed.lmt_file.read_metadata()
+    refreshed = guessed.lmt_file.update_from_source_metadata()
     pd.testing.assert_frame_equal(
-        refreshed.drop(columns="diagnostics"), guessed.drop(columns="diagnostics")
+        refreshed.drop(columns="source_trace"), guessed.drop(columns="source_trace")
     )
-    assert [[item.stage for item in cell] for cell in refreshed.diagnostics] == [
-        ["filepath", "metadata"],
-        ["filepath"],
+    assert [
+        [item.stage for item in cell]
+        for cell in refreshed.source_trace.map(source_trace_issues)
+    ] == [
         [],
+        ["filepath", "open"],
+        ["open"],
     ]
-    assert refreshed.diagnostics.iloc[0][-1].exception_type is None
-    assert len(guessed.diagnostics.iloc[0]) == 1
-    with (
-        pytest.raises(ValueError, match="No supported dataset recognized"),
-        refreshed.iloc[:1].lmt_file.open(on_error="raise"),
-    ):
-        pytest.fail("KIDs data was accepted by the telescope accessor")
+    assert guessed.source_trace.map(source_trace_issues).iloc[0] == []
+    with refreshed.iloc[:1].lmt_file.open(on_error="raise") as opened:
+        assert opened.io_obj.iloc[0] is None
+        assert opened.accessor_obj.iloc[0] is None
 
 
 @pytest.mark.parametrize("mode", ["guess", "guess_or_read", "read"])
@@ -364,11 +371,11 @@ def test_empty_input(mode):
     table = LmtFileAccessor.from_sources([], mode=mode)
     assert table.empty
     assert str(table.obsnum.dtype) == "Int64"
-    pd.testing.assert_frame_equal(table.lmt_file.read_metadata(), table)
+    pd.testing.assert_frame_equal(table.lmt_file.update_from_source_metadata(), table)
     with table.lmt_file.open() as opened:
         assert opened.io_obj.empty
-        assert opened.diagnostics.empty
-    pd.testing.assert_frame_equal(opened.drop(columns="diagnostics"), table)
+        assert opened.source_trace.map(source_trace_issues).empty
+    pd.testing.assert_frame_equal(opened, table)
 
 
 def test_invalid_mode():

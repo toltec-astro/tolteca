@@ -10,7 +10,7 @@ from pydantic import Field, PrivateAttr
 from tollan.accessor.xarray import dataset_to_qtable
 from tollan.config.types import FrequencyQuantityField
 
-from ..lmt_base._filepath import FilepathOrigMetadataMixin
+from ..lmt_base.filepath import FilepathOrigMetadataMixin
 from ..lmt_base.metadata import LmtRawObsMetadata
 from ..lmt_base.types import SeqNumT
 from .axes import ToltecAxisView
@@ -84,6 +84,12 @@ class ToltecRawObsMetadata(LmtRawObsMetadata, FilepathOrigMetadataMixin):
     )
 
     # Associated calibration acquisition.
+    # The acquisition header currently omits the calibration master. DPDB can
+    # resolve it from the referenced ToltecDB record; the file alone cannot.
+    # TODO(upstream acquisition): map the header field once the writer adds it.
+    cal_master: ToltecInfo.MasterT | None = Field(
+        default=None, description="Calibration acquisition master, when known"
+    )
     cal_roach: ToltecInfo.RoachT | None = Field(
         default=None, description="Calibration ROACH index"
     )

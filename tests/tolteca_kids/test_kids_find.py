@@ -27,7 +27,7 @@ from tollan.pipeline import PIPELINE_CONTEXT_KEY, get_pipeline_contexts
 # Fixtures shared with sweep_check tests
 # ---------------------------------------------------------------------------
 
-_SWEEP_NS = "tolteca_datamodels.toltec.kids.sweep"
+_SWEEP_SUBPATH = "sweep"
 
 
 def make_reduced_datatree(
@@ -70,22 +70,24 @@ def make_reduced_datatree(
 
     ds_reduced = xr.Dataset(
         {
-            f"{_SWEEP_NS}.I": (["chan", "sweep"], I),
-            f"{_SWEEP_NS}.Q": (["chan", "sweep"], Q),
-            f"{_SWEEP_NS}.unc_I": (["chan", "sweep"], unc_I),
-            f"{_SWEEP_NS}.unc_Q": (["chan", "sweep"], unc_Q),
-            "f_lo": (["chan"], f_lo),
+            "I": (["chan", "sweep"], I),
+            "Q": (["chan", "sweep"], Q),
+            "unc_I": (["chan", "sweep"], unc_I),
+            "unc_Q": (["chan", "sweep"], unc_Q),
+            "f_chan": (["chan"], f_lo),
+            "tone_amp": (["chan"], np.linspace(0.2, 1.0, n_chans)),
+            "tone_mask": (["chan"], np.ones(n_chans, dtype=bool)),
         },
         coords={"sweep": sweep, "chan": np.arange(n_chans)},
     )
     return xr.DataTree(
         dataset=xr.Dataset(),
-        children={_SWEEP_NS: xr.DataTree(dataset=ds_reduced)},
+        children={_SWEEP_SUBPATH: xr.DataTree(dataset=ds_reduced)},
     )
 
 
 def _run_sweep_check(dt: xr.DataTree, **kwargs) -> None:
-    """Run SweepCheck with coarse D21 step (fast for tests).
+    """Run SweepCheck with enough D21 bins for the production chunk windows.
 
     Uses relaxed kurtosis/skew thresholds so that all sweep chunks are
     treated as potential baseline, even when Lorentzian tails affect the
@@ -94,7 +96,7 @@ def _run_sweep_check(dt: xr.DataTree, **kwargs) -> None:
     still representative of the off-resonance noise floor.
     """
     cfg = SweepCheckConfig(
-        d21_analysis=D21Analysis(f_step=10_000 << u.Hz, smooth=5, method="savgol"),
+        d21_analysis=D21Analysis(f_step=1_000 << u.Hz, smooth=5, method="savgol"),
         chunk_kurtosis_max=2.0,  # allow Gaussian-ish chunks (kurtosis≈0)
         chunk_skew_max=2.0,  # allow mildly skewed chunks (Lorentzian tail)
         **kwargs,
@@ -127,6 +129,31 @@ def _run_kids_find(dt: xr.DataTree, **kwargs) -> KidsFindContext:
     cfg = _make_test_kids_find_config(**kwargs)
     KidsFind(cfg)(dt)
     return KidsFind.get_context(dt)
+
+
+def test_matches_retain_recorded_amplitudes_and_channel_ids():
+    """A masked probe is excluded without shifting the remaining input IDs."""
+    tree = make_reduced_datatree()
+    ids = np.array([11, 19, 25, 40, 88, 96])
+    tree["sweep"].dataset = tree["sweep"].to_dataset().assign_coords(chan=ids)
+    tree["sweep/tone_mask"][2] = False
+    expected = dict(zip(ids, tree["sweep/tone_amp"].values, strict=True))
+    context = _run_kids_find(tree)
+    assert context.completed
+    detected = context.data.detected
+    assert len(detected) > 0
+    assert 25 not in detected["idx_chan"]
+    np.testing.assert_array_equal(
+        detected["amp_tone"], [expected[int(chan)] for chan in detected["idx_chan"]]
+    )
+
+
+def test_finding_requires_recorded_probe_amplitudes():
+    """Missing metadata cannot silently become a unit-amplitude FILE comb."""
+    tree = make_reduced_datatree()
+    tree["sweep"].dataset = tree["sweep"].to_dataset().drop_vars("tone_amp")
+    with pytest.raises(ValueError, match="Missing recorded probe properties.*tone_amp"):
+        _run_kids_find(tree)
 
 
 # ---------------------------------------------------------------------------
@@ -426,14 +453,16 @@ class TestMakeGroups1D:
 
 class TestAlias:
     def test_alias_has_distinct_context_key(self):
-        KidsFindPass1 = KidsFind.alias("pass1")
-        KidsFindPass2 = KidsFind.alias("pass2")
-        assert KidsFindPass1.context_key != KidsFindPass2.context_key
+        alias_first = "pass1"
+        alias_second = "pass2"
+        assert KidsFind.get_context_key(
+            alias=alias_first
+        ) != KidsFind.get_context_key(alias=alias_second)
 
     def test_alias_runs_independently(self):
         dt = make_reduced_datatree(n_chans=4, n_steps=60)
         _run_sweep_check(dt, chunk_size=20, n_chunks_min=3)
-        KidsFindPass1 = KidsFind.alias("pass1")
-        KidsFindPass1(_make_test_kids_find_config())(dt)
-        assert KidsFindPass1.has_context(dt)
+        alias_first = "pass1"
+        KidsFind(_make_test_kids_find_config(), alias=alias_first)(dt)
+        assert KidsFind.has_context(dt, alias=alias_first)
         assert not KidsFind.has_context(dt)
