@@ -89,11 +89,26 @@ def _first_crossing(x, y, *, tolerance):
     return x[-1], y[-1], 1
 
 
-def fit_channel(frequency, signal, *, tone_frequency, tau, window_Qr):
+def fit_channel(  # noqa: PLR0913 -- Scientific and solver settings are explicit.
+    frequency,
+    signal,
+    *,
+    tone_frequency,
+    tau,
+    window_Qr,
+    phase_fit_method="analytic",
+    phase_fit_maxfev=200,
+    phase_fit_retry=False,
+):
     """Fit a channel in ascending power order using the first sweep as reference."""
     results = []
     errors = []
     reference = None
+    solver = {
+        "phase_fit_method": phase_fit_method,
+        "phase_fit_maxfev": phase_fit_maxfev,
+        "phase_fit_retry_a_bounds": (A_MIN, A_MAX) if phase_fit_retry else None,
+    }
     for i, (f, z) in enumerate(zip(frequency, signal, strict=True)):
         if i > 0 and reference is None:
             results.append(None)
@@ -109,6 +124,7 @@ def fit_channel(frequency, signal, *, tone_frequency, tau, window_Qr):
                     tone_frequency,
                     tone_frequency / window_Qr,
                     weight_type="lorentz",
+                    **solver,
                 ).result
             correction = signal[0, -1] / z[-1]
             fitted = ResonanceFitterSingleTone(
@@ -122,6 +138,7 @@ def fit_channel(frequency, signal, *, tone_frequency, tau, window_Qr):
                 pherr_threshold=0.25,
                 result0=reference,
                 weight_type="lorentz",
+                **solver,
             )
         except (
             TypeError,  # MINPACK reports too few phase samples as TypeError.

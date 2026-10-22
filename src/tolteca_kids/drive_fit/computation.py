@@ -122,7 +122,7 @@ def fit_sequence(sources, config):
     return _fit(sweeps, attenuation, config)
 
 
-def _fit(sweeps, attenuation, config):
+def _fit(sweeps, attenuation, config):  # noqa: C901, PLR0915 -- Assemble aligned fit and diagnostic arrays.
     first = sweeps[0]
     # Normalize on the full acquired comb, even for a selected-channel fit.
     axis = first.meta.chan_axis_table
@@ -145,6 +145,10 @@ def _fit(sweeps, attenuation, config):
     }
     fit_flags = np.ones((n_power, n_chan), dtype=np.int8)
     phase_flags = np.ones_like(fit_flags)
+    solver_nfev = np.full_like(fit_flags, -1, dtype=int)
+    solver_status = np.full_like(fit_flags, -1)
+    solver_cost = np.full((n_power, n_chan), np.nan)
+    solver_retried = np.zeros_like(fit_flags, dtype=bool)
     errors = np.full((n_power, n_chan), "", dtype=object)
     diagnostic_names = {
         "frequency_fit": "ft",
@@ -167,6 +171,9 @@ def _fit(sweeps, attenuation, config):
             tone_frequency=first.f_chan[channel],
             tau=CABLE_DELAY_NS[first.meta.roach],
             window_Qr=config.weight_window_Qr,
+            phase_fit_method=config.phase_fit_method,
+            phase_fit_maxfev=config.phase_fit_maxfev,
+            phase_fit_retry=config.phase_fit_retry,
         )
         errors[:, channel] = failures
         for i, result in enumerate(results):
@@ -174,6 +181,12 @@ def _fit(sweeps, attenuation, config):
                 continue
             fit_flags[i, channel] = 0
             phase_flags[i, channel] = result["flag"]
+            if "phase_fit_info" in result:
+                info = result["phase_fit_info"]
+                solver_nfev[i, channel] = info["nfev"]
+                solver_status[i, channel] = info["status"]
+                solver_cost[i, channel] = info["cost"]
+                solver_retried[i, channel] = info["retried"]
             for name, key in scalar_names.items():
                 values[name][i, channel] = result[key]
             for name, key in diagnostic_names.items():
@@ -204,6 +217,10 @@ def _fit(sweeps, attenuation, config):
             "fit_flag": (("power", "chan"), fit_flags),
             "phase_flag": (("power", "chan"), phase_flags),
             "fit_error": (("power", "chan"), errors.astype(str)),
+            "fit_nfev": (("power", "chan"), solver_nfev),
+            "fit_status": (("power", "chan"), solver_status),
+            "fit_cost": (("power", "chan"), solver_cost),
+            "fit_retried": (("power", "chan"), solver_retried),
             "frequency": (("power", "chan", "sample"), frequency),
             "phase_full": (("power", "chan", "sample"), phase_full),
             "I": (("power", "chan", "sample"), I),

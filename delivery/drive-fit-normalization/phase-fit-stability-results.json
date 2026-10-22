@@ -1,0 +1,184 @@
+{
+  "baseline_revision": "f8bd7c27674ba002d29bdd4ede4b496c5acf3e61",
+  "reference_revision": "9cdbc76c4327b11e9ec45ce7895ef13b537d03a5",
+  "network": 0,
+  "channels": 632,
+  "attenuations_db": [
+    16,
+    14,
+    12,
+    10,
+    8,
+    6,
+    4
+  ],
+  "scales": [
+    1.0,
+    1.000000000000001,
+    0.999999999999999,
+    1.00000000000001,
+    0.99999999999999,
+    1.0000000000001,
+    0.9999999999999,
+    1.000000000001,
+    0.999999999999
+  ],
+  "environment": {
+    "python": "3.13.2 (main, Feb  4 2025, 14:51:09) [Clang 16.0.0 (clang-1600.0.26.6)]",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "numpy": "2.5.4",
+    "scipy": "1.18.1"
+  },
+  "modes": {
+    "legacy": {
+      "accepted_base": 506,
+      "accepted_each": [
+        506,
+        505,
+        506,
+        506,
+        506,
+        506,
+        506,
+        506,
+        506
+      ],
+      "changed_acceptance_channels": [
+        596
+      ],
+      "gained_vs_legacy": [],
+      "lost_vs_legacy": [],
+      "max_policy_range_db": 2.809777789438222,
+      "channel596_selected_db": 5.518228754706332,
+      "channel596_range_db": 2.509659984894893,
+      "max_common_selected_change_db": 0.0,
+      "attenuation_exact_base": 8.348225009144343,
+      "attenuation_global_each": [
+        8.25,
+        8.25,
+        8.25,
+        8.25,
+        8.25,
+        8.25,
+        8.25,
+        8.25,
+        8.25
+      ],
+      "fit_failures_base": 14,
+      "successful_retried_fits_base": 0,
+      "fit_seconds_each": [
+        2.7524506668560207,
+        2.7821497921831906,
+        2.883785458980128,
+        2.8223705422133207,
+        2.8655447089113295
+      ],
+      "fit_seconds_median": 2.8223705422133207,
+      "commit_seconds_median": 0.038557416992262006,
+      "p99_channel_ms_median": 12.442434718832361,
+      "max_channel_ms_median": 39.10354198887944
+    },
+    "analytic": {
+      "accepted_base": 506,
+      "accepted_each": [
+        506,
+        506,
+        506,
+        506,
+        506,
+        506,
+        506,
+        506,
+        506
+      ],
+      "changed_acceptance_channels": [],
+      "gained_vs_legacy": [],
+      "lost_vs_legacy": [],
+      "max_policy_range_db": 4.050590973747603e-10,
+      "channel596_selected_db": 5.493193500488248,
+      "channel596_range_db": 6.910028105266974e-13,
+      "max_common_selected_change_db": 0.030870298431249665,
+      "attenuation_exact_base": 8.3480902579957,
+      "attenuation_global_each": [
+        8.25,
+        8.25,
+        8.25,
+        8.25,
+        8.25,
+        8.25,
+        8.25,
+        8.25,
+        8.25
+      ],
+      "fit_failures_base": 46,
+      "successful_retried_fits_base": 0,
+      "fit_seconds_each": [
+        2.5488320000004023,
+        2.565983209060505,
+        2.5921855410560966,
+        2.669380750041455,
+        2.6055099579971284
+      ],
+      "fit_seconds_median": 2.5921855410560966,
+      "commit_seconds_median": 0.038488333113491535,
+      "p99_channel_ms_median": 8.919012749101965,
+      "max_channel_ms_median": 23.564917035400867
+    },
+    "retry": {
+      "accepted_base": 510,
+      "accepted_each": [
+        510,
+        510,
+        510,
+        510,
+        510,
+        510,
+        510,
+        510,
+        510
+      ],
+      "changed_acceptance_channels": [],
+      "gained_vs_legacy": [
+        174,
+        458,
+        567,
+        574
+      ],
+      "lost_vs_legacy": [],
+      "max_policy_range_db": 4.050590973747603e-10,
+      "channel596_selected_db": 6.340795239550408,
+      "channel596_range_db": 1.0835776720341528e-12,
+      "max_common_selected_change_db": 0.8225664848440761,
+      "attenuation_exact_base": 8.333754066417598,
+      "attenuation_global_each": [
+        8.25,
+        8.25,
+        8.25,
+        8.25,
+        8.25,
+        8.25,
+        8.25,
+        8.25,
+        8.25
+      ],
+      "fit_failures_base": 24,
+      "successful_retried_fits_base": 303,
+      "fit_seconds_each": [
+        2.687321125064045,
+        2.688009708188474,
+        2.7196224578656256,
+        2.777316833147779,
+        2.7492095411289483
+      ],
+      "fit_seconds_median": 2.7196224578656256,
+      "commit_seconds_median": 0.03913637506775558,
+      "p99_channel_ms_median": 12.993197967298327,
+      "max_channel_ms_median": 33.0354580655694
+    }
+  },
+  "verification": {
+    "matching_identical_all_runs": true,
+    "commit_power_residual_uniform_and_within_quantization_all_runs": true,
+    "finite_positive_amplitudes_all_runs": true
+  }
+}

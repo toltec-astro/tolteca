@@ -39,7 +39,12 @@ def sequence(drive_fit_calibration_sequence):
 def working(sequence):
     runtime = RuntimeContext().with_config(
         overrides={
-            "drive_fit": {"fit": {"channels": [0, 100, 300, 684]}},
+            "drive_fit": {
+                "fit": {
+                    "channels": [0, 100, 300, 684],
+                    "phase_fit_method": "legacy",
+                }
+            },
         }
     )
     return DriveFit(runtime)(reversed(sequence))
@@ -84,11 +89,21 @@ def test_root_configuration_is_independent_of_kids():
         {"weight_window_Qr": 0},
         {"a_ref": np.nan},
         {"unexpected": 1},
+        {"phase_fit_method": "unknown"},
+        {"phase_fit_maxfev": 0},
+        {"phase_fit_maxfev": True},
     ],
 )
 def test_invalid_config(settings):
     with pytest.raises(ValidationError):
         DriveFitStepConfig(**settings)
+
+
+def test_analytic_default_keeps_retries_explicit():
+    config = DriveFitStepConfig()
+    assert config.phase_fit_method == "analytic"
+    assert config.phase_fit_maxfev == 200
+    assert not config.phase_fit_retry
 
 
 @pytest.mark.parametrize(
@@ -206,7 +221,7 @@ def test_discovery_and_cli_use_same_settings(sequence, fitted, tmp_path):
             ]
         },
         "drive_fit": {
-            "fit": {"channels": [0, 100, 300, 684]},
+            "fit": {"channels": [0, 100, 300, 684], "phase_fit_method": "legacy"},
             "select": "atten_drive >= 10",
         },
     }

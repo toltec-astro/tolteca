@@ -8,6 +8,15 @@ modify its working files. This is a point-in-time capture; subsequent local
 edits are not included. The capture time is in `source-provenance.json`.
 The delivery branch may be deleted after the investigation.
 
+## Phase-fitting update, 2026-10-22
+
+The branch now also includes [phase-fit stabilization](phase-fit-stability.md):
+analytic derivatives for both phase fits, centered coordinates, explicit work
+limits, and an optional alternate start that remains disabled by default.
+The original normalization report below retains its snapshot results. Use the
+new note and its benchmark for the current fitter's behavior and timings;
+`phase_fit_method: legacy` retains the original implementation for comparisons.
+
 ## Read the report
 
 Open [report.html](report.html) in a browser, or serve this directory locally:

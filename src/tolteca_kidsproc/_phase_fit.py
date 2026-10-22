@@ -3,10 +3,11 @@
 Source: https://github.com/swalker5/kid_phase_fit
 Revision: 4f4c9a71e51d88e41980c5932bd973722a6906a0.
 
-The circle and linear/nonlinear phase calculations retain the upstream
-operation order. Standalone file readers, plotting and console output are
-excluded. This private kernel is exercised against the upstream implementation
-by the drive-fit parity probe; application configuration belongs to the caller.
+The legacy mode retains upstream operation order. The opt-in analytic mode
+uses centered phase coordinates and derivatives from ``_phase_fit_solver``;
+circle fitting and the physical model are unchanged. Standalone file readers,
+plotting and console output are excluded. Application configuration belongs
+to the caller.
 """
 
 # Preserve upstream numerical names, signatures and statement order for parity.
@@ -19,6 +20,8 @@ import numpy as np
 import scipy.stats
 from scipy import linalg
 from scipy.optimize import curve_fit
+
+from ._phase_fit_solver import fit_phase
 
 
 def phase2(z):
@@ -177,6 +180,12 @@ class ResonanceFitterSingleTone:
         self.pherr_threshold = pherr_threshold
         self.verbose = verbose
         self.window_width = window_width
+        self.phase_fit_method = keywords.get("phase_fit_method", "legacy")
+        self.phase_fit_maxfev = keywords.get("phase_fit_maxfev", 200)
+        self.phase_fit_retry_a_bounds = keywords.get("phase_fit_retry_a_bounds")
+        if self.phase_fit_method not in {"legacy", "analytic"}:
+            msg = "phase_fit_method must be legacy or analytic"
+            raise ValueError(msg)
         if "weight_type" in keywords:
             self.use_weight = True
             self.weight_type = keywords["weight_type"]
@@ -189,6 +198,8 @@ class ResonanceFitterSingleTone:
             self.result = self.fits21simnlin()
         else:
             self.result = self.fits21sim()
+        if hasattr(self, "phase_fit_info"):
+            self.result["phase_fit_info"] = self.phase_fit_info
         self.z1 = removecable(self.f, self.z, self.tau, verbose=self.verbose)
         if "result0" in keywords:
             self.f0g, self.Qg, self.idf0, self.iddf = estpara3(
@@ -246,6 +257,22 @@ class ResonanceFitterSingleTone:
                 uncertainty_angt = np.ones(np.shape(ft))
         else:
             uncertainty_angt = np.ones(np.shape(ft))
+        if self.phase_fit_method == "analytic":
+            popt, pcov, self.phase_fit_info = fit_phase(
+                ft,
+                angt,
+                p0,
+                sigma=None if "bounds" in keywords else uncertainty_angt,
+                bounds=keywords.get("bounds"),
+                maxfev=self.phase_fit_maxfev,
+            )
+            return (
+                popt,
+                pcov,
+                self.fphaselin(ft, *popt),
+                self.fphaselin(ft, *p0),
+                uncertainty_angt,
+            )
         if "bounds" in keywords:
             bounds = keywords["bounds"]
             popt, pcov = curve_fit(
@@ -488,6 +515,29 @@ class ResonanceFitterSingleTone:
                 uncertainty_angt = np.ones(np.shape(ft))
         else:
             uncertainty_angt = np.ones(np.shape(ft))
+        if self.phase_fit_method == "analytic":
+            popt, pcov, self.phase_fit_info = fit_phase(
+                ft,
+                angt,
+                p0,
+                sigma=keywords.get(
+                    "err", None if "bounds" in keywords else uncertainty_angt
+                ),
+                radius=r,
+                signal=zt,
+                bounds=keywords.get("bounds"),
+                maxfev=self.phase_fit_maxfev,
+                retry_a_bounds=self.phase_fit_retry_a_bounds,
+            )
+            fit_result, xt = self.fphasenlin2(ft, *popt, r, zt)
+            return (
+                popt,
+                pcov,
+                fit_result,
+                self.fphasenlin(ft, *p0, r, zt),
+                xt,
+                uncertainty_angt,
+            )
         if "bounds" in keywords:
             bounds = keywords["bounds"]
             if "err" in keywords:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Literal
 
 from pydantic import ConfigDict, Field, field_validator
 from tollan.pipeline import Step, StepConfig, StepContext
@@ -28,6 +28,14 @@ class DriveFitStepConfig(StepConfig):
         Desired nonlinearity, default 0.2.
     channels : list of int or None, optional
         Recorded channel IDs in requested order. None fits all channels.
+    phase_fit_method : {"analytic", "legacy"}, optional
+        Centered analytic phase fitting (default) or the unchanged v2 solver.
+    phase_fit_maxfev : int, optional
+        Evaluation budget per analytic solve, default 200; ignored by legacy.
+    phase_fit_retry : bool, optional
+        Allow one alternate nonlinear start after failure or an out-of-range
+        nonlinearity. Default False keeps runtime and scientific changes small.
+        Ignored by legacy. A retry can use another phase_fit_maxfev evaluations.
     artifacts : DriveFitArtifacts, optional
         Scientific and tabular output specifications.
     """
@@ -39,6 +47,9 @@ class DriveFitStepConfig(StepConfig):
     )
     a_ref: float = Field(default=0.2, allow_inf_nan=False)
     channels: list[Annotated[int, Field(ge=0)]] | None = None
+    phase_fit_method: Literal["analytic", "legacy"] = "analytic"
+    phase_fit_maxfev: int = Field(default=200, ge=1, strict=True)
+    phase_fit_retry: bool = False
     artifacts: DriveFitArtifacts = Field(default_factory=DriveFitArtifacts)
 
     @field_validator("channels")
