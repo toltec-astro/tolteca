@@ -161,6 +161,52 @@ with open_sweep_product(product_path) as saved:
 The selected product must have tone preparation enabled. Installation reuses its
 saved tone table, without finding, matching or generating phases again.
 
+#### Fill ambiguous amplitudes from the calibration-group LUT
+
+Amplitude policies live under `kids.tlaloc_output`, including when file
+installation is disabled. `tone_amps_method: match` transfers input amplitudes;
+`ones` explicitly assigns unity to detected tones. The former
+`kids.tone_prepare.tone_amps_method` key is no longer accepted.
+Regenerate ordinary-sweep products whose saved configuration uses that former
+key before reopening them with this revision.
+
+Leave `tone_amps_fallback: null` to reproduce v2, including its ambiguous matches.
+Use `median` to fill ambiguous and unavailable matches with the median enabled
+input amplitude. Use `lut` to use the calibration-group LUT:
+
+```yaml
+kids:
+  sweep_check: {enabled: true}
+  kids_find: {enabled: true}
+  tone_prepare: {enabled: true}
+  tlaloc_output:
+    enabled: false
+    path: /path/to/tlaloc/etc
+    tone_amps_method: match
+    tone_amps_fallback: lut
+  output:
+    enabled: true
+    path: products
+```
+
+Place the headerless two-column RF-frequency (Hz), amplitude file at
+`/path/to/tlaloc/etc/toltecN/amps_correction_lut.csv`. Use the LUT from the VNA
+sweep's calibration group. The reduction uses unambiguous positive input probes
+to estimate one median input/LUT ratio in dB, and applies that scale to the LUT
+values at all ambiguous detections. No member of an ambiguous group inherits
+the probe amplitude. Unique matches keep their relative coefficients. If any
+coefficient exceeds one, one common divisor rescales the entire output comb.
+Missing LUTs or absent usable scale anchors stop preparation.
+
+The saved `tlaloc` dataset includes `amp_tone_matched`, `amp_tone_ambiguous`,
+`amp_tone_filled` and `tone_power_fraction`. Its attributes record the LUT hash,
+source, scale, anchor count and common divisor. The power fractions use the
+same fixed-total approximation as drive-fit commit, including duplicate DAC
+bins. They are not calibrated detector-input powers. Changes in tone count or
+fallback amplitudes can shift the power of otherwise unchanged tones because
+ordinary upload retains the existing global attenuation. Reopening and
+installing the product uses its saved amplitudes even if the LUT later changes.
+
 ### Check sweeps and publish diagnostic plots
 
 Enable checks after sweep reduction, and enable plots to include standalone HTML

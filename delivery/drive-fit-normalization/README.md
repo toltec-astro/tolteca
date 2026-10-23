@@ -43,7 +43,7 @@ required to be byte-identical. It also checks export from reopened products,
 seven published finding plots, and preservation of `atten_drive.dat`.
 [sweep-v2-parity.json](sweep-v2-parity.json) records the input hashes, source
 hashes and environments. LUT fallback is a subsequent numerical change and is
-not enabled in this baseline.
+not enabled in this baseline, committed separately as `c1bb72d`.
 
 After installation below, run a standalone sweep using
 [sweep_reduction.yaml](sweep_reduction.yaml):
@@ -76,6 +76,68 @@ python -m pytest -q tests/tolteca_kids/test_tlaloc_v2_parity.py
 The v2 subprocess imports only its installed v2 source. The test skips when
 `TOLTECA_V2_PYTHON` is unset. The existing fit/commit replay instructions below
 remain applicable.
+
+## Optional LUT fallback at fixed attenuation
+
+Set `kids.tlaloc_output.tone_amps_fallback` to `lut` to fill every detection in
+an ambiguous match group from the calibration-group LUT. The default `null`
+preserves v2; `median` selects an enabled-input median instead. Amplitude policy
+now belongs to `kids.tlaloc_output`; the former
+`kids.tone_prepare.tone_amps_method` key has been removed. Regenerate earlier
+ordinary-sweep products whose saved configuration contains that former key.
+
+The LUT is placed on the input comb's amplitude scale using one global median:
+
+$$
+\delta=\operatorname{median}_{j\in U}
+20\log_{10}\!\left[\frac{u_j}{L(f_j)}\right],\qquad
+b_i=10^{\delta/20}L(g_i).
+$$
+
+Here, $U$ contains positive enabled probes with unique matches, $u_j$ is the
+recorded input amplitude, and $g_i$ is a frequency requiring fallback. A common
+rescaling keeps the final coefficients at most one. The current global drive
+attenuation is retained. Consequently, changing the relative amplitudes can
+also change the powers of tones whose coefficients were retained.
+
+The supplied [example LUT](calibration/tlaloc-example/toltec0/amps_correction_lut.csv)
+comes from the 2021 Unity backup identified in [sweep-lut-example.json](sweep-lut-example.json).
+It is **not verified as the acquisition LUT for the 2025 reference observation**.
+Use it only to reproduce the illustrative calculation below; an operational run
+requires the LUT associated with that calibration group's initial VNA sweep.
+
+From the snapshot checkout, copy the example into a new test directory:
+
+```bash
+mkdir -p /absolute/path/to/test-etc/toltec0
+cp delivery/drive-fit-normalization/calibration/tlaloc-example/toltec0/amps_correction_lut.csv \
+  /absolute/path/to/test-etc/toltec0/
+tolteca_kids --config_paths delivery/drive-fit-normalization/sweep_reduction.yaml \
+  --kids.output.path /absolute/path/to/sweep-lut-results \
+  --kids.tlaloc_output.path /absolute/path/to/test-etc \
+  --kids.tlaloc_output.tone_amps_fallback lut -- \
+  /absolute/path/to/tolteca_ref_data/data_lmt/toltec/tcs/toltec0/toltec0_145485_000_0001_2025_10_31_03_04_09_targsweep.nc
+```
+
+Installation remains disabled in this example. Add
+`--kids.tlaloc_output.enabled true` before `--` to install the four files into
+the test directory. An existing `atten_drive.dat` is neither read nor changed.
+
+For all 632 input probes of target sweep 145485, the result has 634 output tones:
+607 unique matches retain their coefficients, and 27 ambiguous detections use
+the scaled LUT. The scale is **1.302448705** (**+2.295212565 dB**). No common
+coefficient reduction is needed. Under the fixed-total power approximation,
+the unchanged tones shift by **+0.058282361 dB** relative to v2; filled tones
+shift by **−2.4997 to +0.9895 dB**. All frequency, model, phase and mask columns
+remain identical to v2. The installation check retained an existing 8.25 dB
+attenuation file unchanged. Input and LUT checksums and calculation results are
+recorded in [sweep-lut-example.json](sweep-lut-example.json).
+
+The product records the original and filled coefficients, ambiguity flags, LUT
+hash, global scale and power fractions. Replaying its tone files does not read
+the LUT again. These checks demonstrate the implemented assignment and fixed
+attenuation constraint; they do not establish improved power stability across
+a long observing sequence.
 
 ## Read the report
 

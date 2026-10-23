@@ -89,7 +89,9 @@ class Kids(SubConfigKeyTransformer[Literal["kids"]], ConfigHandler[KidsConfig]):
     @cached_property
     def tone_prepare(self) -> TonePrepare:
         """Configured preparation of the next tone list."""
-        return TonePrepare(self.config.tone_prepare)
+        return TonePrepare(
+            self.config.tone_prepare, tlaloc_config=self.config.tlaloc_output
+        )
 
     @cached_property
     def tlaloc_output(self) -> TlalocOutput:

@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha256
+from io import BytesIO
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 import xarray as xr  # noqa: TC002 -- Pydantic resolves the dataclass field.
 from astropy.table import QTable, Table
 from filelock import FileLock
 from pydantic import ConfigDict, Field, model_validator
+from scipy.interpolate import CubicSpline
 from tollan.config.types import AbsAnyPath  # noqa: TC002 -- Pydantic field.
 from tollan.pipeline import (
     ArtifactFile,
@@ -269,7 +273,7 @@ class TlalocToneArtifact(ArtifactSpec[TlalocTones]):
 
 
 class TlalocOutputConfig(StepConfig):
-    """Explicit installation of prepared files in a Tlaloc etc directory.
+    """Tone amplitudes and explicit installation in a Tlaloc etc directory.
 
     Parameters
     ----------
@@ -282,11 +286,26 @@ class TlalocOutputConfig(StepConfig):
         LO and ordered DAC bins; a mismatch raises before replacement. It
         replaces only amplitude and attenuation files. Writing files
         does not upload tones or apply hardware attenuation.
+    tone_amps_method : {'match', 'ones'}, optional
+        Inherit matched input amplitudes (default), or assign unity amplitudes
+        to detected tones. Used during ordinary tone preparation only.
+    tone_amps_fallback : {'median', 'lut'} or None, optional
+        None (default) preserves v2 amplitude assignments, including ambiguous
+        matches. An explicit policy replaces every ambiguous or unavailable
+        match. ``median`` uses enabled input amplitudes. ``lut`` uses
+        ``path/toltecN/amps_correction_lut.csv`` in absolute RF Hz, scaled by
+        the median input/LUT amplitude ratio in dB at unambiguous probes.
+        Missing LUTs or usable scale anchors fail preparation before output.
+        A common coefficient normalization keeps the final amplitudes in [0, 1].
+        Ordinary output leaves global drive attenuation unchanged. Commit and
+        replay use saved amplitudes and do not evaluate this policy again.
     """
 
     model_config = ConfigDict(extra="forbid")
     enabled: bool = False
     path: AbsAnyPath | None = None
+    tone_amps_method: Literal["match", "ones"] = "match"
+    tone_amps_fallback: Literal["median", "lut"] | None = None
 
     @model_validator(mode="after")
     def _require_path(self):
@@ -294,6 +313,149 @@ class TlalocOutputConfig(StepConfig):
             msg = "Enabled TlalocOutput requires an explicit path"
             raise ValueError(msg)
         return self
+
+
+def fill_tone_amplitudes(  # noqa: PLR0913 -- output rows and input-probe anchors
+    amplitudes,
+    frequencies,
+    probes,
+    *,
+    fill_mask,
+    unique_probe_ids,
+    roach,
+    config,
+):
+    """Prepare relative amplitudes at fixed global attenuation.
+
+    Parameters
+    ----------
+    amplitudes : array-like
+        Matched voltage coefficients in output detection order.
+    frequencies : array-like
+        Absolute output RF frequencies in Hz, in the same order.
+    probes : astropy.table.QTable
+        Acquisition columns chan, f_chan (Hz), tone_amp and tone_mask.
+    fill_mask : array-like of bool
+        All detections in ambiguous match groups. Nonfinite or masked amplitude
+        values also require filling when a fallback policy is enabled.
+    unique_probe_ids : array-like
+        Original channel IDs in one-probe/one-detection match groups. Positive,
+        enabled input amplitudes at these IDs anchor the LUT scale.
+    roach : int
+        Network number selecting the LUT below the configured etc root.
+    config : TlalocOutputConfig
+        Amplitude policy and LUT source directory. Installation may be disabled.
+
+    Returns
+    -------
+    amplitudes : numpy.ndarray
+        Relative coefficients. LUT-filled coefficients can exceed one; the
+        caller must normalize the entire selected comb by one common factor.
+    filled : numpy.ndarray
+        Rows assigned fallback values; false for v2 and unity policies.
+    provenance : dict
+        Applied policy and, when used, LUT identity, scale and anchor count.
+
+    Raises
+    ------
+    ValueError
+        Inputs are invalid, or the requested fallback has no usable population.
+    FileNotFoundError
+        A required LUT is missing. No alternative policy is silently substituted.
+    """
+    amps = np.ma.asarray(amplitudes, dtype=float).filled(np.nan).copy()
+    frequency = np.asarray(frequencies, dtype=float)
+    filled = np.asarray(fill_mask, dtype=bool).copy()
+    if amps.ndim != 1 or frequency.shape != amps.shape or filled.shape != amps.shape:
+        msg = "Tone amplitudes, frequencies and fill mask must have the same 1-D shape"
+        raise ValueError(msg)
+    provenance = {
+        "tone_amps_method": config.tone_amps_method,
+        "tone_amps_fallback": config.tone_amps_fallback,
+    }
+    filled |= ~np.isfinite(amps)
+    if config.tone_amps_method == "ones":
+        amps[:] = 1.0
+        filled[:] = False
+    elif config.tone_amps_fallback is None:
+        filled[:] = False
+    elif filled.any():
+        prior = np.ma.asarray(probes["tone_amp"], dtype=float).filled(np.nan)
+        enabled = np.asarray(probes["tone_mask"], dtype=bool)
+        if config.tone_amps_fallback == "median":
+            valid = enabled & np.isfinite(prior) & (prior >= 0)
+            if not valid.any():
+                msg = (
+                    "Median amplitude fallback requires finite enabled input amplitudes"
+                )
+                raise ValueError(msg)
+            amps[filled] = np.median(prior[valid])
+        else:
+            amps[filled], lut_provenance = _lut_fallback(
+                frequency[filled], probes, unique_probe_ids, roach, config
+            )
+            provenance.update(lut_provenance)
+    if not np.isfinite(amps).all() or np.any(amps < 0) or np.any(amps[~filled] > 1):
+        msg = "Invalid matched or filled tone amplitudes"
+        raise ValueError(msg)
+    provenance["tone_amps_filled_count"] = int(filled.sum())
+    return amps, filled, provenance
+
+
+def _lut_fallback(frequency, probes, unique_probe_ids, roach, config):
+    """Evaluate Tlaloc's spline in the input comb's relative amplitude scale."""
+    prior = np.ma.asarray(probes["tone_amp"], dtype=float).filled(np.nan)
+    enabled = np.asarray(probes["tone_mask"], dtype=bool)
+    if config.path is None:
+        msg = "LUT amplitude fallback requires tlaloc_output.path"
+        raise ValueError(msg)
+    path = config.path / f"toltec{roach}" / "amps_correction_lut.csv"
+    content = path.read_bytes()
+    lut = np.loadtxt(BytesIO(content), delimiter=",", ndmin=2)
+    if (
+        lut.shape[1] != 2  # noqa: PLR2004 -- RF Hz, amplitude
+        or len(lut) < 3  # noqa: PLR2004 -- tk::spline minimum
+        or not np.isfinite(lut).all()
+        or not np.all(np.diff(lut[:, 0]) > 0)
+        or np.any(lut[:, 1] < 0)
+    ):
+        msg = f"Invalid amplitude LUT: {path}"
+        raise ValueError(msg)
+    x, y = lut.T
+    spline = CubicSpline(x, y, bc_type="natural")
+
+    def evaluate(f):
+        # Tlaloc's natural tk::spline uses linear extrapolation.
+        values = spline(f)
+        for edge, outside in [(0, f < x[0]), (-1, f > x[-1])]:
+            values[outside] = y[edge] + spline(x[edge], 1) * (f[outside] - x[edge])
+        if not np.isfinite(values).all() or np.any(values <= 0):
+            msg = "LUT values must be positive at fallback and anchor frequencies"
+            raise ValueError(msg)
+        return values
+
+    anchor = (
+        enabled
+        & np.isfinite(prior)
+        & (prior > 0)
+        & np.isin(probes["chan"], unique_probe_ids)
+    )
+    if not anchor.any():
+        msg = "LUT amplitude scale requires positive unambiguous input probes"
+        raise ValueError(msg)
+    input_frequency = probes["f_chan"].to_value("Hz")
+    ratio_db = 20 * np.log10(prior[anchor] / evaluate(input_frequency[anchor]))
+    offset_db = float(np.median(ratio_db))
+    scale = 10 ** (offset_db / 20)
+    values = scale * evaluate(frequency)
+    provenance = {
+        "tone_amps_lut_path": str(path),
+        "tone_amps_lut_sha256": sha256(content).hexdigest(),
+        "tone_amps_lut_scale": scale,
+        "tone_amps_lut_offset_db": offset_db,
+        "tone_amps_lut_anchor_count": int(anchor.sum()),
+    }
+    return values, provenance
 
 
 class TlalocOutputContext(StepContext["TlalocOutput", TlalocOutputConfig]):

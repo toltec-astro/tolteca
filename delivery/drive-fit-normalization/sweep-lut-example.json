@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-23",
+  "interpretation": "Illustrative only: the 2021 example LUT is not verified as the LUT used for this 2025 acquisition. No long-sequence stability claim is made.",
+  "lut": {
+    "path": "delivery/drive-fit-normalization/calibration/tlaloc-example/toltec0/amps_correction_lut.csv",
+    "source": "unity:/nese/toltec/90_backups/clipa_home_20210622/toltec/tlaloc/etc/toltec0/amps_correction_lut.csv",
+    "sha256": "7d59b760e9b2562080624a567ee866eab64abc1e6c4ab5d5a7fc015d8be8c1ea",
+    "bytes": 38340
+  },
+  "input": {
+    "path": "data_lmt/toltec/tcs/toltec0/toltec0_145485_000_0001_2025_10_31_03_04_09_targsweep.nc",
+    "sha256": "e687a6311c00d5942c0f134f6a54dd69e5c341af0f62918817ecce00a121e79c"
+  },
+  "configuration": {
+    "base": "sweep_reduction.yaml",
+    "overrides": {
+      "kids.tlaloc_output.tone_amps_fallback": "lut",
+      "kids.tlaloc_output.enabled": true,
+      "kids.tlaloc_output.path": "<test-etc>",
+      "kids.output.path": "<new-results>"
+    }
+  },
+  "results": {
+    "tone_amps_method": "match",
+    "tone_amps_fallback": "lut",
+    "tone_amps_lut_sha256": "7d59b760e9b2562080624a567ee866eab64abc1e6c4ab5d5a7fc015d8be8c1ea",
+    "tone_amps_lut_scale": 1.302448704956527,
+    "tone_amps_lut_offset_db": 2.2952125650665556,
+    "tone_amps_lut_anchor_count": 607,
+    "tone_amps_filled_count": 27,
+    "tone_amps_normalization_divisor": 1.0
+  },
+  "checks": {
+    "output_tones": 634,
+    "unique_dac_bins": 634,
+    "unambiguous_amplitudes_unchanged": true,
+    "all_other_v2_columns_equal": true,
+    "original_matched_amplitudes_equal_v2": true,
+    "atten_drive_before_db": 8.25,
+    "atten_drive_after_text": "8.25\n",
+    "normalization_divisor": 1.0
+  },
+  "fixed_total_power_comparison_to_v2": {
+    "model": "fixed_total_unique_dac_bins",
+    "unchanged_tone_shift_db_min_max": [
+      0.058282361326343304,
+      0.058282361326345206
+    ],
+    "filled_tone_shift_db_min_median_max": [
+      -2.499699905640009,
+      -0.5923343842688362,
+      0.9894910096234076
+    ]
+  },
+  "code": {
+    "v2_baseline_commit": "c1bb72d",
+    "sha256": {
+      "src/tolteca_kids/core.py": "fe93596a67340384b2e8ee672351a8b4d25a89987a4aafd2af61fb7db079dcc3",
+      "src/tolteca_kids/tlaloc_output.py": "47814432414baeebd7862700b85ac15d7045932b06dbb9cd2f7f0460f25b4bf9",
+      "src/tolteca_kids/tone_prepare.py": "b354102d1c5724dbe385253736eaae480e50befe8a6b1574ee4dff99d783d66f",
+      "tests/tolteca_kids/test_tlaloc_amplitudes.py": "f3ad0dc1950f92f77365d08b5ceda7722c4d5bbc5f9c0b7e9eb9e404985f9b3e"
+    }
+  },
+  "validation": {
+    "lut_tone_prepare_core": "85 passed, 1 skipped (calibration path not set); includes serialized-context reconstruction and replay after deleting the source LUT",
+    "v2_parity_power_calibration_followup": "17 passed with explicit calibration path; includes all 8 production-v2 comparisons and the previously skipped calibration replay",
+    "ruff": "check and format passed on changed Python files",
+    "wheel": "built successfully",
+    "strict_sphinx": "HTML rendered and inspected; strict build reports 2 existing unresolved tollan.accessor.pandas.model_table.Contains references in SourceOpener.rules and SourceReaderRules.rules"
+  }
+}

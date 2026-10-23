@@ -708,13 +708,52 @@ many-to-one assignments; it does not reinterpret them as missing matches.
   Amplitude changes therefore allocate the available power among tones; they
   cannot independently preserve absolute power for every tone as the comb changes.
 
-The subsequent LUT fallback is a separate numerical change. Its accepted scope
-is local amplitude filling at tone-file preparation, including every member of
-an ambiguous match group. It must account for the relative normalization of the
-current input amplitudes and the calibration-group LUT. Direct interpolation
-without that normalization is insufficient. The scale estimator and its effect
-on the reference data remain to be established; the v2 baseline does not enable
-this proposed policy.
+#### Optional amplitude fallback at fixed attenuation
+
+The output policy owns amplitude filling during tone-file preparation. It leaves
+finding and its correspondence tables unchanged. A null fallback preserves v2.
+An explicit `median` or `lut` policy fills every detection in an ambiguous
+connected match group and every unavailable matched amplitude. Only a group
+containing one probe and one detection is unambiguous. Tune's retained input
+probes and zero-amplitude masked placeholders keep their existing assignments.
+
+The LUT policy reads the network's `amps_correction_lut.csv` from the configured
+Tlaloc etc root, even when installation is disabled. It evaluates absolute RF
+frequencies using the same natural cubic spline and linear endpoint extrapolation
+as Tlaloc. Let $u_j$ be a positive enabled input-probe coefficient and $L(f_j)$
+the LUT coefficient at that probe frequency. The set $U$ contains unambiguous
+input probes, counted once by their acquisition channel IDs. The user-selected
+global scale is
+
+$$
+\delta = \operatorname{median}_{j\in U}
+  \left[20\log_{10}\frac{u_j}{L(f_j)}\right],\qquad
+k = 10^{\delta/20}.
+$$
+
+An ambiguous or unavailable output coefficient at frequency $g_i$ becomes
+$b_i=kL(g_i)$; a unique match retains its input coefficient. Multiplying the
+entire LUT by a constant must not change these resulting coefficients. Missing
+LUTs, nonpositive interpolated values, and absence of usable anchors must fail
+preparation before publication or installation. The median policy instead uses
+the median finite nonnegative coefficient of enabled input probes.
+
+After tone selection and padding, divide all output coefficients by the common
+factor $M=\max(1,\max_i b_i)$ to satisfy the [0, 1] file range. Do not clip
+individual tones or alter drive attenuation. This common scaling preserves
+relative powers, including under Tlaloc's waveform peak normalization.
+
+Products retain the original matched coefficients, ambiguous and filled masks,
+LUT hash and source path, $k$, $\delta$, anchor count and $M$. Replay exports the
+saved final coefficients without accessing the LUT. Each preparation context
+retains the effective output policy for reproducing that invocation.
+
+The diagnostic power fraction uses drive-fit commit's shared fixed-total model:
+$p_i=b_i^2/\sum b_j^2$, with masks and Tlaloc's last-write ownership of duplicated
+DAC bins applied before the sum. A changed comb redistributes this budget. The
+actual DAC waveform is peak-normalized and its mean power also depends on phase
+crest factor; the fraction model is not an absolute detector-power calibration.
+The observed benefit across a long series of sweeps remains unvalidated.
 
 ### Sweep quality diagnostics
 

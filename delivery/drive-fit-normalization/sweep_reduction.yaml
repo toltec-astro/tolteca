@@ -9,7 +9,6 @@ kids:
     enabled: true
   tone_prepare:
     enabled: true
-    tone_amps_method: match
     tone_phases:
       method: random
       seed: 42
@@ -18,3 +17,5 @@ kids:
     path: sweep-results
   tlaloc_output:
     enabled: false
+    tone_amps_method: match
+    tone_amps_fallback: null

@@ -22,7 +22,12 @@ from tollan.pipeline import (
 
 from .kids_find import KidsFind
 from .sweep import ReducedSweepView
-from .tlaloc_output import TlalocToneArtifact, TlalocTones
+from .tlaloc_output import (
+    TlalocOutputConfig,
+    TlalocToneArtifact,
+    TlalocTones,
+    fill_tone_amplitudes,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -173,8 +178,6 @@ class TonePrepareConfig(StepConfig):
         Preserve the input count, trimming by absolute match phase distance or
         filling from missed probes. None uses v2 observing defaults: fixed for
         Tune, variable for standalone VNA and target sweeps.
-    tone_amps_method : {'match', 'ones'}, optional
-        Transfer matched input amplitudes (default), or explicitly use ones.
     tone_phases : TonePhasesRandom or TonePhasesFromFile, optional
         Random phases by default. Phases are assigned before the common row sort.
     placeholders : PlaceHolderTones, optional
@@ -187,7 +190,6 @@ class TonePrepareConfig(StepConfig):
     enabled: bool = False
     n_chans_max: int = Field(default=1000, ge=1, le=1000)
     fix_n_chans: bool | None = None
-    tone_amps_method: Literal["match", "ones"] = "match"
     tone_phases: Annotated[
         TonePhasesRandom | TonePhasesFromFile, Field(discriminator="method")
     ] = Field(default_factory=lambda: TonePhasesRandom(method="random"))
@@ -196,9 +198,23 @@ class TonePrepareConfig(StepConfig):
 
 
 class TonePrepareContext(StepContext["TonePrepare", TonePrepareConfig]):
-    """Prepared tone table and its publication artifacts."""
+    """Prepared tones, effective output amplitude policy and artifacts."""
 
     data: TlalocTones | None = Field(default=None, exclude=True)
+    output_config: TlalocOutputConfig = Field(
+        default_factory=TlalocOutputConfig,
+        description="Effective Tlaloc amplitude policy and LUT source for preparation.",
+    )
+
+    def make_step(self) -> TonePrepare:
+        """Recreate preparation with its recorded output amplitude policy.
+
+        Returns
+        -------
+        TonePrepare
+            Step configured with the saved tone selection and amplitude policy.
+        """
+        return self.step_cls(self.config, tlaloc_config=self.output_config)
 
 
 class TonePrepare(Step[TonePrepareConfig, TonePrepareContext]):
@@ -206,7 +222,48 @@ class TonePrepare(Step[TonePrepareConfig, TonePrepareContext]):
 
     The tlaloc subtree retains the final common row order. Data-product output
     exports its four v2 files; TlalocOutput optionally installs them afterwards.
+
+    Parameters
+    ----------
+    config : TonePrepareConfig or None, optional
+        Tone selection and phase settings. None uses defaults.
+    tlaloc_config : TlalocOutputConfig or None, optional
+        Output amplitude policy and LUT source. None preserves v2 matching.
+        The KIDs workflow supplies kids.tlaloc_output and records this policy
+        in the preparation context even when installation is disabled.
+    **kwargs
+        TonePrepareConfig overrides, following the Step constructor.
     """
+
+    def __init__(
+        self,
+        config: TonePrepareConfig | None = None,
+        *,
+        tlaloc_config: TlalocOutputConfig | None = None,
+        **kwargs,
+    ) -> None:
+        if config is None:
+            super().__init__(**kwargs)
+        else:
+            super().__init__(config, **kwargs)
+        self._tlaloc_config = tlaloc_config or TlalocOutputConfig()
+
+    def create_context(self, data: xr.DataTree) -> TonePrepareContext:
+        """Attach a new invocation record with the configured output policy.
+
+        Parameters
+        ----------
+        data : xarray.DataTree
+            Sweep block receiving the preparation context.
+
+        Returns
+        -------
+        TonePrepareContext
+            Attached context retaining selection and amplitude settings.
+        """
+        context = super().create_context(data)
+        context.output_config = self._tlaloc_config
+        return context
 
     @classmethod
     def run(cls, data: xr.DataTree, context: TonePrepareContext) -> None:
@@ -243,6 +300,8 @@ class TonePrepare(Step[TonePrepareConfig, TonePrepareContext]):
             view.chan_axis_table,
             view.meta,
             context.config,
+            tlaloc_config=context.output_config,
+            query_matches=found.data.detected_matched,
         )
         data["tlaloc"] = table
         context.data = TlalocTones(table)
@@ -250,12 +309,15 @@ class TonePrepare(Step[TonePrepareConfig, TonePrepareContext]):
         context.artifacts.add(context.config.artifacts.tones, context.data)
 
 
-def prepare_tone_table(
+def prepare_tone_table(  # noqa: PLR0913 -- science inputs and output policies
     detected: QTable,
     chan_matched: QTable,
     probes: QTable,
     meta: ToltecSweepMetadata,
     config: TonePrepareConfig,
+    *,
+    tlaloc_config: TlalocOutputConfig | None = None,
+    query_matches: QTable | None = None,
 ) -> xr.Dataset:
     """Select and order tones using the v2 output policy.
 
@@ -269,6 +331,11 @@ def prepare_tone_table(
         Acquisition identity, network, observation type and LO frequency in Hz.
     config : TonePrepareConfig
         Explicit tone selection and phase-generation settings.
+    tlaloc_config : TlalocOutputConfig or None, optional
+        Output amplitude policy and LUT source. None preserves v2 matching.
+    query_matches : astropy.table.QTable or None, optional
+        One row per detection, in detection order, with idx_chan and connected
+        match-group size. Required for explicit fallback in match mode.
 
     Returns
     -------
@@ -282,8 +349,8 @@ def prepare_tone_table(
     tones = detected.copy()
     f_dets = tones["f_chan"] = tones["f"] if "f" in tones.colnames else tones["fr"]
     tones["mask_tone"] = True
-    if config.tone_amps_method == "ones":
-        tones["amp_tone"] = np.ones(len(tones))
+    output = tlaloc_config or TlalocOutputConfig()
+    unique_probe_ids = _amplitude_matches(tones, query_matches, output)
     fixed = config.fix_n_chans
     if fixed is None:
         if meta.obs_type not in {"tune", "vna", "targ"}:
@@ -303,6 +370,15 @@ def prepare_tone_table(
         keep = np.zeros(len(tones), dtype=bool)
         keep[ranking[:limit]] = True
         tones = tones[keep]
+    tones["amp_tone"], tones["amp_tone_filled"], amp_provenance = fill_tone_amplitudes(
+        tones["amp_tone"],
+        tones["f_chan"].to_value(u.Hz),
+        probes,
+        fill_mask=tones["amp_tone_ambiguous"],
+        unique_probe_ids=unique_probe_ids,
+        roach=meta.roach,
+        config=output,
+    )
     placeholders = config.placeholders(f_dets, f_lo)
     if fixed and len(tones) < len(probes):
         # Match indices refer to enabled probes; map their IDs back to the full
@@ -322,6 +398,9 @@ def prepare_tone_table(
                 "f_chan": prior["f_chan"],
                 "mask_tone": prior["tone_mask"],
                 "amp_tone": prior["tone_amp"],
+                "amp_tone_matched": prior["tone_amp"],
+                "amp_tone_filled": np.zeros(len(prior), dtype=bool),
+                "amp_tone_ambiguous": np.zeros(len(prior), dtype=bool),
                 "f": prior["f_chan"],
                 "Qr": np.zeros(len(prior)),
                 "bitmask": np.zeros(len(prior), dtype=int),
@@ -335,6 +414,9 @@ def prepare_tone_table(
                 "f_chan": placeholders[:count],
                 "mask_tone": np.zeros(count, dtype=bool),
                 "amp_tone": np.zeros(count),
+                "amp_tone_matched": np.zeros(count),
+                "amp_tone_filled": np.zeros(count, dtype=bool),
+                "amp_tone_ambiguous": np.zeros(count, dtype=bool),
             }
         )
         tones = vstack([tones, fill])
@@ -352,7 +434,62 @@ def prepare_tone_table(
         key=lambda i: f_tone[i] + offset if f_tone[i] < 0 else f_tone[i],
     )
     tones = tones[order]
-    return _tone_dataset(tones, meta)
+    return _finish_tone_dataset(tones, meta, output, amp_provenance)
+
+
+def _amplitude_matches(tones, query_matches, output):
+    """Mark ambiguity at the output boundary without changing the matcher."""
+    if (
+        output.tone_amps_method == "match"
+        and output.tone_amps_fallback is not None
+        and query_matches is None
+    ):
+        msg = "Amplitude fallback requires detection-to-probe match groups"
+        raise ValueError(msg)
+    unique_probe_ids = []
+    ambiguous = np.zeros(len(tones), dtype=bool)
+    if query_matches is not None:
+        if len(query_matches) != len(tones):
+            msg = "Amplitude match rows must align with detections"
+            raise ValueError(msg)
+        # Connected group size counts both probe and detection nodes. Only a
+        # two-node group is unambiguous; no member of a larger group inherits.
+        unique = np.asarray(query_matches["size"]) == 2  # noqa: PLR2004 -- one probe and one detection
+        ambiguous = ~unique
+        unique_probe_ids = query_matches["idx_chan"][unique]
+    tones["amp_tone_matched"] = np.ma.asarray(tones["amp_tone"], dtype=float).filled(
+        np.nan
+    )
+    tones["amp_tone_ambiguous"] = ambiguous
+    return unique_probe_ids
+
+
+def _finish_tone_dataset(tones, meta, output, amp_provenance):
+    """Normalize coefficients jointly and retain fixed-total power diagnostics."""
+    divisor = max(1.0, float(np.max(tones["amp_tone"])))
+    if output.tone_amps_fallback is not None:
+        tones["amp_tone"] /= divisor
+    result = _tone_dataset(tones, meta)
+    result.attrs.update(amp_provenance)
+    if output.tone_amps_fallback is not None:
+        # Use the same emitted-bin model as drive-fit commit. Import at the
+        # computation boundary to avoid a configuration-module import cycle.
+        from .drive_fit.power import (  # noqa: PLC0415
+            POWER_MODEL,
+            tone_power_fractions,
+        )
+
+        for name in ("amp_tone_matched", "amp_tone_filled", "amp_tone_ambiguous"):
+            result[name] = ("tone", np.asarray(tones[name]))
+        result["tone_power_fraction"] = (
+            "tone",
+            tone_power_fractions(result.amp_tone, result.f_centered, result.mask_tone),
+        )
+        result.attrs.update(
+            tone_amps_normalization_divisor=divisor,
+            tone_power_model=POWER_MODEL,
+        )
+    return result
 
 
 def _tone_dataset(tones, meta):

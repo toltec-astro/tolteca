@@ -146,7 +146,7 @@ Tone preparation and Tlaloc files
    :class-doc-from: class
 
 .. autoclass:: tolteca_kids.tone_prepare.TonePrepare
-   :members: run
+   :members: create_context, run
 
 .. autopydantic_model:: tolteca_kids.tone_prepare.TonePrepareConfig
    :class-doc-from: class
@@ -154,6 +154,7 @@ Tone preparation and Tlaloc files
 .. autopydantic_model:: tolteca_kids.tone_prepare.TonePrepareContext
    :class-doc-from: class
    :model-show-json: False
+   :members: make_step
 
 .. autopydantic_model:: tolteca_kids.tone_prepare.TonePhasesRandom
    :class-doc-from: class
@@ -172,6 +173,8 @@ Tone preparation and Tlaloc files
    :members: write
 
 .. autofunction:: tolteca_kids.tone_prepare.prepare_tone_table
+
+.. autofunction:: tolteca_kids.tlaloc_output.fill_tone_amplitudes
 
 .. autoclass:: tolteca_kids.tlaloc_output.TlalocTones
 
