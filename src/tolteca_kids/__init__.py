@@ -13,6 +13,7 @@ from .kids_find import (
     KidsFindData,
     SegmentBitMask,
 )
+from .kids_find_plot import KidsFindPlot, KidsFindPlotConfig
 from .kids_plot import make_kids_find_figs
 from .pipeline import (
     KIDS_FIND_GROUP,
@@ -50,6 +51,8 @@ __all__ = [
     "KidsFindConfig",
     "KidsFindContext",
     "KidsFindData",
+    "KidsFindPlot",
+    "KidsFindPlotConfig",
     "KidsPipeline",
     "KidsPipelineConfig",
     "KidsPipelineResult",

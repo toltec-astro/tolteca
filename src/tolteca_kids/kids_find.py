@@ -11,17 +11,17 @@ from pydantic import ConfigDict, Field
 from scipy.ndimage import median_filter
 from scipy.optimize import leastsq
 from tollan.config.types import FrequencyQuantityField, TimeQuantityField
+from tollan.pipeline import ArtifactContext, Step, StepConfig, StepContext
 from tollan.utils.fmt import pformat_mask
 from tollan.utils.log import logger, timeit
 from tollan.utils.np import attach_unit, make_complex, strip_unit
 from tollan.utils.table import TableValidator
-from tollan.pipeline import Step, StepConfig, StepContext
 from typing_extensions import assert_never
 
-from .sweep import ReducedSweepView
-
+from .kids_find_artifacts import FIND_COLUMNS, KidsFindArtifacts
 from .match1d import Match1D, Match1DResult
 from .peaks1d import Peaks1D, Peaks1DResult
+from .sweep import ReducedSweepView
 from .sweep_check import SweepCheck, _extract_sweep_arrays
 
 __all__ = [
@@ -93,6 +93,7 @@ class KidsFindConfig(StepConfig):
     """The kids finding config."""
 
     model_config = ConfigDict(protected_namespaces=())
+    artifacts: KidsFindArtifacts = Field(default_factory=KidsFindArtifacts)
 
     Qr_min: float = Field(
         default=1000,
@@ -828,6 +829,25 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
                 ref=f_ref.to(u.MHz),
                 postproc_hook=_match_postproc,
                 **match_kw,
+            )
+
+        context.artifacts = ArtifactContext()
+        for name, table in (
+            ("kids_find", ctd.detected_matched),
+            ("chan_prop", ctd.chan_matched),
+        ):
+            table = table[list(FIND_COLUMNS)].copy()
+            if view.meta is not None:
+                table.meta.update(
+                    {
+                        "Header.Toltec.ObsNum": view.meta.obsnum,
+                        "Header.Toltec.SubObsNum": view.meta.subobsnum,
+                        "Header.Toltec.ScanNum": view.meta.scannum,
+                        "Header.Toltec.RoachIndex": view.meta.roach,
+                    }
+                )
+            context.artifacts.add(
+                cfg.artifacts.table.model_copy(update={"alias": name}), table
             )
 
     @staticmethod

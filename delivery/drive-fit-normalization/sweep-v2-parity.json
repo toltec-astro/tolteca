@@ -1,0 +1,141 @@
+{
+  "date": "2026-10-23",
+  "scope": "Full production-v2 sweep checking, finding, tone preparation and output versus v3; all network-0 channels in eight real blocks. Values compared exactly after file parsing, not ECSV header byte identity.",
+  "v3_base_revision": "46a659b920f5048be2be88d892477682220a9d91",
+  "v2_revision": "54f882373bf90d97665c095e11f27f3f082a39d5",
+  "v2_source_sha256": {
+    "src/tolteca_kids/kids_find.py": "7e1c6b5bc9e2e9c66f06bd04077f39572832f1463cfbfdc9d64b840a23cf9307",
+    "src/tolteca_kids/tlaloc_output.py": "052097e83f70b633efc80b2eea2fed9c263377ca45afdbaa4f967002194a776d",
+    "src/tolteca_kids/roach_tone.py": "dd84ab50fed402c12d16461c118a166850cd5b6bc28fff4efffc8233a3aabad4",
+    "src/tolteca_kids/match1d.py": "a3a0396121cc21a75ce5f2de47194dc92b0c5bc9aca6b6dfc3df72a47867b6b0",
+    "src/tolteca_kids/sweep_check.py": "bf8351e08c30a746565a5e5761677376b98a50de1a066bb8183e12b533995ad3"
+  },
+  "v2_environment": {
+    "python": "3.14.0 (main, Oct  7 2025, 09:34:52) [Clang 17.0.0 (clang-1700.0.13.3)]",
+    "packages": {
+      "numpy": "2.5.2",
+      "scipy": "1.18.1",
+      "astropy": "8.0.1",
+      "dtw-python": "1.7.2"
+    }
+  },
+  "v3_environment": {
+    "python": "3.13.9 (main, Oct 14 2025, 13:52:31) [Clang 17.0.0 (clang-1700.0.13.3)]",
+    "packages": {
+      "numpy": "2.5.2",
+      "scipy": "1.18.1",
+      "astropy": "8.0.1",
+      "dtw-python": "1.7.5",
+      "tollan": "3.0.1.dev88+g72d90f568"
+    }
+  },
+  "phase_seed": 42,
+  "test": "tests/tolteca_kids/test_tlaloc_v2_parity.py",
+  "result": "8 passed",
+  "cases": [
+    {
+      "obsnum": 145480,
+      "file": "toltec/tcs/toltec0/toltec0_145480_000_0001_2025_10_31_02_45_08_vnasweep.nc",
+      "input_sha256": "58c9ebd3265bb96fa7508eeb9111b629828eff063eba54f1c0d1afb78adcd234",
+      "block": 0,
+      "input_enabled_probes": 1000,
+      "detections": 642,
+      "output_tones": 642,
+      "tone_file_values_exact": true,
+      "finding_table_values_exact": true,
+      "existing_attenuation_preserved": true,
+      "replay_creates_no_attenuation": true
+    },
+    {
+      "obsnum": 145485,
+      "file": "toltec/tcs/toltec0/toltec0_145485_000_0001_2025_10_31_03_04_09_targsweep.nc",
+      "input_sha256": "e687a6311c00d5942c0f134f6a54dd69e5c341af0f62918817ecce00a121e79c",
+      "block": 0,
+      "input_enabled_probes": 632,
+      "detections": 634,
+      "output_tones": 634,
+      "tone_file_values_exact": true,
+      "finding_table_values_exact": true,
+      "existing_attenuation_preserved": true,
+      "replay_creates_no_attenuation": true
+    },
+    {
+      "obsnum": 145483,
+      "file": "toltec/tcs/toltec0/toltec0_145483_000_0001_2025_10_31_02_51_08_tune.nc",
+      "input_sha256": "76ad676046f05f26a46c036dcbd0e6bf6ad449a8d4efa72c7ef33baba1204593",
+      "block": 0,
+      "input_enabled_probes": 632,
+      "detections": 625,
+      "output_tones": 632,
+      "tone_file_values_exact": true,
+      "finding_table_values_exact": true,
+      "existing_attenuation_preserved": true,
+      "replay_creates_no_attenuation": true
+    },
+    {
+      "obsnum": 145483,
+      "file": "toltec/tcs/toltec0/toltec0_145483_000_0001_2025_10_31_02_51_08_tune.nc",
+      "input_sha256": "76ad676046f05f26a46c036dcbd0e6bf6ad449a8d4efa72c7ef33baba1204593",
+      "block": 1,
+      "input_enabled_probes": 632,
+      "detections": 631,
+      "output_tones": 632,
+      "tone_file_values_exact": true,
+      "finding_table_values_exact": true,
+      "existing_attenuation_preserved": true,
+      "replay_creates_no_attenuation": true
+    },
+    {
+      "obsnum": 145605,
+      "file": "toltec/tcs/toltec0/toltec0_145605_000_0001_2025_10_31_09_20_06_vnasweep.nc",
+      "input_sha256": "0245faa726d47ce2846cbf1bcc30356429e63b0786933d68e510ce8a49699446",
+      "block": 0,
+      "input_enabled_probes": 1000,
+      "detections": 646,
+      "output_tones": 646,
+      "tone_file_values_exact": true,
+      "finding_table_values_exact": true,
+      "existing_attenuation_preserved": true,
+      "replay_creates_no_attenuation": true
+    },
+    {
+      "obsnum": 145606,
+      "file": "toltec/tcs/toltec0/toltec0_145606_000_0001_2025_10_31_09_22_14_targsweep.nc",
+      "input_sha256": "7df0e0511b89d4360aaf10fd435fb5ded2e93716e51538ed0f577b4a4959389b",
+      "block": 0,
+      "input_enabled_probes": 668,
+      "detections": 639,
+      "output_tones": 639,
+      "tone_file_values_exact": true,
+      "finding_table_values_exact": true,
+      "existing_attenuation_preserved": true,
+      "replay_creates_no_attenuation": true
+    },
+    {
+      "obsnum": 145609,
+      "file": "toltec/tcs/toltec0/toltec0_145609_000_0001_2025_10_31_09_26_59_tune.nc",
+      "input_sha256": "2e20d167a10377e1170c35c9db781c564861112105a09a6a00f3b6a74c53291f",
+      "block": 0,
+      "input_enabled_probes": 632,
+      "detections": 630,
+      "output_tones": 632,
+      "tone_file_values_exact": true,
+      "finding_table_values_exact": true,
+      "existing_attenuation_preserved": true,
+      "replay_creates_no_attenuation": true
+    },
+    {
+      "obsnum": 145609,
+      "file": "toltec/tcs/toltec0/toltec0_145609_000_0001_2025_10_31_09_26_59_tune.nc",
+      "input_sha256": "2e20d167a10377e1170c35c9db781c564861112105a09a6a00f3b6a74c53291f",
+      "block": 1,
+      "input_enabled_probes": 632,
+      "detections": 625,
+      "output_tones": 632,
+      "tone_file_values_exact": true,
+      "finding_table_values_exact": true,
+      "existing_attenuation_preserved": true,
+      "replay_creates_no_attenuation": true
+    }
+  ]
+}

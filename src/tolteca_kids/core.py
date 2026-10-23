@@ -14,6 +14,7 @@ from .config import KidsConfig
 from .dataprod_output import DataProdOutput
 from .input import Input
 from .kids_find import KidsFind
+from .kids_find_plot import KidsFindPlot
 from .noop import NoOp
 from .sweep_check import SweepCheck
 from .sweep_check_plot import SweepCheckPlot
@@ -41,7 +42,7 @@ class Kids(SubConfigKeyTransformer[Literal["kids"]], ConfigHandler[KidsConfig]):
     True
     >>> kids.sweep_pipeline.steps == [
     ...     kids.sweep_reduce, kids.sweep_check, kids.sweep_check_plot,
-    ...     kids.kids_find, kids.tone_prepare]
+    ...     kids.kids_find, kids.kids_find_plot, kids.tone_prepare]
     True
     """
 
@@ -79,6 +80,11 @@ class Kids(SubConfigKeyTransformer[Literal["kids"]], ConfigHandler[KidsConfig]):
     def kids_find(self) -> KidsFind:
         """Configured resonance finding and input-probe matching."""
         return KidsFind(self.config.kids_find)
+
+    @cached_property
+    def kids_find_plot(self) -> KidsFindPlot:
+        """Configured detection and matching diagnostics."""
+        return KidsFindPlot(self.config.kids_find_plot)
 
     @cached_property
     def tone_prepare(self) -> TonePrepare:
@@ -133,6 +139,7 @@ class Kids(SubConfigKeyTransformer[Literal["kids"]], ConfigHandler[KidsConfig]):
                 self.sweep_check,
                 self.sweep_check_plot,
                 self.kids_find,
+                self.kids_find_plot,
                 self.tone_prepare,
             ]
         )

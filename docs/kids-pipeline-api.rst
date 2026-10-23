@@ -120,6 +120,28 @@ Tone preparation and Tlaloc files
 .. autopydantic_model:: tolteca_kids.kids_find.KidsFindConfig
    :class-doc-from: class
 
+.. autoclass:: tolteca_kids.kids_find_plot.KidsFindPlot
+   :members: run
+
+.. autopydantic_model:: tolteca_kids.kids_find_plot.KidsFindPlotConfig
+   :class-doc-from: class
+
+.. autopydantic_model:: tolteca_kids.kids_find_plot.KidsFindPlotContext
+   :class-doc-from: class
+   :model-show-json: False
+
+.. autopydantic_model:: tolteca_kids.kids_find_plot.KidsFindPlotArtifacts
+   :class-doc-from: class
+   :members: write
+
+.. autopydantic_model:: tolteca_kids.kids_find_artifacts.KidsFindArtifacts
+   :class-doc-from: class
+   :members: write
+
+.. autopydantic_model:: tolteca_kids.kids_find_artifacts.KidsFindTableArtifact
+   :class-doc-from: class
+   :members: write
+
 .. autopydantic_model:: tolteca_kids.peaks1d.Peaks1D
    :class-doc-from: class
 

@@ -106,6 +106,8 @@ kids:
     enabled: true
   kids_find:
     enabled: true
+  kids_find_plot:
+    enabled: true
   tone_prepare:
     enabled: true
     tone_phases:
@@ -125,7 +127,16 @@ Amplitudes transfer from recorded input probes through finding's tone match;
 phases are in radians. Standalone VNA and target sweeps can change the tone count.
 Tune preserves each block's input count by retaining unmatched probes as needed.
 Only the last sweep block's files are installed; products retain every prepared
-block. These steps do not upload tones or apply attenuation.
+block. These steps do not upload tones or change `atten_drive.dat`. Ordinary
+tone upload retains the current global drive attenuation; changing the tone
+count or relative amplitudes redistributes the available comb power.
+
+Finding also publishes `kids_find.ecsv` (one row per detection) and
+`chan_prop.ecsv` (one row per enabled input probe), including match distances,
+quality flags, amplitudes and detection statistics. Set `kids_find_plot.enabled`
+to include seven interactive HTML diagnostics for peaks, detection statistics
+and matches. Disable that step to omit the figures while retaining the tables
+and prepared tone files.
 
 Set `tone_prepare.fix_n_chans` to explicitly override the observing-mode default.
 Use `tone_prepare.tone_phases: {method: file, path: /path/to/phases.dat}` to supply

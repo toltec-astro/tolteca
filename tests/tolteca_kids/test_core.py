@@ -51,6 +51,7 @@ def test_pipeline_owns_steps_and_preserves_working_tree(raw_sweep):
         kids.sweep_check,
         kids.sweep_check_plot,
         kids.kids_find,
+        kids.kids_find_plot,
         kids.tone_prepare,
     ]
     original = raw_sweep.copy(deep=True)

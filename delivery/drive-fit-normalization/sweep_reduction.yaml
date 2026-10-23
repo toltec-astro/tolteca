@@ -1,0 +1,20 @@
+# Offline v2-equivalent sweep reduction. Installation is into an explicit
+# test directory only when kids.tlaloc_output.enabled is set to true.
+kids:
+  sweep_check:
+    enabled: true
+  kids_find:
+    enabled: true
+  kids_find_plot:
+    enabled: true
+  tone_prepare:
+    enabled: true
+    tone_amps_method: match
+    tone_phases:
+      method: random
+      seed: 42
+  output:
+    enabled: true
+    path: sweep-results
+  tlaloc_output:
+    enabled: false

@@ -19,6 +19,7 @@ from tolteca_datamodels.data_prod_run import (
 from tolteca_kidsproc.analysis import PSDAnalysis
 
 from .kids_find import KidsFindConfig
+from .kids_find_plot import KidsFindPlotConfig
 from .quicklook import KidsQuicklook
 from .sweep_check import SweepCheckConfig
 from .sweep_check_plot import SweepCheckPlotConfig
@@ -165,6 +166,8 @@ class KidsConfig(FrozenBaseModel):
         Standalone diagnostic figures for saved checks. Disabled by default.
     kids_find : KidsFindConfig, optional
         Resonance finding and probe matching. Disabled by default.
+    kids_find_plot : KidsFindPlotConfig, optional
+        Finding and matching diagnostic figures. Disabled by default.
     tone_prepare : TonePrepareConfig, optional
         Prepare the v2 next-tone files. Disabled by default.
     tlaloc_output : TlalocOutputConfig, optional
@@ -191,6 +194,9 @@ class KidsConfig(FrozenBaseModel):
     kids_find: KidsFindConfig = Field(
         default_factory=lambda: KidsFindConfig(enabled=False)
     )
+    kids_find_plot: KidsFindPlotConfig = Field(
+        default_factory=lambda: KidsFindPlotConfig(enabled=False)
+    )
     tone_prepare: TonePrepareConfig = Field(default_factory=TonePrepareConfig)
     tlaloc_output: TlalocOutputConfig = Field(default_factory=TlalocOutputConfig)
     quicklook: KidsQuicklook = Field(default_factory=KidsQuicklook)
@@ -198,6 +204,9 @@ class KidsConfig(FrozenBaseModel):
 
     @model_validator(mode="after")
     def _tone_prerequisites(self):
+        if self.kids_find_plot.enabled and not self.kids_find.enabled:
+            msg = "kids_find_plot requires kids_find"
+            raise ValueError(msg)
         if self.kids_find.enabled and not self.sweep_check.enabled:
             msg = "kids_find requires sweep_check"
             raise ValueError(msg)

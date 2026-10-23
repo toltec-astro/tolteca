@@ -681,8 +681,40 @@ proposed OT sequence separately from observed source behavior.
 | Workflow layer | Step classes |
 | --- | --- |
 | Acquisition preparation | `Input`, `BlockIdentify`, `BlockCreate` |
-| Block processing | `SweepReduce`, `SweepCheck`, `SweepCheckPlot`, `KidsFind`, `TimestreamReduce`, `NoOp` |
+| Block processing | `SweepReduce`, `SweepCheck`, `SweepCheckPlot`, `KidsFind`, `KidsFindPlot`, `TonePrepare`, `TimestreamReduce`, `NoOp` |
 | Product publication | `DataProdOutput` |
+| Instrument file installation | `TlalocOutput` |
+
+### Sweep finding and next-tone preparation
+
+Sweep reduction prepares the next tone comb using the production v2 Tlaloc
+contract. Finding consumes the checked sweep and transfers recorded input-probe
+amplitudes through the v2 matcher. The baseline preserves the matcher's
+many-to-one assignments; it does not reinterpret them as missing matches.
+
+- Finding publishes both the detection and input-probe ECSV tables with their
+  units, identities, flags, match distances and detection statistics.
+- Optional finding plots use the same checked samples as finding. The product
+  retains each block's figures independently of installing instrument files.
+- Tone preparation preserves v2 selection, fixed-count Tune behavior,
+  variable-count standalone sweep behavior, phase assignment and common FFT row
+  ordering. The four files retain the existing names and numerical columns.
+- Product publication retains prepared tone values. Installing a reopened
+  product must reuse those values without matching or generating phases again.
+  Installation follows successful enabled publication and registration, and
+  selects only the last acquired sweep block.
+- Ordinary sweep output must not create or modify `atten_drive.dat`. The current
+  observing sequence has no attenuation-update hook at ordinary tone upload.
+  Amplitude changes therefore allocate the available power among tones; they
+  cannot independently preserve absolute power for every tone as the comb changes.
+
+The subsequent LUT fallback is a separate numerical change. Its accepted scope
+is local amplitude filling at tone-file preparation, including every member of
+an ambiguous match group. It must account for the relative normalization of the
+current input amplitudes and the calibration-group LUT. Direct interpolation
+without that normalization is insufficient. The scale estimator and its effect
+on the reference data remain to be established; the v2 baseline does not enable
+this proposed policy.
 
 ### Sweep quality diagnostics
 

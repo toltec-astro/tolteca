@@ -17,6 +17,66 @@ The original normalization report below retains its snapshot results. Use the
 new note and its benchmark for the current fitter's behavior and timings;
 `phase_fit_method: legacy` retains the original implementation for comparisons.
 
+## Sweep-to-tone output update, 2026-10-23
+
+Ordinary sweep reduction now publishes the v2 detection and input-probe tables
+and optional finding plots alongside the four prepared Tlaloc files. The
+numerical v2 baseline is unchanged. A direct comparison against production v2
+revision `54f882373bf90d97665c095e11f27f3f082a39d5` passed for every value in
+the tone files and finding tables for these network-0 acquisitions:
+
+| Observation | Type | Block | Input probes | Detections | Output tones |
+| --- | --- | --- | --- | --- | --- |
+| 145480 | VNA | 0 | 1000 | 642 | 642 |
+| 145483 | Tune | 0 | 632 | 625 | 632 |
+| 145483 | Tune | 1 | 632 | 631 | 632 |
+| 145485 | Target | 0 | 632 | 634 | 634 |
+| 145605 | VNA | 0 | 1000 | 646 | 646 |
+| 145606 | Target | 0 | 668 | 639 | 639 |
+| 145609 | Tune | 0 | 632 | 630 | 632 |
+| 145609 | Tune | 1 | 632 | 625 | 632 |
+
+The comparison uses all channels, default finding settings and random-phase
+seed 42. It checks parsed numerical values exactly, including model columns,
+row order, amplitudes, phases and masks; ECSV comments and formatting are not
+required to be byte-identical. It also checks export from reopened products,
+seven published finding plots, and preservation of `atten_drive.dat`.
+[sweep-v2-parity.json](sweep-v2-parity.json) records the input hashes, source
+hashes and environments. LUT fallback is a subsequent numerical change and is
+not enabled in this baseline.
+
+After installation below, run a standalone sweep using
+[sweep_reduction.yaml](sweep_reduction.yaml):
+
+```bash
+tolteca_kids --config_paths delivery/drive-fit-normalization/sweep_reduction.yaml \
+  --kids.output.path /absolute/path/to/sweep-results -- \
+  /absolute/path/to/tolteca_ref_data/data_lmt/toltec/tcs/toltec0/toltec0_145485_000_0001_2025_10_31_03_04_09_targsweep.nc
+```
+
+This configuration publishes files and plots without installing them into
+Tlaloc. To test installation, add `--kids.tlaloc_output.enabled true` and
+`--kids.tlaloc_output.path /absolute/path/to/test-etc` before `--`.
+It writes frequencies, amplitudes, phases and masks for the final block.
+Ordinary tone upload keeps the current global drive attenuation. Relative
+amplitude changes redistribute the available comb power; they cannot compensate
+for a changed tone count by selecting a new global attenuation at this stage.
+
+For the independent v2 comparison, download all reference files with Git LFS,
+provide an installed production-v2 environment, and create the test fixture:
+
+```bash
+mkdir -p test-fixture/run
+ln -s /absolute/path/to/tolteca_ref_data/data_lmt test-fixture/run/data_lmt
+TOLTECA_DEPLOY_ROOT="$PWD/test-fixture" \
+TOLTECA_V2_PYTHON=/absolute/path/to/v2-environment/bin/python \
+python -m pytest -q tests/tolteca_kids/test_tlaloc_v2_parity.py
+```
+
+The v2 subprocess imports only its installed v2 source. The test skips when
+`TOLTECA_V2_PYTHON` is unset. The existing fit/commit replay instructions below
+remain applicable.
+
 ## Read the report
 
 Open [report.html](report.html) in a browser, or serve this directory locally:
