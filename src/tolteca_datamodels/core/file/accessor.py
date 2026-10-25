@@ -29,10 +29,10 @@ from .trace import (
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-__all__ = ["FileAccessor"]
+__all__ = ["FileAccessorBase"]
 
 
-class FileAccessor(ModelTableAccessor):
+class FileAccessorBase(ModelTableAccessor):
     """Build and query a table of file information without opening resources.
 
     Parameters
@@ -146,7 +146,7 @@ class FileAccessor(ModelTableAccessor):
 
         Examples
         --------
-        >>> files = FileAccessor.from_sources(["example.nc"])
+        >>> files = FileAccessorBase.from_sources(["example.nc"])
         >>> files.table.file_ext.tolist()
         ['nc']
         """
@@ -224,7 +224,7 @@ class FileAccessor(ModelTableAccessor):
         Examples
         --------
         >>> import pandas as pd
-        >>> files = FileAccessor(pd.DataFrame())
+        >>> files = FileAccessorBase(pd.DataFrame())
         >>> _ = files.guess_from_sources([
         ...     {"source": "cached.nc", "source_loc": "archive:/observation.nc"},
         ...     "local.nc",
