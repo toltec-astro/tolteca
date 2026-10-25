@@ -2,19 +2,16 @@
 
 from __future__ import annotations
 
-from collections import Counter
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from functools import cached_property
-from typing import TYPE_CHECKING, Literal
-
-import pandas as pd
+from typing import TYPE_CHECKING, Literal, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
-    from typing import Self
+    from collections.abc import Iterator
 
+    import pandas as pd
     from pydantic import JsonValue
 
 __all__ = ["SourceErrorPolicyT", "SourceTrace", "SourceTraceEntry", "SourceTraceKind"]
@@ -128,27 +125,12 @@ class SourceTrace:
             self._error_entries.append(entry)
 
 
-def _summarize_traces(cells: Iterable[SourceTrace], *, total: int) -> pd.DataFrame:
-    counts = Counter()
-    for trace in cells:
-        counts.update(trace._kinds)
-    return pd.DataFrame(
-        [(kind.value, count, total) for kind, count in sorted(counts.items())],
-        columns=["kind", "count", "total"],
-    )
-
-
 @dataclass(slots=True)
 class _SourceTraceCollector:
-    """Collect row-local issues under one batch preparation error policy."""
+    """Append issues by row position to an existing table trace column."""
 
-    traces: list[SourceTrace]
+    traces: pd.Series
     on_error: SourceErrorPolicyT
-
-    @classmethod
-    def create(cls, row_count: int, *, on_error: SourceErrorPolicyT) -> Self:
-        """Create one independent empty trace per source position."""
-        return cls(traces=[SourceTrace() for _ in range(row_count)], on_error=on_error)
 
     def record(
         self,
@@ -159,7 +141,7 @@ class _SourceTraceCollector:
         context: dict[str, JsonValue] | None = None,
     ) -> None:
         entry = SourceTraceEntry(kind=kind, message=message, context=context)
-        self.traces[position].append(entry)
+        cast("SourceTrace", self.traces.iloc[position]).append(entry)
 
     @contextmanager
     def capture(self, position: int, failure_kind: SourceTraceKind) -> Iterator[None]:
