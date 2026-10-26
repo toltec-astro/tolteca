@@ -8,6 +8,14 @@ modify its working files. This is a point-in-time capture; subsequent local
 edits are not included. The capture time is in `source-provenance.json`.
 The delivery branch may be deleted after the investigation.
 
+## Production regression update, 2026-10-26
+
+The [integration note](production-integration.md) records the captured operational
+failures, normalization checks, and fresh nw4/nw5 workflow tests. It also describes
+an early rejection of undersampled nonlinear-fit windows, found on nw5 channel
+173, and the narrow patch intended for main. The current combined detector-setup
+specification is maintained separately by the detector-setup/OT work.
+
 ## Phase-fitting update, 2026-10-22
 
 The branch now also includes [phase-fit stabilization](phase-fit-stability.md):

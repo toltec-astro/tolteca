@@ -601,10 +601,16 @@
 
 Drive fitting selects per-channel driving levels from an attenuation sequence;
 commit transfers a saved result to a current target comb. The
-[drive-fit workflow specification](drive-fit-workflow-spec.md) owns configuration,
-scientific results, publication, and the Tlaloc handoff. It distinguishes file
+[snapshot drive-fit workflow specification](../delivery/drive-fit-normalization/drive-fit-workflow-spec.md)
+records configuration, scientific results, publication, and the Tlaloc handoff.
+It distinguishes file
 installation, tone upload and hardware attenuation application, and marks the
 proposed OT sequence separately from observed source behavior.
+The [production integration note](../delivery/drive-fit-normalization/production-integration.md)
+records the subsequent evidence, algorithm checks, and handoff to the combined
+detector-setup specification. An undersampled nonlinear phase window must become
+a per-power fit failure before evaluating window statistics; it must not abort
+otherwise usable channels or alter their scientific selection rule.
 
 ### Acquisition blocks
 

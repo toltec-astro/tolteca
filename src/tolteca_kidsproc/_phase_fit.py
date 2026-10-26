@@ -622,6 +622,9 @@ class ResonanceFitterSingleTone:
         ang = phase2(z1_1) + np.angle(-ezinf)
         ft, angt = trimdata(f, ang, estv["f0"], estv["Q"], numspan)
         ft, zt = trimdata(f, z, estv["f0"], estv["Q"], numspan)
+        if len(ft) < 4:
+            msg = "Nonlinear phase fit requires at least four samples in its window"
+            raise ValueError(msg)
         f00g = estv["f0"]
         Qgg = estv["Q"]
         z1_n = np.mean(zt[:5])

@@ -8,6 +8,21 @@ import pytest
 from tolteca_kidsproc._phase_fit_solver import _PhaseModel, fit_phase
 
 
+@pytest.mark.parametrize("quality", [-20000.0, 1e12])
+def test_nonlinear_window_rejects_empty_or_undersampled_data(quality):
+    from tolteca_kidsproc._phase_fit import ResonanceFitterSingleTone
+
+    frequency = 6.4e8 + np.arange(-20, 21) * 1000
+    signal = 2 + np.exp(1j * np.linspace(-2, 2, len(frequency)))
+    # Call the phase stage directly: negative or excessively large reference Q
+    # yields an empty or single-sample window before any optimizer is reached.
+    fitter = object.__new__(ResonanceFitterSingleTone)
+    with pytest.raises(ValueError, match="at least four samples"):
+        fitter.fitphasenlin_c2(
+            frequency, signal, {"f0": 6.4e8, "Q": quality, "phi": 0, "r": 1}
+        )
+
+
 def problem(nonlinear):
     frequency = 6.4e8 + np.linspace(-24000, 24000, 41)
     radius = 2.3
