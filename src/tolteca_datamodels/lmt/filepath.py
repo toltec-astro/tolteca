@@ -6,18 +6,18 @@ import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, ClassVar
 
-from .._filepath import FilepathInfo, register_filepath_parser
-from ..lmt_base._filepath import FilepathInfoMixin
+from ..core.filepath import FilepathInfo, register_filepath_parser
+from ..lmt_base.filepath import FilepathInfoMixin
 from ..lmt_base.types import LabelT
 from .types import LmtInfo
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-__all__ = []
+__all__ = ["LmtFilepathInfo"]
 
 
-class _LmtFilepathInfo(FilepathInfo, FilepathInfoMixin):
+class LmtFilepathInfo(FilepathInfo, FilepathInfoMixin):
     """Information encoded in an LMT acquisition filepath.
 
     Telescope filename example (the bracketed suffix is optional)::
@@ -76,7 +76,7 @@ class _LmtFilepathInfo(FilepathInfo, FilepathInfoMixin):
 
 
 register_filepath_parser(
-    pattern=_LmtFilepathInfo._make_filename_pattern(r"tel_[A-Za-z0-9_]+"),
-    parsers=_LmtFilepathInfo._parsers,
-    filepath_info_cls=_LmtFilepathInfo,
+    pattern=LmtFilepathInfo._make_filename_pattern(r"tel_[A-Za-z0-9_]+"),
+    parsers=LmtFilepathInfo._parsers,
+    filepath_info_cls=LmtFilepathInfo,
 )

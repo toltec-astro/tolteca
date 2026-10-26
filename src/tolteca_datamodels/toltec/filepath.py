@@ -6,27 +6,27 @@ import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Annotated, ClassVar
 
-from .._filepath import FilepathInfo, register_filepath_parser
-from ..lmt._filepath import _LmtFilepathInfo
-from ..lmt_base._filepath import FilepathInfoMixin, _FileOnly
+from ..core.filepath import FilepathInfo, MetadataField, register_filepath_parser
+from ..lmt.filepath import LmtFilepathInfo
+from ..lmt_base.filepath import FilepathInfoMixin
 from .types import ToltecInfo
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-__all__ = []
+__all__ = ["ToltecFilepathInfo", "ToltecLmtFilepathInfo"]
 
 
-class _ToltecLmtFilepathInfo(_LmtFilepathInfo):
+class ToltecLmtFilepathInfo(LmtFilepathInfo):
     """Telescope filepath information for TolTEC observations."""
 
 
-class _ToltecFilepathInfo(FilepathInfo, FilepathInfoMixin):
+class ToltecFilepathInfo(FilepathInfo, FilepathInfoMixin):
     """Information encoded in a TolTEC acquisition filepath."""
 
     instru: ToltecInfo.InstruT
-    proc_suffix: Annotated[str | None, _FileOnly] = None
-    roach: ToltecInfo.RoachT | None = None
+    proc_suffix: str | None = None
+    roach: Annotated[ToltecInfo.RoachT | None, MetadataField] = None
 
     @staticmethod
     def _parse_prefix(filepath_data: dict, path: Path) -> dict[str, object]:
@@ -78,9 +78,9 @@ class _ToltecFilepathInfo(FilepathInfo, FilepathInfoMixin):
 
 
 register_filepath_parser(
-    pattern=_LmtFilepathInfo._make_filename_pattern(r"tel_toltec2?"),
-    parsers=(*_LmtFilepathInfo._parsers, _ToltecFilepathInfo._parse_interface),
-    filepath_info_cls=_ToltecLmtFilepathInfo,
+    pattern=LmtFilepathInfo._make_filename_pattern(r"tel_toltec2?"),
+    parsers=(*LmtFilepathInfo._parsers, ToltecFilepathInfo._parse_interface),
+    filepath_info_cls=ToltecLmtFilepathInfo,
 )
 register_filepath_parser(
     pattern=re.compile(
@@ -91,10 +91,10 @@ register_filepath_parser(
         r"(?P<proc_suffix>[^/.]+)|[^/.]+))?\.(?P<ext>.+)$"
     ),
     parsers=(
-        *_ToltecFilepathInfo._parsers_common,
-        _ToltecFilepathInfo._parse_ut_datetime,
+        *ToltecFilepathInfo._parsers_common,
+        ToltecFilepathInfo._parse_ut_datetime,
     ),
-    filepath_info_cls=_ToltecFilepathInfo,
+    filepath_info_cls=ToltecFilepathInfo,
 )
 register_filepath_parser(
     pattern=re.compile(
@@ -104,10 +104,10 @@ register_filepath_parser(
         r"(?:_(?P<suffix>[^/.]+))?\.(?P<ext>.+)$"
     ),
     parsers=(
-        *_ToltecFilepathInfo._parsers_common,
-        _ToltecFilepathInfo._parse_ut_datetime,
+        *ToltecFilepathInfo._parsers_common,
+        ToltecFilepathInfo._parse_ut_datetime,
     ),
-    filepath_info_cls=_ToltecFilepathInfo,
+    filepath_info_cls=ToltecFilepathInfo,
 )
 register_filepath_parser(
     pattern=re.compile(
@@ -116,8 +116,8 @@ register_filepath_parser(
         r"(?:_(?P<suffix>[^/.]+))?\.(?P<ext>.+)$"
     ),
     parsers=(
-        *_ToltecFilepathInfo._parsers_common,
-        _ToltecFilepathInfo._parse_ut_date_only,
+        *ToltecFilepathInfo._parsers_common,
+        ToltecFilepathInfo._parse_ut_date_only,
     ),
-    filepath_info_cls=_ToltecFilepathInfo,
+    filepath_info_cls=ToltecFilepathInfo,
 )

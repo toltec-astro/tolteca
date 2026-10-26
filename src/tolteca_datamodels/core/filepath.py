@@ -1,9 +1,9 @@
-"""Parse information from local and remote filenames."""
+"""Information encoded in local and remote filepaths."""
 
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, NamedTuple, cast
+from typing import TYPE_CHECKING, Annotated, Final, NamedTuple, cast
 
 from pydantic import ConfigDict, Field
 from tollan.utils.fileloc import FileLoc, fileloc
@@ -15,11 +15,30 @@ if TYPE_CHECKING:
     from pathlib import Path
     from typing import Self
 
-__all__ = ["FilepathInfo", "register_filepath_parser"]
+__all__ = ["FilepathInfo", "MetadataField", "register_filepath_parser"]
+
+
+class _MetadataField:
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "MetadataField"
+
+    def __reduce__(self) -> str:
+        return "MetadataField"
+
+
+MetadataField: Final = _MetadataField()
+"""Annotation marker for metadata encoded in a filename.
+
+Use ``Annotated[T, MetadataField]`` without parentheses. File tables retain the
+``file_*`` snapshot and initialize the corresponding unprefixed metadata column.
+The marker does not change validation or make filename information authoritative.
+"""
 
 
 class _FilepathInfoParser(NamedTuple):
-    """A filename pattern, its converters, and the resulting model type."""
+    """Filepath record type and ordered parsers for one filename pattern."""
 
     pattern: re.Pattern[str]
     filepath_info_cls: type[FilepathInfo]
@@ -35,17 +54,18 @@ def register_filepath_parser(
     parsers: tuple[Callable[[dict, Path], dict[str, object]], ...],
     filepath_info_cls: type[FilepathInfo],
 ) -> None:
-    """Add a filename convention for a FilepathInfo subclass.
+    """Register a filename pattern, field parsers, and result model.
 
     Parameters
     ----------
     pattern : str or re.Pattern
-        Regular expression with named captures. Use anchors to match the
-        complete filename.
+        Regular expression with named captures describing the filename.
+        Include anchors to match the complete filename.
     parsers : tuple of callable
-        Converters applied in order. Each receives the current capture dict and
-        source path, and returns values to merge into the dict. Use an empty
-        tuple when captures already supply all required model fields.
+        Ordered field converters. Each receives the captures updated by previous
+        converters and the source path, and returns a dict to merge into the
+        captures. An empty tuple uses the captures unchanged. The resulting
+        values must provide the model's required fields, including data_models.
     filepath_info_cls : type of FilepathInfo
         Model used to validate the converted captures.
 
@@ -56,8 +76,9 @@ def register_filepath_parser(
 
     Notes
     -----
-    Identical registrations have no effect. For overlapping patterns, a subclass
-    takes precedence over its base; otherwise, parsing raises an ambiguity error.
+    Registering an identical entry again has no effect. When patterns overlap,
+    a result subclass takes precedence over its base class. Other ambiguities
+    raise when parsing the matching filename, before field conversion.
     """
     if not isinstance(filepath_info_cls, type) or not issubclass(
         filepath_info_cls, FilepathInfo
@@ -71,18 +92,18 @@ def register_filepath_parser(
 
 
 class FilepathInfo(FrozenDataModel):
-    """Information inferred from a filename.
+    """Information encoded in a filepath.
 
-    Use `from_source` to obtain the matching registered subclass.
+    Use `from_source` to identify the filename and obtain its information model.
     """
 
     model_config = ConfigDict(extra="forbid", polymorphic_serialization=True)
 
     ext: str = Field(
-        description="File extension without the leading dot, or an empty string"
+        description="Filename extension without the dot; empty for extensionless names"
     )
-    data_models: DataModelsT = Field(
-        description="Data models supported by this filename, or an empty list"
+    data_models: Annotated[DataModelsT, MetadataField] = Field(
+        description="Data-model memberships identified from the filename; may be empty"
     )
 
     @classmethod
@@ -92,32 +113,36 @@ class FilepathInfo(FrozenDataModel):
         *,
         raise_on_error: bool = True,
     ) -> Self | None:
-        """Return filename information without opening the source.
+        """Parse a local or remote path without opening the source.
 
         Parameters
         ----------
         source : str, pathlib.Path or FileLoc
-            Location to parse. The source need not exist.
+            Location whose filename is to be parsed. The source need not exist.
         raise_on_error : bool, optional
-            Raise if no supported filename matches. Default is True; False
-            returns None for a nonmatch. Parsing and validation errors still raise.
+            Whether a filename without a matching parser raises an error.
+            Default is True. This does not suppress errors in matching layouts.
 
         Returns
         -------
         FilepathInfo or None
-            Parsed information in the calling class or its most specific matching
-            subclass. FilepathInfo itself also accepts unfamiliar filenames,
-            returning their final suffix as ``ext`` and ``data_models=[]``.
+            An instance of the calling class or its most specialized matching
+            descendant. Parsers returning ancestors or unrelated classes are
+            not considered. Calling FilepathInfo itself also accepts unfamiliar
+            names through its base parser, supplying the final suffix as ext
+            and an empty data_models list. If no eligible parser matches,
+            return None when ``raise_on_error=False``.
 
         Raises
         ------
         ValueError
-            If no filename matches and ``raise_on_error=True``, or filename
-            values are invalid.
+            If no eligible parser matches and ``raise_on_error=True``, or if
+            values in a registered filename layout are invalid.
         KeyError
-            If a field converter rejects a captured value.
+            If a recognized filename names an unsupported interface.
         RuntimeError
-            If matching parsers give ambiguous result types.
+            If matching registrations do not resolve to one most-specific result
+            type, regardless of raise_on_error.
 
         Examples
         --------
@@ -156,7 +181,8 @@ class FilepathInfo(FrozenDataModel):
             captures = match.groupdict()
             for parse in parser.parsers:
                 captures.update(parse(captures, path))
-            # Convert text captures to the declared field types.
+            # Regex captures are text; the filename-ingestion boundary converts
+            # them to the declared types before returning a strict data model.
             return cast(
                 "Self", parser.filepath_info_cls.model_validate(captures, strict=False)
             )
