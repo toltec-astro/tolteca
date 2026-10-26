@@ -6,7 +6,7 @@ support is provided by ``tolteca_datamodels.data_model``.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Self
 
@@ -61,14 +61,12 @@ class DataModelSpec(FrozenDataModel):
 class DataModelSet:
     """An explicit selection of data-model capabilities.
 
+    Use `from_specs` to prepare a selection from explicit definitions.
+
     Parameters
     ----------
     data_models : mapping of str to DataModelSpec
-        Prepared specs available to a workflow. The mapping is copied and made
-        read-only at construction. Later registrations do not enlarge this selection.
-
-    Attributes
-    ----------
+        Prepared, read-only mapping of selected specs.
     file_accessor_types : tuple of FileAccessorBase subclasses
         Unique accessor classes in first-selected order.
     file_store_types : tuple of FileStoreBase subclasses
@@ -83,31 +81,36 @@ class DataModelSet:
     """
 
     data_models: Mapping[str, DataModelSpec]
-    file_accessor_types: tuple[type[FileAccessorBase], ...] = field(
-        init=False, repr=False
-    )
-    file_store_types: tuple[type[FileStoreBase], ...] = field(init=False, repr=False)
+    file_accessor_types: tuple[type[FileAccessorBase], ...]
+    file_store_types: tuple[type[FileStoreBase], ...]
 
-    def __post_init__(self) -> None:
-        object.__setattr__(
-            self, "data_models", MappingProxyType(dict(self.data_models))
-        )
-        object.__setattr__(
-            self,
-            "file_accessor_types",
-            tuple(
-                dict.fromkeys(
-                    model.file_accessor_cls for model in self.data_models.values()
-                )
+    @classmethod
+    def from_specs(cls, specs: Mapping[str, DataModelSpec]) -> Self:
+        """Prepare a snapshot of explicit data-model capabilities.
+
+        Parameters
+        ----------
+        specs : mapping of str to DataModelSpec
+            Named definitions to include, in selection order. No registry is
+            consulted and the supplied mapping is not modified.
+
+        Returns
+        -------
+        DataModelSet
+            A frozen selection with a copied, read-only mapping and unique
+            accessor and store tuples prepared once. An empty mapping produces
+            an empty selection.
+        """
+        specs = MappingProxyType(dict(specs))
+        return cls(
+            data_models=specs,
+            file_accessor_types=tuple(
+                dict.fromkeys(model.file_accessor_cls for model in specs.values())
             ),
-        )
-        object.__setattr__(
-            self,
-            "file_store_types",
-            tuple(
+            file_store_types=tuple(
                 dict.fromkeys(
                     store_cls
-                    for model in self.data_models.values()
+                    for model in specs.values()
                     for store_cls in model.file_store_types
                 )
             ),
@@ -126,8 +129,8 @@ class DataModelSet:
         DataModelSet
             Selected capabilities, retaining this set's concrete type.
         """
-        return type(self)(
-            data_models={
+        return type(self).from_specs(
+            {
                 name: self.data_models[name]
                 for name in selector.select(self.data_models)
             },

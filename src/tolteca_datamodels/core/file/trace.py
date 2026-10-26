@@ -25,6 +25,8 @@ class SourceTraceKind(StrEnum):
     source_validation_failed = auto()
     filepath_unrecognized = auto()
     filepath_parse_failed = auto()
+    data_model_unmatched = auto()
+    data_model_unidentified = auto()
 
     @cached_property
     def is_error(self) -> bool:
