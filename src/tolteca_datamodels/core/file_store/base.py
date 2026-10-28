@@ -28,37 +28,32 @@ type SubstoreRegistryT = Mapping[type[FileStoreBase], SubPath]
 
 
 class FileStoreBase[SpecT: ObsSpecBase](ABC):
-    """Candidate discovery within a directory tree.
+    """Base class for discovering files in a directory tree.
 
     Parameters
     ----------
     path : str or pathlib.Path
-        Read-only root of the directory tree. The directory need not exist.
+        Root directory to search. The directory need not exist.
 
     Notes
     -----
-    Subclasses bind the selector type through
-    ``FileStoreBase[SpecT]``. Declare directly managed locations with
-    ``_subpaths``: PurePosixPath values satisfying SubPathOrRoot, with
-    ``PurePosixPath(".")`` for the store's own root. These declarations are trusted,
-    not validated. The default is empty: no local searching. Subclasses may
-    inherit or replace these declarations.
-    Implement ``_iter_local_glob_patterns(spec, subpath)`` to yield glob strings
-    relative to each managed location, excluding files owned by substores.
-    Prefer fixed-depth patterns without ``**``. Managing the root does not
-    imply recursive ownership of its contents. Declare named children with
-    ``child = Substore(ChildStore, subpath="child")``. A ``_substore_paths``
-    mapping of store classes to PurePosixPath values declares children without
-    descriptor names. Subclasses inherit the parent's mapping unless they replace
-    it. Class creation registers map entries and newly declared descriptors
-    through `register_substore`; extensions can call it after class creation.
-    Registered substores are searched after local files, in registration
-    order. Subclass registrations do not modify their parents or siblings.
-    Register children before constructing a store. Construction creates its
-    substore instances without searching directories or opening files. Later
-    registrations affect new instances only.
-    Declare `StorePaths` descriptors for named local selections.
-    Views expose the same descriptor names as their stores.
+    To define a store, subclass ``FileStoreBase[YourObsSpec]`` and implement
+    `_iter_local_glob_patterns`. Declare directly managed locations in
+    ``_subpaths`` as a tuple of SubPathOrRoot values; use
+    ``PurePosixPath(".")`` to include the root itself. The default is empty.
+    These paths are searched using the patterns supplied by your implementation,
+    not recursively by default. Use `StorePaths` to give selections public names.
+
+    Declare named children with
+    ``child = Substore(ChildStore, subpath="child")``. For children without
+    public names, use ``_substore_paths``, a mapping of child classes to SubPath
+    values. Both path declarations are inherited unless replaced. Adding a
+    substore to a subclass leaves its parents and siblings unchanged.
+
+    Local paths are searched in declaration order, followed by substores in
+    registration order. Register children before constructing a store; later
+    registrations affect new instances only. Construction creates the child
+    instances without searching directories or opening files.
     """
 
     _substore_paths: ClassVar[SubstoreRegistryT] = Registry()
@@ -95,7 +90,7 @@ class FileStoreBase[SpecT: ObsSpecBase](ABC):
 
     @property
     def path(self) -> Path:
-        """Root of the directory tree."""
+        """Read-only root path of the store."""
         return self._path
 
     @classmethod
@@ -113,18 +108,19 @@ class FileStoreBase[SpecT: ObsSpecBase](ABC):
         store_cls : type of FileStoreBase
             Store constructed with the subpath as its root.
         subpath : str or SubPath
-            Subpath relative to this store's root, validated as SubPath.
+            Child directory relative to this store's root; see `SubPath`.
         name : str, optional
-            Public descriptor name for this child. Omit for class-based lookup
-            only. Existing attributes cannot be replaced.
+            Public name for selecting this child. Omit to access the child
+            only through `substores`. Existing attributes cannot be replaced.
 
         Raises
         ------
         pydantic.ValidationError
             If subpath or store_cls is invalid.
         ValueError
-            If the class is already registered, including at the same subpath, or the
-            registration would introduce a cycle, or name is invalid or occupied.
+            If the class is already registered, even at the same subpath;
+            the registration would introduce a cycle; or name is invalid or
+            already used.
 
         Notes
         -----
@@ -168,15 +164,14 @@ class FileStoreBase[SpecT: ObsSpecBase](ABC):
     def substores(self) -> _Substores:
         """Read-only mapping of child classes to their concrete store instances.
 
-        Children are created with this store, in registration order. Indexing
-        preserves the concrete return type and raises `KeyError` for absent
-        classes. Repeated access returns the same mapping and child instances.
+        Use ``store.substores[ChildStore]`` to retrieve the existing child with
+        its concrete return type. An unregistered class raises `KeyError`.
         """
         return self._substores
 
     @property
     def view(self) -> StoreView:
-        """All locations in this store's constructed tree."""
+        """View of all managed locations in this store and its substores."""
         return StoreView._from_store(type(self), self)
 
     def partial(
@@ -187,18 +182,20 @@ class FileStoreBase[SpecT: ObsSpecBase](ABC):
     ) -> StoreView:
         """Select declared paths and substores without changing this store.
 
+        Provide exactly one of positional selections, ``exclude``, or
+        ``store_types``.
+
         Parameters
         ----------
         *selections : StoreView or str
             Class selections, bound views, or declared descriptor names.
-            Their union is selected. Cannot be combined with ``exclude``.
+            Include the union of these selections.
         exclude : iterable of StoreView or str, optional
             Selections to remove instead. An empty iterable removes nothing.
         store_types : tuple of FileStoreBase subclasses, optional
             Keep locations managed by these store classes, including subclasses.
             Parent selection does not include its children automatically.
-            An empty tuple selects nothing. Provide exactly one of selections,
-            exclude, or store_types.
+            An empty tuple selects nothing.
 
         Returns
         -------
@@ -220,12 +217,15 @@ class FileStoreBase[SpecT: ObsSpecBase](ABC):
         ----------
         spec : ObsSpecBase or str
             Observation constraints; text uses this store's selector type.
+            Positions and constraints not expressible as globs are deferred
+            to selection on the populated file table.
 
         Yields
         ------
         str
-            Unique globs across declared local locations and substores, without
-            filesystem I/O. Complete ObsSpec selection requires a file table.
+            Unique relative patterns across local locations and substores,
+            without filesystem I/O. Parsing and pattern generation occur
+            during iteration.
         """
         return self.view.iter_glob_patterns(spec)
 
@@ -235,8 +235,9 @@ class FileStoreBase[SpecT: ObsSpecBase](ABC):
         Parameters
         ----------
         spec : ObsSpecBase or str
-            Observation constraints. Apply the complete selector to the
-            populated file table afterward.
+            Observation constraints; text uses this store's selector type.
+            Apply the complete selector to the populated file table afterward,
+            including positional selection.
 
         Returns
         -------
@@ -250,11 +251,21 @@ class FileStoreBase[SpecT: ObsSpecBase](ABC):
     def _iter_local_glob_patterns(
         self, spec: SpecT, subpath: SubPathOrRoot
     ) -> Iterable[str]:
-        """Yield local globs, excluding delegated files and deferring positions.
+        """Yield candidate globs for one managed location.
 
-        Patterns are relative to the selected managed location. Use fixed-depth
-        patterns where possible; even a nonrecursive wildcard directory must
-        not overlap a registered substore's files.
+        Parameters
+        ----------
+        spec : SpecT
+            Parsed observation constraints. Defer positional selection until
+            the candidates have been collected into a file table.
+        subpath : SubPathOrRoot
+            Managed location from ``_subpaths``, relative to this store's root.
+
+        Yields
+        ------
+        str
+            Glob relative to the managed location. Patterns must exclude files
+            owned by substores. Prefer fixed-depth patterns without ``**``.
         """
 
 
