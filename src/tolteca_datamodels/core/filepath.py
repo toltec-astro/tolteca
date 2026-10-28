@@ -1,4 +1,9 @@
-"""Information encoded in local and remote filepaths."""
+"""Information encoded in local and remote filepaths.
+
+This module uses available parser registrations without loading instrument
+parsers. Import from ``tolteca_datamodels.filepath`` for built-in LMT and TolTEC
+support.
+"""
 
 from __future__ import annotations
 
@@ -19,8 +24,6 @@ __all__ = ["FilepathInfo", "MetadataField", "register_filepath_parser"]
 
 
 class _MetadataField:
-    __slots__ = ()
-
     def __repr__(self) -> str:
         return "MetadataField"
 
@@ -127,11 +130,10 @@ class FilepathInfo(FrozenDataModel):
         -------
         FilepathInfo or None
             An instance of the calling class or its most specialized matching
-            descendant. Parsers returning ancestors or unrelated classes are
-            not considered. Calling FilepathInfo itself also accepts unfamiliar
-            names through its base parser, supplying the final suffix as ext
-            and an empty data_models list. If no eligible parser matches,
-            return None when ``raise_on_error=False``.
+            subclass. Parsers for ancestors or unrelated classes are excluded.
+            FilepathInfo itself also accepts unfamiliar names, using the final
+            suffix as ext and an empty data_models list. If no eligible parser
+            matches, return None when ``raise_on_error=False``.
 
         Raises
         ------

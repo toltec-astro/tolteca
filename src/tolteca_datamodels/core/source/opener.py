@@ -84,7 +84,7 @@ class SourceOpener(RecordRuleMapper[Callable[..., Any]]):
         column_names: Mapping[str, str] | None = None,
         **kwargs,
     ) -> Iterator[Any]:
-        """Iterate over sources opened by their rows' matching rules.
+        """Yield opened sources in table row order.
 
         Parameters
         ----------
@@ -107,16 +107,16 @@ class SourceOpener(RecordRuleMapper[Callable[..., Any]]):
         Raises
         ------
         KeyError
-            If source_col is absent, before iteration begins.
+            If source_col is absent.
         ValueError
             During iteration, if a row has no matching opener. Exceptions from
             opening callables also stop iteration; no later rule or row is tried.
 
         Notes
         -----
-        Matching and source collection occur when this method is called. Sources
-        open only as iteration advances. Previously yielded objects remain owned
-        by the caller on failure or early termination; no objects are closed here.
+        Sources open only as iteration advances. Previously yielded objects
+        remain owned by the caller on failure or early termination; no objects
+        are closed here.
         """
         sources = table[source_col].tolist()
         openers = self.map_table(table, column_names=column_names)
