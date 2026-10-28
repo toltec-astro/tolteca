@@ -1,49 +1,30 @@
-"""Label interpretations for observation selectors."""
+"""Numeric interpretations of observation-selector labels."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from types import MappingProxyType
+from dataclasses import dataclass, field
 
-from pydantic import (
-    ConfigDict,
-    Field,
-    NonNegativeInt,
-    field_serializer,
-    field_validator,
-)
-
-from ..types import FrozenDataModel
-from .selectors import _SelectorLabel
-
-type _FieldLabelNumbers = Mapping[
-    str,
-    Mapping[_SelectorLabel, NonNegativeInt | None],
-]
+type _FieldLabelNumbers = Mapping[str, Mapping[str, int | None]]
 
 
-class ObsSpecContext(FrozenDataModel):
-    """Label interpretations for observation selectors.
+@dataclass(frozen=True, slots=True)
+class ObsSpecContext:
+    """Assign numbers to labels for numeric observation selection.
 
     Parameters
     ----------
-    field_label_numbers : mapping, optional
-        Field names mapped to known labels and their nonnegative integer values.
-        None marks an unnumbered label. Default is an empty mapping. Declarations
-        are copied and exposed as read-only mappings.
-        Labels start with a letter and contain letters, digits, or underscores.
-
-    Raises
-    ------
-    pydantic.ValidationError
-        If a label is invalid or its numeric value is not a nonnegative integer
-        or None.
+    field_label_numbers : mapping of str to mappings of str to int or None, optional
+        For each selector field, map labels to nonnegative integers or None
+        for unnumbered labels. Defaults to an empty mapping. Supplied maps
+        are shared declarations; keep them unchanged while the context is used.
 
     Notes
     -----
-    Combine contexts with ``|``. Identical declarations are accepted; conflicting
-    numeric values for the same field and label raise ValueError. A context
-    supplies numeric interpretations, not an allowlist for literal matching.
+    Numeric constraints use these interpretations; literal matching does not
+    require a label to be declared here. Combine contexts with ``|`` to create
+    a new context without changing either input. Shared labels must have the
+    same interpretation, including None; conflicts raise `ValueError`.
 
     Examples
     --------
@@ -54,31 +35,10 @@ class ObsSpecContext(FrozenDataModel):
     1
     """
 
-    model_config = ConfigDict(extra="forbid")
-
-    field_label_numbers: _FieldLabelNumbers = Field(default_factory=dict)
-
-    @field_validator("field_label_numbers")
-    @classmethod
-    def _freeze_field_label_numbers(
-        cls, field_label_numbers: _FieldLabelNumbers
-    ) -> _FieldLabelNumbers:
-        return MappingProxyType(
-            {
-                name: MappingProxyType(values)
-                for name, values in field_label_numbers.items()
-            }
-        )
-
-    @field_serializer("field_label_numbers")
-    def _serialize_field_label_numbers(
-        self, field_label_numbers: _FieldLabelNumbers
-    ) -> dict[str, dict[str, int | None]]:
-        return {name: dict(values) for name, values in field_label_numbers.items()}
+    field_label_numbers: _FieldLabelNumbers = field(default_factory=dict)
 
     def __or__(self, other: ObsSpecContext) -> ObsSpecContext:
-        if not isinstance(other, ObsSpecContext):
-            return NotImplemented
+        """Combine label interpretations, raising ValueError on conflicts."""
         combined = {
             name: dict(labels) for name, labels in self.field_label_numbers.items()
         }
