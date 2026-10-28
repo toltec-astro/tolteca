@@ -24,11 +24,7 @@ __all__ = ["FilepathInfo", "MetadataField", "register_filepath_parser"]
 
 
 class _MetadataField:
-    def __repr__(self) -> str:
-        return "MetadataField"
-
-    def __reduce__(self) -> str:
-        return "MetadataField"
+    pass
 
 
 MetadataField: Final = _MetadataField()
