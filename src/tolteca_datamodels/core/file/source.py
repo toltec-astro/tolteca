@@ -5,7 +5,7 @@ from __future__ import annotations
 from contextlib import ExitStack, contextmanager
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Self
+from typing import TYPE_CHECKING, Any, Self, TypeIs
 
 from pydantic import (
     ConfigDict,
@@ -101,8 +101,6 @@ class SourceSourceLoc(_SourceLocation):
     'nc'
     """
 
-    _source_opener: ClassVar[SourceOpener] = source_opener
-
     @model_validator(mode="after")
     def _prepare_filepath(self) -> Self:
         _ = self.filepath_info
@@ -115,13 +113,18 @@ class SourceSourceLoc(_SourceLocation):
         return FilepathInfo.from_source(self.source_loc, raise_on_error=False)
 
     @contextmanager
-    def open(self, **kwargs) -> Iterator[Any]:
+    def open(self, *, opener: SourceOpener = source_opener, **kwargs) -> Iterator[Any]:
         """Open the resource in a context, or borrow an already-open object.
 
         Parameters
         ----------
+        opener : SourceOpener, optional
+            Opening policy matched against ``filepath_info``. Defaults to
+            ``source_opener``, which opens local NetCDF as xarray datasets and
+            ECSV as QTables. Ignored for already-open objects.
         **kwargs
-            Arguments passed to the opener; ignored for already-open objects.
+            Arguments passed to the selected opening callable; ignored for
+            already-open objects.
 
         Yields
         ------
@@ -138,19 +141,42 @@ class SourceSourceLoc(_SourceLocation):
         Notes
         -----
         Opening occurs on context entry and uses ``source``, not ``source_loc``.
-        The opener is selected using ``filepath_info``. To customize opening,
-        set ``_source_opener`` to a SourceOpener policy in a subclass. Opened
-        resources are not cached, and opening failures propagate.
+        Opened resources are not cached, and opening failures propagate. The
+        yielded object is a format-level resource; opening does not select a
+        data accessor or read metadata.
+
+        Examples
+        --------
+        >>> from io import StringIO
+        >>> opener = SourceOpener(rules=(({"ext": "txt"}, StringIO),))
+        >>> item = SourceSourceLoc.model_validate(
+        ...     {"source": "measurement", "source_loc": "sample.txt"}
+        ... )
+        >>> with item.open(opener=opener) as stream:
+        ...     stream.read()
+        'measurement'
+        >>> stream.closed
+        True
         """
-        if not isinstance(self.source, (str, Path, FileLoc)):
+        if not _is_source_identifier(self.source):
             yield self.source
             return
         with ExitStack() as stack:
-            resource = self._source_opener.open(
-                self.filepath_info, source=self.source, **kwargs
+            yield _enter_opened_resource(
+                stack,
+                opener.open(self.filepath_info, source=self.source, **kwargs),
             )
-            if hasattr(resource, "__enter__"):
-                resource = stack.enter_context(resource)
-            elif callable(close := getattr(resource, "close", None)):
-                stack.callback(close)
-            yield resource
+
+
+def _is_source_identifier(source: object) -> TypeIs[str | Path | FileLoc]:
+    """Whether a source names a resource to open rather than an open object."""
+    return isinstance(source, (str, Path, FileLoc))
+
+
+def _enter_opened_resource(stack: ExitStack, resource: Any) -> Any:
+    """Release an opened resource when the stack closes."""
+    if hasattr(resource, "__enter__"):
+        return stack.enter_context(resource)
+    if callable(close := getattr(resource, "close", None)):
+        stack.callback(close)
+    return resource
