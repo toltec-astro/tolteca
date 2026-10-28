@@ -12,7 +12,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     import pandas as pd
-    from pydantic import JsonValue
 
 __all__ = ["SourceErrorPolicyT", "SourceTrace", "SourceTraceEntry", "SourceTraceKind"]
 
@@ -20,13 +19,21 @@ type SourceErrorPolicyT = Literal["raise", "record"]
 
 
 class SourceTraceKind(StrEnum):
-    """Issues recorded while preparing rows of a file table."""
+    """Issues recorded while preparing rows of a file table.
+
+    Kinds ending in ``_rule_unmatched`` report no applicable rule. These are
+    informational; kinds ending in ``_failed`` report processing errors.
+    """
 
     source_validation_failed = auto()
-    filepath_unrecognized = auto()
+    filepath_rule_unmatched = auto()
     filepath_parse_failed = auto()
-    data_model_unmatched = auto()
-    data_model_unidentified = auto()
+    file_accessor_rule_unmatched = auto()
+    opener_rule_unmatched = auto()
+    source_open_failed = auto()
+    reader_creation_failed = auto()
+    metadata_read_failed = auto()
+    metadata_unavailable = auto()
 
     @cached_property
     def is_error(self) -> bool:
@@ -46,13 +53,14 @@ class SourceTraceEntry:
         Additional detail, such as an exception message. Defaults to None when
         the kind alone describes the result.
     context : dict, optional
-        JSON-compatible supporting details. Defaults to None. Failures include
-        an ``exception_type``; live resources and exceptions are not retained.
+        Supporting details for inspection and logging. Defaults to None.
+        Failures include an ``exception_type``; live resources and exceptions
+        are not retained.
     """
 
     kind: SourceTraceKind
     message: str | None = None
-    context: dict[str, JsonValue] | None = None
+    context: dict[str, object] | None = None
 
     @property
     def is_error(self) -> bool:
@@ -70,7 +78,7 @@ class SourceTrace:
     Examples
     --------
     >>> trace = SourceTrace()
-    >>> trace.append(SourceTraceEntry(kind=SourceTraceKind.filepath_unrecognized))
+    >>> trace.append(SourceTraceEntry(kind=SourceTraceKind.filepath_rule_unmatched))
     >>> trace.has_error
     False
     >>> trace.append(SourceTraceEntry(kind=SourceTraceKind.filepath_parse_failed))
@@ -140,16 +148,22 @@ class _SourceTraceCollector:
         kind: SourceTraceKind,
         message: str | None = None,
         *,
-        context: dict[str, JsonValue] | None = None,
+        context: dict[str, object] | None = None,
     ) -> None:
         entry = SourceTraceEntry(kind=kind, message=message, context=context)
         cast("SourceTrace", self.traces.iloc[position]).append(entry)
 
     @contextmanager
-    def capture(self, position: int, failure_kind: SourceTraceKind) -> Iterator[None]:
+    def capture(
+        self,
+        position: int,
+        failure_kind: SourceTraceKind,
+        *,
+        exceptions: tuple[type[Exception], ...] = (ValueError, KeyError, OSError),
+    ) -> Iterator[None]:
         try:
             yield
-        except (ValueError, KeyError, OSError) as error:
+        except exceptions as error:
             self.record(
                 position,
                 failure_kind,
