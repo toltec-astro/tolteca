@@ -126,7 +126,7 @@ class FileStoreBase[SpecT: ObsSpecBase](ABC):
         -----
         New registrations apply to subsequently constructed stores only.
         """
-        ((store_cls, subpath),) = _substore_adapter.validate_python(
+        ((store_cls, subpath),) = _validate_substore_registration(
             {store_cls: subpath}
         ).items()
         pending: list[type[FileStoreBase]] = [store_cls]
@@ -285,4 +285,6 @@ class _Substores(Mapping[type[FileStoreBase], FileStoreBase]):
         return len(self._stores)
 
 
-_substore_adapter = TypeAdapter(SubstoreRegistryT, config=ConfigDict(strict=True))
+_validate_substore_registration = TypeAdapter(
+    SubstoreRegistryT, config=ConfigDict(strict=True)
+).validate_python

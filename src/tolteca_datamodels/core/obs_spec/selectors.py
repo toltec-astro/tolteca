@@ -83,24 +83,24 @@ type _ValueSet[ValueT] = Annotated[
     tuple[ValueT, ...], Field(min_length=1), AfterValidator(_normalize_value_set)
 ]
 type FieldValues = FieldValue | _ValueSet[FieldValue] | ValueBounds | None
-_field_value_adapters = {
+_field_value_validators = {
     "label": TypeAdapter(
         _SelectorLabel | _ValueSet[_SelectorLabel] | None, config=_SELECTOR_CONFIG
-    ),
+    ).validate_python,
     "integer": TypeAdapter(
         NonNegativeInt | _ValueSet[NonNegativeInt] | ValueBounds | None,
         config=_SELECTOR_CONFIG,
-    ),
-    "mixed": TypeAdapter(FieldValues, config=_SELECTOR_CONFIG),
+    ).validate_python,
+    "mixed": TypeAdapter(FieldValues, config=_SELECTOR_CONFIG).validate_python,
 }
-_slice_parts_adapter = TypeAdapter(
+_validate_slice_parts = TypeAdapter(
     tuple[int | None, int | None, PositiveInt | NegativeInt | None],
     config=ConfigDict(strict=True),
-)
+).validate_python
 
 
 def _validate_position_slice(value: slice) -> slice:
-    _slice_parts_adapter.validate_python((value.start, value.stop, value.step))
+    _validate_slice_parts((value.start, value.stop, value.step))
     return value
 
 
@@ -538,7 +538,7 @@ class FieldConstraint:
                 msg = "Literal parts around a numeric selection require a mixed field"
                 raise ValueError(msg)
             return selector
-        values = _field_value_adapters[self.kind].validate_python(
+        values = _field_value_validators[self.kind](
             selector.value_constraint
             if isinstance(selector, FieldSelection)
             else selector
