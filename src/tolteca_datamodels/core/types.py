@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, ClassVar
 
-from pydantic import AfterValidator, BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = ["DataModelInfo", "DataModelsT", "FrozenDataModel"]
 
@@ -21,12 +21,8 @@ class DataModelInfo:
     name: ClassVar[str]
 
 
-def _unique_data_models(names: list[str]) -> list[str]:
-    return list(dict.fromkeys(names))
-
-
-type DataModelsT = Annotated[list[str], AfterValidator(_unique_data_models)]
-"""Applicable data-model names, without duplicates or precedence by order."""
+type DataModelsT = Annotated[frozenset[str], Field(strict=False)]
+"""Immutable membership set, accepted from collections of data-model names."""
 
 
 class FrozenDataModel(BaseModel):

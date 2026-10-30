@@ -128,7 +128,7 @@ class FilepathInfo(FrozenDataModel):
             An instance of the calling class or its most specialized matching
             subclass. Parsers for ancestors or unrelated classes are excluded.
             FilepathInfo itself also accepts unfamiliar names, using the final
-            suffix as ext and an empty data_models list. If no eligible parser
+            suffix as ext and an empty data_models set. If no eligible parser
             matches, return None when ``raise_on_error=False``.
 
         Raises

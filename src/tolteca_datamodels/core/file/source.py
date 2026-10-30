@@ -89,7 +89,7 @@ class SourceSourceLoc(_SourceLocation):
     -----
     Validation parses the filename without opening the resource. Invalid input
     or filename values raise. Unfamiliar names provide an extension and an empty
-    ``data_models`` list. Import from ``tolteca_datamodels.source`` to enable
+    ``data_models`` set. Import from ``tolteca_datamodels.source`` to enable
     built-in filename conventions.
 
     Examples
