@@ -17,8 +17,8 @@ from tollan.accessor.pandas.model_table import (
 )
 from tollan.utils.log import logger
 
-from ..filepath import FilepathInfo
-from .source import SourceSourceLoc, _SourceLocation
+from ..filepath import FilepathInfo, MetadataField
+from .source import _SourceLocation
 from .trace import (
     SourceErrorPolicyT,
     SourceTrace,
@@ -31,6 +31,9 @@ if TYPE_CHECKING:
 
 __all__ = ["FileAccessorBase"]
 
+_validate_sources_argument = TypeAdapter(list[object]).validate_python
+_validate_source_error_policy = TypeAdapter(SourceErrorPolicyT).validate_python
+
 
 class FileAccessorBase(ModelTableAccessor):
     """Build and query a table of file information without opening resources.
@@ -38,9 +41,8 @@ class FileAccessorBase(ModelTableAccessor):
     Parameters
     ----------
     data : pandas.DataFrame
-        Table to access, including an empty DataFrame. Binding does not copy
-        or modify it and requires no columns. Use `guess_from_sources` to
-        populate it, or `from_sources` to create a populated accessor directly.
+        Table to access without copying or modifying it. No columns are required
+        at construction. Use `from_sources` to create a populated accessor.
     """
 
     _SOURCE_COLUMN: ClassVar[str] = "source"
@@ -48,31 +50,32 @@ class FileAccessorBase(ModelTableAccessor):
     _FILEPATH_INFO_COLUMN: ClassVar[str] = "filepath_info"
     _DATA_MODELS_COLUMN: ClassVar[str] = "data_models"
     _SOURCE_TRACE_COLUMN: ClassVar[str] = "source_trace"
+    _IO_OBJ_COLUMN: ClassVar[str] = "io_obj"
+    _ACCESSOR_OBJ_COLUMN: ClassVar[str] = "accessor_obj"
 
-    _sources_adapter: ClassVar = TypeAdapter(list[object])
-    _error_policy_adapter: ClassVar = TypeAdapter(SourceErrorPolicyT)
-    _source_columns: ClassVar[dict[str, ModelColumn]] = ModelColumnMapper(
+    _source_column_mapper: ClassVar[ModelColumnMapper] = ModelColumnMapper(
         name_rules=[(r".+", r"\g<0>")],
         type_rules=[
             ExplicitColumnRule(
                 columns={
-                    "source": ModelColumn("source", dtype=object),
-                    "source_loc": ModelColumn("source_loc", dtype=object),
+                    _SOURCE_COLUMN: ModelColumn(_SOURCE_COLUMN, dtype=object),
+                    _SOURCE_LOC_COLUMN: ModelColumn(_SOURCE_LOC_COLUMN, dtype=object),
                 }
             ),
             ScalarColumnRule(),
         ],
         include_computed=True,
-    )(_SourceLocation)
+    )
+    _source_columns: ClassVar[dict[str, ModelColumn]] = _source_column_mapper(
+        _SourceLocation
+    )
 
     _filepath_column_mapper: ClassVar[ModelColumnMapper] = ModelColumnMapper(
-        name_rules=[(r".+", r"file_\g<0>"), (r"data_models", _DATA_MODELS_COLUMN)],
+        name_rules=[(r".+", r"file_\g<0>")],
         type_rules=[
             ExplicitColumnRule(
                 columns={
-                    "data_models": ModelColumn(
-                        "data_models", dtype=object, converter=list
-                    ),
+                    _DATA_MODELS_COLUMN: ModelColumn(_DATA_MODELS_COLUMN, dtype=object),
                 }
             ),
             ScalarColumnRule(),
@@ -86,6 +89,18 @@ class FileAccessorBase(ModelTableAccessor):
         """Prepare columns once per accessor and filename model type."""
         return cls._filepath_column_mapper(model_cls)
 
+    @classmethod
+    @cache
+    def _filepath_metadata_aliases(
+        cls, model_cls: type[FilepathInfo]
+    ) -> dict[str, str]:
+        """Names initialized from snapshots of marked metadata fields."""
+        return {
+            name.removeprefix("file_"): name
+            for name, column in cls._filepath_columns(model_cls).items()
+            if MetadataField in model_cls.model_fields[column.attr].metadata
+        }
+
     @property
     def table(self) -> pd.DataFrame:
         """Underlying DataFrame, without copying."""
@@ -93,23 +108,33 @@ class FileAccessorBase(ModelTableAccessor):
 
     @property
     def source(self) -> pd.Series:
-        """Original-resource column, available after guessing."""
+        """Original resource objects."""
         return self._obj[self._SOURCE_COLUMN]
 
     @property
     def source_loc(self) -> pd.Series:
-        """Validated-location column, available after guessing."""
+        """Validated locations used for filename parsing."""
         return self._obj[self._SOURCE_LOC_COLUMN]
 
     @property
+    def filepath_info(self) -> pd.Series:
+        """Parsed filename information; raises KeyError if the column is absent."""
+        return self._obj[self._FILEPATH_INFO_COLUMN]
+
+    @property
+    def data_models(self) -> pd.Series:
+        """Current data-model memberships; raises KeyError if the column is absent."""
+        return self._obj[self._DATA_MODELS_COLUMN]
+
+    @property
     def source_trace(self) -> pd.Series:
-        """Trace column with the current index; raises KeyError if absent."""
+        """Per-row source traces; raises KeyError if the column is absent."""
         return self._obj[self._SOURCE_TRACE_COLUMN]
 
-    def _get_or_create_source_collector(
+    def _make_source_trace_collector(
         self, on_error: SourceErrorPolicyT
     ) -> _SourceTraceCollector:
-        """Bind a collector to current rows, creating missing trace storage."""
+        """Create a collector over table traces, initializing the column if absent."""
         if self._SOURCE_TRACE_COLUMN not in self._obj:
             self._obj[self._SOURCE_TRACE_COLUMN] = pd.array(
                 [SourceTrace() for _ in range(len(self._obj))], dtype=object
@@ -120,164 +145,125 @@ class FileAccessorBase(ModelTableAccessor):
     def from_sources(
         cls, sources: Iterable[object], *, on_error: SourceErrorPolicyT = "record"
     ) -> Self:
-        """Create an accessor with source locations and filename information.
+        """Create a file table from resource identifiers without opening them.
 
         Parameters
         ----------
         sources : finite iterable
-            Resources, prepared SourceSourceLoc objects, or dicts containing
-            ``source`` and ``source_loc``. See `guess_from_sources` for accepted
-            forms and projected columns. No resources are opened.
-        on_error : {"record", "raise"}, optional
-            Default is "record": retain invalid entries with a failure trace.
-            Use "raise" to propagate source-location and filename parsing
-            failures. Invalid outer collections, ambiguous registrations and
-            projection failures always raise.
-
-        Returns
-        -------
-        Self
-            New accessor whose `table` has one row per input in iteration
-            order, including duplicates and invalid entries.
-
-        See Also
-        --------
-        guess_from_sources : Populate an existing accessor in place.
-
-        Examples
-        --------
-        >>> files = FileAccessorBase.from_sources(["example.nc"])
-        >>> files.table.file_ext.tolist()
-        ['nc']
-        """
-        return cls(pd.DataFrame()).guess_from_sources(sources, on_error=on_error)
-
-    def guess_from_sources(
-        self, sources: Iterable[object], *, on_error: SourceErrorPolicyT = "record"
-    ) -> Self:
-        """Populate source locations and filename information in place.
-
-        Parameters
-        ----------
-        sources : finite iterable
-            Collection of resources, prepared SourceSourceLoc objects, or dicts
-            containing ``source`` and ``source_loc``. Lists, tuples and generators
-            are accepted and consumed in iteration order. Wrap a single resource
-            or source/location dict in a list; strings, mappings and non-iterables
-            are not accepted as the outer collection.
+            Resources or dicts with ``source`` and optional ``source_loc``.
+            Wrap a single entry in a list.
             An omitted or None ``source_loc`` uses ``source`` and must validate
-            as FileLoc. Supply an explicit location for an already-open object.
-            The location need not exist. Only ``source_loc`` is used for parsing;
-            the original ``source`` object is retained unchanged.
-            A table with no rows or columns acquires one row per input.
-            Otherwise the input length must match the table's row count;
-            entries map to rows by position, preserving the index.
+            as FileLoc. Supply it explicitly for an already-open resource or a
+            different original filename. Locations need not exist; resource
+            objects are retained unchanged.
         on_error : {"record", "raise"}, optional
-            Default is "record": retain rows with invalid source-location pairs
-            or filename parsing failures, recording the failure in ``source_trace``.
-            Use "raise" to propagate those failures. Unrecognized filenames are
-            recorded in either mode. Invalid collections or policies, ambiguous
-            registrations and column projection failures always raise.
-            Source-location validation precedes filename parsing, so in raise
-            mode a source-location error is reported before any filename error.
+            Record per-entry validation and filename failures in ``source_trace``
+            by default, or propagate them with "raise". Invalid outer collections,
+            ambiguous registrations and projection failures always raise.
 
         Returns
         -------
         Self
-            This accessor, with projected columns updated in place. Other
-            columns and existing trace objects are retained. A missing
-            ``source_trace`` column is initialized with an empty trace per row.
-            Invalid source-location pairs have missing information columns
-            and a failure trace. A filename
-            parsing failure retains the validated source and location.
-            ``source`` and ``source_loc`` have object
-            dtype; ``source_loc_is_local``, ``source_loc_host`` and
-            ``source_loc_scheme`` describe the location. ``filepath_info`` holds
-            the parsed FilepathInfo object, or None when parsing fails or the
-            location has no filename. Unfamiliar filenames provide ``file_ext``
-            with an empty ``data_models`` list.
-            Scalar filename fields have ``file_*`` snapshot columns. Entry-point
-            specializations may add unprefixed current-value columns; values are
-            missing on rows whose models do not provide them. ``source_trace`` holds
-            a SourceTrace object for each row. Use ``iter_entries()`` to inspect
-            recorded issues or ``iter_error_entries()`` to inspect failures only;
-            ``has_error`` identifies traces containing a failure. Successful
-            guessing adds no issues; parsed information is in ``filepath_info``.
-            Empty input retains the source-location
-            columns, ``filepath_info`` and ``source_trace``.
+            Accessor with one row per input in iteration order, including
+            duplicates and invalid entries. Invalid source/location pairs have
+            missing information and a failure trace. Filename failures retain
+            the valid source and location.
+
+            ``source`` and ``source_loc`` retain the resource and validated
+            location. ``source_loc_is_local``, ``source_loc_host`` and
+            ``source_loc_scheme`` describe that location. ``filepath_info``
+            holds the parsed model, or None when unavailable. Supported filename
+            fields provide ``file_*`` snapshots; fields marked with MetadataField
+            also initialize unprefixed columns. Unfamiliar names provide an
+            extension and empty ``data_models``. ``source_trace`` contains each
+            row's recorded issues.
 
         Raises
         ------
         pydantic.ValidationError
-            If the error policy or outer collection is invalid, iteration fails,
-            or a source-location pair or parsed filename fails validation with
-            ``on_error="raise"``.
-        ValueError, KeyError
-            If the input length does not match the existing rows, or a
-            registered parser rejects a value with ``on_error="raise"``.
+            Invalid collection or error policy, or invalid entries in raise mode.
         RuntimeError
-            If matching filename registrations are ambiguous.
+            Filename registrations match ambiguously.
         TypeError, ValueError, OverflowError
-            If projected fields require incompatible dtypes for a shared column,
-            or a parsed value cannot be projected into its declared column dtype.
+            A projected value or shared column has an incompatible dtype, or a
+            filename converter fails in raise mode.
 
         Examples
         --------
-        >>> import pandas as pd
-        >>> files = FileAccessorBase(pd.DataFrame())
-        >>> _ = files.guess_from_sources([
+        >>> file_accessor = FileAccessorBase.from_sources(["example.nc"])
+        >>> file_accessor.table.file_ext.tolist()
+        ['nc']
+
+        >>> file_accessor = FileAccessorBase.from_sources([
         ...     {"source": "cached.nc", "source_loc": "archive:/observation.nc"},
         ...     "local.nc",
         ... ])
-        >>> files.source_loc.iloc[0].as_rsync_arg()
+        >>> file_accessor.source_loc.iloc[0].as_rsync_arg()
         'archive:/observation.nc'
-        >>> files.query("source_loc_is_local").source.tolist()
+        >>> file_accessor.query("source_loc_is_local").source.tolist()
         ['local.nc']
         """
-        on_error = self._error_policy_adapter.validate_python(on_error)
-        sources = self._sources_adapter.validate_python(sources)
-        if len(self._obj.index) == 0 and len(self._obj.columns) == 0:
-            self._obj.index = pd.RangeIndex(len(sources))
-        elif len(sources) != len(self._obj):
-            msg = "The number of sources must match the table's row count."
-            raise ValueError(msg)
-        collector = self._get_or_create_source_collector(on_error)
-
+        on_error = _validate_source_error_policy(on_error)
+        sources = _validate_sources_argument(sources)
+        file_accessor = cls(pd.DataFrame(index=pd.RangeIndex(len(sources))))
+        collector = file_accessor._make_source_trace_collector(on_error)
         models: list[_SourceLocation | None] = []
         for position, source in enumerate(sources):
             model = None
             with collector.capture(position, SourceTraceKind.source_validation_failed):
                 model = _SourceLocation.model_validate(source)
             models.append(model)
-        self.update_from_models(models, columns=self._source_columns, inplace=True)
+        file_accessor.update_from_models(
+            models, columns=cls._source_columns, inplace=True
+        )
+        return file_accessor._guess_from_sources(on_error=on_error)
 
-        filepath_infos: list[FilepathInfo | None] = [None] * len(models)
-        for position, model in enumerate(models):
-            if model is not None:
-                with collector.capture(position, SourceTraceKind.filepath_parse_failed):
-                    info = (
-                        model.filepath_info
-                        if isinstance(model, SourceSourceLoc)
-                        else FilepathInfo.from_source(
-                            model.source_loc, raise_on_error=False
-                        )
-                    )
-                    if info is None:
-                        collector.record(
-                            position, SourceTraceKind.filepath_unrecognized
-                        )
-                    else:
-                        filepath_infos[position] = info
-        self._obj[self._FILEPATH_INFO_COLUMN] = pd.array(filepath_infos, dtype=object)
-        columns = {
-            model_cls: self._filepath_columns(model_cls)
-            for model_cls in dict.fromkeys(
-                type(info) for info in filepath_infos if info is not None
-            )
-        }
-        self.update_from_models(filepath_infos, columns=columns, inplace=True)
+    def _guess_from_sources(self, *, on_error: SourceErrorPolicyT = "record") -> Self:
+        """Populate filename information from prepared source locations."""
+        self._parse_filepath_info(on_error=on_error)
+        self._populate_from_filepath_info()
         self._log_traces()
         return self
+
+    def _parse_filepath_info(self, *, on_error: SourceErrorPolicyT) -> None:
+        """Parse validated source locations and retain the results."""
+        on_error = _validate_source_error_policy(on_error)
+        locations = self.source_loc
+        collector = self._make_source_trace_collector(on_error)
+        parsed = []
+        for position, (valid, location) in enumerate(
+            zip(locations.notna(), locations, strict=True)
+        ):
+            info = None
+            if valid:
+                with collector.capture(position, SourceTraceKind.filepath_parse_failed):
+                    info = FilepathInfo.from_source(location, raise_on_error=False)
+                    if info is None:
+                        collector.record(
+                            position, SourceTraceKind.filepath_rule_unmatched
+                        )
+            parsed.append(info)
+        self.table[self._FILEPATH_INFO_COLUMN] = pd.array(parsed, dtype=object)
+
+    def _populate_from_filepath_info(self) -> None:
+        """Project retained parses and initialize absent marked metadata columns."""
+        filepath_infos = self.table[self._FILEPATH_INFO_COLUMN]
+        model_types = filepath_infos.map(type)
+        columns = {
+            cls: self._filepath_columns(cls)
+            for cls in model_types.unique()
+            if cls is not type(None)
+        }
+        self.update_from_models(filepath_infos, columns=columns, inplace=True)
+        aliases = {
+            name: snapshot
+            for cls in columns
+            for name, snapshot in self._filepath_metadata_aliases(cls).items()
+        }
+        for name, snapshot in aliases.items():
+            if name in self.table:
+                continue
+            self.table[name] = self.table[snapshot]
 
     def source_trace_summary(self) -> pd.DataFrame:
         """Count rows containing each recorded issue kind.
@@ -285,13 +271,10 @@ class FileAccessorBase(ModelTableAccessor):
         Returns
         -------
         pandas.DataFrame
-            Columns ``kind``, ``count`` and ``total``. Each row contributes at most
-            once to a kind's count; total is this table's row count. Counts use
-            the current rows, including any filtering or duplication. Full
-            per-row issue history remains in ``source_trace``. The summary is
-            empty if there are no recorded issues or no trace column.
-            Count parsed filenames with
-            ``table.filepath_info.notna().sum()``.
+            Columns ``kind``, ``count`` and ``total``. Each current row counts at
+            most once per issue kind; total is the table's row count. Empty when
+            there are no issues or no trace column. Inspect ``source_trace`` for
+            individual entries.
         """
         counts = Counter()
         if self._SOURCE_TRACE_COLUMN in self._obj:
