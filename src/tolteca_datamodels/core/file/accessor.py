@@ -47,8 +47,165 @@ __all__ = ["FileAccessorBase"]
 _validate_sources_argument = TypeAdapter(list[object]).validate_python
 
 
+class _FileWorkflowProxy[WorkflowT: FileAccessorWorkflow]:
+    """Delegate file operations to the owning accessor or view's workflow."""
+
+    _workflow: WorkflowT
+
+    def open(
+        self,
+        *,
+        on_error: SourceErrorPolicyT = "record",
+    ) -> AbstractContextManager[pd.DataFrame]:
+        """Open and identify matching and unidentified sources within a context.
+
+        Parameters
+        ----------
+        on_error : {"record", "raise"}, optional
+            Record opening and reader-creation failures in
+            ``source_trace`` by default, or propagate the first failure with
+            "raise".
+
+        Yields
+        ------
+        pandas.DataFrame
+            Shared table, updated in place with ``io_obj`` holding each
+            opened resource and ``accessor_obj`` holding its data accessor.
+            Skipped rows hold None. If opening succeeds but reader creation
+            fails, ``io_obj`` remains available and ``accessor_obj`` is None.
+            On exit, columns from an enclosing open scope are restored;
+            otherwise both columns are removed.
+
+        Raises
+        ------
+        ValueError, TypeError, KeyError, OSError
+            Resource opening or reader creation fails with
+            ``on_error="raise"``.
+
+        Notes
+        -----
+        Matching and unidentified rows are opened; recognized foreign rows are
+        skipped. Current values select
+        the opener (``ext``, or ``file_ext`` when ``ext`` is absent) and reader
+        (for example, ``data_models``, ``interface`` and ``interface_kind``).
+        Rows whose values select no reader are identified from the opened
+        contents. If no opener matches, the row records ``opener_rule_unmatched``
+        without raising. Failure to obtain a live reader records
+        ``reader_creation_failed`` and follows ``on_error``. This includes no
+        reader being found, content inspection errors and construction errors.
+        A source that is itself an open object is borrowed. Each local file is
+        opened once per opener; resources opened here are closed on exit, including on
+        exceptions. Load data needed afterward while the scope is open. Use
+        `read_metadata` to read source metadata into the table.
+
+        Examples
+        --------
+        With the reference observation under ``data_lmt`` in the working directory:
+
+        >>> from tolteca_datamodels.toltec.file import ToltecFileAccessor
+        >>> file_accessor = ToltecFileAccessor.from_sources([
+        ...     "data_lmt/tel/tel_toltec_2025-10-31_145609_00_0002.nc",
+        ...     "data_lmt/toltec/tcs/toltec0/"
+        ...     "toltec0_145609_000_0002_2025_10_31_09_27_57.nc",
+        ... ])
+        >>> with file_accessor.open() as table:
+        ...     [type(accessor).__name__ for accessor in table.accessor_obj]
+        ['LmtTelAccessor', 'ToltecKidsAccessor']
+        >>> "io_obj" in file_accessor.table
+        False
+        """
+        return self._workflow.open(on_error=on_error)
+
+    def read_metadata(self, *, on_error: SourceErrorPolicyT = "record") -> Self:
+        """Read source metadata and update this accessor's table in place.
+
+        Parameters
+        ----------
+        on_error : {"record", "raise"}, optional
+            Record source opening, identification and metadata-reading failures
+            by default, or propagate the first failure with "raise".
+
+        Returns
+        -------
+        Self
+            This accessor or view. Successful reads replace current metadata columns.
+            Filename snapshots, unrelated
+            columns and failed rows' values are retained. Readers without
+            metadata may supply additional columns and receive a
+            ``metadata_unavailable`` trace.
+
+        Raises
+        ------
+        TypeError, ValueError, AttributeError, OverflowError
+            Metadata projection or reader-column preparation fails. These
+            errors always propagate and leave destination columns unchanged.
+            Source errors propagate only with ``on_error="raise"``.
+
+        Notes
+        -----
+        Each call reads matching and unidentified rows, including rows populated
+        by an earlier call or by the factory. Inside `open`, it uses live
+        ``accessor_obj`` values without
+        opening or identifying again. Otherwise it opens the required sources
+        and closes owned resources afterward. Metadata is obtained through each
+        reader's ``meta`` property. Metadata updates do not run filename
+        derivation again.
+
+        Examples
+        --------
+        >>> from tolteca_datamodels.lmt.file import LmtFileAccessor
+        >>> file_accessor = LmtFileAccessor.from_sources([
+        ...     "data_lmt/tel/tel_toltec_2025-10-31_145609_00_0002.nc",
+        ... ])
+        >>> _ = file_accessor.read_metadata()
+        >>> file_accessor.query("obsnum == 145609").interface.tolist()
+        ['tel']
+        """
+        self._workflow.read_metadata(on_error=on_error)
+        return self
+
+    def query_obs_spec(self, spec: ObsSpecBase | str | int) -> pd.DataFrame:
+        """Select rows with an observation specification.
+
+        Parameters
+        ----------
+        spec : ObsSpecBase, str or int
+            Observation selector. Text and integers require a common selector
+            class among the selected policies. A parsed selector must be
+            supported by the workflow. Value constraints apply before
+            one positional selection across all rows.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Matching rows, retaining their index and order. The selection
+            applies to all rows, not only rows matched by the selected policies.
+            Numeric interface constraints use their combined label numbering.
+
+        Raises
+        ------
+        ValueError
+            Invalid selector text, no common selector class, conflicting label
+            numbering, or the table lacks a constrained field.
+        TypeError
+            A parsed selector of another class.
+
+        Examples
+        --------
+        >>> from tolteca_datamodels.toltec.file import ToltecFileAccessor
+        >>> file_accessor = ToltecFileAccessor.from_sources([
+        ...     "toltec0_145606_000_0001_2025_10_31_09_22_14_targsweep.nc",
+        ...     "toltec7_145606_000_0001_2025_10_31_09_22_14_targsweep.nc",
+        ...     "tel_toltec_2025-10-31_145606_00_0001.nc",
+        ... ])
+        >>> file_accessor.query_obs_spec("145606/7").interface.tolist()
+        ['toltec7']
+        """
+        return self._workflow.query_obs_spec(spec)
+
+
 class FileAccessorBase[WorkflowT: FileAccessorWorkflow = FileAccessorWorkflow](
-    ModelTableAccessor
+    _FileWorkflowProxy[WorkflowT], ModelTableAccessor
 ):
     """Build and query a file table using a configured workflow.
 
@@ -61,7 +218,8 @@ class FileAccessorBase[WorkflowT: FileAccessorWorkflow = FileAccessorWorkflow](
     Notes
     -----
     Define extensions as ``FileAccessorBase[YourWorkflow]``. Omitting the workflow
-    uses `FileAccessorWorkflow`, which supplies no concrete processing policies.
+    uses `FileAccessorWorkflow`, which has no matching rules and retains only
+    filename-derived information.
     """
 
     _workflow_cls: ClassVar[type[FileAccessorWorkflow]] = FileAccessorWorkflow
@@ -188,154 +346,6 @@ class FileAccessorBase[WorkflowT: FileAccessorWorkflow = FileAccessorWorkflow](
 
     def _get_query_namespace(self) -> dict[str, object]:
         return super()._get_query_namespace() | self._workflow._get_query_namespace()
-
-    def open(
-        self,
-        *,
-        on_error: SourceErrorPolicyT = "record",
-    ) -> AbstractContextManager[pd.DataFrame]:
-        """Open and identify matching and unidentified sources within a context.
-
-        Parameters
-        ----------
-        on_error : {"record", "raise"}, optional
-            Record opening and reader-creation failures in
-            ``source_trace`` by default, or propagate the first failure with
-            "raise".
-
-        Yields
-        ------
-        pandas.DataFrame
-            This accessor's table, updated in place with ``io_obj`` holding each
-            opened resource and ``accessor_obj`` holding its data accessor.
-            Skipped rows hold None. If opening succeeds but reader creation
-            fails, ``io_obj`` remains available and ``accessor_obj`` is None.
-            Both columns are removed on exit.
-
-        Raises
-        ------
-        ValueError, TypeError, KeyError, OSError
-            Resource opening or reader creation fails with
-            ``on_error="raise"``.
-
-        Notes
-        -----
-        Matching and unidentified rows are opened; recognized foreign rows are
-        skipped. Current values select
-        the opener (``ext``, or ``file_ext`` when ``ext`` is absent) and reader
-        (for example, ``data_models``, ``interface`` and ``interface_kind``).
-        Rows whose values select no reader are identified from the opened
-        contents. If no opener matches, the row records ``opener_rule_unmatched``
-        without raising. Failure to obtain a live reader records
-        ``reader_creation_failed`` and follows ``on_error``. This includes no
-        reader being found, content inspection errors and construction errors.
-        A source that is itself an open object is borrowed. Each local file is
-        opened once per opener; resources opened here are closed on exit, including on
-        exceptions. Load data needed afterward while the scope is open. Use
-        `read_metadata` to read source metadata into the table.
-
-        Examples
-        --------
-        With the reference observation under ``data_lmt`` in the working directory:
-
-        >>> from tolteca_datamodels.toltec.file import ToltecFileAccessor
-        >>> file_accessor = ToltecFileAccessor.from_sources([
-        ...     "data_lmt/tel/tel_toltec_2025-10-31_145609_00_0002.nc",
-        ...     "data_lmt/toltec/tcs/toltec0/"
-        ...     "toltec0_145609_000_0002_2025_10_31_09_27_57.nc",
-        ... ])
-        >>> with file_accessor.open() as table:
-        ...     [type(accessor).__name__ for accessor in table.accessor_obj]
-        ['LmtTelAccessor', 'ToltecKidsAccessor']
-        >>> "io_obj" in file_accessor.table
-        False
-        """
-        return self._workflow.open(on_error=on_error)
-
-    def read_metadata(self, *, on_error: SourceErrorPolicyT = "record") -> Self:
-        """Read source metadata and update this accessor's table in place.
-
-        Parameters
-        ----------
-        on_error : {"record", "raise"}, optional
-            Record source opening, identification and metadata-reading failures
-            by default, or propagate the first failure with "raise".
-
-        Returns
-        -------
-        Self
-            This accessor. Successful reads replace current metadata columns.
-            Filename snapshots, unrelated
-            columns and failed rows' values are retained. Readers without
-            metadata may supply additional columns and receive a
-            ``metadata_unavailable`` trace.
-
-        Raises
-        ------
-        TypeError, ValueError, AttributeError, OverflowError
-            Metadata projection or reader-column preparation fails. These
-            errors always propagate and leave destination columns unchanged.
-            Source errors propagate only with ``on_error="raise"``.
-
-        Notes
-        -----
-        Each call reads matching and unidentified rows, including rows populated
-        by an earlier call or by the factory. Inside `open`, it uses live
-        ``accessor_obj`` values without
-        opening or identifying again. Otherwise it opens the required sources
-        and closes owned resources afterward. Metadata is obtained through each
-        reader's ``meta`` property. Metadata updates do not run filename
-        derivation again.
-
-        Examples
-        --------
-        >>> from tolteca_datamodels.lmt.file import LmtFileAccessor
-        >>> file_accessor = LmtFileAccessor.from_sources([
-        ...     "data_lmt/tel/tel_toltec_2025-10-31_145609_00_0002.nc",
-        ... ])
-        >>> _ = file_accessor.read_metadata()
-        >>> file_accessor.query("obsnum == 145609").interface.tolist()
-        ['tel']
-        """
-        self._workflow.read_metadata(on_error=on_error)
-        return self
-
-    def query_obs_spec(self, spec: ObsSpecBase | str | int) -> pd.DataFrame:
-        """Select rows with an observation specification.
-
-        Parameters
-        ----------
-        spec : ObsSpecBase, str or int
-            Observation selector. Text and integers are parsed with this
-            accessor's selector class. Value constraints apply before
-            positional selection.
-
-        Returns
-        -------
-        pandas.DataFrame
-            Matching rows, retaining their index and order. The selection
-            applies to all rows, not only rows matched by this accessor.
-            Numeric interface constraints use this accessor's label numbering.
-
-        Raises
-        ------
-        ValueError
-            Invalid selector text, or the table lacks a constrained field.
-        TypeError
-            A parsed selector of another class.
-
-        Examples
-        --------
-        >>> from tolteca_datamodels.toltec.file import ToltecFileAccessor
-        >>> file_accessor = ToltecFileAccessor.from_sources([
-        ...     "toltec0_145606_000_0001_2025_10_31_09_22_14_targsweep.nc",
-        ...     "toltec7_145606_000_0001_2025_10_31_09_22_14_targsweep.nc",
-        ...     "tel_toltec_2025-10-31_145606_00_0001.nc",
-        ... ])
-        >>> file_accessor.query_obs_spec("145606/7").interface.tolist()
-        ['toltec7']
-        """
-        return self._workflow.query_obs_spec(spec)
 
     @classmethod
     def from_sources(
@@ -481,7 +491,7 @@ class FileAccessorBase[WorkflowT: FileAccessorWorkflow = FileAccessorWorkflow](
         counts = Counter()
         if self._SOURCE_TRACE_COLUMN in self._obj:
             for trace in self.source_trace:
-                counts.update(trace._kinds)
+                counts.update(trace.kinds)
         return pd.DataFrame(
             [
                 (kind.value, count, len(self._obj))
