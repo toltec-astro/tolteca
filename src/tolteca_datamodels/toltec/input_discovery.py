@@ -6,7 +6,7 @@ from functools import cached_property
 
 from tollan.config.types import AbsAnyPath
 
-from ..lmt_base._input_discovery import LmtBaseFileStoreInputDiscovery
+from ..lmt_base.input_discovery import LmtBaseFileStoreInputDiscovery
 from .file_store import ToltecFileStore
 
 __all__ = ["ToltecInputDiscovery"]
@@ -28,9 +28,9 @@ class ToltecInputDiscovery(LmtBaseFileStoreInputDiscovery):
     mode : {"guess", "guess_or_read", "read"}, optional
         How to populate candidate information before ObsSpec selection.
         Default ``"guess"`` uses filenames only.
-    subpath_select : StringSelector, optional
-        Declared-location filter, default ``".*"``. This store's own files
-        match ``"."``. See `FileStoreInputDiscovery`.
+    data_model_select : StringSelector, optional
+        Data models to use within the workflow's scope. Defaults to all
+        available models. This store is searched when TolTEC support is selected.
     """
 
     data_toltec_path: AbsAnyPath

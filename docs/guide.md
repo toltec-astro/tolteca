@@ -493,6 +493,8 @@ Exact source locations are literal; only `{glob: ...}` expands patterns. `*`
 searches one directory, `**` permits recursion, and no match yields an empty
 list. Paths follow the runtime configuration's `root_path`. Combined discovery
 retains the first selected occurrence of each location or local symlink target.
+Rows with a recorded source-validation failure and no location remain separate,
+so their `source_trace` entries are available for inspection.
 Pipeline-specific selection remains a later pipeline step.
 
 ```python

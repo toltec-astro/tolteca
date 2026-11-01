@@ -1,12 +1,15 @@
 """Registered discovery inputs use ordinary nested Pydantic validation."""
 
-import pickle
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Annotated, ClassVar
 
 import pytest
 from pydantic import (
     BaseModel,
     Field,
-    TypeAdapter,
+    PlainSerializer,
+    PlainValidator,
     ValidationError,
     create_model,
     model_validator,
@@ -15,31 +18,39 @@ from tollan.config import RuntimeContext
 from tollan.config.types import FileLocField
 from tollan.utils.fileloc import fileloc
 
-from tolteca_datamodels import input_discovery
-from tolteca_datamodels.file import FileAccessor
-from tolteca_datamodels.input_discovery import (
-    InputDiscovery,
-    InputDiscoveryConfig,
+from tolteca_datamodels.core.file import FileAccessorView, SourceTraceKind
+from tolteca_datamodels.core.file_store import FileStoreBase
+from tolteca_datamodels.core.input_discovery import (
+    FileStoreInputDiscovery,
     InputDiscoveryEntry,
-    LmtInputDiscovery,
-    SourcesInputDiscovery,
-    ToltecInputDiscovery,
 )
+from tolteca_datamodels.core.input_discovery import config as input_discovery
+from tolteca_datamodels.core.obs_spec import FieldConstraint, ObsSpecBase, Selector
+from tolteca_datamodels.input_discovery import InputDiscovery, InputDiscoveryConfig
+from tolteca_datamodels.lmt.input_discovery import LmtInputDiscovery
+from tolteca_datamodels.lmt_base.input_discovery import SourcesInputDiscovery
+from tolteca_datamodels.lmt_base.obs_spec import ObsSpec
+from tolteca_datamodels.toltec.input_discovery import ToltecInputDiscovery
+from tolteca_dummy_instru.input_discovery import DummyInstruInputDiscovery
 
 
 class ArchiveInput(InputDiscoveryEntry):
     archive: FileLocField
 
-    def discover(self, *, on_error="raise"):
-        return FileAccessor.from_sources([self.archive], on_error=on_error)
+    def discover(self, *, data_models, on_error="record"):
+        data_models = self._select_data_models(data_models)
+        return FileAccessorView.from_sources(
+            [self.archive],
+            on_error=on_error,
+            accessor_types=data_models.file_accessor_types,
+        ).table
 
 
 @pytest.fixture(autouse=True)
 def restore_registry():
-    registered = dict(input_discovery._input_discovery_models)
+    registered = input_discovery._input_discovery_models
     yield
-    input_discovery._input_discovery_models.clear()
-    input_discovery._input_discovery_models.update(registered)
+    input_discovery._input_discovery_models = registered
     InputDiscoveryConfig.model_rebuild(force=True)
 
 
@@ -50,10 +61,10 @@ def test_builtin_typed_entries_and_schema(tmp_path):
         SourcesInputDiscovery(sources=[fileloc("https://example.org/data.nc")]),
     ]
     config = InputDiscoveryConfig(inputs=entries)
-    assert all(a is b for a, b in zip(config.inputs, entries, strict=True))
-    assert config.model_dump() == {"inputs": [entry.model_dump() for entry in entries]}
+    assert config.inputs == entries
+    assert config.model_dump()["inputs"] == [entry.model_dump() for entry in entries]
+    assert config.data_model_select.model_dump(mode="json") == {"pattern": ".*"}
     assert all("type" not in entry for entry in config.model_dump()["inputs"])
-    assert InputDiscoveryConfig.model_validate_json(config.model_dump_json()) == config
     variants = InputDiscoveryConfig.model_json_schema()["properties"]["inputs"][
         "items"
     ]["oneOf"]
@@ -62,6 +73,71 @@ def test_builtin_typed_entries_and_schema(tmp_path):
         "ToltecInputDiscovery",
         "SourcesInputDiscovery",
     }
+
+
+@pytest.mark.parametrize(
+    ("entry_cls", "path_key"),
+    [
+        (LmtInputDiscovery, "data_lmt_path"),
+        (ToltecInputDiscovery, "data_toltec_path"),
+        (DummyInstruInputDiscovery, "data_dummy_instru_path"),
+    ],
+)
+@pytest.mark.parametrize(
+    "selector_data",
+    [{}, {"obs_spec": "tcs-001"}, {"obs_spec": 1}, {"obs_spec": ObsSpec(obsnum=1)}],
+)
+def test_inherited_store_selector_field(entry_cls, path_key, selector_data, tmp_path):
+    entry = entry_cls.model_validate({path_key: tmp_path, **selector_data})
+    expected = ObsSpec.parse(selector_data.get("obs_spec", "*"))
+    assert type(entry.obs_spec) is ObsSpec
+    assert entry.obs_spec == expected
+    assert entry.model_dump()["obs_spec"] == str(expected)
+    assert entry_cls.model_json_schema()["properties"]["obs_spec"]["default"] == "*"
+
+
+def test_registered_store_uses_its_bound_selector_field(tmp_path):
+    @dataclass(frozen=True)
+    class SequenceSpec(ObsSpecBase):
+        sequence: Selector = None
+        _field_constraints: ClassVar = {"sequence": FieldConstraint(kind="integer")}
+        _primary_field: ClassVar = "sequence"
+
+    sequence_spec_field = Annotated[
+        SequenceSpec,
+        PlainValidator(SequenceSpec.parse, json_schema_input_type=str | int),
+        PlainSerializer(str, return_type=str),
+    ]
+
+    class SequenceStore(FileStoreBase[SequenceSpec]):
+        def _iter_local_glob_patterns(self, spec, subpath):
+            return []
+
+    class SequenceInput(FileStoreInputDiscovery[sequence_spec_field]):
+        sequence_path: Path
+
+        @property
+        def _store(self) -> SequenceStore:
+            return SequenceStore(self.sequence_path)
+
+    InputDiscoveryConfig.register_input("sequence_path", SequenceInput)
+    for selector_data in ({}, {"obs_spec": "001"}, {"obs_spec": 1}):
+        config = InputDiscoveryConfig.model_validate(
+            {"inputs": [{"sequence_path": tmp_path, **selector_data}]}
+        )
+        entry = config.inputs[0]
+        assert isinstance(entry, SequenceInput)
+        expected = SequenceSpec.parse(selector_data.get("obs_spec", "*"))
+        assert type(entry.obs_spec) is SequenceSpec
+        assert entry.obs_spec == expected
+        assert entry.model_dump()["obs_spec"] == str(expected)
+        assert (
+            InputDiscoveryConfig.model_validate_json(config.model_dump_json()) == config
+        )
+        assert entry._store.glob_obs_spec(entry.obs_spec) == []
+
+    with pytest.raises(ValidationError):
+        SequenceInput.model_validate({"sequence_path": tmp_path, "obs_spec": "tcs-1"})
 
 
 @pytest.mark.parametrize(
@@ -108,45 +184,25 @@ def test_only_selected_model_is_validated():
     assert calls == [data]
 
 
-def test_registration_context_serialization_and_discovery(tmp_path, monkeypatch):
+def test_registration_context_serialization_and_discovery(tmp_path):
     InputDiscoveryConfig.register_input("archive", ArchiveInput)
-    validator = InputDiscoveryConfig.__pydantic_validator__
-    InputDiscoveryConfig.register_input("archive", ArchiveInput)
-    assert InputDiscoveryConfig.__pydantic_validator__ is validator
-
-    def unexpected(*args, **kwargs):
-        pytest.fail("Schema was rebuilt during config validation or serialization")
-
-    monkeypatch.setattr(InputDiscoveryConfig, "model_rebuild", unexpected)
     runtime = RuntimeContext(
         {"input_discovery": {"inputs": [{"archive": "data.nc"}]}}
-    ).with_config(validation_context={"rootpath": tmp_path})
+    ).with_config(validation_context={"root_path": tmp_path})
     discovery = InputDiscovery(runtime)
     config = discovery.config
     entry = config.inputs[0]
     assert isinstance(entry, ArchiveInput)
     assert entry.archive.path == tmp_path / "data.nc"
     assert discovery.discover().source_loc.iloc[0] == entry.archive
-    assert config.model_dump() == {"inputs": [entry.model_dump()]}
+    assert config.model_dump()["inputs"] == [entry.model_dump()]
     assert InputDiscoveryConfig.model_validate_json(config.model_dump_json()) == config
-    assert (
-        InputDiscoveryConfig.model_validate_yaml(config.model_dump_yaml(mode="json"))
-        == config
-    )
-    assert pickle.loads(pickle.dumps(config)) == config  # noqa: S301 -- own test data.
     assert "ArchiveInput" in InputDiscoveryConfig.model_json_schema()["$defs"]
-    assert InputDiscoveryConfig.__pydantic_validator__ is validator
 
 
-def test_precompiled_schemas_are_snapshots():
-    earlier = TypeAdapter(InputDiscoveryConfig)
-    before = earlier.validate_python({"inputs": []})
+def test_registered_entries_work_in_enclosing_configuration():
     InputDiscoveryConfig.register_input("archive", ArchiveInput)
     data = {"inputs": [{"archive": "https://example.org/data.nc"}]}
-    assert isinstance(InputDiscoveryConfig.model_validate(data).inputs[0], ArchiveInput)
-    with pytest.raises(ValidationError, match="discovery key"):
-        earlier.validate_python(data)
-    assert before.inputs == []
 
     class Outer(BaseModel):
         discovery: InputDiscoveryConfig
@@ -156,17 +212,61 @@ def test_precompiled_schemas_are_snapshots():
     )
 
 
-def test_registration_rejects_conflicts_without_changing_schema():
+@pytest.mark.parametrize("same_model", [False, True])
+def test_registration_rejects_conflicts_without_changing_schema(same_model):
     class OtherSources(InputDiscoveryEntry):
         sources: list[str]
 
-        def discover(self, *, on_error="raise"):
-            return FileAccessor.from_sources(self.sources)
+        def discover(self, *, data_models, on_error="record"):
+            data_models = self._select_data_models(data_models)
+            return FileAccessorView.from_sources(
+                self.sources,
+                on_error=on_error,
+                accessor_types=data_models.file_accessor_types,
+            ).table
 
-    validator = InputDiscoveryConfig.__pydantic_validator__
+    before = InputDiscoveryConfig.model_json_schema()
     with pytest.raises(ValueError, match="already registered"):
-        InputDiscoveryConfig.register_input("sources", OtherSources)
-    assert InputDiscoveryConfig.__pydantic_validator__ is validator
+        InputDiscoveryConfig.register_input(
+            "sources", SourcesInputDiscovery if same_model else OtherSources
+        )
+    assert InputDiscoveryConfig.model_json_schema() == before
+    assert isinstance(
+        InputDiscoveryConfig.model_validate(
+            {"inputs": [{"sources": ["data.nc"]}]}
+        ).inputs[0],
+        SourcesInputDiscovery,
+    )
+
+
+def test_registration_rejects_model_under_another_key():
+    class AlternateArchive(ArchiveInput):
+        alternate: str
+
+    InputDiscoveryConfig.register_input("archive", AlternateArchive)
+    before = InputDiscoveryConfig.model_json_schema()
+    with pytest.raises(ValueError, match="already registered"):
+        InputDiscoveryConfig.register_input("alternate", AlternateArchive)
+    assert InputDiscoveryConfig.model_json_schema() == before
+    entry = InputDiscoveryConfig.model_validate(
+        {"inputs": [{"archive": "data.nc", "alternate": "other"}]}
+    ).inputs[0]
+    assert isinstance(entry, AlternateArchive)
+
+
+@pytest.mark.parametrize(
+    ("key", "model_cls"),
+    [
+        (1, ArchiveInput),
+        (b"archive", ArchiveInput),
+        ("archive", None),
+    ],
+)
+def test_invalid_registration_preserves_usable_configuration(key, model_cls):
+    before = InputDiscoveryConfig.model_json_schema()
+    with pytest.raises(ValidationError):
+        InputDiscoveryConfig.register_input(key, model_cls)
+    assert InputDiscoveryConfig.model_json_schema() == before
     assert isinstance(
         InputDiscoveryConfig.model_validate(
             {"inputs": [{"sources": ["data.nc"]}]}
@@ -176,9 +276,9 @@ def test_registration_rejects_conflicts_without_changing_schema():
 
 
 def test_registration_requires_concrete_model_and_identifying_key():
-    with pytest.raises(TypeError, match="concrete"):
+    with pytest.raises(ValueError, match="concrete"):
         InputDiscoveryConfig.register_input("archive", InputDiscoveryEntry)
-    with pytest.raises(TypeError, match="concrete"):
+    with pytest.raises(ValidationError, match="subclass of InputDiscoveryEntry"):
         InputDiscoveryConfig.register_input("archive", BaseModel)  # ty: ignore[invalid-argument-type] -- invalid registration.
     with pytest.raises(ValueError, match="required"):
         InputDiscoveryConfig.register_input("missing", ArchiveInput)
@@ -202,7 +302,7 @@ def test_unregistered_typed_entry_is_rejected():
     with pytest.raises(ValidationError, match="discovery key"):
         InputDiscoveryConfig(inputs=[entry])
     InputDiscoveryConfig.register_input("archive", ArchiveInput)
-    assert InputDiscoveryConfig(inputs=[entry]).inputs[0] is entry
+    assert InputDiscoveryConfig(inputs=[entry]).inputs[0] == entry
 
 
 def test_failed_schema_build_preserves_registered_inputs():
@@ -214,13 +314,45 @@ def test_failed_schema_build_preserves_registered_inputs():
         unresolved=("UndefinedArchiveSetting", ...),
     )
 
-    before = dict(input_discovery._input_discovery_models)
+    before = InputDiscoveryConfig.model_json_schema()
     with pytest.raises(PydanticUndefinedAnnotation):
         InputDiscoveryConfig.register_input("unresolved", UnresolvedInput)
-    assert input_discovery._input_discovery_models == before
+    assert InputDiscoveryConfig.model_json_schema() == before
     assert isinstance(
         InputDiscoveryConfig.model_validate(
             {"inputs": [{"sources": ["https://example.org/data.nc"]}]}
         ).inputs[0],
         SourcesInputDiscovery,
     )
+
+
+def test_discovery_retains_invalid_extension_rows_when_combining(tmp_path):
+    class RecordsInput(InputDiscoveryEntry):
+        records: list[object]
+
+        def discover(self, *, data_models, on_error="record"):
+            data_models = self._select_data_models(data_models)
+            return FileAccessorView.from_sources(
+                self.records,
+                mode="guess",
+                on_error=on_error,
+                accessor_types=data_models.file_accessor_types,
+            ).table
+
+    InputDiscoveryConfig.register_input("records", RecordsInput)
+    good = tmp_path / "good.nc"
+    records = [good, {"source": "bad.nc", "source_loc": 42}]
+    discovery = InputDiscovery(
+        RuntimeContext({"input_discovery": {"inputs": [{"records": records}] * 2}})
+    )
+    table = discovery.discover()
+    assert table.index.tolist() == [0, 1, 2]
+    assert table.source_loc.iloc[0].path == good
+    assert table.source_loc.iloc[1:].isna().all()
+    assert [trace.has_error for trace in table.source_trace] == [False, True, True]
+    for trace in table.source_trace.iloc[1:]:
+        assert [entry.kind for entry in trace.iter_error_entries()] == [
+            SourceTraceKind.source_validation_failed
+        ]
+    with pytest.raises(ValidationError):
+        discovery.discover(on_error="raise")

@@ -6,7 +6,7 @@ from functools import cached_property
 
 from tollan.config.types import AbsAnyPath
 
-from ..lmt_base._input_discovery import LmtBaseFileStoreInputDiscovery
+from ..lmt_base.input_discovery import LmtBaseFileStoreInputDiscovery
 from .file_store import LmtFileStore
 
 __all__ = ["LmtInputDiscovery"]
@@ -20,10 +20,10 @@ class LmtInputDiscovery(LmtBaseFileStoreInputDiscovery):
     data_lmt_path : pathlib.Path
         Directory containing ``tel`` and instrument subtrees. A missing
         directory yields no candidates.
-    subpath_select : StringSelector, optional
-        Select declared search locations, including ``tel`` and
-        instrument subtrees. Defaults to ``".*"``. For telescope and TolTEC
-        files use ``["tel", "toltec"]``.
+    data_model_select : StringSelector, optional
+        Data models to use within the workflow's scope. Defaults to all
+        available models. ``["toltec"]`` searches telescope and TolTEC stores;
+        ``["lmt"]`` searches only telescope files.
     obs_spec : str, int or ObsSpec, optional
         Observation selector, default ``"*"``. Used both to narrow discovery
         globs and to select rows after table population.

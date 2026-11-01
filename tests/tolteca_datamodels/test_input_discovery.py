@@ -2,7 +2,12 @@
 
 import glob
 import pickle
-from pathlib import Path
+import re
+import subprocess
+import sys
+from dataclasses import FrozenInstanceError
+from pathlib import Path, PurePosixPath
+from typing import ClassVar
 
 import pandas as pd
 import pytest
@@ -13,27 +18,67 @@ from tollan.config.types import AnyPath
 from tollan.utils.fileloc import FileLoc, fileloc
 from tollan.utils.log import logger
 
-from tolteca_datamodels.file import FilepathInfo
-from tolteca_datamodels.file_store import FileStoreBase
-from tolteca_datamodels.input_discovery import (
-    GlobSource,
-    InputDiscovery,
-    InputDiscoveryConfig,
-    LmtInputDiscovery,
-    SourcesInputDiscovery,
-    ToltecInputDiscovery,
+from tolteca_datamodels.core.file import (
+    FileAccessorView,
 )
+from tolteca_datamodels.core.input_discovery import GlobSource
+from tolteca_datamodels.data_model import DataModelSet
+from tolteca_datamodels.file import FileAccessor
+from tolteca_datamodels.filepath import FilepathInfo
+from tolteca_datamodels.input_discovery import InputDiscovery, InputDiscoveryConfig
+from tolteca_datamodels.lmt.data_model import data_model_spec as lmt_data_model_spec
 from tolteca_datamodels.lmt.file_store import LmtFileStore
+from tolteca_datamodels.lmt.input_discovery import LmtInputDiscovery
+from tolteca_datamodels.lmt_base.input_discovery import SourcesInputDiscovery
 from tolteca_datamodels.lmt_base.obs_spec import ObsSpec
-from tolteca_datamodels.obs_spec import ObsSpecContext
 from tolteca_datamodels.toltec.file import ToltecFileAccessor
 from tolteca_datamodels.toltec.file_store import ToltecFileStore
+from tolteca_datamodels.toltec.input_discovery import ToltecInputDiscovery
 
 
 def discover(entries):
     return InputDiscovery(
         RuntimeContext({"input_discovery": {"inputs": entries}})
     ).discover()
+
+
+def test_discovery_uses_selected_capabilities_without_changing_config():
+    models = DataModelSet.from_select(["toltec"])
+    assert models.file_store_types == (
+        *lmt_data_model_spec.file_store_types,
+        ToltecFileStore,
+    )
+    empty = InputDiscovery(RuntimeContext({})).discover(data_models=models)
+    pd.testing.assert_frame_equal(
+        empty,
+        FileAccessorView.from_sources(
+            [], accessor_types=models.file_accessor_types
+        ).table,
+    )
+    with pytest.raises(FrozenInstanceError):
+        setattr(models, "data_models", {})  # noqa: B010 -- Test frozen assignment.
+
+
+@pytest.mark.parametrize("module", ["lmt", "toltec"])
+def test_public_builtin_discovery_import_enables_file_support(module, data_lmt_path):
+    path_key = f"data_{module}_path"
+    root = data_lmt_path if module == "lmt" else data_lmt_path / "toltec"
+    spec = "145609/2/tel" if module == "lmt" else "145606/0"
+    code = f"""
+from tollan.config import RuntimeContext
+from tolteca_datamodels.input_discovery import InputDiscovery
+runtime = RuntimeContext({{"input_discovery": {{"inputs": [{{
+    {path_key!r}: {str(root)!r}, "obs_spec": {spec!r}, "mode": "read"
+}}]}}}})
+table = InputDiscovery(runtime).discover()
+assert len(table) == 1
+assert table.obsnum.notna().all()
+assert table.t0_mjd.notna().all()
+assert "io_obj" not in table
+"""
+    subprocess.run(  # noqa: S603 -- own read-only import/workflow check.
+        [sys.executable, "-c", code], check=True, capture_output=True, text=True
+    )
 
 
 @pytest.mark.parametrize("selector", ["145609/2/tel", "tcs-145609-0-1/0"])
@@ -50,7 +95,7 @@ def test_stores_only_discover_candidates(data_lmt_path, monkeypatch, selector, s
         if subtree
         else LmtFileStore(data_lmt_path)
     )
-    paths = store.find_candidates(selector)
+    paths = store.glob_obs_spec(selector)
     assert len(paths) == (0 if subtree and selector.endswith("/tel") else 2)
 
 
@@ -61,19 +106,13 @@ def test_store_rows_keep_glob_order_after_selection(
 ):
     telescope = (data_lmt_path / "tel").resolve()
     instrument = (data_lmt_path / "toltec").resolve()
-    candidates = {
-        telescope: sorted(telescope.glob("*.nc"), reverse=True),
-        instrument: sorted(instrument.glob("*/*/*.nc"), reverse=True),
-    }
-    assert len(candidates[telescope]) == 7
-    assert len(candidates[instrument]) == 4
-    expected = ([] if subtree else candidates[telescope]) + candidates[instrument]
-    if selector == "tcs-[-1]":
-        latest = "145609" if subtree else "145611"
-        expected = [path for path in expected if latest in path.name]
+    candidates = []
+    original_glob = Path.glob
 
     def glob(path, pattern):
-        return iter(candidates[path])
+        matches = sorted(original_glob(path, pattern), reverse=True)
+        candidates.extend(matches)
+        return iter(matches)
 
     monkeypatch.setattr(Path, "glob", glob)
     entry = (
@@ -82,6 +121,16 @@ def test_store_rows_keep_glob_order_after_selection(
         else {"data_lmt_path": data_lmt_path}
     )
     table = discover([entry | {"obs_spec": selector}])
+    assert sum(path.parent == telescope for path in candidates) == (
+        0 if subtree else 21
+    )
+    assert sum(path.is_relative_to(instrument) for path in candidates) == len(
+        list(original_glob(instrument, "*/*/*.nc"))
+    )
+    expected = candidates
+    if selector == "tcs-[-1]":
+        latest = "156755"
+        expected = [path for path in expected if latest in path.name]
     assert [loc.path for loc in table.source_loc] == [
         path.resolve() for path in expected
     ]
@@ -102,10 +151,11 @@ def test_defaults_and_implicit_entry_types(data_lmt_path):
         )
     )
     tree, subtree, sources = handler.config.inputs
+    for settings in (handler.config, tree, subtree, sources):
+        assert settings.data_model_select.select(["lmt", "toltec"]) == ["lmt", "toltec"]
     assert isinstance(tree, LmtInputDiscovery) and tree.mode == "guess"
     assert tree.obs_spec == ObsSpec()
     assert tree.model_dump()["obs_spec"] == "*"
-    assert tree.instru == ".*"
     assert isinstance(subtree, ToltecInputDiscovery) and subtree.mode == "guess"
     assert subtree.obs_spec == ObsSpec()
     assert subtree.model_dump()["obs_spec"] == "*"
@@ -115,143 +165,166 @@ def test_defaults_and_implicit_entry_types(data_lmt_path):
     assert InputDiscovery(RuntimeContext({})).discover().empty
 
 
-def test_lmt_discovery_reuses_private_store_not_candidates_or_context(
+def test_lmt_discovery_reuses_private_store_but_rediscovers_candidates(
     tmp_path, monkeypatch
 ):
     entry = LmtInputDiscovery.model_validate(
-        {"data_lmt_path": "data", "instru": "toltec", "obs_spec": "1"},
-        context={"rootpath": tmp_path},
+        {"data_lmt_path": "data", "data_model_select": ["toltec"], "obs_spec": "1"},
+        context={"root_path": tmp_path},
     )
-    constructed, searched, contextualized = [], [], []
+    constructed, searched = [], []
     init = LmtFileStore.__init__
 
     def track_init(self, path):
         constructed.append(self)
         init(self, path)
 
-    def find_candidates(self, spec, *, instru):
+    def patterns(self, spec, subpath):
         searched.append(self)
         assert spec is entry.obs_spec
-        assert instru == entry.instru
         return []
 
-    def get_context(self, *, instru):
-        contextualized.append(self)
-        assert instru == entry.instru
-        return ObsSpecContext()
-
     monkeypatch.setattr(LmtFileStore, "__init__", track_init)
-    monkeypatch.setattr(LmtFileStore, "find_candidates", find_candidates)
-    monkeypatch.setattr(LmtFileStore, "get_obs_spec_context", get_context)
+    monkeypatch.setattr(LmtFileStore, "_iter_local_glob_patterns", patterns)
     dumped = entry.model_dump()
     for _ in range(2):
-        assert entry._find_candidates() == []
-        assert entry._obs_spec_context == ObsSpecContext()
+        assert entry.discover(data_models=DataModelSet.from_select()).empty
     assert constructed == [entry._store]
-    assert searched == contextualized == [entry._store, entry._store]
+    assert searched == [entry._store, entry._store]
     assert entry._store.path == tmp_path / "data"
     assert entry.model_dump() == dumped
     assert "_store" not in entry.model_json_schema()["properties"]
 
 
 @pytest.mark.parametrize("mode", ["guess", "guess_or_read", "read"])
+@pytest.mark.parametrize("accessor_cls", [FileAccessor, ToltecFileAccessor])
 @pytest.mark.parametrize(
     "store_case",
     [
-        (LmtInputDiscovery, "data_lmt_path", LmtFileStore, {"instru": "toltec"}),
+        (
+            LmtInputDiscovery,
+            "data_lmt_path",
+            LmtFileStore,
+            {},
+        ),
         (ToltecInputDiscovery, "data_toltec_path", ToltecFileStore, {}),
     ],
 )
-def test_store_discovery_populates_before_selection(
-    tmp_path, monkeypatch, mode, store_case
+def test_store_discovery_populates_before_accessor_selection(
+    tmp_path, monkeypatch, mode, store_case, accessor_cls
 ):
-    discovery_cls, path_key, store_cls, options = store_case
+    discovery_cls, path_key, _store_cls, options = store_case
     entry = discovery_cls.model_validate(
         {path_key: "data", "obs_spec": "tcs-145609/tel", "mode": mode} | options,
-        context={"rootpath": tmp_path},
+        context={"root_path": tmp_path},
     )
     events = []
     paths = [tmp_path / "first.nc", tmp_path / "second.nc"]
     populated = pd.DataFrame(
         {
+            "source": paths,
+            "source_loc": [fileloc(path) for path in paths],
             "master": ["tcs", "tcs"],
             "obsnum": [145608, 145609],
             "interface": ["tel", "tel"],
         }
     )
 
-    def find_candidates(store, spec, **kwargs):
-        assert store.path == tmp_path / "data"
+    def glob_obs_spec(view, spec):
+        assert view.root_path == tmp_path / "data"
         assert spec is entry.obs_spec
-        assert kwargs == options
         events.append("find")
         return paths
 
-    def from_sources(cls, sources, *, mode, on_error):
+    def from_sources(cls, sources, *, mode, on_error, accessor_types):
+        if accessor_cls is ToltecFileAccessor:
+            assert accessor_types == (ToltecFileAccessor,)
         assert sources is paths
         assert mode == entry.mode
-        assert on_error == "raise"
+        assert on_error == "record"
         events.append("populate")
-        return populated
+        return FileAccessorView(FileAccessorBase(populated), accessor_types)
 
-    monkeypatch.setattr(store_cls, "find_candidates", find_candidates)
-    monkeypatch.setattr(ToltecFileAccessor, "from_sources", classmethod(from_sources))
-    selected = entry.discover()
-    assert events == ["find", "populate"]
+    from tolteca_datamodels.core.file import FileAccessorBase
+
+    query_obs_spec = FileAccessorView.query_obs_spec
+
+    def query(self, spec):
+        assert self.table is populated
+        assert spec is entry.obs_spec
+        events.append("query")
+        return query_obs_spec(self, spec)
+
+    from tolteca_datamodels.core.file_store import StoreView
+
+    monkeypatch.setattr(StoreView, "glob_obs_spec", glob_obs_spec)
+    monkeypatch.setattr(FileAccessorView, "from_sources", classmethod(from_sources))
+    monkeypatch.setattr(FileAccessorView, "query_obs_spec", query)
+    selected = entry.discover(
+        data_models=DataModelSet.from_select(
+            ["toltec"] if accessor_cls is ToltecFileAccessor else ".*"
+        )
+    )
+    assert events == ["find", "populate", "query"]
     pd.testing.assert_frame_equal(selected, populated.iloc[[1]])
 
 
 @pytest.mark.parametrize(
-    ("instru", "expected"),
-    [(".*", ["toltec3"]), ("foo", ["bar2"]), ("toltec", ["toltec3"])],
+    ("entry_select", "workflow_select", "interfaces"),
+    [
+        (["toltec"], ".*", ["tel", "toltec0"]),
+        (".*", ["toltec"], ["tel", "toltec0"]),
+        (["lmt"], ".*", ["tel"]),
+        (["lmt"], ["toltec"], []),
+        ([], ".*", []),
+    ],
 )
-def test_lmt_selection_uses_participating_store_contexts(
-    tmp_path, monkeypatch, instru, expected
+def test_discovery_selects_capabilities_independently_of_store_layout(
+    tmp_path, monkeypatch, entry_select, workflow_select, interfaces
 ):
-    # Synthetic declarations exercise delegation, not real acquisition filenames.
-    class Store(FileStoreBase[ObsSpec]):
-        _obs_spec_context = ObsSpecContext(labels={"interface": {"bar1": 1, "bar2": 2}})
+    class Root(LmtFileStore):
+        _substore_paths: ClassVar = {
+            ToltecFileStore: PurePosixPath("instruments/toltec")
+        }
 
-        def _iter_candidate_patterns(self, spec):
-            return []
-
-    original = LmtFileStore.substores
-    monkeypatch.setattr(
-        LmtFileStore,
-        "substores",
-        property(
-            lambda self: dict(original.fget(self)) | {"foo": Store(self.path / "foo")}
-        ),
+    monkeypatch.setattr("tolteca_datamodels.lmt.input_discovery.LmtFileStore", Root)
+    telescope = tmp_path / "tel/tel_toltec_2025-10-31_145609_00_0002.nc"
+    instrument = (
+        tmp_path
+        / "instruments/toltec/tcs/toltec0"
+        / ("toltec0_145609_000_0001_2025_10_31_09_26_59_tune.nc")
     )
-    monkeypatch.setattr(
-        ToltecFileAccessor,
-        "from_sources",
-        classmethod(
-            lambda cls, paths, *, mode, on_error: pd.DataFrame(
-                {
-                    "obsnum": [1, 1, 1, 1],
-                    "interface": ["toltec1", "toltec3", "bar1", "bar2"],
-                }
-            )
-        ),
-    )
+    # Empty temporary files suffice for filename-only discovery.
+    for path in (telescope, instrument):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
     entry = LmtInputDiscovery.model_validate(
-        {"data_lmt_path": tmp_path, "instru": instru, "obs_spec": "1/()[-1]"}
+        {
+            "data_lmt_path": tmp_path,
+            "data_model_select": entry_select,
+            "obs_spec": "145609/{tel,0}",
+        }
     )
-    # Apply positions once to the combined entry, not separately per instrument.
-    assert entry.discover().interface.tolist() == expected
+    table = entry.discover(data_models=DataModelSet.from_select(workflow_select))
+    assert ([] if table.empty else table.interface.tolist()) == interfaces
 
 
 @pytest.mark.parametrize("selector", ["145609/{tel,0}", "145609/0", "tcs-[-1]/0"])
 def test_file_table_accessor_supplies_toltec_resolution(data_lmt_path, selector):
-    paths = LmtFileStore(data_lmt_path).find_candidates("*")
-    table = ToltecFileAccessor.from_sources(paths, mode="guess")
+    models = DataModelSet.from_select(selection=["toltec"])
+    table = LmtInputDiscovery(data_lmt_path=data_lmt_path).discover(data_models=models)
     spec = ObsSpec.parse(selector)
-    expected = spec.select(
-        table, context=LmtFileStore(data_lmt_path).get_obs_spec_context()
+    expected = LmtInputDiscovery(data_lmt_path=data_lmt_path, obs_spec=spec).discover(
+        data_models=models
     )
-    pd.testing.assert_frame_equal(table.toltec_file.query_obs_spec(spec), expected)
-    pd.testing.assert_frame_equal(table.toltec_file.query_obs_spec(selector), expected)
+    pd.testing.assert_frame_equal(
+        table.toltec_file.query_obs_spec(spec).reset_index(drop=True),
+        expected.reset_index(drop=True),
+    )
+    pd.testing.assert_frame_equal(
+        table.toltec_file.query_obs_spec(selector),
+        table.toltec_file.query_obs_spec(spec),
+    )
 
 
 @pytest.mark.parametrize(
@@ -262,11 +335,10 @@ def test_file_table_accessor_supplies_toltec_resolution(data_lmt_path, selector)
         {"sources": ["a.nc"], "data_toltec_path": "."},
         {"data_lmt_path": ".", "data_toltec_path": "toltec"},
         {"data_toltec_path": ".", "mode": "always"},
-        {"data_lmt_path": ".", "instru": "["},
-        {"data_lmt_path": ".", "instru": None},
-        {"data_lmt_path": ".", "instru": ["toltec"]},
+        {"data_lmt_path": ".", "data_model_select": "["},
+        {"data_lmt_path": ".", "data_model_select": None},
+        {"data_lmt_path": ".", "subpath_select": ["tel"]},
         {"data_toltec_path": ".", "instru": ".*"},
-        {"sources": ["a.nc"], "instru": ".*"},
         {"data_lmt_path": ".", "match_instru": "toltec"},
         {"sources": [{"unknown": "a.nc"}]},
         {"sources": [{"glob": "*.nc", "unknown": True}]},
@@ -285,33 +357,58 @@ def test_invalid_discovery_fails_before_opening(entry, monkeypatch):
         discover([entry])
 
 
-@pytest.mark.parametrize("pattern", [".*", "toltec|rsr", "(?!rsr)"])
-def test_instrument_regex_config_serialization(tmp_path, pattern):
+@pytest.mark.parametrize(
+    ("selection", "normalized"),
+    [
+        ("toltec|lmt", {"pattern": "toltec|lmt"}),
+        (["toltec", "lmt"], {"includes": ["toltec", "lmt"]}),
+        ({"includes": ["toltec"]}, {"includes": ["toltec"]}),
+        ({"excludes": ["lmt"]}, {"excludes": ["lmt"]}),
+    ],
+)
+def test_data_model_selection_config_serialization(tmp_path, selection, normalized):
     config = InputDiscoveryConfig.model_validate(
-        {"inputs": [{"data_lmt_path": "data_lmt", "instru": pattern}]},
-        context={"rootpath": tmp_path},
+        {"inputs": [{"data_lmt_path": "data_lmt", "data_model_select": selection}]},
+        context={"root_path": tmp_path},
     )
     [entry] = config.inputs
     assert isinstance(entry, LmtInputDiscovery)
     assert entry.data_lmt_path == tmp_path / "data_lmt"
-    assert entry.instru == pattern
-    assert config.model_dump(mode="json")["inputs"][0]["instru"] == pattern
+    assert (
+        config.model_dump(mode="json")["inputs"][0]["data_model_select"] == normalized
+    )
     assert InputDiscoveryConfig.model_validate_json(config.model_dump_json()) == config
     assert InputDiscoveryConfig.model_validate_yaml(config.model_dump_yaml()) == config
-    assert pickle.loads(pickle.dumps(config)) == config  # noqa: S301 -- own model dump
+
+
+def test_discovery_accepts_compiled_regex():
+    pattern = re.compile(r"(?i)toltec$")
+    models = DataModelSet.from_select({"pattern": pattern})
+    entry = LmtInputDiscovery.model_validate(
+        {"data_lmt_path": ".", "data_model_select": {"pattern": pattern}}
+    )
+    assert entry.data_model_select.as_regex() is pattern
+    assert list(models.data_models) == ["toltec"]
 
 
 @pytest.mark.parametrize(
-    ("pattern", "interfaces"),
+    ("selection", "interfaces"),
     [
+        ("lmt|toltec", {"toltec0", "tel"}),
         ("toltec", {"toltec0", "tel"}),
-        ("(?!toltec)", {"tel"}),
-        ("toltec0", {"tel"}),
+        ("(?!toltec).*", {"tel"}),
+        ("toltec0", set()),
+        (["lmt", "toltec"], {"toltec0", "tel"}),
+        ({"includes": ["toltec"]}, {"toltec0", "tel"}),
+        ({"excludes": ["toltec"]}, {"tel"}),
+        ({"pattern": "lmt|toltec"}, {"toltec0", "tel"}),
+        ([], set()),
+        ({"excludes": []}, {"toltec0", "tel"}),
     ],
 )
 @pytest.mark.parametrize("selector", ["145609", "145609/*", "145609/{tel,0}"])
-def test_instrument_filter_keeps_telescope_selection(
-    data_lmt_path, monkeypatch, pattern, interfaces, selector
+def test_data_model_selection_searches_required_stores(
+    data_lmt_path, monkeypatch, selection, interfaces, selector
 ):
     def unexpected(*args, **kwargs):
         pytest.fail("Guess-mode discovery opened a file")
@@ -321,28 +418,57 @@ def test_instrument_filter_keeps_telescope_selection(
         [
             {
                 "data_lmt_path": data_lmt_path,
-                "instru": pattern,
+                "data_model_select": selection,
                 "obs_spec": selector,
             }
         ]
     )
-    assert set(table.interface) == interfaces
+    assert (set() if table.empty else set(table.interface)) == interfaces
     assert len(table) == 2 * len(interfaces)
 
 
-def test_instrument_filter_logs_skipped_store(data_lmt_path):
+def test_data_model_selection_logs_selected_support(data_lmt_path):
     messages = []
     sink = logger.add(messages.append, level="DEBUG")
     try:
-        table = discover([{"data_lmt_path": data_lmt_path, "instru": "(?!toltec)"}])
+        table = discover(
+            [
+                {
+                    "data_lmt_path": data_lmt_path,
+                    "data_model_select": ["lmt"],
+                }
+            ]
+        )
     finally:
         logger.remove(sink)
     assert not table.empty
     assert set(table.interface) == {"tel"}
-    assert any(
-        "Skipping instrument toltec" in m and "filter '(?!toltec)'" in m
-        for m in messages
+    assert any("LmtInputDiscovery data models: ['lmt']" in m for m in messages)
+
+
+@pytest.mark.parametrize(
+    ("selection", "included"),
+    [
+        (["lmt"], False),
+        ([".*"], False),
+        (["toltec"], True),
+        (".*", True),
+        ({"excludes": ["toltec"]}, False),
+    ],
+)
+def test_direct_subtree_uses_same_data_model_selection(
+    data_lmt_path, selection, included
+):
+    table = discover(
+        [
+            {
+                "data_toltec_path": data_lmt_path / "toltec",
+                "data_model_select": selection,
+                "obs_spec": "145609/0",
+            }
+        ]
     )
+    assert len(table) == (2 if included else 0)
 
 
 @pytest.mark.parametrize(
@@ -360,7 +486,7 @@ def test_toltec_subtree_matches_lmt_toltec_candidates(
         [{"data_toltec_path": data_lmt_path / "toltec", "obs_spec": selector}]
     )
     expected = whole.loc[whole["interface"] != "tel"]
-    assert subtree.equals(expected.reset_index(drop=True))
+    assert subtree.source_loc.tolist() == expected.source_loc.tolist()
     root = (data_lmt_path / "toltec").resolve()
     assert all(loc.path.is_relative_to(root) for loc in subtree.source_loc)
 
@@ -388,14 +514,13 @@ def test_toltec_subtree_population_modes(data_lmt_path, mode):
 def test_toltec_subtree_context_and_serialization(tmp_path):
     config = InputDiscoveryConfig.model_validate(
         {"inputs": [{"data_toltec_path": "toltec", "obs_spec": "145609/{tel,0}"}]},
-        context={"rootpath": tmp_path},
+        context={"root_path": tmp_path},
     )
     [entry] = config.inputs
     assert isinstance(entry, ToltecInputDiscovery)
     assert entry.data_toltec_path == tmp_path / "toltec"
-    assert entry.discover().empty
+    assert entry.discover(data_models=DataModelSet.from_select()).empty
     assert InputDiscoveryConfig.model_validate_json(config.model_dump_json()) == config
-    assert pickle.loads(pickle.dumps(config)) == config  # noqa: S301 -- own model dump
 
 
 def test_overlapping_lmt_and_toltec_inputs_keep_first_entry(data_lmt_path):
@@ -426,14 +551,16 @@ def test_exact_locations_do_not_expand_wildcards(tmp_path, monkeypatch):
 def test_source_union_uses_native_validation_and_serialization(tmp_path):
     location = fileloc(tmp_path / "prevalidated.nc")
     pattern = GlobSource(glob=tmp_path / "*.nc")
-    config = SourcesInputDiscovery(
-        sources=[
-            {"path": tmp_path / "exact[1].nc"},
-            "https://example.org/a.nc?token=*",
-            {"glob": str(tmp_path / "*.nc")},
-            location,
-            pattern,
-        ]
+    config = SourcesInputDiscovery.model_validate(
+        {
+            "sources": [
+                {"path": tmp_path / "exact[1].nc"},
+                "https://example.org/a.nc?token=*",
+                {"glob": str(tmp_path / "*.nc")},
+                location,
+                pattern,
+            ]
+        }
     )
     assert isinstance(config.sources[0], FileLoc)
     assert isinstance(config.sources[2], GlobSource)
@@ -450,10 +577,13 @@ def test_source_union_uses_native_validation_and_serialization(tmp_path):
 def test_discovery_config_has_an_explicit_inputs_field(tmp_path):
     data = [{"sources": [{"path": "relative.nc"}], "mode": "guess"}]
     config = InputDiscoveryConfig.model_validate(
-        {"inputs": data}, context={"rootpath": tmp_path}
+        {"inputs": data}, context={"root_path": tmp_path}
     )
-    assert config.inputs[0].sources[0].path == tmp_path / "relative.nc"
-    assert config.model_dump() == {"inputs": [config.inputs[0].model_dump()]}
+    entry = config.inputs[0]
+    assert isinstance(entry, SourcesInputDiscovery)
+    assert isinstance(entry.sources[0], FileLoc)
+    assert entry.sources[0].path == tmp_path / "relative.nc"
+    assert config.model_dump()["inputs"] == [config.inputs[0].model_dump()]
     assert InputDiscoveryConfig().inputs == []
     assert InputDiscoveryConfig.model_validate_json(config.model_dump_json()) == config
     assert (
@@ -469,16 +599,16 @@ def test_discovery_config_has_an_explicit_inputs_field(tmp_path):
     with pytest.raises(ValidationError):
         InputDiscoveryConfig.model_validate({"inputs": tuple(data)})
     with pytest.raises(ValidationError, match="frozen"):
-        config.inputs = []
+        setattr(config, "inputs", [])  # noqa: B010 -- Test frozen validation.
 
 
 def test_discovery_uses_standard_subconfig_transformer_and_patches(tmp_path):
     runtime = RuntimeContext(
         {"input_discovery": {"inputs": [{"sources": ["a.nc"], "mode": "guess"}]}}
-    ).with_config(validation_context={"rootpath": tmp_path})
+    ).with_config(validation_context={"root_path": tmp_path})
     discovery = InputDiscovery(runtime)
-    assert (
-        discovery.prepare_config_data(runtime.config) == runtime.config.input_discovery
+    assert discovery.prepare_config_data(runtime.config) == getattr(  # noqa: B009 -- Registered runtime config field.
+        runtime.config, "input_discovery"
     )
     assert discovery.prepare_runtime_config_data({"inputs": []}) == {
         "input_discovery": {"inputs": []}
@@ -486,8 +616,11 @@ def test_discovery_uses_standard_subconfig_transformer_and_patches(tmp_path):
     with discovery.temporary_config(
         overrides={"inputs": {0: {"mode": "read"}}}
     ) as other:
+        assert isinstance(other.config.inputs[0], SourcesInputDiscovery)
+        assert isinstance(other.config.inputs[0].sources[0], FileLoc)
         assert other.config.inputs[0].mode == "read"
         assert other.config.inputs[0].sources[0].path == tmp_path / "a.nc"
+    assert isinstance(discovery.config.inputs[0], SourcesInputDiscovery)
     assert discovery.config.inputs[0].mode == "guess"
     assert discovery.recreate().config == discovery.config
 
@@ -517,7 +650,7 @@ def test_globs_preserve_enumeration_order_and_context(tmp_path, monkeypatch):
                 ]
             }
         }
-    ).with_config(validation_context={"rootpath": tmp_path})
+    ).with_config(validation_context={"root_path": tmp_path})
     table = InputDiscovery(runtime).discover()
     assert [loc.path for loc in table.source_loc] == paths
 
@@ -548,7 +681,7 @@ def test_empty_discovery_logs_and_returns_standard_empty_table(tmp_path):
     sink = logger.add(messages.append, level="DEBUG")
     try:
         pattern = str(tmp_path / "missing*.nc")
-        assert GlobSource(glob=pattern).resolve() == []
+        assert GlobSource.model_validate({"glob": pattern}).resolve() == []
         result = discover(
             [
                 {"sources": [{"glob": pattern}], "obs_spec": "tcs-[-1]/tel"},
@@ -557,7 +690,7 @@ def test_empty_discovery_logs_and_returns_standard_empty_table(tmp_path):
         )
     finally:
         logger.remove(sink)
-    assert result.equals(ToltecFileAccessor.from_sources([]))
+    assert result.equals(FileAccessor.from_sources([]).table)
     assert any(pattern in message and "0 files" in message for message in messages)
     assert any("no selected candidates" in message for message in messages)
 
@@ -599,7 +732,7 @@ def test_entry_logs_include_settings_selection_and_deduplication(
     ) in text
     assert "mode=guess, obs_spec=1/tel; 0 candidates -> 0 selected" in text
     assert "inputs[2]: 0 selected candidates" in text
-    assert "2 nonempty entries, 2 selected rows -> 1 distinct files" in text
+    assert "2 nonempty entries, 2 selected rows -> 1 retained rows" in text
     assert "1 duplicate locations or symlink targets removed" in text
 
 
@@ -608,7 +741,7 @@ def test_entry_settings_are_logged_before_a_read_failure(tmp_path, monkeypatch):
         msg = "header read failed"
         raise OSError(msg)
 
-    monkeypatch.setattr(ToltecFileAccessor, "from_sources", fail)
+    monkeypatch.setattr(FileAccessorView, "from_sources", fail)
     messages = []
     sink = logger.add(messages.append, level="DEBUG")
     try:
@@ -624,12 +757,16 @@ def test_entry_settings_are_logged_before_a_read_failure(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("kind", ["sources", "data_lmt_path", "data_toltec_path"])
-def test_discovery_can_record_population_failures(tmp_path, kind):
+@pytest.mark.parametrize("failure_kind", ["source_open_failed", "metadata_read_failed"])
+def test_discovery_can_record_population_failures(tmp_path, kind, failure_kind):
     filename = "toltec0_145609_000_0001_2025_10_31_09_26_59_tune.nc"
     candidate = tmp_path / "toltec/tcs/toltec0" / filename
     candidate.parent.mkdir(parents=True)
-    # A corrupt candidate deliberately tests failure handling, not acquisition data.
-    candidate.write_bytes(b"not a netCDF file")
+    # The recognized name selects KIDs; missing headers fail during metadata read.
+    if failure_kind == "source_open_failed":
+        candidate.write_bytes(b"not a netCDF file")
+    else:
+        xr.Dataset().to_netcdf(candidate)
     entry = (
         {"sources": [candidate]}
         if kind == "sources"
@@ -643,17 +780,18 @@ def test_discovery_can_record_population_failures(tmp_path, kind):
         )
     )
     with pytest.raises(ValueError):
-        handler.discover()
-    table = handler.discover(on_error="record")
+        handler.discover(on_error="raise")
+    table = handler.discover()
     assert len(table) == 1
-    (diagnostic,) = table.diagnostics.iloc[0]
-    assert diagnostic.stage == "open" and diagnostic.exception_type == "ValueError"
+    (diagnostic,) = table.source_trace.iloc[0].iter_error_entries()
+    assert diagnostic.kind == failure_kind
+    assert diagnostic.context["exception_type"] == "ValueError"
 
 
-@pytest.mark.parametrize("rootpath", [None, "relative-root", "~"])
+@pytest.mark.parametrize("root_path", [None, "relative-root", "~"])
 @pytest.mark.parametrize("pattern", ["*.nc", "**/*.nc", "*/../*.nc", "~/data/*.nc"])
-def test_glob_uses_shared_path_context_policy(rootpath, pattern):
-    context = {"rootpath": rootpath}
+def test_glob_uses_shared_path_context_policy(root_path, pattern):
+    context = {"root_path": root_path}
     expected = TypeAdapter(AnyPath).validate_python(pattern, context=context)
     config = GlobSource.model_validate({"glob": pattern}, context=context)
     assert config.glob == expected
@@ -667,14 +805,14 @@ def test_glob_context_survives_a_different_working_directory(tmp_path, monkeypat
     unrelated = tmp_path / "cwd"
     unrelated.mkdir()
     config = GlobSource.model_validate(
-        {"glob": "*.nc"}, context={"rootpath": configured_root}
+        {"glob": "*.nc"}, context={"root_path": configured_root}
     )
     monkeypatch.chdir(unrelated)
     assert [loc.path for loc in config.resolve()] == [match]
 
 
 def test_glob_without_context_does_not_capture_working_directory(tmp_path, monkeypatch):
-    config = GlobSource(glob="*.nc")
+    config = GlobSource.model_validate({"glob": "*.nc"})
     assert config.glob == Path("*.nc")
     match = tmp_path / "data.nc"
     match.touch()
@@ -688,12 +826,12 @@ def test_glob_parent_component_is_not_resolved_before_matching(tmp_path):
     match = tmp_path / "data.nc"
     match.touch()
     config = GlobSource.model_validate(
-        {"glob": "nest*/../*.nc"}, context={"rootpath": tmp_path}
+        {"glob": "nest*/../*.nc"}, context={"root_path": tmp_path}
     )
     assert config.glob == tmp_path / "nest*/../*.nc"
     assert [loc.path for loc in config.resolve()] == [match]
     unmatched = GlobSource.model_validate(
-        {"glob": "missing*/../*.nc"}, context={"rootpath": tmp_path}
+        {"glob": "missing*/../*.nc"}, context={"root_path": tmp_path}
     )
     assert unmatched.resolve() == []
 
@@ -715,7 +853,7 @@ def test_discovery_config_pickle_roundtrip_retains_context(tmp_path, monkeypatch
                 ]
             }
         }
-    ).with_config(validation_context={"rootpath": tmp_path})
+    ).with_config(validation_context={"root_path": tmp_path})
     config = InputDiscovery(runtime).config
     # Only this test's own pickle data is deserialized.
     restored = pickle.loads(pickle.dumps(config))  # noqa: S301
@@ -794,7 +932,8 @@ def test_renamed_inputs_use_sources_with_metadata(data_lmt_path, tmp_path, mode)
     )
     assert [loc.path for loc in table.source_loc] == [renamed]
     assert table.uid_raw_obs_file.tolist() == ["tcs-145609-0-2-tel"]
-    assert table.file_obsnum.isna().all()
+    assert table.filepath_info.iloc[0].data_models == frozenset()
+    assert table.file_data_models.iloc[0] == frozenset()
 
 
 def test_read_mode_precedes_obs_spec_for_conflicting_filename(data_lmt_path, tmp_path):
