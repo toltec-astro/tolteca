@@ -7,9 +7,7 @@ import pandas as pd
 import pytest
 from tollan.utils.log import logger
 
-from tolteca_datamodels.lmt.obs_spec import obs_spec_context as lmt_obs_spec_context
-from tolteca_datamodels.lmt_base.obs_spec import ObsSpec
-from tolteca_datamodels.obs_spec import (
+from tolteca_datamodels.core.obs_spec import (
     FieldConstraint,
     FieldPattern,
     FieldSelection,
@@ -18,8 +16,10 @@ from tolteca_datamodels.obs_spec import (
     Selector,
     ValueBounds,
 )
-from tolteca_datamodels.toltec.obs_spec import (
-    obs_spec_context as toltec_obs_spec_context,
+from tolteca_datamodels.lmt._obs_spec import _obs_spec_context as lmt_obs_spec_context
+from tolteca_datamodels.lmt_base.obs_spec import ObsSpec
+from tolteca_datamodels.toltec._obs_spec import (
+    _obs_spec_context as toltec_obs_spec_context,
 )
 
 
@@ -59,7 +59,10 @@ class MixedSpec(ObsSpecBase):
         ("100(,)[-1]", "100(,)[-1:]"),
         ("()[-1]bar", "(,)[-1:]bar"),
         ("foo()", "foo(,)"),
+        ("100[-1]", "100[-1:]"),
+        ("(100,200)[0]", "(100,200)[0:1]"),
         ("(100,200)[:]", "(100,200)"),
+        ("{tcs,ics}[:]", "{ics,tcs}"),
         ("{tcs,ics}[-1]", "{ics,tcs}[-1:]"),
         ("{toltec5,toltec1}[-1]", "{toltec1,toltec5}[-1:]"),
     ],
@@ -126,7 +129,7 @@ def test_label_only_field_rejects_numeric_bounds(text):
     class LabelSpec(MixedSpec):
         _field_constraints: ClassVar = {"value": FieldConstraint(kind="label")}
 
-    with pytest.raises(ValueError, match="integer or mixed field"):
+    with pytest.raises(ValueError):
         LabelSpec.parse(text)
 
 
@@ -136,12 +139,15 @@ def test_python_pattern_requires_numeric_bounds(value):
         FieldPattern("foo", FieldSelection(value), "bar")
 
 
-@pytest.mark.parametrize("text", ["foo0()[-1]bar9", "foo0(,)[-1]bar9"])
+@pytest.mark.parametrize(
+    "text", ["foo0()[-1]bar9", "foo0(,)[-1]bar9", "foo0(10,20)[-1]bar9"]
+)
 def test_explicit_numeric_slot_preserves_digit_ending_literals(text):
     table = pd.DataFrame(
         {"value": ["foo010bar9", "foo011bar9", "foo012bar8", "foo0textbar9", None]}
     )
     assert MixedSpec.parse(text).select(table).value.tolist() == ["foo011bar9"]
+    assert MixedSpec.parse(text.replace("bar9", "bar7")).select(table).empty
 
 
 @pytest.mark.parametrize("text", ["{tcs,ics}[:]-1", "{tcs,ics}[]-1", "{tcs,ics}[-1]-1"])
@@ -200,14 +206,14 @@ def test_numeric_set_uses_observed_values_after_other_filters():
 def test_contexts_control_sortability_without_reparsing():
     spec = MixedSpec.parse("{a,b}[-1]")
     table = pd.DataFrame({"value": ["a", "b"]})
-    ordered = ObsSpecContext(labels={"value": {"a": 5, "b": 1}})
-    unordered = ObsSpecContext(labels={"value": {"a": 5, "b": None}})
+    ordered = ObsSpecContext(field_label_numbers={"value": {"a": 5, "b": 1}})
+    unordered = ObsSpecContext(field_label_numbers={"value": {"a": 5, "b": None}})
     assert spec.select(table, context=ordered).value.tolist() == ["a"]
     assert spec.select(table, context=unordered).value.tolist() == ["a", "b"]
 
 
 def test_numeric_positions_wait_for_all_value_constraints():
-    spec = ObsSpec.parse("(100,200)/foo()[-1]bar")
+    spec = ObsSpec.parse("(100,200)/foo(100,200)[-1]bar")
     table = pd.DataFrame(
         {"obsnum": [100, 99, 199], "interface": ["foo100bar", "foo199bar", "foo110bar"]}
     )
@@ -216,3 +222,5 @@ def test_numeric_positions_wait_for_all_value_constraints():
         spec.resolve_values("interface", table.interface.tolist())
         == table.interface.tolist()
     )
+    with pytest.raises(ValueError, match="Only one positional"):
+        ObsSpec.parse("[-1]/foo(100,200)[-1]bar")

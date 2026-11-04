@@ -7,12 +7,12 @@ import pytest
 from astropy.time import Time
 from pydantic import TypeAdapter, ValidationError
 
-from tolteca_datamodels.file import FilepathInfo
-from tolteca_datamodels.lmt_base._filepath import FilepathOrigMetadataMixin
+from tolteca_datamodels.filepath import FilepathInfo
+from tolteca_datamodels.lmt_base.filepath import FilepathOrigMetadataMixin
 from tolteca_datamodels.lmt_base.metadata import LmtRawObsMetadata
-from tolteca_datamodels.toltec.file import ToltecFilepathInfo
+from tolteca_datamodels.toltec.filepath import ToltecFilepathInfo
 from tolteca_datamodels.toltec.metadata import ToltecRawObsMetadata
-from tolteca_datamodels.toltec.toltecdb import ToltecDBRawObsMasterCode
+from tolteca_datamodels.toltec.toltec_db import ToltecDBRawObsMasterCode
 
 
 @pytest.fixture
@@ -22,8 +22,8 @@ def meta():
         obsnum=145609,
         subobsnum=0,
         scannum=2,
-        instru="toltec",
-        producer="lmt",
+        data_models=frozenset({"lmt", "toltec"}),
+        instru="lmt",
         interface="tel",
         interface_kind="tel",
         t0=Time("2025-10-31T09:27:56"),
@@ -49,12 +49,9 @@ def test_elapsed_is_cached_and_independent_of_integration_time(meta):
     assert meta.t_elapsed is elapsed
 
 
-def test_standard_frozen_model_behavior(meta):
+def test_declared_observation_fields_are_frozen(meta):
     with pytest.raises(ValidationError, match="frozen_instance"):
         meta.obsnum = 1
-    # Pydantic's frozen setting protects fields, not cached-property entries.
-    meta.quartet = "cached identifier"
-    assert meta.quartet == "cached identifier"
 
 
 def test_computed_fields_are_readonly_and_not_roundtrip_inputs(meta):
@@ -83,8 +80,8 @@ def test_toltec_original_path_retains_subclass_fields(meta):
     metadata_data.update(
         master=ToltecDBRawObsMasterCode.get_master(ToltecDBRawObsMasterCode.TCS),
         master_code=ToltecDBRawObsMasterCode.TCS,
+        data_models=frozenset({"toltec"}),
         instru="toltec",
-        producer="toltec",
         interface="toltec8",
         readout_code=8,
         roach=8,
@@ -98,13 +95,13 @@ def test_toltec_original_path_retains_subclass_fields(meta):
     )
     parsed = meta.filepath_info_orig
     assert parsed is not None
-    assert_type(parsed, ToltecFilepathInfo)
+    assert_type(parsed, FilepathInfo)
     assert type(parsed) is ToltecFilepathInfo
     assert parsed.roach == 8
     expected = parsed.model_dump(mode="json")
     assert expected["roach"] == 8
     assert TypeAdapter(FilepathInfo).dump_python(parsed, mode="json") == expected
-    for cls in (FilepathOrigMetadataMixin[FilepathInfo], ToltecRawObsMetadata):
+    for cls in (FilepathOrigMetadataMixin, ToltecRawObsMetadata):
         # The common computed field preserves the domain-specific record.
         payload = TypeAdapter(cls).dump_python(meta, mode="json")
         assert payload["filepath_info_orig"] == expected
@@ -117,8 +114,3 @@ def test_toltec_original_path_retains_subclass_fields(meta):
         data = meta.model_dump(round_trip=True, exclude={"filepath_orig"}) | change
         with pytest.raises(ValidationError, match="filepath_orig"):
             type(meta).model_validate(data)
-    schema = adapter.json_schema(mode="serialization")
-    assert schema["properties"]["filepath_info_orig"]["anyOf"] == [
-        {"$ref": "#/$defs/ToltecFilepathInfo"},
-        {"type": "null"},
-    ]

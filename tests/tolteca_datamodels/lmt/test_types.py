@@ -9,11 +9,11 @@ from pydantic import TypeAdapter, ValidationError
 
 from tolteca_datamodels.lmt.types import (
     LmtInfo,
-    LmtMaster,
+    LmtInterfaceInfo,
     LmtObsPgm,
     LmtRawObsMasterCode,
 )
-from tolteca_datamodels.lmt_base.metadata import LmtInstruMixin
+from tolteca_datamodels.lmt_base.metadata import InterfaceInfoMixin
 
 
 def test_telescope_names():
@@ -45,18 +45,58 @@ def test_site_constants():
 
 
 def test_telescope_interfaces():
-    assert LmtInfo.interface_instru == {
-        "tel": LmtInstruMixin(interface="tel", instru="lmt", instru_component="tcs")
+    assert LmtInfo.interface_interface_info == {
+        "tel": LmtInterfaceInfo(
+            interface="tel",
+            data_models=frozenset({"lmt"}),
+            instru="lmt",
+            interface_kind="tel",
+        )
     }
     assert LmtInfo.interfaces == ["tel"]
 
 
+@pytest.mark.parametrize("data_models", [["lmt"], ["lmt", "toltec"]])
+def test_telescope_interface_allows_overlapping_membership(data_models):
+    info = LmtInterfaceInfo.model_validate(
+        {
+            "interface": "tel",
+            "instru": "lmt",
+            "interface_kind": "tel",
+            "data_models": data_models,
+        }
+    )
+    assert isinstance(info, InterfaceInfoMixin)
+    assert info.data_models == frozenset(data_models)
+
+
+@pytest.mark.parametrize(
+    "field", ["instru", "data_models", "interface_kind", "interface"]
+)
+@pytest.mark.parametrize("missing", [True, False], ids=["missing", "null"])
+def test_telescope_interface_requires_shared_identity(field, missing):
+    data = {
+        "interface": "tel",
+        "instru": "lmt",
+        "interface_kind": "tel",
+        "data_models": ["lmt"],
+    }
+    if missing:
+        del data[field]
+    else:
+        data[field] = None
+    with pytest.raises(ValidationError) as exc:
+        LmtInterfaceInfo.model_validate(data)
+    assert [error["loc"] for error in exc.value.errors()] == [(field,)]
+
+
 def test_master_lookups():
     assert LmtRawObsMasterCode.TCS.value == 0
-    assert LmtRawObsMasterCode.get_master(LmtRawObsMasterCode.TCS) is LmtMaster.tcs
+    assert LmtRawObsMasterCode.get_master(LmtRawObsMasterCode.TCS) == "tcs"
     assert LmtInfo.master_code_master == {0: "tcs"}
-    assert LmtInfo.master_code_master[0] is LmtMaster.tcs
+    assert type(LmtInfo.master_code_master[0]) is str
     assert LmtInfo.master_master_code == {"tcs": 0}
+    assert LmtInfo.master_description == {"tcs": "Telescope control system"}
     with pytest.raises(KeyError):
         LmtInfo.master_code_master[1]
 
@@ -67,20 +107,28 @@ def test_unsupported_master_codes(code):
         LmtRawObsMasterCode(code)
 
 
-@pytest.mark.parametrize(
-    ("member", "value"), [(LmtRawObsMasterCode.TCS, 0), (LmtMaster.tcs, "tcs")]
-)
-def test_master_enum_json_roundtrip(member, value):
+def test_master_code_json_roundtrip():
+    member = LmtRawObsMasterCode.TCS
     adapter = TypeAdapter(type(member))
-    assert adapter.dump_python(member, mode="json") == value
+    assert adapter.dump_python(member, mode="json") == 0
     assert adapter.validate_json(adapter.dump_json(member)) is member
 
 
+def test_master_label_validation_and_roundtrip():
+    adapter = TypeAdapter(LmtInfo.MasterT)
+    label = adapter.validate_python("tcs", strict=True)
+    assert type(label) is str
+    assert adapter.validate_json(adapter.dump_json(label), strict=True) == label
+    for invalid in ("ics", "TCS", "", 0, None):
+        with pytest.raises(ValidationError, match="literal_error"):
+            adapter.validate_python(invalid, strict=True)
+
+
 def test_predefined_identity_is_frozen():
-    identity = LmtInfo.interface_instru["tel"]
+    identity = LmtInfo.interface_interface_info["tel"]
     assert identity.interface == "tel"
     with pytest.raises(ValidationError, match="frozen"):
-        identity.instru_component = "other"
+        setattr(identity, "interface_kind", "other")  # noqa: B010 -- Test frozen validation.
 
 
 def test_observation_programs_cover_recorded_lmtmc_values(lmtmc_records):

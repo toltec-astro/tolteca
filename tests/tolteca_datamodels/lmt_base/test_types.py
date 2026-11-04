@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from tolteca_datamodels.lmt.metadata import LmtTelMetadata
-from tolteca_datamodels.lmt.types import LmtMaster, LmtRawObsMasterCode
+from tolteca_datamodels.lmt.types import LmtInfo, LmtRawObsMasterCode
 from tolteca_datamodels.lmt_base.metadata import (
     LmtObsQuartetMixin,
     LmtRawObsMetadata,
@@ -16,8 +16,8 @@ from tolteca_datamodels.toltec.hwpr import ToltecHwprMetadata
 from tolteca_datamodels.toltec.metadata import (
     ToltecRawObsMetadata,
 )
-from tolteca_datamodels.toltec.toltecdb import ToltecDBRawObsMasterCode
-from tolteca_datamodels.toltec.types import ToltecMaster
+from tolteca_datamodels.toltec.toltec_db import ToltecDBRawObsMasterCode
+from tolteca_datamodels.toltec.types import ToltecInfo
 
 
 @pytest.mark.parametrize("name", ["obsnum", "subobsnum", "scannum"])
@@ -42,9 +42,9 @@ def test_zero_identifiers_and_json_roundtrip():
 @pytest.mark.parametrize(
     ("model", "label_type", "code_type"),
     [
-        (LmtTelMetadata, LmtMaster, LmtRawObsMasterCode),
-        (ToltecRawObsMetadata, ToltecMaster, ToltecDBRawObsMasterCode),
-        (ToltecHwprMetadata, ToltecMaster, ToltecDBRawObsMasterCode),
+        (LmtTelMetadata, LmtInfo.MasterT, LmtRawObsMasterCode),
+        (ToltecRawObsMetadata, ToltecInfo.MasterT, ToltecDBRawObsMasterCode),
+        (ToltecHwprMetadata, ToltecInfo.MasterT, ToltecDBRawObsMasterCode),
     ],
 )
 def test_concrete_master_is_a_label_and_code_is_an_integer(

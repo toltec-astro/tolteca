@@ -8,10 +8,13 @@ from pydantic import TypeAdapter
 from tollan.accessor import FieldLocation
 from xarray.backends.netCDF4_ import NetCDF4ArrayWrapper
 
-from tolteca_datamodels.toltec import open_toltec
-from tolteca_datamodels.toltec.kids import ToltecKidsIOMapper
-from tolteca_datamodels.toltec.metadata import ToltecSweepMetadata
-from tolteca_datamodels.toltec.toltecdb import ToltecDBRawObsMaster
+from tolteca_datamodels.toltec import open_toltec_kids
+from tolteca_datamodels.toltec.kids.core import ToltecKidsAccessor, ToltecKidsIOMapper
+from tolteca_datamodels.toltec.metadata import (
+    ToltecRawObsBlocksMetadata,
+    ToltecRawObsMetadata,
+)
+from tolteca_datamodels.toltec.toltec_db import ToltecDBRawObsMasterCode
 
 
 @pytest.fixture
@@ -37,6 +40,7 @@ def raw(kids_readout_settings, kids_design_data):
             "Header.Toltec.SenseAtten": 4.0,
             "Header.Toltec.Filename": b"original.nc\x00 ",
             "Header.Toltec.RepeatLevel": 0,
+            "Header.Toltec.ToneAmp": ("iqlen", np.ones(2)),
             "Data.Toltec.Is": (("time", "iqlen"), np.zeros((6, 2))),
             "Data.Toltec.Qs": (("time", "iqlen"), np.zeros((6, 2))),
             "Data.Toltec.LoFreq": ("time", [599.0, 599.0, 600.0, 600.0, 601.0, 601.0]),
@@ -50,10 +54,15 @@ def raw(kids_readout_settings, kids_design_data):
 def test_named_dimensions_and_headers(raw, transpose, as_tree):
     ds = raw.transpose(...) if not transpose else raw.transpose("iqlen", "time", ...)
     obj = xr.DataTree(ds) if as_tree else ds
-    meta = obj.toltec_kids.meta
+    meta = ToltecKidsAccessor(obj).meta
+    assert isinstance(meta, ToltecRawObsMetadata)
     assert (meta.n_times, meta.n_chans) == (6, 2)
-    assert meta.master == ToltecDBRawObsMaster.ICS
+    assert meta.master_code == ToltecDBRawObsMasterCode.ICS
+    assert meta.readout_code == 7
+    assert (meta.roach, meta.nw, meta.cal_roach) == (7, 7, 7)
     assert meta.array_name == "a1400"
+    assert meta.array == 1
+    assert meta.obs_type == "targ"
     assert meta.t0.unix == 1761902400
     assert meta.t1.unix == 1761902460
     assert meta.t_int == 6 / 500 * u.s
@@ -62,21 +71,34 @@ def test_named_dimensions_and_headers(raw, transpose, as_tree):
     assert meta.atten_drive == 7.25
     assert meta.filepath_orig == "original.nc"
     assert meta.repeat == 0
-    adapter = TypeAdapter(ToltecSweepMetadata)
+    adapter = TypeAdapter(ToltecRawObsMetadata)
     restored = adapter.validate_json(adapter.dump_json(meta))
     assert restored.f_smp == meta.f_smp
     assert restored.t0 == meta.t0
+    assert restored.readout_code == meta.readout_code
 
 
-@pytest.mark.parametrize("master", [0, 1, 2])
-def test_master_header_in_attributes(raw, master):
+@pytest.mark.parametrize("readout_code", [7, 11])
+def test_readout_code_header_in_attributes(raw, readout_code):
+    ds = raw.drop_vars("Header.Toltec.RoachIndex")
+    ds.attrs["Header.Toltec.RoachIndex"] = readout_code
+    meta = ds.toltec_kids.meta
+    assert meta.readout_code == readout_code
+    assert meta.interface == f"toltec{readout_code}"
+    assert (meta.roach, meta.nw, meta.cal_roach) == (readout_code,) * 3
+
+
+@pytest.mark.parametrize("master_code", [0, 1, 2])
+def test_master_header_in_attributes(raw, master_code):
     ds = raw.drop_vars("Header.Toltec.Master")
-    ds.attrs["Header.Toltec.Master"] = master
-    assert ds.toltec_kids.meta.master == master
-    assert ds.toltec_kids.meta.master_str == ("tcs", "ics", "clip")[master]
+    ds.attrs["Header.Toltec.Master"] = master_code
+    assert ds.toltec_kids.meta.master_code == master_code
+    assert ds.toltec_kids.meta.master == ("tcs", "ics", "clip")[master_code]
 
 
-@pytest.mark.parametrize("location", list(FieldLocation))
+@pytest.mark.parametrize(
+    "location", [FieldLocation.attr, FieldLocation.var, FieldLocation.dim]
+)
 def test_counts_use_mapped_locations_not_coordinate_values(raw, monkeypatch, location):
     ds = raw.assign_coords(
         time=[101, 102, 103, 104, 105, 106],
@@ -105,14 +127,18 @@ def test_counts_use_mapped_locations_not_coordinate_values(raw, monkeypatch, loc
         return get_var(data_source, name)
 
     monkeypatch.setattr(mapper, "_get_var", get_header)
-    meta = mapper.get_metadata(ds)
-    assert isinstance(meta, ToltecSweepMetadata)
-    assert (meta.n_times, meta.n_chans, meta.n_sweepsteps) == (6, 2, 3)
+    identified = mapper.get_blocks(ds)
+    assert isinstance(identified.meta, ToltecRawObsBlocksMetadata)
+    assert (
+        identified.meta.n_times,
+        identified.meta.n_chans,
+        int(identified.index.n_sweepsteps[0]),
+    ) == (6, 2, 3)
 
 
 def test_declared_sweep_count_candidate_order(raw):
     raw.attrs["Header.Toltec.NumSweepSteps"] = 99
-    assert raw.toltec_kids.meta.n_sweepsteps == 3
+    assert raw.toltec_kids.block_index.index.n_sweepsteps.item() == 3
 
 
 def test_unqualified_header_rejects_ambiguous_location(raw):
@@ -166,6 +192,7 @@ def test_reference_metadata(data_lmt_path, monkeypatch):
             expected = {
                 name: ds[f"Header.Toltec.{name}"].item()
                 for name in (
+                    "RoachIndex",
                     "ObsStartTime",
                     "ObsEndTime",
                     "SampleFreq",
@@ -185,12 +212,14 @@ def test_reference_metadata(data_lmt_path, monkeypatch):
         reads.clear()
         with monkeypatch.context() as patch:
             patch.setattr(NetCDF4ArrayWrapper, "__getitem__", read_metadata)
-            with open_toltec(path) as ds:
+            with open_toltec_kids(path) as ds:
                 acc = ds.toltec_kids
-                assert not reads
+                assert reads == ["Header.Toltec.ObsType"]
                 meta = acc.meta
+                assert isinstance(meta, ToltecRawObsMetadata)
                 assert meta is acc.meta
-                assert meta.master == ToltecDBRawObsMaster.TCS
+                assert meta.master_code == ToltecDBRawObsMasterCode.TCS
+                assert meta.readout_code == expected["RoachIndex"]
                 assert meta.n_times == sizes["time"]
                 assert meta.n_chans == sizes["iqlen"]
                 assert meta.n_kids_design == sizes["loclen"]
@@ -204,17 +233,21 @@ def test_reference_metadata(data_lmt_path, monkeypatch):
                     sizes["time"] / expected["SampleFreq"]
                 )
                 assert not ds["Data.Toltec.Is"].variable._in_memory
-                if isinstance(meta, ToltecSweepMetadata):
-                    assert meta.n_blocks == n_blocks
-                    assert meta.n_sweeps == n_blocks
-                    assert meta.n_blocks_max == sizes["numSweeps"]
-                assert reads.count("Data.Toltec.LoFreq") == (expected["ObsType"] == 4)
+                assert meta.n_blocks_max == sizes["numSweeps"]
+                assert reads.count("Data.Toltec.LoFreq") == 0
+                identified = acc.block_index
+                assert identified.index.sizes["block"] == n_blocks
+                assert (identified.meta.n_blocks, identified.meta.readout_code) == (
+                    n_blocks,
+                    meta.readout_code,
+                )
+                expected_lo_reads = 2 if expected["ObsType"] in (0, 1) else 1
+                assert reads.count("Data.Toltec.LoFreq") == expected_lo_reads
                 reads_before = list(reads)
                 assert meta.t_elapsed == (meta.t1 - meta.t0).to(u.s)
                 parsed = meta.filepath_info_orig
                 assert parsed is not None
                 assert parsed.model_dump()["roach"] == 0
-                TypeAdapter(type(meta)).dump_json(meta)
                 assert reads == reads_before
 
 
@@ -223,21 +256,11 @@ def test_tune_blocks_use_recorded_lo_resets(raw):
     raw["Data.Toltec.LoFreq"] = ("time", [1.0, 2.0, 3.0, 1.0, 2.0, 3.0])
     mapper = ToltecKidsIOMapper.from_data_source(raw)
     meta = mapper.get_metadata(raw)
-    assert isinstance(meta, ToltecSweepMetadata)
-    assert meta.n_blocks == meta.n_sweeps == 2
+    assert isinstance(meta, ToltecRawObsMetadata)
+    index = mapper.get_blocks(raw).index
     assert meta.n_times == 6
-    for block in (0, 1):
-        selected = mapper.get_metadata(raw, block=block)
-        assert isinstance(selected, ToltecSweepMetadata)
-        assert selected.n_times == 3
-        assert selected.n_blocks == 2
-        assert selected.n_sweeps == 1
-        assert selected.t0 == meta.t0
-        assert selected.t1 == meta.t1
-        assert selected.t_elapsed == meta.t_elapsed
-        assert selected.t_int == 3 / 500 * u.s
-    with pytest.raises(ValueError, match="out of range"):
-        mapper.get_metadata(raw, block=2)
+    assert index.sample_start.values.tolist() == [0, 3]
+    assert index.sample_end.values.tolist() == [3, 6]
 
 
 @pytest.mark.parametrize("n_blocks", [0, 1, 2])
@@ -245,12 +268,23 @@ def test_explicit_block_dimension_is_distinct_from_flat_input(raw, n_blocks):
     # Synthetic indexed layouts exercise dimension handling, not file identity.
     indexed = raw.assign_coords(block=np.arange(n_blocks))
     mapper = ToltecKidsIOMapper.from_data_source(indexed)
-    metadata = mapper.get_metadata(indexed)
-    assert isinstance(metadata, list)
-    assert len(metadata) == n_blocks
-    for i, meta in enumerate(metadata):
-        assert meta.n_blocks == n_blocks
-        assert meta.n_sweeps == 1
-        assert mapper.get_metadata(indexed, block=i) == meta
-    with pytest.raises(ValueError, match="out of range"):
-        mapper.get_metadata(indexed, block=n_blocks)
+    identified = mapper.get_blocks(indexed)
+    assert identified.meta.n_blocks == n_blocks
+    assert identified.meta.n_times == n_blocks * raw.sizes["time"]
+    assert identified.index.sizes["block"] == n_blocks
+
+
+def test_empty_tune_has_no_acquired_blocks(raw):
+    empty = raw.isel(time=slice(0, 0))
+    empty["Header.Toltec.ObsType"] = 4
+    assert empty.toltec_kids.meta.n_times == 0
+    assert empty.toltec_kids.meta.n_blocks_max == 2
+    assert empty.toltec_kids.block_index.index.sizes["block"] == 0
+
+
+def test_acquisition_reuse_requires_raw_unpartitioned_source(raw):
+    acquisition = raw.toltec_kids.meta
+    processed = raw.assign_attrs({"Header.Kids.kind": "processed_sweep"})
+    mapper = ToltecKidsIOMapper.from_data_source(processed)
+    with pytest.raises(ValueError, match="unpartitioned raw source"):
+        mapper.get_blocks(processed, acquisition=acquisition)

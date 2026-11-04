@@ -1,6 +1,4 @@
-"""Unit tests for LMT base metadata models."""
-
-from __future__ import annotations
+"""Acquisition time and duration contracts on shared LMT metadata."""
 
 import astropy.units as u
 import pytest
@@ -10,250 +8,54 @@ from pydantic import ValidationError
 from tolteca_datamodels.lmt_base.metadata import LmtRawObsMetadata
 
 
-class TestLmtObsQuartetMixin:
-    """Tests for LmtObsQuartetMixin through LmtRawObsMetadata."""
-
-    def test_keyword_only_enforcement(self):
-        """Test that all fields are keyword-only."""
-        # Create with keyword arguments - should work
-        meta = LmtRawObsMetadata(
-            master="lmt",
-            obsnum=100,
-            subobsnum=2,
-            scannum=5,
-            instru="test",
-            producer="test",
-            interface="test0",
-            interface_kind="test",
-            t0=Time("2024-01-01T00:00:00"),  # pyright: ignore[reportArgumentType]
-            t1=Time("2024-01-01T01:00:00"),  # pyright: ignore[reportArgumentType]
-            t_int=3600 * u.s,
-        )
-        assert meta.master == "lmt"
-        assert meta.obsnum == 100
-
-    def test_field_types(self):
-        """Test that quartet fields have correct types."""
-        meta: LmtRawObsMetadata = LmtRawObsMetadata(
-            master="lmt",
-            obsnum=100,
-            subobsnum=2,
-            scannum=5,
-            instru="test",
-            producer="test",
-            interface="test0",
-            interface_kind="test",
-            t0=Time("2024-01-01T00:00:00"),  # pyright: ignore[reportArgumentType]
-            t1=Time("2024-01-01T01:00:00"),  # pyright: ignore[reportArgumentType]
-            t_int=3600 * u.s,
-        )
-        assert isinstance(meta.master, str)
-        assert isinstance(meta.obsnum, int)
-        assert isinstance(meta.subobsnum, int)
-        assert isinstance(meta.scannum, int)
-
-    def test_frozen_mixin(self):
-        """Test that instances are immutable."""
-        meta: LmtRawObsMetadata = LmtRawObsMetadata(
-            master="lmt",
-            obsnum=100,
-            subobsnum=2,
-            scannum=5,
-            instru="test",
-            producer="test",
-            interface="test0",
-            interface_kind="test",
-            t0=Time("2024-01-01T00:00:00"),  # pyright: ignore[reportArgumentType]
-            t1=Time("2024-01-01T01:00:00"),  # pyright: ignore[reportArgumentType]
-            t_int=3600 * u.s,
-        )
-        with pytest.raises(ValidationError, match="frozen"):
-            meta.master = "new_value"
+@pytest.fixture
+def acquisition_data():
+    return {
+        "master": "tcs",
+        "obsnum": 145609,
+        "subobsnum": 0,
+        "scannum": 2,
+        "data_models": ["lmt", "toltec"],
+        "instru": "lmt",
+        "interface_kind": "tel",
+        "interface": "tel",
+        "t0": Time("2025-10-31T09:27:56"),
+        "t1": Time("2025-10-31T09:30:56"),
+        "t_int": 2 * u.min,
+    }
 
 
-class TestInterfaceInfoMixin:
-    """Tests for InterfaceInfoMixin through LmtRawObsMetadata."""
-
-    def test_required_fields(self):
-        """Test that instru and interface are required."""
-        with pytest.raises(ValidationError):
-            LmtRawObsMetadata(  # ty: ignore[missing-argument]
-                master="lmt",
-                obsnum=1,
-                subobsnum=0,
-                scannum=0,
-                # Missing instru and interface
-                t0=Time.now(),
-                t1=Time.now(),
-                t_int=60 * u.s,
-            )
-
-    def test_interface_kind_can_be_set(self):
-        """Test that interface_kind can be provided."""
-        meta: LmtRawObsMetadata = LmtRawObsMetadata(
-            master="lmt",
-            obsnum=1,
-            subobsnum=0,
-            scannum=0,
-            instru="test",
-            producer="test",
-            interface="test0",
-            interface_kind="subsystem1",
-            t0=Time("2024-01-01T00:00:00"),  # pyright: ignore[reportArgumentType]
-            t1=Time("2024-01-01T01:00:00"),  # pyright: ignore[reportArgumentType]
-            t_int=60 * u.s,
-        )
-        assert meta.interface_kind == "subsystem1"
+def test_acquisition_times_and_duration_survive_json_roundtrip(acquisition_data):
+    meta = LmtRawObsMetadata.model_validate(acquisition_data)
+    restored = LmtRawObsMetadata.model_validate_json(
+        meta.model_dump_json(round_trip=True)
+    )
+    for record in (meta, restored):
+        assert record.t0 == acquisition_data["t0"]
+        assert record.t1 == acquisition_data["t1"]
+        assert record.t_int == 120 * u.s
+        assert record.t_elapsed == (record.t1 - record.t0).to(u.s)
+        assert record.t_elapsed != record.t_int
 
 
-class TestLmtRawObsMetadata:
-    """Tests for LmtRawObsMetadata."""
+@pytest.mark.parametrize("name", ["t0", "t1", "t_int"])
+def test_acquisition_time_fields_are_required(acquisition_data, name):
+    LmtRawObsMetadata.model_validate(acquisition_data)
+    del acquisition_data[name]
+    with pytest.raises(ValidationError) as caught:
+        LmtRawObsMetadata.model_validate(acquisition_data)
+    assert [(e["loc"], e["type"]) for e in caught.value.errors()] == [
+        ((name,), "missing")
+    ]
 
-    def test_creation_with_all_fields(self):
-        """Test creating metadata with all fields."""
-        meta: LmtRawObsMetadata = LmtRawObsMetadata(
-            instru="toltec",
-            producer="toltec",
-            interface="toltec0",
-            interface_kind="roach",
-            master="lmt",
-            obsnum=12345,
-            subobsnum=1,
-            scannum=3,
-            t0=Time("2024-01-15T10:30:00"),  # pyright: ignore[reportArgumentType]
-            t1=Time("2024-01-15T10:35:00"),  # pyright: ignore[reportArgumentType]
-            t_int=300 * u.s,
-        )
 
-        assert meta.instru == "toltec"
-        assert meta.interface == "toltec0"
-        assert meta.master == "lmt"
-        assert meta.obsnum == 12345
-        assert meta.subobsnum == 1
-        assert meta.scannum == 3
-        assert isinstance(meta.t0, Time)
-        assert isinstance(meta.t1, Time)
-        assert meta.t_int == 300 * u.s
+def test_integration_duration_requires_time_units(acquisition_data):
+    LmtRawObsMetadata.model_validate(acquisition_data)
+    with pytest.raises(ValidationError) as caught:
+        LmtRawObsMetadata.model_validate(acquisition_data | {"t_int": 2 * u.m})
+    assert {e["loc"] for e in caught.value.errors()} == {("t_int",)}
 
-    def test_time_field_types(self):
-        """Test that time fields are properly typed."""
-        t0 = Time("2024-01-01T00:00:00")
-        t1 = Time("2024-01-01T01:00:00")
 
-        meta: LmtRawObsMetadata = LmtRawObsMetadata(
-            master="lmt",
-            obsnum=1,
-            subobsnum=0,
-            scannum=0,
-            instru="test",
-            producer="test",
-            interface="test0",
-            interface_kind="test",
-            t0=t0,  # pyright: ignore[reportArgumentType]
-            t1=t1,  # pyright: ignore[reportArgumentType]
-            t_int=60 * u.s,
-        )
-
-        assert isinstance(meta.t0, Time)
-        assert isinstance(meta.t1, Time)
-        assert meta.t0 == t0
-        assert meta.t1 == t1
-
-    def test_quantity_field_types(self):
-        """Test that quantity fields are properly typed."""
-        meta: LmtRawObsMetadata = LmtRawObsMetadata(
-            master="lmt",
-            obsnum=1,
-            subobsnum=0,
-            scannum=0,
-            instru="test",
-            producer="test",
-            interface="test0",
-            interface_kind="test",
-            t0=Time.now(),  # pyright: ignore[reportArgumentType]
-            t1=Time.now(),  # pyright: ignore[reportArgumentType]
-            t_int=120 * u.s,
-        )
-
-        assert isinstance(meta.t_int, u.Quantity)
-        assert meta.t_int.unit is not None
-        assert meta.t_int.unit.physical_type == "time"
-
-    def test_quantity_field_unit_conversion(self):
-        """Test that quantity fields handle unit conversion."""
-        meta: LmtRawObsMetadata = LmtRawObsMetadata(
-            master="lmt",
-            obsnum=1,
-            subobsnum=0,
-            scannum=0,
-            instru="test",
-            producer="test",
-            interface="test0",
-            interface_kind="test",
-            t0=Time.now(),  # pyright: ignore[reportArgumentType]
-            t1=Time.now(),  # pyright: ignore[reportArgumentType]
-            t_int=2 * u.min,
-        )
-
-        assert meta.t_int == 2 * u.min
-        assert meta.t_int.to(u.s) == 120 * u.s
-
-    def test_frozen_metadata(self):
-        """Test that metadata instances are immutable."""
-        meta: LmtRawObsMetadata = LmtRawObsMetadata(
-            master="lmt",
-            obsnum=1,
-            subobsnum=0,
-            scannum=0,
-            instru="test",
-            producer="test",
-            interface="test0",
-            interface_kind="test",
-            t0=Time.now(),  # pyright: ignore[reportArgumentType]
-            t1=Time.now(),  # pyright: ignore[reportArgumentType]
-            t_int=60 * u.s,
-        )
-
-        with pytest.raises(ValidationError, match="frozen"):
-            meta.obsnum = 999
-
-    def test_multiple_inheritance(self):
-        """Test that multiple inheritance works correctly."""
-        meta: LmtRawObsMetadata = LmtRawObsMetadata(
-            master="lmt",
-            obsnum=1,
-            subobsnum=0,
-            scannum=0,
-            instru="test",
-            producer="test",
-            interface="test0",
-            interface_kind="test",
-            t0=Time.now(),  # pyright: ignore[reportArgumentType]
-            t1=Time.now(),  # pyright: ignore[reportArgumentType]
-            t_int=60 * u.s,
-        )
-
-        # Check fields from LmtObsQuartetMixin
-        assert hasattr(meta, "master")
-        assert hasattr(meta, "obsnum")
-        assert hasattr(meta, "subobsnum")
-        assert hasattr(meta, "scannum")
-
-        # Check fields from InterfaceInfoMixin
-        assert hasattr(meta, "interface")
-        assert hasattr(meta, "instru")
-        assert hasattr(meta, "interface_kind")
-
-        # Check own fields
-        assert hasattr(meta, "t0")
-        assert hasattr(meta, "t1")
-        assert hasattr(meta, "t_int")
-
-    def test_missing_required_fields(self):
-        """Test that missing required fields raise validation error."""
-        with pytest.raises(ValidationError):
-            LmtRawObsMetadata(  # ty: ignore[missing-argument]
-                master="lmt",
-                obsnum=1,
-                # Missing many required fields
-            )
+def test_acquisition_schema_does_not_include_original_filepath():
+    schema = LmtRawObsMetadata.model_json_schema(mode="serialization")
+    assert not {"filepath_orig", "filepath_info_orig"} & schema["properties"].keys()

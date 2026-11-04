@@ -1,7 +1,10 @@
 """Required telescope metadata, numeric identity, and serialization."""
 
+import json
+import subprocess
+import sys
 from datetime import UTC, datetime
-from typing import Literal, assert_type
+from typing import assert_type
 
 import astropy.units as u
 import pytest
@@ -9,17 +12,49 @@ from astropy.coordinates import SkyCoord
 from astropy.time import Time
 from pydantic import TypeAdapter, ValidationError
 
-from tolteca_datamodels.lmt import LmtFilepathInfo
-from tolteca_datamodels.lmt.metadata import LmtTelMetadata
+from tolteca_datamodels.filepath import FilepathInfo
+from tolteca_datamodels.lmt.filepath import LmtFilepathInfo
+from tolteca_datamodels.lmt.metadata import (
+    LmtTelInterfaceKindT,
+    LmtTelInterfaceT,
+    LmtTelMetadata,
+)
 from tolteca_datamodels.lmt.types import (
     LmtInfo,
-    LmtMaster,
     LmtObsGoal,
     LmtObsPgm,
     LmtRawObsMasterCode,
 )
 from tolteca_datamodels.lmt_base.metadata import LmtRawObsMetadata
-from tolteca_datamodels.lmt_base.types import LabelT
+from tolteca_datamodels.toltec.filepath import ToltecFilepathInfo
+
+
+def test_original_filepath_uses_available_telescope_parsers(data_lmt_path):
+    script = """
+import sys
+from tolteca_datamodels.lmt import open_lmt_tel
+from tolteca_datamodels.lmt.filepath import LmtFilepathInfo
+
+assert 'tolteca_datamodels.toltec' not in sys.modules
+with open_lmt_tel(sys.argv[1]) as ds:
+    info = ds.lmt_tel.meta.filepath_info_orig
+    assert type(info) is LmtFilepathInfo
+    assert info.data_models == {'lmt'}
+
+from tolteca_datamodels.toltec.filepath import ToltecLmtFilepathInfo
+with open_lmt_tel(sys.argv[1]) as ds:
+    info = ds.lmt_tel.meta.filepath_info_orig
+    assert type(info) is ToltecLmtFilepathInfo
+    assert info.data_models == {'lmt', 'toltec'}
+"""
+    source = data_lmt_path / "tel/tel_toltec_2025-10-31_145609_00_0002.nc"
+    subprocess.run(  # noqa: S603 -- current interpreter and literal test code
+        [sys.executable, "-c", script, str(source)],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
 
 
 @pytest.fixture
@@ -29,8 +64,11 @@ def base_tel_fields():
         "subobsnum": 0,
         "scannum": 2,
         "master": "tcs",
-        "master_code": LmtRawObsMasterCode.TCS.value,
+        "master_code": LmtRawObsMasterCode.TCS,
+        "instru": "lmt",
         "interface": "tel",
+        "interface_kind": "tel",
+        "data_models": ["lmt", "toltec"],
         "t0": Time("2025-10-31T09:27:56", format="isot", scale="utc"),
         "t1": Time("2025-10-31T09:28:56", format="isot", scale="utc"),
         "t_int": 60.32 * u.s,
@@ -44,28 +82,32 @@ def base_tel_fields():
 
 def test_telescope_identity(base_tel_fields):
     meta = LmtTelMetadata(**base_tel_fields)
+    assert_type(meta.data_models, frozenset[str])
     assert_type(meta.instru, LmtInfo.InstruT)
-    assert_type(meta.instru_component, Literal["tcs"])
+    assert_type(meta.interface, LmtTelInterfaceT)
+    assert_type(meta.interface_kind, LmtTelInterfaceKindT)
     assert isinstance(meta, LmtRawObsMetadata)
-    assert_type(meta.master_code, int)
-    assert meta.master_code == LmtRawObsMasterCode.TCS.value
-    assert type(meta.master_code) is int
-    assert_type(meta.master, LabelT)
-    assert meta.master == LmtMaster.tcs
+    assert_type(meta.master_code, LmtRawObsMasterCode)
+    assert meta.master_code is LmtRawObsMasterCode.TCS
+    assert_type(meta.master, LmtInfo.MasterT)
+    assert meta.master == "tcs"
     assert type(meta.master) is str
-    assert (meta.instru, meta.instru_component, meta.interface) == ("lmt", "tcs", "tel")
+    assert (meta.data_models, meta.instru, meta.interface_kind, meta.interface) == (
+        {"lmt", "toltec"},
+        "lmt",
+        "tel",
+        "tel",
+    )
+    assert "receiver" not in meta.model_dump()
+    assert (
+        LmtTelMetadata.model_fields["instru"].description
+        == "Large Millimeter Telescope"
+    )
     assert_type(meta.obs_pgm, LmtObsPgm)
     assert meta.obs_pgm == "lissajous"
     assert meta.obs_pgm is LmtObsPgm.lissajous
     assert_type(meta.obs_goal, LmtObsGoal)
     assert meta.obs_goal is LmtObsGoal.pointing
-
-
-@pytest.mark.parametrize("master_code", [None, "tcs", "0", True, 0.5])
-def test_telescope_master_code_requires_integer(base_tel_fields, master_code):
-    base_tel_fields["master_code"] = master_code
-    with pytest.raises(ValidationError):
-        LmtTelMetadata(**base_tel_fields)
 
 
 def test_telescope_identifiers_and_serialized_master(base_tel_fields):
@@ -89,34 +131,54 @@ def test_telescope_master_label_is_a_frozen_input(base_tel_fields):
     assert payload["master"] == "tcs"
     assert type(meta).model_validate(payload).master == "tcs"
     with pytest.raises(ValidationError, match="frozen"):
-        meta.master = "ics"
-
-
-@pytest.mark.parametrize("master", [None, 0, True, 0.5])
-def test_telescope_master_requires_label(base_tel_fields, master):
-    with pytest.raises(ValidationError, match="master"):
-        LmtTelMetadata.model_validate(base_tel_fields | {"master": master})
+        setattr(meta, "master", "ics")  # noqa: B010 -- Test frozen validation.
 
 
 @pytest.mark.parametrize(
-    ("name", "value"), [("instru", "toltec"), ("instru_component", "roach")]
+    ("name", "value"),
+    [
+        ("instru", "toltec"),
+        ("interface", "tel2"),
+        ("interface_kind", "roach"),
+        *[("master", value) for value in ("ics", "simu", None, 0, True, 0.5)],
+        *[
+            ("master_code", value)
+            for value in (1, 2, 99, None, "tcs", "0", True, False, 0.0, 0.5)
+        ],
+    ],
 )
-def test_instrument_identity_is_constant(base_tel_fields, name, value):
-    with pytest.raises(ValidationError, match=name):
-        LmtTelMetadata(**base_tel_fields, **{name: value})
+@pytest.mark.parametrize("mode", ["python", "json"])
+def test_telescope_identity_rejects_invalid_values(base_tel_fields, name, value, mode):
+    if mode == "python":
+        with pytest.raises(ValidationError, match=name):
+            LmtTelMetadata(**(base_tel_fields | {name: value}))
+    else:
+        payload = json.loads(
+            LmtTelMetadata(**base_tel_fields).model_dump_json(round_trip=True)
+        )
+        with pytest.raises(ValidationError, match=name):
+            LmtTelMetadata.model_validate_json(json.dumps(payload | {name: value}))
 
 
-def test_other_telescope_interface(base_tel_fields):
-    base_tel_fields["interface"] = "tel2"
-    meta = LmtTelMetadata(**base_tel_fields)
-    assert meta.interface == "tel2"
-    assert meta.quartet == "tcs-145609-0-2"
-    assert meta.uid_raw_obs_file == "tcs-145609-0-2-tel2"
+@pytest.mark.parametrize("data_models", [["lmt", "toltec"], ["lmt", "dummy_instru"]])
+def test_telescope_data_model_membership_is_variable(base_tel_fields, data_models):
+    meta = LmtTelMetadata(**(base_tel_fields | {"data_models": data_models}))
+    assert meta.data_models == frozenset(data_models)
+    assert meta.instru == "lmt"
+
+
+def test_python_master_code_requires_enum_member(base_tel_fields):
+    with pytest.raises(ValidationError, match="master_code"):
+        LmtTelMetadata(**(base_tel_fields | {"master_code": 0}))
 
 
 @pytest.mark.parametrize(
     "missing",
     [
+        "data_models",
+        "instru",
+        "interface",
+        "interface_kind",
         "master",
         "master_code",
         "obs_pgm",
@@ -133,7 +195,8 @@ def test_required_metadata(base_tel_fields, missing):
 
 
 @pytest.mark.parametrize(
-    "field", ["obs_pgm", "obs_goal", "target", "target_ref", "filepath_orig"]
+    "field",
+    ["data_models", "obs_pgm", "obs_goal", "target", "target_ref", "filepath_orig"],
 )
 def test_required_metadata_cannot_be_none(base_tel_fields, field):
     base_tel_fields[field] = None
@@ -158,17 +221,15 @@ def test_python_program_requires_enum_instance(base_tel_fields, program):
 def test_frozen(base_tel_fields):
     meta = LmtTelMetadata(**base_tel_fields)
     with pytest.raises(ValidationError, match="frozen"):
-        meta.obsnum = 999
+        setattr(meta, "obsnum", 999)  # noqa: B010 -- Test frozen validation.
 
 
 def test_json_roundtrip(base_tel_fields):
     adapter = TypeAdapter(LmtTelMetadata)
     meta = LmtTelMetadata(**base_tel_fields)
     restored = adapter.validate_json(adapter.dump_json(meta, round_trip=True))
-    assert restored.master_code == LmtRawObsMasterCode.TCS.value
-    assert type(restored.master_code) is int
-    assert restored.master == LmtMaster.tcs
-    assert type(restored.master) is str
+    assert restored.master_code is LmtRawObsMasterCode.TCS
+    assert restored.master == "tcs"
     assert restored.uid_raw_obs_file == "tcs-145609-0-2-tel"
     assert restored.filepath_orig == meta.filepath_orig
     assert restored.filepath_info_orig == meta.filepath_info_orig
@@ -183,13 +244,25 @@ def test_json_roundtrip(base_tel_fields):
     )
 
 
-def test_master_json_schema():
-    schema = LmtTelMetadata.model_json_schema(mode="serialization")
-    for name in ("master", "master_code"):
+@pytest.mark.parametrize("mode", ["validation", "serialization"])
+def test_identity_json_schema(mode):
+    schema = LmtTelMetadata.model_json_schema(mode=mode)
+    for name, value in {
+        "instru": "lmt",
+        "interface": "tel",
+        "interface_kind": "tel",
+        "master": "tcs",
+        "master_code": 0,
+    }.items():
         assert name in schema["required"]
-    assert schema["properties"]["master_code"]["type"] == "integer"
-    assert schema["properties"]["master"]["$ref"] == "#/$defs/LabelT"
-    assert schema["$defs"]["LabelT"]["type"] == "string"
+        field = schema["properties"][name]
+        assert "default" not in field
+        definition = schema["$defs"][field["$ref"].removeprefix("#/$defs/")]
+        if name == "master_code":
+            assert definition["enum"] == [value]
+        else:
+            assert definition["const"] == value
+        assert definition["type"] == ("integer" if name == "master_code" else "string")
 
 
 def test_elapsed_time_is_derived_cached_and_serializable(base_tel_fields):
@@ -226,8 +299,8 @@ def test_original_filename_is_cached_and_serialized(base_tel_fields):
     assert "filepath_info_orig" not in meta.__dict__
     parsed = meta.filepath_info_orig
     assert parsed is not None
-    assert_type(parsed, LmtFilepathInfo)
-    assert type(parsed) is LmtFilepathInfo
+    assert_type(parsed, FilepathInfo)
+    assert isinstance(parsed, LmtFilepathInfo)
     assert parsed is meta.filepath_info_orig
     assert parsed.ut == datetime(2025, 10, 31, tzinfo=UTC)
     assert parsed.interface == "tel"
@@ -240,14 +313,19 @@ def test_original_filename_is_cached_and_serialized(base_tel_fields):
     assert not {"source", "file_timestamp", "file_suffix", "file_ext"} & payload.keys()
     schema = LmtTelMetadata.model_json_schema(mode="serialization")
     assert schema["properties"]["filepath_info_orig"]["anyOf"] == [
-        {"$ref": "#/$defs/LmtFilepathInfo"},
+        {"$ref": "#/$defs/FilepathInfo"},
         {"type": "null"},
     ]
 
 
-def test_toltec_filename_does_not_identify_telescope_metadata(base_tel_fields):
+def test_original_filename_does_not_reclassify_header_metadata(base_tel_fields):
+    # A deliberately inconsistent header tests independent filename parsing.
     base_tel_fields["filepath_orig"] = "toltec8_145609_000_0002_2025_10_31_09_27_57.nc"
-    assert LmtTelMetadata(**base_tel_fields).filepath_info_orig is None
+    meta = LmtTelMetadata(**base_tel_fields)
+    assert meta.filepath_info_orig == FilepathInfo.from_source(meta.filepath_orig)
+    assert isinstance(meta.filepath_info_orig, ToltecFilepathInfo)
+    assert meta.filepath_info_orig.interface == "toltec8"
+    assert meta.interface == "tel"
 
 
 def test_roundtrip_serialization_does_not_parse_filename(base_tel_fields):
@@ -257,10 +335,12 @@ def test_roundtrip_serialization_does_not_parse_filename(base_tel_fields):
     restored = adapter.validate_json(adapter.dump_json(meta, round_trip=True))
     assert "filepath_info_orig" not in meta.__dict__
     assert restored.filepath_orig == "unrecognized.nc"
-    assert restored.filepath_info_orig is None
+    assert type(restored.filepath_info_orig) is FilepathInfo
+    assert restored.filepath_info_orig.ext == "nc"
+    assert restored.filepath_info_orig.data_models == frozenset()
     payload = adapter.dump_python(restored, mode="json")
     assert payload["filepath_orig"] == "unrecognized.nc"
-    assert payload["filepath_info_orig"] is None
+    assert payload["filepath_info_orig"] == {"ext": "nc", "data_models": []}
 
 
 @pytest.mark.parametrize("goal", list(LmtObsGoal))
