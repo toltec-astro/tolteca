@@ -1,0 +1,5 @@
+input_discovery:
+  inputs:
+    - data_toltec_path: /data/data_lmt/toltec
+      obs_spec: tcs-145609/toltec(0,3)
+      mode: guess

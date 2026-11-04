@@ -1,0 +1,5 @@
+input_discovery:
+  data_model_select: [lmt]
+  inputs:
+    - data_lmt_path: /data/data_lmt
+      obs_spec: tcs-145609/{tel,0}

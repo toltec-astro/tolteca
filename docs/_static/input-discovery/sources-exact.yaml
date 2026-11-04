@@ -1,0 +1,5 @@
+input_discovery:
+  inputs:
+    - sources:
+        - /data/data_lmt/tel/tel_toltec_2025-10-31_145609_00_0002.nc
+        - path: /data/data_lmt/toltec/tcs/toltec0/toltec0_145609_000_0002_2025_10_31_09_27_57.nc

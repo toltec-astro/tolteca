@@ -31,7 +31,7 @@ directory. The default product name is the input file stem;
 existing product directories are never overwritten. Without output configuration,
 reduction runs in memory and publishes no files.
 
-Multiple files, quoted globs, and [observation selectors](obsspec.md) are accepted.
+Multiple files, quoted globs, and [observation selectors](obs_spec.md) are accepted.
 The local resolver and database API share the same typed selector language.
 Local selectors require `--data_lmt_path`; they do not require a database.
 

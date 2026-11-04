@@ -52,15 +52,21 @@ clean:
     rm -fr .pytest_cache
     rm -fr .ruff_cache
 
+# The docs link to Tollan's unpublished API: build Tollan's docs first, or set
+# TOLLAN_DOCS_INVENTORY. Tolteca's dependencies are workspace members, so the
+# docs run in the deployment location environment (load its .envrc).
+tollan_inventory := env("TOLLAN_DOCS_INVENTORY", justfile_directory() + "/../tollan/docs/_build/html/objects.inv")
+sphinx := '"${UV_PROJECT_ENVIRONMENT:?Load the deployment location .envrc}"/bin/sphinx-build'
+
 # Build the docs
 doc-build:
     rm -rf docs/api
-    uv run --group docs sphinx-build -M html docs docs/_build -E -a -n -W --keep-going -T
+    TOLLAN_DOCS_INVENTORY={{ quote(tollan_inventory) }} {{ sphinx }} -M html docs docs/_build -E -a -n -W --keep-going -T
 
 # Execute guide examples with Sphinx
 doc-test:
     rm -rf docs/api
-    uv run --group docs sphinx-build -M doctest docs docs/_build -E -a -n -W --keep-going -T
+    TOLLAN_DOCS_INVENTORY={{ quote(tollan_inventory) }} {{ sphinx }} -M doctest docs docs/_build -E -a -n -W --keep-going -T
 
 # Serve docs locally with live reload
 doc:

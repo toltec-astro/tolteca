@@ -1,0 +1,8 @@
+input_discovery:
+  inputs:
+    - data_lmt_path: /data/data_lmt
+      obs_spec: tcs-145609/tel
+      data_model_select: [lmt]
+    - data_lmt_path: /data/data_lmt
+      obs_spec: tcs-145609/0
+      data_model_select: [toltec]

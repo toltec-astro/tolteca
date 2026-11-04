@@ -1,0 +1,5 @@
+input_discovery:
+  inputs:
+    - data_lmt_path: /data/data_lmt
+      obs_spec: tcs-145609/{tel,0}
+      mode: guess

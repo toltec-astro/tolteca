@@ -1,0 +1,6 @@
+input_discovery:
+  inputs:
+    - sources:
+        - /data/downloads/downloaded.nc
+      obs_spec: tcs-145609/tel
+      mode: guess_or_read

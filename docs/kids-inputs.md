@@ -8,7 +8,7 @@ arrays or write products, even when output is enabled in the configuration.
 ## Choose inputs
 
 Put options before `--` and one or more local NetCDF files, quoted globs, or
-[observation selectors](obsspec.md) after it:
+[observation selectors](obs_spec.md) after it:
 
 ```console
 tolteca_kids --dry_run -- sweep.nc
@@ -36,7 +36,7 @@ back to the acquisition filename from `Header.Toltec.Filename`. The usual
 identifiers correct filename guesses before `--select` is evaluated. A
 recognizable current filename keeps its own suffix; use
 `filepath_info_orig.suffix` to explicitly select by the acquisition suffix.
-See the [observation-file guide](guide.md) for the nested
+See the [observation-file guide](input-discovery.md) for the nested
 fields, telescope identification, and Parquet examples.
 
 `--show_inputs` prints the selected catalog and exits without executing a
@@ -86,7 +86,7 @@ when no root is supplied; they are not relative to each YAML file.
 ## Launch through Deploy
 
 Use Deploy's `run_kids` to supply deployment paths and forward application
-configuration, as shown in the [observation-file guide](guide.md).
+configuration, as shown in the [observation-file guide](input-discovery.md).
 You can also pass an explicitly configured command through its generic runner:
 
 ```console

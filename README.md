@@ -1,21 +1,47 @@
-# tolteca
+# TolTECA
 
-![PyPI version](https://img.shields.io/pypi/v/tolteca.svg)
+TolTECA provides Python tools for inspecting LMT and TolTEC observations,
+selecting inputs, processing detector data, and working with scientific results.
+You can inspect a single acquisition in Python or use configured workflows to
+prepare and process a collection.
 
-TolTEC all-in-one
-
-* Documentation: TODO
+Start with the [observation-data guide](docs/datamodels.md) to read metadata,
+build a file table, or discover inputs. The
+[documentation index](docs/index.rst) links the processing and data-product domains.
 
 ## Installation
 
-```bash
-pip install tolteca
+This development version requires Python 3.13 or newer and the matching Tollan
+v3 environment. In an existing development environment, install this checkout
+with:
+
+```console
+python -m pip install -e .
 ```
 
-## How to Use
+## Choose a task
 
-- TODO
+| Task | Start here |
+| --- | --- |
+| Inspect telescope, detector, or HWPR data; select inputs | [Observation data](docs/datamodels.md) |
+| Run KIDs processing | [Configured KIDs reduction](docs/kids-reduction.md) |
+| Reopen and inspect scientific products | [Data-product API](docs/data-products-api.rst) |
+| Work directly with scientific signal arrays | [KIDs signal processing](docs/kidsproc/index.md) |
 
-## Credits
+Developers who add data models can read the
+[framework architecture](docs/datamodels-architecture.rst).
 
-This package was created with [Cookiecutter](https://github.com/audreyfeldroy/cookiecutter) and the [audreyfeldroy/cookiecutter-pypackage](https://github.com/audreyfeldroy/cookiecutter-pypackage) project template.
+## Development
+
+Use the repository's `just` recipes in the configured development environment:
+
+```console
+just qa
+just doc-build
+just doc
+```
+
+`just qa` runs the configured checks and tests. `just doc-build` performs a strict
+HTML build, and `just doc` serves the documentation locally.
+
+The project uses the BSD 3-Clause license.

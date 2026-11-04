@@ -1,0 +1,5 @@
+input_discovery:
+  inputs:
+    - sources:
+        - {glob: "/data/data_lmt/tel/*145609*.nc"}
+        - {glob: "/data/data_lmt/toltec/**/*145609*.nc"}

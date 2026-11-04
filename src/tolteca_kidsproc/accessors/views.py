@@ -47,10 +47,6 @@ class KidsView[MapperT: Mapper](XarrayAccessorBase[MapperT]):
     mapper : Mapper, optional
         Resolved field mappings for this payload. Omit to resolve default names.
 
-    Type Parameters
-    ---------------
-    MapperT : Mapper
-        Mapper type used for field resolution.
     """
 
 

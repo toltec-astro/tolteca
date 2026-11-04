@@ -1,0 +1,6 @@
+input_discovery:
+  inputs:
+    - data_lmt_path: data_lmt
+      obs_spec: tcs-145609/0
+    - sources:
+        - {glob: "data_lmt/tel/*145609*.nc"}
