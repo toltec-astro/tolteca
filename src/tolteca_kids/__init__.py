@@ -13,7 +13,7 @@ through the pipeline.  Access any step's context with::
 
 Typical pipeline use:
 
-    from tolteca_datamodels.toltec.kids import SweepReducer
+    from tolteca_datamodels.toltec.kids.sweep import SweepReducer
     from tolteca_kids import SweepCheck, KidsFind, ToltecKidsPipeline
 
     reducer = SweepReducer()

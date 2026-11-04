@@ -124,7 +124,7 @@ class TestBuildDatatreeFromZarr:
 
     def test_reduced_sweep_view_ok(self):
         """ReducedSweepView must be constructable from the DataTree."""
-        from tolteca_datamodels.toltec.kids import ReducedSweepView
+        from tolteca_datamodels.toltec.kids.sweep import ReducedSweepView
         ds = _make_zarr_dataset()
         dt = _build_datatree_from_zarr(ds)
         view = ReducedSweepView(dt)

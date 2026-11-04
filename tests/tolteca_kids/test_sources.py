@@ -14,7 +14,7 @@ from tolteca_datamodels.file import (
     guess_info_from_sources,
 )
 from tolteca_datamodels.toltec.filestore import build_input_catalog, resolve_sources
-from tolteca_datamodels.toltec.kids import SweepReducer
+from tolteca_datamodels.toltec.kids.sweep import SweepReducer
 from tolteca_datamodels.toltec.kids.source import identify_source
 from tolteca_datamodels.toltec.types import ToltecDataKind
 from tolteca_kids.cli import app

@@ -14,7 +14,7 @@ from typer.testing import CliRunner
 
 from tolteca_datamodels.file import SourceInfoModel
 from tolteca_datamodels.toltec.filestore import build_input_catalog
-from tolteca_datamodels.toltec.kids import SweepReducer
+from tolteca_datamodels.toltec.kids.sweep import SweepReducer
 from tolteca_datamodels.toltec.kids.source import identify_source
 from tolteca_kids.cli import app
 from tolteca_kids.core import Kids, KidsConfig

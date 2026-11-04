@@ -2,21 +2,23 @@
 
 from __future__ import annotations
 
+from contextlib import ExitStack
 from dataclasses import dataclass
 from functools import cached_property
-from operator import attrgetter, index
-from typing import TYPE_CHECKING, Literal, cast, overload
+from operator import index
+from typing import TYPE_CHECKING, cast
 
 import astropy.units as u
 import xarray as xr
 from astropy.time import Time
 from tollan.accessor import Mapping, NameMapping, Schema
 from tollan.accessor.xarray import XarrayAccessorBase, XarrayMapper
+from tollan.utils.typing import get_literal_value
 
-from tolteca_datamodels.source import identify_reader, open_source
+from tolteca_datamodels.core.source.opener import _open_netcdf
 
-from .metadata import DummyInstruMetadata
-from .types import DummyInstruInfo
+from .metadata import DummyInstruInterfaceKindT, DummyInstruMetadata
+from .types import DummyInstruDataModel, DummyInstruInfo
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -33,7 +35,6 @@ __all__ = [
     "DummyInstruAccessor",
     "DummyInstruIOMapper",
     "DummyInstruIOSchema",
-    "identify_dummy_instru",
     "open_dummy_instru",
 ]
 
@@ -76,7 +77,12 @@ class DummyInstruIOMapper(XarrayMapper[DummyInstruIOSchema]):
         schema = self.schema
         interface = self.get_str(data_source, schema.interface)
         return DummyInstruMetadata(
+            instru=cast(
+                "DummyInstruInfo.InstruT", self.get_str(data_source, schema.instru)
+            ),
+            data_models=frozenset({DummyInstruDataModel.name}),
             interface=interface,
+            interface_kind=get_literal_value(DummyInstruInterfaceKindT),
             channel=DummyInstruInfo.interface_channel[interface],
             master=self.get_str(data_source, schema.master),
             obsnum=index(self.get_scalar(data_source, schema.obsnum)),
@@ -115,76 +121,10 @@ class DummyInstruAccessor(XarrayAccessorBase[DummyInstruIOMapper]):
         """Cached observation metadata."""
         return self.mapper.get_metadata(self.data_source)
 
-    def read_metadata(self) -> DummyInstruMetadata:
-        """Read current dummy observation headers.
-
-        Returns
-        -------
-        DummyInstruMetadata
-            Fresh observation metadata. Previously cached ``meta`` is unchanged.
-            Counter samples are not loaded.
-        """
-        mapper = type(self.mapper).from_data_source(self.data_source)
-        return mapper.get_metadata(self.data_source)
-
     @property
     def counts(self) -> xr.DataArray:
         """Counter samples."""
         return self.mapper.get_arr(self.data_source, self.mapper.schema.counts)
-
-
-@overload
-def identify_dummy_instru(
-    data_source: object, *, raise_on_error: Literal[True]
-) -> DummyInstruAccessor: ...
-
-
-@overload
-def identify_dummy_instru(
-    data_source: object, *, raise_on_error: Literal[False] = False
-) -> DummyInstruAccessor | None: ...
-
-
-@overload
-def identify_dummy_instru(
-    data_source: object, *, raise_on_error: bool
-) -> DummyInstruAccessor | None: ...
-
-
-def identify_dummy_instru(
-    data_source: object, *, raise_on_error: bool = False
-) -> DummyInstruAccessor | None:
-    """Identify an opened dummy-instrument dataset.
-
-    Parameters
-    ----------
-    data_source : object
-        Opened data. Only Dataset objects are supported.
-    raise_on_error : bool, optional
-        Raise for unsupported types or accessor validation errors instead of
-        returning None. Default is False. Other exceptions always propagate.
-
-    Returns
-    -------
-    DummyInstruAccessor or None
-        Registered accessor if the instrument attribute identifies dummy data,
-        otherwise None. Repeated calls reuse the accessor. Read ``meta`` to
-        validate and obtain the observation headers.
-        Identification does not load counter samples or close the dataset.
-
-    Raises
-    ------
-    TypeError
-        If the payload type is unsupported and ``raise_on_error=True``.
-    ValueError
-        If the instrument is not recognized and ``raise_on_error=True``.
-    """
-    return identify_reader(
-        data_source,
-        source_types=(xr.Dataset,),
-        reader_factory=attrgetter("dummy_instru"),
-        raise_on_error=raise_on_error,
-    )
 
 
 def open_dummy_instru(source: str | Path | FileLoc, **kwargs) -> DummyInstruDataset:
@@ -207,9 +147,12 @@ def open_dummy_instru(source: str | Path | FileLoc, **kwargs) -> DummyInstruData
     ------
     ValueError
         If the location is remote or the dataset is not recognized as
-        dummy-instrument data. The dataset is closed if identification fails.
+        dummy-instrument data. The dataset is closed if accessor initialization fails.
     """
-    dataset = open_source(
-        source, opener=xr.open_dataset, identifier=identify_dummy_instru, **kwargs
-    )
-    return cast("DummyInstruDataset", dataset)
+    with ExitStack() as stack:
+        ds = cast(
+            "DummyInstruDataset", stack.enter_context(_open_netcdf(source, **kwargs))
+        )
+        _ = ds.dummy_instru
+        stack.pop_all()
+    return ds

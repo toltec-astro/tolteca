@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from tolteca_datamodels.toltec.kids import ReducedSweepView, SweepReducer
+from tolteca_datamodels.toltec.kids.sweep import ReducedSweepView, SweepReducer
 
 
 @pytest.fixture

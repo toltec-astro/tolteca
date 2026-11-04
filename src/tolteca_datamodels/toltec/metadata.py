@@ -10,7 +10,8 @@ from pydantic import Field, PrivateAttr
 from tollan.accessor.xarray import dataset_to_qtable
 from tollan.config.types import FrequencyQuantityField
 
-from ..lmt_base._filepath import FilepathOrigMetadataMixin
+from ..core.types import DataModelsT  # noqa: TC001 -- resolved by Pydantic
+from ..lmt_base.filepath import FilepathOrigMetadataMixin
 from ..lmt_base.metadata import LmtRawObsMetadata
 from ..lmt_base.types import SeqNumT
 from .axes import ToltecAxisView
@@ -21,12 +22,25 @@ if TYPE_CHECKING:
     from astropy.table import QTable
 
 __all__ = [
+    "ToltecProcessedKidsMetadata",
     "ToltecRawObsBlockMetadata",
     "ToltecRawObsBlocksMetadata",
     "ToltecRawObsMetadata",
     "ToltecSweepMetadata",
     "ToltecTimestreamMetadata",
 ]
+
+
+class ToltecProcessedKidsMetadata(FilepathOrigMetadataMixin):
+    """The acquisition named by a native processed KIDs file.
+
+    `filepath_orig` is the source recorded by Kidscpp. Inspect
+    `filepath_info_orig` for identity encoded in that name, or open the referenced
+    acquisition explicitly to read its full headers.
+    """
+
+    instru: ToltecInfo.InstruT
+    data_models: DataModelsT
 
 
 class ToltecRawObsMetadata(LmtRawObsMetadata, FilepathOrigMetadataMixin):
@@ -84,6 +98,12 @@ class ToltecRawObsMetadata(LmtRawObsMetadata, FilepathOrigMetadataMixin):
     )
 
     # Associated calibration acquisition.
+    # The acquisition header currently omits the calibration master. DPDB can
+    # resolve it from the referenced ToltecDB record; the file alone cannot.
+    # TODO(upstream acquisition): map the header field once the writer adds it.
+    cal_master: ToltecInfo.MasterT | None = Field(
+        default=None, description="Calibration acquisition master, when known"
+    )
     cal_roach: ToltecInfo.RoachT | None = Field(
         default=None, description="Calibration ROACH index"
     )

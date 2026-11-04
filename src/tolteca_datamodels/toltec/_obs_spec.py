@@ -1,6 +1,6 @@
 """Observation-selector context for TolTEC interfaces."""
 
-from ..obs_spec import ObsSpecContext
+from ..core.obs_spec import ObsSpecContext
 from .types import ToltecInfo
 
 _obs_spec_context = ObsSpecContext(

@@ -2,10 +2,12 @@
 
 import pytest
 
-from tolteca_datamodels.file import FilepathInfo
-from tolteca_datamodels.lmt import LmtFilepathInfo
+from tolteca_datamodels.filepath import FilepathInfo
 from tolteca_datamodels.lmt.file_store import LmtFileStore
-from tolteca_dummy_instru.filepath import DummyInstruFilepathInfo
+from tolteca_dummy_instru.filepath import (
+    DummyInstruFilepathInfo,
+    DummyInstruLmtFilepathInfo,
+)
 from tolteca_dummy_instru.types import DummyInstruInfo
 
 
@@ -21,24 +23,24 @@ def test_filename_prefix_is_interface(interface):
 
 @pytest.mark.parametrize("prefix", ["di00", "chan04", "chan0", "chan-1"])
 def test_unrecognized_prefix(prefix):
-    assert (
-        FilepathInfo.from_source(
-            f"{prefix}-tcs-1-0-2-20251031T120000.nc", raise_on_error=False
-        )
-        is None
-    )
+    info = FilepathInfo.from_source(f"{prefix}-tcs-1-0-2-20251031T120000.nc")
+    assert type(info) is FilepathInfo
+    assert info.ext == "nc"
+    assert info.data_models == frozenset()
 
 
 def test_telescope_companion_keeps_telescope_identity(tmp_path):
     path = tmp_path / "tel" / "tel_dummy_instru_2025-10-31_000001_00_0002.nc"
     path.parent.mkdir()
     path.touch()
-    assert LmtFileStore(tmp_path).find_candidates("1/tel", instru="dummy_instru") == [
-        path
-    ]
+    assert LmtFileStore(tmp_path).tel.glob_obs_spec("1/tel") == [path]
     info = FilepathInfo.from_source(path)
-    assert type(info) is LmtFilepathInfo
-    assert LmtFilepathInfo.from_source(path) == info
+    assert type(info) is DummyInstruLmtFilepathInfo
     assert info.prefix == "tel_dummy_instru"
-    assert (info.interface, info.instru, info.instru_component) == ("tel", "lmt", "tcs")
+    assert (info.interface, info.instru, info.interface_kind) == (
+        "tel",
+        "lmt",
+        "tel",
+    )
+    assert info.data_models == {"lmt", "dummy_instru"}
     assert (info.master, info.obsnum, info.subobsnum, info.scannum) == ("tcs", 1, 0, 2)

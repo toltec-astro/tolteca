@@ -18,7 +18,7 @@ from tollan.utils.table import TableValidator
 from tollan.pipeline import Step, StepConfig, StepContext
 from typing_extensions import assert_never
 
-from tolteca_datamodels.toltec.kids import ReducedSweepView
+from tolteca_datamodels.toltec.kids.sweep import ReducedSweepView
 
 from .match1d import Match1D, Match1DResult
 from .peaks1d import Peaks1D, Peaks1DResult

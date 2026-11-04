@@ -7,7 +7,7 @@ from typing import ClassVar, cast
 import xarray as xr
 from tollan.pipeline import Step, StepContext
 
-from tolteca_datamodels.toltec.kids import ReducedSweepView, SweepReducer
+from tolteca_datamodels.toltec.kids.sweep import ReducedSweepView, SweepReducer
 
 from .config import SweepReduceConfig
 

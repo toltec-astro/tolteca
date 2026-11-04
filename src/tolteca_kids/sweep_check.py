@@ -34,7 +34,7 @@ from tollan.pipeline import Step, StepConfig, StepContext
 from tollan.utils.fmt import BitmaskStats, pformat_mask
 from tollan.utils.log import logger, timeit
 
-from tolteca_datamodels.toltec.kids import ReducedSweepView
+from tolteca_datamodels.toltec.kids.sweep import ReducedSweepView
 from tolteca_kidsproc.analysis.d21 import D21Analysis
 
 __all__ = [

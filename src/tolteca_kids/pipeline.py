@@ -39,7 +39,7 @@ import zarr as _zarr
 from pydantic import Field
 from tollan.config import FrozenBaseModel
 
-from tolteca_datamodels.toltec.kids import ReducedSweepView
+from tolteca_datamodels.toltec.kids.sweep import ReducedSweepView
 from tolteca_datamodels.toltec.kids.zarr import open_zarr_dataset
 
 try:

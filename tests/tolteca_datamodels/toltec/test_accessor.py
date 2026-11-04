@@ -844,7 +844,7 @@ class TestReducedSweepAccessorEntry:
     """Test dt.toltec_kids.sweep entry point."""
 
     def _make_sweep_dt(self) -> xr.DataTree:
-        from tolteca_datamodels.toltec.kids import SweepReducer
+        from tolteca_datamodels.toltec.kids.sweep import SweepReducer
 
         n_chans = 10
         n_sweeps = 5
@@ -876,7 +876,7 @@ class TestReducedSweepAccessorEntry:
 
     def test_reduced_sweep_returns_view(self):
         """dt.toltec_kids.sweep returns a ReducedSweepView."""
-        from tolteca_datamodels.toltec.kids import ReducedSweepView
+        from tolteca_datamodels.toltec.kids.sweep import ReducedSweepView
 
         dt = self._make_sweep_dt()
         view = dt.toltec_kids.sweep
@@ -902,7 +902,7 @@ class TestReducedSweepAccessorEntry:
 
     def test_reduced_sweep_from_raw_dataset(self):
         """toltec_kids accessor on a plain Dataset returns a view (no child data)."""
-        from tolteca_datamodels.toltec.kids import ReducedSweepView
+        from tolteca_datamodels.toltec.kids.sweep import ReducedSweepView
 
         # Raw dataset has no reduced child — view is constructed but I is None
         ds = xr.Dataset(
@@ -921,7 +921,7 @@ class TestReducedTimestreamAccessorEntry:
     """Test dt.toltec_kids.timestream entry point."""
 
     def _make_ts_dt(self) -> xr.DataTree:
-        from tolteca_datamodels.toltec.kids import TimestreamReducer
+        from tolteca_datamodels.toltec.kids.timestream import TimestreamReducer
 
         n_samples = 2000
         fsmp = 200.0
@@ -944,7 +944,7 @@ class TestReducedTimestreamAccessorEntry:
 
     def test_reduced_timestream_returns_view(self):
         """dt.toltec_kids.timestream returns a ReducedTimestreamView."""
-        from tolteca_datamodels.toltec.kids import ReducedTimestreamView
+        from tolteca_datamodels.toltec.kids.timestream import ReducedTimestreamView
 
         dt = self._make_ts_dt()
         view = dt.toltec_kids.timestream

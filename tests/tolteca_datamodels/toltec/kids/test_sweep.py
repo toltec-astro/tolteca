@@ -7,7 +7,7 @@ import json
 import numpy as np
 import xarray as xr
 
-from tolteca_datamodels.toltec.kids import ReducedSweepView, SweepReducer
+from tolteca_datamodels.toltec.kids.sweep import ReducedSweepView, SweepReducer
 
 # Namespace constant (must match module __name__)
 NAMESPACE = "tolteca_datamodels.toltec.kids.sweep"

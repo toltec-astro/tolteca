@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from tolteca_datamodels.toltec.kids import ReducedTimestreamView, TimestreamReducer
+from tolteca_datamodels.toltec.kids.timestream import ReducedTimestreamView, TimestreamReducer
 
 # Namespace constant (must match module __name__)
 NAMESPACE = "tolteca_datamodels.toltec.kids.timestream"

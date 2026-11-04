@@ -23,6 +23,7 @@ from ._obs_spec import _obs_spec_context
 from .hwpr import ToltecHwprAccessor, ToltecHwprIOMapper, ToltecHwprMetadata
 from .kids.core import ToltecKidsAccessor, ToltecKidsIOMapper
 from .metadata import (
+    ToltecProcessedKidsMetadata,
     ToltecRawObsBlockMetadata,
     ToltecRawObsMetadata,
     ToltecSweepMetadata,
@@ -109,6 +110,7 @@ class ToltecFileWorkflow(LmtBaseFileWorkflow):
         for model in (
             LmtTelMetadata,
             ToltecHwprMetadata,
+            ToltecProcessedKidsMetadata,
             ToltecRawObsMetadata,
             ToltecTimestreamMetadata,
             ToltecRawObsBlockMetadata,

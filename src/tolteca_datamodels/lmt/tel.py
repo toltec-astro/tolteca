@@ -3,22 +3,29 @@
 from __future__ import annotations
 
 import functools
+from contextlib import ExitStack
 from dataclasses import dataclass
-from operator import attrgetter
-from typing import TYPE_CHECKING, Literal, cast, overload
+from typing import TYPE_CHECKING, cast
 
 import astropy.units as u
 import xarray as xr
 from astropy.coordinates import SkyCoord
 from astropy.time import Time
 from tollan.accessor import NameMapping, Schema
-from tollan.accessor.xarray import XarrayAccessorBase, XarrayMapper
+from tollan.accessor.xarray import XarrayAccessorBase, XarrayMapper, unwrap_data_source
 from tollan.utils.log import logger
 from tollan.utils.typing import get_literal_value
 
-from ..source import identify_reader, open_source
+from ..core.source.opener import _open_netcdf
 from .metadata import LmtTelInterfaceKindT, LmtTelInterfaceT, LmtTelMetadata
-from .types import LmtInfo, LmtObsGoal, LmtObsPgm, LmtRawObsMasterCode
+from .types import (
+    LmtDataModel,
+    LmtInfo,
+    LmtInterfaceInfo,
+    LmtObsGoal,
+    LmtObsPgm,
+    LmtRawObsMasterCode,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -41,7 +48,6 @@ __all__ = [
     "LmtTelAccessor",
     "LmtTelIOMapper",
     "LmtTelIOSchema",
-    "identify_lmt_tel",
     "open_lmt_tel",
 ]
 
@@ -64,6 +70,11 @@ class LmtTelIOSchema(Schema):
     ra: Mapping = NameMapping.var("Header.Source.Ra")
     dec: Mapping = NameMapping.var("Header.Source.Dec")
     tel_time: Mapping = NameMapping.var("Data.TelescopeBackend.TelTime")
+
+    az_user_offset: Mapping = NameMapping("Header.PointModel.AzUserOff")
+    alt_user_offset: Mapping = NameMapping("Header.PointModel.ElUserOff")
+    az_paddle_offset: Mapping = NameMapping("Header.PointModel.AzPaddleOff")
+    alt_paddle_offset: Mapping = NameMapping("Header.PointModel.ElPaddleOff")
 
     # Actual and desired horizontal pointing; native El is canonicalized to alt.
     az_act: Mapping = NameMapping.var("Data.TelescopeBackend.TelAzAct")
@@ -137,10 +148,12 @@ class LmtTelIOMapper(XarrayMapper[LmtTelIOSchema]):
             interface_kind=get_literal_value(LmtTelInterfaceKindT),
             master_code=master_code,
             master=LmtInfo.master_code_master[master_code],
-            data_models=[
-                LmtInfo.data_model,
-                self.get_str(ds, schema.receiver).casefold(),
-            ],
+            data_models=frozenset(
+                {
+                    LmtDataModel.name,
+                    self.get_str(ds, schema.receiver).casefold(),
+                }
+            ),
             obsnum=self.get_scalar(ds, schema.obsnum),
             subobsnum=self.get_scalar(ds, schema.subobsnum),
             scannum=self.get_scalar(ds, schema.scannum),
@@ -185,9 +198,15 @@ class LmtTelAccessor(XarrayAccessorBase[LmtTelIOMapper]):
 
     Examples
     --------
+    With the reference observation under ``data_lmt`` in the working directory:
+
+    >>> from tolteca_datamodels.lmt import open_lmt_tel
+    >>> filepath = "data_lmt/tel/tel_toltec_2025-10-31_145609_00_0002.nc"
     >>> with open_lmt_tel(filepath) as ds:
     ...     meta = ds.lmt_tel.meta
     ...     az = ds.lmt_tel.az.isel(time=slice(0, 10)).load()
+    >>> meta.uid_raw_obs_file
+    'tcs-145609-0-2-tel'
     """
 
     def _validate(self) -> None:
@@ -264,69 +283,19 @@ class LmtTelAccessor(XarrayAccessorBase[LmtTelIOMapper]):
         return result.astype(int).u.unset()
 
 
-@overload
-def identify_lmt_tel(
-    data_source: object, *, raise_on_error: Literal[True]
-) -> LmtTelAccessor: ...
-
-
-@overload
-def identify_lmt_tel(
-    data_source: object,
-    *,
-    raise_on_error: Literal[False] = False,
-) -> LmtTelAccessor | None: ...
-
-
-@overload
-def identify_lmt_tel(
-    data_source: object, *, raise_on_error: bool
-) -> LmtTelAccessor | None: ...
-
-
-def identify_lmt_tel(
-    data_source: object, *, raise_on_error: bool = False
-) -> LmtTelAccessor | None:
-    """Get a telescope accessor for an already-open payload, or None.
-
-    Parameters
-    ----------
-    data_source : object
-        Opened data. Dataset and DataTree objects are supported; other types
-        are not recognized. For a DataTree, use the current node's dataset.
-    raise_on_error : bool, optional
-        Raise for unsupported types or accessor validation errors instead of
-        returning None. Default is False. Other exceptions always propagate.
-
-    Returns
-    -------
-    LmtTelAccessor or None
-        Registered telescope accessor, or None for unrecognized data. Repeated
-        calls reuse the accessor. Sample arrays are not read.
-        Read ``accessor.meta`` to validate observation headers.
-
-    Raises
-    ------
-    TypeError
-        If the payload type is unsupported and ``raise_on_error=True``.
-    ValueError
-        If telescope timestamps are missing and ``raise_on_error=True``.
-
-    Notes
-    -----
-    This function neither opens nor closes the payload. The caller must keep it
-    open while using the accessor. Full metadata validation is deferred until
-    metadata is requested.
-
-    See Also
-    --------
-    open_lmt_tel : Open a telescope file as a Dataset.
-    """
-    return identify_reader(
-        data_source,
-        source_types=(xr.Dataset, xr.DataTree),
-        reader_factory=attrgetter("lmt_tel"),
-        raise_on_error=raise_on_error,
+def _get_tel_reader_record(data_source: object) -> LmtInterfaceInfo | None:
+    if not isinstance(data_source, (xr.Dataset, xr.DataTree)):
+        return None
+    ds = unwrap_data_source(data_source)
+    mapper = LmtTelIOMapper.from_data_source(ds)
+    if not mapper.has_arr(ds, mapper.schema.tel_time):
+        return None
+    memberships = [LmtDataModel.name]
+    if mapper.schema.receiver in mapper:
+        memberships.append(mapper.get_str(ds, mapper.schema.receiver).casefold())
+    return LmtInterfaceInfo.model_validate(
+        LmtInfo.interface_interface_info["tel"].model_dump(round_trip=True)
+        | {"data_models": memberships}
     )
 
 
@@ -352,12 +321,9 @@ def open_lmt_tel(source: str | Path | FileLoc, **kwargs) -> LmtTelDataset:
     ------
     ValueError
         If the location is remote or the dataset lacks telescope timestamps.
-
-    See Also
-    --------
-    identify_lmt_tel : Get an accessor for an already-open payload.
     """
-    ds = open_source(
-        source, opener=xr.open_dataset, identifier=identify_lmt_tel, **kwargs
-    )
-    return cast("LmtTelDataset", ds)
+    with ExitStack() as stack:
+        ds = cast("LmtTelDataset", stack.enter_context(_open_netcdf(source, **kwargs)))
+        _ = ds.lmt_tel
+        stack.pop_all()
+    return ds

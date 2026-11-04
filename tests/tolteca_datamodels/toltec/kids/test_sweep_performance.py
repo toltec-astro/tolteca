@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from tolteca_datamodels.toltec.kids import SweepReducer
+from tolteca_datamodels.toltec.kids.sweep import SweepReducer
 
 # Skip if pytest-benchmark not available
 pytest.importorskip("pytest_benchmark")

@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 from xarray.backends.netCDF4_ import NetCDF4ArrayWrapper, NetCDF4DataStore
 
 from tolteca_datamodels.file import SourceInfoModel, guess_info_from_source
-from tolteca_datamodels.toltec.kids import SweepReducer
+from tolteca_datamodels.toltec.kids.sweep import SweepReducer
 from tolteca_datamodels.toltec.types import ToltecDataKind
 from tolteca_kids.cli import app
 from tolteca_kids.core import Kids

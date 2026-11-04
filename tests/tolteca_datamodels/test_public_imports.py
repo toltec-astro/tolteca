@@ -1,8 +1,25 @@
 """Package entry points and module-level building blocks."""
 
 import importlib
+import importlib.util
 
 import pytest
+
+
+@pytest.mark.parametrize(
+    "package_name",
+    ["tolteca_datamodels.lmt", "tolteca_datamodels.toltec", "tolteca_dummy_instru"],
+)
+def test_instrument_obs_spec_contexts_are_private(package_name):
+    from tolteca_datamodels.core import obs_spec
+
+    package = importlib.import_module(package_name)
+    context_module = importlib.import_module(f"{package_name}._obs_spec")
+    assert "ObsSpecContext" in obs_spec.__all__
+    assert isinstance(context_module._obs_spec_context, obs_spec.ObsSpecContext)
+    assert not hasattr(context_module, "obs_spec_context")
+    assert not hasattr(package, "obs_spec_context")
+    assert importlib.util.find_spec(f"{package_name}.obs_spec") is None
 
 
 @pytest.mark.parametrize(
@@ -11,80 +28,74 @@ import pytest
         (
             "tolteca_datamodels.lmt",
             {
-                "._filepath": {"LmtFilepathInfo"},
                 ".types": {"LmtInfo"},
-                ".tel": {"LmtTelAccessor", "identify_lmt_tel", "open_lmt_tel"},
+                ".tel": {"LmtTelAccessor", "open_lmt_tel"},
             },
             {
                 ".types": {
-                    "LmtMaster",
+                    "LmtInterfaceInfo",
                     "LmtObsGoal",
                     "LmtObsPgm",
                     "LmtRawObsMasterCode",
                 },
                 ".metadata": {"LmtTelMetadata"},
+                ".filepath": {"LmtFilepathInfo"},
+                ".input_discovery": {"LmtInputDiscovery"},
                 ".tel": {"LmtTelIOMapper", "LmtTelIOSchema"},
             },
         ),
         (
             "tolteca_datamodels.toltec",
             {
-                "": {"open_toltec", "reduce_raw_sweep"},
-                "._filepath": {"ToltecFilepathInfo"},
+                ".hwpr": {"open_toltec_hwpr"},
                 ".types": {"ToltecInfo"},
-                ".kids.core": {"ToltecKidsAccessor"},
+                ".kids.core": {"ToltecKidsAccessor", "open_toltec_kids"},
             },
             {
-                ".types": {
-                    "ToltecArray",
-                    "ToltecArrayNameT",
-                    "ToltecDataKind",
-                    "ToltecMaster",
-                    "ToltecMasterNameT",
-                },
+                ".types": {"ToltecDataKind"},
+                ".filepath": {"ToltecFilepathInfo", "ToltecLmtFilepathInfo"},
+                ".input_discovery": {"ToltecInputDiscovery"},
                 ".metadata": {
-                    "ToltecBlocksMetadata",
+                    "ToltecRawObsBlocksMetadata",
                     "ToltecRawObsBlockMetadata",
                     "ToltecRawObsMetadata",
                     "ToltecSweepMetadata",
-                    "ToltecTimeStreamMetadata",
+                    "ToltecTimestreamMetadata",
                 },
                 ".axes": {"ToltecAxisMapper", "ToltecAxisSchema", "ToltecAxisView"},
                 ".kids": {
-                    "ReducedSweepView",
-                    "SweepReducer",
-                    "ToltecBlockView",
-                    "ToltecBlocksView",
+                    "ToltecBlockIndex",
+                    "ToltecKidsIOMapper",
+                    "ToltecKidsIOSchema",
                 },
-                ".kids.core": {"ToltecKidsIOMapper", "ToltecKidsIOSchema"},
-                ".kids.blocks": {"ToltecBlocksMapper", "ToltecBlocksSchema"},
             },
         ),
         (
             "tolteca_datamodels.toltec.kids",
             {
-                ".blocks": {"ToltecBlockView", "ToltecBlocksView"},
-                ".core": {"ToltecKidsAccessor"},
-                ".sweep": {"ReducedSweepView", "SweepReducer"},
-                ".timestream": {"TimestreamReducer", "TimestreamView"},
-                ".zarr": {"open_zarr_dataset"},
+                ".blocks": {"ToltecBlockIndex"},
+                ".core": {
+                    "ToltecKidsAccessor",
+                    "ToltecKidsIOMapper",
+                    "ToltecKidsIOSchema",
+                    "open_toltec_kids",
+                },
             },
-            {
-                ".blocks": {"ToltecBlocksMapper", "ToltecBlocksSchema"},
-                ".core": {"ToltecKidsIOMapper", "ToltecKidsIOSchema"},
-                ".sweep": {"ToltecSweepMapper", "ToltecSweepSchema"},
-                ".timestream": {"ToltecTimestreamMapper", "ToltecTimestreamSchema"},
-            },
+            {},
         ),
         (
             "tolteca_datamodels.lmt_base",
-            {"._filepath": {"FilepathInfoMixin", "FilepathOrigMetadataMixin"}},
+            {".filepath": {"FilepathInfoMixin", "FilepathOrigMetadataMixin"}},
             {
                 ".metadata": {
-                    "LmtInstruMixin",
+                    "InterfaceInfoMixin",
                     "LmtObsQuartetMixin",
                     "LmtRawObsMetadata",
-                }
+                },
+                ".input_discovery": {
+                    "LmtBaseFileStoreInputDiscovery",
+                    "SourcesInputDiscovery",
+                },
             },
         ),
     ],
@@ -107,3 +118,40 @@ def test_package_exports_and_building_block_ownership(
             assert getattr(owner, name) is not None
             # Removing only __all__ entries would leave accidental re-exports.
             assert not hasattr(package, name)
+
+
+@pytest.mark.parametrize(
+    ("package_name", "info_name"),
+    [
+        ("tolteca_datamodels.lmt", "LmtDataModel"),
+        ("tolteca_datamodels.toltec", "ToltecDataModel"),
+        ("tolteca_dummy_instru", "DummyInstruDataModel"),
+    ],
+)
+def test_data_model_definition_has_an_explicit_module(package_name, info_name):
+    from tolteca_datamodels.core.data_model import DataModelSpec
+
+    package = importlib.import_module(package_name)
+    module = importlib.import_module(f"{package_name}.data_model")
+    assert "data_model_spec" not in package.__all__
+    assert module.__all__ == ["data_model_spec"]
+    assert isinstance(module.data_model_spec, DataModelSpec)
+    info_module = importlib.import_module(f"{package_name}.types")
+    assert module.data_model_spec.info_cls is getattr(info_module, info_name)
+    assert importlib.util.find_spec(f"{package_name}.core") is None
+
+
+@pytest.mark.parametrize(
+    "package_name",
+    [
+        "tolteca_datamodels.lmt_base",
+        "tolteca_datamodels.lmt",
+        "tolteca_datamodels.toltec",
+        "tolteca_dummy_instru",
+    ],
+)
+def test_discovery_settings_have_one_public_module(package_name):
+    module = importlib.import_module(f"{package_name}.input_discovery")
+    for name in module.__all__:
+        assert getattr(module, name).__module__ == module.__name__
+    assert importlib.util.find_spec(f"{package_name}._input_discovery") is None
