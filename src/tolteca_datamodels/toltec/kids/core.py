@@ -143,30 +143,34 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
     (145606, 0)
     """
 
-    def get_metadata(self, data_source: xr.Dataset) -> ToltecRawObsMetadata:
-        """Read acquisition metadata without loading sample arrays.
+    def get_metadata(
+        self, data_source: xr.Dataset
+    ) -> ToltecRawObsMetadata | ToltecProcessedKidsMetadata | None:
+        """Read acquisition headers or the parent reference recorded by Kidscpp.
 
         Parameters
         ----------
         data_source : xarray.Dataset
-            Unpartitioned raw KIDs acquisition.
+            Native KIDs acquisition or processed product.
 
         Returns
         -------
-        ToltecRawObsMetadata
-            Recorded acquisition settings and dimension counts. Block discovery
-            and axis data require an explicit `get_blocks` call.
+        ToltecRawObsMetadata or ToltecProcessedKidsMetadata or None
+            Raw headers or the recorded acquisition reference. A processed file
+            without a parent reference returns None. No sample arrays are read.
 
         Raises
         ------
         ValueError
-            If the input is processed or explicitly block-indexed data.
+            If an acquisition is unrecognized or already block-indexed.
         """
         ds = data_source
+        kind = self._get_data_kind(ds)
+        if kind & ToltecDataKind.reduced_kids_data:
+            return self._get_processed_metadata(ds)
         if self.has_dim(ds, self.schema.n_blocks):
             msg = "Acquisition metadata requires an unpartitioned acquisition"
             raise ValueError(msg)
-        kind = self._get_data_kind(ds)
         if not kind & ToltecDataKind.raw_kids_data:
             msg = "Acquisition metadata requires a raw KIDs acquisition"
             raise ValueError(msg)
@@ -325,7 +329,7 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
                 return value.to_numpy().tobytes().partition(b"\0")[0].decode().strip()
         return self.get_str(dataset, field)
 
-    def get_processed_metadata(
+    def _get_processed_metadata(
         self, dataset: xr.Dataset
     ) -> ToltecProcessedKidsMetadata | None:
         """Read the recorded acquisition reference without accessing its target."""
@@ -813,8 +817,6 @@ class ToltecKidsAccessor(XarrayAccessorBase[ToltecKidsIOMapper]):
     @functools.cached_property
     def meta(self) -> ToltecRawObsMetadata | ToltecProcessedKidsMetadata | None:
         """Raw acquisition headers or the acquisition reference in a processed file."""
-        if self.data_kind & ToltecDataKind.reduced_kids_data:
-            return self.mapper.get_processed_metadata(self.data_source)
         return self.mapper.get_metadata(self.data_source)
 
     @functools.cached_property
