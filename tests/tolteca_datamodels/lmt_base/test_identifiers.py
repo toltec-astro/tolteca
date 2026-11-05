@@ -179,7 +179,7 @@ def identified_metadata():
         obsnum=145609,
         subobsnum=0,
         scannum=2,
-        data_models=["toltec"],
+        data_models=frozenset({"toltec"}),
         instru="lmt",
         interface="tel",
         interface_kind="tel",

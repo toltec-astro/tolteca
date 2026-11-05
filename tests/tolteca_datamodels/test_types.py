@@ -49,6 +49,14 @@ def test_filepath_information_requires_declared_data_model_compatibility():
         FilepathInfo.model_validate({"ext": "nc", "data_models": None})
 
 
+def test_data_model_memberships_accept_lists_at_validation_boundary():
+    info = FilepathInfo.model_validate(
+        {"ext": "nc", "data_models": ["toltec", "lmt", "toltec"]}
+    )
+    assert isinstance(info.data_models, frozenset)
+    assert info.data_models == frozenset({"lmt", "toltec"})
+
+
 def test_filename_ingestion_converts_captures_but_model_stays_strict():
     info = FilepathInfo.from_source("toltec0_145609_000_0002_2025_10_31_09_27_57.nc")
     assert isinstance(info, ToltecFilepathInfo)

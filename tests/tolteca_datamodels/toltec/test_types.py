@@ -295,7 +295,7 @@ class TestToltecInfo:
             **{
                 f"toltec{roach}": InterfaceInfoMixin(
                     interface=f"toltec{roach}",
-                    data_models=["toltec"],
+                    data_models=frozenset({"toltec"}),
                     instru="toltec",
                     interface_kind="roach",
                 )
@@ -303,25 +303,25 @@ class TestToltecInfo:
             },
             "hwpr": InterfaceInfoMixin(
                 interface="hwpr",
-                data_models=["toltec"],
+                data_models=frozenset({"toltec"}),
                 instru="toltec",
                 interface_kind="hwpr",
             ),
             "wyatt": InterfaceInfoMixin(
                 interface="wyatt",
-                data_models=["toltec"],
+                data_models=frozenset({"toltec"}),
                 instru="toltec",
                 interface_kind="wyatt",
             ),
             "toltec_hk": InterfaceInfoMixin(
                 interface="toltec_hk",
-                data_models=["toltec"],
+                data_models=frozenset({"toltec"}),
                 instru="toltec",
                 interface_kind="toltec_hk",
             ),
             "tel": LmtInterfaceInfo(
                 interface="tel",
-                data_models=["lmt", "toltec"],
+                data_models=frozenset({"lmt", "toltec"}),
                 instru="lmt",
                 interface_kind="tel",
             ),

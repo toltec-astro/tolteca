@@ -6,6 +6,7 @@ import pytest
 from pydantic import TypeAdapter
 
 from tolteca_datamodels.toltec import open_toltec_kids
+from tolteca_datamodels.toltec.metadata import ToltecRawObsMetadata
 from tolteca_datamodels.toltec.types import ToltecInfo
 
 
@@ -16,6 +17,7 @@ def test_native_repeat_and_instrument_component(data_lmt_path, suffix):
     (path,) = root.glob(pattern)
     with open_toltec_kids(path) as data:
         meta = data.toltec_kids.meta
+        assert isinstance(meta, ToltecRawObsMetadata)
         repeat = data["Header.Toltec.RepeatLevel"].item()
         assert type(meta.repeat) is int
         assert meta.repeat == repeat == 0

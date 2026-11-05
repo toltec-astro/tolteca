@@ -10,6 +10,7 @@ from tolteca_datamodels.toltec.kids.core import (
     ToltecKidsAccessor,
     ToltecKidsIOMapper,
 )
+from tolteca_datamodels.toltec.metadata import ToltecRawObsMetadata
 from tolteca_datamodels.toltec.types import ToltecDataKind
 
 
@@ -20,7 +21,9 @@ def test_native_reader_does_not_search_processing_children(real_tune_file):
         assert ToltecKidsAccessor(tree["raw"]).meta == ds.toltec_kids.meta
         # A child must not override an acquisition at the supplied node.
         tree.dataset = ds.assign({"Header.Toltec.ObsNum": 1})
-        assert ToltecKidsAccessor(tree).meta.obsnum == 1
+        meta = ToltecKidsAccessor(tree).meta
+        assert isinstance(meta, ToltecRawObsMetadata)
+        assert meta.obsnum == 1
 
 
 @pytest.mark.parametrize("location", [FieldLocation.var, FieldLocation.attr])

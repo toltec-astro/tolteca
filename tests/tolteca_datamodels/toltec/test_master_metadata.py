@@ -7,6 +7,7 @@ import xarray as xr
 from pydantic import TypeAdapter, ValidationError
 
 from tolteca_datamodels.toltec import open_toltec_kids
+from tolteca_datamodels.toltec.metadata import ToltecRawObsMetadata
 from tolteca_datamodels.toltec.toltec_db import ToltecDBRawObsMasterCode
 
 
@@ -19,6 +20,7 @@ def test_recorded_master_is_preserved(data_lmt_path, suffix):
         expected = raw["Header.Toltec.Master"].item()
     with open_toltec_kids(path) as raw:
         meta = raw.toltec_kids.meta
+        assert isinstance(meta, ToltecRawObsMetadata)
         assert meta.master_code is ToltecDBRawObsMasterCode.TCS
         assert meta.master_code == expected == 0
         assert meta.master == "tcs"
@@ -67,5 +69,6 @@ def test_master_labels_and_codes_cannot_exchange_types(data_lmt_path, name, valu
     (path,) = (data_lmt_path / "toltec/tcs/toltec0").glob("*145606*_targsweep.nc")
     with open_toltec_kids(path) as raw:
         meta = raw.toltec_kids.meta
+        assert isinstance(meta, ToltecRawObsMetadata)
     with pytest.raises(ValidationError, match=name):
         type(meta).model_validate(meta.model_dump(round_trip=True) | {name: value})

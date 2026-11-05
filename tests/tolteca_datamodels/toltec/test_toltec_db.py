@@ -12,6 +12,7 @@ import xarray as xr
 from tolteca_datamodels.lmt import open_lmt_tel
 from tolteca_datamodels.lmt.types import LmtInfo
 from tolteca_datamodels.toltec import open_toltec_kids
+from tolteca_datamodels.toltec.metadata import ToltecRawObsMetadata
 from tolteca_datamodels.toltec.toltec_db import (
     ToltecDBRawObsMasterCode,
     ToltecDBRawObsTypeCode,
@@ -105,6 +106,7 @@ def test_reference_file_headers_match_database(toltecdb_slice, data_lmt_path):
         with open_toltec_kids(path) as ds:
             assert ds.toltec_kids.data_kind == kinds[obs_types[obs_type_code]]
             meta = ds.toltec_kids.meta
+            assert isinstance(meta, ToltecRawObsMetadata)
             assert meta.master_code == master
             assert meta.master == masters[master].lower()
             assert meta.obs_type_code == obs_type_code

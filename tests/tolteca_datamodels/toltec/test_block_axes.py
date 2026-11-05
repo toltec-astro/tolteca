@@ -72,13 +72,15 @@ def test_axes_equal_v2(data_lmt_path, tmp_path, suffix):
         "tone_phase": "phase_tone",
     }
     with open_toltec_kids(path) as ds, np.load(reference) as expected:
+        meta = ds.toltec_kids.meta
+        assert isinstance(meta, ToltecRawObsMetadata)
         assert (
-            ds.toltec_kids.meta.obs_type
+            meta.obs_type
             == {"vnasweep": "vna", "targsweep": "targ", "tune": "tune", "": "nominal"}[
                 suffix
             ]
         )
-        assert ds.toltec_kids.meta.array == 0
+        assert meta.array == 0
         index = ds.toltec_kids.block_index
         for block in range(index.meta.n_blocks):
             chan = ds.toltec_kids.get_chan_axis_table(block)
@@ -153,7 +155,9 @@ def test_native_axis_table_rejects_invalid_block(real_targsweep_file, axis, bloc
 )
 def test_acquisition_codes_are_constrained(real_targsweep_file, name, value):
     with open_toltec_kids(real_targsweep_file) as ds:
-        values = ds.toltec_kids.meta.model_dump(exclude_computed_fields=True)
+        meta = ds.toltec_kids.meta
+        assert isinstance(meta, ToltecRawObsMetadata)
+        values = meta.model_dump(exclude_computed_fields=True)
     values[name] = value
     with pytest.raises(ValidationError, match=name):
         ToltecRawObsMetadata(**values)

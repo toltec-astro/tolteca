@@ -7,6 +7,7 @@ import pytest
 import xarray as xr
 
 from tolteca_datamodels.toltec.kids.core import ToltecKidsIOMapper
+from tolteca_datamodels.toltec.metadata import ToltecRawObsMetadata
 
 _OBS_HEADERS = {
     "Header.Toltec.Master": 0,
@@ -427,15 +428,17 @@ def test_open_toltec(real_targsweep_file):
         assert hasattr(ds, "toltec_kids")
 
         # Should be able to access metadata
-        assert ds.toltec_kids.meta.obsnum > 0
-        assert ds.toltec_kids.meta.array_name in [
+        meta = ds.toltec_kids.meta
+        assert isinstance(meta, ToltecRawObsMetadata)
+        assert meta.obsnum > 0
+        assert meta.array_name in [
             "a1100",
             "a1400",
             "a2000",
         ]
 
         # Should be able to access channel data
-        assert ds.toltec_kids.meta.n_chans > 0
+        assert meta.n_chans > 0
 
 
 def test_real_data_channel_axis(real_targsweep_file):
@@ -454,7 +457,9 @@ def test_real_data_channel_axis(real_targsweep_file):
         assert "tone_mask" in chan_table.colnames
 
         # Channel numbers should match dataset
-        assert len(chan_table) == ds.toltec_kids.meta.n_chans
+        meta = ds.toltec_kids.meta
+        assert isinstance(meta, ToltecRawObsMetadata)
+        assert len(chan_table) == meta.n_chans
 
         # Frequencies may be offsets or absolute values
         # Offsets are typically -10 to +10 MHz, absolute are 100-300 MHz
@@ -468,7 +473,9 @@ def test_real_data_channel_selection(real_vnasweep_file):
     from tolteca_datamodels.toltec import open_toltec_kids
 
     with open_toltec_kids(real_vnasweep_file) as ds:
-        original_n_chans = ds.toltec_kids.meta.n_chans
+        meta = ds.toltec_kids.meta
+        assert isinstance(meta, ToltecRawObsMetadata)
+        original_n_chans = meta.n_chans
         ds_subset = ds.toltec_kids.select_channels(slice(0, 100))
         mapper = ds_subset.toltec_kids.mapper
         chan_dim = mapper.get_name(mapper.schema.n_chans)
@@ -476,7 +483,9 @@ def test_real_data_channel_selection(real_vnasweep_file):
         selected_count = min(100, original_n_chans)
         assert ds_subset.sizes[chan_dim] == selected_count
         np.testing.assert_array_equal(ds_subset[chan_dim], np.arange(selected_count))
-        assert ds.toltec_kids.meta.n_chans == original_n_chans
+        unchanged_meta = ds.toltec_kids.meta
+        assert isinstance(unchanged_meta, ToltecRawObsMetadata)
+        assert unchanged_meta.n_chans == original_n_chans
 
 
 def test_real_mapper_get_var_preserves_lazy_backend(real_vnasweep_file):
@@ -502,6 +511,7 @@ def test_real_data_loads_successfully(toltec0_data_path):
     for nc_file in nc_files:
         with open_toltec_kids(nc_file) as ds:
             meta = ds.toltec_kids.meta
+            assert isinstance(meta, ToltecRawObsMetadata)
             assert meta.n_chans > 0
             assert meta.array_name in ["a1100", "a1400", "a2000"]
 

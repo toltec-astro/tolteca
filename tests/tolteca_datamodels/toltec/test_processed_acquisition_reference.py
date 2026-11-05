@@ -6,6 +6,8 @@ import xarray as xr
 
 from tolteca_datamodels.file import FileAccessor
 from tolteca_datamodels.toltec import open_toltec_kids
+from tolteca_datamodels.toltec.filepath import ToltecFilepathInfo
+from tolteca_datamodels.toltec.metadata import ToltecProcessedKidsMetadata
 from tolteca_datamodels.toltec.types import ToltecDataKind
 
 
@@ -33,8 +35,12 @@ def test_processed_acquisition_reference_survives_renaming(tmp_path, legacy):
     path = tmp_path / "renamed.nc"
     data.to_netcdf(path)
     with open_toltec_kids(path) as data:
-        assert data.toltec_kids.meta.filepath_orig == parent
-        assert data.toltec_kids.meta.filepath_info_orig.obsnum == 145609
+        meta = data.toltec_kids.meta
+        assert isinstance(meta, ToltecProcessedKidsMetadata)
+        assert meta.filepath_orig == parent
+        info = meta.filepath_info_orig
+        assert isinstance(info, ToltecFilepathInfo)
+        assert info.obsnum == 145609
     table = FileAccessor.from_sources(
         [path], mode="guess_or_read", on_error="raise"
     ).table

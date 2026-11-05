@@ -1,4 +1,4 @@
-"""Workflow bindings retain their type through accessor inheritance."""
+"""Accessor factories preserve subclasses and their workflow bindings."""
 
 from typing import assert_type
 
@@ -28,7 +28,7 @@ def test_workflow_binding_survives_generic_and_concrete_inheritance():
 
     table = pd.DataFrame()
     file_accessor = Inherited(table)
-    assert_type(file_accessor._workflow, ToltecFileWorkflow)
+    assert_type(Inherited.from_sources([]), Inherited)
     assert Inherited._workflow_cls is ToltecFileWorkflow
     assert isinstance(file_accessor._workflow, ToltecFileWorkflow)
     assert file_accessor._workflow.table is table
@@ -43,11 +43,15 @@ def test_concrete_and_composite_accessors_expose_their_workflow_types():
         pass
 
     table = pd.DataFrame()
-    assert_type(LmtFileAccessor(table)._workflow, LmtFileWorkflow)
-    assert_type(ToltecFileAccessor(table)._workflow, ToltecFileWorkflow)
-    assert_type(DummyInstruFileAccessor(table)._workflow, DummyInstruFileWorkflow)
+    assert_type(LmtFileAccessor.from_sources([]), LmtFileAccessor)
+    assert_type(ToltecFileAccessor.from_sources([]), ToltecFileAccessor)
+    assert_type(DummyInstruFileAccessor.from_sources([]), DummyInstruFileAccessor)
+    assert isinstance(LmtFileAccessor(table)._workflow, LmtFileWorkflow)
+    assert isinstance(ToltecFileAccessor(table)._workflow, ToltecFileWorkflow)
+    assert isinstance(DummyInstruFileAccessor(table)._workflow, DummyInstruFileWorkflow)
     file_accessor = DummyGroup(table)
-    assert_type(file_accessor._workflow, DummyInstruFileWorkflow)
+    assert_type(DummyGroup.from_sources([]), DummyGroup)
+    assert isinstance(file_accessor._workflow, DummyInstruFileWorkflow)
     assert DummyGroup._workflow_cls is DummyInstruFileWorkflow
     assert file_accessor.view.accessor_types == file_accessor._workflow.accessor_types
     assert file_accessor.view.table is table
