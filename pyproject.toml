@@ -143,6 +143,8 @@ filterwarnings = [
 include = ["src", "tests"]
 exclude = [
   "docs/conf.py",
+  # Executed and verified in the separate v2 comparison environment.
+  "tests/tolteca_datamodels/toltec/v2_axis_reference.py",
   # TODO: pre-existing type errors; fix separately
   "src/tolteca_kids",
   "tests/tolteca_datamodels/toltec/kids",
@@ -181,6 +183,7 @@ lint.ignore = [
   "PYI051", # redundant union of Literal and str; useful for IDE completion
   "COM812", # trailing comma (conflicts with ruff formatter)
   "ISC001", # implicit string concatenation (conflicts with ruff formatter)
+  "CPY001", # project does not use per-file copyright notices
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -198,8 +201,8 @@ lint.ignore = [
 ]
 
 # Retain unaudited domains' existing exceptions; kidsproc uses both checks.
-"src/{tolteca,tolteca_datamodels,tolteca_dummy_instru,tolteca_kids}/**" = ["D102"]
-"tests/{tolteca_datamodels,tolteca_dummy_instru,tolteca_kids}/**" = ["F841"]
+"src/{tolteca,tolteca_kids}/**" = ["D102"]
+"tests/tolteca_kids/**" = ["F841"]
 
 "docs/conf.py" = [
   "D",      # pydocstyle
@@ -221,8 +224,19 @@ runtime-evaluated-base-classes = [
   "pydantic.BaseModel",
   "sqlalchemy.orm.DeclarativeBase",
   "tollan.config.FrozenBaseModel",
+  "tolteca_datamodels.core.types.FrozenDataModel",
+  "tolteca_datamodels.types.FrozenDataModel",
+  "tolteca_datamodels.core.filepath.FilepathInfo",
+  "tolteca_datamodels.core.input_discovery.entries.InputDiscoveryEntry",
+  "tolteca_datamodels.core.input_discovery.InputDiscoveryEntry",
+  "tolteca_datamodels.core.input_discovery.entries.FileStoreInputDiscovery",
+  "tolteca_datamodels.core.input_discovery.FileStoreInputDiscovery",
+  "tolteca_datamodels.lmt_base.input_discovery.LmtBaseFileStoreInputDiscovery",
+  "tolteca_datamodels.lmt_base.metadata.InterfaceInfoMixin",
+  "tolteca_datamodels.lmt_base.metadata.LmtRawObsMetadata",
 ]
 runtime-evaluated-decorators = [
+  "pydantic.computed_field",
   "pydantic.validate_call",
   "pydantic.dataclasses.dataclass",
 ]

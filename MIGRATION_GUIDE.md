@@ -1,5 +1,10 @@
 # TolTEC Kids Submodule - Migration Guide
 
+> Historical prototype migration note. For the current reader and processing
+> APIs, use [the observation-data guides](docs/datamodels.md) and
+> [the KIDs reduction guide](docs/kids-reduction.md). The typed KIDs opener is
+> `open_toltec_kids()`; the old `open_toltec()` name is no longer exported.
+
 ## Overview
 
 The TolTEC data reduction workflow has been refactored to follow best practices from `kidsproc` and `D21Analysis`, separating raw I/O from data processing with proper namespacing.
