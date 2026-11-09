@@ -24,6 +24,7 @@ classifiers = [
 dependencies = [
   "typer",
   "pydantic>=2.0",
+  "pyyaml>=6",
   "astropy",
   "xarray>=2024.0",
   "zarr>=3",
@@ -35,6 +36,7 @@ dependencies = [
   "dtw-python",
   "networkx",
   "dill",
+  "filelock>=3.32.5",
   "tollan",
 ]
 

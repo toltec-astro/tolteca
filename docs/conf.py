@@ -184,7 +184,9 @@ _LOCAL_REFERENCE_ALIASES = {
     for name in names
 } | {
     # autodoc-pydantic's model-validator label refers to its owning model.
-    "tolteca_quicklook.config.QuicklookConfig.all fields": "tolteca_quicklook.config.QuicklookConfig",
+    "tolteca_quicklook.config.QuicklookConfig.all fields": (
+        "tolteca_quicklook.config.QuicklookConfig"
+    ),
     "tolteca_reduce.config.InputConfig.all fields": "tolteca_reduce.config.InputConfig",
     "tolteca_reduce.config.ReduceConfig.all fields": (
         "tolteca_reduce.config.ReduceConfig"
@@ -199,6 +201,9 @@ _LOCAL_REFERENCE_ALIASES = {
     # their method annotations unqualified.
     "SweepCheckView": "tolteca_kids.sweep_check_view.SweepCheckView",
     # autodoc-pydantic links its synthetic all-fields validator label.
+    "tolteca_datamodels.core.data_prod.namespace.DataProdNamespaceIndex.all fields": (
+        "tolteca_datamodels.core.data_prod.DataProdNamespaceIndex"
+    ),
     "tolteca_datamodels.core.data_prod.index.DataProdIndexBase.all fields": (
         "tolteca_datamodels.core.data_prod.DataProdIndexBase"
     ),
@@ -213,16 +218,6 @@ _LOCAL_REFERENCE_ALIASES = {
     ),
     "tolteca_datamodels.core.file.source.SourceSourceLoc.all fields": (
         "tolteca_datamodels.core.file.SourceSourceLoc"
-    ),
-    # Pydantic reports the defining module for re-exported PEP 695 aliases.
-    **{
-        f"tolteca_datamodels.core.data_prod.run.{name}": (
-            f"tolteca_datamodels.data_prod.{name}"
-        )
-        for name in ("CounterRunNameFormat", "PathComponent", "RunName", "RunUid")
-    },
-    "tolteca_datamodels.core.data_prod.namespace.NamespacePath": (
-        "tolteca_datamodels.data_prod.NamespacePath"
     ),
     "tolteca_kids.config.KidsConfig.all fields": "tolteca_kids.config.KidsConfig",
     "FileTableModeT": "tolteca_datamodels.core.file.workflow.FileTableModeT",
@@ -314,6 +309,7 @@ def _resolve_reference_alias(app, env, node, contnode):
     # autodoc-pydantic renders type aliases as class references; dependencies
     # publish these under non-class inventory roles.
     if target in {
+        "tollan.config.types.name.PathSegment",
         "tollan.plot.plotly.PlotlyFigExportFormat",
         "pydantic.types.JsonValue",
     }:
