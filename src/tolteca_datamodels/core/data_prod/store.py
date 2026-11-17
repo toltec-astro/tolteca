@@ -218,7 +218,9 @@ class DataProdStoreBase:
             return _write_yaml(run, path, overwrite=True)
 
     def _reserve_run(self, run, name=None):
-        self.write_run(run)
+        # Reservation saves the snapshot only; a concrete store's write_run may
+        # also act on a finished run, which must not happen during publication.
+        DataProdStoreBase.write_run(self, run)
         root = self.namespace_path
         records = root / ".runs"
         path = records / "by_uid" / str(run.uid) / "store_run.yaml"

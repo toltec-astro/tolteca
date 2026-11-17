@@ -121,6 +121,7 @@ _REFERENCE_ALIASES = {
     "AbstractContextManager": "contextlib.AbstractContextManager",
     "MappingABC": "collections.abc.Mapping",
     "DriveFitStepContext": "tolteca_kids.drive_fit.step.DriveFitStepContext",
+    "Artifact": "tollan.pipeline.Artifact",
     "ArtifactContext": "tollan.pipeline.ArtifactContext",
     "ArtifactFile": "tollan.pipeline.ArtifactFile",
     "MappedField": "tollan.accessor.MappedField",

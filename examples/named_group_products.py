@@ -108,27 +108,22 @@ def build_example(root):
                 ),
             )
         )
-        store.write_index(obs, primary_uid=obs.product.uid)
+        store.write_index(obs)
     group = collection((149101, 149102))
-    store.write_index(group, primary_uid=group.product.uid, primary_path="orion")
+    store.write_index(group, primary_path="orion")
     with WorkflowRun.create(context={"observations": [149101, 149102]}) as first:
         original = publish(store, group, first, (149101, 149102))
         subset = publish(store, group, first, (149101,), uid=f"{GROUP_UID}_subset")
     store.write_run(first)
     group = collection((149101, 149102, 149103))
-    store.write_index(group, primary_uid=group.product.uid, overwrite=True)
+    store.write_index(group, overwrite=True)
     with WorkflowRun.create(
         context={"observations": [149101, 149102, 149103]}
     ) as second:
         refreshed = publish(store, group, second, (149101, 149102, 149103))
     store.write_run(second)
     # Select the earlier full result; the independent subset keeps its own main.
-    store.set_tag(
-        group.product.uid,
-        "dp_science",
-        original.store_run.name,
-        uid=f"{GROUP_UID}_science",
-    )
+    store.set_tag(original)
     return original, subset, refreshed
 
 

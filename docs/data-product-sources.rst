@@ -22,7 +22,7 @@ Choose what to open
    * - One exact saved product
      - ``DataProdIndex.read(path_to_index_yaml)``
    * - The realization selected by a tag
-     - ``DataProdStore.resolve_index(group_directory, tag="main")``, then ``read``.
+     - ``resolve_index(group_directory, tag="main")``, then ``read``.
    * - All committed versions
      - ``DataProdIndex.read(group_directory)``
    * - Versions from selected executions
@@ -33,9 +33,9 @@ In this example, ``product_directory`` is a version-group directory from
 
 .. code-block:: python
 
-   from tolteca_datamodels.data_prod import DataProdIndex, DataProdStore
+   from tolteca_datamodels.data_prod import DataProdIndex, resolve_index
 
-   path = DataProdStore.resolve_index(product_directory, tag="main")
+   path = resolve_index(product_directory, tag="main")
    index = DataProdIndex.read(path)
    for item in index.product.data_items:
        print(item.meta, index.get_source_uri(item.source))

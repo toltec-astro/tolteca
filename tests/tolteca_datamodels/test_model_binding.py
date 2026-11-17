@@ -12,6 +12,7 @@ from tolteca_datamodels.data_prod import (
     DataProdIndex,
     DataProdRef,
     DataProdStore,
+    resolve_index,
 )
 from tolteca_datamodels.data_prod import WorkflowRun as ExecutionRun
 from tolteca_datamodels.data_prod.lineage import cal_ref_from_metadata
@@ -128,7 +129,7 @@ def test_saved_run_pins_model_when_tag_moves(raw_context, tmp_path, failed):
     second = _publish_model(store, "fit-second")
     assert first.product.reference != second.product.reference
     current = DataProdIndex.read(
-        store.resolve_index(store.get_product_path("tcs-145609-0-1", "dp_raw_obs_proc"))
+        resolve_index(store.get_product_path("tcs-145609-0-1", "dp_raw_obs_proc"))
     )
     assert current.product.reference == second.product.reference
     inputs[0]["data_items"].clear()

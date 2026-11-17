@@ -11,6 +11,7 @@ from tolteca_datamodels.data_prod import (
     DataProdAssoc,
     DataProdIndex,
     DataProdStore,
+    resolve_index,
 )
 from tolteca_datamodels.data_prod.metadata import ScienceMeta
 
@@ -29,7 +30,7 @@ def test_resolve_compact_header_requires_version_group(tmp_path):
     path.write_text(yaml.safe_dump(data))
 
     with pytest.raises(ValidationError, match="Expected a version group index"):
-        DataProdStore.resolve_index(path)
+        resolve_index(path)
 
 
 def test_layout_for_logical_acquisition_and_grouped_products(tmp_path):
@@ -80,6 +81,18 @@ def test_index_publication_keeps_canonical_ids_and_separates_locations(tmp_path,
         identity.update(subobsnum=0, scannum=1)
         primary_uid += "-0-1"
     uid = f"dp_cal_group_{primary_uid}" if kind == "dp_cal_group" else primary_uid
+    # A calibration group is placed at its anchoring VNA acquisition.
+    assocs = (
+        [
+            {
+                "uid": primary_uid,
+                "data_prod_assoc_type": "dpa_cal_group_raw_obs",
+                "is_primary": True,
+            }
+        ]
+        if kind == "dp_cal_group"
+        else []
+    )
     index = DataProdIndex.model_validate(
         {
             "product": {
@@ -89,11 +102,12 @@ def test_index_publication_keeps_canonical_ids_and_separates_locations(tmp_path,
                     "data_prod_type": kind,
                     **identity,
                 },
+                "assocs": assocs,
             }
         }
     )
     store = DataProdStore(tmp_path)
-    path = store.write_index(index, primary_uid=primary_uid)
+    path = store.write_index(index)
     assert (
         path == tmp_path / "scratch" / primary_uid.removeprefix("tcs-") / f"{kind}.yaml"
     )
@@ -104,7 +118,7 @@ def test_index_publication_keeps_canonical_ids_and_separates_locations(tmp_path,
     assert saved.get_source_uri(saved.product.data_items[0].source) == path.as_uri()
     assert not index.product.data_items
     with pytest.raises(FileExistsError):
-        store.write_index(index, primary_uid=primary_uid)
+        store.write_index(index)
     updated = index.model_copy(
         update={
             "product": index.product.model_copy(
@@ -115,7 +129,6 @@ def test_index_publication_keeps_canonical_ids_and_separates_locations(tmp_path,
     assert (
         store.write_index(
             updated,
-            primary_uid=primary_uid,
             overwrite=True,
         )
         == path

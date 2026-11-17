@@ -61,12 +61,16 @@ references a ``dp_raw_obs``. Otherwise ``materialize`` raises ``ValueError``.
    :language: python
    :pyobject: describe_result
 
-The artifact writer receives the destination-bound index. It writes beneath
-``base_path`` and describes the resulting file as a data item:
+An artifact specification writes its retained object beneath a folder and returns
+the files it wrote. This example writes a one-line report:
 
 .. literalinclude:: ../examples/data_product_store.py
    :language: python
-   :pyobject: write_artifact
+   :pyobject: TextSummary
+
+Inside the publication scope, ``write_artifacts(output_index, artifacts)`` has each
+specification write beneath ``output_index.base_path`` and adds every written file
+to the realization as a data item.
 
 Publish several products in one run
 -----------------------------------
@@ -81,7 +85,7 @@ name. Each materialization completes independently.
 
 ``materialize`` accepts one derived-product index containing its producing
 ``run`` and primary relation. It yields a destination-bound copy. Write artifacts
-under ``output_index.base_path`` and add their file receipts to that copy.
+into that copy with ``write_artifacts``.
 
 Normal exit saves the index and installs the output; an exception discards
 temporary files and preserves the previous tag. The original index remains

@@ -89,8 +89,7 @@ A version group has a stable logical result UID and declares its members' produc
 type. Each realization is a separate product with its own metadata, items,
 namespace and producing run. A tag belongs to the group and selects one exact
 realization, or is empty. Materialization records the group in the realization's
-``meta.version_group``; a draft has none. ``write_index`` places a copied
-realization by this reference.
+``meta.version_group``; a draft has none.
 
 .. graphviz::
 

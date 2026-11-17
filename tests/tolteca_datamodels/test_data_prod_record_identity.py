@@ -6,8 +6,8 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from tolteca_datamodels.core.data_prod import DataProdRef, StoreRun
-from tolteca_datamodels.data_prod import DataProdIndex, DataProdStore
+from tolteca_datamodels.core.data_prod import DataProdRef
+from tolteca_datamodels.data_prod import DataProdIndex, DataProdStore, resolve_index
 from tolteca_datamodels.data_prod import WorkflowRun as ExecutionRun
 
 UID = "tcs-145609-0-1"
@@ -69,35 +69,16 @@ def test_changed_version_group_record_is_rejected(tmp_path):
     assert not list(store.namespace_path.glob("*/dp_raw_obs_proc/*/index.yaml"))
 
 
-def test_exported_version_is_placed_by_its_recorded_group(tmp_path):
-    science = _index(
-        uid=SCIENCE,
-        meta={"name": SCIENCE, "data_prod_type": "dp_science"},
-        assoc_type="dpa_reduction_raw_obs",
-    )
-    realized = DataProdIndex.read(_publish(DataProdStore(tmp_path / "a"), science))
-    # Placement uses the recorded group, not the text of the product UID.
-    realized.product.uid = "renamed-realization"
-    realized.store_run = StoreRun(run_uid=realized.run.uid, name="copy")
-    target = DataProdStore(tmp_path / "b", namespace="mirror")
-    path = target.write_index(realized, primary_uid=UID)
-    group_directory = "dp_science_145609-0-1_g1"
-    assert path == (
-        tmp_path
-        / "b"
-        / "mirror"
-        / "145609-0-1"
-        / group_directory
-        / "copy"
-        / "index.yaml"
-    )
-
-
-def test_exported_version_without_recorded_group_is_rejected(tmp_path):
-    realized = DataProdIndex.read(_publish(DataProdStore(tmp_path / "a")))
-    realized.product.meta.version_group = None
-    with pytest.raises(ValueError, match="must record its version group"):
-        DataProdStore(tmp_path / "b").write_index(realized, primary_uid=UID)
+@pytest.mark.parametrize("document", ["realization", "version_group"])
+def test_write_index_does_not_replace_published_records(tmp_path, document):
+    store = DataProdStore(tmp_path)
+    path = _publish(store)
+    group = path.parent.parent / "index.yaml"
+    index = DataProdIndex.read(path if document == "realization" else group)
+    before = path.read_bytes(), group.read_bytes()
+    with pytest.raises(ValueError, match=r"materialize\(\)|materialized members"):
+        store.write_index(index, overwrite=True)
+    assert (path.read_bytes(), group.read_bytes()) == before
 
 
 def test_unregistered_primary_association_type_is_rejected(tmp_path):
@@ -127,7 +108,7 @@ def test_tag_selects_its_member_through_the_membership_record(tmp_path):
     first = _publish(store)
     second = _publish(store)
     group = first.parent.parent / "index.yaml"
-    assert DataProdStore.resolve_index(group) == second
+    assert resolve_index(group) == second
 
     # The selected member's record now holds another committed member's record.
     selected = DataProdIndex.read(second).product.uid
@@ -135,7 +116,33 @@ def test_tag_selects_its_member_through_the_membership_record(tmp_path):
     record = members / "by_uid" / f"{quote(selected, safe='')}.yaml"
     record.write_text((members / "1.yaml").read_text())
     with pytest.raises(ValueError, match="differs from the requested member"):
-        DataProdStore.resolve_index(group)
+        resolve_index(group)
+    with pytest.raises(KeyError):
+        resolve_index(group, tag="unknown")
+
+
+def test_tag_selects_a_realization_of_its_own_namespace(tmp_path):
+    realization = DataProdIndex.read(_publish(DataProdStore(tmp_path / "a")))
+    other = DataProdStore(tmp_path / "b")
+    _publish(other)
+    with pytest.raises(ValueError, match="another namespace"):
+        other.set_tag(realization)
+
+
+def test_tag_selects_a_realization_whose_index_item_has_no_namespace(tmp_path):
+    # The DPDB projection records a realization's own index item without it.
+    store = DataProdStore(tmp_path)
+    first = _publish(store)
+    _publish(store)
+    realization = DataProdIndex.read(first)
+    (item,) = (
+        i
+        for i in realization.product.data_items
+        if i.meta.get("format") == "data_prod_index"
+    )
+    del item.meta["namespace_uid"]
+    assert store.set_tag(realization) == first
+    assert resolve_index(first.parent.parent) == first
 
 
 def test_live_header_requires_its_document_kind(tmp_path):
@@ -152,13 +159,15 @@ def test_live_header_requires_its_document_kind(tmp_path):
 
 
 def test_exported_group_accepts_new_versions(tmp_path):
+    # A projection writes the members and the exported group into a new namespace.
     source = DataProdStore(tmp_path / "a")
-    _publish(source)
-    group = DataProdIndex.read(_publish(source).parent.parent)
+    paths = [_publish(source), _publish(source)]
+    exported = DataProdIndex.read(paths[0].parent.parent)
     copy = DataProdStore(tmp_path / "b", namespace="mirror")
-    for member in group.products:
-        copy.write_index(member, primary_uid=UID)
-    exported = copy.write_index(group, primary_uid=UID)
+    directory = copy.get_product_path(UID, "dp_raw_obs_proc")
+    for path in paths:
+        DataProdIndex.read(path).write(directory / path.parent.name / "index.yaml")
+    exported.write(directory / "index.yaml")
     added = _publish(copy)
-    assert DataProdStore.resolve_index(exported) == added
-    assert len(DataProdIndex.read(exported).products) == 3
+    assert resolve_index(directory) == added
+    assert len(DataProdIndex.read(directory).products) == 3

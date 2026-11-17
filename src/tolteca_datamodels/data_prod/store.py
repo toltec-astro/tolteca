@@ -5,7 +5,7 @@ Write artifacts within a destination-bound index::
     with WorkflowRun.create() as run:
         index = make_index(run=run)
         with store.materialize(index) as output_index:
-            write_artifacts(output_index)
+            write_artifacts(output_index, artifacts)
         path = output_index.base_path
     store.write_run(run)
 
@@ -27,6 +27,7 @@ from uuid import UUID
 
 from filelock import FileLock, Timeout
 from pydantic import TypeAdapter
+from pydantic_core import to_json
 from tollan.config import RuntimeInfo
 from tollan.config.types import PathSegment
 from tollan.utils.fileloc import fileloc
@@ -43,10 +44,12 @@ from ..core.data_prod import (
     DataProdTag,
     Location,
     RunName,
+    StoreRun,
+    WorkflowRun,
 )
 from ..core.data_prod._io import _read_yaml, _sync_directory, _write_yaml
 from ..core.data_prod._primary import _select_primary_assoc
-from ..core.data_prod.store import _audit, _select_namespace_actor
+from ..core.data_prod.store import _audit, _select_namespace_actor, _StoreRunWriter
 from ._version_publication import _append_version_member, _compact_version_group
 from ._versions import GroupHeader, parse_index_document
 from .identity import _normalize_entity_uid, normalize_primary_uid
@@ -61,9 +64,16 @@ from .types import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterable, Iterator
 
-__all__ = ["DataProdStore", "DataProdTagBusyError"]
+    from tollan.pipeline import Artifact
+
+__all__ = [
+    "DataProdStore",
+    "DataProdTagBusyError",
+    "resolve_index",
+    "write_artifacts",
+]
 
 _DESCRIPTOR_PRODUCT_TYPES = LOGICAL_PRODUCT_TYPES - {"dp_version_group"}
 
@@ -213,30 +223,27 @@ class DataProdStore(DataProdStoreBase):
             return path / _validate_run_name(run_name) / "index.yaml"
         return path / "index.yaml"
 
-    def write_index(self, index, *, primary_uid, primary_path=None, overwrite=False):
-        """Save an existing product's index without copying its payloads.
+    def write_index(self, index, *, primary_path=None, overwrite=False):
+        """Save or refresh a logical observation, acquisition or collection.
 
-        Logical descriptors (dp_obs, dp_raw_obs, dp_cal_group and dp_named_group) write
-        ``<type>.yaml`` beneath the primary directory. Version groups write
-        ``index.yaml`` in their group directory; processed versions write it
-        beneath their run name.
+        Logical descriptors (dp_obs, dp_raw_obs, dp_cal_group and dp_named_group)
+        are written as ``<type>.yaml`` beneath their primary directory. The primary
+        is derived from the index: an observation, acquisition or named collection
+        is its own primary; a calibration group follows its primary association.
 
         Parameters
         ----------
         index : DataProdIndex
-            Product description and its supporting records. Processed versions
-            must already carry their namespace and producing run.
-        primary_uid : str
-            Terminal observation, acquisition or named-collection UID.
+            Logical descriptor and the supporting records its primary needs.
         primary_path : str or None, optional
             Readable directory for a named-group descriptor's first write. Later
             writes reuse its recorded placement. Display-name changes do not move
             files. To relocate, change the placement in a new namespace projection.
             None is the default; observations use their established directory names.
         overwrite : bool, optional
-            Replace the destination YAML file atomically when True. False
-            (default) raises FileExistsError if it already exists. Replacement
-            does not merge index contents or replace artifact payloads.
+            Replace the destination YAML file atomically when True, as a refresh
+            does. False (default) raises FileExistsError if it already exists.
+            Replacement does not merge index contents.
 
         Returns
         -------
@@ -248,54 +255,89 @@ class DataProdStore(DataProdStoreBase):
         FileExistsError
             The destination index exists and overwrite is False.
         ValueError
-            A processed product lacks its namespace or producing run, or the
-            primary placement is absent, invalid or already assigned differently.
+            The index is a product version or a version group, or the primary
+            placement is absent, invalid or already assigned differently.
         """
         kind = index.product.meta.data_prod_type
+        if kind not in _DESCRIPTOR_PRODUCT_TYPES:
+            msg = (
+                "A version group forms from its materialized members"
+                if kind == "dp_version_group"
+                else "Product versions are created by materialize()"
+            )
+            raise ValueError(msg)
         if primary_path is not None and kind != "dp_named_group":
             msg = "primary_path is only supplied with a named-group descriptor"
             raise ValueError(msg)
-        if (
-            kind in PRIMARY_PRODUCT_TYPES
-            and normalize_primary_uid(primary_uid) != index.product.uid
-        ):
-            msg = "A logical primary descriptor must be stored under its own UID"
-            raise ValueError(msg)
         if primary_path is not None:
             self._bind_primary_path(index.product.uid, primary_path)
-        if kind in _DESCRIPTOR_PRODUCT_TYPES:
-            destination = self.get_index_path(primary_uid, kind)
-        else:
-            if kind != "dp_version_group" and (
-                index.namespace is None or index.run is None
-            ):
-                msg = "Use materialize() before exporting a product version"
-                raise ValueError(msg)
-            if index.run is None:
-                group_uid = index.product.uid
-            elif (
-                isinstance(index.product.meta, VersionedProductMeta)
-                and index.product.meta.version_group is not None
-            ):
-                group_uid = index.product.meta.version_group.uid
-            else:
-                msg = "A product version must record its version group"
-                raise ValueError(msg)
-            destination = self.get_product_path(
-                primary_uid,
-                getattr(index.product.meta, "content_data_prod_type", kind),
-                uid=group_uid,
-            )
-            if index.run is not None:
-                destination /= index.store_run.name
+        primary_uid, _ = _primary(index)
+        destination = self.get_index_path(primary_uid, kind)
         snapshot = index.model_copy(deep=True)
-        name = destination.name if destination.suffix == ".yaml" else "index.yaml"
         namespace_uid = self.ensure_namespace().namespace.uid
-        if kind in _DESCRIPTOR_PRODUCT_TYPES:
-            _descriptor_item(snapshot, destination, self.namespace_path, namespace_uid)
-        else:
-            _include_index_item(snapshot, name, namespace_uid)
+        _descriptor_item(snapshot, destination, self.namespace_path, namespace_uid)
         return snapshot.write(destination, overwrite=overwrite)
+
+    def write_run(
+        self,
+        run: WorkflowRun,
+        *,
+        run_name: RunName | CounterRunNameGenerator | None = None,
+    ) -> Path:
+        """Save an execution snapshot in this namespace without owning its lifecycle.
+
+        Parameters
+        ----------
+        run : WorkflowRun
+            Execution to record. Its identity and provenance remain unchanged.
+        run_name : str, CounterRunNameGenerator or None, optional
+            Reserve a namespace-local name, even when the run produces no
+            products. None writes the snapshot without allocating a name.
+
+        Returns
+        -------
+        pathlib.Path
+            Saved run.yaml path.
+
+        Raises
+        ------
+        ValueError
+            The execution, its actor, completed outcome or naming policy
+            conflicts with a saved record.
+        FileExistsError
+            The requested name or counter is already claimed.
+
+        Notes
+        -----
+        Saving a finished run (completed, failed or cancelled) settles the
+        outputs it left pending, as after an interrupted publication: an output
+        whose version committed is recorded as completed, any other as failed.
+        Save the finished run after all of its materializations have exited.
+        See ``DataProdStoreBase.write_run`` for name reservation.
+        """
+        path = super().write_run(run, run_name=run_name)
+        if run.status != "running":
+            self._settle_publications(run)
+        return path
+
+    def _settle_publications(self, run):
+        path = (
+            self.namespace_path / ".runs" / "by_uid" / str(run.uid) / "store_run.yaml"
+        )
+        if not path.is_file():
+            return
+        store_run = StoreRun.model_validate_json(to_json(_read_yaml(path)))
+        writer = _StoreRunWriter(self, run, store_run)
+        for uid, request in store_run.publications.items():
+            if request.status != "pending":
+                continue
+            product = self.get_product_path(
+                request.primary_uid, request.data_prod_type, uid=uid
+            )
+            if _is_committed(product, f"{uid}/{run.uid}"):
+                writer._record(uid, "completed")
+            else:
+                writer._record(uid, "failed", "Publication was interrupted")
 
     @contextmanager
     def materialize(
@@ -414,39 +456,7 @@ class DataProdStore(DataProdStoreBase):
                 if not pending.completed:
                     pending.index._bind_locations(None)
 
-    def reconcile_publication(self, run, group_uid, group_directory):
-        """Recover one interrupted publication from its committed group membership.
-
-        The caller must have exclusive ownership of the interrupted run.
-        A retry can acquire that ownership with the workflow's collection lock.
-        Return the committed member path, or None when publication did not commit.
-        The caller owns finalization of the execution, which can have other outputs.
-        """
-        directory = Path(group_directory)
-        root = directory / "index.yaml"
-        path = None
-        if root.is_file():
-            group = DataProdIndex.read(root, run_uids=[run.uid])
-            if group.product.uid != group_uid:
-                msg = "Recovery directory belongs to another product group"
-                raise ValueError(msg)
-            members = [p for p in group.products if p.run and p.run.uid == run.uid]
-            if members:
-                (member,) = members
-                if member.store_run is None:
-                    msg = "Committed member has no store run"
-                    raise ValueError(msg)
-                path = directory / member.store_run.name / "index.yaml"
-        if run.status == "running":
-            descriptor = self.read_namespace_index(run_uids=[run.uid])
-            stored = descriptor.store_runs.get(run.uid)
-            publication = stored.publications.get(group_uid) if stored else None
-            if publication is not None and publication.status == "pending":
-                writer = self._reserve_run(run)
-                writer._record(group_uid, "completed" if path else "failed")
-        return path
-
-    def set_tag(self, primary_uid, data_prod_type, run_name, *, uid=None, tag="main"):
+    def set_tag(self, realization, *, tag="main"):
         """Select a completed realization without changing its artifacts.
 
         Attribute the change to the current environment's actor, reusing a
@@ -454,12 +464,10 @@ class DataProdStore(DataProdStoreBase):
 
         Parameters
         ----------
-        primary_uid, data_prod_type : str
-            Product placement identifiers.
-        run_name : str
-            Completed realization's namespace-unique run name.
-        uid : str or None, optional
-            Logical result UID; required for a producer-named result directory.
+        realization : DataProdIndex
+            Realization read from this namespace or yielded by ``materialize``.
+            Its recorded version group and the index item it records for its own
+            file locate the group.
         tag : str, optional
             Selection label, default ``main``.
 
@@ -467,8 +475,32 @@ class DataProdStore(DataProdStoreBase):
         -------
         pathlib.Path
             Selected realization index.
+
+        Raises
+        ------
+        ValueError
+            The index is not a materialized realization of this namespace, or it
+            is placed under another version group.
+        KeyError
+            The realization is not a committed member of its version group.
         """
-        product = self.get_product_path(primary_uid, data_prod_type, uid=uid).resolve()
+        namespace_uid = self.read_namespace().namespace.uid
+        meta = realization.product.meta
+        if (
+            realization.run is None
+            or not isinstance(meta, VersionedProductMeta)
+            or meta.version_group is None
+        ):
+            msg = "Only a materialized realization can be selected by a tag"
+            raise ValueError(msg)
+        if realization.product.namespace_uid != namespace_uid:
+            msg = "The realization belongs to another namespace"
+            raise ValueError(msg)
+        member_path = _own_index_path(realization).resolve()
+        product = member_path.parent.parent
+        if not product.is_relative_to(self.namespace_path.resolve()):
+            msg = "The realization is not saved in this store"
+            raise ValueError(msg)
         with (
             _tag_lock(product, _validate_path_segment(tag)),
             FileLock(product / ".publish.lock"),
@@ -476,15 +508,12 @@ class DataProdStore(DataProdStoreBase):
             path = product / "index.yaml"
             index = GroupHeader.load(path)
             _compact_version_group(index, product)
-            member_path = product / _validate_run_name(run_name) / "index.yaml"
-            if not member_path.is_file():
-                raise KeyError(run_name)
-            member = DataProdIndex.read(member_path)
-            if (
-                member.run is None
-                or index.lookup(product, member.product.uid).name != run_name
-            ):
-                raise KeyError(run_name)
+            if index.product.uid != meta.version_group.uid:
+                msg = "The realization is placed under another version group"
+                raise ValueError(msg)
+            member = index.lookup(product, realization.product.uid)
+            if member.name != member_path.parent.name:
+                raise KeyError(realization.product.uid)
             # Promotion attribution uses the current environment, not the producer.
             with FileLock(self.namespace_path / ".namespace.lock"):
                 descriptor = self.read_namespace()
@@ -502,75 +531,180 @@ class DataProdStore(DataProdStoreBase):
             previous = index.product.tags.get(tag)
             index.product.tags[tag] = DataProdTag(
                 current=DataProdRef(
-                    uid=member.product.uid, namespace_uid=member.product.namespace_uid
+                    uid=member.edge.uid, namespace_uid=member.edge.namespace_uid
                 ),
                 audit=_audit(actor, previous.audit if previous else None),
             )
             index.product.audit = _audit(actor, index.product.audit)
             index.write(path, overwrite=True)
-        return product / run_name / "index.yaml"
+        return member_path
 
-    @staticmethod
-    def resolve_index(path, *, tag="main"):
-        """Select a version-group tag or retain an exact product index.
 
-        Parameters
-        ----------
-        path : str or pathlib.Path
-            YAML index or directory containing one.
-        tag : str, optional
-            Group selection, default ``main``.
+def resolve_index(path, *, tag="main"):
+    """Return the index file that a path selects.
 
-        Returns
-        -------
-        pathlib.Path
-            Pinned product index.
+    Parameters
+    ----------
+    path : str or pathlib.Path
+        Index file or directory containing ``index.yaml``.
+    tag : str, optional
+        Version-group selection label, default ``main``. It applies only when
+        the path holds a version group.
 
-        Raises
-        ------
-        KeyError
-            The tag has no completed selection.
-        """
-        path = Path(path)
-        if path.is_dir():
-            path /= "index.yaml"
-        document = parse_index_document(_read_yaml(path))
-        if isinstance(document, GroupHeader):
-            group = document
-            current = group.product.tags[tag].current
-            if current is None:
-                raise KeyError(tag)
-            member = group.lookup(path.parent, current.uid)
-            if (member.edge.uid, member.edge.namespace_uid) != (
-                current.uid,
-                current.namespace_uid,
-            ):
-                msg = "Tag target differs from version membership"
-                raise ValueError(msg)
-            return path.parent / member.name / "index.yaml"
-        index = document
-        index._bind_locations(path.parent.resolve())
-        if index.product.meta.data_prod_type != "dp_version_group":
-            return path
-        selected = index.product.tags[tag].current
-        product = next(
-            (
-                p
-                for p in index.products
-                if selected is not None
-                and p.product.uid == selected.uid
-                and p.product.namespace_uid == selected.namespace_uid
-            ),
-            None,
-        )
-        if product is None:
+    Returns
+    -------
+    pathlib.Path
+        For a version group, the index of the realization its tag selects;
+        otherwise the index file itself.
+
+    Raises
+    ------
+    KeyError
+        The version group has no tag with this label, or the tag selects no
+        completed realization.
+    ValueError
+        The tag's target differs from the committed membership, or the selected
+        member of an exported group does not record its index location.
+
+    Examples
+    --------
+    Read the realization a version group selects::
+
+        index = DataProdIndex.read(resolve_index(group_directory, tag="main"))
+    """
+    path = Path(path)
+    if path.is_dir():
+        path /= "index.yaml"
+    document = parse_index_document(_read_yaml(path))
+    if isinstance(document, GroupHeader):
+        group = document
+        current = group.product.tags[tag].current
+        if current is None:
             raise KeyError(tag)
-        item = next(
-            i
-            for i in product.product.data_items
-            if i.meta.get("format") == "data_prod_index"
-        )
-        return fileloc(product.get_source_uri(item.source)).path
+        member = group.lookup(path.parent, current.uid)
+        if (member.edge.uid, member.edge.namespace_uid) != (
+            current.uid,
+            current.namespace_uid,
+        ):
+            msg = "Tag target differs from version membership"
+            raise ValueError(msg)
+        return path.parent / member.name / "index.yaml"
+    index = document
+    index._bind_locations(path.parent.resolve())
+    if index.product.meta.data_prod_type != "dp_version_group":
+        return path
+    selected = index.product.tags[tag].current
+    product = next(
+        (
+            p
+            for p in index.products
+            if selected is not None and p.product.reference == selected
+        ),
+        None,
+    )
+    if product is None:
+        raise KeyError(tag)
+    return _own_index_path(product)
+
+
+def write_artifacts(
+    index: DataProdIndex,
+    artifacts: Iterable[Artifact],
+    *,
+    meta: dict | None = None,
+) -> list[DataProdItem]:
+    """Write artifacts beneath a destination-bound index and record them as items.
+
+    Parameters
+    ----------
+    index : DataProdIndex
+        Index yielded by ``DataProdStore.materialize``. Its ``base_path`` is the
+        output directory.
+    artifacts : iterable of tollan.pipeline.Artifact
+        Retained objects with the specifications that write them. Each
+        specification writes beneath ``base_path`` and returns its files.
+    meta : dict or None, optional
+        Item metadata added to every written file, such as ``producer``.
+
+    Returns
+    -------
+    list of DataProdItem
+        Items appended to ``index.product.data_items``, one per written file,
+        in the index's own directory location ``self``.
+
+    Raises
+    ------
+    ValueError
+        The index is not bound to an output directory, or a specification wrote
+        outside it.
+
+    Examples
+    --------
+    Inside a materialization scope::
+
+        with store.materialize(draft) as index:
+            write_artifacts(index, artifacts, meta={"producer": "kids"})
+    """
+    base = index.base_path
+    if base is None:
+        msg = "write_artifacts requires an index bound to its output directory"
+        raise ValueError(msg)
+    _own_location(index)
+    common = {} if index.run is None else {"run_uid": str(index.run.uid)}
+    items = []
+    for artifact in artifacts:
+        for file in artifact.spec.write(artifact.data, path=base):
+            path = Path(file.path).relative_to(base).as_posix()
+            item = DataProdItem(
+                meta={
+                    "type": "artifact",
+                    "format": file.format,
+                    "name": path if file.name is None else file.name,
+                    **common,
+                    **(meta or {}),
+                },
+                source=DataProdSource.model_validate(
+                    {
+                        "location": "self",
+                        "path": path,
+                        "availability_state": "available",
+                    }
+                ),
+            )
+            index.product.data_items.append(item)
+            items.append(item)
+    return items
+
+
+def _own_location(index):
+    """Declare the index's own directory as location ``self``."""
+    current = index.locations.get("self")
+    if current is None:
+        index.locations["self"] = Location(root=".", location_type="local")
+    elif current.root != ".":
+        msg = "Location 'self' must be the index's own directory"
+        raise ValueError(msg)
+
+
+def _own_index_path(index):
+    """Locate a realization's index file from the index item it records."""
+    for item in index.product.data_items:
+        if item.meta.get("format") == "data_prod_index":
+            return Path(fileloc(index.get_source_uri(item.source)).path)
+    msg = "The index does not record its own location"
+    raise ValueError(msg)
+
+
+def _is_committed(product, uid):
+    """Whether a version group's committed membership includes a product UID."""
+    root = product / "index.yaml"
+    if not root.is_file():
+        return False
+    try:
+        GroupHeader.load(root).lookup(product, uid)
+    except KeyError:
+        return False
+    return True
 
 
 def _primary(index):
@@ -859,11 +993,7 @@ def _descriptor_item(index, destination, namespace_path, namespace_uid):
 
 def _include_index_item(index, filename, namespace_uid):
     """Declare the descriptor written by this store alongside producer artifacts."""
-    location = next(
-        (key for key, value in index.locations.items() if value.root == "."),
-        "_index",
-    )
-    index.locations[location] = Location(root=".", location_type="local")
+    _own_location(index)
     index.product.data_items = [
         item
         for item in index.product.data_items
@@ -880,7 +1010,7 @@ def _include_index_item(index, filename, namespace_uid):
             source=DataProdSource.model_validate(
                 {
                     "path": filename,
-                    "location": location,
+                    "location": "self",
                     "availability_state": "available",
                 }
             ),

@@ -39,6 +39,11 @@ products, pass ``run_name=CounterRunNameGenerator(...)`` to ``write_run``.
 Subsequent materialization of the same execution reuses that name. See
 :doc:`reduction-workdir` for a complete no-op example.
 
+Save the execution again after its context exits, once its outputs are complete.
+Saving a finished execution also settles an output that an interrupted
+publication left pending: it is recorded as completed when its version was
+committed, otherwise as failed.
+
 Pass ``uid=None`` to generate an execution UUID, or supply a UUID object or string
 to retain that identity. Invalid values raise a validation error. ``context`` and
 ``meta`` accept dictionaries with string keys; ``None`` uses an empty dictionary.
@@ -89,15 +94,18 @@ Choose the operation
    * - Describe raw files
      - ``build_raw_obs_batch(files, locations=...)``
      - A ``DataProdBatch`` in memory; no persistence or run.
-   * - Save an existing product description
-     - ``store.write_index(index, primary_uid=...)``
-     - A saved index retaining its product identity. Loop over the raw batch's items to save several.
+   * - Save or refresh an observation, acquisition, calibration group or named collection
+     - ``store.write_index(index)``
+     - A saved descriptor retaining its product identity, placed at the primary the index records. Loop over the raw batch's items to save several.
    * - Record an invocation
      - ``WorkflowRun.create(context=...)``
      - Run identity, inputs and outcome. A run can produce no products.
    * - Produce a new processing result
-     - ``with store.materialize(index) as output_index:``
+     - ``with store.materialize(index) as output_index:``, then ``write_artifacts(output_index, artifacts)``
      - A new immutable realization attributed to that run, with its artifacts and tag selection.
+   * - Select a completed result
+     - ``store.set_tag(realization, tag="main")``
+     - The version group's tag selects that realization; the realization is unchanged.
    * - Register records in DPDB
      - ``tolteca_db.product_index.ingest_data_prod_batch(session, batch)``
      - Database records in the supplied transaction.

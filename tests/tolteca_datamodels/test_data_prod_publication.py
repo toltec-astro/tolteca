@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic import TypeAdapter, ValidationError
 from tollan.config import RuntimeInfo
+from tollan.pipeline import Artifact, ArtifactFile, ArtifactSpec
 
 from tolteca_datamodels.data_prod import (
     CounterRunNameGenerator,
@@ -17,6 +18,8 @@ from tolteca_datamodels.data_prod import (
     DataProdStore,
     DataProdTagBusyError,
     RunName,
+    resolve_index,
+    write_artifacts,
 )
 from tolteca_datamodels.data_prod import WorkflowRun as ExecutionRun
 
@@ -123,8 +126,8 @@ def test_counter_allocations_tags_and_portable_run(tmp_path):
         inventory.product.tags["main"].current.uid
         == DataProdIndex.read(lower).product.uid
     )
-    assert DataProdStore.resolve_index(product) == lower / "index.yaml"
-    assert DataProdStore.resolve_index(product, tag="test") == second / "index.yaml"
+    assert resolve_index(product) == lower / "index.yaml"
+    assert resolve_index(product, tag="test") == second / "index.yaml"
     with pytest.raises(FileExistsError):
         _write(tmp_path, "different-key", value=7)
     assert DataProdIndex.read(product) == inventory
@@ -177,7 +180,7 @@ def test_failed_run_retains_reservation_and_does_not_advance_tag(tmp_path):
         assert before.product.tags["main"].current is None
         assert before.products == []
         with pytest.raises(KeyError):
-            store.resolve_index(root)
+            resolve_index(root)
         msg = "writer failed"
         raise RuntimeError(msg)
     assert DataProdIndex.read(root) == before
@@ -273,11 +276,11 @@ def test_failed_install_preserves_current_and_leaves_run_reserved(
 
         patch.setattr(Path, "replace", fail)
     assert root.read_bytes() == reserved
-    assert store.resolve_index(root) == first / "index.yaml"
+    assert resolve_index(root) == first / "index.yaml"
     assert (first.parent / "0001-orphan/index.yaml").is_file()
     assert store.read_run(pending.run.uid).status == "failed"
     with pytest.raises(KeyError):
-        store.set_tag(UID, TYPE, "0001-orphan")
+        store.set_tag(DataProdIndex.read(first.parent / "0001-orphan"))
     assert _write(tmp_path, "next").name == "0002-next"
 
 
@@ -306,9 +309,7 @@ def test_publication_preserves_run_names_and_qualified_tags(tmp_path):
     path = _write(tmp_path, "night 1", tag="origin:main")
 
     assert path.name == "0000-night 1"
-    assert DataProdStore.resolve_index(path.parent, tag="origin:main") == (
-        path / "index.yaml"
-    )
+    assert resolve_index(path.parent, tag="origin:main") == (path / "index.yaml")
 
 
 def test_promotion_changes_selection_and_preserves_immutable_run(tmp_path):
@@ -317,16 +318,16 @@ def test_promotion_changes_selection_and_preserves_immutable_run(tmp_path):
     contents = (candidate / "index.yaml").read_bytes()
     store = DataProdStore(tmp_path)
     with pytest.raises(DataProdTagBusyError), _stage(store):
-        store.set_tag(UID, TYPE, candidate.name)
-    assert store.resolve_index(original.parent) == original / "index.yaml"
-    assert store.set_tag(UID, TYPE, candidate.name) == candidate / "index.yaml"
-    assert store.resolve_index(original.parent) == candidate / "index.yaml"
+        store.set_tag(DataProdIndex.read(candidate))
+    assert resolve_index(original.parent) == original / "index.yaml"
+    assert store.set_tag(DataProdIndex.read(candidate)) == candidate / "index.yaml"
+    assert resolve_index(original.parent) == candidate / "index.yaml"
     assert (
         DataProdIndex.read(original.parent).product.tags["main"].current.uid
         == DataProdIndex.read(candidate).product.uid
     )
     assert (candidate / "index.yaml").read_bytes() == contents
-    store.set_tag(UID, TYPE, original.name)
+    store.set_tag(DataProdIndex.read(original))
     assert (
         DataProdIndex.read(original.parent).product.tags["main"].current.uid
         == DataProdIndex.read(original).product.uid
@@ -465,8 +466,8 @@ def test_promotion_reuses_environment_actor_and_preserves_producer(
     before = store.read_namespace()
     group_before = DataProdIndex.read(index.base_path.parent)
 
-    store.set_tag(UID, TYPE, "candidate")
-    store.set_tag(UID, TYPE, "candidate")
+    store.set_tag(index)
+    store.set_tag(index)
 
     group = DataProdIndex.read(index.base_path.parent)
     tag = group.product.tags["main"]
@@ -521,7 +522,7 @@ def test_new_publication_and_tag_lookup_do_not_read_prior_versions(tmp_path):
     saved = old.read_bytes()
     old.write_text("deliberately unreadable old payload index")
     second = _write(tmp_path, "second")
-    assert DataProdStore.resolve_index(second.parent) == second / "index.yaml"
+    assert resolve_index(second.parent) == second / "index.yaml"
     group = DataProdIndex.read(
         second.parent, run_uids=[DataProdIndex.read(second).run.uid]
     )
@@ -542,9 +543,7 @@ def test_new_publication_and_tag_lookup_do_not_read_prior_versions(tmp_path):
 
 
 @pytest.mark.parametrize("committed", [False, True])
-def test_recover_publication_from_committed_membership(
-    tmp_path, monkeypatch, committed
-):
+def test_finished_run_settles_interrupted_publication(tmp_path, monkeypatch, committed):
     """A vanished collector can leave a pending publication on either side of commit."""
     from tolteca_datamodels.core.data_prod.store import _StoreRunWriter
 
@@ -568,12 +567,68 @@ def test_recover_publication_from_committed_membership(
                 raise RuntimeError(msg)
     raw = store.read_run(run.uid)
     assert raw.status == "running"
-    path = store.reconcile_publication(raw, proposal.product.uid, directory)
-    if committed:
-        assert path is not None and path.is_file()
-    else:
-        assert path is None
+    members = DataProdIndex.read(directory, run_uids=[run.uid]).products
+    assert len(members) == (1 if committed else 0)
+
+    def status():
+        stored = store.read_namespace_index(run_uids=[run.uid]).store_runs[run.uid]
+        return stored.publications[proposal.product.uid].status
+
+    store.write_run(raw)
+    assert status() == "pending"
+    with raw:
+        if not committed:
+            raw.fail()
+    store.write_run(raw)
     stored = store.read_namespace_index(run_uids=[run.uid]).store_runs[run.uid]
     assert stored.publications[proposal.product.uid].status == (
         "completed" if committed else "failed"
     )
+
+
+class _Text(ArtifactSpec[str]):
+    def write(self, data, *, path):
+        if data == "fail":
+            msg = "writer failed"
+            raise RuntimeError(msg)
+        (path / "notes").mkdir()
+        target = path / "notes" / "report.txt"
+        target.write_text(data)
+        return [ArtifactFile(path=target, format="text")]
+
+
+def test_written_artifacts_become_items_of_the_realization(tmp_path):
+    store = DataProdStore(tmp_path)
+    with (
+        ExecutionRun.create() as run,
+        store.materialize(_index().model_copy(update={"run": run})) as index,
+    ):
+        (item,) = write_artifacts(
+            index, [Artifact(data="ok", spec=_Text())], meta={"producer": "test"}
+        )
+    saved = DataProdIndex.read(index.base_path)
+    (item,) = (i for i in saved.product.data_items if i.source == item.source)
+    assert item.meta == {
+        "type": "artifact",
+        "format": "text",
+        "name": "notes/report.txt",
+        "run_uid": str(run.uid),
+        "producer": "test",
+    }
+    path = saved.resolve_location(item.source.location).joinpath(item.source.path)
+    assert path.path.read_text() == "ok"
+    # The store's own index item shares the producer's location.
+    assert set(saved.locations) == {"self"}
+
+
+def test_failed_artifact_writer_installs_nothing(tmp_path):
+    first = _write(tmp_path, "first")
+    store = DataProdStore(tmp_path)
+    with (
+        pytest.raises(RuntimeError, match="writer failed"),
+        ExecutionRun.create() as run,
+        store.materialize(_index().model_copy(update={"run": run})) as index,
+    ):
+        write_artifacts(index, [Artifact(data="fail", spec=_Text())])
+    assert resolve_index(first.parent) == first / "index.yaml"
+    assert len(DataProdIndex.read(first.parent).products) == 1

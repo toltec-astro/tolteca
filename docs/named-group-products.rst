@@ -64,7 +64,7 @@ Save the descriptor before materializing results:
 
 .. code-block:: python
 
-   store.write_index(group, primary_uid=group.product.uid, primary_path="orion")
+   store.write_index(group, primary_path="orion")
 
 The store remembers the path in ``namespace.yaml``. Another namespace or reporting
 inventory can place the same UUID under a different directory. Paths must be unique
@@ -164,16 +164,16 @@ Refresh a collection or select a result
    * - Task
      - Operation
    * - Save a new collection descriptor
-     - ``store.write_index(group, primary_uid=group.product.uid, primary_path="orion")``
+     - ``store.write_index(group, primary_path="orion")``
    * - Replace its filesystem descriptor
-     - ``store.write_index(group, primary_uid=group.product.uid, overwrite=True)``; reuses its path
+     - ``store.write_index(group, overwrite=True)``; reuses its path
    * - Register portable records in DPDB
      - ``ingest_data_prod_batch(session, batch)``; additive ingestion
    * - Explicitly replace DB collection metadata and membership
      - ``tolteca_db.named_groups.update_named_group(session, group)``;
        supply the complete desired membership and commit the transaction
    * - Select a saved full-result version
-     - ``store.set_tag(group.product.uid, "dp_science", "0000-coadd", uid=f"{group.product.uid}_science")``
+     - ``store.set_tag(realization)``, with the realization read from ``<group path>/science/0000-coadd``
 
 A collection update changes its current membership. It does not rewrite saved
 results, their exact observation associations, saved calibration contexts, or

@@ -86,7 +86,7 @@ def test_unordered_mixed_files_publish_and_reopen_context(files, tmp_path, monke
     store = DataProdStore(tmp_path)
     reopened = {}
     for uid, index in indexes.items():
-        path = store.write_index(index, primary_uid=uid)
+        path = store.write_index(index)
         reopened[uid] = DataProdIndex.read(path)
     reopened_batch = DataProdBatch(
         meta={"selection": "reference"}, items=list(reopened.values())

@@ -11,6 +11,7 @@ from tolteca_datamodels.data_prod import (
     DataProdIndex,
     DataProdStore,
     WorkflowRun,
+    resolve_index,
 )
 from tolteca_datamodels.data_prod.metadata import NamedGroupMeta, ObsMeta, ScienceMeta
 
@@ -78,14 +79,10 @@ def test_group_identity_and_directory_are_independent_across_namespaces(tmp_path
     first = DataProdStore(tmp_path, namespace="nightly")
     second = DataProdStore(tmp_path, namespace="release")
     with pytest.raises(ValueError, match="primary_path first"):
-        first.write_index(group, primary_uid=group.product.uid)
-    first_path = first.write_index(
-        group, primary_uid=group.product.uid, primary_path="orion"
-    )
+        first.write_index(group)
+    first_path = first.write_index(group, primary_path="orion")
     group.product.meta.name = "Orion release"
-    second_path = second.write_index(
-        group, primary_uid=group.product.uid, primary_path="orion-final"
-    )
+    second_path = second.write_index(group, primary_path="orion-final")
     assert first_path.relative_to(first.namespace_path) == Path(
         "orion/dp_named_group.yaml"
     )
@@ -106,12 +103,10 @@ def test_group_identity_and_directory_are_independent_across_namespaces(tmp_path
         copied.namespace_path
     ) == Path("orion/dp_named_group.yaml")
     with pytest.raises(ValueError, match="already assigned"):
-        first.write_index(
-            group, primary_uid=str(uid), primary_path="renamed", overwrite=True
-        )
+        first.write_index(group, primary_path="renamed", overwrite=True)
     other = _group()
     with pytest.raises(ValueError, match="unique within"):
-        first.write_index(other, primary_uid=other.product.uid, primary_path="orion")
+        first.write_index(other, primary_path="orion")
     assert first.read_namespace_index().primary_paths == {uid: "orion"}
 
 
@@ -122,15 +117,13 @@ def test_group_identity_and_directory_are_independent_across_namespaces(tmp_path
 def test_named_directory_cannot_claim_store_or_acquisition_paths(tmp_path, path):
     group = _group()
     with pytest.raises(ValueError):
-        DataProdStore(tmp_path).write_index(
-            group, primary_uid=group.product.uid, primary_path=path
-        )
+        DataProdStore(tmp_path).write_index(group, primary_path=path)
 
 
 def test_collection_refresh_keeps_published_versions(tmp_path):
     store = DataProdStore(tmp_path / "dataprod_toltec", namespace="example")
     group = _group()
-    store.write_index(group, primary_uid=group.product.uid, primary_path="orion")
+    store.write_index(group, primary_path="orion")
     science = DataProdIndex(
         product=DataProd(
             uid=f"{group.product.uid}_science",
@@ -157,12 +150,12 @@ def test_collection_refresh_keeps_published_versions(tmp_path):
 
     refreshed = group.model_copy(deep=True)
     refreshed.product.assocs = refreshed.product.assocs[:1]
-    store.write_index(refreshed, primary_uid=group.product.uid, overwrite=True)
+    store.write_index(refreshed, overwrite=True)
 
     versions = paths[0].parent.parent
     assert versions == store.namespace_path / "orion" / "science"
     assert all(path.is_file() for path in paths)
-    assert DataProdStore.resolve_index(versions) == paths[1]
+    assert resolve_index(versions) == paths[1]
     assert (
         len(
             DataProdIndex.read(

@@ -170,8 +170,10 @@
   at its primary. An empty version group still resolves its primary.
 - A tag is a label owned by one version group. It selects at most one outgoing
   membership association to a completed member, or is empty; an empty tag has no
-  selected reference. Several labels may select the same member. A database has
-  one selection per label and version group, across namespaces.
+  selected reference. Several labels may select the same member. In a filesystem
+  store, a tag is the selection of that namespace projection; copies do not
+  synchronize it. A database has its own single selection per label and version
+  group, across namespaces.
 - Publishers choose tag labels, such as `ql-main` or `nightly-20260708`; local
   qualifiers use hyphens, and colons are reserved by convention for mapped
   remote-origin qualifiers (`taco:main`). Namespace paths neither generate nor
@@ -263,7 +265,9 @@
 - Run states are `running`, `completed`, `failed` and `cancelled`. Reservations are
   durable before work starts. Each requested output records its version group,
   declared product type, primary, requested tag, status and failure message; a
-  failed reservation creates no placeholder product.
+  failed reservation creates no placeholder product. Saving a finished run settles
+  an output that an interrupted publication left pending: completed when its
+  version committed, otherwise failed.
 - Products commit independently; a completed run does not establish that every
   requested output was published. Re-registration preserves identity and does not
   authorize replacing completed scientific contents.

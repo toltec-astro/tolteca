@@ -10,17 +10,18 @@ artifacts demonstrate publication; they are not scientific reduction results.
 from contextlib import ExitStack
 from pathlib import Path
 
+from tollan.pipeline import Artifact, ArtifactFile, ArtifactSpec
+
 from tolteca_datamodels.data_prod import (
     CounterRunNameGenerator,
     DataProd,
     DataProdAssoc,
     DataProdBatch,
     DataProdIndex,
-    DataProdItem,
-    DataProdSource,
     DataProdStore,
-    Location,
     WorkflowRun,
+    resolve_index,
+    write_artifacts,
 )
 from tolteca_datamodels.data_prod.metadata import RawObsMeta, RawObsProcMeta
 
@@ -69,24 +70,14 @@ def describe_result(raw: DataProdIndex, run: WorkflowRun) -> DataProdIndex:
     )
 
 
-def write_artifact(index: DataProdIndex, detail: str) -> None:
-    """Write an example artifact and describe it in the destination-bound index."""
-    path = index.base_path
-    assert path is not None
-    (path / "summary.txt").write_text(detail + "\n", encoding="utf-8")
-    index.locations["self"] = Location(root=".", location_type="local")
-    index.product.data_items.append(
-        DataProdItem(
-            meta={"type": "artifact", "format": "text", "name": "summary"},
-            source=DataProdSource.model_validate(
-                {
-                    "location": "self",
-                    "path": "summary.txt",
-                    "availability_state": "available",
-                }
-            ),
-        )
-    )
+class TextSummary(ArtifactSpec[str]):
+    """Write a one-line text report as ``summary.txt``."""
+
+    def write(self, data: str, *, path: Path) -> list[ArtifactFile]:
+        """Write the report beneath ``path`` and return its file."""
+        target = path / "summary.txt"
+        target.write_text(data + "\n", encoding="utf-8")
+        return [ArtifactFile(path=target, format="text", name="summary")]
 
 
 def publish_results(
@@ -114,7 +105,8 @@ def publish_results(
                 run_name=CounterRunNameGenerator(key=key),
                 tag="main",
             ) as output_index:
-                write_artifact(output_index, f"{key}: {raw.product.uid}")
+                report = Artifact(data=f"{key}: {raw.product.uid}", spec=TextSummary())
+                write_artifacts(output_index, [report])
             results.append(output_index)
     return run, results
 
@@ -127,7 +119,7 @@ def build_example(root: Path) -> DataProdBatch:
     store = DataProdStore(root / "dataprod_toltec", namespace="scratch")
     acquisitions = [describe_acquisition(scan) for scan in (1, 2)]
     for raw in acquisitions:
-        store.write_index(raw, primary_uid=raw.product.uid)
+        store.write_index(raw)
     # setup-end
 
     # publish-start
@@ -137,7 +129,7 @@ def build_example(root: Path) -> DataProdBatch:
 
     # read-start
     group_path = store.get_product_path("tcs-145609-0-1", "dp_raw_obs_proc")
-    selected_path = store.resolve_index(group_path, tag="main")
+    selected_path = resolve_index(group_path, tag="main")
     selected = DataProdIndex.read(selected_path)
     summary = next(
         item
@@ -178,9 +170,9 @@ def build_example(root: Path) -> DataProdBatch:
         ]
     )
     # batch-end
-    assert DataProdIndex.read(
-        store.resolve_index(second_group_path)
-    ).product.reference == (first_results[1].product.reference)
+    assert DataProdIndex.read(resolve_index(second_group_path)).product.reference == (
+        first_results[1].product.reference
+    )
     assert len(batch.items) == len(acquisitions) + len(acquisitions) + 1
     return batch
 
