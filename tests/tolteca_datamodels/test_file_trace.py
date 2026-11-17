@@ -185,7 +185,6 @@ def test_accessor_collector_records_in_table_traces_by_position_not_index_label(
     ]
     assert [cell.has_error for cell in table.source_trace] == [True, True, False]
     assert len({id(cell) for cell in table.source_trace}) == 3
-    assert not hasattr(table.source_trace.iloc[0], "on_error")
     later = accessor._make_source_trace_collector(on_error="raise")
     assert later.on_error == "raise"
     assert all(

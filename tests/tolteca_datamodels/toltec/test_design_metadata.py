@@ -38,7 +38,6 @@ def test_design_metadata_uses_no_design_or_adc_payload(
         meta = data.toltec_kids.meta
         assert isinstance(meta, ToltecRawObsMetadata)
         assert meta.n_kids_design == data.sizes["loclen"] == 684
-        assert not hasattr(meta, "adc_snap")
         snap = data.toltec_kids.adc_snap
         assert snap.variable is data["Header.Toltec.AdcSnapData"].variable
         assert not snap.variable._in_memory

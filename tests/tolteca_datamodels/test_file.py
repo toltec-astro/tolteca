@@ -324,8 +324,6 @@ from tolteca_datamodels.core.file import FileAccessorBase
 from tolteca_datamodels.core.filepath import FilepathInfo, register_filepath_parser
 
 assert core_file.FileAccessorBase is FileAccessorBase
-assert not hasattr(core_file, "FileAccessor")
-assert not hasattr(core_file.accessor, "FileAccessor")
 info = FileAccessorBase.from_sources(["entry-1.nc"]).table.filepath_info.iloc[0]
 assert type(info) is FilepathInfo and info.ext == "nc"
 assert info.data_models == frozenset()

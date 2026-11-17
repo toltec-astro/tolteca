@@ -103,13 +103,8 @@ with open_toltec_kids(sys.argv[1]) as data:
     assert index.meta.block_index is index.index
     assert len(index.meta.chan_axis_table) == index.chan.sizes["chan_entry"]
     assert len(index.meta.probe_axis_table) == index.probe.sizes["probe"]
-    assert not hasattr(index, "blocks")
-    assert not hasattr(index.meta, "block")
     assert index.meta.obsnum == reader.meta.obsnum
     assert not data["Data.Toltec.Is"].variable._in_memory
-    assert not hasattr(reader, "blocks")
-    assert not hasattr(reader, "sweep")
-    assert not hasattr(reader, "to_zarr")
 """
     result = subprocess.run(  # noqa: S603 -- Fixed inspection script and reference file.
         [

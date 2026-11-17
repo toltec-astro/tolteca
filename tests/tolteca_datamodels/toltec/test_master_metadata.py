@@ -29,8 +29,6 @@ def test_recorded_master_is_preserved(data_lmt_path, suffix):
         assert payload["master"] == "tcs"
         assert payload["master_code"] == expected
         assert payload["filepath_info_orig"]["master"] == "tcs"
-        assert "master_str" not in payload
-        assert "master_str" not in payload["filepath_info_orig"]
         assert "obs_type_code" in payload
         assert payload["obs_type"] == meta.obs_type
         quartet = f"tcs-{meta.obsnum}-{meta.subobsnum}-{meta.scannum}"

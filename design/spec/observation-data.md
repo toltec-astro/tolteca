@@ -1,17 +1,4 @@
-# TolTECA specification
-
-## Purpose and scope
-
-- TolTECA supports scientific inspection and processing of LMT and TolTEC
-  observations, from recorded acquisitions to reusable results.
-- Observation identity, physical meaning, and provenance remain interpretable
-  across data access, analysis, and publication.
-- Scientific libraries support interactive use independently of file discovery
-  and configured workflow execution.
-- Database, Web, deployment, and archive application behavior is outside this
-  scope. TolTECA defines the data contracts it supplies to those applications.
-
-## Observation data
+# Observation data
 
 - Observation data access makes recorded measurements and their context usable
   without requiring scientific reduction.
@@ -21,16 +8,7 @@
   paths. A collection may start with filenames, explicit sources, or a declared
   file store. Its consumer selects records before scientific processing.
 
-The [observation-data guides](../docs/datamodels.md) follow this domain's progression:
-individual data and metadata, model tables, observation constraints, file stores,
-configured discovery, and capability selection and extensions. They connect these
-contracts to pipeline input.
-Software concepts are defined within their owning sections below and introduced
-at their point of use in the guide. The [shared scientific terminology](../../tolteca_helpdesk/handbook/glossary.md)
-distinguishes observing and scientific scopes across packages; it does not own
-API availability or replace the domain contracts.
-
-### Sources and metadata
+## Sources and metadata
 
 - Source access supports inspecting individual acquisitions and interpreting
   batches without repeating storage-specific work for each file.
@@ -43,7 +21,7 @@ API availability or replace the domain contracts.
 | Filename information | Preliminary acquisition information inferred from a naming convention. |
 | Acquisition metadata | Recorded information describing the measurement and its observing context. |
 
-#### Source recognition and access
+### Source recognition and access
 
 - Source recognition supports finding and inspecting data before reading its
   scientific contents.
@@ -136,7 +114,7 @@ API availability or replace the domain contracts.
   another interpretation. Content identification is the fallback for a missing
   rule result, not recovery from a selected reader's failure.
 
-#### Acquisition metadata
+### Acquisition metadata
 
 - Metadata access supplies validated records for selection and interpretation.
 - Recorded metadata supplies authoritative values; filename information remains
@@ -175,7 +153,7 @@ API availability or replace the domain contracts.
 - A reader describes an acquisition with stable identity and layout. Tracking
   subsequent edits to its recorded metadata is outside that reader's scope.
 
-#### Native processed KIDs metadata
+### Native processed KIDs metadata
 
 - Native processed KIDs files expose the acquisition source recorded by the writer.
   Reading this reference does not access the acquisition. Its filename can supply
@@ -184,7 +162,7 @@ API availability or replace the domain contracts.
   source was recorded, the processed reader still supplies its classification and
   the table records unavailable metadata while retaining earlier values.
 
-#### Batch layouts and semantic access
+### Batch layouts and semantic access
 
 - Files in a batch from the same writer share stable layout conventions. The
   schema/mapper/view system uses those conventions for semantic access across
@@ -207,9 +185,9 @@ API availability or replace the domain contracts.
 - Reusing a mapper preserves each source's own values and identity. Layout
   bindings do not substitute data from the file used to resolve them.
 - Resolution and reuse follow
-  [Tollan's mapping contract](../../tollan/design/spec.md#schemas-and-mappings).
+  [Tollan's mapping contract](../../../tollan/design/spec.md#schemas-and-mappings).
 
-#### Data access and resource ownership
+### Data access and resource ownership
 
 - Data access supports inspecting selected measurements without loading the
   entire acquisition when that is unnecessary.
@@ -222,9 +200,9 @@ API availability or replace the domain contracts.
   and sibling data are outside that view's scope.
 - The component that changes a source manages affected view lifetimes. Views do
   not detect edits, refresh cached state, or rebind themselves, under
-  [Tollan's view contract](../../tollan/design/spec.md#accessors-and-views).
+  [Tollan's view contract](../../../tollan/design/spec.md#accessors-and-views).
 
-### LMT observations
+## LMT observations
 
 - LMT observation conventions connect telescope state and acquisition files
   across participating instruments.
@@ -233,7 +211,7 @@ API availability or replace the domain contracts.
 - Related interfaces can have independent sampling. Shared observation identity
   does not establish time alignment; joint analysis owns that alignment.
 
-#### Observation and interface identity
+### Observation and interface identity
 
 - Observation identity connects records from the same observing activity.
 - Interface identity distinguishes the producing instrument from the data models
@@ -270,7 +248,7 @@ API availability or replace the domain contracts.
 - Canonical identifiers describe observation and acquisition identity independently
   of where the data is stored.
 
-#### Telescope telemetry
+### Telescope telemetry
 
 - Telescope access supplies observing context and pointing measurements for
   inspection and joint analysis with data from other instruments.
@@ -280,7 +258,7 @@ API availability or replace the domain contracts.
   The receiver header supplies additional membership, such as `"toltec"`,
   without changing the producing instrument.
 
-### TolTEC observations
+## TolTEC observations
 
 - TolTEC observation access supports inspecting related acquisition streams under
   the shared [source and metadata](#sources-and-metadata) and
@@ -292,12 +270,12 @@ API availability or replace the domain contracts.
 | Half-wave plate readout | Modulation data for joint analysis with detector observations. |
 | Telescope companion | LMT-produced telescope data belonging to both the LMT and TolTEC data models. |
 
-### Model tables
+## Model tables
 
 - Model tables provide a columnar workspace for collecting information,
   enriching it, and selecting records for further work.
 - Generic projection and enrichment follow
-  [Tollan's model-table contract](../../tollan/design/spec.md#model-tables).
+  [Tollan's model-table contract](../../../tollan/design/spec.md#model-tables).
 - Factories prepare source records; metadata reads update their current values.
   Binding an accessor or narrowing its capabilities does not repopulate the table.
   Row iteration and queries support inspection and downstream processing of the
@@ -306,7 +284,7 @@ API availability or replace the domain contracts.
   inspection and selection; they need not reproduce a complete source record.
 - File, observation, and product collections retain their own record meanings.
 
-#### Mixed and scoped collections
+### Mixed and scoped collections
 
 - Source collections support mixed data and work within selected data models.
   Data-model scope selects interpretation capabilities, not producing instruments.
@@ -359,7 +337,7 @@ API availability or replace the domain contracts.
   correct membership and classification without reopening or reidentifying the
   payload. Projection and classification still publish together.
 
-#### Projection and queries
+### Projection and queries
 
 - Selected workflows supply observation label interpretations and a selector
   class. Queries use their common selector class when one exists, including
@@ -403,7 +381,7 @@ API availability or replace the domain contracts.
 - Partial rows remain useful for preliminary selection, including resources
   that have not been opened. A partial table row is not complete acquisition metadata.
 
-#### Metadata enrichment
+### Metadata enrichment
 
 - Enrichment adds authoritative information to a collection prepared from
   filenames, discovery results, or other supplied records.
@@ -474,7 +452,7 @@ API availability or replace the domain contracts.
   are not retained after the resource scope ends; reopening selects and binds
   readers again using current table values.
 
-### Observation selection
+## Observation selection
 
 - Selection expresses which observations or interfaces are relevant before
   expensive reading or processing.
@@ -483,7 +461,7 @@ API availability or replace the domain contracts.
 - The same observation constraint retains its meaning across collection,
   filesystem, and database consumers.
 
-#### Constraints and interpretation
+### Constraints and interpretation
 
 - Constraints describe a desired subset using field values, alternatives, ranges,
   and positions within the observation hierarchy.
@@ -498,13 +476,13 @@ API availability or replace the domain contracts.
   interpretations of the same field and label.
 - Known label interpretations do not prohibit matching other literal labels.
 
-### File stores
+## File stores
 
 - File stores expose organized acquisition trees without requiring callers to
   know each instrument's directory layout. They return candidate paths without
   opening data or collecting metadata.
 
-#### Candidate discovery
+### Candidate discovery
 
 - Coarse store searches retain candidates needed by the full selector.
 - A substore registration identifies a child by its concrete class and assigns
@@ -552,7 +530,7 @@ API availability or replace the domain contracts.
   selector-incompatible parents. An unrestricted search visits all registered
   stores. Directory layouts remain the stores' responsibility.
 
-### Input discovery
+## Input discovery
 
 - Configured input discovery builds a model table from acquisition stores and
   explicit sources for inspection or pipeline input selection. Each entry prepares
@@ -586,7 +564,7 @@ API availability or replace the domain contracts.
 - Discovery returns the combined, populated and selected model table. The
   consuming workflow owns its subsequent processing selection.
 
-### Data-model capabilities
+## Data-model capabilities
 
 - A data-model specification owns one identity and associates it with reusable
   accessor and store capabilities. Those capabilities need not own that identity.
@@ -603,7 +581,7 @@ API availability or replace the domain contracts.
   retains each selected identity's association with its capabilities, including
   when multiple identities share an accessor or store.
 
-### Instrument extensions
+## Instrument extensions
 
 - Instrument extensions let shared observation-data workflows handle additional
   data models and let specialized workflows select their interpretation support.
@@ -656,7 +634,7 @@ API availability or replace the domain contracts.
 - Each instrument owns its naming conventions, acquisition classifications,
   recorded-data interpretation, and store conventions.
 
-#### File-accessor workflows
+### File-accessor workflows
 
 - File-accessor extensions supply policies for a single interpretation or a
   composition of interpretations. Both use the shared source preparation,
@@ -703,7 +681,7 @@ API availability or replace the domain contracts.
   The shared workflow does not require classification columns, flag enums, or
   any particular scientific column dtype.
 
-#### Shared data models
+### Shared data models
 
 - Data models validate values before they are used for interpretation and
   selection. They use strict type validation, are frozen by default, and validate
@@ -713,108 +691,3 @@ API availability or replace the domain contracts.
 - Reusable Pydantic field types own value validation, normalization, and
   serialization. Models enforce additional constraints and relationships
   separately.
-
-## Data products
-
-Users retain product descriptions, artifact references and execution records for
-reuse across observing-site, archive and local workspaces. The portable core owns
-these records and filesystem namespace/run persistence. Applications supply their
-product metadata, identity rules and publication operations. Database projection
-and scientific processing remain separate consumers.
-
-### Portable records
-
-- `tolteca_datamodels.core.data_prod` provides reusable records without importing
-  instrument registrations, concrete product packages or a database schema.
-- A product has a nonempty string UID and an optional namespace UUID. References
-  and association targets use the same identity. Directed associations carry
-  application-defined relationship labels and facts; database registration is a
-  consumer constraint. An empty tag has no selected reference.
-- Product records hold identity, typed metadata, items, associations, tags and
-  audit facts. Index documents hold the supporting locations, namespace, actors,
-  execution snapshot and nested documents. Document context does not become
-  product identity. Applications can specialize record metadata and index types.
-- Editable records retain strict field and default validation. Shared Tollan
-  fields own path normalization and validation. Run names add the store's
-  reserved-name constraints.
-- Each item references a declared location. Repeated location/path pairs within
-  one product are invalid; different products may reference the same source.
-  An included namespace must match the product's namespace UUID. An included
-  store run must reference the included execution. These checks do not require
-  the payload or a database entry to exist.
-- Actor and execution mapping keys must equal their records' UUIDs. Namespace
-  store-run keys must equal their execution UUIDs, and each store run must
-  reference an included execution. Reserved names and assigned counter values
-  are unique within one namespace document.
-- An inventory identifies an independently maintained set of reported records.
-  It has no storage root and does not replace product or namespace identity.
-
-### Sources and persistence
-
-- Each item stores a location key and a relative `SubPath` with literal filename
-  characters. A location declares a storage root. Relative roots, including
-  parent directories, resolve against the opened index directory; external roots
-  use FileLoc's location formats. Application configuration roots do not apply.
-- Resolution returns a FileLoc or an encoded absolute source URI without opening
-  the payload. Reading, resolving and writing preserve the serialized relative
-  locations and item paths. Reopening a relocated index establishes its new
-  resolution base. Writing an opened index does not change its existing base.
-- YAML persistence uses Pydantic's round-trip representation for declared fields.
-  It preserves explicit nulls and restores field types through their existing
-  validation contracts. Computed fields are reconstructed, not serialized as
-  inputs. Persistence must not relax strict validation. YAML formatting and
-  comments are not preserved; Python-specific object tags are rejected.
-
-### Actors and record attribution
-
-- Actors retain client and environment facts reused across executions.
-  Invocation-specific configuration, commands, inputs and timing belong to runs.
-- Runs and stores share process-local default actors for matching stable runtime
-  facts. Namespace creation reuses a matching recorded actor. Supplied and
-  imported actors keep their UUIDs and facts, even when another actor has matching
-  facts. Run creation remains store-independent; persisted actor reuse is explicit.
-- Audit records preserve creation and modification times. Unknown creators and
-  modifiers remain independently null; known attribution must not be discarded
-  or replaced by the importing actor. Actor records have their own creation time,
-  without recursive creator/updater records.
-
-### Namespaces and executions
-
-- A namespace identifies a persistent output scope shared by many executions.
-  Each execution has a stable portable UUID independent of destinations. A
-  filesystem store operates on one namespace and does not execute the workflow.
-- One namespace document carries namespace metadata, actors and optional selected
-  run records. Reading namespace metadata does not load run history. Full history
-  collection is an explicit export operation.
-- The execution owner determines its outcome. Saving a supplied execution does
-  not finish it or require captured runtime metadata. Conflicting execution or
-  actor facts are rejected before replacing saved facts. A saved completed
-  execution is retained when its earlier running snapshot is supplied.
-- A store-run record describes one execution's output in a namespace. Its local
-  name, counter and per-product outcomes/provenance do not become execution
-  identity. Independently obtained writers must preserve each other's updates
-  to different outputs of that store run.
-- Run reservation uses direct identity, name and counter lookups. Lifecycle and
-  output-record updates load and write only the affected run. Per-update work
-  must not grow with the number of prior runs.
-
-### Run names and interrupted allocation
-
-- A namespace owns one authoritative allocator and durable counter state.
-  Allocation is serialized. Saved reservations are reused for the same execution;
-  a conflicting name or naming policy is rejected. Recording an execution alone
-  does not require a name reservation.
-- Callers may request a fixed name or counter generation. Names and allocated
-  counter values are unique within the namespace. Explicit unused counter values
-  are allowed; they must not rewind the allocator or reuse a claim. Counter
-  values need not be continuous.
-- Interrupted allocation may leave claimed names or counter values without a
-  saved reservation. Claims remain unavailable; the store does not recover or
-  reclaim them. A claimed generated name must also have its counter claimed.
-  A retry reuses a saved reservation; otherwise automatic naming allocates a new
-  one and a claimed fixed name fails. Allocation does not scan run history.
-- A user may remove an abandoned fixed-name claim when no writer is active and
-  no saved reservation or published output uses it. This releases only the name;
-  it does not rewind the counter or remove completed reservations.
-- Copied allocator state does not grant independent allocation authority.
-  Imports must not rewind state or duplicate reservations.

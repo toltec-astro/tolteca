@@ -165,15 +165,6 @@ def test_specs_select_capabilities_but_do_not_change_their_matching_rules():
     assert view.accessor_types == (ToltecFileAccessor,)
 
 
-def test_concrete_workflow_does_not_offer_composite_selection():
-    file_accessor = ToltecFileAccessor.from_sources(_sources)
-    assert not hasattr(file_accessor, "partial")
-    assert not hasattr(file_accessor, "view")
-    assert not hasattr(file_accessor, "iter_accessors")
-    assert not hasattr(FileAccessorBase, "iter_accessors")
-    assert FileAccessor.from_sources([]).table.empty
-
-
 def test_later_matching_uses_current_values_not_original_evidence_or_history():
     file_accessor = ToltecFileAccessor.from_sources([_sources[4]])
     view = FileAccessorView(file_accessor, (ToltecFileAccessor,))

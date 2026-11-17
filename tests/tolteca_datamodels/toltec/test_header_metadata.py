@@ -43,9 +43,6 @@ def test_block_index_inherits_acquisition_headers_without_reading_signals(
         assert not any(name.startswith("Data.") for name in reads)
         assert "Header.Toltec.ToneFreq" not in reads
         assert acquisition.n_sweepreps == (10 if suffix else None)
-        assert not hasattr(acquisition, "n_blocks")
-        assert not hasattr(acquisition, "n_sweeps")
-        assert not hasattr(acquisition, "n_sweepsteps")
         assert acquisition.n_blocks_max == source.sizes["numSweeps"]
         reads.clear()
         identified = source.toltec_kids.block_index

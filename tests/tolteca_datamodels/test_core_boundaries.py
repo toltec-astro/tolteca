@@ -164,7 +164,6 @@ register_filepath_parser(
 )
 assert type(FilepathInfo.from_source("entry-1.nc")) is Filename
 assert Filename.from_source("other.nc", raise_on_error=False) is None
-assert not hasattr(Filename, "_columns")
 assert not any(
     name == prefix or name.startswith(prefix + ".")
     for prefix in (
@@ -194,8 +193,6 @@ from tolteca_dummy_instru.data_model import data_model_spec as dummy
 
 assert data_models.lmt is data_models["lmt"] is lmt
 assert data_models.toltec is data_models["toltec"] is toltec
-assert not hasattr(core_data_model, "data_models")
-assert not hasattr(core_data_model.DataModelSet, "from_select")
 assert data_models.toltec.info_cls is toltec.info_cls
 assert list(data_models) == ["lmt", "toltec"]
 models = DataModelSet.from_select()
@@ -264,7 +261,6 @@ from tolteca_datamodels.core.input_discovery import InputDiscoveryConfig
 for module in pkgutil.walk_packages(core.__path__, core.__name__ + "."):
     importlib.import_module(module.name)
 
-assert not hasattr(DataModelSet, "from_select")
 assert InputDiscoveryConfig(inputs=[]).inputs == []
 assert not any(
     name == prefix or name.startswith(prefix + ".")

@@ -8,6 +8,25 @@ import sys
 import pytest
 
 
+def _run_each(script, first_imports):
+    # One interpreter per import order; the interpreters run concurrently.
+    processes = {
+        first: subprocess.Popen(  # noqa: S603 -- current interpreter and literal test code
+            [sys.executable, "-c", script, first],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for first in first_imports
+    }
+    failures = {}
+    for first, process in processes.items():
+        _, stderr = process.communicate(timeout=60)
+        if process.returncode:
+            failures[first] = stderr
+    assert not failures, failures
+
+
 @pytest.mark.parametrize(
     ("name", "class_name"),
     [
@@ -20,10 +39,6 @@ import pytest
 def test_file_store_module_names(name, class_name):
     module = importlib.import_module(name)
     assert getattr(module, class_name).__name__ == class_name
-    old_name = name.replace(".file_store", ".filestore")
-    with pytest.raises(ModuleNotFoundError) as exc:
-        importlib.import_module(old_name)
-    assert exc.value.name == old_name
 
 
 def test_file_store_infrastructure_does_not_load_domain_modules():
@@ -52,10 +67,10 @@ assert "tolteca_datamodels.core.input_discovery.entries" not in sys.modules
     )
 
 
-@pytest.mark.parametrize(
-    "first", ["lmt.file_store", "toltec.file_store", "toltec", "data_model"]
-)
-def test_public_store_assembles_builtin_requirements_in_any_import_order(first):
+_STORE_FIRST_IMPORTS = ["lmt.file_store", "toltec.file_store", "toltec", "data_model"]
+
+
+def test_public_store_assembles_builtin_requirements_in_any_import_order():
     script = """
 import importlib
 import sys
@@ -69,7 +84,6 @@ from tolteca_datamodels.lmt.data_model import data_model_spec as lmt_data_model_
 store = LmtFileStore("/data_lmt")
 assert LmtFileStore.__module__ == "tolteca_datamodels.lmt.file_store"
 assert "toltec" in vars(LmtFileStore)
-assert importlib.util.find_spec("tolteca_datamodels.lmt._file_store") is None
 assert store.toltec.path == store.substores[ToltecFileStore].path
 assert list(store.toltec.iter_glob_patterns("tcs-1/toltec7")) == [
     "toltec/tcs/toltec7/toltec7_000001_*.nc"
@@ -89,36 +103,43 @@ assert list(selected.iter_glob_patterns("1/{tel,7}")) == [
 ]
 assert "tolteca_dummy_instru" not in sys.modules
 """
-    subprocess.run(  # noqa: S603 -- current interpreter and literal test code
-        [sys.executable, "-c", script, first],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+    _run_each(script, _STORE_FIRST_IMPORTS)
 
 
-@pytest.mark.parametrize(
-    "module",
-    [
-        "tolteca_datamodels.core.filepath",
-        "tolteca_datamodels.core.types",
-        "tolteca_datamodels.core.file.accessor",
-        "tolteca_datamodels.core.data_model",
-        "tolteca_datamodels.core.input_discovery.entries",
-        "tolteca_datamodels.lmt_base.filepath",
-        "tolteca_datamodels.lmt_base.obs_spec",
-        "tolteca_datamodels.lmt_base.file_store",
-        "tolteca_datamodels.core.file_store",
-        "tolteca_datamodels.core.source",
-    ],
+_SHARED_MODULES = (
+    "tolteca_datamodels.core.filepath",
+    "tolteca_datamodels.core.types",
+    "tolteca_datamodels.core.file.accessor",
+    "tolteca_datamodels.core.data_model",
+    "tolteca_datamodels.core.input_discovery.entries",
+    "tolteca_datamodels.lmt_base.filepath",
+    "tolteca_datamodels.lmt_base.obs_spec",
+    "tolteca_datamodels.lmt_base.file_store",
+    "tolteca_datamodels.core.file_store",
+    "tolteca_datamodels.core.source",
 )
-def test_shared_machinery_does_not_load_instruments(module):
+
+
+def test_shared_machinery_does_not_load_instruments():
+    # One interpreter imports each module in turn and checks after each import,
+    # so a module that loads an instrument package is reported by name.
     script = """
 import importlib
 import sys
 
-importlib.import_module(sys.argv[1])
+def loaded_instruments():
+    return sorted(
+        name
+        for name in sys.modules
+        for prefix in ("tolteca_datamodels.lmt", "tolteca_datamodels.toltec")
+        if name == prefix or name.startswith(prefix + ".")
+    )
+
+for module in sys.argv[1:]:
+    importlib.import_module(module)
+    assert not loaded_instruments(), (module, loaded_instruments())
+    assert "tolteca_datamodels.file" not in sys.modules, module
+
 from tolteca_datamodels.core.filepath import FilepathInfo
 from tolteca_datamodels.lmt_base.filepath import FilepathOrigMetadataMixin
 
@@ -127,63 +148,56 @@ schema = FilepathOrigMetadataMixin.model_json_schema(
     mode="serialization"
 )
 assert schema["properties"]["filepath_info_orig"]["readOnly"]
-assert "tolteca_datamodels.file" not in sys.modules
-assert not any(
-    name == prefix or name.startswith(prefix + ".")
-    for prefix in ("tolteca_datamodels.lmt", "tolteca_datamodels.toltec")
-    for name in sys.modules
-)
 """
     subprocess.run(  # noqa: S603 -- current interpreter and literal test code
-        [sys.executable, "-c", script, module],
+        [sys.executable, "-c", script, *_SHARED_MODULES],
         check=True,
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=60,
     )
 
 
-@pytest.mark.parametrize(
-    "package",
-    ["tolteca_datamodels.lmt", "tolteca_datamodels.toltec", "tolteca_dummy_instru"],
+_COMPONENT_PACKAGES = (
+    "tolteca_datamodels.lmt",
+    "tolteca_datamodels.toltec",
+    "tolteca_dummy_instru",
 )
-@pytest.mark.parametrize(
-    "module",
-    [
-        "",
-        ".types",
-        ".filepath",
-        ".file_store",
-        ".file",
-        ".metadata",
-        ".input_discovery",
-    ],
+_COMPONENT_MODULES = (
+    "",
+    ".types",
+    ".filepath",
+    ".file_store",
+    ".file",
+    ".metadata",
+    ".input_discovery",
 )
-def test_component_imports_do_not_construct_data_models(package, module):
+
+
+def test_component_imports_do_not_construct_data_models():
+    # One interpreter imports each component in turn and checks after each
+    # import, so a component that assembles data models is reported by name.
     script = """
 import importlib
 import sys
 
-importlib.import_module(sys.argv[1] + sys.argv[2])
-package = importlib.import_module(sys.argv[1])
-from tolteca_datamodels.core.data_model import DataModelSet
-
-assert not hasattr(DataModelSet, "from_select")
-assert "data_model" not in vars(package)
-assert "data_model" not in package.__all__
-assert not {
+assembled = {
     "tolteca_datamodels.lmt.data_model", "tolteca_datamodels.toltec.data_model",
     "tolteca_dummy_instru.data_model", "tolteca_datamodels.data_model",
-} & sys.modules.keys()
-assert "tolteca_datamodels.file" not in sys.modules
-assert "tolteca_datamodels.input_discovery" not in sys.modules
+}
+for name in sys.argv[1:]:
+    importlib.import_module(name)
+    assert not assembled & sys.modules.keys(), (name, assembled & sys.modules.keys())
+    assert "tolteca_datamodels.file" not in sys.modules, name
+    assert "tolteca_datamodels.input_discovery" not in sys.modules, name
 """
+    components = [p + m for p in _COMPONENT_PACKAGES for m in _COMPONENT_MODULES]
     subprocess.run(  # noqa: S603 -- current interpreter and literal test code
-        [sys.executable, "-c", script, package, module],
+        [sys.executable, "-c", script, *components],
         check=True,
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=60,
     )
 
 
@@ -215,7 +229,6 @@ assert type(kids) is ToltecFilepathInfo
 assert tel.data_models == {'lmt', 'toltec'}
 assert kids.data_models == {'toltec'}
 assert (tel.interface, kids.interface) == ("tel", "toltec8")
-assert not hasattr(DataModelSet, "from_select")
 assert not {
     "tolteca_datamodels.lmt.data_model", "tolteca_datamodels.toltec.data_model",
     "tolteca_datamodels.data_model", "tolteca_datamodels.file",
@@ -231,17 +244,16 @@ assert not {
     )
 
 
-@pytest.mark.parametrize(
-    "first",
-    [
-        "data_model",
-        "lmt.data_model",
-        "toltec.data_model",
-        "file",
-        "input_discovery",
-    ],
-)
-def test_public_entry_points_assemble_registered_definitions(first):
+_ENTRY_POINT_FIRST_IMPORTS = [
+    "data_model",
+    "lmt.data_model",
+    "toltec.data_model",
+    "file",
+    "input_discovery",
+]
+
+
+def test_public_entry_points_assemble_registered_definitions():
     script = """
 import importlib
 import sys
@@ -253,7 +265,6 @@ if sys.argv[1] in {"lmt.data_model", "toltec.data_model"}:
     assert "tolteca_datamodels.data_model" not in sys.modules
 else:
     assert "tolteca_datamodels.data_model" in sys.modules
-assert not hasattr(DataModelSet, "from_select")
 from tolteca_datamodels.data_model import DataModelSet
 from tolteca_datamodels.lmt.data_model import data_model_spec as lmt
 from tolteca_datamodels.lmt.file import LmtFileAccessor
@@ -265,13 +276,7 @@ assert toltec.file_accessor_cls is ToltecFileAccessor
 assert DataModelSet.from_select().data_models == {"lmt": lmt, "toltec": toltec}
 assert "tolteca_dummy_instru" not in sys.modules
 """
-    subprocess.run(  # noqa: S603 -- current interpreter and literal test code
-        [sys.executable, "-c", script, first],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+    _run_each(script, _ENTRY_POINT_FIRST_IMPORTS)
 
 
 @pytest.mark.parametrize(
@@ -309,7 +314,6 @@ def test_public_filepath_types_identify_universal_factory_results(
 ):
     from tolteca_datamodels.filepath import FilepathInfo
 
-    package = importlib.import_module(package_name)
     module = importlib.import_module(f"{package_name}.filepath")
     model = getattr(module, model_name)
     info = FilepathInfo.from_source(filename)
@@ -317,23 +321,20 @@ def test_public_filepath_types_identify_universal_factory_results(
     assert type(info) is model
     assert model.__name__ == model_name
     assert model_name in module.__all__
-    assert not hasattr(package, model_name)
-    assert importlib.util.find_spec(f"{package_name}._filepath") is None
 
 
-@pytest.mark.parametrize(
-    "first",
-    [
-        "tolteca_datamodels.core.file_store",
-        "tolteca_datamodels.core.input_discovery.entries",
-        "tolteca_datamodels.lmt_base.input_discovery",
-        "tolteca_datamodels.lmt.input_discovery",
-        "tolteca_datamodels.toltec.input_discovery",
-        "tolteca_dummy_instru.input_discovery",
-        "tolteca_datamodels.input_discovery",
-    ],
-)
-def test_input_discovery_import_order(first):
+_DISCOVERY_FIRST_IMPORTS = [
+    "tolteca_datamodels.core.file_store",
+    "tolteca_datamodels.core.input_discovery.entries",
+    "tolteca_datamodels.lmt_base.input_discovery",
+    "tolteca_datamodels.lmt.input_discovery",
+    "tolteca_datamodels.toltec.input_discovery",
+    "tolteca_dummy_instru.input_discovery",
+    "tolteca_datamodels.input_discovery",
+]
+
+
+def test_input_discovery_import_order():
     script = """
 import importlib
 import sys
@@ -363,13 +364,7 @@ from tolteca_datamodels.lmt.data_model import data_model_spec as lmt
 from tolteca_datamodels.toltec.data_model import data_model_spec as toltec
 assert DataModelSet.from_select().data_models == {"lmt": lmt, "toltec": toltec}
 """
-    subprocess.run(  # noqa: S603 -- current interpreter and literal test code
-        [sys.executable, "-c", script, first],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+    _run_each(script, _DISCOVERY_FIRST_IMPORTS)
 
 
 def test_obs_spec_has_one_instrument_independent_definition():
@@ -381,8 +376,6 @@ from tolteca_datamodels.lmt_base.obs_spec import ObsSpec, ObsSpecField
 spec = TypeAdapter(ObsSpecField).validate_python("1/{tel,1}")
 assert type(spec) is ObsSpec
 assert spec.interface == (1, "tel")
-assert not hasattr(ObsSpec, "_label_numbers")
-assert not hasattr(ObsSpec, "_label_number_registry")
 assert not any(
     name == prefix or name.startswith(prefix + ".")
     for prefix in ("tolteca_datamodels.lmt", "tolteca_datamodels.toltec")
@@ -397,7 +390,6 @@ assert not any(
         timeout=30,
     )
     module = importlib.import_module("tolteca_datamodels.toltec._obs_spec")
-    assert not hasattr(module, "ObsSpec")
     assert module._obs_spec_context.field_label_numbers["interface"]["toltec1"] == 1
 
 

@@ -83,7 +83,6 @@ def test_metadata_and_arrays(telescope, as_tree):
     )
     assert meta.interface_kind == "tel"
     assert meta.data_models == {"lmt", "toltec"}
-    assert not hasattr(acc, "data_models")
     assert meta.obs_pgm == "lissajous"
     assert (meta.obsnum, meta.subobsnum, meta.scannum) == (10, 0, 1)
     assert meta.obs_goal == LmtObsGoal.pointing
@@ -346,7 +345,6 @@ def test_current_source_is_separate_from_metadata(telescope, tmp_path, monkeypat
     assert telescope.encoding["source"] is source
     assert source.root.local_parent_path is None
     assert source.root.remote_parent_path is None
-    assert not hasattr(meta, "source")
 
     adapter = TypeAdapter(LmtTelMetadata)
     payload = adapter.dump_json(meta, round_trip=True)

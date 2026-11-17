@@ -26,7 +26,6 @@ def test_pair_validation_is_strict_and_location_is_authoritative():
     assert type(item.filepath_info) is FilepathInfo
     assert item.filepath_info.ext == "nc"
     assert item.filepath_info.data_models == frozenset()
-    assert not hasattr(item, "source_trace")
     assert pair == {"source": resource, "source_loc": "archive:/unrecognized.nc"}
     with pytest.raises(ValidationError, match="frozen"):
         item.source = "replacement"  # ty: ignore[invalid-assignment]

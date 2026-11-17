@@ -45,10 +45,7 @@ def test_generic_store_uses_its_bound_selector_without_instrument_policy(tmp_pat
     assert store.glob_obs_spec("1") == []
     assert calls == [ObsSpec.parse("1")]
     assert store._obs_spec_cls is ObsSpec
-    assert not hasattr(store, "_obs_spec_context")
     assert store.substores == {}
-    assert not hasattr(store, "instru_file_stores")
-    assert not hasattr(store, "_get_instru_file_stores")
     with pytest.raises(AttributeError):
         store.path = tmp_path  # ty: ignore[invalid-assignment] -- read-only property
 

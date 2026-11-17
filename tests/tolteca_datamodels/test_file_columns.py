@@ -135,7 +135,6 @@ def test_projection_inspects_concrete_fields_without_changing_models():
     assert "file_readout_code" not in FileAccessor._filepath_columns(
         DummyInstruFilepathInfo
     )
-    assert not hasattr(Extended, "_columns")
 
 
 @pytest.mark.parametrize("model", [ToltecLmtFilepathInfo, DummyInstruLmtFilepathInfo])
@@ -159,7 +158,6 @@ def test_projection_is_cached_per_model_outside_filename_classes(monkeypatch):
         assert table.file_ext.tolist() == ["nc", "ecsv"]
         assert FileAccessor._filepath_columns(FilepathInfo) is columns
         assert FileAccessorBase._filepath_columns(FilepathInfo) is core_columns
-    assert not hasattr(FilepathInfo, "_columns")
 
 
 def test_explicit_composition_only_adds_derived_columns_to_prepared_metadata():

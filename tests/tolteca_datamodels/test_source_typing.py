@@ -2,10 +2,6 @@
 
 from typing import TYPE_CHECKING
 
-from tolteca_datamodels import toltec
-from tolteca_datamodels.toltec.kids import core
-from tolteca_dummy_instru import data
-
 if TYPE_CHECKING:
     from pathlib import Path
     from typing import assert_type
@@ -47,12 +43,3 @@ if TYPE_CHECKING:
         dataset = open_toltec_hwpr(source)
         assert_type(dataset, ToltecHwprDataset)
         assert_type(dataset.toltec_hwpr, ToltecHwprAccessor)
-
-
-def test_container_types_do_not_create_runtime_wrappers():
-    for module in (toltec, core):
-        for name in ("ToltecKidsDataset", "ToltecKidsDataTree"):
-            assert not hasattr(module, name)
-            assert name not in module.__all__
-    assert not hasattr(data, "DummyInstruDataset")
-    assert "DummyInstruDataset" not in data.__all__

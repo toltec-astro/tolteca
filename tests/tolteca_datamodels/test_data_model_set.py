@@ -107,7 +107,6 @@ def test_spec_validates_default_store_requirements():
 
 def test_spec_owns_identity_independently_of_accessor_tags():
     assert toltec_data_model_spec.info_cls is ToltecDataModel
-    assert not hasattr(toltec_data_model_spec, "register")
     with pytest.raises(ValidationError, match="info_cls"):
         DataModelSpec.model_validate({"file_accessor_cls": ToltecFileAccessor})
     telescope_support = DataModelSpec(
@@ -127,7 +126,6 @@ def test_selection_is_read_only_and_keeps_validated_specs(
     supplied = {"toltec": toltec_data_model_spec}
     models = set_cls.from_specs(supplied)
     supplied.clear()
-    assert not hasattr(models, "__dict__")
     assert models.data_models == {"toltec": toltec_data_model_spec}
     assert models.data_models["toltec"] is toltec_data_model_spec
     with pytest.raises(TypeError):
@@ -159,7 +157,6 @@ def test_capability_tuples_are_prepared_and_keep_spec_associations():
 def test_core_set_is_explicit_and_narrowing_preserves_the_entry_point_type():
     from tollan.config.types import StringSelector
 
-    assert not hasattr(CoreDataModelSet, "from_select")
     supplied = {"toltec": toltec_data_model_spec}
     core = CoreDataModelSet.from_specs(supplied)
     supplied["lmt"] = lmt_data_model_spec

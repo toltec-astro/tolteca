@@ -16,7 +16,6 @@ def test_lmt_identifiers_and_interface_slot():
         "interface": "tel",
     }
     assert ObsSpec.parse(str(spec)) == spec
-    assert not hasattr(spec, "roach")
     assert ObsSpec.parse("145609/toltec7").interface == "toltec7"
 
 

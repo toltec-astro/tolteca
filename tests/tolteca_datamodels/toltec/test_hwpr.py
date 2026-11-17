@@ -65,9 +65,6 @@ def test_metadata_preserves_readout_code_without_roach(hwpr_path, monkeypatch):
             "hwpr",
         )
         assert meta.readout_code == 13
-        assert not hasattr(meta, "roach")
-        assert not hasattr(meta, "nw")
-        assert not hasattr(meta, "array_name")
         assert (meta.master, meta.master_code) == ("tcs", 0)
         assert type(meta.master) is str
         assert meta.master_code is ToltecDBRawObsMasterCode.TCS

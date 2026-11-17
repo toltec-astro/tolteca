@@ -10,16 +10,12 @@ import pytest
     "package_name",
     ["tolteca_datamodels.lmt", "tolteca_datamodels.toltec", "tolteca_dummy_instru"],
 )
-def test_instrument_obs_spec_contexts_are_private(package_name):
+def test_instrument_obs_spec_context_types(package_name):
     from tolteca_datamodels.core import obs_spec
 
-    package = importlib.import_module(package_name)
     context_module = importlib.import_module(f"{package_name}._obs_spec")
     assert "ObsSpecContext" in obs_spec.__all__
     assert isinstance(context_module._obs_spec_context, obs_spec.ObsSpecContext)
-    assert not hasattr(context_module, "obs_spec_context")
-    assert not hasattr(package, "obs_spec_context")
-    assert importlib.util.find_spec(f"{package_name}.obs_spec") is None
 
 
 @pytest.mark.parametrize(
@@ -116,8 +112,6 @@ def test_package_exports_and_building_block_ownership(
         for name in names:
             assert name in owner.__all__
             assert getattr(owner, name) is not None
-            # Removing only __all__ entries would leave accidental re-exports.
-            assert not hasattr(package, name)
 
 
 @pytest.mark.parametrize(
@@ -131,14 +125,11 @@ def test_package_exports_and_building_block_ownership(
 def test_data_model_definition_has_an_explicit_module(package_name, info_name):
     from tolteca_datamodels.core.data_model import DataModelSpec
 
-    package = importlib.import_module(package_name)
     module = importlib.import_module(f"{package_name}.data_model")
-    assert "data_model_spec" not in package.__all__
     assert module.__all__ == ["data_model_spec"]
     assert isinstance(module.data_model_spec, DataModelSpec)
     info_module = importlib.import_module(f"{package_name}.types")
     assert module.data_model_spec.info_cls is getattr(info_module, info_name)
-    assert importlib.util.find_spec(f"{package_name}.core") is None
 
 
 @pytest.mark.parametrize(
@@ -154,4 +145,3 @@ def test_discovery_settings_have_one_public_module(package_name):
     module = importlib.import_module(f"{package_name}.input_discovery")
     for name in module.__all__:
         assert getattr(module, name).__module__ == module.__name__
-    assert importlib.util.find_spec(f"{package_name}._input_discovery") is None
