@@ -16,7 +16,9 @@ software objects together with their inputs, outputs and examples.
 | Input discovery | [Discover inputs](input-discovery.md) |
 | Data-model membership, specification and capability selection | [Choose registered or explicit capabilities](file-tables.md#choose-registered-or-explicit-capabilities) |
 | Blocks, probe axes and processing steps | [KIDs reduction](kids-reduction.md) |
-| Product, artifact, item, index, reference and publication | [Data products](data-products-api.rst) |
+| Product, artifact, item, index, reference and publication | [Data products](data-products.rst) |
+| Named collection, version group, realization, tag and exact contributors | [Collections and results](named-group-products.rst) |
+| Namespace, store and workflow run | [Product stores and runs](data-product-runs.rst) |
 | Inventory, product associations and database registration | [DPDB product indexes][dpdb-guide] |
 | Job and execution backend | [Execution guide][execution-guide] |
 | Deployment location and service profile | [Deployment configuration][deployment-guide] |

@@ -54,6 +54,12 @@ Choose a domain
 
 .. toctree::
    :maxdepth: 1
+   :caption: Data products
+
+   data-products
+
+.. toctree::
+   :maxdepth: 1
    :caption: Detector processing
 
    kids-inputs
@@ -73,7 +79,6 @@ Choose a domain
    :caption: Shared reference
 
    terminology
-   data-products-api
 
 Indices and tables
 ==================

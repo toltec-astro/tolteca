@@ -22,6 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
 ]
 dependencies = [
+    "adaptix>=3.0.0b11",
   "typer",
   "pydantic>=2.0",
   "pyyaml>=6",
@@ -227,6 +228,7 @@ runtime-evaluated-base-classes = [
   "sqlalchemy.orm.DeclarativeBase",
   "tollan.config.FrozenBaseModel",
   "tolteca_datamodels.core.types.FrozenDataModel",
+  "tolteca_datamodels.core.data_prod.DataProdIndexBase",
   "tolteca_datamodels.types.FrozenDataModel",
   "tolteca_datamodels.core.filepath.FilepathInfo",
   "tolteca_datamodels.core.input_discovery.entries.InputDiscoveryEntry",

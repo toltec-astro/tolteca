@@ -184,6 +184,9 @@ _LOCAL_REFERENCE_ALIASES = {
     for name in names
 } | {
     # autodoc-pydantic's model-validator label refers to its owning model.
+    "tolteca_datamodels.data_prod.review.DataProdReview.all fields": (
+        "tolteca_datamodels.data_prod.DataProdReview"
+    ),
     "tolteca_quicklook.config.QuicklookConfig.all fields": (
         "tolteca_quicklook.config.QuicklookConfig"
     ),
@@ -201,11 +204,11 @@ _LOCAL_REFERENCE_ALIASES = {
     # their method annotations unqualified.
     "SweepCheckView": "tolteca_kids.sweep_check_view.SweepCheckView",
     # autodoc-pydantic links its synthetic all-fields validator label.
-    "tolteca_datamodels.core.data_prod.namespace.DataProdNamespaceIndex.all fields": (
-        "tolteca_datamodels.core.data_prod.DataProdNamespaceIndex"
-    ),
     "tolteca_datamodels.core.data_prod.index.DataProdIndexBase.all fields": (
         "tolteca_datamodels.core.data_prod.DataProdIndexBase"
+    ),
+    "tolteca_datamodels.core.data_prod.namespace.DataProdNamespaceIndex.all fields": (
+        "tolteca_datamodels.data_prod.DataProdNamespaceIndex"
     ),
     "tolteca_datamodels.data_prod.index.DataProd.all fields": (
         "tolteca_datamodels.data_prod.DataProd"
@@ -219,6 +222,13 @@ _LOCAL_REFERENCE_ALIASES = {
     "tolteca_datamodels.core.file.source.SourceSourceLoc.all fields": (
         "tolteca_datamodels.core.file.SourceSourceLoc"
     ),
+    # Pydantic reports the defining module for re-exported PEP 695 aliases.
+    **{
+        f"tolteca_datamodels.core.data_prod.run.{name}": (
+            f"tolteca_datamodels.data_prod.{name}"
+        )
+        for name in ("CounterRunNameFormat", "RunName", "RunUid")
+    },
     "tolteca_kids.config.KidsConfig.all fields": "tolteca_kids.config.KidsConfig",
     "FileTableModeT": "tolteca_datamodels.core.file.workflow.FileTableModeT",
     "SourceErrorPolicyT": "tolteca_datamodels.core.file.trace.SourceErrorPolicyT",

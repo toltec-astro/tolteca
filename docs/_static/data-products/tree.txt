@@ -1,0 +1,29 @@
+example/
+└── dataprod_toltec/
+    └── scratch/
+        ├── .runs/
+        │   └── by_uid/
+        │       ├── <first_run_uid>/
+        │       │   ├── run.yaml
+        │       │   └── store_run.yaml
+        │       └── <second_run_uid>/
+        │           ├── run.yaml
+        │           └── store_run.yaml
+        ├── 145609-0-1/
+        │   ├── dp_raw_obs.yaml
+        │   └── dp_raw_obs_proc/
+        │       ├── 0000-example/
+        │       │   ├── index.yaml
+        │       │   └── summary.txt
+        │       ├── 0001-recheck/
+        │       │   ├── index.yaml
+        │       │   └── summary.txt
+        │       └── index.yaml
+        ├── 145609-0-2/
+        │   ├── dp_raw_obs.yaml
+        │   └── dp_raw_obs_proc/
+        │       ├── 0000-example/
+        │       │   ├── index.yaml
+        │       │   └── summary.txt
+        │       └── index.yaml
+        └── namespace.yaml

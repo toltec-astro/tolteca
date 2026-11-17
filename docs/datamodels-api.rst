@@ -315,4 +315,4 @@ Native KIDs files
 
    datamodels-types
 
-See :doc:`data-products-api` for portable product indexes and publication.
+See :doc:`data-products` for portable product indexes and publication.

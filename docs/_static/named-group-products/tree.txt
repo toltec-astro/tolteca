@@ -1,0 +1,32 @@
+dataprod_toltec/
+└── commissioning/
+    ├── .runs/
+    │   └── by_uid/
+    │       ├── 0b4dce32-d620-472b-a29e-bee5db389d1c/
+    │       │   ├── run.yaml
+    │       │   └── store_run.yaml
+    │       └── 260c8391-3484-40a7-817b-e49036094bd6/
+    │           ├── run.yaml
+    │           └── store_run.yaml
+    ├── 149101/
+    │   └── dp_obs.yaml
+    ├── 149102/
+    │   └── dp_obs.yaml
+    ├── 149103/
+    │   └── dp_obs.yaml
+    ├── namespace.yaml
+    └── orion/
+        ├── dp_named_group.yaml
+        ├── science/
+        │   ├── 0000-coadd/
+        │   │   ├── index.yaml
+        │   │   └── selection.json
+        │   ├── 0001-coadd/
+        │   │   ├── index.yaml
+        │   │   └── selection.json
+        │   └── index.yaml
+        └── subset/
+            ├── 0000-coadd/
+            │   ├── index.yaml
+            │   └── selection.json
+            └── index.yaml
