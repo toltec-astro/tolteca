@@ -88,7 +88,12 @@ def test_mixed_fanout_and_cross_acquisition_final_active_sweep():
             RawObsDataItem(interface="toltec0", block=b) for b in (1, 3, 4)
         ),
     )
-    assert [i.cal_items[0].data_items[0].block for i in ctx.data_items] == [0, 2, 2]
+    blocks = []
+    for item in ctx.data_items:
+        sweep = item.cal_items[0]
+        assert isinstance(sweep, SweepCalItem)
+        blocks.append(sweep.data_items[0].block)
+    assert blocks == [0, 2, 2]
     ctx.validate_lineage(mixed)
     assert resolve_block_relation(
         later, "toltec0", 0, products=lookup

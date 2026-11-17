@@ -257,6 +257,8 @@ def test_local_model_choice_preserves_other_common_networks(
     result = context.with_model(fitted, interface="toltec0", block=0)
     assert not result.cal_items
     assert result.data_items[0].cal_items == (fitted,)
-    assert result.data_items[1].cal_items[0].data_items == (cal.data_items[1],)
+    kept = result.data_items[1].cal_items[0]
+    assert isinstance(kept, SweepCalItem)
+    assert kept.data_items == (cal.data_items[1],)
     assert not result.data_items[2].cal_items
     assert context.cal_items == (cal,)

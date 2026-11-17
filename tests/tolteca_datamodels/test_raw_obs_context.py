@@ -134,8 +134,10 @@ def test_common_sweep_and_telescope_round_trip():
         "toltec0",
     )
     assert not restored.data_items[1].cal_items
-    assert restored.cal_items[0].raw_obs.uid == "tcs-145609-0-1"
-    assert restored.cal_items[0].data_items[0].block == 1
+    sweep = restored.cal_items[0]
+    assert isinstance(sweep, SweepCalItem)
+    assert sweep.raw_obs.uid == "tcs-145609-0-1"
+    assert sweep.data_items[0].block == 1
     assert "filepath" not in context.model_dump_json()
 
 
@@ -154,10 +156,14 @@ def test_context_derives_each_networks_parent_from_recorded_lineage():
     )
     restored = RawObsContext.model_validate_json(context.model_dump_json())
     restored.validate_lineage(raw, cal_products=_targets())
-    assert restored.data_items[0].cal_items[0].raw_obs.uid == "tcs-145609-0-1"
+    first = restored.data_items[0].cal_items[0]
+    assert isinstance(first, SweepCalItem)
+    assert first.raw_obs.uid == "tcs-145609-0-1"
     assert not restored.data_items[1].cal_items
-    assert restored.data_items[2].cal_items[0].raw_obs.uid == "ics-145605-0-1"
-    assert restored.data_items[2].cal_items[0].data_items[0].block == 0
+    third = restored.data_items[2].cal_items[0]
+    assert isinstance(third, SweepCalItem)
+    assert third.raw_obs.uid == "ics-145605-0-1"
+    assert third.data_items[0].block == 0
     assert raw.model_dump_json() == before
 
 
@@ -400,9 +406,11 @@ def test_real_raw_and_tune_context_keeps_indexes_and_payloads_separate(data_lmt_
         cal_products={tune.product.uid: tune.product},
     )
     sweep = context.data_items[0].cal_items[0]
+    assert isinstance(sweep, SweepCalItem)
     assert sweep.raw_obs.uid == tune.product.uid
     assert sweep.data_items[0].block == 1
     relation = resolve_block_relation(tune.product, "toltec0", 1)
+    assert relation is not None
     assert relation.kind == "setup_lineage"
     assert (relation.target_uid, relation.target_block) == (tune.product.uid, 0)
     context.validate_lineage(raw.product, cal_products={tune.product.uid: tune.product})
@@ -418,18 +426,24 @@ def test_inspected_history_uses_acquired_prefix_not_tune_capacity(data_lmt_path)
     with open_toltec_kids(path) as data:
         scalar = cal_ref_from_metadata(data.toltec_kids.meta)
         meta = data.toltec_kids.block_index.meta
+    assert scalar is not None
     assert scalar.meta.block_history is None
     assert meta.n_blocks_max == 2
+    block_index = meta.block_index
+    assert block_index is not None
     # An earlier inspection snapshot sees just the first acquired block.
     prefix = meta.model_copy(update={"n_blocks": 1})
-    prefix._block_index = meta.block_index.isel(block=slice(0, 1))
-    history = cal_ref_from_metadata(prefix).meta.block_history
+    prefix._block_index = block_index.isel(block=slice(0, 1))
+    ref = cal_ref_from_metadata(prefix)
+    assert ref is not None
+    history = ref.meta.block_history
+    assert history is not None
     assert len(history.blocks) == 1
     assert history.sweep_before() == 0
     with pytest.raises(ValueError, match="not acquired"):
         history.sweep_before(1)
     # A selection cannot relabel acquisition block 1 as block 0.
     selected = meta.model_copy(update={"n_blocks": 1})
-    selected._block_index = meta.block_index.isel(block=slice(1, 2))
+    selected._block_index = block_index.isel(block=slice(1, 2))
     with pytest.raises(ValueError, match="complete acquired prefix"):
         cal_ref_from_metadata(selected)

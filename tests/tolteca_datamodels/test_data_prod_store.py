@@ -80,15 +80,17 @@ def test_index_publication_keeps_canonical_ids_and_separates_locations(tmp_path,
         identity.update(subobsnum=0, scannum=1)
         primary_uid += "-0-1"
     uid = f"dp_cal_group_{primary_uid}" if kind == "dp_cal_group" else primary_uid
-    index = DataProdIndex(
-        product=DataProd(
-            uid=uid,
-            meta={
-                "name": "observation descriptor",
-                "data_prod_type": kind,
-                **identity,
-            },
-        )
+    index = DataProdIndex.model_validate(
+        {
+            "product": {
+                "uid": uid,
+                "meta": {
+                    "name": "observation descriptor",
+                    "data_prod_type": kind,
+                    **identity,
+                },
+            }
+        }
     )
     store = DataProdStore(tmp_path)
     path = store.write_index(index, primary_uid=primary_uid)
@@ -123,5 +125,5 @@ def test_index_publication_keeps_canonical_ids_and_separates_locations(tmp_path,
         DataProdAssoc(
             uid=index.product.uid,
             data_prod_assoc_type="dpa_raw_obs_proc_raw_obs",
-            index="raw.yaml",
+            index="raw.yaml",  # ty: ignore[unknown-argument]
         )

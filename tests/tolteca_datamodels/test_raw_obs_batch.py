@@ -35,8 +35,9 @@ def files():
 
 def _indexes(batch):
     assert isinstance(batch, DataProdBatch)
-    assert all(isinstance(index, DataProdIndex) for index in batch.items)
-    return {index.product.uid: index for index in batch.items}
+    indexes = [index for index in batch.items if isinstance(index, DataProdIndex)]
+    assert len(indexes) == len(batch.items)
+    return {index.product.uid: index for index in indexes}
 
 
 def _snapshot(batch):
@@ -149,7 +150,11 @@ def test_headers_determine_identity_and_cached_source_keeps_openable_uri(
     )
     renamed = tmp_path / "unfamiliar 50%23#?.nc"
     renamed.symlink_to(original.resolve())
-    sources = [SourceSourceLoc(source=renamed, source_loc="archive:/original.nc")]
+    sources = [
+        SourceSourceLoc.model_validate(
+            {"source": renamed, "source_loc": "archive:/original.nc"}
+        )
+    ]
     batch = build_raw_obs_batch(
         sources, locations={"cache": Location(root=tmp_path.as_uri())}
     )
@@ -171,7 +176,10 @@ def test_canonical_source_under_symlinked_archive(files, tmp_path):
     locations = {"archive": Location(root=alias.as_uri())}
     batch = build_raw_obs_batch([source], locations=locations)
     index = next(
-        i for i in batch.items if i.product.meta.data_prod_type == "dp_raw_obs"
+        i
+        for i in batch.items
+        if isinstance(i, DataProdIndex)
+        and i.product.meta.data_prod_type == "dp_raw_obs"
     )
     ref = index.product.data_items[0].source
     assert ref.location == "archive"
@@ -235,6 +243,7 @@ def test_declared_roots_are_portable_and_invalid_placement_reads_nothing(
 
     batch = build_raw_obs_batch(files, locations=LOCATIONS)
     for index in batch.items:
+        assert isinstance(index, DataProdIndex)
         if index.product.data_items:
             assert set(index.locations) == {"data_lmt"}
         for item in index.product.data_items:
