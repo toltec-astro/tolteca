@@ -101,7 +101,7 @@ Choose the operation
      - ``WorkflowRun.create(context=...)``
      - Run identity, inputs and outcome. A run can produce no products.
    * - Produce a new processing result
-     - ``with store.materialize(index) as output_index:``, then ``write_artifacts(output_index, artifacts)``
+     - ``with store.materialize(index) as output_index:``, then ``write_artifacts(output_index, artifacts, producer=...)``
      - A new immutable realization attributed to that run, with its artifacts and tag selection.
    * - Select a completed result
      - ``store.set_tag(realization, tag="main")``

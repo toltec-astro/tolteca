@@ -56,7 +56,7 @@ from .index import (
 from .inventory import (
     DataProdInventoryIndex,
 )
-from .model_table import artifact_table_from_indexes
+from .model_table import artifact_table_from_indexes, product_table_from_indexes
 from .raw_obs import build_raw_obs_batch, read_raw_obs_index
 from .review import DataProdReview, current_reviews
 from .store import (
@@ -105,6 +105,7 @@ __all__ = [
     "make_obs_product_uid",
     "make_raw_obs_product_uid",
     "normalize_primary_uid",
+    "product_table_from_indexes",
     "read_raw_obs_index",
     "resolve_index",
     "write_artifacts",

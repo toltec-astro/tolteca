@@ -11,6 +11,7 @@ from tolteca_datamodels.data_prod import (
     DataProdTag,
     Location,
     artifact_table_from_indexes,
+    product_table_from_indexes,
 )
 from tolteca_datamodels.raw_obs_context import (
     ArtifactBinding,
@@ -82,6 +83,30 @@ def test_metadata_query_keeps_formats_copies_and_untagged_sources(
         )
         == 6
     )
+
+
+def test_product_rows_include_products_without_artifacts(tmp_path):
+    store = DataProdStore(tmp_path)
+    first = _publish_model(store, "first")
+    second = _publish_model(store, "second")
+    group = DataProdIndex.read(second.base_path.parent)
+    group.product.tags["review"] = DataProdTag(current=second.product.reference)
+    table = product_table_from_indexes([group])
+    by_product = table.groupby("product_uid")["tag"].apply(
+        lambda tags: set(tags.dropna())
+    )
+    assert by_product.to_dict() == {
+        group.product.uid: set(),
+        first.product.uid: set(),
+        second.product.uid: {"main", "review"},
+    }
+    # The version group has no artifacts, yet it remains selectable.
+    assert group.product.uid not in set(
+        artifact_table_from_indexes([group]).product_uid
+    )
+    selected = ModelTableAccessor(table).query("data_prod_type == 'dp_version_group'")
+    assert selected["index"].iloc[0] is group
+    assert "format" not in table.columns
 
 
 def test_conflicting_group_reports_need_inventory_identity(tmp_path):

@@ -129,22 +129,6 @@ def test_tag_selects_a_realization_of_its_own_namespace(tmp_path):
         other.set_tag(realization)
 
 
-def test_tag_selects_a_realization_whose_index_item_has_no_namespace(tmp_path):
-    # The DPDB projection records a realization's own index item without it.
-    store = DataProdStore(tmp_path)
-    first = _publish(store)
-    _publish(store)
-    realization = DataProdIndex.read(first)
-    (item,) = (
-        i
-        for i in realization.product.data_items
-        if i.meta.get("format") == "data_prod_index"
-    )
-    del item.meta["namespace_uid"]
-    assert store.set_tag(realization) == first
-    assert resolve_index(first.parent.parent) == first
-
-
 def test_live_header_requires_its_document_kind(tmp_path):
     store = DataProdStore(tmp_path)
     group = _publish(store).parent.parent / "index.yaml"

@@ -187,7 +187,7 @@ def _absolute_index(index):
     result.product.data_items = [
         item
         for item in result.product.data_items
-        if item.meta.get("format") != "data_prod_index"
+        if item.meta.get("type") != "data_prod_index"
     ]
     used = {i.source.location for i in result.product.data_items}
     result.locations = {k: v for k, v in result.locations.items() if k in used}

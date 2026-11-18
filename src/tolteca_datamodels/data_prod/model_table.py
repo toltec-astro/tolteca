@@ -1,4 +1,4 @@
-"""Metadata-only artifact selection from portable product indexes."""
+"""Metadata-only product and artifact selection from portable product indexes."""
 
 from collections import defaultdict
 from collections.abc import Iterable  # noqa: TC003 -- public signature
@@ -17,16 +17,15 @@ from .identity import normalize_primary_uid
 from .index import DataProdIndex
 from .inventory import DataProdInventoryIndex
 
-__all__ = ["artifact_table_from_indexes"]
+__all__ = ["artifact_table_from_indexes", "product_table_from_indexes"]
 
 
 @dataclass
-class _ArtifactRow:
+class _ProductRow:
     index: DataProdIndex
-    item: DataProdItem
     inventory: DataProdInventory | None
-    group: DataProdRef | None = None
-    tag: str | None = None
+    group: DataProdRef | None
+    tag: str | None
 
     @property
     def observation(self):
@@ -49,7 +48,12 @@ class _ArtifactRow:
         return dict(zip(fields, [parts[0], *(int(v) for v in parts[1:])], strict=False))
 
 
-_columns = {
+@dataclass
+class _ArtifactRow(_ProductRow):
+    item: DataProdItem
+
+
+_product_columns = {
     "product": ModelColumn("index.product.reference", dtype=object),
     "product_uid": ModelColumn("index.product.uid", dtype="string"),
     "namespace_uid": ModelColumn(
@@ -77,6 +81,9 @@ _columns = {
     "master": ModelColumn(
         "observation", dtype="string", converter=lambda value: value.get("master")
     ),
+}
+_columns = {
+    **_product_columns,
     **{
         name: ModelColumn(
             "item.meta", dtype="string", converter=lambda meta, key=name: meta.get(key)
@@ -99,6 +106,10 @@ _columns = {
     "size": ModelColumn("item.source.size", default=None, dtype="Int64"),
     "index": ModelColumn("index", dtype=object),
     "item": ModelColumn("item", dtype=object),
+}
+_product_table_columns = {
+    **_product_columns,
+    "index": ModelColumn("index", dtype=object),
 }
 
 
@@ -148,8 +159,45 @@ def artifact_table_from_indexes(
             ):
                 continue
             for group, tag in tags.get(key, [(None, None)]):
-                rows.append(_ArtifactRow(index, item, inventory, group, tag))
+                row = _ArtifactRow(
+                    index=index, inventory=inventory, group=group, tag=tag, item=item
+                )
+                rows.append(row)
     return _artifact_table(rows)
+
+
+def product_table_from_indexes(
+    indexes: Iterable[DataProdIndex | DataProdInventoryIndex | DataProdNamespaceIndex],
+) -> pd.DataFrame:
+    """Build a queryable product table without opening artifact payloads.
+
+    Parameters
+    ----------
+    indexes : iterable
+        Loaded DataProdIndex, DataProdInventoryIndex or DataProdNamespaceIndex
+        records, as for `artifact_table_from_indexes`. Embedded members are
+        included; include version groups when querying tags.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per product and selecting group/tag, or one row with a null tag
+        when untagged, including products without artifacts. The columns are
+        the product, version, run and observation columns of
+        `artifact_table_from_indexes`, with the same meanings; ``index`` retains
+        the exact record. Use ModelTableAccessor(table).query(...) to select.
+    """
+    records = list(_product_indexes(indexes))
+    tags = _tags(records)
+    rows = [
+        _ProductRow(index=index, inventory=inventory, group=group, tag=tag)
+        for index, inventory in records
+        for group, tag in tags.get(
+            (None if inventory is None else inventory.uid, index.product.reference),
+            [(None, None)],
+        )
+    ]
+    return _product_table(rows)
 
 
 def _artifact_table(rows):
@@ -168,6 +216,14 @@ def _artifact_table(rows):
             "group",
             "tag",
         ]
+    ).reset_index(drop=True)
+
+
+def _product_table(rows):
+    """Project portable or relational product rows with the same column contract."""
+    table = ModelTableAccessor.from_models(rows, columns=_product_table_columns)
+    return table.drop_duplicates(
+        ["inventory_uid", "product", "group", "tag"]
     ).reset_index(drop=True)
 
 

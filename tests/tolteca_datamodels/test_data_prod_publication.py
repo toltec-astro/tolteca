@@ -49,19 +49,17 @@ def _index(run=None):
                     {
                         "meta": {
                             "type": "artifact",
-                            "format": fmt,
+                            "format": "text",
+                            "name": "payload",
+                            "producer": "tests:Writer",
                             "run_uid": str(run.uid),
                         },
                         "source": {
-                            "path": name,
+                            "path": "payload.txt",
                             "location": "self",
                             "availability_state": "available",
                         },
                     }
-                    for name, fmt in (
-                        ("payload.txt", "text"),
-                        ("index.yaml", "data_prod_index"),
-                    )
                 ],
             },
         }
@@ -139,7 +137,7 @@ def test_counter_allocations_tags_and_portable_run(tmp_path):
     descriptor = next(
         item
         for item in index.product.data_items
-        if item.meta["format"] == "data_prod_index"
+        if item.meta["type"] == "data_prod_index"
     )
     assert descriptor.meta["run_uid"] == str(index.run.uid)
     assert index.store_run.generator.value == 0
@@ -604,7 +602,10 @@ def test_written_artifacts_become_items_of_the_realization(tmp_path):
         store.materialize(_index().model_copy(update={"run": run})) as index,
     ):
         (item,) = write_artifacts(
-            index, [Artifact(data="ok", spec=_Text())], meta={"producer": "test"}
+            index,
+            [Artifact(data="ok", spec=_Text())],
+            producer="tests:Writer",
+            meta={"context": {"note": "kept"}},
         )
     saved = DataProdIndex.read(index.base_path)
     (item,) = (i for i in saved.product.data_items if i.source == item.source)
@@ -612,8 +613,9 @@ def test_written_artifacts_become_items_of_the_realization(tmp_path):
         "type": "artifact",
         "format": "text",
         "name": "notes/report.txt",
+        "producer": "tests:Writer",
         "run_uid": str(run.uid),
-        "producer": "test",
+        "context": {"note": "kept"},
     }
     path = saved.resolve_location(item.source.location).joinpath(item.source.path)
     assert path.path.read_text() == "ok"
@@ -629,6 +631,6 @@ def test_failed_artifact_writer_installs_nothing(tmp_path):
         ExecutionRun.create() as run,
         store.materialize(_index().model_copy(update={"run": run})) as index,
     ):
-        write_artifacts(index, [Artifact(data="fail", spec=_Text())])
+        write_artifacts(index, [Artifact(data="fail", spec=_Text())], producer="t:W")
     assert resolve_index(first.parent) == first / "index.yaml"
     assert len(DataProdIndex.read(first.parent).products) == 1

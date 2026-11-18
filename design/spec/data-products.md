@@ -39,6 +39,13 @@
   product name; names need not be unique. Item metadata describes the constituent;
   storage facts belong to the item's source. Relationship facts belong to the
   association.
+- A TolTEC item is one of three kinds: an acquisition file, described by its
+  header metadata or by an imported acquisition record; an artifact written by a
+  producing run; or the product's own index file in a namespace. An artifact
+  records its format, its name within the product, its producer (the qualified
+  name of the writing step or specification, or an external program's name) and
+  its run; producer-specific values stay in a separate context mapping. Writers
+  and database registration validate item metadata with these contracts.
 - An index is internally consistent: each item declares its source location, a
   location/path pair occurs once per product, an included namespace matches the
   product's namespace, and actor, execution and store-run records agree with their

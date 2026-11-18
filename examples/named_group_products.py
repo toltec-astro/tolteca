@@ -84,7 +84,13 @@ def publish(store, group, run, numbers, *, uid=None):
         index.locations["self"] = Location(root=".", location_type="local")
         index.product.data_items.append(
             DataProdItem(
-                meta={"type": "artifact", "name": "selection", "format": "json"},
+                meta={
+                    "type": "artifact",
+                    "format": "json",
+                    "name": "selection",
+                    "producer": "named_group_products:publish",
+                    "run_uid": str(run.uid),
+                },
                 source=DataProdSource.model_validate(
                     {"location": "self", "path": payload.name}
                 ),

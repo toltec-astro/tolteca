@@ -7,8 +7,11 @@ from pydantic import ValidationError
 
 from tolteca_datamodels.data_prod import DataProd, DataProdIndex
 from tolteca_datamodels.data_prod.metadata import (
+    AnyDataProdItemMeta,
     AnyDataProdMeta,
     AnyInterfaceMeta,
+    ArtifactMeta,
+    IndexItemMeta,
     RawObsMeta,
     RoachInterfaceMeta,
     ScienceMeta,
@@ -96,3 +99,51 @@ def test_partial_interface_evidence_does_not_require_product_identity():
     assert roach.cal_subobsnum is None
     assert roach.cal_scannum is None
     assert telescope.obs_goal is None
+
+
+_ARTIFACT = {
+    "type": "artifact",
+    "format": "ecsv",
+    "name": "tones",
+    "producer": "tolteca_kids.tone_prep:TonePrep",
+    "run_uid": "4b2d6e1a-6f0c-4a52-9f5e-0d6c5b7c1e2a",
+    "interface": "toltec0",
+    "scope": "blocks/0",
+    "context": {"grouping": "pairs"},
+}
+_NAMESPACE_UID = "9a3f1c52-2b7d-4e8a-a0c4-61d2f5e8b730"
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        _ARTIFACT,
+        {"type": "data_prod_index", "namespace_uid": _NAMESPACE_UID},
+        {
+            "type": "data_prod_index",
+            "namespace_uid": _NAMESPACE_UID,
+            "run_uid": _ARTIFACT["run_uid"],
+        },
+    ],
+)
+def test_item_metadata_keeps_its_written_shape_through_adaptix(values):
+    meta = _retort.load(values, AnyDataProdItemMeta)
+    assert isinstance(meta, ArtifactMeta | IndexItemMeta)
+    assert _retort.dump(meta, AnyDataProdItemMeta) == values
+
+
+@pytest.mark.parametrize(
+    ("change", "error_type"),
+    [
+        ({"name": None}, "missing"),
+        ({"producer": None}, "missing"),
+        ({"run_uid": None}, "missing"),
+        ({"grouping": "pairs"}, "extra_forbidden"),
+    ],
+)
+def test_artifact_metadata_requires_selection_keys(change, error_type):
+    values = {k: v for k, v in {**_ARTIFACT, **change}.items() if v is not None}
+    with pytest.raises(ValidationError) as exc:
+        _retort.load(values, AnyDataProdItemMeta)
+    [error] = exc.value.errors()
+    assert error["type"] == error_type

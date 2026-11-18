@@ -5,7 +5,7 @@ Write artifacts within a destination-bound index::
     with WorkflowRun.create() as run:
         index = make_index(run=run)
         with store.materialize(index) as output_index:
-            write_artifacts(output_index, artifacts)
+            write_artifacts(output_index, artifacts, producer="pkg.mod:Step")
         path = output_index.base_path
     store.write_run(run)
 
@@ -54,7 +54,12 @@ from ._version_publication import _append_version_member, _compact_version_group
 from ._versions import GroupHeader, parse_index_document
 from .identity import _normalize_entity_uid, normalize_primary_uid
 from .index import DataProd, DataProdIndex
-from .metadata import VersionedProductMeta, VersionGroupMeta
+from .metadata import (
+    ArtifactMeta,
+    IndexItemMeta,
+    VersionedProductMeta,
+    VersionGroupMeta,
+)
 from .types import (
     ASSOC_TARGET_TYPES,
     LOGICAL_PRODUCT_TYPES,
@@ -611,6 +616,7 @@ def write_artifacts(
     index: DataProdIndex,
     artifacts: Iterable[Artifact],
     *,
+    producer: str,
     meta: dict | None = None,
 ) -> list[DataProdItem]:
     """Write artifacts beneath a destination-bound index and record them as items.
@@ -623,46 +629,56 @@ def write_artifacts(
     artifacts : iterable of tollan.pipeline.Artifact
         Retained objects with the specifications that write them. Each
         specification writes beneath ``base_path`` and returns its files.
+    producer : str
+        Writer recorded on every item; see `ArtifactMeta`.
     meta : dict or None, optional
-        Item metadata added to every written file, such as ``producer``.
+        Other `ArtifactMeta` fields added to every item, such as ``interface``,
+        ``scope`` or ``context``.
 
     Returns
     -------
     list of DataProdItem
         Items appended to ``index.product.data_items``, one per written file,
-        in the index's own directory location ``self``.
+        in the index's own directory location ``self``. A file the specification
+        does not name is named by its path relative to ``base_path``.
 
     Raises
     ------
     ValueError
-        The index is not bound to an output directory, or a specification wrote
-        outside it.
+        The index has no output directory or producing run, or a specification
+        wrote outside the output directory.
+    pydantic.ValidationError
+        ``meta`` sets a field that `ArtifactMeta` does not declare, or an invalid
+        value.
 
     Examples
     --------
     Inside a materialization scope::
 
         with store.materialize(draft) as index:
-            write_artifacts(index, artifacts, meta={"producer": "kids"})
+            write_artifacts(index, artifacts, producer="pkg.mod:Step")
     """
     base = index.base_path
-    if base is None:
-        msg = "write_artifacts requires an index bound to its output directory"
+    if base is None or index.run is None:
+        msg = "write_artifacts requires an index yielded by materialize"
         raise ValueError(msg)
     _own_location(index)
-    common = {} if index.run is None else {"run_uid": str(index.run.uid)}
     items = []
     for artifact in artifacts:
         for file in artifact.spec.write(artifact.data, path=base):
             path = Path(file.path).relative_to(base).as_posix()
-            item = DataProdItem(
-                meta={
+            item_meta = ArtifactMeta.model_validate(
+                {
                     "type": "artifact",
                     "format": file.format,
                     "name": path if file.name is None else file.name,
-                    **common,
+                    "producer": producer,
+                    "run_uid": index.run.uid,
                     **(meta or {}),
-                },
+                }
+            )
+            item = DataProdItem(
+                meta=item_meta.model_dump(mode="json"),
                 source=DataProdSource.model_validate(
                     {
                         "location": "self",
@@ -689,7 +705,7 @@ def _own_location(index):
 def _own_index_path(index):
     """Locate a realization's index file from the index item it records."""
     for item in index.product.data_items:
-        if item.meta.get("format") == "data_prod_index":
+        if item.meta.get("type") == "data_prod_index":
             return Path(fileloc(index.get_source_uri(item.source)).path)
     msg = "The index does not record its own location"
     raise ValueError(msg)
@@ -768,11 +784,9 @@ def _version_group(index, primary_uid, primary_type, descriptor, actor):
             ],
             data_items=[
                 DataProdItem(
-                    meta={
-                        "type": "artifact",
-                        "format": "data_prod_index",
-                        "namespace_uid": str(descriptor.namespace.uid),
-                    },
+                    meta=IndexItemMeta(
+                        type="data_prod_index", namespace_uid=descriptor.namespace.uid
+                    ).model_dump(mode="json"),
                     audit=_audit(actor),
                     source=DataProdSource.model_validate(
                         {
@@ -960,7 +974,7 @@ def _descriptor_item(index, destination, namespace_path, namespace_uid):
     removed = set()
     has_self = False
     for item in index.product.data_items:
-        if item.meta.get("format") == "data_prod_index" and item.meta.get(
+        if item.meta.get("type") == "data_prod_index" and item.meta.get(
             "namespace_uid"
         ) == str(namespace_uid):
             removed.add(item.source.location)
@@ -972,11 +986,9 @@ def _descriptor_item(index, destination, namespace_path, namespace_uid):
     if not has_self:
         retained.append(
             DataProdItem(
-                meta={
-                    "type": "artifact",
-                    "format": "data_prod_index",
-                    "namespace_uid": str(namespace_uid),
-                },
+                meta=IndexItemMeta(
+                    type="data_prod_index", namespace_uid=namespace_uid
+                ).model_dump(mode="json"),
                 source=DataProdSource.model_validate(
                     {
                         "path": filename,
@@ -997,16 +1009,15 @@ def _include_index_item(index, filename, namespace_uid):
     index.product.data_items = [
         item
         for item in index.product.data_items
-        if item.meta.get("format") != "data_prod_index"
+        if item.meta.get("type") != "data_prod_index"
     ]
     index.product.data_items.append(
         DataProdItem(
-            meta={
-                "type": "artifact",
-                "format": "data_prod_index",
-                "namespace_uid": str(namespace_uid),
-                **({"run_uid": str(index.run.uid)} if index.run is not None else {}),
-            },
+            meta=IndexItemMeta(
+                type="data_prod_index",
+                namespace_uid=namespace_uid,
+                run_uid=None if index.run is None else index.run.uid,
+            ).model_dump(mode="json"),
             source=DataProdSource.model_validate(
                 {
                     "path": filename,

@@ -68,9 +68,11 @@ the files it wrote. This example writes a one-line report:
    :language: python
    :pyobject: TextSummary
 
-Inside the publication scope, ``write_artifacts(output_index, artifacts)`` has each
-specification write beneath ``output_index.base_path`` and adds every written file
-to the realization as a data item.
+Inside the publication scope, ``write_artifacts(output_index, artifacts,
+producer=...)`` has each specification write beneath ``output_index.base_path``
+and adds every written file to the realization as a data item. ``producer`` names
+the writer, such as a step's or specification's qualified key
+(``TextSummary.get_context_key()``).
 
 Publish several products in one run
 -----------------------------------

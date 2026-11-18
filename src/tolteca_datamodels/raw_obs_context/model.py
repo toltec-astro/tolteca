@@ -118,7 +118,4 @@ class KidsModelBinding(FrozenDataModel):
         if item.meta.get("run_uid") != str(run.uid):
             msg = "Model artifact belongs to a different producing run"
             raise ValueError(msg)
-        if item.meta.get("namespace_uid") not in (None, str(product.namespace_uid)):
-            msg = "Model artifact belongs to a different namespace"
-            raise ValueError(msg)
         return item

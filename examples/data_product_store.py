@@ -106,7 +106,9 @@ def publish_results(
                 tag="main",
             ) as output_index:
                 report = Artifact(data=f"{key}: {raw.product.uid}", spec=TextSummary())
-                write_artifacts(output_index, [report])
+                write_artifacts(
+                    output_index, [report], producer=TextSummary.get_context_key()
+                )
             results.append(output_index)
     return run, results
 

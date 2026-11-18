@@ -10,10 +10,18 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated, Any, Literal, get_args
-from uuid import UUID  # noqa: TC003 -- Adaptix resolves runtime annotations
+from uuid import UUID
 
 from adaptix import Retort, dumper, loader
-from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, TypeAdapter
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Discriminator,
+    Field,
+    Tag,
+    TypeAdapter,
+    model_serializer,
+)
 
 from ..core.data_prod import DataProdRef
 from ..lmt.metadata import LmtTelMetadata
@@ -520,30 +528,76 @@ class TelInterfaceMeta(ObsIdMixin, TelMetaMixin):
 AnyInterfaceMeta = TelInterfaceMeta | RoachInterfaceMeta | HwprInterfaceMeta
 
 
-@dataclass
-class ArtifactMeta:
-    """Stored artifact representation, producing run and optional scientific scope.
+class _ItemMetaModel(_MetadataModel):
+    """Item metadata whose unset optional fields are omitted when serialized."""
 
-    ``raw_obs_uid`` identifies the acquisition for an acquisition-specific
-    artifact, such as a matched APT. None leaves applicability unscoped.
-    ``source_file`` and ``fit_file`` identify the source data and saved fit
-    record used by a figure, relative to its product directory. None means
-    that the artifact declares no such within-product reference.
+    @model_serializer(mode="wrap")
+    def _omit_none(self, handler):
+        return {k: v for k, v in handler(self).items() if v is not None}
+
+
+class ArtifactMeta(_ItemMetaModel):
+    """File written into a product by a producing run.
+
+    Attributes
+    ----------
+    type : {"artifact"}
+        Item kind.
+    format : str
+        File format, such as ``ecsv``, ``zarr`` or ``png``.
+    name : str
+        Name that selects the file within its product.
+    producer : str
+        Writer of the file: the qualified key of a pipeline step
+        (``module:Class`` or ``module:Class:alias``), or the name of an external
+        program, such as ``citlali``.
+    run_uid : uuid.UUID
+        Run that wrote the file.
+    interface, scope, kind, array : str or None
+        Selection keys: the readout interface, the scope of the content, a
+        producer-defined category and the detector array. None when the file
+        has no such selection.
+    raw_obs_uid : str or None
+        Acquisition for an acquisition-specific artifact, such as a matched APT.
+        None leaves applicability unscoped.
+    source_file, fit_file : str or None
+        Source data and saved fit record used by a figure, relative to its
+        product directory. None when the artifact declares no such reference.
+    context : dict or None
+        Producer-specific values that are not selection keys.
     """
 
-    type: Literal["artifact"] = "artifact"
-    format: str = ""
-    kind: str | None = None
-    run_uid: UUID | None = None
-    namespace_uid: UUID | None = None
+    type: Literal["artifact"]
+    format: str
+    name: str
+    producer: str
+    run_uid: UUID
     interface: str | None = None
     scope: str | None = None
-    producer: str | None = None
-    name: str | None = None
+    kind: str | None = None
     array: str | None = None
     raw_obs_uid: str | None = None
     source_file: str | None = None
     fit_file: str | None = None
+    context: dict[str, Any] | None = None
+
+
+class IndexItemMeta(_ItemMetaModel):
+    """A product's own index file in a namespace.
+
+    Attributes
+    ----------
+    type : {"data_prod_index"}
+        Item kind.
+    namespace_uid : uuid.UUID
+        Namespace whose store wrote the index file.
+    run_uid : uuid.UUID or None
+        Run of a realization. None for logical descriptors and version groups.
+    """
+
+    type: Literal["data_prod_index"]
+    namespace_uid: UUID
+    run_uid: UUID | None = None
 
 
 AnyDataProdItemMeta = (
@@ -552,6 +606,7 @@ AnyDataProdItemMeta = (
     | LmtTelMetadata
     | AnyInterfaceMeta
     | ArtifactMeta
+    | IndexItemMeta
 )
 
 
@@ -562,8 +617,10 @@ _validate_product_metadata_json = TypeAdapter(
 _validate_interface_metadata_json = TypeAdapter(
     Annotated[AnyInterfaceMeta, Field(discriminator="type")]
 ).validate_json
-_validate_interface_or_artifact_metadata_json = TypeAdapter(
-    Annotated[AnyInterfaceMeta | ArtifactMeta, Field(discriminator="type")]
+_validate_item_metadata_json = TypeAdapter(
+    Annotated[
+        AnyInterfaceMeta | ArtifactMeta | IndexItemMeta, Field(discriminator="type")
+    ]
 ).validate_json
 
 _retort = Retort(
@@ -581,6 +638,8 @@ _retort = Retort(
             for model in (
                 *get_args(AnyDataProdMeta),
                 *get_args(AnyInterfaceMeta),
+                ArtifactMeta,
+                IndexItemMeta,
                 ToltecRawObsMetadata,
                 ToltecHwprMetadata,
                 LmtTelMetadata,
@@ -634,7 +693,7 @@ def _load_source_metadata(value):
             "tel": LmtTelMetadata,
         }[value["interface_kind"]]
         return model.model_validate_json(json.dumps(value))
-    return _validate_interface_or_artifact_metadata_json(json.dumps(value))
+    return _validate_item_metadata_json(json.dumps(value))
 
 
 _retort = _retort.extend(recipe=[loader(AnyDataProdItemMeta, _load_source_metadata)])
@@ -732,6 +791,7 @@ __all__ = [
     "DrivefitMeta",
     "FocusGroupMeta",
     "HwprInterfaceMeta",
+    "IndexItemMeta",
     "InterfaceFileMeta",
     "MetadataType",
     "NamedGroupMeta",

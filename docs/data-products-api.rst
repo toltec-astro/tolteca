@@ -53,7 +53,8 @@ TolTECA records and store
 .. automodule:: tolteca_datamodels.data_prod
    :members:
    :imported-members:
-   :exclude-members: DataProdIndex, DataProd, DataProdStore, artifact_table_from_indexes
+   :exclude-members: DataProdIndex, DataProd, DataProdStore, artifact_table_from_indexes,
+      product_table_from_indexes
 
 Path and run-name values
 ------------------------
@@ -78,8 +79,8 @@ Product metadata
    :members:
    :exclude-members: _retort
 
-Artifact model tables
----------------------
+Product and artifact model tables
+---------------------------------
 
 See :doc:`reduction-workdir` for selecting calibration artifacts from version
 indexes or DPDB with shared model-table expressions.
@@ -87,6 +88,10 @@ indexes or DPDB with shared model-table expressions.
 .. autofunction:: tolteca_datamodels.data_prod.artifact_table_from_indexes
 
 .. autofunction:: tolteca_db.model_table.artifact_table_from_dpdb
+
+.. autofunction:: tolteca_datamodels.data_prod.product_table_from_indexes
+
+.. autofunction:: tolteca_db.model_table.product_table_from_dpdb
 
 Extension bases
 ---------------
