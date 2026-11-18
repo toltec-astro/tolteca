@@ -18,10 +18,10 @@ from tolteca_datamodels.data_prod import (
     DataProdStore,
     DataProdTagBusyError,
     RunName,
+    WorkflowRun,
     resolve_index,
     write_artifacts,
 )
-from tolteca_datamodels.data_prod import WorkflowRun as ExecutionRun
 
 UID = "tcs-145609-0-1"
 TYPE = "dp_raw_obs_proc"
@@ -70,7 +70,7 @@ def _index(run=None):
 def _stage(store, *, run=None, tag="main"):
     with (
         ExitStack() as _run_records,
-        ExecutionRun.create(uid=(run or {}).get("uid")) as context,
+        WorkflowRun.create(uid=(run or {}).get("uid")) as context,
         store.materialize(
             _index(context).model_copy(update={"run": context}),
             tag=tag,
@@ -370,7 +370,7 @@ def test_materialize_binds_a_copy_and_reuses_the_description(tmp_path):
     stores = [
         DataProdStore(tmp_path / name, namespace=name) for name in ("ql", "science")
     ]
-    with ExecutionRun.create() as run:
+    with WorkflowRun.create() as run:
         description = _index(run).model_copy(update={"run": run})
         description.locations["remote"] = Location(root="https://example.org/archive/")
         original = description.model_dump_json()
@@ -383,7 +383,10 @@ def test_materialize_binds_a_copy_and_reuses_the_description(tmp_path):
                 assert index.run is not None
                 assert index.namespace is not None
                 assert index.base_path.is_dir()
-                assert index.base_path.parent.name == ".staging"
+                # Nothing is visible in the version group before the scope exits.
+                assert not DataProdIndex.read(
+                    store.get_product_path(UID, TYPE)
+                ).products
                 assert index.run.uid == run.uid
                 assert index.namespace.uid == store.read_namespace().namespace.uid
                 (index.base_path / "payload.txt").write_text("shared result")
@@ -409,7 +412,7 @@ def test_materialize_requires_identity_and_rejects_changing_it(tmp_path):
     store = DataProdStore(tmp_path)
     with pytest.raises(ValueError, match="index.run"), store.materialize(_index()):
         pytest.fail("Missing execution accepted")
-    with ExecutionRun.create() as run:
+    with WorkflowRun.create() as run:
         description = _index(run).model_copy(update={"run": run})
         with (
             pytest.raises(ValueError, match="identity changed"),
@@ -423,8 +426,8 @@ def test_materialize_requires_identity_and_rejects_changing_it(tmp_path):
 def test_materialized_index_retains_namespace_creator_attribution(tmp_path):
     store = DataProdStore(tmp_path)
     namespace = store.ensure_namespace().namespace
-    actor = ExecutionRun.create().actor.model_copy(update={"uid": uuid4()})
-    with ExecutionRun.create(actor=actor) as execution:
+    actor = WorkflowRun.create().actor.model_copy(update={"uid": uuid4()})
+    with WorkflowRun.create(actor=actor) as execution:
         assert execution.actor_uid != namespace.audit.created_by
         with store.materialize(
             _index().model_copy(update={"run": execution}), run_name="test"
@@ -444,14 +447,14 @@ def test_promotion_reuses_environment_actor_and_preserves_producer(
     tmp_path, recorded_promoter
 ):
     store = DataProdStore(tmp_path)
-    promoter = ExecutionRun.create().actor
+    promoter = WorkflowRun.create().actor
     if recorded_promoter:
         promoter = promoter.model_copy(
             update={"uid": uuid4(), "created_at": datetime(2024, 1, 1, tzinfo=UTC)}
         )
-        store.write_run(ExecutionRun.create(actor=promoter))
+        store.write_run(WorkflowRun.create(actor=promoter))
     with (
-        ExecutionRun.create(
+        WorkflowRun.create(
             runtime_info=RuntimeInfo(username="product-producer")
         ) as producer,
         store.materialize(
@@ -487,7 +490,7 @@ def test_materialize_resolves_a_primary_chain_from_supporting_indexes(tmp_path):
 
     store = DataProdStore(tmp_path)
     source = DataProdIndex.read(_write(tmp_path, "processed"))
-    with ExecutionRun.create() as run:
+    with WorkflowRun.create() as run:
         description = DataProdIndex(
             run=run,
             product=DataProd(
@@ -546,7 +549,7 @@ def test_finished_run_settles_interrupted_publication(tmp_path, monkeypatch, com
     from tolteca_datamodels.core.data_prod.store import _StoreRunWriter
 
     store = DataProdStore(tmp_path)
-    run = ExecutionRun.create()
+    run = WorkflowRun.create()
     proposal = _index(run)
     proposal.run = run
     directory = store.get_product_path(UID, TYPE, uid=proposal.product.uid)
@@ -598,7 +601,7 @@ class _Text(ArtifactSpec[str]):
 def test_written_artifacts_become_items_of_the_realization(tmp_path):
     store = DataProdStore(tmp_path)
     with (
-        ExecutionRun.create() as run,
+        WorkflowRun.create() as run,
         store.materialize(_index().model_copy(update={"run": run})) as index,
     ):
         (item,) = write_artifacts(
@@ -628,9 +631,55 @@ def test_failed_artifact_writer_installs_nothing(tmp_path):
     store = DataProdStore(tmp_path)
     with (
         pytest.raises(RuntimeError, match="writer failed"),
-        ExecutionRun.create() as run,
+        WorkflowRun.create() as run,
         store.materialize(_index().model_copy(update={"run": run})) as index,
     ):
         write_artifacts(index, [Artifact(data="fail", spec=_Text())], producer="t:W")
     assert resolve_index(first.parent) == first / "index.yaml"
     assert len(DataProdIndex.read(first.parent).products) == 1
+
+
+def _missing_input():
+    msg = "missing input"
+    raise RuntimeError(msg)
+
+
+def test_concurrent_publications_of_one_run_keep_each_outcome(tmp_path):
+    """Two stores publish for one run at the same time; neither loses the other."""
+    first, second = (DataProdStore(tmp_path, namespace="science") for _ in range(2))
+    other = "tcs-145609-0-2"
+    with WorkflowRun.create() as run:
+        one = _index(run).model_copy(update={"run": run, "provenance": {"gain": 1}})
+        two = DataProdIndex.model_validate(
+            {
+                "product": {
+                    "uid": f"{other}_proc",
+                    "meta": {"name": f"{other}_proc", "data_prod_type": TYPE},
+                    "assocs": [
+                        {
+                            "uid": other,
+                            "data_prod_assoc_type": "dpa_raw_obs_proc_raw_obs",
+                            "is_primary": True,
+                        }
+                    ],
+                },
+            }
+        ).model_copy(update={"run": run})
+        with (
+            first.materialize(one, tag="main"),
+            pytest.raises(RuntimeError, match="missing input"),
+            second.materialize(two, tag=None),
+        ):
+            _missing_input()
+        saved = first.read_namespace_index(run_uids=[run.uid])
+    reservation = saved.store_runs[run.uid]
+    assert {
+        uid: (request.status, request.message)
+        for uid, request in reservation.publications.items()
+    } == {
+        f"{UID}_proc": ("completed", None),
+        f"{other}_proc": ("failed", "missing input"),
+    }
+    assert reservation.publications[f"{UID}_proc"].tag == "main"
+    assert reservation.outputs == {f"{UID}_proc": {"gain": 1}}
+    assert saved.runs[run.uid].status == "running"

@@ -1,7 +1,7 @@
 """Version indexes validate available members and select exact references."""
 
 import shutil
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 from uuid import uuid4
 
@@ -9,7 +9,6 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from tolteca_datamodels.core.data_prod import StoreRun
 from tolteca_datamodels.data_prod import (
     DataProd,
     DataProdAssoc,
@@ -21,6 +20,7 @@ from tolteca_datamodels.data_prod import (
     DataProdTag,
     Location,
     WorkflowRun,
+    resolve_index,
 )
 from tolteca_datamodels.data_prod.metadata import (
     RawObsProcMeta,
@@ -141,45 +141,66 @@ def test_empty_version_selection_keeps_non_membership_relationships(
     assert result.product.tags == {}
 
 
-def _write_compact_group(group, directory):
-    """Prepare serialized input for the version reader."""
-    data = group.model_dump(mode="json", round_trip=True, exclude={"products"})
-    data["product"]["assocs"] = [
-        assoc
-        for assoc in data["product"]["assocs"]
-        if assoc["data_prod_assoc_type"] != "dpa_version_group_data_prod"
-    ]
-    data["document"] = "version_group_header"
-    data["version_count"] = len(group.products)
-    for position, member in enumerate(group.products, 1):
-        name = f"version-{position}"
-        member.store_run = StoreRun(run_uid=member.run.uid, name=name)
-        member.write(directory / name / "index.yaml")
-        edge = DataProdAssoc(
-            uid=member.product.uid,
-            namespace_uid=member.product.namespace_uid,
-            data_prod_assoc_type="dpa_version_group_data_prod",
-        )
-        _write_member_record(
-            directory,
-            member.product.uid,
-            {"position": position, "name": name, "edge": edge.model_dump(mode="json")},
-        )
-    path = directory / "index.yaml"
-    path.write_text(yaml.safe_dump(data))
-    return path
+UID = "tcs-145609-0-1_proc"
 
 
-def _lookup_path(directory, member_uid):
-    return directory / ".members" / "by_uid" / f"{quote(member_uid, safe='')}.yaml"
+def _draft(run, *, locations=None, data_items=()):
+    """Describe one realization of the processed-acquisition version group."""
+    return DataProdIndex(
+        product=DataProd(
+            uid=UID,
+            meta=RawObsProcMeta(name=UID, data_prod_type="dp_raw_obs_proc"),
+            assocs=[
+                DataProdAssoc(
+                    uid="tcs-145609-0-1",
+                    data_prod_assoc_type="dpa_raw_obs_proc_raw_obs",
+                    is_primary=True,
+                )
+            ],
+            data_items=list(data_items),
+        ),
+        locations=locations or {},
+        run=run,
+    )
 
 
-def _write_member_record(directory, member_uid, data):
-    root = directory / ".members"
-    (root / "by_uid").mkdir(parents=True, exist_ok=True)
-    text = yaml.safe_dump(data)
-    _lookup_path(directory, member_uid).write_text(text)
-    (root / f"{data['position']}.yaml").write_text(text)
+def _publish(store, name, **draft):
+    """Publish one realization through the store."""
+    with (
+        WorkflowRun.create() as run,
+        store.materialize(_draft(run, **draft), run_name=name) as index,
+    ):
+        pass
+    return index
+
+
+def _publish_interrupted(store, directory, name, monkeypatch):
+    """Publish a realization whose version-group header is never replaced."""
+    root = directory / "index.yaml"
+    replace = Path.replace
+
+    def fail(source, destination):
+        if destination == root:
+            msg = "interrupted index replacement"
+            raise OSError(msg)
+        return replace(source, destination)
+
+    with (
+        WorkflowRun.create() as run,
+        pytest.raises(OSError, match="interrupted"),
+        monkeypatch.context() as patch,
+        store.materialize(_draft(run), run_name=name),
+    ):
+        patch.setattr(Path, "replace", fail)
+    return run.uid
+
+
+@pytest.fixture
+def published(tmp_path):
+    """A version group with two realizations committed by the store."""
+    store = DataProdStore(tmp_path)
+    members = [_publish(store, name) for name in ("version-1", "version-2")]
+    return store, members[0].base_path.parent, members
 
 
 def test_compact_header_requires_version_group(version_group, tmp_path):
@@ -194,20 +215,24 @@ def test_compact_header_requires_version_group(version_group, tmp_path):
 
 
 @pytest.mark.parametrize("compact", [False, True], ids=["expanded", "compact"])
-def test_available_member_requires_declared_type(compact, version_group, tmp_path):
+def test_available_member_requires_declared_type(
+    compact, version_group, published, tmp_path
+):
     if compact:
-        path = _write_compact_group(version_group, tmp_path)
-        member_path = tmp_path / "version-2" / "index.yaml"
+        _, path, members = published
+        member_path = members[1].base_path / "index.yaml"
         data = yaml.safe_load(member_path.read_text())
         metadata = data["product"]["meta"]
+        requested = members[1].run.uid
     else:
-        path = member_path = version_group.write(tmp_path / "index.yaml")
+        path = member_path = version_group.write(tmp_path / "expanded" / "index.yaml")
         data = yaml.safe_load(path.read_text())
         metadata = data["products"][1]["product"]["meta"]
+        requested = version_group.products[1].run.uid
     replacement = ScienceMeta(
         name=metadata["name"],
         data_prod_type="dp_science",
-        version_group=DataProdRef(uid=version_group.product.uid),
+        version_group=DataProdRef(uid=UID),
     )
     metadata.clear()
     metadata.update(replacement.model_dump(mode="json", round_trip=True))
@@ -216,7 +241,7 @@ def test_available_member_requires_declared_type(compact, version_group, tmp_pat
     with pytest.raises(
         ValidationError, match="must have product type 'dp_raw_obs_proc'"
     ):
-        DataProdIndex.read(path, run_uids=[version_group.products[1].run.uid])
+        DataProdIndex.read(path, run_uids=[requested])
 
 
 def test_supporting_product_is_not_a_version_member(version_group, tmp_path):
@@ -237,84 +262,102 @@ def test_supporting_product_is_not_a_version_member(version_group, tmp_path):
     assert result.product.assocs == version_group.product.assocs
 
 
-def test_compact_member_requires_membership_edge(version_group, tmp_path):
-    path = _write_compact_group(version_group, tmp_path)
-    record_path = tmp_path / ".members" / "1.yaml"
+def test_committed_member_requires_membership_edge(published):
+    _, directory, _ = published
+    record_path = directory / ".members" / "1.yaml"
     data = yaml.safe_load(record_path.read_text())
     data["edge"]["data_prod_assoc_type"] = "dpa_version_group_raw_obs"
     record_path.write_text(yaml.safe_dump(data))
 
     with pytest.raises(ValidationError, match="version-group membership association"):
-        DataProdIndex.read(path)
+        DataProdIndex.read(directory)
 
 
-def test_committed_lookup_must_identify_requested_run(version_group, tmp_path):
-    path = _write_compact_group(version_group, tmp_path)
-    requested = version_group.products[0].run.uid
-    lookup = _lookup_path(tmp_path, version_group.products[0].product.uid)
-    lookup.write_text((tmp_path / ".members" / "2.yaml").read_text())
+@pytest.mark.parametrize("selection", ["run", "tag"])
+def test_committed_lookup_must_identify_the_requested_member(selection, published):
+    _, directory, members = published
+    selected = members[1]
+    # The selected member's lookup record now holds another member's record.
+    lookup = (
+        directory
+        / ".members"
+        / "by_uid"
+        / f"{quote(selected.product.uid, safe='')}.yaml"
+    )
+    lookup.write_text((directory / ".members" / "1.yaml").read_text())
+    read = {
+        "run": lambda: DataProdIndex.read(directory, run_uids=[selected.run.uid]),
+        "tag": lambda: resolve_index(directory),
+    }[selection]
 
     with pytest.raises(ValueError, match="differs from the requested member"):
-        DataProdIndex.read(path, run_uids=[requested])
+        read()
 
 
-@pytest.mark.parametrize("state", ["absent", "beyond_count", "uncommitted_lookup"])
-def test_absent_or_uncommitted_requests_are_omitted(state, version_group, tmp_path):
-    path = _write_compact_group(version_group, tmp_path)
+@pytest.mark.parametrize("state", ["absent", "interrupted", "superseded"])
+def test_absent_or_uncommitted_requests_are_omitted(state, published, monkeypatch):
+    store, directory, members = published
     requested = uuid4()
-    selected = version_group.products[0]
-    data = yaml.safe_load((tmp_path / ".members" / "1.yaml").read_text())
-    if state == "beyond_count":
-        data["position"] = 3
-        _write_member_record(tmp_path, f"{version_group.product.uid}/{requested}", data)
-    elif state == "uncommitted_lookup":
-        data["name"] = "abandoned"
-        lookup = _lookup_path(tmp_path, f"{version_group.product.uid}/{requested}")
-        lookup.write_text(yaml.safe_dump(data))
+    if state != "absent":
+        requested = _publish_interrupted(store, directory, "orphan", monkeypatch)
+    if state == "superseded":
+        # A later publication takes the position the interrupted one recorded.
+        _publish(store, "version-3")
 
-    result = DataProdIndex.read(path, run_uids=[requested, selected.run.uid])
+    result = DataProdIndex.read(directory, run_uids=[requested, members[1].run.uid])
 
     assert [member.product.reference for member in result.products] == [
-        selected.product.reference
+        members[1].product.reference
     ]
 
 
-def test_version_reads_preserve_source_resolution(version_group, tmp_path):
-    member = version_group.products[1]
-    member.locations = {
-        "local": Location(root="payloads"),
-        "archive": Location(root="https://archive.example/products"),
-    }
-    member.product.data_items = [
-        DataProdItem(
-            source=DataProdSource(location=location, path=PurePosixPath("model.ecsv"))
-        )
-        for location in member.locations
-    ]
-    path = _write_compact_group(version_group, tmp_path)
-    full = DataProdIndex.read(path)
-    selected = DataProdIndex.read(path, run_uids=[member.run.uid])
-    exact = DataProdIndex.read(tmp_path / "version-2")
-    expanded_path = full.write(tmp_path / "expanded.yaml")
+def test_version_reads_preserve_source_resolution(tmp_path):
+    store = DataProdStore(tmp_path)
+    _publish(store, "version-1")
+    member = _publish(
+        store,
+        "version-2",
+        locations={
+            "local": Location(root="payloads"),
+            "archive": Location(root="https://archive.example/products"),
+        },
+        data_items=[
+            DataProdItem(
+                source=DataProdSource(
+                    location=location, path=PurePosixPath("model.ecsv")
+                )
+            )
+            for location in ("local", "archive")
+        ],
+    )
+    directory = member.base_path.parent
+    full = DataProdIndex.read(directory)
+    selected = DataProdIndex.read(directory, run_uids=[member.run.uid])
+    exact = DataProdIndex.read(member.base_path)
+    expanded_path = full.write(directory / "expanded.yaml")
     expanded = DataProdIndex.read(expanded_path, run_uids=[member.run.uid])
     expected = [
-        (tmp_path / "version-2/payloads/model.ecsv").as_uri(),
+        (member.base_path / "payloads/model.ecsv").as_uri(),
         "https://archive.example/products/model.ecsv",
     ]
+
+    def model_uris(index):
+        return [
+            index.get_source_uri(item.source)
+            for item in index.product.data_items
+            if item.source.path.name == "model.ecsv"
+        ]
+
     for index in (full.products[1], selected.products[0], exact, expanded.products[0]):
         assert index.product.reference == member.product.reference
-        assert [
-            index.get_source_uri(item.source) for item in index.product.data_items
-        ] == expected
+        assert model_uris(index) == expected
 
     detached_path = tmp_path / "detached"
-    shutil.copytree(tmp_path / "version-2", detached_path)
+    shutil.copytree(member.base_path, detached_path)
     detached = DataProdIndex.read(detached_path)
 
     assert detached.product.reference == member.product.reference
-    assert [
-        detached.get_source_uri(item.source) for item in detached.product.data_items
-    ] == [
+    assert model_uris(detached) == [
         (detached_path / "payloads/model.ecsv").as_uri(),
         expected[1],
     ]

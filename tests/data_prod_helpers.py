@@ -9,8 +9,8 @@ from tolteca_datamodels.data_prod import (
     DataProdItem,
     DataProdSource,
     Location,
+    WorkflowRun,
 )
-from tolteca_datamodels.data_prod import WorkflowRun as ExecutionRun
 from tolteca_datamodels.data_prod.metadata import RawObsProcMeta
 
 __all__ = ["publish_model"]
@@ -41,7 +41,7 @@ def publish_model(store, label):
     )
     with (
         ExitStack() as _run_records,
-        ExecutionRun.create() as invocation,
+        WorkflowRun.create() as invocation,
         store.materialize(
             index.model_copy(update={"run": invocation}), run_name=label
         ) as out,

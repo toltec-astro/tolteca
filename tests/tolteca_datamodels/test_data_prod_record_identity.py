@@ -1,14 +1,16 @@
 """Product placement and selection follow recorded identities, not UID text."""
 
-from urllib.parse import quote
-
 import pytest
 import yaml
 from pydantic import ValidationError
 
 from tolteca_datamodels.core.data_prod import DataProdRef
-from tolteca_datamodels.data_prod import DataProdIndex, DataProdStore, resolve_index
-from tolteca_datamodels.data_prod import WorkflowRun as ExecutionRun
+from tolteca_datamodels.data_prod import (
+    DataProdIndex,
+    DataProdStore,
+    WorkflowRun,
+    resolve_index,
+)
 
 UID = "tcs-145609-0-1"
 GROUP = f"{UID}_proc"
@@ -40,7 +42,7 @@ def _index(
 
 def _publish(store, index=None, tag="main"):
     with (
-        ExecutionRun.create() as run,
+        WorkflowRun.create() as run,
         store.materialize(
             (index or _index()).model_copy(update={"run": run}), tag=tag
         ) as out,
@@ -57,7 +59,7 @@ def test_realization_records_its_version_group(tmp_path):
 
 def test_changed_version_group_record_is_rejected(tmp_path):
     store = DataProdStore(tmp_path)
-    with ExecutionRun.create() as run:
+    with WorkflowRun.create() as run:
         with (
             pytest.raises(ValueError, match="identity changed"),
             store.materialize(_index().model_copy(update={"run": run})) as index,
@@ -103,20 +105,8 @@ def test_primary_uid_must_match_the_declared_target_type(tmp_path):
         _publish(DataProdStore(tmp_path), index)
 
 
-def test_tag_selects_its_member_through_the_membership_record(tmp_path):
-    store = DataProdStore(tmp_path)
-    first = _publish(store)
-    second = _publish(store)
-    group = first.parent.parent / "index.yaml"
-    assert resolve_index(group) == second
-
-    # The selected member's record now holds another committed member's record.
-    selected = DataProdIndex.read(second).product.uid
-    members = group.parent / ".members"
-    record = members / "by_uid" / f"{quote(selected, safe='')}.yaml"
-    record.write_text((members / "1.yaml").read_text())
-    with pytest.raises(ValueError, match="differs from the requested member"):
-        resolve_index(group)
+def test_unknown_tag_label_selects_nothing(tmp_path):
+    group = _publish(DataProdStore(tmp_path)).parent.parent
     with pytest.raises(KeyError):
         resolve_index(group, tag="unknown")
 

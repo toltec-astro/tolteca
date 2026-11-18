@@ -12,9 +12,9 @@ from tolteca_datamodels.data_prod import (
     DataProdIndex,
     DataProdRef,
     DataProdStore,
+    WorkflowRun,
     resolve_index,
 )
-from tolteca_datamodels.data_prod import WorkflowRun as ExecutionRun
 from tolteca_datamodels.data_prod.lineage import cal_ref_from_metadata
 from tolteca_datamodels.data_prod.metadata import RawObsMeta
 from tolteca_datamodels.raw_obs_context import (
@@ -116,7 +116,7 @@ def test_saved_run_pins_model_when_tag_moves(raw_context, tmp_path, failed):
     with (
         ExitStack() as _run_records,
         outcome,
-        ExecutionRun.create(
+        WorkflowRun.create(
             context={"inputs": inputs, "workflow": "test-consumer"}
         ) as run,
     ):

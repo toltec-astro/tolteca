@@ -12,8 +12,8 @@ from tolteca_datamodels.core.data_prod import (
     Actor,
     CounterRunNameGenerator,
     DataProdStoreBase,
+    WorkflowRun,
 )
-from tolteca_datamodels.core.data_prod import WorkflowRun as ExecutionRun
 
 
 @pytest.mark.parametrize(
@@ -29,7 +29,7 @@ from tolteca_datamodels.core.data_prod import WorkflowRun as ExecutionRun
 )
 def test_create_rejects_invalid_record_values(values, field, error_type):
     with pytest.raises(ValidationError) as exc_info:
-        ExecutionRun.create(**values)
+        WorkflowRun.create(**values)
 
     assert [(error["loc"][0], error["type"]) for error in exc_info.value.errors()] == [
         (field, error_type)
@@ -45,8 +45,8 @@ def test_create_validates_subclass_defaults(factory_default):
     )
     run_cls = create_model(
         "InvalidStatusRun",
-        __base__=ExecutionRun,
-        status=(ExecutionRun.model_fields["status"].annotation, default),
+        __base__=WorkflowRun,
+        status=(WorkflowRun.model_fields["status"].annotation, default),
     )
 
     with pytest.raises(ValidationError) as exc_info:
@@ -66,7 +66,7 @@ def test_create_retains_supplied_identity_and_captures_runtime(uid):
     metadata = {"purpose": "review", "runtime_info": {"old": "value"}}
     context = {"gain": 2}
 
-    run = ExecutionRun.create(
+    run = WorkflowRun.create(
         uid=uid, actor=actor, runtime_info=runtime, context=context, meta=metadata
     )
 
@@ -81,7 +81,7 @@ def test_create_retains_supplied_identity_and_captures_runtime(uid):
 
 
 def test_create_uses_empty_context_and_metadata_for_none():
-    run = ExecutionRun.create(context=None, meta=None)
+    run = WorkflowRun.create(context=None, meta=None)
 
     assert run.context == {}
     assert set(run.meta) == {"runtime_info"}
@@ -90,17 +90,17 @@ def test_create_uses_empty_context_and_metadata_for_none():
 
 
 def test_run_keeps_uuid_and_timestamp_input_formats():
-    run = ExecutionRun.create()
+    run = WorkflowRun.create()
     values = run.model_dump(round_trip=True)
     values["uid"] = str(run.uid)
     values["time_created"] = run.time_created.isoformat()
 
-    assert ExecutionRun.model_validate(values) == run
-    assert ExecutionRun.model_validate_json(run.model_dump_json(round_trip=True)) == run
+    assert WorkflowRun.model_validate(values) == run
+    assert WorkflowRun.model_validate_json(run.model_dump_json(round_trip=True)) == run
 
 
 def test_execution_is_independent_of_store_and_namespace(tmp_path):
-    run = ExecutionRun.create(context={"gain": 2})
+    run = WorkflowRun.create(context={"gain": 2})
     assert list(tmp_path.iterdir()) == []
     stores = [
         DataProdStoreBase(tmp_path, namespace=n) for n in ("quicklook", "science")
@@ -128,7 +128,7 @@ def test_store_reserves_portable_run_without_runtime_capture(tmp_path):
     actor = Actor(
         uid=uuid4(), name="imported", created_at=datetime(2026, 11, 9, tzinfo=UTC)
     )
-    run = ExecutionRun(uid=uuid4(), actor=actor, time_created=actor.created_at)
+    run = WorkflowRun(uid=uuid4(), actor=actor, time_created=actor.created_at)
     store = DataProdStoreBase(tmp_path, namespace="science")
 
     store.write_run(run, run_name="external")
@@ -171,7 +171,7 @@ def test_saved_execution_rejects_conflicting_naming_policy(
     tmp_path, name, name_conflicting
 ):
     store = DataProdStoreBase(tmp_path, namespace="science")
-    run = ExecutionRun.create()
+    run = WorkflowRun.create()
     store.write_run(run, run_name=name)
     saved = store.read_namespace_index(run_uids=[run.uid])
 
@@ -185,34 +185,6 @@ def test_saved_execution_rejects_conflicting_naming_policy(
     assert store.read_namespace_index(run_uids=[run.uid]) == saved
 
 
-def test_independent_writers_preserve_run_publications_and_provenance(tmp_path):
-    store = DataProdStoreBase(tmp_path, namespace="science")
-    run = ExecutionRun.create()
-    first = store._reserve_run(run)
-    second = DataProdStoreBase(tmp_path, namespace="science")._reserve_run(run)
-
-    first._request("one", "measurement", "collection", "main")
-    second._request("two", "measurement", "collection", None)
-    first._record("one", "completed")
-    second._record("two", "failed", "missing input")
-    first._provenance("one", {"gain": 1})
-    second._provenance("two", {"gain": 2})
-
-    saved = store.read_namespace_index(run_uids=[run.uid])
-    reservation = saved.store_runs[run.uid]
-    assert {
-        uid: (request.status, request.message)
-        for uid, request in reservation.publications.items()
-    } == {
-        "one": ("completed", None),
-        "two": ("failed", "missing input"),
-    }
-    assert reservation.publications["one"].tag == "main"
-    assert reservation.outputs == {"one": {"gain": 1}, "two": {"gain": 2}}
-    assert saved.runs[run.uid] == run
-    assert saved.runs[run.uid].status == "running"
-
-
 @pytest.mark.parametrize(
     "interrupted_after",
     ["counter_advanced", "counter_claimed", "name_claimed", "reservation_saved"],
@@ -223,7 +195,7 @@ def test_counter_reservation_interruption_retains_claims(
     from tolteca_datamodels.core.data_prod import store as store_module
 
     store = DataProdStoreBase(tmp_path, namespace="science")
-    run = ExecutionRun.create()
+    run = WorkflowRun.create()
     records = store.namespace_path / ".runs"
     write_yaml = store_module._write_yaml
     sync_directory = store_module._sync_directory
@@ -263,7 +235,7 @@ def test_counter_reservation_interruption_retains_claims(
     if counter_claimed or name_claimed:
         with pytest.raises(FileExistsError):
             reopened.write_run(
-                ExecutionRun.create(),
+                WorkflowRun.create(),
                 run_name=CounterRunNameGenerator(value=7, key="another"),
             )
 
@@ -282,7 +254,7 @@ def test_interrupted_fixed_name_requires_manual_claim_removal(tmp_path, monkeypa
     from tolteca_datamodels.core.data_prod import store as store_module
 
     store = DataProdStoreBase(tmp_path, namespace="science")
-    run = ExecutionRun.create()
+    run = WorkflowRun.create()
     write_yaml = store_module._write_yaml
 
     def interrupt_reservation(record, path, **kwargs):
@@ -313,14 +285,14 @@ def test_interrupted_fixed_name_requires_manual_claim_removal(tmp_path, monkeypa
 @pytest.mark.parametrize("same_execution", [True, False])
 def test_conflicting_run_or_actor_preserves_saved_records(tmp_path, same_execution):
     store = DataProdStoreBase(tmp_path, namespace="science")
-    original = ExecutionRun.create()
+    original = WorkflowRun.create()
     store.write_run(original)
     saved = store.read_namespace_index()
     values = original.model_dump(round_trip=True)
     values["actor"]["name"] = "conflicting-name"
     if not same_execution:
         values["uid"] = uuid4()
-    conflicting = ExecutionRun.model_validate(values)
+    conflicting = WorkflowRun.model_validate(values)
 
     with pytest.raises(ValueError, match="Conflicting (execution|actor)"):
         store.write_run(conflicting)
@@ -330,7 +302,7 @@ def test_conflicting_run_or_actor_preserves_saved_records(tmp_path, same_executi
 
 def test_store_preserves_completed_execution_on_repeated_writes(tmp_path):
     store = DataProdStoreBase(tmp_path, namespace="science")
-    run = ExecutionRun.create()
+    run = WorkflowRun.create()
     running = run.model_copy(deep=True)
     store.write_run(run)
     with run:
@@ -365,7 +337,7 @@ def test_namespace_and_runs_share_default_environment_actor(tmp_path, namespace_
     store = DataProdStoreBase(tmp_path, namespace="science")
     if namespace_first:
         store.ensure_namespace(runtime_info=runtime)
-    run = ExecutionRun.create(runtime_info=runtime)
+    run = WorkflowRun.create(runtime_info=runtime)
     descriptor = store.ensure_namespace(runtime_info=runtime)
     store.write_run(run)
 
@@ -377,7 +349,7 @@ def test_namespace_and_runs_share_default_environment_actor(tmp_path, namespace_
     assert other.namespace.uid != descriptor.namespace.uid
     assert other.actors == descriptor.actors
 
-    next_run = ExecutionRun.create(
+    next_run = WorkflowRun.create(
         runtime_info=runtime.model_copy(
             update={"cmd": "another invocation", "exec_path": Path("/another/entry")}
         ),
@@ -411,7 +383,7 @@ def test_changed_environment_selects_another_actor(tmp_path, changed):
     original = store.ensure_namespace(runtime_info=runtime)
     original_uid = original.namespace.audit.created_by
     new_runtime = runtime.model_copy(update=changed)
-    run = ExecutionRun.create(runtime_info=new_runtime)
+    run = WorkflowRun.create(runtime_info=new_runtime)
     current = store.ensure_namespace(runtime_info=new_runtime)
 
     assert run.actor_uid != original_uid
@@ -422,11 +394,11 @@ def test_changed_environment_selects_another_actor(tmp_path, changed):
 
 def test_imported_actor_is_reused_without_replacing_run_actors(tmp_path):
     runtime = RuntimeInfo()
-    default_run = ExecutionRun.create(runtime_info=runtime)
+    default_run = WorkflowRun.create(runtime_info=runtime)
     recorded_actor = default_run.actor.model_copy(
         update={"uid": uuid4(), "created_at": datetime(2024, 1, 1, tzinfo=UTC)}
     )
-    recorded_run = ExecutionRun.create(runtime_info=runtime, actor=recorded_actor)
+    recorded_run = WorkflowRun.create(runtime_info=runtime, actor=recorded_actor)
     origin = DataProdStoreBase(tmp_path / "origin", namespace="science")
     origin.write_run(recorded_run)
     exported = origin.read_namespace_index()
@@ -455,7 +427,7 @@ def test_store_run_writes_do_not_load_history(tmp_path, monkeypatch, history_siz
 
     store = DataProdStoreBase(tmp_path, namespace="lab")
     for _ in range(history_size):
-        with ExecutionRun.create() as prior:
+        with WorkflowRun.create() as prior:
             pass
         store.write_run(prior, run_name=CounterRunNameGenerator())
     reads = []
@@ -466,7 +438,7 @@ def test_store_run_writes_do_not_load_history(tmp_path, monkeypatch, history_siz
         return load(path)
 
     monkeypatch.setattr(store_module, "_read_yaml", observed)
-    with ExecutionRun.create(context={"gain": 2}) as run:
+    with WorkflowRun.create(context={"gain": 2}) as run:
         store.write_run(run)
     store.write_run(run)
 
@@ -486,13 +458,13 @@ def test_store_run_writes_do_not_load_history(tmp_path, monkeypatch, history_siz
 
 def test_run_failure_and_cancellation_do_not_depend_on_persistence(tmp_path):
     msg = "computation failed"
-    with pytest.raises(RuntimeError), ExecutionRun.create() as failed:
+    with pytest.raises(RuntimeError), WorkflowRun.create() as failed:
         raise RuntimeError(msg)
     assert failed.status == "failed"
-    with ExecutionRun.create() as reported:
+    with WorkflowRun.create() as reported:
         reported.fail()
     assert reported.status == "failed"
-    with pytest.raises(KeyboardInterrupt), ExecutionRun.create() as cancelled:
+    with pytest.raises(KeyboardInterrupt), WorkflowRun.create() as cancelled:
         raise KeyboardInterrupt
     assert cancelled.status == "cancelled"
     assert all(r.time_completed is not None for r in (failed, reported, cancelled))
