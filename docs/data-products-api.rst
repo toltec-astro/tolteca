@@ -82,8 +82,11 @@ Product metadata
 Product and artifact model tables
 ---------------------------------
 
-See :doc:`reduction-workdir` for selecting calibration artifacts from version
-indexes or DPDB with shared model-table expressions.
+A product table selects whole products, including groups and products without
+artifacts; DPDB quality review selects its subjects from it. An artifact table
+selects the files within products. Both take the same model-table expressions,
+built from portable indexes or from DPDB. See :doc:`reduction-workdir` for
+selecting calibration artifacts.
 
 .. autofunction:: tolteca_datamodels.data_prod.artifact_table_from_indexes
 

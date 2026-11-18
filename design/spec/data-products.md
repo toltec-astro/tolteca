@@ -403,6 +403,11 @@
   exact product, then an interface within it. Run-name order does not imply a
   selection. A pinned product stays fixed when a tag moves; a tag with no completed
   selection supplies no data.
+- To choose among many products, consumers query model tables with the same
+  columns whether built from portable indexes or from the database. The product
+  table has one row per product and selecting tag, including groups and products
+  without artifacts; the artifact table has one row per artifact. Each row names
+  an exact product; a table selects no version or tag by itself.
 - Reopened scientific data keeps its own interpretation without recreating the
   invocation that produced it.
 - Each realized product owns its sources. Moving a tag removes no earlier

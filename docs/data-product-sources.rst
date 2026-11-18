@@ -40,6 +40,43 @@ In this example, ``product_directory`` is a version-group directory from
    for item in index.product.data_items:
        print(item.meta, index.get_source_uri(item.source))
 
+Tell items apart
+----------------
+
+Each item of a TolTEC product is an acquisition file, an artifact written by a
+producing run, or the product's own index file. The ``type`` key in its
+metadata tells them apart:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Item
+     - ``type``
+     - Metadata
+   * - Acquisition file
+     - none, or ``roach``, ``hwpr``, ``tel``
+     - The file's header metadata, such as ``interface``, ``obsnum``,
+       ``subobsnum`` and ``scannum``; with a ``type``, an imported acquisition
+       record.
+   * - Artifact
+     - ``artifact``
+     - ``format``, ``name``, ``producer`` and ``run_uid``, and optional selection
+       keys such as ``interface``, ``scope`` and ``kind``. Producer-specific
+       values are under ``context``. See
+       :class:`~tolteca_datamodels.data_prod.metadata.ArtifactMeta`.
+   * - Index file
+     - ``data_prod_index``
+     - ``namespace_uid``, and ``run_uid`` for a realization. See
+       :class:`~tolteca_datamodels.data_prod.metadata.IndexItemMeta`.
+
+For example, list the artifacts with their producers:
+
+.. code-block:: python
+
+   for item in index.product.data_items:
+       if item.meta.get("type") == "artifact":
+           print(item.meta["name"], item.meta["producer"])
+
 Resolve item paths
 ------------------
 
