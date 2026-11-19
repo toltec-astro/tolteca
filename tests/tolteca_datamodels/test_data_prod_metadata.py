@@ -1,6 +1,7 @@
 """Product metadata validation and its portable/database representations."""
 
 from datetime import UTC, datetime
+from pathlib import PurePosixPath
 
 import pytest
 from pydantic import ValidationError
@@ -147,3 +148,22 @@ def test_artifact_metadata_requires_selection_keys(change, error_type):
         _retort.load(values, AnyDataProdItemMeta)
     [error] = exc.value.errors()
     assert error["type"] == error_type
+
+
+@pytest.mark.parametrize("field", ["source_file", "fit_file"])
+def test_artifact_relative_references_roundtrip(field):
+    values = _ARTIFACT | {field: "./raw//source.ecsv"}
+    meta = _retort.load(values, AnyDataProdItemMeta)
+    assert getattr(meta, field) == PurePosixPath("raw/source.ecsv")
+    written = _retort.dump(meta, AnyDataProdItemMeta)
+    assert written[field] == "raw/source.ecsv"
+    assert _retort.load(written, AnyDataProdItemMeta) == meta
+
+
+@pytest.mark.parametrize("field", ["source_file", "fit_file"])
+@pytest.mark.parametrize("path", ["../outside.ecsv", "/absolute.ecsv", "bad\x00name"])
+def test_artifact_relative_references_use_subpath_validation(field, path):
+    with pytest.raises(ValidationError) as exc:
+        _retort.load(_ARTIFACT | {field: path}, AnyDataProdItemMeta)
+    [error] = exc.value.errors()
+    assert error["loc"] == ("artifact", field)

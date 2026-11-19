@@ -150,6 +150,10 @@ workflow capabilities.
 .. automodapi:: tolteca_datamodels.toltec.file_store
 
 .. automodapi:: tolteca_datamodels.lmt_base.file
+   :skip: metadata_column_mapper
+
+.. autodata:: tolteca_datamodels.lmt_base.file.metadata_column_mapper
+   :no-value:
 
 .. automodapi:: tolteca_datamodels.lmt_base.file_store
 

@@ -336,12 +336,3 @@ assert str(combined.inputs[1].obs_spec) == "1/tel"
         text=True,
         timeout=30,
     )
-
-
-def test_product_type_shim_uses_the_same_model_class():
-    from tolteca_datamodels.core.types import DataModelsT, FrozenDataModel
-    from tolteca_datamodels.types import DataModelsT as ProductDataModelsT
-    from tolteca_datamodels.types import FrozenDataModel as ProductFrozenDataModel
-
-    assert ProductFrozenDataModel is FrozenDataModel
-    assert ProductDataModelsT is DataModelsT

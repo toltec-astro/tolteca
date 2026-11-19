@@ -85,6 +85,9 @@ def test_toltec_original_path_retains_subclass_fields(meta):
         interface="toltec8",
         readout_code=8,
         roach=8,
+        nw=8,
+        array=1,
+        array_name="a1400",
         filepath_orig=(
             "/data_lmt/toltec/tcs/toltec8/"
             "toltec8_145609_000_0002_2025_10_31_09_27_57.nc"

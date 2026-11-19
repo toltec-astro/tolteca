@@ -29,6 +29,10 @@ def base_obs_fields(kids_filepath_orig: str) -> dict[str, Any]:
         "interface": "toltec0",
         "interface_kind": "roach",
         "readout_code": 0,
+        "roach": 0,
+        "nw": 0,
+        "array": 0,
+        "array_name": "a1100",
         "t0": Time("2024-01-01T00:00:00", format="isot", scale="utc"),
         "t1": Time("2024-01-01T00:01:00", format="isot", scale="utc"),
         "t_int": 60 * u.s,
@@ -55,8 +59,8 @@ class TestToltecRawObsMetadata:
         assert meta.master_code == ToltecDBRawObsMasterCode.ICS
         assert meta.data_models == {"toltec"}
         assert meta.interface_kind == "roach"
-        assert meta.roach is None
-        assert meta.array_name is None
+        assert meta.roach == 0
+        assert meta.array_name == "a1100"
 
     @pytest.mark.parametrize("instru", [None, "", "lmt", "other"])
     def test_instru_rejects_other_instruments(
@@ -79,62 +83,53 @@ class TestToltecRawObsMetadata:
     def test_roach_field(self, base_obs_fields: dict[str, Any]) -> None:
         """Test roach field accepts valid roach indices."""
         for roach_idx in [0, 5, 12]:
+            values: dict[str, Any] = base_obs_fields | {"roach": roach_idx}
             meta = ToltecRawObsMetadata(
                 n_blocks_max=1,
                 n_times=1000,
                 n_chans=256,
                 f_smp=500 * u.Hz,
-                **base_obs_fields,
+                **values,
                 master="clip",
                 master_code=ToltecDBRawObsMasterCode.CLIP,
                 data_models=frozenset({"toltec"}),
-                roach=roach_idx,
             )
             assert meta.roach == roach_idx
-
-    def test_roach_defaults_to_none(self, base_obs_fields: dict[str, Any]) -> None:
-        """Test that roach defaults to None."""
-        meta = ToltecRawObsMetadata(
-            n_blocks_max=1,
-            n_times=1000,
-            n_chans=256,
-            f_smp=500 * u.Hz,
-            **base_obs_fields,
-            master="ics",
-            master_code=ToltecDBRawObsMasterCode.ICS,
-            data_models=frozenset({"toltec"}),
-        )
-        assert meta.roach is None
 
     def test_array_name_field(self, base_obs_fields: dict[str, Any]) -> None:
         """Test array_name field accepts valid array names."""
         for array in ["a1100", "a1400", "a2000"]:
+            values: dict[str, Any] = base_obs_fields | {"array_name": array}
             meta = ToltecRawObsMetadata(
                 n_blocks_max=1,
                 n_times=1000,
                 n_chans=256,
                 f_smp=500 * u.Hz,
-                **base_obs_fields,
+                **values,
                 master="ics",
                 master_code=ToltecDBRawObsMasterCode.ICS,
                 data_models=frozenset({"toltec"}),
-                array_name=array,
             )
             assert meta.array_name == array
 
-    def test_array_name_defaults_to_none(self, base_obs_fields: dict[str, Any]) -> None:
-        """Test that array_name defaults to None."""
-        meta = ToltecRawObsMetadata(
-            n_blocks_max=1,
-            n_times=1000,
-            n_chans=256,
-            f_smp=500 * u.Hz,
-            **base_obs_fields,
-            master="ics",
-            master_code=ToltecDBRawObsMasterCode.ICS,
-            data_models=frozenset({"toltec"}),
-        )
-        assert meta.array_name is None
+    @pytest.mark.parametrize("field", ["roach", "nw", "array", "array_name"])
+    def test_readout_identity_requires_explicit_values(self, base_obs_fields, field):
+        values = base_obs_fields | {
+            "n_blocks_max": 1,
+            "n_times": 1000,
+            "n_chans": 256,
+            "f_smp": 500 * u.Hz,
+            "master": "ics",
+            "master_code": ToltecDBRawObsMasterCode.ICS,
+            "data_models": frozenset({"toltec"}),
+        }
+        meta = ToltecRawObsMetadata.model_validate(values | {field: None})
+        assert getattr(meta, field) is None
+        del values[field]
+        with pytest.raises(ValidationError) as exc:
+            ToltecRawObsMetadata.model_validate(values)
+        [error] = exc.value.errors()
+        assert (error["loc"], error["type"]) == ((field,), "missing")
 
     def test_master_field_type_hint(self, base_obs_fields: dict[str, Any]) -> None:
         """Master codes and labels retain their independent value types."""
@@ -224,7 +219,6 @@ class TestToltecSweepMetadata:
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
             data_models=frozenset({"toltec"}),
-            roach=0,
             n_chans=512,
             n_times=1000,
             n_sweepsteps=100,
@@ -247,7 +241,6 @@ class TestToltecSweepMetadata:
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
             data_models=frozenset({"toltec"}),
-            roach=0,
             n_chans=256,
             n_times=500,
             n_sweepsteps=50,
@@ -268,7 +261,6 @@ class TestToltecSweepMetadata:
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
             data_models=frozenset({"toltec"}),
-            roach=0,
             n_chans=512,
             n_times=1000,
             n_sweepsteps=100,
@@ -290,7 +282,6 @@ class TestToltecSweepMetadata:
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
             data_models=frozenset({"toltec"}),
-            roach=0,
             n_chans=512,
             n_times=1000,
             n_sweepsteps=100,
@@ -310,7 +301,6 @@ class TestToltecSweepMetadata:
                 master="tcs",
                 master_code=ToltecDBRawObsMasterCode.TCS,
                 data_models=frozenset({"toltec"}),
-                roach=0,
                 # Missing: n_blocks, block, n_chans, f_smp
             )
 
@@ -328,7 +318,6 @@ class TestToltecTimestreamMetadata:
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
             data_models=frozenset({"toltec"}),
-            roach=0,
             n_times=10000,
             n_chans=512,
             f_smp=488.28125 * u.Hz,
@@ -348,7 +337,6 @@ class TestToltecTimestreamMetadata:
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
             data_models=frozenset({"toltec"}),
-            roach=0,
             n_times=5000,
             n_chans=256,
             f_smp=500 * u.Hz,
@@ -368,7 +356,6 @@ class TestToltecTimestreamMetadata:
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
             data_models=frozenset({"toltec"}),
-            roach=0,
             n_times=10000,
             n_chans=512,
             f_smp=488.28125 * u.Hz,
@@ -390,7 +377,6 @@ class TestToltecTimestreamMetadata:
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
             data_models=frozenset({"toltec"}),
-            roach=0,
             n_times=10000,
             n_chans=512,
             f_smp=488.28125 * u.Hz,
@@ -409,7 +395,6 @@ class TestToltecTimestreamMetadata:
             master="clip",
             master_code=ToltecDBRawObsMasterCode.CLIP,
             data_models=frozenset({"toltec"}),
-            roach=0,
             n_times=10000,
             n_chans=512,
             f_smp=488.28125 * u.Hz,
@@ -428,6 +413,5 @@ class TestToltecTimestreamMetadata:
                 master="tcs",
                 master_code=ToltecDBRawObsMasterCode.TCS,
                 data_models=frozenset({"toltec"}),
-                roach=0,
                 # Missing: n_samples, n_chans, f_smp
             )

@@ -46,6 +46,9 @@
   name of the writing step or specification, or an external program's name) and
   its run; producer-specific values stay in a separate context mapping. Writers
   and database registration validate item metadata with these contracts.
+  Supplemental metadata cannot replace the writer's item kind, receipt format
+  or name, producer, or producing run. References to other files within a product
+  use relative subpaths under that product's directory.
 - An index is internally consistent: each item declares its source location, a
   location/path pair occurs once per product, an included namespace matches the
   product's namespace, and actor, execution and store-run records agree with their

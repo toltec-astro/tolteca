@@ -24,9 +24,9 @@ if TYPE_CHECKING:
 
     from tollan.accessor.pandas.model_table import RecordRuleMapper
 
-__all__ = ["LmtBaseFileWorkflow"]
+__all__ = ["LmtBaseFileWorkflow", "metadata_column_mapper"]
 
-_metadata_column_mapper = ModelColumnMapper(
+metadata_column_mapper = ModelColumnMapper(
     name_rules=[(r".+", r"\g<0>")],
     type_rules=[
         ExplicitColumnRule(

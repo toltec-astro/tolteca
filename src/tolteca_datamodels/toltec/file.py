@@ -15,8 +15,8 @@ from ..core.source import SourceReaderRules
 from ..lmt._obs_spec import _obs_spec_context as _lmt_obs_spec_context
 from ..lmt.file import LmtFileWorkflow
 from ..lmt.metadata import LmtTelMetadata
-from ..lmt.tel import LmtTelAccessor, _get_tel_reader_record
-from ..lmt_base.file import LmtBaseFileWorkflow, _metadata_column_mapper
+from ..lmt.tel import LmtTelAccessor, read_tel_interface_info
+from ..lmt_base.file import LmtBaseFileWorkflow, metadata_column_mapper
 from . import filepath as _filepath  # noqa: F401 -- load this instrument's parsers.
 from ._data_kind import _data_kind_mapper
 from ._obs_spec import _obs_spec_context
@@ -53,7 +53,7 @@ def _get_reader_record(data_source: object) -> object | None:
     """Routing values recorded in an opened TolTEC or telescope dataset."""
     if not isinstance(data_source, (xr.Dataset, xr.DataTree)):
         return None
-    if (record := _get_tel_reader_record(data_source)) is not None:
+    if (record := read_tel_interface_info(data_source)) is not None:
         return record
     ds = cast("xr.Dataset", unwrap_data_source(data_source))
     hwpr = ToltecHwprIOMapper.from_data_source(ds)
@@ -106,7 +106,7 @@ class ToltecFileWorkflow(LmtBaseFileWorkflow):
         ),
     )
     _metadata_columns: ClassVar = {
-        model: _metadata_column_mapper(model)
+        model: metadata_column_mapper(model)
         for model in (
             LmtTelMetadata,
             ToltecHwprMetadata,

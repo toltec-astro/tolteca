@@ -62,18 +62,10 @@ class ToltecRawObsMetadata(LmtRawObsMetadata, FilepathOrigMetadataMixin):
 
     # Readout identity.
     readout_code: int = Field(description="Recorded readout code")
-    roach: ToltecInfo.RoachT | None = Field(
-        default=None, description="ROACH board index"
-    )
-    nw: ToltecInfo.RoachT | None = Field(
-        default=None, description="Network index (ROACH index)"
-    )
-    array: ToltecInfo.ArrayT | None = Field(
-        default=None, description="Detector array index"
-    )
-    array_name: ToltecInfo.ArrayNameT | None = Field(
-        default=None, description="Array name"
-    )
+    roach: ToltecInfo.RoachT | None = Field(description="ROACH board index")
+    nw: ToltecInfo.RoachT | None = Field(description="Network index (ROACH index)")
+    array: ToltecInfo.ArrayT | None = Field(description="Detector array index")
+    array_name: ToltecInfo.ArrayNameT | None = Field(description="Array name")
 
     # Acquisition size and programmed readout settings.
     n_blocks_max: int = Field(ge=0, description="Allocated acquisition block capacity")

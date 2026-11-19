@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, cast
 import xarray as xr
 from tollan.accessor.xarray import unwrap_data_source
 
-from ..lmt.tel import LmtTelAccessor, _get_tel_reader_record
+from ..lmt.tel import LmtTelAccessor, read_tel_interface_info
 from ..source import SourceSourceLoc
 from .hwpr import ToltecHwprAccessor, ToltecHwprIOMapper
 from .kids.core import ToltecKidsAccessor, ToltecKidsIOMapper
@@ -26,7 +26,7 @@ def _acquisition_reader(data: object) -> SourceReader:
     if not isinstance(data, (xr.Dataset, xr.DataTree)):
         msg = "A TolTEC acquisition requires a native dataset"
         raise TypeError(msg)
-    telescope = _get_tel_reader_record(data)
+    telescope = read_tel_interface_info(data)
     if telescope is not None:
         if "toltec" not in telescope.data_models:
             msg = "Telescope acquisition does not identify TolTEC as its receiver"

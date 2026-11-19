@@ -16,7 +16,7 @@ from astropy.time import Time
 from tollan.accessor import FieldLocation, NameMapping, Schema
 from tollan.accessor.xarray import XarrayAccessorBase, XarrayMapper, unwrap_data_source
 
-from ...core.source.opener import _open_netcdf
+from ...core.source import source_opener
 from ..axes import ToltecAxisView
 from ..metadata import ToltecProcessedKidsMetadata, ToltecRawObsMetadata
 from ..toltec_db import ToltecDBRawObsMasterCode
@@ -761,8 +761,9 @@ def open_toltec_kids(
         dataset = cast(
             "ToltecKidsDataset",
             stack.enter_context(
-                _open_netcdf(
-                    source,
+                source_opener.open(
+                    {"ext": "nc"},
+                    source=source,
                     decode_coords=decode_coords,
                     decode_times=decode_times,
                     **kwargs,

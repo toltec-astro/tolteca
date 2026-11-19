@@ -152,6 +152,18 @@ in both direct and composite queries, such as ``{"ToltecDataKind": ToltecDataKin
 Keep policy-local shorthand in the inherited ``_query_namespace`` setting.
 A composite exposes shorthand only when all selected policies agree on its value.
 
+For LMT instrument workflows, inherit ``LmtBaseFileWorkflow`` from
+``tolteca_datamodels.lmt_base.file`` to derive observation identifiers. The module's
+``metadata_column_mapper`` prepares columns from metadata models in the shared
+units. Use ``tolteca_datamodels.lmt.tel.read_tel_interface_info`` in a reader
+policy's ``prepare_record`` callback to recognize telescope companions and check
+their data-model memberships.
+
+A typed opener for a known netCDF format can use
+``source_opener.open({"ext": "nc"}, source=source)`` from ``core.source``, then
+construct its data accessor. The caller owns the opened dataset and must close
+it if accessor construction fails.
+
 Group capabilities
 ------------------
 

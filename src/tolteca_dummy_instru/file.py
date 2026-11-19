@@ -14,15 +14,12 @@ from tolteca_datamodels.core.file import (
     FileAccessorBase,
 )
 from tolteca_datamodels.core.source import SourceReaderRules
-from tolteca_datamodels.lmt._obs_spec import (
-    _obs_spec_context as _lmt_obs_spec_context,
-)
 from tolteca_datamodels.lmt.file import LmtFileWorkflow
 from tolteca_datamodels.lmt.metadata import LmtTelMetadata
-from tolteca_datamodels.lmt.tel import LmtTelAccessor, _get_tel_reader_record
+from tolteca_datamodels.lmt.tel import LmtTelAccessor, read_tel_interface_info
 from tolteca_datamodels.lmt_base.file import (
     LmtBaseFileWorkflow,
-    _metadata_column_mapper,
+    metadata_column_mapper,
 )
 
 from . import filepath as _filepath  # noqa: F401 -- load this instrument's parsers.
@@ -49,7 +46,7 @@ __all__ = [
 
 def _get_reader_record(data_source: object) -> object | None:
     """Routing values recorded in an opened dummy or telescope dataset."""
-    if (record := _get_tel_reader_record(data_source)) is not None:
+    if (record := read_tel_interface_info(data_source)) is not None:
         return record
     if not isinstance(data_source, xr.Dataset):
         return None
@@ -65,7 +62,7 @@ def _get_reader_record(data_source: object) -> object | None:
 class _DummyInstruFileWorkflowBase(LmtBaseFileWorkflow):
     """Observation columns and classification shared by dummy file policies."""
 
-    _obs_spec_context: ClassVar = _lmt_obs_spec_context | _obs_spec_context
+    _obs_spec_context: ClassVar = _obs_spec_context
     _query_namespace: ClassVar = dict(DummyInstruDataKind.__members__)
     _query_symbols: ClassVar = {"DummyInstruDataKind": DummyInstruDataKind}
     _data_kind_rule_mapper: ClassVar = _data_kind_mapper
@@ -125,7 +122,7 @@ class DummyInstruCounterFileWorkflow(_DummyInstruFileWorkflowBase):
         rules=((_file_match_rules[0], DummyInstruAccessor),),
     )
     _metadata_columns: ClassVar = {
-        DummyInstruMetadata: _metadata_column_mapper(DummyInstruMetadata),
+        DummyInstruMetadata: metadata_column_mapper(DummyInstruMetadata),
     }
 
 
@@ -162,7 +159,7 @@ class DummyInstruTelescopeFileWorkflow(_DummyInstruFileWorkflowBase):
         rules=((_file_match_rules[0], LmtTelAccessor),),
     )
     _metadata_columns: ClassVar = {
-        LmtTelMetadata: _metadata_column_mapper(LmtTelMetadata),
+        LmtTelMetadata: metadata_column_mapper(LmtTelMetadata),
     }
 
 

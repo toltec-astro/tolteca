@@ -129,9 +129,9 @@ def test_selection_is_read_only_and_keeps_validated_specs(
     assert models.data_models == {"toltec": toltec_data_model_spec}
     assert models.data_models["toltec"] is toltec_data_model_spec
     with pytest.raises(TypeError):
-        models.data_models["lmt"] = lmt_data_model_spec
+        models.data_models["lmt"] = lmt_data_model_spec  # ty: ignore[invalid-assignment] -- deliberate mutation
     with pytest.raises(TypeError):
-        del models.data_models["toltec"]
+        del models.data_models["toltec"]  # ty: ignore[not-subscriptable] -- deliberate mutation
     with pytest.raises(FrozenInstanceError):
         setattr(models, "data_models", {})  # noqa: B010 -- Test frozen assignment.
 

@@ -213,6 +213,10 @@ independently of the filename. Its metadata has `instru="lmt"`,
 
 ## Combine telescope and detector files
 
+Files from the same observation can have different sampling rates and time
+coordinates. Select the companion records together, then align their samples
+explicitly when combining telescope and detector measurements.
+
 A concrete class selects the capabilities: `LmtFileAccessor` handles telescope
 files; `ToltecFileAccessor` handles TolTEC detector, HWPR and companion telescope
 files.

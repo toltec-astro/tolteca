@@ -16,7 +16,7 @@ from tollan.accessor.xarray import XarrayAccessorBase, XarrayMapper, unwrap_data
 from tollan.utils.log import logger
 from tollan.utils.typing import get_literal_value
 
-from ..core.source.opener import _open_netcdf
+from ..core.source import source_opener
 from .metadata import LmtTelInterfaceKindT, LmtTelInterfaceT, LmtTelMetadata
 from .types import (
     LmtDataModel,
@@ -49,6 +49,7 @@ __all__ = [
     "LmtTelIOMapper",
     "LmtTelIOSchema",
     "open_lmt_tel",
+    "read_tel_interface_info",
 ]
 
 
@@ -283,7 +284,26 @@ class LmtTelAccessor(XarrayAccessorBase[LmtTelIOMapper]):
         return result.astype(int).u.unset()
 
 
-def _get_tel_reader_record(data_source: object) -> LmtInterfaceInfo | None:
+def read_tel_interface_info(data_source: object) -> LmtInterfaceInfo | None:
+    """Read telescope interface identity for reader selection.
+
+    Parameters
+    ----------
+    data_source : object
+        Opened dataset or data tree owned by the caller.
+
+    Returns
+    -------
+    LmtInterfaceInfo or None
+        Telescope identity and receiver data-model memberships, or None when
+        the object has no recognized telescope timestamps. Signal arrays and
+        full observation metadata are not read.
+
+    Notes
+    -----
+    Use this with ``SourceReaderRules.prepare_record`` when an instrument
+    accepts telescope companions. Header-reading errors propagate to the caller.
+    """
     if not isinstance(data_source, (xr.Dataset, xr.DataTree)):
         return None
     ds = unwrap_data_source(data_source)
@@ -323,7 +343,12 @@ def open_lmt_tel(source: str | Path | FileLoc, **kwargs) -> LmtTelDataset:
         If the location is remote or the dataset lacks telescope timestamps.
     """
     with ExitStack() as stack:
-        ds = cast("LmtTelDataset", stack.enter_context(_open_netcdf(source, **kwargs)))
+        ds = cast(
+            "LmtTelDataset",
+            stack.enter_context(
+                source_opener.open({"ext": "nc"}, source=source, **kwargs)
+            ),
+        )
         _ = ds.lmt_tel
         stack.pop_all()
     return ds

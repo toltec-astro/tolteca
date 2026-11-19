@@ -281,6 +281,9 @@ def test_toltec_inherits_interface_identifiers(identified_metadata, kids_filepat
         interface="toltec0",
         readout_code=12,
         roach=12,
+        nw=12,
+        array=2,
+        array_name="a2000",
         filepath_orig=kids_filepath_orig,
     )
     meta = ToltecRawObsMetadata(
@@ -302,6 +305,10 @@ def test_toltec_master_requires_a_recorded_code(
         "master_code": master_code,
         "master": ToltecDBRawObsMasterCode.get_master(ToltecDBRawObsMasterCode.TCS),
         "readout_code": 0,
+        "roach": 0,
+        "nw": 0,
+        "array": 0,
+        "array_name": "a1100",
         "data_models": ["toltec"],
         "instru": "toltec",
         "interface": "toltec0",

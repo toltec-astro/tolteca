@@ -7,11 +7,11 @@ from tollan.accessor.pandas.model_table import Contains
 
 from ..core.file import FileAccessorBase
 from ..core.source import SourceReaderRules
-from ..lmt_base.file import LmtBaseFileWorkflow, _metadata_column_mapper
+from ..lmt_base.file import LmtBaseFileWorkflow, metadata_column_mapper
 from . import filepath as _filepath  # noqa: F401 -- load this instrument's parsers.
 from ._obs_spec import _obs_spec_context
 from .metadata import LmtTelMetadata
-from .tel import LmtTelAccessor, _get_tel_reader_record
+from .tel import LmtTelAccessor, read_tel_interface_info
 from .types import LmtDataModel
 
 __all__ = ["LmtFileAccessor", "LmtFileWorkflow"]
@@ -28,7 +28,7 @@ class LmtFileWorkflow(LmtBaseFileWorkflow):
 
     _file_match_rules = ({"data_models": Contains(value=LmtDataModel.name)},)
     _source_reader_rules: ClassVar = SourceReaderRules(
-        prepare_record=_get_tel_reader_record,
+        prepare_record=read_tel_interface_info,
         rules=(
             (
                 {"data_models": Contains(value=LmtDataModel.name), "interface": "tel"},
@@ -37,7 +37,7 @@ class LmtFileWorkflow(LmtBaseFileWorkflow):
         ),
     )
     _metadata_columns: ClassVar = {
-        LmtTelMetadata: _metadata_column_mapper(LmtTelMetadata),
+        LmtTelMetadata: metadata_column_mapper(LmtTelMetadata),
     }
     _obs_spec_context: ClassVar = _obs_spec_context
 

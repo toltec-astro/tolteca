@@ -633,7 +633,8 @@ def write_artifacts(
         Writer recorded on every item; see `ArtifactMeta`.
     meta : dict or None, optional
         Other `ArtifactMeta` fields added to every item, such as ``interface``,
-        ``scope`` or ``context``.
+        ``scope`` or ``context``. The writer supplies ``type``, ``format``,
+        ``name``, ``producer`` and ``run_uid``; do not include them here.
 
     Returns
     -------
@@ -646,7 +647,8 @@ def write_artifacts(
     ------
     ValueError
         The index has no output directory or producing run, or a specification
-        wrote outside the output directory.
+        wrote outside the output directory. Also raised before writing when
+        ``meta`` contains a writer-supplied field.
     pydantic.ValidationError
         ``meta`` sets a field that `ArtifactMeta` does not declare, or an invalid
         value.
@@ -661,6 +663,12 @@ def write_artifacts(
     base = index.base_path
     if base is None or index.run is None:
         msg = "write_artifacts requires an index yielded by materialize"
+        raise ValueError(msg)
+    reserved = {"type", "format", "name", "producer", "run_uid"}.intersection(
+        meta or {}
+    )
+    if reserved:
+        msg = f"Artifact metadata cannot set writer-supplied fields: {sorted(reserved)}"
         raise ValueError(msg)
     _own_location(index)
     items = []

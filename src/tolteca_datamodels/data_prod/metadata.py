@@ -22,6 +22,7 @@ from pydantic import (
     TypeAdapter,
     model_serializer,
 )
+from tollan.config.types import SubPath
 
 from ..core.data_prod import DataProdRef
 from ..lmt.metadata import LmtTelMetadata
@@ -560,7 +561,7 @@ class ArtifactMeta(_ItemMetaModel):
     raw_obs_uid : str or None
         Acquisition for an acquisition-specific artifact, such as a matched APT.
         None leaves applicability unscoped.
-    source_file, fit_file : str or None
+    source_file, fit_file : SubPath or None
         Source data and saved fit record used by a figure, relative to its
         product directory. None when the artifact declares no such reference.
     context : dict or None
@@ -577,8 +578,8 @@ class ArtifactMeta(_ItemMetaModel):
     kind: str | None = None
     array: str | None = None
     raw_obs_uid: str | None = None
-    source_file: str | None = None
-    fit_file: str | None = None
+    source_file: SubPath | None = None
+    fit_file: SubPath | None = None
     context: dict[str, Any] | None = None
 
 

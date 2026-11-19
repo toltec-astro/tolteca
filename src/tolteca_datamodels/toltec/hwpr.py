@@ -17,7 +17,7 @@ from tollan.config.types import FrequencyQuantityField
 from tollan.utils.log import logger
 from tollan.utils.typing import get_literal_value
 
-from ..core.source.opener import _open_netcdf
+from ..core.source import source_opener
 from ..lmt_base.filepath import FilepathOrigMetadataMixin
 from ..lmt_base.metadata import LmtRawObsMetadata
 from .toltec_db import ToltecDBRawObsMasterCode
@@ -312,7 +312,10 @@ def open_toltec_hwpr(source: str | Path | FileLoc, **kwargs) -> ToltecHwprDatase
     """
     with ExitStack() as stack:
         ds = cast(
-            "ToltecHwprDataset", stack.enter_context(_open_netcdf(source, **kwargs))
+            "ToltecHwprDataset",
+            stack.enter_context(
+                source_opener.open({"ext": "nc"}, source=source, **kwargs)
+            ),
         )
         _ = ds.toltec_hwpr
         stack.pop_all()

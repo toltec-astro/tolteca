@@ -73,6 +73,9 @@ producer=...)`` has each specification write beneath ``output_index.base_path``
 and adds every written file to the realization as a data item. ``producer`` names
 the writer, such as a step's or specification's qualified key
 (``TextSummary.get_context_key()``).
+Use ``meta`` for selection keys or producer-specific ``context``. The writer
+supplies the item kind, file format and name, producer, and run identity; these
+fields cannot be overridden through ``meta``.
 
 Publish several products in one run
 -----------------------------------

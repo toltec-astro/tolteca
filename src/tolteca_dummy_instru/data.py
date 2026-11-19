@@ -15,7 +15,7 @@ from tollan.accessor import Mapping, NameMapping, Schema
 from tollan.accessor.xarray import XarrayAccessorBase, XarrayMapper
 from tollan.utils.typing import get_literal_value
 
-from tolteca_datamodels.core.source.opener import _open_netcdf
+from tolteca_datamodels.core.source import source_opener
 
 from .metadata import DummyInstruInterfaceKindT, DummyInstruMetadata
 from .types import DummyInstruDataModel, DummyInstruInfo
@@ -151,7 +151,10 @@ def open_dummy_instru(source: str | Path | FileLoc, **kwargs) -> DummyInstruData
     """
     with ExitStack() as stack:
         ds = cast(
-            "DummyInstruDataset", stack.enter_context(_open_netcdf(source, **kwargs))
+            "DummyInstruDataset",
+            stack.enter_context(
+                source_opener.open({"ext": "nc"}, source=source, **kwargs)
+            ),
         )
         _ = ds.dummy_instru
         stack.pop_all()

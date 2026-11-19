@@ -639,6 +639,23 @@ def test_failed_artifact_writer_installs_nothing(tmp_path):
     assert len(DataProdIndex.read(first.parent).products) == 1
 
 
+@pytest.mark.parametrize("field", ["type", "format", "name", "producer", "run_uid"])
+def test_artifact_metadata_cannot_replace_writer_facts(tmp_path, field):
+    store = DataProdStore(tmp_path)
+    with (
+        pytest.raises(ValueError, match="writer-supplied fields"),
+        WorkflowRun.create() as run,
+        store.materialize(_index().model_copy(update={"run": run})) as index,
+    ):
+        # This writer raises if invoked: reject the metadata before writing.
+        write_artifacts(
+            index,
+            [Artifact(data="fail", spec=_Text())],
+            producer="tests:Writer",
+            meta={field: "replacement"},
+        )
+
+
 def _missing_input():
     msg = "missing input"
     raise RuntimeError(msg)

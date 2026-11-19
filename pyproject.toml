@@ -229,7 +229,6 @@ runtime-evaluated-base-classes = [
   "tollan.config.FrozenBaseModel",
   "tolteca_datamodels.core.types.FrozenDataModel",
   "tolteca_datamodels.core.data_prod.DataProdIndexBase",
-  "tolteca_datamodels.types.FrozenDataModel",
   "tolteca_datamodels.core.filepath.FilepathInfo",
   "tolteca_datamodels.core.input_discovery.entries.InputDiscoveryEntry",
   "tolteca_datamodels.core.input_discovery.InputDiscoveryEntry",
