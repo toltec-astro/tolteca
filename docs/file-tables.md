@@ -27,8 +27,8 @@ entries. Filename parsing always uses all currently registered parsers,
 independently of which accessor will handle the row.
 
 Factories return an accessor over a new DataFrame; `.table` returns that DataFrame.
-Methods on an existing accessor update its table in place. This example needs no
-files on disk:
+Metadata reads update an existing accessor's table in place; queries return a
+selected DataFrame. This example needs no files on disk:
 
 ```{testcode} file_tables
 from tolteca_datamodels.file import FileAccessor
@@ -49,8 +49,9 @@ assert telescope.interface.tolist() == ["tel"]
 accessor. Both add observation columns such as `obsnum` and `interface` to parsed
 rows, alongside the universal `file_*` columns. Rows that carry the observation
 identifiers also receive `quartet`, `uid_obs`, `uid_raw_obs` and `uid_raw_obs_file`;
-an identifier is null when one of its components is missing. A filename that no layout
-recognizes keeps `file_ext` and a base `filepath_info` whose `data_models` is empty.
+an identifier is null when one of its required components is missing. A filename
+that no layout recognizes keeps `file_ext` and a base `filepath_info` whose
+`data_models` is empty.
 
 By default, an invalid recognized filename or an invalid source/location pair also
 keeps its row, with the failure recorded in `source_trace`

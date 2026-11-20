@@ -30,8 +30,8 @@ compare many files, search a data tree, or configure a workflow.
 Each level builds on the one below. A store finds candidate paths for a file accessor;
 `InputDiscovery` combines stores, file accessors and selectors, driven by
 configuration; and the command-line programs take such a recipe and pass the resulting
-table to their pipeline. A file table is the working object at levels 2 to 4, and a
-typed opener is what the table opens for each row.
+table to their pipeline. A file table is the working object at levels 2 to 4.
+Use its `open()` context to work with the selected files through their data accessors.
 
 Levels 2 to 4 select files with [observation selectors](obs_spec.md) such as
 `tcs-145609/{tel,0}`, which constrain observation and interface identifiers

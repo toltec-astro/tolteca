@@ -44,4 +44,19 @@ just doc
 `just qa` runs the configured checks and tests. `just doc-build` performs a strict
 HTML build, and `just doc` serves the documentation locally.
 
+Observation-data tests use the deployment's read-only reference acquisitions.
+To include comparisons with the v2 implementation, set `TOLTECA_V2_PYTHON` to
+the Python executable in a separate environment with TolTECA v2 installed.
+From the repository root, run the telescope and filename comparisons with the
+v3 environment's Python:
+
+```console
+TOLTECA_V2_PYTHON=/path/to/v2/bin/python python -m pytest \
+    tests/tolteca_datamodels/lmt/test_tel_parity.py \
+    tests/tolteca_datamodels/test_recorded_filenames.py
+```
+
+Without this variable, cross-environment comparisons skip; the other tests in
+these modules still run.
+
 The project uses the BSD 3-Clause license.

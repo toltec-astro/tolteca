@@ -164,6 +164,12 @@ A typed opener for a known netCDF format can use
 construct its data accessor. The caller owns the opened dataset and must close
 it if accessor construction fails.
 
+For batch readers, reuse a resolved :class:`~tollan.accessor.Mapper` across
+compatible sources and pass the actual source to each read. Compatibility requires
+the resolved names and paths used by that read; extra fields or missing unused
+fields do not prevent reuse. Keep each source's metadata and identity separate
+from those shared layout bindings.
+
 Group capabilities
 ------------------
 
