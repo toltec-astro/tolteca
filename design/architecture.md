@@ -3,6 +3,61 @@
 Settled implementation mechanisms behind the specification
 (`spec/index.md`). Describes the current code.
 
+## Observation access
+
+The [observation-data specification](spec/observation-data.md) owns behavior.
+The mechanisms below implement its source-access and file-table contracts.
+
+### Opening and reader policies
+
+Tollan supplies generic record-rule matching. Tolteca specializes callable rules
+in `core.source` and supplies default format callables. File accessors prepare
+matching records and pass sources to those policies. This separates record
+projection from format access and instrument interpretation.
+
+`SourceOpener` uses callable rule values. `SourceReaderRules` uses accessor-class
+values and a callback that prepares routing values from opened content. The
+typed helpers pair a known opener with a known accessor. They do not route a
+known type through the collection's reader-selection machinery.
+
+### Accessor and workflow wiring
+
+`FileAccessorBase[Workflow]` binds source preparation and a table to a workflow
+class. Its public processing methods delegate to that workflow. The base workflow
+handles one concrete policy. It carries matching, derivation, opener/reader,
+metadata-mapping and observation-query settings.
+
+`CompositeFileAccessor` adds `partial()` and `iter_accessors()` without instrument
+settings. Its workflow expands component declarations, applies precedence and uses a private matcher
+to obtain disjoint positions and concrete accessors over the original table.
+Neither the base accessor nor concrete accessors expose group iteration.
+Workflows do not expose public iteration.
+
+Shared operations in `core.file._open` and `core.file._metadata` consume the
+selected groups and policies. These modules own resource dispatch and staged
+metadata projection. The composite combines query symbols and ObsSpec contexts,
+but does not implement another opening or projection path.
+
+The root accessor assembles component accessor types from registered data-model
+specifications. A specification names accessor and store classes. Concrete
+classes do not obtain their policy by looking up that specification.
+
+### Live resources and diagnostics
+
+Table scopes temporarily install `io_obj` and `accessor_obj`. Each live accessor
+retains its own caches. An independently obtained named xarray accessor is a
+different instance, not a cache shared implicitly with the table operation.
+
+Trace entries are internally constructed lightweight records, not models for
+validating external input. Each row trace stores the latest entry per kind and
+maintains its error-entry index when recording an issue. A collector operates on
+the table's trace column. Error policy belongs to the batch operation.
+
+The trace API names informational misses with `*_rule_unmatched`. Resource
+opening, reader creation and metadata reading report `source_open_failed`,
+`reader_creation_failed` and `metadata_read_failed`. Reader creation includes
+rule selection, content fallback and accessor construction as one operation.
+
 ## Data product store
 
 - A live filesystem group commits its member count and tags by replacing the
