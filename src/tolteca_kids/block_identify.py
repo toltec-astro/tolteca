@@ -155,6 +155,7 @@ class BlockIdentify(Step[StepConfig, BlockIdentifyContext]):
             },
             coords={"block": np.arange(n_blocks)},
         )
+        _recorded_waveform_settings(mapper, ds, block_data, n_blocks)
         if is_sweep:
             block_data["n_sweepsteps"] = (
                 "block",
@@ -181,3 +182,25 @@ class BlockIdentify(Step[StepConfig, BlockIdentifyContext]):
         identified.meta._chan_axis = ToltecAxisView(identified.chan)
         identified.meta._probe_axis = ToltecAxisView(identified.probe)
         return identified
+
+
+def _recorded_waveform_settings(mapper, ds, block_data, n_blocks):
+    """Copy applied settings for acquired blocks without loading DAC samples."""
+    schema = mapper.schema
+    for name, field_name in (
+        ("atten_drive", "atten_drive_blocks"),
+        ("atten_sense", "atten_sense_blocks"),
+        ("dac_normalization", "dac_normalization"),
+    ):
+        field = getattr(schema, field_name)
+        if field in mapper:
+            recorded = mapper.get_arr(ds, field).to_numpy().reshape(-1)
+            if len(recorded) < n_blocks:
+                msg = f"Incomplete recorded block setting: {name}"
+                raise ValueError(msg)
+            block_data[name] = ("block", recorded[:n_blocks])
+    if schema.dac_valid in mapper:
+        valid = mapper.get_arr(ds, schema.dac_valid).to_numpy().reshape(-1)
+        if len(valid) < n_blocks or not np.all(valid[:n_blocks] == 1):
+            msg = "Acquired block has no valid applied DAC waveform"
+            raise ValueError(msg)

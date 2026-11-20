@@ -39,8 +39,8 @@ import zarr as _zarr
 from pydantic import Field
 from tollan.config import FrozenBaseModel
 
-from tolteca_datamodels.toltec.kids.sweep import ReducedSweepView
-from tolteca_datamodels.toltec.kids.zarr import open_zarr_dataset
+from ._zarr_input import open_zarr_dataset
+from .sweep import ReducedSweepView
 
 try:
     from tolteca._version import __version__ as _PKG_VERSION  # type: ignore[attr-defined]
@@ -79,22 +79,7 @@ except Exception:
 
 @dataclass
 class KidsPipelineResult:
-    """Summary of one KidsPipeline.run() call.
-
-    Parameters
-    ----------
-    zarr_path : Path
-        Path to the zarr store that was processed.
-    n_chans : int
-        Total number of detector channels.
-    n_bad_chans : int
-        Channels flagged bad by SweepCheck.
-    n_detected : int
-        Resonators detected by KidsFind.
-    quality_score : float
-        Simple quality metric in [0, 1]: fraction of good channels with a
-        detection.  Higher is better.
-    """
+    """KIDs reduction summary."""
 
     zarr_path: Path
     n_chans: int
@@ -181,23 +166,11 @@ def read_kids_find(zarr_path: str | Path) -> KidsFindZarrData | None:
 
 # ── DataTree builder from zarr format ─────────────────────────────────────────
 
-_SWEEP_NS = "tolteca_datamodels.toltec.kids.sweep"
+_SWEEP_SUBPATH = "sweep"
 
 
 def _build_datatree_from_zarr(ds: xr.Dataset) -> xr.DataTree:
-    """Build a DataTree compatible with ReducedSweepView from a zarr dataset.
-
-    The zarr schema (``I``, ``Q``, ``tone_freq``, ``lo_freq``,
-    ``lo_center_freq_hz``) is remapped to the namespaced reduced-sweep schema
-    that :class:`~tolteca_datamodels.toltec.kids.ReducedSweepView` expects.
-
-    Mapping:
-    - ``ds.I(chan, sample)``          → ``{ns}.I(chan, sweep)``
-    - ``ds.Q(chan, sample)``          → ``{ns}.Q(chan, sweep)``
-    - ``ds.coords.lo_freq(sample)``   → coord ``sweep`` (offset from LO center)
-    - ``ds.tone_freq(chan)``          → coord ``f_lo`` (abs tone freq per chan)
-    - ``ds.attrs.lo_center_freq_hz`` → used for conversions (stored as attr)
-    """
+    """Convert a stored sweep to a reduced-sweep data tree."""
     lo_center: float = float(ds.attrs["lo_center_freq_hz"])
     tone_freq: np.ndarray = ds["tone_freq"].values  # (chan,), Hz offsets
     lo_freq: np.ndarray = ds.coords["lo_freq"].values  # (sample,), abs Hz
@@ -205,8 +178,8 @@ def _build_datatree_from_zarr(ds: xr.Dataset) -> xr.DataTree:
     n_chan = ds.sizes["chan"]
     n_sample = ds.sizes["sample"]
 
-    # f_lo: absolute tone frequency per channel (centre LO + tone offset)
-    f_lo = lo_center + tone_freq  # (chan,) Hz
+    # Absolute tone frequency per channel (centre LO + tone offset).
+    f_chan = lo_center + tone_freq  # (chan,) Hz
 
     I_vals = ds["I"].values  # (chan, sample)
     Q_vals = ds["Q"].values  # (chan, sample)
@@ -239,19 +212,27 @@ def _build_datatree_from_zarr(ds: xr.Dataset) -> xr.DataTree:
         Q_reduced = Q_vals
         unique_lo = lo_freq
 
+    # Preserve the production population uncertainties for each dwell.
+    unc_I = np.stack([np.std(I_vals[:, inv_idx == i], axis=1) for i in range(n_steps)], axis=1)
+    unc_Q = np.stack([np.std(Q_vals[:, inv_idx == i], axis=1) for i in range(n_steps)], axis=1)
+
     # sweep: LO step offset from LO centre per unique step
     sweep = unique_lo - lo_center  # (n_steps,) Hz
 
-    # Build the reduced-sweep child dataset with namespaced variable names
+    # Build the reduced-sweep child dataset with reduced variable names
     ds_reduced = xr.Dataset(
         {
-            f"{_SWEEP_NS}.I": xr.DataArray(I_reduced, dims=["chan", "sweep"]),
-            f"{_SWEEP_NS}.Q": xr.DataArray(Q_reduced, dims=["chan", "sweep"]),
+            "tone_amp": ds["tone_amp"],
+            "tone_mask": ds["tone_mask"],
+            "I": xr.DataArray(I_reduced, dims=["chan", "sweep"]),
+            "Q": xr.DataArray(Q_reduced, dims=["chan", "sweep"]),
+            "unc_I": xr.DataArray(unc_I, dims=["chan", "sweep"]),
+            "unc_Q": xr.DataArray(unc_Q, dims=["chan", "sweep"]),
         },
         coords={
             "chan": np.arange(n_chan),
             "sweep": sweep,  # Hz offsets from LO centre
-            "f_lo": xr.DataArray(f_lo, dims=["chan"]),  # abs tone freq per chan
+            "f_chan": xr.DataArray(f_chan, dims=["chan"]),
         },
         attrs={"lo_center_freq_hz": lo_center},
     )
@@ -271,7 +252,7 @@ def _build_datatree_from_zarr(ds: xr.Dataset) -> xr.DataTree:
     dt = xr.DataTree.from_dict(
         {
             "/": ds_root,
-            _SWEEP_NS: ds_reduced,
+            _SWEEP_SUBPATH: ds_reduced,
         }
     )
     return dt
@@ -281,18 +262,7 @@ def _build_datatree_from_zarr(ds: xr.Dataset) -> xr.DataTree:
 
 
 class KidsPipelineConfig(FrozenBaseModel):
-    """Configuration for the KIDs reduction pipeline.
-
-    Parameters
-    ----------
-    sweep_check : SweepCheckConfig
-        Configuration for the SweepCheck step.
-    kids_find : KidsFindConfig
-        Configuration for the KidsFind step.
-    skip_if_done : bool
-        If True and the zarr already has a ``kids_find`` group, return a
-        skipped result without re-running.  Default True.
-    """
+    """KIDs pipeline configuration."""
 
     sweep_check: SweepCheckConfig = Field(default_factory=SweepCheckConfig)
     kids_find: KidsFindConfig = Field(default_factory=KidsFindConfig)
@@ -351,7 +321,7 @@ class KidsPipeline:
         Parameters
         ----------
         zarr_path : str | Path
-            Path to a ``dp_reduced_obs`` zarr store (one interface / one nw).
+            Path to a reduced-sweep Zarr store (one interface / one nw).
             Results are written in-place as ``sweep_check/`` and ``kids_find/``
             groups.
 
@@ -393,12 +363,12 @@ class KidsPipeline:
 
         # Verify the view can be constructed
         view = ReducedSweepView(dt)
-        n_chans: int = dt[_SWEEP_NS].dataset.sizes["chan"]
+        n_chans: int = dt[_SWEEP_SUBPATH].dataset.sizes["chan"]
 
         logger.debug(
             "Loaded %d channels, %d steps from %s",
             n_chans,
-            dt[_SWEEP_NS].dataset.sizes["sweep"],
+            dt[_SWEEP_SUBPATH].dataset.sizes["sweep"],
             zarr_path,
         )
 

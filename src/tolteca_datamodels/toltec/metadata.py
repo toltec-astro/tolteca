@@ -85,6 +85,12 @@ class ToltecRawObsMetadata(LmtRawObsMetadata, FilepathOrigMetadataMixin):
     atten_drive: float | None = Field(
         default=None, description="Drive attenuation in dB"
     )
+    dac_normalization: float | None = Field(
+        default=None,
+        gt=0,
+        allow_inf_nan=False,
+        description="Applied gain of the DAC Fourier sum before integer quantization",
+    )
     atten_sense: float | None = Field(
         default=None, description="Sense attenuation in dB"
     )

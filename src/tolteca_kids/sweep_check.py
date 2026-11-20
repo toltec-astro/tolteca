@@ -1,23 +1,10 @@
-"""TolTEC KIDs sweep quality check pipeline step.
-
-Adapts the v2 ``tolteca_kids`` ``SweepCheck`` step for the v3
-``xr.DataTree``-based data model.  Input is an ``xr.DataTree`` produced by
-:class:`~tolteca_datamodels.toltec.kids.SweepReducer`; data is accessed via
-:class:`~tolteca_datamodels.toltec.kids.ReducedSweepView`.
-
-Context is stored in ``dt.attrs["__pipeline_context__"]`` via the
-:class:`~tollan.pipeline.Step` base class and retrieved with::
-
-    ctx = SweepCheck.get_context(dt)   # → SweepCheckContext (typed)
-    ctx.data.bitmask_chan              # per-channel bitmask array
-    ctx.data.mask_chan_bad             # bool bad-channel mask
-"""
+"""TolTEC sweep quality checks."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import IntFlag, auto
-from typing import TYPE_CHECKING, Literal
+from typing import Annotated, Literal, cast
 
 import astropy.units as u
 import numpy as np
@@ -25,17 +12,27 @@ import numpy.typing as npt
 import pandas as pd
 import scipy.stats
 import xarray as xr
-from astropy.stats import mad_std
+from astropy.stats import mad_std, sigma_clip
 from numpy.lib.stride_tricks import sliding_window_view
-from pydantic import ConfigDict, Field
+from pydantic import (
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    PlainSerializer,
+    ValidationInfo,
+    field_validator,
+)
 from scipy.ndimage import binary_erosion, median_filter
-from tollan.config.types import FrequencyQuantityField
-from tollan.pipeline import Step, StepConfig, StepContext
+from tollan.pipeline import Step, StepConfig, StepContext, StepFailure, StepFailureKind
 from tollan.utils.fmt import BitmaskStats, pformat_mask
 from tollan.utils.log import logger, timeit
 
-from tolteca_datamodels.toltec.kids.sweep import ReducedSweepView
 from tolteca_kidsproc.analysis.d21 import D21Analysis
+
+from ._reduction import calculation_settings, select_block
+from .roach_tone import READOUT_ELEMENTS, RoachReadoutPowerConfig, readout_power
+from .sweep import ReducedSweepView
+from .sweep_check_view import SweepCheckMapper, SweepCheckView
 
 __all__ = [
     "DespikeMethod",
@@ -43,7 +40,7 @@ __all__ = [
     "SweepCheck",
     "SweepCheckConfig",
     "SweepCheckContext",
-    "SweepCheckData",
+    "SweepCheckView",
 ]
 
 
@@ -95,11 +92,63 @@ class SweepBitMask(IntFlag):
     tone_power_high = auto()
     """Tone driving power high."""
 
+    unc_nonfinite = auto()
+    """Nonfinite original mean I/Q or repeat scatter; per-step diagnostic only."""
+
+    unc_low = auto()
+    """Repeat scatter is below the absolute limit; per-step diagnostic only."""
+
+    unc_high = auto()
+    """Repeat scatter exceeds the absolute limit; per-step diagnostic only."""
+
+    unc_outlier = auto()
+    """Repeat scatter is a sigma-clipped outlier; per-step diagnostic only."""
+
+
+def _threshold_from_json(value):
+    """Restore nonfinite thresholds from their JSON string representations."""
+    if isinstance(value, str):
+        return {"Infinity": np.inf, "-Infinity": -np.inf, "NaN": np.nan}.get(
+            value, value
+        )
+    return value
+
+
+def _threshold_to_json(value):
+    """Keep unbounded thresholds distinct from omitted values in saved settings."""
+    if np.isfinite(value):
+        return value
+    return "NaN" if np.isnan(value) else "Infinity" if value > 0 else "-Infinity"
+
+
+_Threshold = Annotated[
+    float,
+    BeforeValidator(
+        _threshold_from_json,
+        json_schema_input_type=float | Literal["Infinity", "-Infinity", "NaN"],
+    ),
+    PlainSerializer(_threshold_to_json, when_used="json"),
+]
+
 
 class SweepCheckConfig(StepConfig):
     """Configuration for the sweep quality check step."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+    block: int = Field(
+        default=-1,
+        ge=-1,
+        description="Block exposed by the context; all sweep blocks are checked.",
+    )
+    force: bool = Field(default=False, description="Recompute existing check results.")
+    readout_power: RoachReadoutPowerConfig | None = Field(
+        default_factory=RoachReadoutPowerConfig,
+        description=(
+            "Acquired readout-power calibration. Requires recorded probe amplitudes "
+            "and attenuation. ADC usage is included when a snapshot is recorded; "
+            "None skips these diagnostics."
+        ),
+    )
 
     # despike
     despike: bool = Field(
@@ -123,29 +172,61 @@ class SweepCheckConfig(StepConfig):
     )
 
     # channel stat thresholds
-    chan_range_db_min: float = Field(
+    chan_range_db_min: _Threshold = Field(
         default=0.1,
         description="Channel data range smaller than this is flagged.",
     )
-    chan_range_db_max: float = Field(
+    chan_range_db_max: _Threshold = Field(
         default=np.inf,
+        json_schema_extra={"default": "Infinity"},
         description="Channel data range larger than this is flagged.",
     )
-    chan_level_db_min: float = Field(
+    chan_level_db_min: _Threshold = Field(
         default=-np.inf,
+        json_schema_extra={"default": "-Infinity"},
         description="Channel data level lower than this is flagged.",
     )
-    chan_level_db_max: float = Field(
+    chan_level_db_max: _Threshold = Field(
         default=np.inf,
+        json_schema_extra={"default": "Infinity"},
         description="Channel data level higher than this is flagged.",
     )
-    chan_rms_db_min: float = Field(
+    chan_rms_db_min: _Threshold = Field(
         default=0.001,
         description="Channel data RMS lower than this is flagged.",
     )
-    chan_rms_db_max: float = Field(
+    chan_rms_db_max: _Threshold = Field(
         default=0.1,
         description="Channel data RMS higher than this is flagged.",
+    )
+    step_unc_min: float = Field(
+        default=0.0,
+        ge=0,
+        allow_inf_nan=False,
+        description=(
+            "Flag finite I or Q repeat scatter below this absolute limit, in "
+            "the reduced I/Q units. Diagnostic only."
+        ),
+    )
+    step_unc_max: _Threshold = Field(
+        default=np.inf,
+        ge=0,
+        json_schema_extra={"default": "Infinity"},
+        description=(
+            "Flag finite I or Q repeat scatter above this absolute limit, in "
+            "the reduced I/Q units. Infinity disables the upper limit. Diagnostic only."
+        ),
+    )
+    step_unc_outlier_n_sigma_min: float = Field(
+        default=15.0,
+        gt=0,
+        allow_inf_nan=False,
+        description=(
+            "Two-sided sigma-clipping threshold for repeat scatter across frequency "
+            "steps, separately per channel and quadrature. Uses a median center, "
+            "MAD-based scale and up to five iterations. Diagnostic only; does not "
+            "reject data or change fit weights."
+        ),
     )
 
     # chunk stats
@@ -166,10 +247,12 @@ class SweepCheckConfig(StepConfig):
         description="Chunk kurtosis higher than this is flagged.",
     )
     bad_chan_bits: SweepBitMask = Field(
+        strict=False,
         default=(SweepBitMask.rms_low | SweepBitMask.rms_high),
         description="Bits used to generate channel bad mask.",
     )
     not_baseline_chunk_bits: SweepBitMask = Field(
+        strict=False,
         default=(SweepBitMask.skew_high | SweepBitMask.kurtosis_high),
         description="Bits used to generate chunk baseline flag.",
     )
@@ -184,19 +267,23 @@ class SweepCheckConfig(StepConfig):
         description="D21 analysis parameters.",
     )
 
+    @field_validator("step_unc_max")
+    @classmethod
+    def _validate_unc_max(cls, value: float, info: ValidationInfo) -> float:
+        minimum = info.data.get("step_unc_min")
+        if minimum is not None and minimum > value:
+            msg = "step_unc_min must not exceed step_unc_max"
+            raise ValueError(msg)
+        return value
+
 
 @dataclass(kw_only=True)
-class SweepCheckData:
-    """Output data from the sweep quality check step.
-
-    Stores per-channel and per-chunk statistics, bitmasks, D21 results,
-    and optional noise PSD arrays.  Holds arbitrary types (numpy arrays,
-    pandas DataFrames, astropy Quantities) and is stored as-is in
-    ``dt.attrs["__pipeline_context__"]``.
-    """
+class _SweepCheckData:
+    """Sweep quality statistics, flags, and diagnostics."""
 
     # spike
     mask_spike: npt.NDArray = field(default_factory=lambda: np.empty(0))
+    S21_checked: npt.NDArray = field(default_factory=lambda: np.empty(0))
     S21_orig: npt.NDArray | None = None
     S21_spike: npt.NDArray | None = None
 
@@ -218,9 +305,7 @@ class SweepCheckData:
     mask_chunk_baseline: npt.NDArray = field(
         default_factory=lambda: np.empty(0, dtype=bool)
     )
-    mask_baseline: npt.NDArray = field(
-        default_factory=lambda: np.empty(0, dtype=bool)
-    )
+    mask_baseline: npt.NDArray = field(default_factory=lambda: np.empty(0, dtype=bool))
 
     # D21 baseline
     d21_mask_baseline: npt.NDArray = field(
@@ -239,25 +324,23 @@ class SweepCheckData:
     d21_chunk_baseline_rms: u.Quantity = field(
         default_factory=lambda: np.empty(0) << u.Hz**-1
     )
-    d21_baseline: u.Quantity = field(
-        default_factory=lambda: np.empty(0) << u.Hz**-1
-    )
+    d21_baseline: u.Quantity = field(default_factory=lambda: np.empty(0) << u.Hz**-1)
     d21_baseline_rms: u.Quantity = field(
         default_factory=lambda: np.empty(0) << u.Hz**-1
     )
-    d21_frequency: u.Quantity = field(
-        default_factory=lambda: np.empty(0) << u.Hz
-    )
+    d21_frequency: u.Quantity = field(default_factory=lambda: np.empty(0) << u.Hz)
     d21: u.Quantity = field(default_factory=lambda: np.empty(0) << u.Hz**-1)
-    d21_detrended: u.Quantity = field(
-        default_factory=lambda: np.empty(0) << u.Hz**-1
-    )
+    d21_detrended: u.Quantity = field(default_factory=lambda: np.empty(0) << u.Hz**-1)
 
     # per-channel stats
     chan_range: npt.NDArray = field(default_factory=lambda: np.empty(0))
     chan_level: npt.NDArray = field(default_factory=lambda: np.empty(0))
     chan_rms_mean: npt.NDArray = field(default_factory=lambda: np.empty(0))
     chan_rms_std: npt.NDArray = field(default_factory=lambda: np.empty(0))
+    chan_unc_I_ref: npt.NDArray = field(default_factory=lambda: np.empty(0))  # noqa: N815 -- physical I/Q
+    chan_unc_Q_ref: npt.NDArray = field(default_factory=lambda: np.empty(0))  # noqa: N815 -- physical I/Q
+    chan_unc_I_std: npt.NDArray = field(default_factory=lambda: np.empty(0))  # noqa: N815 -- physical I/Q
+    chan_unc_Q_std: npt.NDArray = field(default_factory=lambda: np.empty(0))  # noqa: N815 -- physical I/Q
 
     chunk_rms_mean: npt.NDArray = field(default_factory=lambda: np.empty(0))
     chunk_rms_std: npt.NDArray = field(default_factory=lambda: np.empty(0))
@@ -266,13 +349,15 @@ class SweepCheckData:
 
     swp_rms_med: float = 0.0
     swp_rms_rms: float = 0.0
+    readout_power: xr.Dataset | None = None
 
 
 class SweepCheckContext(StepContext["SweepCheck", SweepCheckConfig]):
     """Context for the sweep quality check step."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    data: SweepCheckData = Field(default_factory=SweepCheckData)
+    data: SweepCheckView | None = Field(default=None, exclude=True)
+    block: int = -1
 
 
 # ---------------------------------------------------------------------------
@@ -284,23 +369,26 @@ class SweepCheckContext(StepContext["SweepCheck", SweepCheckConfig]):
 class _SweepArrays:
     """Numpy arrays extracted from a ReducedSweepView for the algorithm."""
 
+    S21_unc: npt.NDArray  # complex I/Q uncertainty [n_chans, n_steps]
+    unc_I: npt.NDArray  # noqa: N815 -- physical I/Q; [n_chans, n_steps]
+    unc_Q: npt.NDArray  # noqa: N815 -- physical I/Q; [n_chans, n_steps]
     S21: npt.NDArray  # complex [n_chans, n_steps]
-    aS21: npt.NDArray  # [n_chans, n_steps]
-    aS21_db: npt.NDArray  # [n_chans, n_steps]
-    aS21_unc_db: npt.NDArray  # [n_chans, n_steps] — uncertainty in dB
-    aS21_unc: npt.NDArray  # [n_chans, n_steps] — uncertainty in linear amplitude
+    aS21: npt.NDArray  # noqa: N815 -- scientific notation; [n_chans, n_steps]
+    aS21_db: npt.NDArray  # noqa: N815 -- scientific notation; [n_chans, n_steps]
+    aS21_unc_db: npt.NDArray  # noqa: N815 -- scientific notation; [n_chans, n_steps] — uncertainty in dB
+    aS21_unc: npt.NDArray  # noqa: N815 -- scientific notation; [n_chans, n_steps] — uncertainty in linear amplitude
     frequency: u.Quantity  # [n_chans, n_steps] in Hz
     n_chans: int
     n_steps: int
 
 
-def _extract_sweep_arrays(dt: xr.DataTree) -> _SweepArrays:
+def _extract_sweep_arrays(dt: xr.Dataset | xr.DataTree) -> _SweepArrays:
     """Extract numpy arrays from reduced sweep DataTree for SweepCheck.
 
     Parameters
     ----------
-    dt : xr.DataTree
-        DataTree produced by :class:`~tolteca_datamodels.toltec.kids.SweepReducer`.
+    dt : xarray.Dataset or xarray.DataTree
+        Reduced dataset or a block containing it in its ``sweep`` child.
 
     Returns
     -------
@@ -312,44 +400,36 @@ def _extract_sweep_arrays(dt: xr.DataTree) -> _SweepArrays:
     I_da = view.I
     Q_da = view.Q
     if I_da is None or Q_da is None:
-        raise ValueError("ReducedSweepView has no I/Q data.")
+        msg = "ReducedSweepView has no I/Q data."
+        raise ValueError(msg)
 
-    I_np = I_da.values  # [chan, sweep]
-    Q_np = Q_da.values  # [chan, sweep]
+    I_np = I_da.to_numpy()  # [chan, sweep]
+    Q_np = Q_da.to_numpy()  # [chan, sweep]
     S21_np = I_np + 1j * Q_np
     aS21_np = np.abs(S21_np)
-    safe_aS21 = np.where(aS21_np > 0, aS21_np, np.finfo(float).tiny)
-    aS21_db = 20.0 * np.log10(safe_aS21)
+    aS21_db = 20.0 * np.log10(aS21_np)
 
-    # Error propagation: sigma_aS21_db = (20/ln10) * sigma_|S21| / |S21|
-    unc_I_da = view.unc_I
-    unc_Q_da = view.unc_Q
-    if unc_I_da is not None and unc_Q_da is not None:
-        unc_I_np = unc_I_da.values
-        unc_Q_np = unc_Q_da.values
-        # sigma_|S21| = sqrt((I*sigma_I)^2 + (Q*sigma_Q)^2) / |S21|
-        sigma_abs = np.sqrt((I_np * unc_I_np) ** 2 + (Q_np * unc_Q_np) ** 2)
-        sigma_abs /= safe_aS21  # linear amplitude uncertainty = sigma_|S21|
-        aS21_unc_db = (20.0 / np.log(10.0)) * sigma_abs / safe_aS21
-    else:
-        sigma_abs = np.zeros_like(aS21_db)
-        aS21_unc_db = np.zeros_like(aS21_db)
-
-    # Absolute frequency: f_lo[chan] + sweep[step]  →  [chan, sweep]
-    f_lo_da = view.f_lo
-    sweep_da = view.sweep
+    # Production v2 uses the magnitude of the complex I/Q uncertainty.
+    unc_I_da, unc_Q_da = view.unc_I, view.unc_Q
+    if unc_I_da is None or unc_Q_da is None:
+        msg = "Sweep check requires I/Q uncertainties"
+        raise ValueError(msg)
+    unc_I, unc_Q = unc_I_da.to_numpy(), unc_Q_da.to_numpy()
+    uncertainty = unc_I + 1j * unc_Q
+    sigma_abs = np.abs(uncertainty)
+    aS21_unc_db = 20 * np.log10(np.e) * np.abs(uncertainty / S21_np)
+    frequency_da = view.frequency
+    if frequency_da is None:
+        msg = "Sweep check requires absolute sweep frequencies"
+        raise ValueError(msg)
+    frequency = frequency_da.u.quantity.to(u.Hz)
     n_chans, n_steps = I_np.shape
-    if f_lo_da is not None and sweep_da is not None:
-        f_lo_np = f_lo_da.values  # [chan]
-        sweep_np = sweep_da.values  # [sweep]
-        # Both should be in Hz; broadcast to [chan, sweep]
-        frequency = (f_lo_np[:, np.newaxis] + sweep_np[np.newaxis, :]) << u.Hz
-    else:
-        # Fallback: zero-based frequency
-        frequency = np.zeros((n_chans, n_steps)) << u.Hz
 
     return _SweepArrays(
         S21=S21_np,
+        S21_unc=uncertainty,
+        unc_I=unc_I,
+        unc_Q=unc_Q,
         aS21=aS21_np,
         aS21_db=aS21_db,
         aS21_unc_db=aS21_unc_db,
@@ -360,15 +440,37 @@ def _extract_sweep_arrays(dt: xr.DataTree) -> _SweepArrays:
     )
 
 
+def _step_unc_flags(signal, unc_I, unc_Q, *, limits, n_sigma):  # noqa: N803 -- physical I/Q names
+    """Flag reduced scatter without rejecting measurements or reading raw repeats."""
+    flags = np.zeros(signal.shape, dtype=int)
+    nonfinite = ~np.isfinite(signal) | ~np.isfinite(unc_I) | ~np.isfinite(unc_Q)
+    flags[nonfinite] |= int(SweepBitMask.unc_nonfinite)
+    references, scales = [], []
+    for scatter in (unc_I, unc_Q):
+        finite = np.isfinite(scatter)
+        flags[finite & (scatter < limits[0])] |= int(SweepBitMask.unc_low)
+        flags[finite & (scatter > limits[1])] |= int(SweepBitMask.unc_high)
+        # Absolute limits do not determine the statistical reference population.
+        valid = finite & (scatter >= 0)
+        clipped, lower, upper = sigma_clip(
+            np.ma.array(scatter, mask=~valid, copy=False),
+            sigma=n_sigma,
+            maxiters=5,
+            cenfunc="median",
+            stdfunc="mad_std",
+            axis=1,
+            masked=True,
+            return_bounds=True,
+        )
+        flags[valid & np.ma.getmaskarray(clipped)] |= int(SweepBitMask.unc_outlier)
+        references.append((lower + upper) / 2)
+        scales.append((upper - lower) / (2 * n_sigma))
+    return flags, *references, *scales
+
+
 @dataclass
 class _D21SweepAdapter:
-    """Minimal adapter making numpy arrays compatible with ``D21Analysis``.
-
-    ``D21Analysis.make_matched`` / ``make_unified`` call ``sweep_view.S21.values``
-    and ``sweep_view.frequency.u.to("Hz").values`` / ``sweep_view.frequency.u.quantity``.
-    This adapter provides exactly those attributes as ``xr.DataArray`` objects
-    with units stored in ``.attrs["units"]``.
-    """
+    """Sweep data for D21 analysis."""
 
     S21: xr.DataArray
     frequency: xr.DataArray
@@ -390,47 +492,131 @@ def _make_d21_adapter(arrays: _SweepArrays) -> _D21SweepAdapter:
 class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
     """Sweep quality check step.
 
-    Operates on the reduced sweep data in an ``xr.DataTree``, performing:
+    Run after ``SweepReduce``. Pass an acquisition or collection to check every
+    reduced sweep block, or a block node to check only that block. On an
+    acquisition, the ``block`` config field selects the view exposed by the
+    context. Use ``SweepCheck.view`` to read checks from a reopened product.
 
-    - Spike detection and optional linear interpolation despiking
-    - Per-channel and per-chunk quality statistics (range, level, RMS,
-      skewness, kurtosis)
-    - D21 analysis for baseline estimation and detrending
-    - Bitmask composition and summary logging
+    Examples
+    --------
+    For a working acquisition tree ``dt``:
 
-    Context is stored in ``dt.attrs["__pipeline_context__"]`` and can be
-    retrieved with::
+    >>> SweepCheck()(dt)  # doctest: +SKIP
+    >>> checked = SweepCheck.view(dt, block=0)  # doctest: +SKIP
+    >>> mask_bad = checked.mask_chan_bad  # doctest: +SKIP
+    >>> d21 = checked.d21_detrended  # doctest: +SKIP
 
-        ctx = SweepCheck.get_context(dt)
-        ctx.data.mask_chan_bad   # bad-channel boolean array
-        ctx.data.d21_detrended  # detrended unified D21
+    Check only one block and retrieve its execution context:
 
-    Parameters
-    ----------
-    *args
-        Passed to :class:`~tollan.pipeline.Step.__init__` (optional
-        :class:`SweepCheckConfig` instance or keyword config fields).
+    >>> block = dt["blocks/0"]  # doctest: +SKIP
+    >>> SweepCheck()(block)  # doctest: +SKIP
+    >>> context = SweepCheck.get_context(block)  # doctest: +SKIP
     """
 
     @classmethod
-    @timeit
-    def run(cls, data: xr.DataTree, context: SweepCheckContext) -> bool:  # noqa: C901, PLR0915
-        """Execute the sweep quality check.
+    def result_path(cls, *, alias: str | None = None) -> str:
+        """Return the result subpath within a block.
 
         Parameters
         ----------
-        data : xr.DataTree
-            DataTree with reduced sweep child node (from SweepReducer).
-        context : SweepCheckContext
-            Step context — results are written to ``context.data``.
+        alias : str or None, optional
+            Invocation alias; None uses the primary check namespace.
 
         Returns
         -------
-        bool
-            ``True`` on success.
+        str
+            Relative path containing this check's saved datasets.
         """
-        cfg: SweepCheckConfig = context.config
-        ctd: SweepCheckData = context.data
+        return "sweep_check" if alias is None else f"sweep_check_{alias}"
+
+    @classmethod
+    def view(
+        cls, data: xr.DataTree, *, block: int = -1, alias: str | None = None
+    ) -> SweepCheckView:
+        """Read saved check results from a block or acquisition.
+
+        Parameters
+        ----------
+        data : xarray.DataTree
+            Working or reopened acquisition, collection, or selected block.
+        block : int, optional
+            Acquisition block ID. Default -1 selects the last block.
+        alias : str or None, optional
+            Check invocation label; None selects the primary check.
+
+        Returns
+        -------
+        SweepCheckView
+            Read-only result view, independent of live execution contexts.
+        """
+        scope = data if "sweep" in data.children else select_block(data, block).tree
+        return SweepCheckView(scope[cls.result_path(alias=alias)])
+
+    @classmethod
+    def run(cls, data: xr.DataTree, context: SweepCheckContext) -> None:
+        """Check reduced sweep blocks and retain their scientific results.
+
+        Parameters
+        ----------
+        data : xarray.DataTree
+            Acquisition, collection, or block with reduced sweep data. The original
+            reduction is retained. Results replace the check's block namespace.
+        context : SweepCheckContext
+            Settings and status. Its data exposes the selected completed block.
+
+        Returns
+        -------
+        None
+            Each block retains check arrays; the context publishes a live view.
+
+        Raises
+        ------
+        ValueError
+            Readout-power diagnostics are enabled but recorded probe properties,
+            ROACH identity or attenuator settings are absent. For standalone
+            reduced data without acquisition inputs, set readout_power=None.
+        """
+        cfg = context.config
+        if "sweep" in data.children:
+            scopes = [data]
+            selected = data
+            meta = ReducedSweepView(data).meta
+            context.block = meta.block if meta is not None else 0
+        else:
+            selected_block = select_block(data, cfg.block)
+            selected = selected_block.tree
+            context.block = selected_block.meta.block
+            scopes = [b.tree for b in data.toltec_kids.blocks]
+        path = cls.result_path(alias=cfg.alias)
+        for scope in scopes:
+            if "sweep" not in scope.children:
+                context.failures.append(
+                    StepFailure(
+                        kind=StepFailureKind.missing_input,
+                        message="Sweep check requires a reduced sweep.",
+                        details={"path": scope.path},
+                    )
+                )
+                continue
+            if not cfg.force and path in scope.children:
+                previous = SweepCheckView(scope[path])
+                if (
+                    "step_unc_outlier_n_sigma_min" in previous.config.model_fields_set
+                    and calculation_settings(previous.config)
+                    == calculation_settings(cfg)
+                ):
+                    continue
+            values = cls._compute(scope, cfg)
+            result = _make_check_result(values, ReducedSweepView(scope), cfg)
+            scope[path] = result
+        if path in selected.children:
+            context.data = SweepCheckView(selected[path])
+
+    @classmethod
+    @timeit
+    def _compute(cls, data, cfg):  # noqa: C901, PLR0912, PLR0915 -- retain the production calculation sequence
+        """Compute the production-v2 sweep statistics without mutating input data."""
+        ctd = _SweepCheckData()
 
         # ----------------------------------------------------------------
         # Extract data arrays from the reduced DataTree
@@ -442,6 +628,22 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
         frequency = arrays.frequency  # Quantity [n_chans, n_steps] Hz
         n_chans = arrays.n_chans
         n_steps = arrays.n_steps
+
+        # Independent diagnostics on the original reduced measurements. These
+        # bits never enter the v2 selection masks or corrected-signal path.
+        (
+            bitmask_unc,
+            ctd.chan_unc_I_ref,
+            ctd.chan_unc_Q_ref,
+            ctd.chan_unc_I_std,
+            ctd.chan_unc_Q_std,
+        ) = _step_unc_flags(
+            S21,
+            arrays.unc_I,
+            arrays.unc_Q,
+            limits=(cfg.step_unc_min, cfg.step_unc_max),
+            n_sigma=cfg.step_unc_outlier_n_sigma_min,
+        )
 
         # ----------------------------------------------------------------
         # Spike detection
@@ -471,18 +673,16 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
                     S21_spike = S21_orig - S21_despiked
                     S21 = S21_despiked
                     # Recompute aS21_db and aS21_unc_db after despiking
-                    safe_aS21 = np.where(
-                        np.abs(S21) > 0,
-                        np.abs(S21),
-                        np.finfo(float).tiny,
-                    )
-                    aS21_db = 20.0 * np.log10(safe_aS21)
-                    # unc_db doesn't change meaningfully after despike
+                    aS21_db = 20.0 * np.log10(np.abs(S21))
+                    aS21_unc_db = 20 * np.log10(np.e) * np.abs(arrays.S21_unc / S21)
         else:
             S21_spike = None
 
+        ctd.S21_checked = S21
         ctd.mask_spike = mask_spike
         ctd.S21_spike = S21_spike
+        if cfg.readout_power is not None:
+            ctd.readout_power = _readout_power_result(data, S21, cfg.readout_power)
 
         # ----------------------------------------------------------------
         # D21 analysis
@@ -490,6 +690,9 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
         d21_adapter = _make_d21_adapter(
             _SweepArrays(
                 S21=S21,
+                S21_unc=arrays.S21_unc,
+                unc_I=arrays.unc_I,
+                unc_Q=arrays.unc_Q,
                 aS21=np.abs(S21),
                 aS21_db=aS21_db,
                 aS21_unc_db=aS21_unc_db,
@@ -658,6 +861,7 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
         bitmask |= (mask_spike * SweepBitMask.spike) | (
             mask_baseline * SweepBitMask.baseline
         )
+        bitmask |= bitmask_unc
 
         mask_chan_bad = ctd.mask_chan_bad = (bitmask_chan & cfg.bad_chan_bits) > 0
         logger.debug(f"channel bad mask {pformat_mask(mask_chan_bad)}")
@@ -703,24 +907,20 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
 
             _chunk_data_rms = d21_data_baseline_value[d21_chunk_windows].copy()
             _chunk_data_rms[_all_nan, 0] = 0.0
-            d21_chunk_baseline_rms = mad_std(
-                _chunk_data_rms,
-                axis=-1,
-                ignore_nan=True,
+            d21_chunk_baseline_rms = cast(
+                "npt.NDArray",
+                mad_std(_chunk_data_rms, axis=-1, ignore_nan=True),
             )
             d21_chunk_baseline_rms[_all_nan] = np.nan
             if np.all(np.isnan(d21_chunk_baseline_rms)):
                 d21_chunk_baseline_rms = np.full_like(d21_chunk_baseline_rms, 0.1)
             m_pos = d21_chunk_baseline_rms > 0
-            if m_pos.any():
-                min_pos = np.min(d21_chunk_baseline_rms[m_pos])
-                d21_chunk_baseline_rms[~m_pos] = min_pos
+            d21_chunk_baseline_rms[d21_chunk_baseline_rms <= 0] = np.min(
+                d21_chunk_baseline_rms[m_pos]
+            )
             ctd.d21_chunk_baseline_rms = d21_chunk_baseline_rms << u.Hz**-1
 
-            m = ~(
-                np.isnan(d21_chunk_baseline_value)
-                | np.isnan(d21_chunk_baseline_rms)
-            )
+            m = ~(np.isnan(d21_chunk_baseline_value) | np.isnan(d21_chunk_baseline_rms))
             d21_f_chunks_Hz = d21_f_chunks.to_value(u.Hz)
             d21_baseline_value = np.interp(
                 d21_freq_Hz,
@@ -740,7 +940,7 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
             d21_detrended_value[d21_values == 0] = 0
             ctd.d21_detrended = d21_detrended_value << u.Hz**-1
 
-        return True
+        return ctd
 
     # ----------------------------------------------------------------
     # Static helpers (ported unchanged from v2)
@@ -752,7 +952,7 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
         fs_unified: u.Quantity,
         mask_unified: npt.NDArray,
     ) -> npt.NDArray:
-        """Return data mask by nearest-neighbour match to the unified grid.
+        """Return the unified mask at each frequency's insertion index.
 
         Parameters
         ----------
@@ -782,26 +982,41 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
         chunk_size: int,
         n_chunks_min: int,
     ) -> dict:
-        """Divide *n_items* into ``n_chunks`` evenly-spaced chunks.
+        """Select overlapping statistics windows and disjoint sample chunks.
 
-        Returns a dict with keys: ``chunk_size``, ``n_chunks``,
-        ``chunk_windows``, ``chunk_slices``.
+        Parameters
+        ----------
+        n_items : int
+            Number of samples along the channel or unified frequency axis.
+        chunk_size : int
+            Requested number of samples per statistics window.
+        n_chunks_min : int
+            Minimum requested number of windows, with a central window included.
+
+        Returns
+        -------
+        dict
+            Window indices in ``chunk_windows``, disjoint sample selections in
+            ``chunk_slices``, per-sample chunk assignments in ``chunk_index``,
+            and the effective ``chunk_size`` and requested ``n_chunks``.
+
+        Raises
+        ------
+        ValueError, ZeroDivisionError
+            Too few samples for the requested window size and window spacing.
         """
         n_chunks = n_items // chunk_size + (n_items % chunk_size > 0)
         n_chunks = max(n_chunks, n_chunks_min)
         if n_chunks % 2 == 0:
             n_chunks += 1
-        # Clamp chunk_size so sliding_window_view doesn't fail
-        chunk_size = min(chunk_size, n_items)
         windows = sliding_window_view(np.arange(n_items), chunk_size)
         n_windows = windows.shape[0]
-        sw = max(n_windows // max(n_chunks - 1, 1), 1)
+        sw = n_windows // (n_chunks - 1)
         iw = np.r_[
             np.arange(0, n_windows // 2 - sw // 2, sw),
             n_windows // 2,
             np.arange(n_windows - 1, n_windows // 2 + sw // 2, -sw)[::-1],
         ]
-        iw = np.unique(np.clip(iw, 0, n_windows - 1))
         chunk_windows = windows[iw]
         chunks = np.split(np.arange(n_items), (iw[1:] + iw[:-1]) // 2)
         chunk_slices = [slice(int(c[0]), int(c[-1]) + 1) for c in chunks]
@@ -840,15 +1055,195 @@ class SweepCheck(Step[SweepCheckConfig, SweepCheckContext]):
             Intermediate arrays (``y_med``, ``y_range``, ``s_spike``).
         """
         if y.ndim != 2:  # noqa: PLR2004
-            raise ValueError("input data shall be 2-D.")
+            msg = "input data shall be 2-D."
+            raise ValueError(msg)
         y_med = median_filter(y, (1, medfilt_size))
         y_range = np.max(y_med, axis=-1) - np.min(y_med, axis=-1)
-        s_spike = (y - y_med) / np.where(
-            y_range[:, np.newaxis] > 0, y_range[:, np.newaxis], 1.0
-        )
+        s_spike = (y - y_med) / y_range[:, np.newaxis]
         md_spike0 = np.abs(s_spike) >= height_frac_min
         logger.debug(f"found spike {md_spike0.sum()}/{md_spike0.size}")
         mc_range_small = y_range < y_range_min
         md_spike = md_spike0 & (~mc_range_small[:, np.newaxis])
         logger.debug(f"mask spike {md_spike.sum()}/{md_spike.size}")
         return md_spike, locals()
+
+
+_RESULT_LAYOUT = {
+    "samples": [
+        ("mask_spike", "chan,probe"),
+        ("bitmask", "chan,probe"),
+        ("mask_baseline", "chan,probe"),
+        ("S21_spike", "chan,probe"),
+        ("S21_orig", "chan,probe"),
+    ],
+    "channels": [
+        ("bitmask_chan", "chan"),
+        ("mask_chan_bad", "chan"),
+        ("chan_range", "chan"),
+        ("chan_level", "chan"),
+        ("chan_rms_mean", "chan"),
+        ("chan_rms_std", "chan"),
+        ("chan_unc_I_ref", "chan"),
+        ("chan_unc_Q_ref", "chan"),
+        ("chan_unc_I_std", "chan"),
+        ("chan_unc_Q_std", "chan"),
+    ],
+    "chunks": [
+        ("f_chunks", "chan,chunk"),
+        ("bitmask_chunk", "chan,chunk"),
+        ("mask_chunk_baseline", "chan,chunk"),
+        ("chunk_rms_mean", "chan,chunk"),
+        ("chunk_rms_std", "chan,chunk"),
+        ("chunk_skew", "chan,chunk"),
+        ("chunk_kurtosis", "chan,chunk"),
+        ("chunk_windows", "chunk,window"),
+        ("chunk_bounds", "chunk,bound"),
+    ],
+    "d21": [
+        ("d21_mask_baseline", "frequency"),
+        ("d21_baseline", "frequency"),
+        ("d21_baseline_rms", "frequency"),
+        ("d21_frequency", "frequency"),
+        ("d21", "frequency"),
+        ("d21_detrended", "frequency"),
+    ],
+    "d21_chunks": [
+        ("d21_f_chunks", "chunk"),
+        ("d21_chunk_baseline", "chunk"),
+        ("d21_chunk_baseline_rms", "chunk"),
+        ("d21_chunk_windows", "chunk,window"),
+        ("d21_chunk_bounds", "chunk,bound"),
+    ],
+}
+
+_RESULT_ATTRS = [
+    "chunk_size",
+    "n_chunks_per_chan",
+    "d21_chunk_size",
+    "d21_n_chunks",
+    "swp_rms_med",
+    "swp_rms_rms",
+]
+
+
+def _make_check_result(values, sweep, config):  # noqa: C901, PLR0912 -- explicit result groups and units
+    """Build the result tree before replacing a block's prior check."""
+    mapper = SweepCheckMapper.from_defaults()
+    schema = mapper.schema
+    result = xr.DataTree()
+    result.attrs[mapper.get_name(schema.config)] = config.model_dump_json()
+    for name in _RESULT_ATTRS:
+        result.attrs[mapper.get_name(getattr(schema, name))] = getattr(values, name)
+    for group, fields in _RESULT_LAYOUT.items():
+        variables = {}
+        for name, dims in fields:
+            if name.endswith("chunk_bounds"):
+                value = [
+                    (s.start, s.stop)
+                    for s in getattr(values, name.replace("bounds", "slices"))
+                ]
+            else:
+                value = getattr(values, name)
+            if value is None:
+                continue
+            attrs = {}
+            if isinstance(value, u.Quantity):
+                attrs["units"] = str(value.unit)
+                value = value.value
+            elif name == "f_chunks":
+                attrs["units"] = "Hz"
+            elif name in {
+                "S21_orig",
+                "S21_spike",
+                "chan_unc_I_ref",
+                "chan_unc_Q_ref",
+                "chan_unc_I_std",
+                "chan_unc_Q_std",
+            }:
+                attrs["units"] = str(sweep.I.u.unit or u.dimensionless_unscaled)
+            elif name == "bitmask":
+                attrs.update(
+                    flag_masks=[int(flag) for flag in SweepBitMask],
+                    flag_meanings=" ".join(flag.name for flag in SweepBitMask),
+                    diagnostic_flag_masks=[
+                        int(SweepBitMask.unc_nonfinite),
+                        int(SweepBitMask.unc_low),
+                        int(SweepBitMask.unc_high),
+                        int(SweepBitMask.unc_outlier),
+                    ],
+                )
+            variables[mapper.get_name(getattr(schema, name))] = xr.DataArray(
+                value, dims=dims.split(","), attrs=attrs
+            )
+        ds = xr.Dataset(variables)
+        if "chan" in ds.dims:
+            ds = ds.assign_coords(
+                chan=sweep.mapper.get_arr(
+                    sweep.data_source, sweep.mapper.schema.chan
+                ).to_numpy()
+            )
+        result[cast("str", mapper.get_name(getattr(schema, group + "_subpath")))] = (
+            xr.DataTree(dataset=ds)
+        )
+    corrected = sweep.data_source.copy(deep=False)
+    signal = values.S21_checked
+    for source, value in ((sweep.I, signal.real), (sweep.Q, signal.imag)):
+        corrected[source.name] = source.copy(data=value)
+    result[cast("str", mapper.get_name(schema.sweep))] = xr.DataTree(dataset=corrected)
+    if values.readout_power is not None:
+        result[cast("str", mapper.get_name(schema.readout_power))] = xr.DataTree(
+            dataset=values.readout_power
+        )
+    return result
+
+
+def _readout_power_result(block, signal, config):
+    """Evaluate the acquired readout using corrected I/Q and recorded settings."""
+    sweep = ReducedSweepView(block)
+    meta = sweep.meta
+    if meta is None or any(
+        value is None for value in (meta.roach, meta.atten_drive, meta.atten_sense)
+    ):
+        msg = "Readout power requires recorded ROACH, drive and sense attenuation"
+        raise ValueError(msg)
+    probes = sweep.chan_axis_table
+    raw = block.toltec_kids.block.raw.toltec_kids
+    snapshot = (
+        raw.adc_snap.to_numpy() if raw.mapper.schema.adc_snap in raw.mapper else None
+    )
+    values = readout_power(
+        probes["tone_amp"],
+        signal.real,
+        signal.imag,
+        snapshot,
+        dac_power_dbm=config.dac_power_dbm,
+        gains_db=config.gains(
+            meta.roach, atten_drive=meta.atten_drive, atten_sense=meta.atten_sense
+        ),
+        adc_conversion_offset_db=config.adc_conversion_offset_db,
+    )
+    variables = {}
+    for name, value in values.items():
+        if name == "adc_snap_frac":
+            dims, unit = (), "1"
+        elif name == "gain":
+            dims, unit = ("element",), "dB"
+        elif name == "tone_amps_db":
+            dims, unit = ("chan",), "dB"
+        else:
+            dims = ("element", "chan") if "per_tone" in name else ("element",)
+            unit = "dB(mW)"
+        variables[name] = (dims, value, {"units": unit})
+    # V2 plots the recorded baseband comb, despite its 'Detector Frequency' label.
+    variables["frequency"] = ("chan", probes["f_tone"].to_value(u.Hz), {"units": "Hz"})
+    return xr.Dataset(
+        variables,
+        coords={"element": list(READOUT_ELEMENTS), "chan": np.asarray(probes["chan"])},
+        attrs={
+            "roach": meta.roach,
+            "atten_drive": meta.atten_drive,
+            "atten_sense": meta.atten_sense,
+            "config": config.model_dump_json(),
+            "power_model": "fixed_total_recorded_tone_rows",
+        },
+    )

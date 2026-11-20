@@ -32,6 +32,7 @@ ASSOC_TARGET_TYPES: dict[str, str | None] = {
     "dpa_obs_raw_obs": "dp_raw_obs",
     "dpa_raw_obs_cal_obs": "dp_raw_obs",
     "dpa_raw_obs_proc_raw_obs": "dp_raw_obs",
+    "dpa_raw_obs_proc_data_prod": None,
     "dpa_cal_group_raw_obs": "dp_raw_obs",
     "dpa_drivefit_raw_obs": "dp_raw_obs",
     "dpa_focus_group_raw_obs": "dp_raw_obs",

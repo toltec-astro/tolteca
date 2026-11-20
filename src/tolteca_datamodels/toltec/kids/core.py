@@ -13,10 +13,13 @@ import numpy as np
 import xarray as xr
 from astropy import units as u
 from astropy.time import Time
+from pydantic import ConfigDict, Field
 from tollan.accessor import FieldLocation, NameMapping, Schema
 from tollan.accessor.xarray import XarrayAccessorBase, XarrayMapper, unwrap_data_source
+from tollan.utils.yaml import yaml_loads
 
 from ...core.source import source_opener
+from ...core.types import FrozenDataModel
 from ..axes import ToltecAxisView
 from ..metadata import ToltecProcessedKidsMetadata, ToltecRawObsMetadata
 from ..toltec_db import ToltecDBRawObsMasterCode
@@ -48,6 +51,39 @@ __all__ = [
     "ToltecKidsIOSchema",
     "open_toltec_kids",
 ]
+
+
+class _ModelParameterDescriptor(FrozenDataModel):
+    model_config = ConfigDict(extra="allow")
+
+    name: str
+    unit: str
+
+
+class _ModelParamsDescriptor(FrozenDataModel):
+    model_config = ConfigDict(extra="allow")
+
+    name: str = Field(min_length=1)
+    version: int = Field(ge=1)
+    parameters: list[_ModelParameterDescriptor]
+
+
+def _model_header_descriptor(descriptor, columns):
+    """Restore explicitly recorded model identity and column units."""
+    if not descriptor:
+        return {}
+    model = _ModelParamsDescriptor.model_validate(yaml_loads(descriptor))
+    names = [parameter.name for parameter in model.parameters]
+    if not set(names).issubset(columns) or len(set(names)) != len(names):
+        msg = "ModelParams descriptor requires distinct existing columns"
+        raise ValueError(msg)
+    for parameter in model.parameters:
+        columns[parameter.name].attrs["units"] = parameter.unit
+    for name in ("f_in", "f_out"):
+        if name in columns:
+            columns[name].attrs["units"] = "Hz"
+    return {"model_schema": model.model_dump(round_trip=True), "model": model.name}
+
 
 _TIMESTREAM_LO_CHECK_SAMPLES = 64
 
@@ -81,6 +117,12 @@ class ToltecKidsIOSchema(Schema):
     # Recorded per-channel model parameters
     model_params: Mapping = NameMapping.var("Header.Toltec.ModelParams")
     model_params_header: Mapping = NameMapping.var("Header.Toltec.ModelParamsHeader")
+    model_params_available: Mapping = NameMapping.var(
+        "Header.Toltec.ModelParamsAvailable"
+    )
+    model_params_accumlen: Mapping = NameMapping.var(
+        "Header.Toltec.ModelParamsAccumLen"
+    )
 
     # Observation metadata
     master_code: Mapping = NameMapping("Header.Toltec.Master")
@@ -119,6 +161,13 @@ class ToltecKidsIOSchema(Schema):
     # Instrument settings
     atten_drive: Mapping = NameMapping("Header.Toltec.DriveAtten")
     atten_sense: Mapping = NameMapping("Header.Toltec.SenseAtten")
+    atten_drive_blocks: Mapping = NameMapping.var("Header.Toltec.DriveAttenByBlock")
+    atten_sense_blocks: Mapping = NameMapping.var("Header.Toltec.SenseAttenByBlock")
+    dac_normalization: Mapping = NameMapping.var("Header.Toltec.DacNormalization")
+    dac_valid: Mapping = NameMapping.var("Header.Toltec.DacWaveformValid")
+    dac_i: Mapping = NameMapping.var("Header.Toltec.DacWaveformI")
+    dac_q: Mapping = NameMapping.var("Header.Toltec.DacWaveformQ")
+    tone_mode_blocks: Mapping = NameMapping.var("Header.Toltec.ToneAmpsModeByBlock")
 
 
 class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
@@ -445,15 +494,20 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         data_source : xarray.Dataset
             Acquisition or already-selected native block data.
         block : int, optional
-            Zero-based header row to select when the block dimension remains;
-            default is 0. Ignored for an already-selected block.
+            Original zero-based block ID, default 0. Selects the descriptor even
+            when the source has already been sliced to that block.
 
         Returns
         -------
         xarray.Dataset or None
-            Recorded parameter columns in header order, with original channel
-            IDs as the ``chan`` coordinate. Only column names are loaded here.
-            No units are inferred. None means both model headers are absent.
+            Recorded parameter columns in header order. Legacy models follow
+            the acquisition's channel IDs. A separate ``modelParamsRows`` axis
+            retains the fitted source channels independently of current readout
+            selection; it can describe setup lineage at a different tone count.
+            Names, availability and the model descriptor are loaded here;
+            coefficients remain lazy. Versioned descriptors supply parameter
+            units and table metadata. Legacy columns remain unitless. None means
+            the headers are absent or the selected slot is explicitly unavailable.
 
         Raises
         ------
@@ -461,6 +515,12 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
             Headers are incomplete, malformed, or have inconsistent dimensions.
         """
         schema = self.schema
+        if schema.model_params_available in self:
+            available = self._model_header_slot(
+                data_source, schema.model_params_available, block
+            )
+            if available.item() == 0:
+                return None
         present = [
             field in self for field in (schema.model_params, schema.model_params_header)
         ]
@@ -483,13 +543,11 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         ):
             msg = "ModelParamsHeader requires nonempty unique names other than 'chan'"
             raise ValueError(msg)
-        params = self.get_arr(data_source, schema.model_params)
-        if schema.n_blocks_max in self:
-            dim = self.get_name(schema.n_blocks_max)
-            if dim in params.dims:
-                params = params.isel({dim: block})
+        params = self._model_header_slot(data_source, schema.model_params, block)
         param_dim = header.dims[0]
         chan_dim = self.get_name(schema.n_chans)
+        if params.ndim and params.dims[-1] == "modelParamsRows":
+            chan_dim = "modelParamsRows"
         if (
             params.ndim != 2  # noqa: PLR2004 -- parameter and channel axes
             or params.dims[0] != param_dim
@@ -499,18 +557,33 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
             msg = "ModelParams dimensions must match names and readout channels"
             raise ValueError(msg)
         columns = {
-            name: xr.DataArray(params.isel({param_dim: i}).variable, dims="chan")
+            name: xr.DataArray(
+                params.isel({param_dim: i}).variable, dims="chan", attrs={}
+            )
             for i, name in enumerate(names)
         }
-        # Parameters have individually defined physical meanings. The native
-        # array has no per-column units; preserve v2's unitless recorded values.
-        for column in columns.values():
-            column.attrs = {}
+        attributes: dict[str, Any] = {"parameter_names": names}
+        if schema.model_params_accumlen in self:
+            accumulation = self._model_header_slot(
+                data_source, schema.model_params_accumlen, block
+            )
+            attributes["accumlen"] = float(accumulation.item())
+        attributes.update(
+            _model_header_descriptor(params.attrs.get(f"model_schema_{block}"), columns)
+        )
         return xr.Dataset(
             columns,
             coords={"chan": data_source[chan_dim].values},
-            attrs={"parameter_names": names},
+            attrs=attributes,
         )
+
+    def _model_header_slot(self, data_source, field, block):
+        array = self.get_arr(data_source, field)
+        if self.schema.n_blocks_max in self:
+            dim = self.get_name(self.schema.n_blocks_max)
+            if dim in array.dims:
+                array = array.isel({dim: block})
+        return array
 
     def _read_chan_axis(self, ds, values):
         """Read one tone row, respecting frequency and phase units."""
@@ -989,7 +1062,10 @@ class ToltecKidsAccessor(XarrayAccessorBase[ToltecKidsIOMapper]):
         xr.Dataset
             Dataset with selected channels and original channel IDs retained
             as dimension coordinates. Repeated selections are positional within
-            the current subset; detector and tone/model header rows stay aligned.
+            the current subset; detector and tone header rows stay aligned.
+            Legacy model headers follow that selection. Models with an independent
+            ``modelParamsRows`` axis retain all measured source channels; selecting
+            current tones does not establish a correspondence to a predecessor fit.
 
         Examples
         --------
@@ -1050,6 +1126,11 @@ class ToltecKidsAccessor(XarrayAccessorBase[ToltecKidsIOMapper]):
             if field in self.mapper:
                 array = self.mapper.get_arr(ds, field)
                 dim = array.dims[-1]
+                if (
+                    field == self.mapper.schema.model_params
+                    and dim == "modelParamsRows"
+                ):
+                    continue
                 if ds.sizes[dim] != ds.sizes[chan_dim]:
                     msg = f"Header {array.name!r} does not match readout channels"
                     raise ValueError(msg)

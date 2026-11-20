@@ -11,17 +11,20 @@ from pydantic import ConfigDict, Field
 from scipy.ndimage import median_filter
 from scipy.optimize import leastsq
 from tollan.config.types import FrequencyQuantityField, TimeQuantityField
+from tollan.pipeline import ArtifactContext, Step, StepConfig, StepContext
 from tollan.utils.fmt import pformat_mask
 from tollan.utils.log import logger, timeit
 from tollan.utils.np import attach_unit, make_complex, strip_unit
 from tollan.utils.table import TableValidator
-from tollan.pipeline import Step, StepConfig, StepContext
 from typing_extensions import assert_never
 
-from tolteca_datamodels.toltec.kids.sweep import ReducedSweepView
-
+from ._kids_find_result import _make_find_result
+from ._reduction import select_block
+from .kids_find_artifacts import KidsFindArtifacts
+from .kids_find_view import KidsFindView
 from .match1d import Match1D, Match1DResult
 from .peaks1d import Peaks1D, Peaks1DResult
+from .sweep import ReducedSweepView
 from .sweep_check import SweepCheck, _extract_sweep_arrays
 
 __all__ = [
@@ -92,7 +95,8 @@ class SegmentBitMask(IntFlag):
 class KidsFindConfig(StepConfig):
     """The kids finding config."""
 
-    model_config = ConfigDict(protected_namespaces=(), validate_default=True)
+    model_config = ConfigDict(protected_namespaces=())
+    artifacts: KidsFindArtifacts = Field(default_factory=KidsFindArtifacts)
 
     Qr_min: float = Field(
         default=1000,
@@ -241,7 +245,7 @@ class KidsFindContext(StepContext["KidsFind", KidsFindConfig]):
     """The context class for kids finding."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    data: KidsFindData = Field(default_factory=KidsFindData)
+    data: KidsFindData = Field(default_factory=KidsFindData, exclude=True)
 
 
 class KidsFind(Step[KidsFindConfig, KidsFindContext]):
@@ -252,15 +256,68 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
     """
 
     @classmethod
+    def result_path(cls, *, alias: str | None = None) -> str:
+        """Return the finding namespace within a block.
+
+        Parameters
+        ----------
+        alias : str or None, optional
+            Invocation alias. None selects the primary finding result.
+
+        Returns
+        -------
+        str
+            Relative result path.
+        """
+        return "kids_find" if alias is None else f"kids_find_{alias}"
+
+    @classmethod
+    def view(
+        cls, data: xr.DataTree, *, block: int = -1, alias: str | None = None
+    ) -> KidsFindView:
+        """Read saved finding results from a block or acquisition.
+
+        Parameters
+        ----------
+        data : xarray.DataTree
+            Working or reopened block, acquisition or block collection.
+        block : int, optional
+            Block ID; -1 selects the last block by default.
+        alias : str or None, optional
+            Finding invocation alias, by default None.
+
+        Returns
+        -------
+        KidsFindView
+            Read-only view. Keep its source open while accessing lazy arrays.
+        """
+        scope = data if "sweep" in data.children else select_block(data, block).tree
+        return KidsFindView(scope.children[cls.result_path(alias=alias)])
+
+    @classmethod
     @timeit
-    def run(cls, data: xr.DataTree, context):  # noqa: PLR0915, C901, PLR0912
-        """Run kids find."""
+    def run(cls, data: xr.DataTree, context) -> None:  # noqa: PLR0915, C901
+        """Find resonances and save their grouping and matching diagnostics.
+
+        Parameters
+        ----------
+        data : xarray.DataTree
+            Reduced sweep block with a completed SweepCheck context.
+        context : KidsFindContext
+            Finding settings and working results. On success, the block gains
+            a finding namespace and the context holds both ECSV table artifacts.
+
+        Returns
+        -------
+        None
+            Results are available through :meth:`view` and the supplied context.
+        """
         cfg = context.config
         ctd = context.data
         ctd_sc = SweepCheck.get_context(data).data
 
         # Load sweep data from xr.DataTree (replaces MultiSweep in v2)
-        arrays = _extract_sweep_arrays(data)
+        arrays = _extract_sweep_arrays(ctd_sc.sweep.data_source if ctd_sc is not None else data)
         n_chans = arrays.n_chans
         s21_f = arrays.frequency  # Quantity [n_chans, n_steps] Hz
         s21_data = arrays.S21 << u.dimensionless_unscaled  # complex Quantity
@@ -268,24 +325,17 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
         s21_f_max = np.max(s21_f.to_value(u.Hz), axis=1) << u.Hz
         s21_f_step = s21_f[0, 1] - s21_f[0, 0]
 
-        # Build channel axis table from ReducedSweepView f_lo
-        # (replaces swp.meta["chan_axis_data"] in v2)
+        # Preserve the recorded input probes, as v2's chan_axis_data did.
         view = ReducedSweepView(data)
-        f_lo_da = view.f_lo
-        if f_lo_da is not None:
-            f_lo_hz = f_lo_da.values
-        else:
-            f_lo_hz = np.linspace(
-                float(s21_f_min.to_value(u.Hz).mean()),
-                float(s21_f_max.to_value(u.Hz).mean()),
-                n_chans,
-            )
-        tbl_chans_all = QTable({
-            "id": np.arange(n_chans),
-            "f_chan": f_lo_hz << u.Hz,
-            "mask_tone": np.ones(n_chans, dtype=bool),
-            "amp_tone": np.ones(n_chans),
-        })
+        axis = view.chan_axis_table
+        tbl_chans_all = QTable(
+            {
+                "id": axis["chan"],
+                "f_chan": attach_unit(axis["f_chan"], u.Hz),
+                "mask_tone": np.asarray(axis["tone_mask"], dtype=bool),
+                "amp_tone": axis["tone_amp"],
+            }
+        )
 
         _tbl_validator = TableValidator()
 
@@ -711,6 +761,10 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
             det_info["det_group_dist"],
             agg_func=_agg_func_det,
         )
+        # Preserve the input identity before D21 and S21 rows are collapsed into
+        # detections. The grouped idx addresses det_info, not the original peak.
+        det_grouped["subdet"] = det_info["subdet"][det_grouped["idx"]]
+        det_grouped["peak_id"] = det_info["idx"][det_grouped["idx"]]
         ctd.det_grouped = det_grouped
         ctd.det_groups = det_groups
         # compose bitmask for each detection group.
@@ -836,7 +890,24 @@ class KidsFind(Step[KidsFindConfig, KidsFindContext]):
                 postproc_hook=_match_postproc,
                 **match_kw,
             )
-        return True
+
+        identity = {}
+        if view.meta is not None:
+            identity = {
+                "Header.Toltec.ObsNum": view.meta.obsnum,
+                "Header.Toltec.SubObsNum": view.meta.subobsnum,
+                "Header.Toltec.ScanNum": view.meta.scannum,
+                "Header.Toltec.RoachIndex": view.meta.roach,
+                "uid_raw_obs": view.meta.uid_raw_obs,
+                "uid_raw_obs_file": view.meta.uid_raw_obs_file,
+            }
+        result = _make_find_result(ctd, cfg, identity)
+        data[cls.result_path(alias=cfg.alias)] = result
+        context.artifacts = ArtifactContext()
+        for name, table in KidsFindView(result).export_tables().items():
+            context.artifacts.add(
+                cfg.artifacts.table.model_copy(update={"alias": name}), table
+            )
 
     @staticmethod
     @timeit

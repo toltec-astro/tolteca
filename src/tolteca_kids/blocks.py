@@ -201,8 +201,8 @@ class ToltecBlocksView(_AxisTables, XarrayAccessorBase[ToltecBlocksMapper]):
         Parameters
         ----------
         include_raw : bool, optional
-            Include each block's raw selection (default True). False retains
-            metadata, shared axes, model parameters and results without raw samples.
+            Include each block's available raw selection (default True). False
+            retains metadata, axes, model parameters and results without raw samples.
 
         Returns
         -------
@@ -219,7 +219,7 @@ class ToltecBlocksView(_AxisTables, XarrayAccessorBase[ToltecBlocksMapper]):
                 params = self[block].model_params
                 if params is not None:
                     node["model_params"] = xr.DataTree(dataset=params)
-            if include_raw:
+            if include_raw and self[block]._has_raw:
                 node["raw"] = xr.DataTree(dataset=self[block].raw)
             elif "raw" in node.children:
                 del node["raw"]
@@ -296,18 +296,22 @@ class ToltecBlockView(_AxisTables):
         """Lazy probe rows for this block."""
         return self._axis("probe")
 
+    @property
+    def _has_raw(self):
+        acquisition = self.parent.tree.parent if self.parent is not None else None
+        return "raw" in self.tree.children or (
+            acquisition is not None and "raw" in acquisition.children
+        )
+
     @cached_property
     def model_params(self):
         """Lazy recorded parameter columns with original channel IDs, or None."""
         if "model_params" in self.tree.children:
             return self.tree["model_params"].dataset.copy(deep=False)
-        acquisition = self.parent.tree.parent if self.parent is not None else None
-        if "raw" not in self.tree.children and (
-            acquisition is None or "raw" not in acquisition.children
-        ):
+        if not self._has_raw:
             return None
         source = self.raw
-        return source.toltec_kids.mapper.get_model_params(source)
+        return source.toltec_kids.mapper.get_model_params(source, block=self.meta.block)
 
     @cached_property
     def model_params_table(self):
@@ -371,8 +375,8 @@ class ToltecBlockView(_AxisTables):
         Parameters
         ----------
         include_raw : bool, optional
-            Include this block's native payload (default True). False allows
-            axes, model parameters and results to be exported without raw data.
+            Include this block's available native payload (default True). False
+            allows axes, model parameters and results to be exported without raw data.
 
         Returns
         -------
@@ -389,7 +393,7 @@ class ToltecBlockView(_AxisTables):
             params = self.model_params
             if params is not None:
                 result["model_params"] = xr.DataTree(dataset=params)
-        if include_raw:
+        if include_raw and self._has_raw:
             result["raw"] = xr.DataTree(dataset=self.raw)
         elif "raw" in result.children:
             del result["raw"]

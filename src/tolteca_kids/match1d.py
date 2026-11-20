@@ -11,6 +11,7 @@ from pydantic import Field
 from scipy.signal import correlate
 import plotly.graph_objects as go
 from tollan.config import FrozenBaseModel as ImmutableBaseModel
+from tollan.config.types import FrequencyQuantityField
 from tollan.plot.plotly import adjust_subplot_colorbars, make_subplots
 from tollan.utils.fmt import pformat_mask, pformat_yaml
 from tollan.utils.log import logger, timeit
@@ -293,90 +294,16 @@ class Match1DResult:
     # mask_matched: npt.NDArray = ...
     data: dict[str, Any] = ...
 
-    def _plot_dtw_python_density_plotly(
-        self,
-        fig: go.Figure | None = None,
-        panel_kw: dict | None = None,
-        label_query: str | None = None,
-        label_ref: str | None = None,
-        **_kwargs,
-    ) -> go.Figure:
-        alignment: dtw.DTW = self.data["alignment"]
-        fig = fig or make_subplots(1, 1)
-        panel_kw = panel_kw or {}
-        z = alignment.costMatrix.T
-        fig.add_heatmap(z=z, colorscale="rdylgn_r", **panel_kw)
-        fig.update_xaxes(title=label_query or "Query Id", **panel_kw)
-        fig.update_yaxes(title=label_ref or "Ref Id", **panel_kw)
-        fig.add_scatter(
-            x=alignment.index1,
-            y=alignment.index2,
-            mode="markers+lines",
-            marker={"size": 4, "color": "black"},
-            line={"color": "gray"},
-            showlegend=False,
-            **panel_kw,
+    def _plot_dtw_python_density_plotly(self, **kwargs) -> go.Figure:
+        alignment = self.data["alignment"]
+        return _plot_match_density(
+            alignment.costMatrix, alignment.index1, alignment.index2, **kwargs
         )
-        adjust_subplot_colorbars(fig)
-        return fig
 
-    def _plot_dtw_python_match_plotly(
-        self,
-        fig: go.Figure | None = None,
-        panel_kw: dict | None = None,
-        label_query: str | None = None,
-        label_ref: str | None = None,
-        label_value: str | None = None,
-        **_kwargs,
-    ) -> go.Figure:
-        fig = fig or make_subplots(1, 1)
-        panel_kw = panel_kw or {}
-        matched = self.matched
-        query_sorted_value, data_unit = strip_unit(self.data["query_sorted"])
-        ref_sorted_value, _ = strip_unit(self.data["ref_sorted"])
-        n_ref = len(ref_sorted_value)
-        n_query = len(query_sorted_value)
-        y_ref = np.ones((n_ref,))
-        y_query = np.ones((n_query,)) + 1
-        fig.add_scatter(
-            x=query_sorted_value, y=y_query,
-            mode="markers", marker={"size": 4, "color": "blue"},
-            showlegend=False, **panel_kw,
+    def _plot_dtw_python_match_plotly(self, **kwargs) -> go.Figure:
+        return _plot_match_pairs(
+            self.matched, self.data["query_sorted"], self.data["ref_sorted"], **kwargs
         )
-        fig.add_scatter(
-            x=ref_sorted_value, y=y_ref,
-            mode="markers", marker={"size": 4, "color": "black"},
-            showlegend=False, **panel_kw,
-        )
-        # Batch all match lines into one trace (None separators) for speed
-        x_lines: list = []
-        y_lines: list = []
-        for i in range(len(matched)):
-            x_lines += [
-                query_sorted_value[matched["isort_query"][i]],
-                ref_sorted_value[matched["isort_ref"][i]],
-                None,
-            ]
-            y_lines += [
-                float(y_query[matched["isort_query"][i]]),
-                float(y_ref[matched["idx_ref"][i]]),
-                None,
-            ]
-        fig.add_scatter(
-            x=x_lines, y=y_lines,
-            mode="lines",
-            line={"color": "red", "width": 1},
-            showlegend=False,
-            **panel_kw,
-        )
-        fig.update_xaxes(title=label_value or f"Value ({data_unit})", **panel_kw)
-        fig.update_yaxes(
-            tickvals=[1, 2],
-            ticktext=[label_ref or "ref", label_query or "query"],
-            autorange=False, range=[0, 3],
-            **panel_kw,
-        )
-        return fig
 
     def _plot_dtw_python_plotly(self, type="density", **kwargs) -> go.Figure:
         if type == "density":
@@ -386,7 +313,18 @@ class Match1DResult:
         raise ValueError(f"Unknown plot type: {type!r}")
 
     def make_mpl_fig(self, **kwargs):
-        """Return matplotlib figure (not implemented in v3)."""
+        """Create a Matplotlib figure.
+
+        Parameters
+        ----------
+        **kwargs
+            Reserved plotting options.
+
+        Raises
+        ------
+        NotImplementedError
+            Matplotlib output is not implemented.
+        """
         raise NotImplementedError
 
     def make_plotly_fig(self, **kwargs) -> go.Figure:
@@ -394,3 +332,113 @@ class Match1DResult:
         if self.config.method == "dtw_python":
             return self._plot_dtw_python_plotly(**kwargs)
         assert_never(self.config.method)
+
+
+def _plot_match_density(  # noqa: PLR0913 -- arrays and subplot presentation
+    cost: npt.NDArray,
+    index_query: npt.NDArray,
+    index_ref: npt.NDArray,
+    *,
+    fig: go.Figure | None = None,
+    panel_kw: dict | None = None,
+    label_query: str | None = None,
+    label_ref: str | None = None,
+    **_kwargs,
+) -> go.Figure:
+    fig = fig or make_subplots(1, 1)
+    panel_kw = panel_kw or {}
+    z = cost.T
+    fig.add_heatmap(z=z, colorscale="rdylgn_r", **panel_kw)
+    fig.update_xaxes(title=label_query or "Query Id", **panel_kw)
+    fig.update_yaxes(title=label_ref or "Ref Id", **panel_kw)
+    fig.add_scatter(
+        x=index_query,
+        y=index_ref,
+        mode="markers+lines",
+        marker={"size": 4, "color": "black"},
+        line={"color": "gray"},
+        showlegend=False,
+        **panel_kw,
+    )
+    adjust_subplot_colorbars(fig)
+    return fig
+
+
+def _plot_match_pairs(  # noqa: PLR0913 -- arrays and subplot presentation
+    matched: QTable,
+    query_sorted: npt.NDArray | u.Quantity,
+    ref_sorted: npt.NDArray | u.Quantity,
+    *,
+    fig: go.Figure | None = None,
+    panel_kw: dict | None = None,
+    label_query: str | None = None,
+    label_ref: str | None = None,
+    label_value: str | None = None,
+    **_kwargs,
+) -> go.Figure:
+    fig = fig or make_subplots(1, 1)
+    panel_kw = panel_kw or {}
+    query_sorted_value, data_unit = strip_unit(query_sorted)
+    ref_sorted_value, _ = strip_unit(ref_sorted)
+    n_ref = len(ref_sorted_value)
+    n_query = len(query_sorted_value)
+    y_ref = np.ones((n_ref,))
+    y_query = np.ones((n_query,)) + 1
+    fig.add_scatter(
+        x=query_sorted_value,
+        y=y_query,
+        mode="markers",
+        marker={"size": 4, "color": "blue"},
+        showlegend=False,
+        **panel_kw,
+    )
+    fig.add_scatter(
+        x=ref_sorted_value,
+        y=y_ref,
+        mode="markers",
+        marker={"size": 4, "color": "black"},
+        showlegend=False,
+        **panel_kw,
+    )
+    # Batch all match lines into one trace (None separators) for speed
+    x_lines: list = []
+    y_lines: list = []
+    for i in range(len(matched)):
+        x_lines += [
+            query_sorted_value[matched["isort_query"][i]],
+            ref_sorted_value[matched["isort_ref"][i]],
+            None,
+        ]
+        y_lines += [
+            float(y_query[matched["isort_query"][i]]),
+            float(y_ref[matched["idx_ref"][i]]),
+            None,
+        ]
+    fig.add_scatter(
+        x=x_lines,
+        y=y_lines,
+        mode="lines",
+        line={"color": "red", "width": 1},
+        showlegend=False,
+        **panel_kw,
+    )
+    fig.update_xaxes(title=label_value or f"Value ({data_unit})", **panel_kw)
+    fig.update_yaxes(
+        tickvals=[1, 2],
+        ticktext=[label_ref or "ref", label_query or "query"],
+        autorange=False,
+        range=[0, 3],
+        **panel_kw,
+    )
+    return fig
+
+
+class FrequencyMatchConfig(ImmutableBaseModel):
+    """Shared frequency registration settings for tone and detector matching."""
+
+    matcher: Match1D = Field(default_factory=Match1D)
+    match_shift_max: FrequencyQuantityField = Field(default=10 * u.MHz)
+    match_shift_step: FrequencyQuantityField = Field(
+        default=1 * u.kHz,
+        description="Shift-search spacing; the v2 workflow default is 1 kHz.",
+    )
