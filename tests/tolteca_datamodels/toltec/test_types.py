@@ -247,48 +247,6 @@ class TestToltecDataKind:
 class TestToltecInfo:
     """Test ToltecInfo instrument information class."""
 
-    def test_masters_list(self) -> None:
-        """Test that masters list contains all master names."""
-        assert ToltecInfo.masters == ["tcs", "ics", "clip"]
-
-    def test_roaches_list(self) -> None:
-        """Test that roaches list contains all roach indices."""
-        assert ToltecInfo.roaches == list(range(13))
-        assert 0 in ToltecInfo.roaches
-        assert 12 in ToltecInfo.roaches
-        assert len(ToltecInfo.roaches) == 13
-
-    def test_roach_interface_mapping(self) -> None:
-        """Test that roach to interface mapping is correct."""
-        assert ToltecInfo.roach_interface[0] == "toltec0"
-        assert ToltecInfo.roach_interface[5] == "toltec5"
-        assert ToltecInfo.roach_interface[12] == "toltec12"
-        assert len(ToltecInfo.roach_interface) == 13
-
-    def test_interface_roach_mapping(self) -> None:
-        """Test that interface to roach reverse mapping is correct."""
-        assert ToltecInfo.interface_roach["toltec0"] == 0
-        assert ToltecInfo.interface_roach["toltec5"] == 5
-        assert ToltecInfo.interface_roach["toltec12"] == 12
-        assert len(ToltecInfo.interface_roach) == 13
-
-    def test_roach_interfaces_list(self) -> None:
-        """Test that roach_interfaces list contains all interface names."""
-        assert "toltec0" in ToltecInfo.roach_interfaces
-        assert "toltec12" in ToltecInfo.roach_interfaces
-        assert len(ToltecInfo.roach_interfaces) == 13
-
-    def test_interfaces_list(self) -> None:
-        """Interfaces include TolTEC streams and their telescope companion."""
-        assert ToltecInfo.interfaces == [
-            *(f"toltec{roach}" for roach in range(13)),
-            "hwpr",
-            "wyatt",
-            "toltec_hk",
-            "tel",
-        ]
-        assert ToltecInfo.interfaces == list(ToltecInfo.interface_interface_info)
-
     def test_interface_info_mapping(self) -> None:
         """All descriptors identify TolTEC, including the LMT-produced companion."""
         assert ToltecInfo.interface_interface_info == {
@@ -326,44 +284,35 @@ class TestToltecInfo:
                 interface_kind="tel",
             ),
         }
+        assert ToltecInfo.interfaces == [
+            *(f"toltec{roach}" for roach in range(13)),
+            "hwpr",
+            "wyatt",
+            "toltec_hk",
+            "tel",
+        ]
+        assert ToltecInfo.interfaces == list(ToltecInfo.interface_interface_info)
         assert "toltec" not in ToltecInfo.interface_interface_info
         assert "hk" not in ToltecInfo.interface_interface_info
 
-    def test_arrays_list(self) -> None:
-        """Test that arrays list contains array indices."""
-        assert ToltecInfo.arrays == [0, 1, 2]
-
-    def test_array_names_list(self) -> None:
-        """Test that array_names contains all array names."""
-        assert ToltecInfo.array_names == ["a1100", "a1400", "a2000"]
-
     def test_interface_array_name_mapping(self) -> None:
-        """Test that interface to array name mapping is correct."""
-        # 1.1mm array (roaches 0-6)
-        for roach in range(7):
-            assert ToltecInfo.interface_array_name[f"toltec{roach}"] == "a1100"
-
-        # 1.4mm array (roaches 7-10)
-        for roach in range(7, 11):
-            assert ToltecInfo.interface_array_name[f"toltec{roach}"] == "a1400"
-
-        # 2.0mm array (roaches 11-12)
-        for roach in [11, 12]:
-            assert ToltecInfo.interface_array_name[f"toltec{roach}"] == "a2000"
+        assert ToltecInfo.arrays == [0, 1, 2]
+        assert ToltecInfo.array_names == ["a1100", "a1400", "a2000"]
+        assert ToltecInfo.interface_array_name == {
+            **{f"toltec{roach}": "a1100" for roach in range(7)},
+            **{f"toltec{roach}": "a1400" for roach in range(7, 11)},
+            **{f"toltec{roach}": "a2000" for roach in range(11, 13)},
+        }
 
     def test_fov_diameter(self) -> None:
         """Test that FOV diameter is defined with correct units."""
         assert ToltecInfo.fov_diameter == 4 * u.arcmin
         assert ToltecInfo.fov_diameter.unit == u.arcmin
-        # Test conversion
-        assert ToltecInfo.fov_diameter.to(u.arcsec).value == 240
 
     def test_consistency_roach_interface_mappings(self) -> None:
-        """Test that forward and reverse mappings are consistent."""
-        for roach, interface in ToltecInfo.roach_interface.items():
-            assert ToltecInfo.interface_roach[interface] == roach
-
-    def test_all_interfaces_have_array_mapping(self) -> None:
-        """Test that all roach interfaces have array name mappings."""
-        for interface in ToltecInfo.roach_interfaces:
-            assert interface in ToltecInfo.interface_array_name
+        expected = {roach: f"toltec{roach}" for roach in range(13)}
+        assert ToltecInfo.roach_interface == expected
+        assert ToltecInfo.interface_roach == {
+            label: roach for roach, label in expected.items()
+        }
+        assert ToltecInfo.roach_interfaces == list(expected.values())

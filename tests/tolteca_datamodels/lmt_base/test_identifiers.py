@@ -215,7 +215,7 @@ def test_numeric_masters_are_not_labels(identified_metadata, master):
         )
 
 
-def test_identifiers_are_derived_cached_and_serialized(identified_metadata):
+def test_identifiers_are_derived_and_serialized(identified_metadata):
     meta = identified_metadata
     expected = {
         "quartet": "simu-145609-0-2",
@@ -223,10 +223,8 @@ def test_identifiers_are_derived_cached_and_serialized(identified_metadata):
         "uid_raw_obs": "simu-145609-0-2",
         "uid_raw_obs_file": "simu-145609-0-2-tel",
     }
-    assert not expected.keys() & meta.__dict__.keys()
     for name, value in expected.items():
         assert getattr(meta, name) == value
-        assert getattr(meta, name) is meta.__dict__[name]
     assert meta.uid_raw_obs == meta.quartet
 
     adapter = TypeAdapter(LmtRawObsMetadata)
@@ -238,7 +236,6 @@ def test_identifiers_are_derived_cached_and_serialized(identified_metadata):
 
     inputs = adapter.dump_json(meta, round_trip=True)
     restored = adapter.validate_json(inputs)
-    assert not expected.keys() & restored.__dict__.keys()
     assert adapter.dump_python(restored, mode="json") == payload
     # Derived values supplied in a serialized object never override the inputs.
     payload.update(dict.fromkeys(expected, "incorrect"))

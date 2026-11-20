@@ -64,3 +64,19 @@ def kids_design_data(data_lmt_path):
     (path,) = (data_lmt_path / "toltec/tcs/toltec0").glob("*145606*_targsweep.nc")
     with xr.open_dataset(path) as data:
         return data[["Header.Toltec.Xloc", "Header.Toltec.AdcSnapData"]].load()
+
+
+@pytest.fixture
+def resolve_schema_ref():
+    """Resolve a local JSON Schema reference without pinning definition names."""
+
+    def resolve(schema, node):
+        while "$ref" in node:
+            reference = node["$ref"]
+            assert reference.startswith("#/")
+            node = schema
+            for part in reference[2:].split("/"):
+                node = node[part.replace("~1", "/").replace("~0", "~")]
+        return node
+
+    return resolve

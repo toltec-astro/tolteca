@@ -5,7 +5,6 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import xarray as xr
-from pydantic import ValidationError
 
 from tolteca_datamodels.toltec import open_toltec_kids
 from tolteca_datamodels.toltec.metadata import (
@@ -155,38 +154,6 @@ class TestMetadataModels:
         assert meta.n_sweepsteps == 491
         assert meta.n_sweepreps == 10
         assert meta.f_lo_center == 4.5e9
-
-    def test_metadata_is_immutable(self, kids_filepath_orig):
-        """Test metadata fields are frozen."""
-        from astropy import units as u
-        from astropy.time import Time
-
-        meta = ToltecRawObsMetadata(
-            n_blocks_max=1,
-            n_times=1000,
-            n_chans=256,
-            f_smp=500 * u.Hz,
-            filepath_orig=kids_filepath_orig,
-            data_models=frozenset({"toltec"}),
-            instru="toltec",
-            interface="toltec0",
-            interface_kind="roach",
-            master="tcs",
-            master_code=ToltecDBRawObsMasterCode.TCS,
-            readout_code=0,
-            nw=0,
-            array=0,
-            array_name="a1100",
-            roach=0,
-            obsnum=10003,
-            subobsnum=1,
-            scannum=0,
-            t0=Time("2025-01-01T00:00:00", format="isot", scale="utc"),
-            t1=Time("2025-01-01T00:01:00", format="isot", scale="utc"),
-            t_int=60.0 * u.s,
-        )
-        with pytest.raises(ValidationError, match="frozen"):
-            setattr(meta, "roach", 1)  # noqa: B010 -- Test frozen validation.
 
     def test_derived_fields(self, kids_filepath_orig):
         """Test derived metadata fields."""

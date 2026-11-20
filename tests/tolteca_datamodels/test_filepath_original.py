@@ -97,15 +97,15 @@ def test_metadata_uses_the_same_public_factory(path):
     assert meta.model_dump()["filepath_info_orig"] == expected.model_dump()
 
 
-def test_computed_path_information_is_readonly_in_schema():
-    cls = FilepathOrigMetadataMixin
-    schema_input = cls.model_json_schema()
+def test_computed_path_information_is_readonly_in_schema(resolve_schema_ref):
+    schema_input = FilepathOrigMetadataMixin.model_json_schema()
     assert "filepath_orig" in schema_input["required"]
     assert schema_input["properties"]["filepath_orig"]["type"] == "string"
     assert "filepath_info_orig" not in schema_input["properties"]
-    schema = cls.model_json_schema(mode="serialization")
-    assert schema["properties"]["filepath_info_orig"]["readOnly"]
-    assert schema["properties"]["filepath_info_orig"]["anyOf"] == [
-        {"$ref": "#/$defs/FilepathInfo"},
-        {"type": "null"},
-    ]
+    schema = FilepathOrigMetadataMixin.model_json_schema(mode="serialization")
+    field = schema["properties"]["filepath_info_orig"]
+    assert field["readOnly"]
+    choices = [resolve_schema_ref(schema, node) for node in field["anyOf"]]
+    assert {node["type"] for node in choices} == {"object", "null"}
+    parsed = next(node for node in choices if node["type"] == "object")
+    assert {"ext", "data_models"} <= parsed["properties"].keys()

@@ -144,20 +144,28 @@ def test_thin_telescope_subclasses_keep_telescope_columns(model):
     )
 
 
-def test_projection_is_cached_per_model_outside_filename_classes(monkeypatch):
-    columns = FileAccessor._filepath_columns(FilepathInfo)
-    core_columns = FileAccessorBase._filepath_columns(FilepathInfo)
-    assert set(columns) == {"file_ext", "file_data_models"}
+def test_repeated_batches_reuse_prepared_filename_projections(monkeypatch):
+    class Layout(FilepathInfo):
+        channel: int
 
-    def unexpected(*args, **kwargs):
-        pytest.fail("Rebuilt a cached filename projection")
+    parsed = Layout(ext="nc", data_models=frozenset(), channel=7)
+    monkeypatch.setattr(FilepathInfo, "from_source", lambda *args, **kwargs: parsed)
+    prepare = ModelColumnMapper.__call__
+    preparations = []
 
-    monkeypatch.setattr(ModelColumnMapper, "__call__", unexpected)
-    for _ in range(2):
-        table = FileAccessor.from_sources(["first.nc", "second.ecsv"]).table
-        assert table.file_ext.tolist() == ["nc", "ecsv"]
-        assert FileAccessor._filepath_columns(FilepathInfo) is columns
-        assert FileAccessorBase._filepath_columns(FilepathInfo) is core_columns
+    def count_preparation(self, model_cls):
+        preparations.append(model_cls)
+        return prepare(self, model_cls)
+
+    monkeypatch.setattr(ModelColumnMapper, "__call__", count_preparation)
+    for accessor_cls in (FileAccessorBase, FileAccessor):
+        first = accessor_cls.from_sources(["first.nc", "second.nc"]).table
+        assert first.file_channel.tolist() == [7, 7]
+        count = len(preparations)
+        again = accessor_cls.from_sources(["third.nc"]).table
+        assert again.file_channel.tolist() == [7]
+        assert len(preparations) == count
+    assert preparations.count(Layout) > 0
 
 
 def test_explicit_composition_only_adds_derived_columns_to_prepared_metadata():
@@ -375,23 +383,38 @@ def test_uid_derivation_uses_current_values_and_preserves_unselected_rows():
     assert table.interface.tolist() == ["tel", "toltec8", "hwpr", "tel"]
 
 
-def test_table_helper_returns_the_factory_table_without_copying(monkeypatch):
-    file_accessor = FileAccessor.from_sources(["example.nc"])
-    calls = []
+@pytest.mark.parametrize("mode", ["guess", "guess_or_read", "read"])
+def test_table_helper_matches_accessor_preparation(mode, data_lmt_path, tmp_path):
+    path = data_lmt_path / "tel/tel_toltec_2025-10-31_145609_00_0002.nc"
+    renamed = tmp_path / "renamed.nc"
+    renamed.symlink_to(path)
+    sources = [path, renamed]
+    expected = FileAccessor.from_sources(sources, mode=mode, on_error="raise").table
+    table = file_table_from_sources(sources, mode=mode, on_error="raise")
+    pd.testing.assert_frame_equal(
+        table.drop(columns="source_trace"), expected.drop(columns="source_trace")
+    )
+    assert [list(trace.iter_entries()) for trace in table.source_trace] == [
+        list(trace.iter_entries()) for trace in expected.source_trace
+    ]
+    if mode == "guess":
+        assert "obs_goal" not in table
+        assert table.obsnum.isna().tolist() == [False, True]
+    else:
+        assert table.obsnum.tolist() == [145609, 145609]
+        assert table.obs_goal.notna().tolist() == [mode == "read", True]
+    assert {"io_obj", "accessor_obj"}.isdisjoint(table)
 
-    def from_sources(cls, sources, *, mode, on_error):
-        assert mode == "guess"
-        calls.append((cls, sources, on_error))
-        return file_accessor
 
-    monkeypatch.setattr(FileAccessor, "from_sources", classmethod(from_sources))
-    sources = ["example.nc"]
-    table = file_table_from_sources(sources, on_error="raise")
-    assert table is file_accessor.table
-    assert len(calls) == 1
-    cls, passed_sources, on_error = calls[0]
-    assert cls is FileAccessor and passed_sources is sources
-    assert on_error == "raise"
+@pytest.mark.parametrize("mode", ["guess_or_read", "read"])
+def test_table_helper_applies_source_error_policy(mode, tmp_path):
+    source = tmp_path / "missing.nc"
+    table = file_table_from_sources([source], mode=mode)
+    assert len(table) == 1
+    errors = list(table.source_trace.iloc[0].iter_error_entries())
+    assert [entry.kind.value for entry in errors] == ["source_open_failed"]
+    with pytest.raises(FileNotFoundError):
+        file_table_from_sources([source], mode=mode, on_error="raise")
 
 
 def test_assembled_entry_point_loads_parsers_and_builtin_policies():

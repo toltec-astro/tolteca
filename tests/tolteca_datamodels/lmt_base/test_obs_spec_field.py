@@ -56,10 +56,14 @@ def test_invalid_config_values_raise_validation_error(value):
         SelectionConfig.model_validate({"obs_spec": value})
 
 
-def test_field_schema_and_optional_containers():
+def test_field_schema_describes_input_types_and_serialized_string():
     adapter = TypeAdapter(ObsSpecField)
-    assert adapter.json_schema() == {"anyOf": [{"type": "string"}, {"type": "integer"}]}
-    assert adapter.json_schema(mode="serialization") == {"type": "string"}
+    schema = adapter.json_schema()
+    assert {choice["type"] for choice in schema["anyOf"]} == {"string", "integer"}
+    assert adapter.json_schema(mode="serialization")["type"] == "string"
+
+
+def test_optional_selector_containers_roundtrip():
     collection = TypeAdapter(list[ObsSpecField | None])
     selectors = collection.validate_python([None, "1/tel", 2])
     assert selectors == [None, ObsSpec.parse("1/tel"), ObsSpec(obsnum=2)]

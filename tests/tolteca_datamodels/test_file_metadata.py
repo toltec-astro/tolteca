@@ -1,5 +1,6 @@
 """File-table metadata updates, independent of individual reader implementations."""
 
+import re
 from dataclasses import dataclass
 from typing import ClassVar
 
@@ -101,7 +102,7 @@ def test_selected_factory_logs_metadata_failures_and_completed_summary():
     assert summary.to_dict("records") == [
         {"kind": "metadata_read_failed", "count": 1, "total": 2}
     ]
-    assert summary.to_string(index=False) in messages[-1]
+    assert re.search(r"metadata_read_failed\s+1\s+2\b", output)
 
 
 def test_repeated_metadata_failures_retain_latest_details_per_kind():

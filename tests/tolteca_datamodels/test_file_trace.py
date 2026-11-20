@@ -1,5 +1,6 @@
 """Filename issues, failure policy, and row-local reporting."""
 
+import re
 from dataclasses import FrozenInstanceError
 
 import pandas as pd
@@ -15,6 +16,7 @@ from tolteca_datamodels.core.file import (
     SourceTraceKind,
 )
 from tolteca_datamodels.core.filepath import FilepathInfo
+from tolteca_datamodels.file import FileAccessor
 from tolteca_datamodels.lmt import filepath  # noqa: F401 -- register telescope parser
 
 
@@ -168,33 +170,35 @@ def test_binding_and_empty_summary_do_not_require_or_create_columns(table):
     pd.testing.assert_frame_equal(table, before)
 
 
-def test_accessor_collector_records_in_table_traces_by_position_not_index_label():
-    table = pd.DataFrame(index=[8, 8, 2])
-    accessor = FileAccessorBase(table)
-    collector = accessor._make_source_trace_collector(on_error="record")
-    pd.testing.assert_series_equal(accessor.source_trace, table["source_trace"])
-    assert table.columns.tolist() == ["source_trace"]
-    assert accessor.source_trace.dtype == object
-    assert collector.on_error == "record"
-    collector.record(1, SourceTraceKind.filepath_rule_unmatched)
-    collector.record(0, SourceTraceKind.source_validation_failed)
-    collector.record(1, SourceTraceKind.filepath_parse_failed)
-    assert [entry.kind for entry in table.source_trace.iloc[1].iter_entries()] == [
-        SourceTraceKind.filepath_rule_unmatched,
-        SourceTraceKind.filepath_parse_failed,
+def test_open_records_traces_by_position_with_duplicate_index_labels(tmp_path):
+    missing = tmp_path / "missing.nc"
+    file_accessor = FileAccessor.from_sources([None, missing, "generic.txt"])
+    file_accessor.table.index = [8, 8, 2]
+    assert file_accessor.source_trace.dtype == object
+    assert len({id(trace) for trace in file_accessor.source_trace}) == 3
+    before = [list(trace.iter_entries()) for trace in file_accessor.source_trace]
+    for _ in range(2):
+        with file_accessor.open():
+            assert file_accessor.table.io_obj.isna().all()
+        errors = [
+            [entry.kind for entry in trace.iter_error_entries()]
+            for trace in file_accessor.source_trace
+        ]
+        assert errors == [
+            [SourceTraceKind.source_validation_failed],
+            [SourceTraceKind.source_open_failed],
+            [],
+        ]
+        for original, trace in zip(before, file_accessor.source_trace, strict=True):
+            assert all(entry in list(trace.iter_entries()) for entry in original)
+    selected = FileAccessor(file_accessor.table.iloc[[1, 0]])
+    summary = selected.source_trace_summary()
+    errors = summary[
+        summary.kind.isin(["source_open_failed", "source_validation_failed"])
     ]
-    assert [cell.has_error for cell in table.source_trace] == [True, True, False]
-    assert len({id(cell) for cell in table.source_trace}) == 3
-    later = accessor._make_source_trace_collector(on_error="raise")
-    assert later.on_error == "raise"
-    assert all(
-        original is current
-        for original, current in zip(collector.traces, later.traces, strict=True)
-    )
-    assert accessor.source_trace_summary().to_dict("records") == [
-        {"kind": "filepath_parse_failed", "count": 1, "total": 3},
-        {"kind": "filepath_rule_unmatched", "count": 1, "total": 3},
-        {"kind": "source_validation_failed", "count": 1, "total": 3},
+    assert errors.to_dict("records") == [
+        {"kind": "source_open_failed", "count": 1, "total": 2},
+        {"kind": "source_validation_failed", "count": 1, "total": 2},
     ]
 
 
@@ -326,6 +330,5 @@ def test_parse_failure_and_summary_are_available_in_debug_logging():
     output = "\n".join(messages)
     assert "filepath_parse_failed" in output
     assert "ValueError" in output
-    assert "Source processing trace" in output
-    assert "1/2 filenames parsed" in output
+    assert re.search(r"\b1\s*/\s*2\b.*filenames", output)
     assert "2025-99-31" in output

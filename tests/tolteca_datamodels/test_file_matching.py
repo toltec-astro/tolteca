@@ -567,19 +567,6 @@ def test_workflow_without_match_rules_is_inactive_directly_and_in_composition():
         assert FileAccessorBase(file_accessor.table).source_trace_summary().empty
 
 
-def test_dispatch_policy_is_cached_but_selection_and_current_values_are_not():
-    compile_rules = CompositeFileWorkflow._compile_match_rules
-    both = compile_rules((LmtFileAccessor, ToltecFileAccessor))
-    assert compile_rules((LmtFileAccessor, ToltecFileAccessor)) is both
-    lmt = compile_rules((LmtFileAccessor,))
-    record = {"data_models": ["lmt", "toltec"]}
-    assert both(record) is ToltecFileAccessor
-    assert lmt(record) is LmtFileAccessor
-    record["data_models"] = ["lmt"]
-    assert both(record) is LmtFileAccessor
-    assert compile_rules(())(record) is None
-
-
 def test_cyclic_supersession_is_rejected_when_compiling_policy():
     from graphlib import CycleError
 

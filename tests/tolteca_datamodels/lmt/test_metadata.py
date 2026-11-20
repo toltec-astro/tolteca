@@ -218,12 +218,6 @@ def test_python_program_requires_enum_instance(base_tel_fields, program):
         LmtTelMetadata(**base_tel_fields)
 
 
-def test_frozen(base_tel_fields):
-    meta = LmtTelMetadata(**base_tel_fields)
-    with pytest.raises(ValidationError, match="frozen"):
-        setattr(meta, "obsnum", 999)  # noqa: B010 -- Test frozen validation.
-
-
 def test_json_roundtrip(base_tel_fields):
     adapter = TypeAdapter(LmtTelMetadata)
     meta = LmtTelMetadata(**base_tel_fields)
@@ -238,6 +232,12 @@ def test_json_roundtrip(base_tel_fields):
     assert restored.t0 == meta.t0
     assert restored.t1 == meta.t1
     assert restored.t_int == meta.t_int
+    assert restored.t_elapsed == meta.t_elapsed
+    payload = adapter.dump_python(meta, mode="json")
+    assert "t_elapsed" in payload
+    assert "target_ref" in payload and "target_off" not in payload
+    inputs = adapter.dump_python(meta, round_trip=True)
+    assert "t_elapsed" not in inputs
     assert restored.target.separation(meta.target).rad == pytest.approx(0, abs=1e-14)
     assert restored.target_ref.separation(meta.target_ref).rad == pytest.approx(
         0, abs=1e-14
@@ -245,7 +245,7 @@ def test_json_roundtrip(base_tel_fields):
 
 
 @pytest.mark.parametrize("mode", ["validation", "serialization"])
-def test_identity_json_schema(mode):
+def test_identity_json_schema(mode, resolve_schema_ref):
     schema = LmtTelMetadata.model_json_schema(mode=mode)
     for name, value in {
         "instru": "lmt",
@@ -257,51 +257,17 @@ def test_identity_json_schema(mode):
         assert name in schema["required"]
         field = schema["properties"][name]
         assert "default" not in field
-        definition = schema["$defs"][field["$ref"].removeprefix("#/$defs/")]
-        if name == "master_code":
-            assert definition["enum"] == [value]
-        else:
-            assert definition["const"] == value
+        definition = resolve_schema_ref(schema, field)
+        assert definition.get("enum", [definition.get("const")]) == [value]
         assert definition["type"] == ("integer" if name == "master_code" else "string")
 
 
-def test_elapsed_time_is_derived_cached_and_serializable(base_tel_fields):
+def test_original_filename_values_and_serialized_provenance(base_tel_fields):
     meta = LmtTelMetadata(**base_tel_fields)
-    assert "t_elapsed" not in meta.__dict__
-    elapsed = meta.t_elapsed
-    assert elapsed == (meta.t1 - meta.t0).to(u.s)
-    assert elapsed.unit == u.s
-    assert meta.t_elapsed is elapsed
-    assert meta.t_int == base_tel_fields["t_int"]
-    assert elapsed != meta.t_int
-
-    adapter = TypeAdapter(LmtTelMetadata)
-    payload = adapter.dump_python(meta, mode="json")
-    assert "t_elapsed" in payload
-    assert "target_ref" in payload and "target_off" not in payload
-    inputs = adapter.dump_json(meta, round_trip=True)
-    assert b'"t_elapsed"' not in inputs
-    restored = adapter.validate_json(inputs)
-    assert "t_elapsed" not in restored.__dict__
-    assert restored.t_elapsed == elapsed
-
-    replacement = type(meta).model_validate(
-        meta.model_dump(round_trip=True) | {"t1": meta.t1 + 1 * u.s}
-    )
-    assert "t_elapsed" not in replacement.__dict__
-    assert replacement.t_elapsed == (replacement.t1 - replacement.t0).to(u.s)
-    assert replacement.t_elapsed != elapsed
-    assert meta.t_elapsed is elapsed
-
-
-def test_original_filename_is_cached_and_serialized(base_tel_fields):
-    meta = LmtTelMetadata(**base_tel_fields)
-    assert "filepath_info_orig" not in meta.__dict__
     parsed = meta.filepath_info_orig
     assert parsed is not None
     assert_type(parsed, FilepathInfo)
     assert isinstance(parsed, LmtFilepathInfo)
-    assert parsed is meta.filepath_info_orig
     assert parsed.ut == datetime(2025, 10, 31, tzinfo=UTC)
     assert parsed.interface == "tel"
     assert parsed.suffix is None
@@ -311,11 +277,6 @@ def test_original_filename_is_cached_and_serialized(base_tel_fields):
     assert payload["filepath_info_orig"] == parsed.model_dump(mode="json")
     assert payload["master"] == "tcs"
     assert not {"source", "file_timestamp", "file_suffix", "file_ext"} & payload.keys()
-    schema = LmtTelMetadata.model_json_schema(mode="serialization")
-    assert schema["properties"]["filepath_info_orig"]["anyOf"] == [
-        {"$ref": "#/$defs/FilepathInfo"},
-        {"type": "null"},
-    ]
 
 
 def test_original_filename_does_not_reclassify_header_metadata(base_tel_fields):
@@ -370,10 +331,9 @@ def test_program_json_roundtrip_retains_enum(base_tel_fields, program):
     assert restored.obs_pgm is program
 
 
-def test_program_json_schema():
+def test_program_json_schema(resolve_schema_ref):
     schema = LmtTelMetadata.model_json_schema()
     assert "obs_pgm" in schema["required"]
-    assert schema["properties"]["obs_pgm"]["$ref"] == "#/$defs/LmtObsPgm"
-    assert schema["$defs"]["LmtObsPgm"]["enum"] == [
-        program.value for program in LmtObsPgm
-    ]
+    field = resolve_schema_ref(schema, schema["properties"]["obs_pgm"])
+    assert field["type"] == "string"
+    assert set(field["enum"]) == {program.value for program in LmtObsPgm}

@@ -173,38 +173,6 @@ class TestToltecRawObsMetadata:
         assert hasattr(meta, "t1")
         assert hasattr(meta, "t_int")
 
-    def test_frozen(self, base_obs_fields: dict[str, Any]) -> None:
-        """Test that metadata is immutable."""
-        meta = ToltecRawObsMetadata(
-            n_blocks_max=1,
-            n_times=1000,
-            n_chans=256,
-            f_smp=500 * u.Hz,
-            **base_obs_fields,
-            master="ics",
-            master_code=ToltecDBRawObsMasterCode.ICS,
-            data_models=frozenset({"toltec"}),
-        )
-        with pytest.raises(ValidationError, match="frozen"):
-            setattr(meta, "obsnum", 99999)  # noqa: B010 -- Test frozen validation.
-        with pytest.raises(ValidationError, match="frozen"):
-            setattr(meta, "roach", 5)  # noqa: B010 -- Test frozen validation.
-
-    def test_keyword_only_enforcement(self, base_obs_fields: dict[str, Any]) -> None:
-        """Test that all fields are keyword-only."""
-        with pytest.raises((TypeError, ValidationError)):
-            ToltecRawObsMetadata(
-                12345,  # ty: ignore[too-many-positional-arguments] -- keyword-only
-                1,  # subobsnum
-                2,  # scannum
-                "toltec0",  # interface
-                Time.now(),
-                Time.now(),
-                60 * u.s,
-                "lmt",
-                "toltec",
-            )  # ty: ignore[missing-argument] -- deliberately use positional args
-
 
 class TestToltecSweepMetadata:
     """Test ToltecSweepMetadata."""

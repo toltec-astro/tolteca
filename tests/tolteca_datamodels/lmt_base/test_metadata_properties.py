@@ -4,10 +4,18 @@ from typing import assert_type
 
 import astropy.units as u
 import pytest
+from astropy.coordinates import SkyCoord
 from astropy.time import Time
 from pydantic import TypeAdapter, ValidationError
 
 from tolteca_datamodels.filepath import FilepathInfo
+from tolteca_datamodels.lmt.metadata import LmtTelMetadata
+from tolteca_datamodels.lmt.types import (
+    LmtInterfaceInfo,
+    LmtObsGoal,
+    LmtObsPgm,
+    LmtRawObsMasterCode,
+)
 from tolteca_datamodels.lmt_base.filepath import FilepathOrigMetadataMixin
 from tolteca_datamodels.lmt_base.metadata import LmtRawObsMetadata
 from tolteca_datamodels.toltec.filepath import ToltecFilepathInfo
@@ -32,26 +40,22 @@ def meta():
     )
 
 
-def test_elapsed_is_cached_and_independent_of_integration_time(meta):
-    assert "t_elapsed" not in meta.__dict__
+@pytest.mark.parametrize("integration_s", [0, 60.32])
+def test_elapsed_uses_endpoints_independently_of_integration_time(meta, integration_s):
+    meta = type(meta).model_validate(
+        meta.model_dump(round_trip=True) | {"t_int": integration_s * u.s}
+    )
     elapsed = meta.t_elapsed
     assert elapsed == (meta.t1 - meta.t0).to(u.s)
     assert elapsed.unit == u.s
-    assert meta.t_elapsed is elapsed
-    assert meta.t_int == 0 * u.s
-
+    assert meta.t_int == integration_s * u.s
+    assert elapsed != meta.t_int
     other = type(meta).model_validate(
         meta.model_dump(round_trip=True) | {"t1": meta.t1 + 1 * u.s}
     )
-    assert "t_elapsed" not in other.__dict__
     assert other.t_elapsed == (other.t1 - other.t0).to(u.s)
-    assert other.t_elapsed != elapsed
-    assert meta.t_elapsed is elapsed
-
-
-def test_declared_observation_fields_are_frozen(meta):
-    with pytest.raises(ValidationError, match="frozen_instance"):
-        meta.obsnum = 1
+    assert other.t_elapsed > elapsed
+    assert meta.t_elapsed == elapsed
 
 
 def test_computed_fields_are_readonly_and_not_roundtrip_inputs(meta):
@@ -117,3 +121,62 @@ def test_toltec_original_path_retains_subclass_fields(meta):
         data = meta.model_dump(round_trip=True, exclude={"filepath_orig"}) | change
         with pytest.raises(ValidationError, match="filepath_orig"):
             type(meta).model_validate(data)
+
+
+@pytest.mark.parametrize(
+    ("model_cls", "additional_fields", "frozen_fields"),
+    [
+        (LmtInterfaceInfo, {}, ("interface",)),
+        (LmtRawObsMetadata, {}, ("obsnum",)),
+        (
+            LmtTelMetadata,
+            {
+                "master_code": LmtRawObsMasterCode.TCS,
+                "obs_pgm": LmtObsPgm.lissajous,
+                "obs_goal": LmtObsGoal.pointing,
+                "target": SkyCoord(ra=1 * u.rad, dec=0.5 * u.rad),
+                "target_ref": SkyCoord(ra=1.1 * u.rad, dec=0.6 * u.rad),
+                "filepath_orig": "tel_toltec_2025-10-31_145609_00_0002.nc",
+            },
+            ("obsnum",),
+        ),
+        (
+            ToltecRawObsMetadata,
+            {
+                "master_code": ToltecDBRawObsMasterCode.TCS,
+                "data_models": frozenset({"toltec"}),
+                "instru": "toltec",
+                "interface": "toltec8",
+                "interface_kind": "roach",
+                "readout_code": 8,
+                "roach": 8,
+                "nw": 8,
+                "array": 1,
+                "array_name": "a1400",
+                "filepath_orig": "toltec8_145609_000_0002_2025_10_31_09_27_57.nc",
+                "n_blocks_max": 1,
+                "n_times": 1000,
+                "n_chans": 256,
+                "f_smp": 500 * u.Hz,
+            },
+            ("obsnum", "roach"),
+        ),
+    ],
+    ids=["interface", "acquisition", "telescope", "readout"],
+)
+def test_metadata_boundaries_keep_declared_fields_frozen(
+    meta, model_cls, additional_fields, frozen_fields
+):
+    values = meta.model_dump(round_trip=True) | additional_fields
+    model = model_cls.model_validate(
+        {
+            name: value
+            for name, value in values.items()
+            if name in model_cls.model_fields
+        }
+    )
+    for name in frozen_fields:
+        original = getattr(model, name)
+        with pytest.raises(ValidationError, match="frozen"):
+            setattr(model, name, original)
+        assert getattr(model, name) == original

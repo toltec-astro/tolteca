@@ -124,13 +124,6 @@ def test_master_label_validation_and_roundtrip():
             adapter.validate_python(invalid, strict=True)
 
 
-def test_predefined_identity_is_frozen():
-    identity = LmtInfo.interface_interface_info["tel"]
-    assert identity.interface == "tel"
-    with pytest.raises(ValidationError, match="frozen"):
-        setattr(identity, "interface_kind", "other")  # noqa: B010 -- Test frozen validation.
-
-
 def test_observation_programs_cover_recorded_lmtmc_values(lmtmc_records):
     programs = {row["ObsPgm"] for row in lmtmc_records}
     assert programs

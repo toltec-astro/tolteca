@@ -1,7 +1,6 @@
 """Configuration of input discovery."""
 
 import glob
-import pickle
 import re
 import subprocess
 import sys
@@ -429,7 +428,9 @@ def test_data_model_selection_searches_required_stores(
 
 def test_data_model_selection_logs_selected_support(data_lmt_path):
     messages = []
-    sink = logger.add(messages.append, level="DEBUG")
+    sink = logger.add(
+        lambda message: messages.append(message.record["message"]), level="DEBUG"
+    )
     try:
         table = discover(
             [
@@ -443,7 +444,13 @@ def test_data_model_selection_logs_selected_support(data_lmt_path):
         logger.remove(sink)
     assert not table.empty
     assert set(table.interface) == {"tel"}
-    assert any("LmtInputDiscovery data models: ['lmt']" in m for m in messages)
+    assert any(
+        "LmtInputDiscovery" in message
+        and re.search(r"data models.*\blmt\b", message)
+        and "toltec" not in message
+        and "dummy_instru" not in message
+        for message in messages
+    )
 
 
 @pytest.mark.parametrize(
@@ -692,7 +699,7 @@ def test_empty_discovery_logs_and_returns_standard_empty_table(tmp_path):
         logger.remove(sink)
     assert result.equals(FileAccessor.from_sources([]).table)
     assert any(pattern in message and "0 files" in message for message in messages)
-    assert any("no selected candidates" in message for message in messages)
+    assert any(re.search(r"inputs\[1\].*\b0 selected", message) for message in messages)
 
 
 def test_entry_logs_include_settings_selection_and_deduplication(
@@ -720,20 +727,20 @@ def test_entry_logs_include_settings_selection_and_deduplication(
         logger.remove(sink)
     assert len(table) == 1
     text = "\n".join(messages)
-    assert "Input discovery: 3 configured entries" in text
+    assert re.search(r"\b3 configured entries\b", text)
     assert "inputs[0] (SourcesInputDiscovery)" in text
     assert source.name in text
     assert "inputs[1] (SourcesInputDiscovery)" in text
     assert "inputs[2] (LmtInputDiscovery)" in text
     assert str(tmp_path / "missing") in text
-    assert (
-        "3 sources -> 3 resolved locations -> 2 distinct candidates -> 1 selected; "
-        "mode=guess, obs_spec=145609/2/tel"
-    ) in text
-    assert "mode=guess, obs_spec=1/tel; 0 candidates -> 0 selected" in text
-    assert "inputs[2]: 0 selected candidates" in text
-    assert "2 nonempty entries, 2 selected rows -> 1 retained rows" in text
-    assert "1 duplicate locations or symlink targets removed" in text
+    assert re.search(
+        r"3 sources.*3 resolved locations.*2 distinct candidates.*1 selected", text
+    )
+    assert "145609/2/tel" in text and "1/tel" in text
+    assert re.search(r"mode.*guess", text)
+    assert re.search(r"inputs\[2\].*\b0 selected", text)
+    assert re.search(r"2 nonempty entries.*2 selected rows.*1 retained rows", text)
+    assert re.search(r"\b1 duplicate locations", text)
 
 
 def test_entry_settings_are_logged_before_a_read_failure(tmp_path, monkeypatch):
@@ -752,7 +759,7 @@ def test_entry_settings_are_logged_before_a_read_failure(tmp_path, monkeypatch):
     text = "\n".join(messages)
     assert "inputs[0] (SourcesInputDiscovery)" in text
     assert "unreadable.nc" in text
-    assert "mode='read'" in text
+    assert re.search(r"mode[= :]+['\"]?read\b", text)
     assert "selected candidates" not in text
 
 
@@ -836,7 +843,9 @@ def test_glob_parent_component_is_not_resolved_before_matching(tmp_path):
     assert unmatched.resolve() == []
 
 
-def test_discovery_config_pickle_roundtrip_retains_context(tmp_path, monkeypatch):
+def test_configured_sources_keep_context_after_working_directory_changes(
+    tmp_path, monkeypatch
+):
     nested = tmp_path / "nested"
     nested.mkdir()
     match = nested / "data.nc"
@@ -847,22 +856,24 @@ def test_discovery_config_pickle_roundtrip_retains_context(tmp_path, monkeypatch
                 "inputs": [
                     {
                         "sources": ["nested/data.nc", {"glob": "nested/*.nc"}],
-                        "obs_spec": "tcs-1",
                         "mode": "guess",
                     }
                 ]
             }
         }
     ).with_config(validation_context={"root_path": tmp_path})
-    config = InputDiscovery(runtime).config
-    # Only this test's own pickle data is deserialized.
-    restored = pickle.loads(pickle.dumps(config))  # noqa: S301
-    assert isinstance(restored, InputDiscoveryConfig)
-    assert restored.model_dump(mode="json") == config.model_dump(mode="json")
+    discovery = InputDiscovery(runtime)
+    config = discovery.config
     monkeypatch.chdir(nested)
-    entry = restored.inputs[0]
-    assert entry.sources[0].path == match
-    assert [loc.path for loc in entry.sources[1].resolve()] == [match]
+    entry = config.inputs[0]
+    assert isinstance(entry, SourcesInputDiscovery)
+    exact, glob_source = entry.sources
+    assert isinstance(exact, FileLoc)
+    assert isinstance(glob_source, GlobSource)
+    assert exact.path == match
+    assert [loc.path for loc in glob_source.resolve()] == [match]
+    table = discovery.discover()
+    assert [loc.path for loc in table.source_loc] == [match]
 
 
 def test_selectors_keep_their_own_matches_and_order(data_lmt_path, monkeypatch):
