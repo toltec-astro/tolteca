@@ -15,4 +15,5 @@
 ## Domains
 
 - [Observation data](observation-data.md)
+- [KIDs model reports and timestream solving](kids-model-reports.md)
 - [Data products](data-products.md)

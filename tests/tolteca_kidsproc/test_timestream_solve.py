@@ -1,4 +1,4 @@
-"""Selected-array inversion preserves calibration identities and failure semantics."""
+"""Selected-array solving preserves calibration identities and failure semantics."""
 
 import numpy as np
 import pytest

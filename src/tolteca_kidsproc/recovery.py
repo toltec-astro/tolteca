@@ -8,7 +8,7 @@ import numpy as np
 class SampleFlag(IntFlag):
     """Sample validity bits; condition_high is a warning, not failure.
 
-    The other nonzero bits indicate an invalid inverse result. Zero means no
+    The other nonzero bits indicate an invalid solving result. Zero means no
     numerical warning, not an accepted physical calibration.
     Native and Python recovery preserve the same bit values in uint16 arrays.
     iteration_limit

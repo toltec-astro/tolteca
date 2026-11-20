@@ -13,18 +13,16 @@ import numpy as np
 import xarray as xr
 from astropy import units as u
 from astropy.time import Time
-from pydantic import ConfigDict, Field
 from tollan.accessor import FieldLocation, NameMapping, Schema
 from tollan.accessor.xarray import XarrayAccessorBase, XarrayMapper, unwrap_data_source
-from tollan.utils.yaml import yaml_loads
 
 from ...core.source import source_opener
-from ...core.types import FrozenDataModel
 from ..axes import ToltecAxisView
 from ..metadata import ToltecProcessedKidsMetadata, ToltecRawObsMetadata
 from ..toltec_db import ToltecDBRawObsMasterCode
 from ..types import ToltecDataKind, ToltecDataModel, ToltecInfo
 from .blocks import ToltecBlockIndex, _find_lo_block_slices
+from .model_table import read_model_table
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -53,36 +51,21 @@ __all__ = [
 ]
 
 
-class _ModelParameterDescriptor(FrozenDataModel):
-    model_config = ConfigDict(extra="allow")
-
-    name: str
-    unit: str
-
-
-class _ModelParamsDescriptor(FrozenDataModel):
-    model_config = ConfigDict(extra="allow")
-
-    name: str = Field(min_length=1)
-    version: int = Field(ge=1)
-    parameters: list[_ModelParameterDescriptor]
-
-
-def _model_header_descriptor(descriptor, columns):
-    """Restore explicitly recorded model identity and column units."""
-    if not descriptor:
-        return {}
-    model = _ModelParamsDescriptor.model_validate(yaml_loads(descriptor))
-    names = [parameter.name for parameter in model.parameters]
-    if not set(names).issubset(columns) or len(set(names)) != len(names):
-        msg = "ModelParams descriptor requires distinct existing columns"
-        raise ValueError(msg)
-    for parameter in model.parameters:
-        columns[parameter.name].attrs["units"] = parameter.unit
-    for name in ("f_in", "f_out"):
-        if name in columns:
-            columns[name].attrs["units"] = "Hz"
-    return {"model_schema": model.model_dump(round_trip=True), "model": model.name}
+def _model_table_dataset(table):
+    columns = {
+        name: xr.DataArray(
+            np.asarray(table[name]),
+            dims="chan",
+            attrs={"units": str(table[name].unit or "")},
+        )
+        for name in table.colnames
+        if name != "chan"
+    }
+    attrs = dict(table.meta)
+    attrs["parameter_names"] = list(columns)
+    if "Header.Toltec.AccumLen" in attrs:
+        attrs["accumlen"] = attrs["Header.Toltec.AccumLen"]
+    return xr.Dataset(columns, coords={"chan": np.asarray(table["chan"])}, attrs=attrs)
 
 
 _TIMESTREAM_LO_CHECK_SAMPLES = 64
@@ -119,9 +102,6 @@ class ToltecKidsIOSchema(Schema):
     model_params_header: Mapping = NameMapping.var("Header.Toltec.ModelParamsHeader")
     model_params_available: Mapping = NameMapping.var(
         "Header.Toltec.ModelParamsAvailable"
-    )
-    model_params_accumlen: Mapping = NameMapping.var(
-        "Header.Toltec.ModelParamsAccumLen"
     )
 
     # Observation metadata
@@ -487,7 +467,7 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
     def get_model_params(
         self, data_source: xr.Dataset, *, block: int = 0
     ) -> xr.Dataset | None:
-        """Project recorded model parameters into lazy channel columns.
+        """Read recorded model parameters as channel columns.
 
         Parameters
         ----------
@@ -504,9 +484,8 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
             the acquisition's channel IDs. A separate ``modelParamsRows`` axis
             retains the fitted source channels independently of current readout
             selection; it can describe setup lineage at a different tone count.
-            Names, availability and the model descriptor are loaded here;
-            coefficients remain lazy. Versioned descriptors supply parameter
-            units and table metadata. Legacy columns remain unitless. None means
+            ECSV slots load the table values, units and complete metadata.
+            Production legacy columns remain lazy and unitless. None means
             the headers are absent or the selected slot is explicitly unavailable.
 
         Raises
@@ -529,6 +508,8 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
         if not all(present):
             msg = "Model parameters require both ModelParams and ModelParamsHeader"
             raise ValueError(msg)
+        if f"ecsv_header_{block}" in data_source["Header.Toltec.ModelParams"].attrs:
+            return _model_table_dataset(read_model_table(data_source, block=block))
         header = self.get_arr(data_source, schema.model_params_header)
         # xarray's netCDF decoder joins the native trailing character dimension.
         if header.ndim != 1 or header.dtype.kind not in "SU":
@@ -563,14 +544,6 @@ class ToltecKidsIOMapper(XarrayMapper[ToltecKidsIOSchema]):
             for i, name in enumerate(names)
         }
         attributes: dict[str, Any] = {"parameter_names": names}
-        if schema.model_params_accumlen in self:
-            accumulation = self._model_header_slot(
-                data_source, schema.model_params_accumlen, block
-            )
-            attributes["accumlen"] = float(accumulation.item())
-        attributes.update(
-            _model_header_descriptor(params.attrs.get(f"model_schema_{block}"), columns)
-        )
         return xr.Dataset(
             columns,
             coords={"chan": data_source[chan_dim].values},

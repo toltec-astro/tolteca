@@ -25,6 +25,7 @@ from tolteca_kidsproc.analysis import (  # noqa: TC001 -- Pydantic and Sphinx re
     KidsModelAnalysis,
     KidsModelView,
 )
+from tolteca_kidsproc.model_flags import ModelFitFlag
 
 from .block_create import BlockCreate
 from .blocks import (
@@ -32,7 +33,6 @@ from .blocks import (
 )
 from .model_calibration import (
     PHYSICAL_SCHEMAS,
-    NativeFitFlag,
     calibration_accumlen,
     calibration_report,
 )
@@ -115,7 +115,11 @@ def _validate_report(table):
     for name in ("f_out", "f_in", *parameters):
         values = np.asarray(table[name])
         bad = np.isinf(values) | (
-            np.isnan(values) & ((flags & NativeFitFlag.fit_unusable) == 0)
+            np.isnan(values)
+            & (
+                (flags & (ModelFitFlag.fit_unusable | ModelFitFlag.fit_joint_required))
+                == 0
+            )
         )
         if name in {"f_out", "f_in"}:
             bad |= ~np.isfinite(values) | (values <= 0)
@@ -186,7 +190,7 @@ class ModelFitConfig(StepConfig):
         cannot supply Python analysis settings.
     quality : ModelFitQualityConfig, optional
         Python fit warning thresholds. Masks are saved separately from solver
-        results and do not authorize timestream inversion.
+        results and do not authorize timestream solving.
     power_setup : PowerSetupConfig or None, optional
         Independent acquired-comb power diagnostics and external references.
         None disables them. Requires recorded attenuation and the complete comb.

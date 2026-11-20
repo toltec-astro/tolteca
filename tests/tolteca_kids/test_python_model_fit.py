@@ -13,7 +13,7 @@ from tollan.config import RuntimeContext
 
 from tolteca_kids.block_create import BlockCreate
 from tolteca_kids.core import Kids
-from tolteca_kids.model_calibration import NativeFitFlag, calibration_report
+from tolteca_kids.model_calibration import ModelFitFlag, calibration_report
 from tolteca_kids.model_fit import ModelFit, ModelFitConfig, ModelFitContext
 from tolteca_kids.model_fit_artifacts import KidscppFitFiles, ModelFitTable
 from tolteca_kids.model_fit_plot import ModelFitPlot, ModelFitPlotConfig
@@ -188,30 +188,28 @@ def test_step_matches_numerical_analysis_and_published_result(  # noqa: PLR0915 
     assert complete["groups"][0]["channels"] == [int(chan)]
     assert complete["groups"][0]["resonator_ids"] == ["r"]
     for flag in report["flag"][1:]:
-        assert flag & NativeFitFlag.fit_no_model
-        assert flag & NativeFitFlag.fit_unusable
+        assert flag & ModelFitFlag.fit_no_model
+        assert flag & ModelFitFlag.fit_unusable
     # A nonlinear singlet exports a fixed drive coefficient, never a zero-a inverse.
     nonlinear = block.tree[f"model_fit_{family}"].copy(deep=True)
     nonlinear.kids.model_fit.fit["a_nl"].values[:] = 0.1
     exported = calibration_report(nonlinear.kids.model_fit, block)
     assert exported.meta["model_schema"]["version"] == 2
-    assert not exported["flag"][0] & NativeFitFlag.fit_nonlinear_unsupported
-    assert not exported["flag"][0] & NativeFitFlag.fit_unusable
+    assert not exported["flag"][0] & ModelFitFlag.fit_unusable
     assert exported["b"][0] == pytest.approx(0.2 * exported["r"][0] ** 3)
     assert (
         joint_models(nonlinear.kids.model_fit, quality, include_single=True)["groups"]
-        == []
+        != []
     )
     # An extended directional fit remains available for diagnostics, but does
-    # not silently qualify the fixed-b controller inverse.
+    # retains the fitted drive coefficient and its declared branch.
     nonlinear.kids.model_fit.fit["a_nl"].values[:] = 0.8
-    nonlinear["tolteca_kidsproc.analysis.model_fit/fit"].attrs[
-        "nonlinear_branch"
-    ] = "increasing"
+    nonlinear["tolteca_kidsproc.analysis.model_fit/fit"].attrs["nonlinear_branch"] = (
+        "increasing"
+    )
     unsupported = calibration_report(nonlinear.kids.model_fit, block)
-    assert unsupported["flag"][0] & NativeFitFlag.fit_nonlinear_unsupported
-    assert unsupported["flag"][0] & NativeFitFlag.fit_unusable
-    assert np.isnan(unsupported["b"][0])
+    assert not unsupported["flag"][0] & ModelFitFlag.fit_unusable
+    assert unsupported["b"][0] == pytest.approx(1.6 * unsupported["r"][0] ** 3)
     assert np.all(nonlinear.kids.model_fit.fit.a_nl.values == 0.8)
     original = v.samples.copy(deep=True)
     invalid = before.copy(deep=True)

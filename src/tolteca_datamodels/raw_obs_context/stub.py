@@ -10,13 +10,8 @@ import xarray as xr
 from pydantic import ConfigDict, Field
 
 from ..core.types import FrozenDataModel
+from ..toltec.kids.model_table import MODEL_FIELDS
 from .artifact import ArtifactBinding
-
-MODEL_FIELDS = (
-    "Header.Toltec.ModelParams",
-    "Header.Toltec.ModelParamsHeader",
-    "Header.Toltec.ModelParamsAccumLen",
-)
 
 TELESCOPE_COORD_FIELDS = tuple(
     f"Data.TelescopeBackend.{name}"
@@ -102,7 +97,7 @@ def open_acquisition(source, *, stubs=()):
         Explicit ordered pairs of stub path and mode (override or default).
         No files are discovered automatically. A later override wins; a default
         supplies only variables still absent. Model coefficients, column names,
-        schema attributes and normalization are applied as one group.
+        complete ECSV attributes and model normalization are applied as one group.
 
     Yields
     ------
@@ -180,9 +175,7 @@ def _select_fields(effective, fields, mode):
             raise ValueError(msg)
         present = [name in effective for name in MODEL_FIELDS]
         if mode == "default" and any(present):
-            # Legacy complete coefficients may omit normalization. An orphan
-            # normalization value must never be mixed with a new model.
-            if not all(present[:2]):
+            if not all(present):
                 msg = "Cannot default a partially present model group"
                 raise ValueError(msg)
             selected -= set(MODEL_FIELDS)

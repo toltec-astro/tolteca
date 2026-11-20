@@ -221,8 +221,9 @@ def test_versioned_block_models_keep_schema_units_and_availability(
     data_lmt_path, tmp_path, family
 ):
     """A later Tune slot must retain its own descriptor after block extraction."""
-    import json
+    from astropy.table import Table
 
+    from tolteca_datamodels.toltec.kids.model_table import pack_model_tables
     from tolteca_kids.model_calibration import PHYSICAL_SCHEMAS
 
     schema = PHYSICAL_SCHEMAS[family]
@@ -231,19 +232,18 @@ def test_versioned_block_models_keep_schema_units_and_availability(
         source = raw.toltec_kids.select_channels([10, 0, 5]).drop_vars(
             ["Header.Toltec.ModelParams", "Header.Toltec.ModelParamsHeader"]
         )
-        source["Header.Toltec.ModelParamsHeader"] = xr.DataArray(
-            np.array(names, dtype="S16"), dims="modelParamsNum"
+        report = Table(
+            {name: np.arange(3, dtype=float) for name in names},
+            meta={"model_schema": schema, "Header.Toltec.AccumLen": 524288.0},
         )
-        source["Header.Toltec.ModelParams"] = xr.DataArray(
-            np.arange(2 * len(names) * 3, dtype=float).reshape(2, len(names), 3),
-            dims=("numSweeps", "modelParamsNum", "modelParamsRows"),
-            attrs={"model_schema_1": json.dumps(schema)},
-        )
+        report["chan"] = [10, 0, 5]
+        for parameter in schema["parameters"]:
+            report[parameter["name"]].unit = parameter["unit"] or None
+        report["f_in"].unit = "Hz"
+        report["f_out"].unit = "Hz"
+        source = source.merge(pack_model_tables(source, {1: report}))
         source["Header.Toltec.ModelParamsAvailable"] = xr.DataArray(
             [0, 1], dims="numSweeps"
-        )
-        source["Header.Toltec.ModelParamsAccumLen"] = xr.DataArray(
-            [np.nan, 524288.0], dims="numSweeps"
         )
         tree = BlockCreate()(ensure_datatree(source))
         assert tree.toltec_kids.blocks[0].model_params is None

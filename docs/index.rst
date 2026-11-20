@@ -64,6 +64,7 @@ Choose a domain
 
    kids-inputs
    kids-reduction
+   kids-model-reports
 
 .. toctree::
    :maxdepth: 1

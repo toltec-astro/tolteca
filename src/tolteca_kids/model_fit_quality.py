@@ -14,7 +14,7 @@ from tolteca_kidsproc.models import resonance_feature_frequency
 class ModelFitBitMask(IntFlag):
     """ModelFit quality/1 bits; independent of native kids.fit/1 flag values.
 
-    Zero means no listed warning, not acceptance for timestream inversion.
+    Zero means no listed warning, not acceptance for timestream solving.
     Group warnings propagate to every contributing channel. Selection and
     recovery warnings belong to channels; power warnings require a valid match.
     """

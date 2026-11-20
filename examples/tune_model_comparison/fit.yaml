@@ -11,6 +11,7 @@ kids:
     backend: python
     analysis:
       gain_family: affine
+      nonlinear: true
   model_fit_plot: {}
   tone_prep:
     enabled: false

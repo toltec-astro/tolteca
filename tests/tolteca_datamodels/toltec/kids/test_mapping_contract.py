@@ -2,16 +2,17 @@
 
 from dataclasses import replace
 
+import numpy as np
 import pytest
 import xarray as xr
-from pydantic import ValidationError
+from astropy.table import Table
 from tollan.accessor import FieldLocation
-from tollan.utils.yaml import yaml_dump
 
 from tolteca_datamodels.toltec.kids.core import (
     ToltecKidsAccessor,
     ToltecKidsIOMapper,
 )
+from tolteca_datamodels.toltec.kids.model_table import pack_model_tables
 from tolteca_datamodels.toltec.metadata import ToltecRawObsMetadata
 from tolteca_datamodels.toltec.types import ToltecDataKind
 
@@ -53,64 +54,19 @@ def test_lo_access_respects_resolved_location(location):
         assert reader.f_lo == 8.0
 
 
-def _model_header_source(descriptor):
-    return xr.Dataset(
-        {
-            "Header.Toltec.ModelParamsHeader": ("parameter", ["fr", "Qr"]),
-            "Header.Toltec.ModelParams": (
-                ("parameter", "iqlen"),
-                [[400e6, 500e6], [10000.0, 20000.0]],
-                {"model_schema_0": yaml_dump(descriptor)},
-            ),
-        },
-        coords={"iqlen": [0, 1]},
+def test_recorded_ecsv_model_supplies_units_and_metadata():
+    report = Table(
+        {"chan": [0, 1], "fr": [400e6, 500e6], "Qr": [10000.0, 20000.0]},
+        meta={"model": "test", "future": {"key": "value"}},
     )
-
-
-def test_recorded_model_descriptor_supplies_units_and_metadata():
-    descriptor = {
-        "name": "S21WithGainLinTrend",
-        "version": 1,
-        "parameters": [{"name": "fr", "unit": "Hz"}, {"name": "Qr", "unit": ""}],
-    }
-    ds = _model_header_source(descriptor)
+    report["fr"].unit = "Hz"
+    raw = xr.Dataset(
+        {"Header.Toltec.ToneFreq": (("numSweeps", "iqlen"), np.zeros((1, 2)))}
+    )
+    ds = pack_model_tables(raw, {0: report})
     result = ToltecKidsIOMapper.from_data_source(ds).get_model_params(ds)
     assert result is not None
-    assert result.attrs["model_schema"] == descriptor
+    assert result.attrs["future"] == report.meta["future"]
     assert result.fr.attrs["units"] == "Hz"
     assert result.Qr.attrs["units"] == ""
     assert result.fr.values.tolist() == [400e6, 500e6]
-
-
-@pytest.mark.parametrize(
-    "change",
-    [
-        {"name": ["not", "a", "name"]},
-        {"version": True},
-        {"parameters": [{"name": "fr", "unit": 1}]},
-    ],
-)
-def test_malformed_model_descriptor_fields_raise_validation_errors(change):
-    ds = _model_header_source(
-        {
-            "name": "S21WithGainLinTrend",
-            "version": 1,
-            "parameters": [{"name": "fr", "unit": "Hz"}],
-        }
-        | change
-    )
-    with pytest.raises(ValidationError):
-        ToltecKidsIOMapper.from_data_source(ds).get_model_params(ds)
-
-
-@pytest.mark.parametrize("names", [["missing"], ["fr", "fr"]])
-def test_model_descriptor_requires_distinct_recorded_columns(names):
-    ds = _model_header_source(
-        {
-            "name": "S21WithGainLinTrend",
-            "version": 1,
-            "parameters": [{"name": name, "unit": "Hz"} for name in names],
-        }
-    )
-    with pytest.raises(ValueError, match="distinct existing columns"):
-        ToltecKidsIOMapper.from_data_source(ds).get_model_params(ds)

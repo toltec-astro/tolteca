@@ -5,10 +5,11 @@ from __future__ import annotations
 import numpy as np
 
 from tolteca_kidsproc.joint_timestream import JointTimestreamSolver
+from tolteca_kidsproc.model_flags import ModelFitFlag
 
 
 def joint_models(view, quality, *, iq_covariances=None, include_single=False):
-    """Export selected linear groups, retaining every channel and resonator.
+    """Export selected groups, retaining every channel and resonator.
 
     Parameters
     ----------
@@ -30,8 +31,8 @@ def joint_models(view, quality, *, iq_covariances=None, include_single=False):
     -------
     dict
         ``kids.joint/1`` payload for the native report and atomic model stub.
-        Nonlinear and ambiguously selected groups remain in the scientific
-        product and retain their independent-channel failure flags.
+        Ambiguously selected groups remain in the scientific product and retain
+        explicit selection flags. Nonlinearity and the full gain model are retained.
     """
     components, props = view.components(), view.chan_prop
     groups = []
@@ -40,30 +41,22 @@ def joint_models(view, quality, *, iq_covariances=None, include_single=False):
         valid = rows.component_valid.values.astype(bool)
         ids = list(dict.fromkeys(rows.resonator_id.values[valid].tolist()))
         channels = rows.chan.values.astype(int)
-        if (
-            not ids
-            or (len(ids) == 1 and not include_single)
-            or np.any(rows.a_nl.values[valid] != 0)
-        ):
+        if not ids or (len(ids) == 1 and not include_single):
             continue
         if any(props.sel(chan=c).group_id.item() != gid for c in channels):
             continue
         probes = props.sel(chan=channels).fp.values
-        fr, loss = [], []
+        fr, loss, strength = [], [], []
         for rid in ids:
             mask = valid & (rows.resonator_id.values == rid)
             fr.append(float(rows.fr.values[mask][0]))
             loss.append(float(rows.r.values[mask][0]))
-        gain = rows.H0_re.values + 1j * rows.H0_im.values
-        delta = probes - rows.f_g.values
-        family = rows.gain_family.values[0]
-        if family == "affine":
-            gain += (rows.H1_re.values + 1j * rows.H1_im.values) * delta
-        elif family == "delay":
-            gain *= np.exp((rows.gain_a.values - 2j * np.pi * rows.tau.values) * delta)
-        else:
-            msg = f"Unsupported joint gain family: {family}"
-            raise ValueError(msg)
+            strength.append(float(rows.a_nl.values[mask][0]))
+        family = str(rows.gain_family.values[0])
+        gain_fields = ("f_g", "H0_re", "H0_im") + (
+            ("H1_re", "H1_im") if family == "affine" else ("gain_a", "tau")
+        )
+        gain_model = {name: rows[name].values.tolist() for name in gain_fields}
         coupling = np.zeros((len(channels), len(ids)), complex)
         for k in range(len(channels)):
             for j in np.flatnonzero(valid[k]):
@@ -83,8 +76,9 @@ def joint_models(view, quality, *, iq_covariances=None, include_single=False):
                 "probes": np.asarray(probes).tolist(),
                 "fr": fr,
                 "r": loss,
-                "gain_re": gain.real.tolist(),
-                "gain_im": gain.imag.tolist(),
+                "gain_model": gain_model,
+                "a_nl": strength,
+                "nonlinear_branch": components.attrs.get("nonlinear_branch", "unique"),
                 "coupling_re": coupling.real.tolist(),
                 "coupling_im": coupling.imag.tolist(),
                 "iq_covariance": np.asarray(covariance).tolist(),
@@ -101,18 +95,16 @@ def joint_models(view, quality, *, iq_covariances=None, include_single=False):
 
 def _group_flag(quality, gid, channels):
     # Imported here because model_calibration also calls this exporter.
-    from .model_calibration import _QUALITY_FLAGS, NativeFitFlag  # noqa: PLC0415
+    from .model_calibration import _QUALITY_FLAGS  # noqa: PLC0415
 
-    flag = NativeFitFlag(0)
+    flag = ModelFitFlag(0)
     q = int(quality.where(quality.group_id == gid, drop=True).group_flag.item())
     q |= int(np.bitwise_or.reduce(quality.channel_flag.sel(chan=channels).values))
     for original, exported in _QUALITY_FLAGS.items():
         if int(q) & original:
             flag |= exported
-    if flag & (
-        NativeFitFlag.fit_not_converged | NativeFitFlag.fit_probe_outside_window
-    ):
-        flag |= NativeFitFlag.fit_unusable
+    if flag & (ModelFitFlag.fit_not_converged | ModelFitFlag.fit_probe_outside_window):
+        flag |= ModelFitFlag.fit_unusable
     return flag
 
 
@@ -153,8 +145,9 @@ def validate_joint_models(payload, channels, probes):
             "probes",
             "fr",
             "r",
-            "gain_re",
-            "gain_im",
+            "gain_model",
+            "a_nl",
+            "nonlinear_branch",
             "coupling_re",
             "coupling_im",
             "iq_covariance",
@@ -184,18 +177,75 @@ def validate_joint_models(payload, channels, probes):
             raise ValueError(msg)
         seen_groups.add(group["group_id"])
         seen_channels.update(ids)
-        JointTimestreamSolver(
-            group["probes"],
-            group["fr"],
-            group["r"],
-            _complex_array(group, "gain", (len(ids),)),
-            _complex_array(group, "coupling", (len(ids), len(group["resonator_ids"]))),
-            group["iq_covariance"],
-            channels=ids,
-            resonator_ids=group["resonator_ids"],
-            rank_rtol=group["rank_rtol"],
-            condition_max=group["condition_max"],
+        joint_solver(group)
+
+
+def joint_solver(group, **options):
+    """Prepare a solver from a complete group in a model report.
+
+    Parameters
+    ----------
+    group : dict
+        Selected group, including full gain parameters and drive nonlinearity.
+    **options
+        Additional JointTimestreamSolver options, such as frequency bounds.
+
+    Returns
+    -------
+    JointTimestreamSolver
+        Solver at the recorded probes with fixed drive coefficients.
+    """
+    if group["gain_family"] not in {"affine", "delay"}:
+        msg = "Unsupported joint gain family"
+        raise ValueError(msg)
+    strength = np.asarray(group["a_nl"])
+    if (
+        strength.shape != (len(group["resonator_ids"]),)
+        or not np.isfinite(strength).all()
+        or np.any(strength < 0)
+    ):
+        msg = "Joint nonlinear strengths must match the resonators"
+        raise ValueError(msg)
+    gain = group["gain_model"]
+    fields = {"f_g", "H0_re", "H0_im"} | (
+        {"H1_re", "H1_im"} if group["gain_family"] == "affine" else {"gain_a", "tau"}
+    )
+    if set(gain) != fields:
+        msg = "Joint gain fields differ from their family"
+        raise ValueError(msg)
+    if any(
+        np.asarray(gain[k]).shape != (len(group["channels"]),)
+        or not np.isfinite(gain[k]).all()
+        for k in fields
+    ):
+        msg = "Joint gain arrays must match the channels"
+        raise ValueError(msg)
+    delta = np.asarray(group["probes"]) - gain["f_g"]
+    h = np.asarray(gain["H0_re"]) + 1j * np.asarray(gain["H0_im"])
+    if group["gain_family"] == "affine":
+        h += (np.asarray(gain["H1_re"]) + 1j * np.asarray(gain["H1_im"])) * delta
+    else:
+        h *= np.exp(
+            (np.asarray(gain["gain_a"]) - 2j * np.pi * np.asarray(gain["tau"])) * delta
         )
+    return JointTimestreamSolver(
+        group["probes"],
+        group["fr"],
+        group["r"],
+        h,
+        _complex_array(
+            group, "coupling", (len(group["channels"]), len(group["resonator_ids"]))
+        ),
+        group["iq_covariance"],
+        channels=group["channels"],
+        resonator_ids=group["resonator_ids"],
+        b=2 * strength * np.asarray(group["r"]) ** 3,
+        nonlinear_branch=group["nonlinear_branch"],
+        fit_flag=group["fit_flag"],
+        rank_rtol=group["rank_rtol"],
+        condition_max=group["condition_max"],
+        **options,
+    )
 
 
 def _complex_array(group, key, shape):

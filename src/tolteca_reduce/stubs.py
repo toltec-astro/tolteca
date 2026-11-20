@@ -5,9 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-import numpy as np
-import xarray as xr
 from tollan.accessor.xarray import ensure_datatree
 from tollan.pipeline import ArtifactFile, ArtifactSpec
 
@@ -20,15 +19,18 @@ from tolteca_datamodels.raw_obs_context import (
 )
 from tolteca_datamodels.raw_obs_context.stub import MODEL_FIELDS
 from tolteca_datamodels.toltec import open_toltec_kids
+from tolteca_datamodels.toltec.kids.model_table import pack_model_tables
 from tolteca_datamodels.toltec.metadata import ToltecRawObsMetadata
 from tolteca_datamodels.toltec.types import ToltecDataKind
 from tolteca_kids import BlockCreate
 from tolteca_kids.model_fit import open_fit
 from tolteca_kids.product import make_kids_product_index
 from tolteca_kids.timestream_solve import _validate_detector_state
-from tolteca_kids.tlaloc_output import TLALOC_REPORT_COLUMNS
 
 from ._sources import _source
+
+if TYPE_CHECKING:
+    import xarray as xr
 
 # These native headers identify the target and its physical detector settings.
 _MATCH_FIELDS = tuple(
@@ -196,92 +198,11 @@ class ModelStubArtifact(ArtifactSpec[tuple[AcquisitionStub, ...]]):
         return receipts
 
 
-def _model_columns(raw, reports):
-    """Union model-owned columns while preserving unselected header slots."""
-    params, header, _ = MODEL_FIELDS
-    names = []
-    original_names = []
-    if params in raw:
-        original_names = [
-            v.decode() if isinstance(v, bytes) else str(v) for v in raw[header].values
-        ]
-        if len(set(original_names)) != len(original_names) or any(
-            not n for n in original_names
-        ):
-            msg = "Acquisition model header has empty or duplicate fields"
-            raise ValueError(msg)
-        names.extend(original_names)
-    for table in reports.values():
-        required = [
-            "f_in",
-            "f_out",
-            "flag",
-            *[p["name"] for p in table.meta["model_schema"]["parameters"]],
-        ]
-        if table.meta["model_schema"]["name"] == "S21WithGainLinTrend":
-            required.extend(TLALOC_REPORT_COLUMNS)
-        names.extend(n for n in required if n not in names)
-    return names, original_names
-
-
 def _pack_models(raw, reports):
-    params, header, normalization = MODEL_FIELDS
     stub = raw[list(_MATCH_FIELDS)].load().copy(deep=True)
-    if (params in raw) != (header in raw):
-        msg = "Acquisition contains an incomplete model header group"
-        raise ValueError(msg)
-    names, original_names = _model_columns(raw, reports)
-    block_dim, chan_dim = raw["Header.Toltec.ToneFreq"].dims
-    values = np.full((raw.sizes[block_dim], len(names), raw.sizes[chan_dim]), np.nan)
-    attrs = {}
-    if params in raw:
-        previous = raw[params].values
-        values[:, : len(original_names), :] = previous
-        attrs = dict(raw[params].attrs)
-    stub[params] = xr.DataArray(
-        values, dims=(block_dim, "modelParamsNum", chan_dim), attrs=attrs
-    )
-    width = max(32, *map(len, names))
-    stub[header] = xr.DataArray(
-        np.asarray(names, dtype=f"S{width}"), dims="modelParamsNum"
-    )
-    stub[header].encoding["char_dim_name"] = "modelParamsHeaderLen"
-    block_dim = stub[params].dims[0]
-    count = stub.sizes[block_dim]
-    if normalization in raw:
-        values = np.broadcast_to(raw[normalization].values, (count,)).copy()
-    else:
-        # Unspecified legacy normalization stays unknown, never guessed from
-        # the consuming timestream's (possibly different) accumulation length.
-        values = np.full(count, np.nan)
-    for block, table in reports.items():
-        if block >= count:
-            msg = "Acquired block has no matching native model header slot"
-            raise ValueError(msg)
-        stub[params].values[block, :, :] = np.nan
-        for column, name in enumerate(names):
-            if name not in table.colnames and name != "f_centered":
-                continue
-            values_col = (
-                table["f_out"] - raw["Header.Toltec.LoCenterFreq"].item()
-                if name == "f_centered"
-                else table[name]
-            )
-            stub[params].values[block, column, :] = np.asarray(values_col)
-        stub[params].attrs[f"model_schema_{block}"] = json.dumps(
-            table.meta["model_schema"]
-        )
-        # Keep the complete group payload in the same atomic model variable.
-        # Replacing a slot must also remove a previous slot's grouped response.
-        stub[params].attrs.pop(f"joint_models_{block}", None)
-        if "joint_models" in table.meta:
-            stub[params].attrs[f"joint_models_{block}"] = json.dumps(
-                table.meta["joint_models"], allow_nan=False
-            )
-        values[block] = table.meta["Header.Toltec.AccumLen"]
-    stub[normalization] = xr.DataArray(values, dims=block_dim)
-    # Preserve acquisition channel identity for the same native model decoder,
-    # without adding detector I/Q or an artificial time axis.
+    models = pack_model_tables(raw, reports)
+    for name in MODEL_FIELDS:
+        stub[name] = models[name]
     stub = stub.assign_coords(iqlen=raw["iqlen"].values)
     stub.encoding = {}
     stub.attrs = {

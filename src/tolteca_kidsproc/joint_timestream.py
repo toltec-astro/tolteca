@@ -12,7 +12,13 @@ import xarray as xr
 from dask import delayed
 from scipy.stats import chi2
 
+from ._nonlinear import (
+    NONLINEARITY_UNIQUE_MAX,
+    nonlinear_detuning,
+    validate_nonlinearity,
+)
 from .calibration import calibration_components
+from .model_flags import ModelFitFlag
 from .recovery import SampleFlag, recovery_diagnostics
 from .timestream import _positive
 
@@ -58,6 +64,13 @@ class JointTimestreamSolver:
         Unique channel and calibration-scoped resonator labels in array order.
     rank_rtol : float, optional
         Relative singular-value cutoff, default 1e-8.
+    fit_flag : int, optional
+        Common model-report group flags. fit_unusable vetoes all samples.
+    b : array_like or None, optional
+        Fixed drive coefficient per resonator, b = 2*a_nl*r_reference**3.
+        None means zero drive nonlinearity.
+    nonlinear_branch : str, optional
+        Declared stationary branch: unique (default), increasing or decreasing.
     condition_max : float or None, optional
         Warning threshold, default None. Rank failure always invalidates output.
     continuation : bool, optional
@@ -97,8 +110,9 @@ class JointTimestreamSolver:
 
     Notes
     -----
-    Inverts the full ``gain*(1-sum(c/(r+1j*(probe/fr-1))))`` response using
-    an analytical inverse for one probe/one resonator, or damped Gauss-Newton
+    Solves ``gain*(1-sum(c/(r+1j*x_effective)))``, where the stationary
+    detuning obeys ``x_effective = probe/fr-1 + b/(r*r+x_effective*x_effective)``, using
+    an analytical solution for one probe/one resonator, or damped Gauss-Newton
     and SVD for groups. Independent samples are evaluated in arrays. Grouped
     recovery validates restarts and checks competing starting points even after
     initial convergence. Each accepted state must converge; there is no linear
@@ -110,8 +124,10 @@ class JointTimestreamSolver:
     accepted state. An explicit or nonfinite gap starts a new sequence.
     Initial/restart validation
     searches finitely many starts and does not prove global uniqueness.
-    Drive-nonlinear or hysteretic calibrations are unsupported. No primary resonator
-    is assigned. Detector covariance remains conditional on calibration.
+    Drive coefficients remain fixed as loss and frequency vary. A declared
+    quasistatic branch is retained; arbitrary hysteretic histories are not inferred.
+    No primary resonator is assigned. Detector covariance remains conditional
+    on calibration.
     """
 
     def __init__(  # noqa: PLR0913, PLR0917 -- Explicit physical calibration and identities.
@@ -127,6 +143,9 @@ class JointTimestreamSolver:
         resonator_ids,
         rank_rtol=1e-8,
         condition_max=None,
+        b=None,
+        fit_flag=0,
+        nonlinear_branch="unique",
         continuation=False,
         fr_bounds=None,
         noise_step_tol=1e-3,
@@ -165,6 +184,13 @@ class JointTimestreamSolver:
                 "Joint calibration requires finite compatible arrays and unique labels"
             )
             raise ValueError(msg)
+        self.fit_flag = ModelFitFlag(fit_flag)
+        self.b = np.zeros(n) if b is None else np.array(b, float, copy=True)
+        if self.b.shape != (n,):
+            msg = "Drive coefficients must match resonators"
+            raise ValueError(msg)
+        self.nonlinear_branch = nonlinear_branch
+        validate_nonlinearity(self.b / (2 * self.r**3), nonlinear_branch)
         self.rank_rtol, self.condition_max = rank_rtol, condition_max
         _, jacobian = self._response(np.zeros(2 * n))
         self.diagnostics = recovery_diagnostics(
@@ -231,7 +257,7 @@ class JointTimestreamSolver:
 
     @classmethod
     def from_calibration(cls, tree, group_id, probes, iq_covariance, **kwargs):
-        """Prepare one saved linear group at the explicitly selected probes.
+        """Prepare one saved group at the explicitly selected probes.
 
         Parameters
         ----------
@@ -256,7 +282,7 @@ class JointTimestreamSolver:
         Raises
         ------
         ValueError
-            Group/probe identities are inconsistent or the fit is nonlinear.
+            Group/probe identities or nonlinear parameters are inconsistent.
         """
         components = calibration_components(tree)
         rows = components.where(components.group_id == str(group_id), drop=True)
@@ -266,17 +292,13 @@ class JointTimestreamSolver:
         if probes.attrs.get("units"):
             probes = probes.u.to("Hz")
         valid = rows.component_valid.values.astype(bool)
-        if np.any(rows.a_nl.values[valid] != 0):
-            msg = (
-                "Joint timestream recovery does not support drive-nonlinear calibration"
-            )
-            raise ValueError(msg)
         ids = list(dict.fromkeys(rows.resonator_id.values[valid]))
-        fr, loss = [], []
+        fr, loss, strength = [], [], []
         for rid in ids:
             mask = valid & (rows.resonator_id.values == rid)
             fr.append(rows.fr.values[mask][0])
             loss.append(rows.r.values[mask][0])
+            strength.append(rows.a_nl.values[mask][0])
         gain = []
         coupling = np.zeros((len(probes), len(ids)), complex)
         lookup = {c: i for i, c in enumerate(rows.chan.values)}
@@ -310,22 +332,36 @@ class JointTimestreamSolver:
             iq_covariance,
             channels=probes.chan.values,
             resonator_ids=ids,
+            b=2 * np.asarray(strength) * np.asarray(loss) ** 3,
+            nonlinear_branch=components.attrs.get("nonlinear_branch", "unique"),
             **kwargs,
         )
 
     def _response(self, state):
         fr = self.fr * (1 + 2 * self.r * state[..., 1::2])
-        w = self.r * (1 + state[..., None, ::2]) + 1j * (
-            self.probes[:, None] / fr[..., None, :] - 1
+        loss = self.r * (1 + state[..., ::2])
+        x0 = self.probes[:, None] / fr[..., None, :] - 1
+        strength = self.b / (2 * loss**3)
+        allowed = np.isfinite(strength) & ((loss > 0) | (self.b == 0))
+        if self.nonlinear_branch == "unique":
+            allowed &= strength <= NONLINEARITY_UNIQUE_MAX
+        y, slope = nonlinear_detuning(
+            x0 / (2 * loss[..., None, :]),
+            np.where(allowed, strength, 0)[..., None, :],
+            branch=self.nonlinear_branch,
         )
+        x = np.where(allowed[..., None, :], 2 * loss[..., None, :] * y, np.nan)
+        w = loss[..., None, :] + 1j * x
         z = self.gain * (1 - np.sum(self.coupling / w, axis=-1))
         derivative = self.gain[:, None] * self.coupling / w**2
-        dr = derivative * self.r
+        dx_dr = -2 * self.b * loss[..., None, :] / (np.abs(w) ** 4 * slope)
+        dr = derivative * (1 + 1j * dx_dr) * self.r
         df = (
             -1j
             * derivative
             * self.probes[:, None]
             / fr[..., None, :] ** 2
+            / slope
             * (2 * self.r * self.fr)
         )
         jac = np.empty((*state.shape[:-1], 2 * len(self.probes), 2 * len(self.fr)))
@@ -347,7 +383,7 @@ class JointTimestreamSolver:
         initial_fr, initial_r : array_like or None, optional
             Initial frequency (Hz) and loss hints per resonator. Supply both.
             Grouped recovery validates hints independently; they are not trusted
-            states. The analytical singlet inverse does not use hints.
+            states. The analytical singlet solution does not use hints.
         reset : array_like of bool or None, optional
             True requires reinitialization before that sample. Mark known gaps
             even when missing samples are absent from the supplied arrays.
@@ -428,7 +464,9 @@ class JointTimestreamSolver:
             "starts_tested": np.zeros(size, np.uint16),
             "checkpoint": None,
         }
-        if self.diagnostics["rank"] != 2 * n:
+        unusable = bool(self.fit_flag & ModelFitFlag.fit_unusable)
+        result["flags"] |= int(SampleFlag.invalid_model) * unusable
+        if unusable or self.diagnostics["rank"] != 2 * n:
             return result
         if not self.continuation or len(self.probes) == n == 1:
             finite = np.isfinite(observed).all(axis=-1)
@@ -505,12 +543,13 @@ class JointTimestreamSolver:
         return result
 
     def _analytical_samples(self, observed):
-        """Invert the physical singlet without a numerical starting state."""
+        """Solve the physical singlet without a numerical starting state."""
         z = observed[:, 0] + 1j * observed[:, 1]
         with np.errstate(all="ignore"):
             denominator = 1 - z / self.gain[0]
             w = self.coupling[0, 0] / denominator
-            fr = self.probes[0] / (1 + w.imag)
+            x = w.imag - self.b[0] / np.abs(w) ** 2
+            fr = self.probes[0] / (1 + x)
             state = np.column_stack(
                 (w.real / self.r[0] - 1, (fr / self.fr[0] - 1) / (2 * self.r[0]))
             )
@@ -519,8 +558,13 @@ class JointTimestreamSolver:
         flags[~np.isfinite(state).all(axis=-1)] |= int(SampleFlag.nonfinite_output)
         outside = np.isfinite(w.real) & np.isfinite(fr) & ((w.real <= 0) | (fr <= 0))
         flags[outside] |= int(SampleFlag.outside_domain)
-        extra, _, _, _ = self._validation_samples(observed, state)
-        return state, flags | extra
+        with np.errstate(all="ignore"):
+            slope = 1 + 2 * self.b[0] * w.imag / np.abs(w) ** 4
+        flags[np.isfinite(slope) & (slope <= 0)] |= int(SampleFlag.unstable_response)
+        valid = flags == 0
+        extra, _, _, _ = self._validation_samples(observed[valid], state[valid])
+        flags[valid] |= extra
+        return state, flags
 
     def _restart_seeds(self, hint):
         """Finite independent starts in calibrated loss/linewidth coordinates."""
@@ -555,7 +599,7 @@ class JointTimestreamSolver:
         return np.unique(np.clip(seeds, self._bounds[:, 0], self._bounds[:, 1]), axis=0)
 
     def _recover_samples(self, observed, initial):
-        """Validate full inverses and compare independent converged candidates."""
+        """Validate full solutions and compare independent converged candidates."""
         if len(self.probes) == len(self.fr) == 1:
             state, flags = self._analytical_samples(observed)
             return state, flags, flags.copy(), np.zeros(len(observed), np.uint16)
@@ -819,7 +863,7 @@ class JointTimestreamSolver:
             and labeled channel/resonator coupling and reference diagnostics.
             Original time/sample coordinates are retained. initial_flags records
             the first attempt; starts_tested counts starting points (zero for an
-            analytical inverse). restarted marks recovery retries, or sequence
+            analytical solution). restarted marks recovery retries, or sequence
             initialization in continuation mode. residual_stat is the gain-aware
             residual statistic (NaN when no residual dimensions remain). step_noise is
             the remaining correction in conditional noise units. Failed states
@@ -929,7 +973,7 @@ class JointTimestreamSolver:
         )
         out.initial_flags.attrs.update(out.flags.attrs)
         out.starts_tested.attrs["description"] = (
-            "Full-model starting points evaluated; zero for the analytical inverse"
+            "Full-model starting points evaluated; zero for the analytical solution"
         )
         out["reference_covariance"] = (
             ("state", "state2"),

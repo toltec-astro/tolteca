@@ -1,7 +1,6 @@
 """Atomic model replacement permits physical schemas without changing axes."""
 
 import copy
-import json
 
 import numpy as np
 import pytest
@@ -9,6 +8,7 @@ import xarray as xr
 from astropy.table import Table
 
 from tolteca_datamodels.raw_obs_context import open_acquisition
+from tolteca_datamodels.toltec.kids.model_table import read_model_table
 from tolteca_kids.model_calibration import PHYSICAL_SCHEMAS
 from tolteca_kids.model_fit import _validate_report
 from tolteca_kids.model_joint import validate_joint_models
@@ -56,14 +56,8 @@ def test_physical_stub_replaces_model_dimensions_only(data_lmt_path, tmp_path, f
             np.testing.assert_array_equal(
                 data["Header.Toltec.ToneFreq"], raw["Header.Toltec.ToneFreq"]
             )
-            assert (
-                json.loads(data["Header.Toltec.ModelParams"].attrs["joint_models_0"])
-                == payload
-            )
-            assert (
-                json.loads(data["Header.Toltec.ModelParams"].attrs["model_schema_0"])
-                == schema
-            )
+            assert read_model_table(data).meta["joint_models"] == payload
+            assert read_model_table(data).meta["model_schema"] == schema
         # Default keeps the entire recorded model group, including its dimensions.
         if "Header.Toltec.ModelParams" in raw:
             with open_acquisition(
@@ -75,7 +69,7 @@ def test_physical_stub_replaces_model_dimensions_only(data_lmt_path, tmp_path, f
         # An isolated replacement removes the previous group's payload atomically.
         report.meta.pop("joint_models")
         replacement = _pack_models(stub, {0: report})
-        assert "joint_models_0" not in replacement["Header.Toltec.ModelParams"].attrs
+        assert "joint_models" not in read_model_table(replacement).meta
         report["r"].unit = "Hz"
         with pytest.raises(ValueError, match="units"):
             _validate_report(report)
@@ -93,8 +87,18 @@ def _joint_payload(family="affine"):
                 "probes": [500e6, 500e6],
                 "fr": [500e6 - 1e4, 500e6 + 1e4],
                 "r": [1e-5, 1e-5],
-                "gain_re": [1.0, 1.0],
-                "gain_im": [0.0, 0.0],
+                "gain_model": {
+                    "f_g": [500e6] * 2,
+                    "H0_re": [1.0] * 2,
+                    "H0_im": [0.0] * 2,
+                    **(
+                        {"H1_re": [0.0] * 2, "H1_im": [0.0] * 2}
+                        if family == "affine"
+                        else {"gain_a": [0.0] * 2, "tau": [0.0] * 2}
+                    ),
+                },
+                "a_nl": [0.1, 0.2],
+                "nonlinear_branch": "unique",
                 "coupling_re": [[1e-5, 1e-5], [1e-5, 1e-5]],
                 "coupling_im": [[0.0, 0.0], [0.0, 0.0]],
                 "iq_covariance": np.eye(4).tolist(),

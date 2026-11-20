@@ -1,6 +1,5 @@
 """A Python joint fit becomes an acquisition-owned model stub without refitting."""
 
-import json
 import runpy
 from pathlib import Path
 
@@ -12,8 +11,8 @@ from tollan.accessor.xarray import ensure_datatree
 
 from tolteca_datamodels.data_prod import DataProdIndex, DataProdStore
 from tolteca_datamodels.raw_obs_context import open_acquisition, read_run_inputs
-from tolteca_datamodels.raw_obs_context.stub import MODEL_FIELDS
 from tolteca_datamodels.toltec import open_toltec_kids
+from tolteca_datamodels.toltec.kids.model_table import read_model_table
 from tolteca_kids.block_create import BlockCreate
 from tolteca_kids.model_fit import ModelFit, ModelFitConfig
 from tolteca_kids.product import write_sweep_product
@@ -46,7 +45,9 @@ def test_python_joint_fit_to_published_stub(
             ModelFit(
                 ModelFitConfig(
                     backend="python",
-                    analysis=KidsModelAnalysis(gain_family=family, max_nfev=200),
+                    analysis=KidsModelAnalysis(
+                        gain_family=family, nonlinear=True, max_nfev=500
+                    ),
                 ),
                 plan=_pair_plan(block.sweep),
             )(block.tree)
@@ -105,12 +106,12 @@ def test_python_joint_fit_to_published_stub(
         assert "Data.Toltec.Is" not in stub
         assert "Data.Toltec.Qs" not in stub
         assert (
-            json.loads(stub[MODEL_FIELDS[0]].attrs["joint_models_0"])
+            read_model_table(stub).meta["joint_models"]
             == (reports["blocks/1"].meta["joint_models"])
         )
     with open_acquisition(source, stubs=[(path, "override")]) as effective:
         assert (
-            json.loads(effective[MODEL_FIELDS[0]].attrs["model_schema_0"])
+            read_model_table(effective).meta["model_schema"]
             == (reports["blocks/1"].meta["model_schema"])
         )
     assert result["data_item"]["stubs"] == [{"filepath": str(path), "mode": "override"}]

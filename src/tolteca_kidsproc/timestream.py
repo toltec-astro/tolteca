@@ -8,6 +8,7 @@ from enum import IntFlag
 import numpy as np
 import xarray as xr
 
+from .model_flags import ModelFitFlag
 from .recovery import SampleFlag
 
 __all__ = ["ModelFlag", "TimestreamSolver", "solve_timestream"]
@@ -21,7 +22,7 @@ class ModelFlag(IntFlag):
     unusable_model = 2
 
 
-_FIT_UNUSABLE = 1 << 13
+_FIT_UNUSABLE = int(ModelFitFlag.fit_unusable | ModelFitFlag.fit_joint_required)
 _FIXED_B_VERSION = 2
 _LEGACY = (
     "fp",
@@ -116,7 +117,7 @@ def _selected_table(table, channels):
 
 
 class TimestreamSolver:
-    """Prepare reusable per-channel inverses from an explicit model table.
+    """Prepare reusable per-channel solvers from an explicit model table.
 
     Parameters
     ----------
@@ -248,7 +249,7 @@ class TimestreamSolver:
             Failed samples are NaN in both signals. Physical-model estimates
             with nonpositive loss or resonance frequency have outside_domain.
             A nonpositive stationary slope has unstable_response. These samples
-            are excluded even when the algebraic inverse is finite.
+            are excluded even when the algebraic solution is finite.
             The legacy model retains its historical effective coordinates.
             Flags use uint16; inputs are unchanged.
 

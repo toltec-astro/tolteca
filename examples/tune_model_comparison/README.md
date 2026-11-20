@@ -44,8 +44,8 @@ Each fitted block retains the model analysis in `array.zarr`, a
 backend has no native command log.
 
 For each disputed channel, compare the acquired sweep samples, fit residuals,
-fitted resonance frequency, acquisition probe frequency, fit flags and inverse
-recovery flags. Preserve group/component identities for overlapping resonances.
+fitted resonance frequency, acquisition probe frequency, fit flags and sample
+solving flags. Preserve group/component identities for overlapping resonances.
 A successful process exit alone does not establish a usable calibration.
 
 ## Compare frequencies and normalization
@@ -120,9 +120,42 @@ base. The current Citlali consumer supports one timestream block per input.
 Grouped recovery additionally needs explicit APT detector/component bindings.
 It must not infer detector identity from channel ordinal.
 
-The current native joint payload supports linear physical groups. Nonlinear or
-ambiguous groups retain their fit diagnostics and flags; this example does not
-extend native recovery to those groups.
+The [model-report contract](../../design/spec/kids-model-reports.md) applies to
+both ECSV and stubs. Each model slot retains the complete ECSV header in
+`ModelParams:ecsv_header_<block>`; its numeric values and column names use the
+native `ModelParams`/`ModelParamsHeader` variables. There is no separate
+model-accumulation-length variable. The source normalization travels in the
+ECSV metadata.
+
+Nonlinear joint groups retain all resonators and the full affine/delay gain.
+`fit_joint_required` routes a channel to joint solving; it does not make the
+fit unusable. `fit_unusable` vetoes solving and preserves flagged NaNs. The
+fixed-drive coefficient is retained as loss varies, so fitted nonlinearity is
+not held constant while solving. A declared stationary branch is preserved;
+arbitrary hysteretic histories are not inferred.
+
+## Verify the common report locally
+
+Build the coordinated Kidscpp revision with tests enabled. Its
+`tests/kids_model_report` executable exercises the production ECSV/header readers,
+independent-channel masking and routed joint solving. With reference data available
+through the test environment:
+
+```sh
+KIDS_MODEL_REPORT_CLI=/absolute/path/to/kidscpp-build/tests/kids_model_report \
+  pytest -q tests/tolteca_kids/test_joint_model_native.py
+pytest -q tests/tolteca_reduce/test_model_table.py \
+  tests/tolteca_kidsproc/test_joint_nonlinear.py
+```
+
+The native parity test fits an explicitly identified two-channel group in both
+145609 Tune blocks, for affine and delay gain. It writes each ECSV and stub, then
+compares nonlinear response, derivatives, source flags, recovered frequency and
+loss against Python on controlled trajectories. Its per-case temporary directory
+contains the reports, stubs, native output and `parity-summary.json`. This tests
+numerical agreement, not acceptance of those fits for a measured timestream.
+Only the final Tune block is the recorded calibration for the following
+acquisition; do not test the first block by applying it to that timestream.
 
 ## Evidence to exchange
 
