@@ -1,0 +1,26 @@
+# Offline fits of each acquired sweep block; no detector settings are installed.
+kids:
+  input:
+    select: interface.str.startswith('toltec') and obs_type in ['tune', 'targ']
+    raise_on_errors: true
+  sweep_check:
+    enabled: true
+  kids_find:
+    enabled: true
+  model_fit:
+    backend: python
+    analysis:
+      gain_family: affine
+  model_fit_plot: {}
+  tone_prep:
+    enabled: false
+  tlaloc_output:
+    enabled: false
+  quicklook:
+    enabled: false
+  output:
+    enabled: true
+    registration: false
+    path: comparison/dataprod_toltec
+    namespace: tune-comparison
+    run_name: {generator: counter, key: models}
