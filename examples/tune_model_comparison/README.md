@@ -5,6 +5,12 @@ of a Tune. Keep the original NetCDF files read-only. Start with one network and
 one acquisition, then expand the comparison after checking the frequencies and
 flags. This example does not install files into Tlaloc or register a database.
 
+The comparison baseline is `tolteca_kids.ModelFit` with `backend: python`:
+`tolteca_kidsproc` performs the detailed isolated and joint physical-model fits.
+Fast acquisition-time fitting with `kidscpp` is outside this deliverable.
+Kidscpp remains the native model reader and timestream-recovery library used by
+Citlali; a Kidscpp fitter executable is not needed to produce these models.
+
 ## Run a fit
 
 Install the coordinated Tolteca and Tollan source revisions supplied with the
@@ -35,9 +41,7 @@ Tune. Do not substitute the final block for the first block.
 
 Each fitted block retains the model analysis in `array.zarr`, a
 `kids_model.ecsv` calibration table and a model-fit HTML diagnostic. The Python
-backend has no native command log. The `kidscpp` backend additionally records
-native command and block/channel diagnostics; it is a separate fitting
-implementation and must not be treated as an alias for the Python physical fit.
+backend has no native command log.
 
 For each disputed channel, compare the acquired sweep samples, fit residuals,
 fitted resonance frequency, acquisition probe frequency, fit flags and inverse
@@ -59,11 +63,44 @@ have different parameter conventions.
 
 ## Pass the result to a native consumer
 
-Select the exact recorded calibration sweep and its fitted block. Prepare a
-model stub for the acquisition that will consume that calibration using
-`tolteca_kids.prepare_model_binding`. The original fit product belongs to the
-sweep; the stub describes the consuming acquisition. Reuse of one Tune by
-several later acquisitions requires a matching stub for each acquisition.
+Select the published Python fit's exact `index.yaml`, then prepare a model stub
+for the acquisition that will consume it:
+
+```sh
+python examples/tune_model_comparison/prepare_stubs.py \
+  /absolute/path/to/your_tune.nc /absolute/path/to/science.nc \
+  --model_index /absolute/path/to/fit/index.yaml \
+  --output_path comparison/dataprod_toltec \
+  --namespace tune-comparison > comparison/prepared-input.json
+```
+
+This example handles one network and one single-block timestream. The raw
+headers and acquired block order identify the recorded calibration sweep. For
+the recorded 145609 timestream, this is the final sweep block of its two-block
+Tune. Both Tune fits remain in the fit product; preparation selects the correct
+one without refitting or reading timestream I/Q samples.
+
+| Operation | Owner | Saved result |
+| --- | --- | --- |
+| Fit each sweep block | `tolteca_kids.ModelFit`, Python backend | Processed Tune with `array.zarr`, per-block ECSV and diagnostics |
+| Check and bind the selected fit | `prepare_model_binding` | Exact model artifact, sweep and block reference |
+| Package the selected models for the target acquisition | `tolteca_reduce.stubs.materialize_model_stubs` | Acquisition-owned `dp_raw_obs_proc` with a NetCDF stub artifact |
+| Retain the resolved selection | `WorkflowRun` and `DataProdStore` | Run record containing the resolved raw observation context |
+
+Binding does not write a stub. Materialization packages the existing fit,
+including model schema, normalization and joint-group metadata, into the
+acquisition header representation. Reuse of one Tune by several later
+acquisitions requires a matching stub for each acquisition. Raw indexes and
+stub products are installed in the selected namespace; raw files remain in
+their original locations. The selected fit index remains the exact dependency.
+
+The preparation run records the selected fit as its input and produces the stub.
+A separate input-check run saves the resulting context including that stub;
+it does not run Citlali. Neither run rewrites an earlier run's inputs.
+The script prints the installed stub index, both run UIDs, resolved context
+and a `data_item` fragment ready for the existing Citlali input. The
+comparison source package includes this preparation module, not the complete
+`tolteca_reduce` workspace/driver CLI.
 
 Citlali accepts a selected stub on a network data item:
 
@@ -82,6 +119,10 @@ stubs; do not configure both on one data item. Keep the raw acquisition as the
 base. The current Citlali consumer supports one timestream block per input.
 Grouped recovery additionally needs explicit APT detector/component bindings.
 It must not infer detector identity from channel ordinal.
+
+The current native joint payload supports linear physical groups. Nonlinear or
+ambiguous groups retain their fit diagnostics and flags; this example does not
+extend native recovery to those groups.
 
 ## Evidence to exchange
 
