@@ -2,7 +2,7 @@
 
 Import this package to register the ``kids`` accessor on xarray Datasets and
 DataTrees. Use ``accessors.make_kids_dataset`` to construct inputs and the
-``analysis`` package to compute D21 or PSD results.
+``analysis`` package to compute D21, PSD or KIDs model-fit results.
 """
 
 from __future__ import annotations

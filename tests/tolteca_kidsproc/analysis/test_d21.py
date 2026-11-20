@@ -25,6 +25,36 @@ from tolteca_kidsproc.accessors.views import SweepView
 from tolteca_kidsproc.analysis.d21 import D21Analysis, D21Mapper, D21View
 
 
+@pytest.mark.parametrize("method", ["gradient", "savgol"])
+@pytest.mark.parametrize("n_chans", [None, 3])
+def test_numerical_derivative_without_model_or_view(method, n_chans):
+    frequency = np.linspace(0.0, 1.0, 101)
+    if n_chans is not None:
+        frequency = frequency + np.arange(n_chans)[:, None]
+    signal = (1 + 2j) * frequency**2
+    frequency.setflags(write=False)
+    signal.setflags(write=False)
+    actual = D21Analysis.compute_matched(
+        signal, frequency, method=method, smooth=0 if method == "gradient" else 5
+    )
+    expected = 2 * (1 + 2j) * frequency
+    np.testing.assert_allclose(actual[..., 1:-1], expected[..., 1:-1], atol=1e-12)
+    assert not np.shares_memory(actual, signal)
+
+
+def test_numerical_unified_coverage_and_uncovered_bins():
+    frequency = np.array([[0.0, 1, 2, 3, 4], [2.0, 3, 4, 5, 6]])
+    derivative = np.array([[2j] * 5, [4j] * 5])
+    frequency.setflags(write=False)
+    derivative.setflags(write=False)
+    grid, magnitude, coverage = D21Analysis.compute_unified(
+        derivative, frequency, f_lims=(-1.0, 8.0), f_step=1.0, exclude_edge=1
+    )
+    np.testing.assert_array_equal(grid, np.arange(-1.0, 8.0))
+    np.testing.assert_array_equal(magnitude, [0, 0, 2, 2, 3, 4, 4, 0, 0])
+    np.testing.assert_array_equal(coverage, [0, 0, 1, 1, 2, 1, 1, 0, 0])
+
+
 @pytest.mark.parametrize(
     "kind", ["dataset", "empty_dataset", "array", "tree", "timestream"]
 )
@@ -943,3 +973,47 @@ def test_output_candidates_are_preserved_when_recomputing(simple_sweep, monkeypa
     after = D21View(result)
     xr.testing.assert_identical(after.d21, before.d21)
     xr.testing.assert_identical(after.d21_unified, before.d21_unified)
+
+
+@pytest.mark.parametrize("method", ["gradient", "savgol"])
+@pytest.mark.parametrize("multi", [False, True])
+@pytest.mark.parametrize("explicit_grid", [False, True])
+def test_dask_frequency_and_signal_match_eager(
+    multi_channel_sweep, method, multi, explicit_grid, tmp_path
+):
+    """Configured standalone arrays and saved workflow results accept lazy inputs."""
+    source = (
+        multi_channel_sweep if multi else multi_channel_sweep.isel(chan=0, drop=True)
+    )
+    source = source.copy(deep=False)
+    source["frequency"] = source.frequency.u.to("MHz")
+    lazy = source.chunk({dim: max(1, size // 3) for dim, size in source.sizes.items()})
+    settings = {"method": method, "smooth": 5}
+    if explicit_grid:
+        frequencies = source.frequency.u.to("Hz").values
+        settings.update(
+            f_lims=(frequencies.min() * u.Hz, frequencies.max() * u.Hz),
+            f_step=0.1 * u.MHz,
+        )
+    analysis = D21Analysis.model_validate(settings)
+    eager = analysis(source.kids.sweep)
+    matched = analysis.make_matched(lazy.kids.sweep)
+    unified = analysis.make_unified(lazy.kids.sweep)
+    np.testing.assert_array_equal(matched, eager.kids.d21.d21)
+    np.testing.assert_array_equal(unified, eager.kids.d21.d21_unified)
+    result = analysis(lazy.kids.sweep)
+    for name in ("d21", "d21_unified", "f_unified", "cov_unified"):
+        xr.testing.assert_identical(
+            getattr(result.kids.d21, name), getattr(eager.kids.d21, name)
+        )
+        assert isinstance(getattr(result.kids.d21, name).data, np.ndarray)
+    assert lazy.I.chunks is not None
+    target = tmp_path / "d21.zarr"
+    result.to_zarr(target, zarr_format=2)
+    with xr.open_datatree(target, engine="zarr", chunks={}) as saved:
+        xr.testing.assert_equal(saved.kids.d21.d21, eager.kids.d21.d21)
+        xr.testing.assert_equal(saved.kids.d21.d21_unified, eager.kids.d21.d21_unified)
+        detached = saved.kids.d21.data_source.copy(deep=False)
+        xr.testing.assert_equal(
+            D21View.from_namespace(detached).cov_unified, eager.kids.d21.cov_unified
+        )

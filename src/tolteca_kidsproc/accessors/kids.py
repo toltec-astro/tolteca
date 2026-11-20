@@ -164,6 +164,7 @@ if TYPE_CHECKING:
     from tollan.accessor import Mapping
 
     from ..analysis.d21 import D21View
+    from ..analysis.model_fit import KidsModelView
     from ..analysis.psd import PSDView
     from .views import (
         MultiSweepView,
@@ -325,3 +326,10 @@ class KidsAccessor(AccessorBase[XarraySourceT, KidsMapper]):
         from ..analysis.psd import PSDView  # noqa: PLC0415
 
         return PSDView(cast("xr.DataTree", self.data_source))
+
+    @property
+    def model_fit(self) -> KidsModelView:
+        """Fixed-group fit results and their producing analysis configuration."""
+        from ..analysis.model_fit import KidsModelView  # noqa: PLC0415
+
+        return KidsModelView(cast("xr.DataTree", self.data_source))
