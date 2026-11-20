@@ -180,10 +180,11 @@ class Kids(SubConfigKeyTransformer[Literal["kids"]], ConfigHandler[KidsConfig]):
 
         def register(paths, *, run_uids):
             result = ingest(paths, run_uids=run_uids)
-            from tolteca_datamodels.data_prod import DataProdIndex  # noqa: PLC0415
             from tolteca_quicklook.observation import (  # noqa: PLC0415 -- optional workflow backend
                 refresh_registered,
             )
+
+            from tolteca_datamodels.data_prod import DataProdIndex  # noqa: PLC0415
 
             # The acquisition may also have been published independently as a
             # KIDs quicklook. Selection is resolved across all tagged products.
