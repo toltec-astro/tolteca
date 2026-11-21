@@ -66,7 +66,7 @@ def case(*, continuation=True, symmetric=False, **kwargs):
 
 
 def test_bad_hint_gaps_and_lazy_chunking_keep_same_identity_and_results():
-    solver, source, fr, r = case()
+    solver, source, fr, r = case(state_step_max=0.8)
     source["I"][10] = np.nan
     selected = np.r_[np.arange(20), np.arange(23, 30)]
     source = source.isel(time=selected)
@@ -106,7 +106,7 @@ def test_bad_hint_gaps_and_lazy_chunking_keep_same_identity_and_results():
 
 
 def test_indistinguishable_resonator_permutations_are_flagged_not_assigned():
-    solver, source, fr, r = case(symmetric=True)
+    solver, source, fr, r = case(symmetric=True, state_step_max=1.5)
     ff, rr, flags, _ = solver(
         source.I.values[:1],
         source.Q.values[:1],
@@ -164,6 +164,7 @@ def test_independent_full_inverse_preserves_large_motion_and_sample_boundaries(
         fr_bounds=original.fr_bounds,
         residual_p_value=0.001,
         noise_step_tol=1e-7,
+        continuation=False,
     )
     source = source.isel(chan=slice(0, n_probes))
     source["I"][9] = np.nan
@@ -221,14 +222,15 @@ def test_finite_rejection_and_large_steps_restart_without_filling_values():
     )
     assert np.isnan(result.fr[10]).all()
     assert result.flags[11].item() == 0
-    assert result.flags[12].item() & int(SampleFlag.ambiguous_solution)
+    assert result.flags[12].item() & int(SampleFlag.outside_domain)
     assert np.isnan(result.fr[12]).all()
     assert result.restarted[11].item() and result.restarted[12].item()
     reset = np.zeros(len(selected), bool)
     reset[-1] = True
     resumed = solver.solve(source, reset=reset).compute()
-    assert resumed.flags[-1].item() == 0
-    np.testing.assert_allclose(resumed.fr[11:], fr[selected][11:], atol=0.02, rtol=0)
+    assert resumed.flags[-1].item() == SampleFlag.outside_domain
+    assert np.isnan(resumed.fr[-1]).all()
+    np.testing.assert_allclose(resumed.fr[11], fr[selected][11], atol=0.02, rtol=0)
     empty = solver.solve(source.isel(time=slice(0, 0))).compute()
     assert empty.fr.shape == (0, 2)
 
@@ -236,8 +238,8 @@ def test_finite_rejection_and_large_steps_restart_without_filling_values():
 @pytest.mark.parametrize(
     ("kwargs", "match"),
     [
-        ({"fr_bounds": None}, "Continuation requires"),
-        ({"residual_p_value": None}, "Continuation requires"),
+        ({"state_step_max": 0}, "state_step_max"),
+        ({"state_step_max": np.inf}, "state_step_max"),
         ({"noise_step_tol": 0}, "noise_step_tol"),
         ({"fr_bounds": np.ones((2, 2))}, "fr_bounds"),
         ({"gain_covariance": -np.eye(6)}, "gain_covariance"),
@@ -262,3 +264,26 @@ def test_independent_restarts_validate_incorrect_hint_and_record_first_failure()
     assert (result.initial_flags.values[failed] & reasons != 0).all()
     np.testing.assert_allclose(result.fr, fr, rtol=0, atol=0.02)
     np.testing.assert_allclose(result.r, r, rtol=0, atol=1e-10)
+
+
+def test_sweep_anchor_tracks_drift_but_rejects_distant_initial_hint():
+    solver, source, fr, _ = case(fr_bounds=None, residual_p_value=None)
+    result = solver.solve(source, chunk_samples=7).compute()
+    assert (result.flags == 0).all()
+    assert result.attrs["branch_selection"] == "sweep_continuity"
+    assert result.attrs["state_step_max"] == 0.25
+    np.testing.assert_allclose(result.fr, fr, atol=0.02, rtol=0)
+    # The endpoint is valid only after the intervening accepted trajectory.
+    distant = solver(
+        source.I.values[-1:],
+        source.Q.values[-1:],
+        initial_fr=fr[-1],
+        initial_r=solver.r,
+    )
+    assert distant[2][0] == SampleFlag.outside_domain
+    assert np.isnan(distant[0]).all()
+    # A nonfinite gap also discards the branch history.
+    source["I"][28] = np.nan
+    result = solver.solve(source, chunk_samples=7).compute()
+    assert result.flags[28].item() == SampleFlag.nonfinite_input
+    assert result.flags[29].item() == SampleFlag.outside_domain

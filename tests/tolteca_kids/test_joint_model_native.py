@@ -87,11 +87,10 @@ def test_both_tune_blocks_nonlinear_report_native_parity(
             assert max(group["a_nl"]) > 0
             _check_rejected_group_metadata(group)
             solver = joint_solver(group)
-            assert solver.diagnostics["rank"] == 4
             states, fr, loss, iq = _trajectory(solver)
             result = solver(iq.real, iq.imag)
             accepted = result[2] == 0
-            assert np.isin(result[2], [0, 128]).all()
+            assert accepted.all()
             np.testing.assert_allclose(
                 result[0][accepted], fr[accepted], rtol=0, atol=0.02
             )
@@ -194,3 +193,93 @@ def test_both_tune_blocks_nonlinear_report_native_parity(
                 }
             )
     (tmp_path / "parity-summary.json").write_text(json.dumps(summaries, indent=2))
+    _check_measured_stream(report, data_lmt_path, tmp_path, family, executable)
+
+
+def _check_measured_stream(report, data_lmt_path, tmp_path, family, executable):
+    """Use the final Tune block on all measured samples of the following scan."""
+    path = (
+        data_lmt_path
+        / "toltec/tcs/toltec0"
+        / ("toltec0_145609_000_0002_2025_10_31_09_27_57.nc")
+    )
+    [group] = report.meta["joint_models"]["groups"]
+    solver = joint_solver(group)
+    with open_toltec_kids(path) as raw:
+        arrays = []
+        for key in "IQ":
+            values = raw[f"Data.Toltec.{key}s"]
+            arrays.append(values.isel({values.dims[1]: group["channels"]}).values)
+        packets = raw["Data.Toltec.Ts"].values[:, 3].astype(np.uint32)
+        reset = np.r_[False, np.diff(packets) != 1]
+        assert not reset.any()
+        normalization = (
+            float(raw["Header.Toltec.AccumLen"].item())
+            / report.meta["Header.Toltec.AccumLen"]
+        )
+        probes = raw["Header.Toltec.ToneFreq"].values[0, group["channels"]] + float(
+            raw["Header.Toltec.LoCenterFreq"].item()
+        )
+        np.testing.assert_allclose(probes, solver.probes, rtol=0, atol=1e-6)
+        stub = tmp_path / f"{family}-measured_stub.nc"
+        _pack_models(raw, {0: report}).to_netcdf(stub)
+    result = solver(*arrays, normalization=normalization, reset=reset)
+    assert len(result[2]) == 7802
+    assert (result[2] == 0).all()
+    ecsv = tmp_path / f"{family}-block1.ecsv"
+    config = tmp_path / f"{family}-measured.json"
+    output = tmp_path / f"{family}-measured-native.yaml"
+    config.write_text(
+        json.dumps(
+            {
+                "ecsv": str(ecsv),
+                "stub": str(stub),
+                "block": 0,
+                "I": arrays[0].tolist(),
+                "Q": arrays[1].tolist(),
+                "normalization": normalization,
+                "states": [np.zeros(4).tolist()],
+            }
+        )
+    )
+    subprocess.run(  # noqa: S603 -- Explicit native test executable.
+        [executable, str(config), str(output)], check=True, capture_output=True
+    )
+    actual = cast("dict[str, Any]", yaml_load(output))
+    for mode in ("ecsv", "stub"):
+        np.testing.assert_array_equal(actual[mode]["flags"], result[2])
+        np.testing.assert_array_equal(actual[mode]["routed_flags"], result[2])
+        np.testing.assert_allclose(actual[mode]["fr"], result[0], rtol=0, atol=0.02)
+        np.testing.assert_allclose(actual[mode]["r"], result[1], rtol=1e-6, atol=1e-12)
+        np.testing.assert_equal(actual[mode]["routed_fr"], actual[mode]["fr"])
+    states = np.empty((len(result[0]), 4))
+    states[:, ::2] = result[1] / solver.r - 1
+    states[:, 1::2] = (result[0] / solver.fr - 1) / (2 * solver.r)
+    np.savez(
+        tmp_path / f"{family}-measured.npz",
+        fr=result[0],
+        r=result[1],
+        flags=result[2],
+        states=states,
+    )
+    summary = {
+        "source": str(path),
+        "stub": str(stub),
+        "family": family,
+        "samples": len(result[2]),
+        "accepted": int((result[2] == 0).sum()),
+        "reset_count": int(reset.sum()),
+        "normalization": normalization,
+        "state_step_max": solver.state_step_max,
+        "first_state_distance": float(abs(states[0]).max()),
+        "largest_step": float(abs(np.diff(states, axis=0)).max()),
+        "max_fr_difference_hz": float(
+            abs(np.asarray(actual["stub"]["fr"]) - result[0]).max()
+        ),
+        "max_r_difference": float(
+            abs(np.asarray(actual["stub"]["r"]) - result[1]).max()
+        ),
+    }
+    (tmp_path / f"{family}-measured-summary.json").write_text(
+        json.dumps(summary, indent=2)
+    )

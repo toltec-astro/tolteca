@@ -13,7 +13,8 @@ class SampleFlag(IntFlag):
     Native and Python recovery preserve the same bit values in uint16 arrays.
     iteration_limit
     and stalled accompany recovery_failed. outside_domain identifies a finite
-    state outside positive physical loss/frequency or supplied frequency limits.
+    state outside positive physical loss/frequency, supplied frequency limits,
+    or the allowed displacement from the sweep/continuity anchor.
     """
 
     valid = 0

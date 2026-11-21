@@ -286,7 +286,7 @@ def test_joint_recovery_moves_both_resonators_and_preserves_condition_warnings()
 
 
 def test_joint_unresolved_subset_and_bad_samples_do_not_invent_states():
-    solver, iq, _, _ = joint_case()
+    solver, iq, _, _ = joint_case(continuation=False)
     partial = JointTimestreamSolver(
         solver.probes[:1],
         solver.fr,

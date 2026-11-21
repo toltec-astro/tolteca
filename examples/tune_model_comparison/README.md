@@ -164,3 +164,31 @@ model/stub files, fit diagnostics and relevant native logs. Identify the science
 observation, network and channels exhibiting the problem. Preserve flags and
 unresolved identities in the comparison. Test the selected models on the same
 raw samples before interpreting a difference in a pointing map.
+
+## Follow the sweep-anchored solution
+
+`joint_solver(group)` now starts from the fitted sweep state and tracks the
+accepted detector state through the measured samples. Its default
+`state_step_max=0.25` limits each change in `dr/r_reference` and
+`dfr/(2*r_reference*f_reference)`. Independent starts are compared at every
+sample. Two admissible solutions remain flagged; a solution outside the allowed
+motion does not silently replace the previous one.
+
+```python
+solver = joint_solver(group, state_step_max=0.25)
+fr, r, flags, residual = solver(I, Q, normalization=accumulation_ratio, reset=reset)
+x = solver.probes[None, :, None] / fr[:, None, :] - 1
+```
+
+`reset` is a boolean vector marking acquisition gaps or explicit sequence
+boundaries. A reset returns to the sweep anchor. For xarray input, `solve`
+recognizes gaps in the `sample` coordinate and carries state across Dask chunks.
+Keep failed samples as flagged NaNs. Use `continuation=False` only to examine
+independent solutions without the sweep/continuity assumption. Plot alternative
+trajectories as Solution A and Solution B, with dimensionless `r,x`.
+
+The local 145609 regression fits both Tune blocks with affine and delay gains,
+checks controlled nonlinear trajectories, and solves the following measured
+scan through Python, native ECSV and native stub readers. Only the final Tune
+block is used for that measured scan. The acceptance check concerns solving and
+branch tracking; it does not certify the sweep fit's scientific quality.

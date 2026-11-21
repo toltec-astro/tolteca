@@ -132,13 +132,69 @@ Failed solutions remain flagged NaNs. No zero-nonlinearity or independent-model
 fallback is permitted. Covariance is conditional on the calibration and supplied
 I/Q weights; unit weights must not be described as measured readout noise.
 
-Python supports additional bounded starts and ambiguity/continuation diagnostics.
-The native solver also tests independent loss/frequency starts and rejects
-competing solutions with squared whitened-residual differences at most 9 and
-local noise-scaled state separation greater than 5, matching the Python defaults.
-Agreement on accepted trajectories does not establish identical global search policies or
-scientific acceptance of a measured timestream. Citlali uses the native solver
-and retains its fit, sample and group diagnostics.
+## Sweep-anchored solution selection
+
+A coupled group can have more than one valid detector state for the same I/Q.
+The sweep fit supplies a reference state; it does not prove that every later
+I/Q sample has a unique solution. The default Python and native policy uses
+that reference plus a bounded-motion assumption to select a trajectory.
+
+Define scaled state components, alternating by resonator:
+
+```text
+s[2j]   = (r_j − r_reference,j) / r_reference,j
+s[2j+1] = (f_res,j − f_reference,j) / (2 r_reference,j f_reference,j)
+```
+
+The first sample's anchor is `s = 0`, the fitted sweep state. After an accepted
+sample, the anchor is that sample's solved state. A solution is admissible only
+when every absolute component difference from the anchor is at most
+`state_step_max` (default `0.25`). This permits a 25% reference-loss change or
+one quarter of the reference full linewidth per step. The limit is a declared
+operational assumption, not a confidence interval inferred from the sweep.
+Gradual motion can accumulate beyond the initial interval.
+
+At each sample, the solver must:
+
+1. Converge the full nonlinear response from the anchor and independent starts.
+2. Apply physical, rank and numerical checks. Keep the original detector labels.
+3. Exclude solutions outside the allowed displacement before comparing scores.
+4. Select the admissible solution with the smallest whitened residual, within
+   numerical convergence tolerance. Distinct admissible solutions with squared
+   residual-score difference at most `9` and local noise-scaled separation
+   greater than `5` produce `ambiguous_solution` and NaN outputs.
+5. Update the anchor only after acceptance. If valid numerical solutions exist
+   but none is admissible, return `outside_domain` and NaN outputs.
+
+An initial optimizer hint must not replace the sweep anchor. A finite rejected
+sample retains the previous accepted anchor but has no interpolated output.
+A nonfinite sample, explicit reset or acquisition-counter gap discards that
+anchor. The next finite sample must re-anchor to the sweep. A gap does not
+permit an unrestricted branch change. The analytical one-channel/one-resonator
+path has no competing solution and retains its physical-domain checks.
+
+Python carries detached checkpoints across ordered Dask chunks. Native
+`JointTimeStreamSolver.solve` accepts a caller-owned `JointSolveCheckpoint`;
+`solve_joint_timestream` accepts checkpoints keyed by group identity. A caller
+must scope them to one stream, channel selection and calibration. Each fresh
+call without a checkpoint starts at the sweep. Citlali's independently processed
+scan segments therefore each start at the sweep; within a segment, acquisition
+packet-counter gaps trigger a reset. The native acquisition adapter exposes
+`joint_state_step_max`; Python exposes `state_step_max`. Output metadata records
+the policy and limit. Parallel segments must not share mutable checkpoints.
+
+`continuation=False` in Python and the native numerical solver disables the
+anchor and continuity assumption for independent-solution diagnostics. It does
+not select an arbitrary root when the independent comparison is ambiguous.
+Python can additionally apply explicit frequency bounds and residual tests.
+The two solvers share selection semantics, but their finite searches are not
+proofs of global uniqueness. A unique accepted trajectory does not repair a
+poor sweep model or establish scientific calibration acceptance.
+
+Use **Solution A** and **Solution B** for plotted alternative solutions.
+Show `r` and `x` as dimensionless numbers in scientific notation; use Hz or
+kHz for resonance-frequency displacements. Keep fitting residuals visible
+separately from solving/selection diagnostics.
 
 ## Verification
 
@@ -153,3 +209,10 @@ ECSV and stub consumption in Python and native solving using controlled I/Q
 trajectories. Measured-timestream application is a separate check: only the
 recorded final Tune block calibrates the following acquisition. Reports must
 distinguish fit quality, controlled numerical parity and measured-data acceptance.
+
+Selection tests must include gradual drift, a distant initial hint, two
+admissible solutions, finite rejection, explicit and nonfinite gaps, and
+invariance to ordered chunk sizes. The 145609 measured check uses all 7,802
+samples of scan 2, the final Tune block, unchanged acquired probes and an I/Q
+normalization divisor of 4. The first 4,096 samples remain the comparison
+viewer's displayed interval. Fit quality remains a separate unresolved review.

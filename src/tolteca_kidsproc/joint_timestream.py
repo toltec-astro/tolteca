@@ -74,10 +74,10 @@ class JointTimestreamSolver:
     condition_max : float or None, optional
         Warning threshold, default None. Rank failure always invalidates output.
     continuation : bool, optional
-        Use the last accepted state to initialize the next sample, default False.
-        Requires explicit fr_bounds and residual_p_value. Initialization and
-        restarts compare independent bounded starts. Unresolved alternatives
-        produce ambiguous_solution, not an assigned detector identity.
+        Select near the fitted sweep state, then track the last accepted state,
+        default True. Compare independent solutions at every sample. Multiple
+        admissible solutions produce ambiguous_solution. Set False only for
+        independent solving without the sweep/continuity assumption.
     fr_bounds : array_like or None, optional
         Allowed resonance frequency interval in Hz, shape (resonator, 2), with
         lower then upper limits. It must include the reference frequencies.
@@ -97,11 +97,13 @@ class JointTimestreamSolver:
         None assumes exact gain. It affects residual validation, not the fitted
         gain or the conditional detector covariance. Shared errors are not
         independent noise samples.
-    restart_step_max : float, optional
-        Largest continuation displacement before independent reinitialization,
-        default 0.25 in dr/r_ref and dfr/(2*r_ref*fr_ref) coordinates. A restart
-        candidate beyond this distance from the last accepted contiguous state
-        is ambiguous. Mark actual discontinuities with reset or sample gaps.
+    state_step_max : float, optional
+        Maximum absolute component displacement from the sweep reference at
+        initialization, or from the last accepted state thereafter, default
+        0.25 in dr/r_ref and dfr/(2*r_ref*fr_ref) coordinates. This is an explicit
+        small-evolution assumption, not a limit derived from the sweep data.
+        No admissible solution produces outside_domain. Mark discontinuities
+        with reset or sample gaps to re-anchor to the fitted sweep state.
     ambiguity_delta_chi2 : float, optional
         Maximum validation-score difference for competing acceptable solutions,
         default 9. Candidates separated by more than five conditional noise
@@ -114,16 +116,17 @@ class JointTimestreamSolver:
     detuning obeys ``x_effective = probe/fr-1 + b/(r*r+x_effective*x_effective)``, using
     an analytical solution for one probe/one resonator, or damped Gauss-Newton
     and SVD for groups. Independent samples are evaluated in arrays. Grouped
-    recovery validates restarts and checks competing starting points even after
-    initial convergence. Each accepted state must converge; there is no linear
-    or fixed-iteration approximation fallback. Square and overdetermined groups
-    use the same rank-aware SVD procedure. Positive loss/frequency and explicit
-    frequency limits apply to both analytical and iterative recovery.
+    recovery compares independent starting points at every sample, including
+    after convergence from the preceding accepted state. Each accepted state
+    must converge; there is no linear or fixed-iteration approximation fallback.
+    Square and overdetermined groups use the same rank-aware SVD procedure.
+    Positive loss/frequency and explicit frequency limits apply to both
+    analytical and iterative recovery.
     Continuation carries accepted state across lazy chunks without mutating
     the solver. A finite rejection requires revalidation against the last
     accepted state. An explicit or nonfinite gap starts a new sequence.
-    Initial/restart validation
-    searches finitely many starts and does not prove global uniqueness.
+    Alternative-solution validation searches finitely many starts and does
+    not prove global uniqueness. Sweep anchoring cannot repair model error.
     Drive coefficients remain fixed as loss and frequency vary. A declared
     quasistatic branch is retained; arbitrary hysteretic histories are not inferred.
     No primary resonator is assigned. Detector covariance remains conditional
@@ -146,12 +149,12 @@ class JointTimestreamSolver:
         b=None,
         fit_flag=0,
         nonlinear_branch="unique",
-        continuation=False,
+        continuation=True,
         fr_bounds=None,
         noise_step_tol=1e-3,
         residual_p_value=None,
         gain_covariance=None,
-        restart_step_max=0.25,
+        state_step_max=0.25,
         ambiguity_delta_chi2=9.0,
     ):
         self.probes, self.fr, self.r = [
@@ -199,16 +202,13 @@ class JointTimestreamSolver:
         self._whitening = np.linalg.inv(np.linalg.cholesky(iq_covariance))
         self.continuation = bool(continuation)
         self.noise_step_tol = _positive(noise_step_tol, "noise_step_tol")
-        self.restart_step_max = _positive(restart_step_max, "restart_step_max")
+        self.state_step_max = _positive(state_step_max, "state_step_max")
         self.ambiguity_delta_chi2 = _positive(
             ambiguity_delta_chi2, "ambiguity_delta_chi2"
         )
         self.residual_p_value = residual_p_value
         if residual_p_value is not None and not 0 < residual_p_value < 1:
             msg = "residual_p_value must be in (0, 1)"
-            raise ValueError(msg)
-        if continuation and (fr_bounds is None or residual_p_value is None):
-            msg = "Continuation requires explicit fr_bounds and residual_p_value"
             raise ValueError(msg)
         self.fr_bounds = (
             None if fr_bounds is None else np.array(fr_bounds, float, copy=True)
@@ -489,56 +489,54 @@ class JointTimestreamSolver:
             result["fr"][positions] = self.fr * (1 + 2 * self.r * state[valid, 1::2])
             result["r"][positions] = self.r * (1 + state[valid, ::2])
             return result
+        finite = np.isfinite(observed).all(axis=-1)
+        candidates, _, starts = self._candidate_samples(observed[finite], initial)
+        position = 0
         for k, y in enumerate(observed):
             if reset[k]:
                 checkpoint = None
-            if not np.isfinite(y).all():
+            if not finite[k]:
                 result["flags"][k] |= int(SampleFlag.nonfinite_input)
                 checkpoint = None
                 continue
-            anchor = checkpoint[0] if checkpoint is not None else None
-            restarted = checkpoint is None or checkpoint[1]
-            if restarted:
-                states, flags, first, starts = self._recover_samples(
-                    y[None, :], initial if anchor is None else anchor
-                )
-                state, flag = states[0], int(flags[0])
-                result["initial_flags"][k], result["starts_tested"][k] = (
-                    first[0],
-                    starts[0],
-                )
-            else:
-                state, flag = self._solve_sample(y, anchor)
-                result["initial_flags"][k], result["starts_tested"][k] = flag, 1
-                extra, _, _, _ = self._validation(y, state)
-                flag |= extra
-                result["initial_flags"][k] |= extra
-                if (
-                    flag & ~_WARNING_MASK
-                    or np.max(abs(state - anchor)) > self.restart_step_max
-                ):
-                    restarted = True
-                    states, flags, _, starts = self._recover_samples(y[None, :], state)
-                    state, flag = states[0], int(flags[0])
-                    result["starts_tested"][k] += starts[0]
-            extra, raw, stat, step_noise = self._validation(y, state)
-            flag |= extra
-            if (
-                anchor is not None
-                and np.max(abs(state - anchor)) > self.restart_step_max
-            ):
-                flag |= SampleFlag.ambiguous_solution
-            result["flags"][k] |= int(flag)
+            anchor = checkpoint[0] if checkpoint is not None else np.zeros(2 * n)
+            state, flag = self._solve_sample(y, anchor)
+            extra, raw, stat, _ = self._validation(y, state)
+            first = flag | extra
+            local = (
+                state[None, :],
+                np.array([first], np.uint16),
+                np.array([raw]),
+                np.array([stat]),
+            )
+            alternatives = [
+                tuple(v[position : position + 1] for v in c) for c in candidates
+            ]
+            states, flags = self._select_candidates([local, *alternatives], anchor)
+            selected, flag = states[0], int(flags[0])
+            result["initial_flags"][k] = first
+            result["starts_tested"][k] = starts[position] + 1
+            result["restarted"][k] = (
+                checkpoint is None
+                or checkpoint[1]
+                or bool(first & _FAILURE_MASK)
+                or np.max(abs(state - anchor)) > self.state_step_max
+            )
+            position += 1
+            extra, raw, stat, step_noise = self._validation(y, selected)
+            result["flags"][k] |= flag | extra
             result["residual_norm"][k] = np.sqrt(raw)
             result["residual_stat"][k] = stat
             result["step_noise"][k] = step_noise
-            result["restarted"][k] = restarted
-            if int(result["flags"][k]) & ~_WARNING_MASK:
-                checkpoint = None if anchor is None else (anchor, True)
+            if int(result["flags"][k]) & _FAILURE_MASK:
+                # A finite rejection retains the last accepted state. A gap
+                # discards it; zero is the fitted sweep state, never a hint.
+                if checkpoint is not None:
+                    checkpoint = (anchor, True)
                 continue
-            result["fr"][k] = self.fr * (1 + 2 * self.r * state[1::2])
-            result["r"][k] = self.r * (1 + state[::2])
-            checkpoint = (state.copy(), False)
+            result["fr"][k] = self.fr * (1 + 2 * self.r * selected[1::2])
+            result["r"][k] = self.r * (1 + selected[::2])
+            checkpoint = (selected.copy(), False)
         result["checkpoint"] = checkpoint
         return result
 
@@ -603,6 +601,12 @@ class JointTimestreamSolver:
         if len(self.probes) == len(self.fr) == 1:
             state, flags = self._analytical_samples(observed)
             return state, flags, flags.copy(), np.zeros(len(observed), np.uint16)
+        candidates, first, starts = self._candidate_samples(observed, initial)
+        state, flags = self._select_candidates(candidates)
+        return state, flags, first, starts
+
+    def _candidate_samples(self, observed, initial):
+        """Compute independent alternatives in batches for ordered validation."""
         state, flags = self._solve_samples(observed, initial)
         first_state = state.copy()
         extra, raw, stat, _ = self._validation_samples(observed, state)
@@ -632,31 +636,35 @@ class JointTimestreamSolver:
             extra, raw, stat, _ = self._validation_samples(observed, state)
             candidates.append((state, flags | extra, raw, stat))
             starts += 1
-        state, flags = self._select_candidates(candidates)
-        return state, flags, first, starts
+        return candidates, first, starts
 
-    def _select_candidates(self, candidates):
+    def _select_candidates(self, candidates, anchor=None):
         states = np.stack([c[0] for c in candidates])
         flags = np.stack([c[1] for c in candidates])
         raw = np.stack([c[2] for c in candidates])
         score = np.stack([c[3] if self.residual_dof > 0 else c[2] for c in candidates])
         numerical = (flags & _NUMERICAL_FAILURE_MASK) == 0
+        within = np.ones_like(numerical)
+        if anchor is not None:
+            within = np.max(abs(states - anchor), axis=-1) <= self.state_step_max
+        admissible = numerical & within
         # Gain uncertainty changes validation, not the readout-weighted fit.
         # Keep the first minimum within the numerical convergence tolerance.
-        minimum = np.min(np.where(numerical, raw, np.inf), axis=0)
-        eligible = numerical & (raw <= minimum[None, :] + self.noise_step_tol**2)
+        minimum = np.min(np.where(admissible, raw, np.inf), axis=0)
+        eligible = admissible & (raw <= minimum[None, :] + self.noise_step_tol**2)
         chosen = np.argmax(eligible, axis=0)
-        none = ~numerical.any(axis=0)
+        none = ~admissible.any(axis=0)
         failed = np.argmin(np.where(np.isfinite(raw), raw, np.inf), axis=0)
         chosen[none] = failed[none]
         k = np.arange(states.shape[1])
         best = states[chosen, k]
         result_flags = flags[chosen, k].copy()
+        result_flags[none & numerical.any(axis=0)] |= int(SampleFlag.outside_domain)
         _, jac = self._response(best)
         distance = np.linalg.norm(
             np.einsum("nij,knj->kni", self._whitening @ jac, states - best), axis=-1
         )
-        good = (flags & _FAILURE_MASK) == 0
+        good = ((flags & _FAILURE_MASK) == 0) & within
         competing = good & (abs(score - score[chosen, k]) <= self.ambiguity_delta_chi2)
         ambiguous = good[chosen, k] & np.any(
             competing & (distance > _DISTINCT_SOLUTION_SIGMA), axis=0
@@ -1002,13 +1010,20 @@ class JointTimestreamSolver:
         )
         out.attrs["iq_normalization"] = normalization
         out.attrs["continuation"] = self.continuation
+        out.attrs["branch_selection"] = (
+            "analytical"
+            if len(self.probes) == len(self.fr) == 1
+            else "sweep_continuity"
+            if self.continuation
+            else "independent"
+        )
         out.attrs["recovery_method"] = (
             "analytical"
             if len(self.probes) == len(self.fr) == 1
             else "validated_full_model"
         )
         out.attrs["noise_step_tol"] = self.noise_step_tol
-        out.attrs["restart_step_max"] = self.restart_step_max
+        out.attrs["state_step_max"] = self.state_step_max
         out.attrs["ambiguity_delta_chi2"] = self.ambiguity_delta_chi2
         out.attrs["residual_dof"] = self.residual_dof
         out.attrs["residual_threshold"] = self._residual_max
