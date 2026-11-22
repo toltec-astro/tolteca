@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.25)
+project(tune_network LANGUAGES CXX)
+find_package(kidscpp CONFIG REQUIRED)
+find_package(yaml-cpp CONFIG REQUIRED)
+add_executable(tune_network ../native_network.cpp)
+target_compile_features(tune_network PRIVATE cxx_std_23)
+target_link_libraries(tune_network PRIVATE kids::kids yaml-cpp::yaml-cpp)

@@ -1,0 +1,59 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>145609 — full network coverage and exclusions</title><script src="../plotly.min.js"></script>
+<style>{{STYLE}}</style></head><body>
+<h1>145609: full network coverage and exclusions</h1>
+<p>The 74-detector result is an individual-response-law comparison, not the detector yield. Network 0 has 556 established APT identities. The saved final Tune fit has 625 model components; 334 affine components pass the declared readout checks, including 64 multiplet components.</p>
+<nav><a href="#denominators">1. What is counted</a><a href="#identity">2. Identity and response evidence</a><a href="#readout">3. Fitting and readout</a><a href="#matrix">4. Full matrix</a><a href="#files">5. Ledgers</a></nav>
+<p><a href="../active-response/index.html">Individual-response-law signal/noise comparison</a> · <a href="../index.html">Full fitting and native-solving report</a></p>
+
+<h2 id="denominators">1. Three different denominators</h2>
+<p><strong>Table 1.</strong> Identity, fitted components and a response-law study answer different questions.</p>
+<table><thead><tr><th>Population</th><th>Count</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>Established network-0 APT identities</td><td>556</td><td>548 reassessed Skydip trace baselines and eight retained reviewed identities. The latest local roster includes UID 563.</td></tr>
+<tr><td>Final 145609 Tune model components</td><td>625</td><td>363 singlets and 262 components in 111 multiplet groups. A model component is not automatically a distinct established detector.</td></tr>
+<tr><td>Individual Skydip response-law contributors</td><td>112</td><td>An isolated-resonance study with stricter per-scan quality checks. It was not a census of all active detectors.</td></tr>
+</tbody></table>
+<p>The 548-trace baseline has 545 loading-responsive and three stationary traces. It also has fitted-width support for 544 traces. Those measurements establish much broader behavior than the 112 individual loss-versus-detuning fits. Empirical loading motion, persistent identity and physical dark/active classification remain separate assessments.</p>
+
+<h2 id="identity">2. Where the evidence restrictions enter</h2>
+<h3>2.1 The Skydip source study excluded multiplets by construction</h3>
+<p><strong>Table 2.</strong> All 548 traces in the 343-group response-study input. “Excluded” here concerns that study, not the detector's existence or its 145609 readout.</p>
+<div class="wide">{{SOURCE}}</div>
+<p>The 133 connected groups with multiple traces contain 338 traces. They were omitted before fitting an individual response law. Another 98 isolated traces failed the source study's evidence/quality conditions. The remaining 112 supplied the individual laws. Detailed source exclusions are retained in <a href="source-response-selection.csv">the source ledger</a>.</p>
+
+<h3>2.2 Established Skydip identity is not yet a verified 145609 observation link</h3>
+<p>The existing comparison independently matched 145609 finding frequencies to scans 2–8, requiring five unique scans, no competing UID within 200 kHz and support in both Tune blocks. This conservative transfer admits 240 UIDs; it does not disprove the other 316 established identities. It is particularly restrictive in blends. No response law or model-local integer is used to bypass an ambiguous observation link.</p>
+<p><strong>Table 3.</strong> Transfer states for every finding in each Tune block. These are association restrictions, not fitting or solving failures.</p>
+<div class="wide">{{TRANSFER}}</div>
+<p>The latest consolidated APT/Skydip receipts were checked against every saved correspondence edge. All 240 previously supported transfers remain identical. UID 563 now supports finding 321 in the final block but does not pass the both-block condition. Every one of the 556 established UIDs is retained in <a href="roster-coverage.csv">the roster coverage ledger</a>, including those without a supported 145609 transfer.</p>
+
+<h3>2.3 From 240 transferred identities to the 74-detector comparison</h3>
+<p><strong>Table 4.</strong> Final-block affine counts. Rows partition the evidence; columns independently partition the acquired readout. Missing evidence can coexist with good or poor readout.</p>
+<div class="wide">{{PARTITIONS}}</div>
+<p>Of the 240 transfers, 80 have an individual source response law, 145 have broader loading-response evidence without that law, and 15 have a conflicting dark indicator. Six of the 80 fail the readout screen, leaving 74. The other 385 components lack a qualifying transfer. Thus <strong>260 of the 334 components passing readout were excluded for evidence reasons</strong>, not for failing that readout screen.</p>
+
+<h2 id="readout">3. Actual fitting and readout states</h2>
+<p><strong>Table 5.</strong> All 625 components in each family, independently of identity or response-law availability. The four outcome columns sum to “Fitted”. Multiplet counts are components, not groups.</p>
+<div class="wide">{{CENSUS}}</div>
+<p>The affine result contains 483 complete valid component timestreams, including 172 multiplet components. After the declared fit-quality screen, 334 remain: 270 singlets and 64 multiplet components. Delay gives 485 complete records and 332 passing the screen: 271 singlets and 61 multiplet components.</p>
+<ul>
+<li><strong>No selected route (84):</strong> these were not demonstrated numerical solving failures. Their associated probe rows include unresolved multiple-group choices. Fifty-eight components have only such choices; 26 also share probes assigned elsewhere. The <a href="unselected-components.csv">selection ledger</a> retains channel numbers and recorded reasons.</li>
+<li><strong>Selected but incomplete (58 affine, 56 delay):</strong> the attempted solving did not provide a complete valid record. Native flags distinguish outside-domain, singular/invalid-model and recovery failures. No invalid samples were filled.</li>
+<li><strong>Complete but excluded by quality (149 affine, 153 delay):</strong> these have complete time series but fail one or more declared fit, residual or parity checks. This is not synonymous with optimizer failure.</li>
+</ul>
+<details><summary>Fit warnings and quality checks, including overlaps</summary>
+<p><strong>Table 6.</strong> Counts overlap and must not be summed. Flags are decoded from the saved model's own definitions. Only 8 affine and 6 delay components have failed optimizer convergence. A bound warning is not a demonstrated absence of a detector. The residual cutoff remains the declared 5% of centered sweep variation, not an instrumental-noise acceptance threshold.</p>
+<div class="wide">{{QUALITY}}</div></details>
+
+<h2 id="matrix">4. Full network matrix</h2>
+<figure>{{FIGURE}}<figcaption><strong>Figure 1.</strong> Affine evidence/readout accounting. All 625 model components are included; no optical response is assigned to unknown or conflicting cases. The 64 multiplet components passing readout comprise four with a transferred loading-responsive identity and 60 without a qualifying transfer. None has an individual response law in the isolated source study.</figcaption></figure>
+<details><summary>Both model families: every evidence × multiplicity × readout cell</summary><p><strong>Table 7.</strong> Exhaustive component accounting.</p><div class="wide">{{CROSS}}</div></details>
+<p>The numerical fitting and solving coverage therefore exceeds the individual-law comparison. Extending the latter requires using the established group/observation evidence to resolve 145609 blends and retaining supported joint response information. It does not require declaring all remaining components bad, treating a mean singlet slope as a measured multiplet response, or fitting a different model solely to increase this count.</p>
+
+<h2 id="files">5. Reproduce and inspect every exclusion</h2>
+<pre>PYTHONPATH="$PWD/src" python examples/tune_model_comparison/network_census.py \
+  run/network-145609 /Users/ma/Codes/toltec/dev_toltec/python/run</pre>
+<p><a href="components.csv">All target components</a> · <a href="roster-coverage.csv">All established roster UIDs</a> · <a href="associations.csv">Both-block association states</a> · <a href="association-changes.csv">Latest receipt changes</a> · <a href="source-response-selection.csv">Source response-study exclusions</a> · <a href="unselected-components.csv">Unselected solver routes</a> · <a href="quality.csv">Overlapping fit checks</a> · <a href="sources.json">Sources and checksums</a></p>
+<p>This audit uses the existing fits, stubs and native arrays. It changes neither the source roster nor the 74-detector numerical comparison. It replaces that subset as the headline network coverage measure.</p>
+<details><summary>Machine-readable summary</summary><pre>{{COUNTS}}</pre></details>
+</body></html>

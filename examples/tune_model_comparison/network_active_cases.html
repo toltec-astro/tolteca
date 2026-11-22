@@ -1,0 +1,32 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>145609 — individual detector evidence</title><script src="../plotly.min.js"></script>
+<style>body{font:16px/1.55 system-ui,sans-serif;color:#212529;background:white;max-width:1200px;margin:32px auto;padding:0 24px}h1{font-size:28px}a{color:#1971c2}select{font:inherit;padding:6px;min-width:350px}select:focus-visible,a:focus-visible{outline:2px solid #1971c2;outline-offset:3px}#description{min-height:3em}.blue{color:#1971c2}.orange{color:#e67700}.gray{color:#666}</style></head><body>
+<h1>145609: individual detector evidence</h1><p><a href="index.html">Return to the population comparison</a></p>
+<label for="case">Detector and fit family </label><select id="case" disabled><option>Loading cases…</option></select>
+<p id="description" aria-live="polite">Loading measured evidence…</p>
+<p><span class="blue">Blue: fitted sweep or optical detuning</span>; <span class="orange">orange: fixed-probe timestream or effective detuning</span>; <span class="gray">gray: sweep measurements or loss noise</span>. Black shows the independent Skydip direction or the signal-referred effective-detuning ASD. Hover identifies each trace.</p>
+<div id="figure"></div>
+<p><strong>Figure 1.</strong> The same detector's calibration sweep, fixed-probe IQ cloud, independent Skydip response, measured loss/detuning trajectory, centered time series and spectra. Sweep and timestream use the same acquisition normalization. No probe-frequency perturbation or synthetic signal was added. Skydip points are colored by airmass; the curve uses its independently fitted response direction. Association status remains provisional, as described in the population report.</p>
+<script>
+const select=document.querySelector('#case'), description=document.querySelector('#description');
+let cases=[],sequence=0;
+async function show(){
+ const token=++sequence, row=cases[Number(select.value)];
+ description.textContent='Loading '+row.label+'…';
+ try {
+  const response=await fetch('cases/'+row.file); if(!response.ok)throw Error(response.status);
+  const fig=await response.json(); if(token!==sequence)return;
+  await Plotly.react('figure',fig.data,fig.layout,{responsive:true,displaylogo:false});
+  description.textContent=row.description;
+  history.replaceState(null,'','#'+row.file.replace('.json',''));
+ }catch(error){if(token===sequence)description.textContent='Could not load measured evidence: '+error.message;}
+}
+(async()=>{try{
+ const response=await fetch('cases.json'); if(!response.ok)throw Error(response.status);
+ cases=await response.json(); select.replaceChildren();
+ if(!cases.length){description.textContent='No detectors pass the declared response and readout checks.';return;}
+ cases.forEach((row,i)=>{const option=document.createElement('option');option.value=i;option.textContent=row.label;select.append(option);});
+ const index=cases.findIndex(row=>row.file===location.hash.slice(1)+'.json');select.value=Math.max(0,index);
+ select.disabled=false;select.addEventListener('change',show);await show();
+}catch(error){description.textContent='Could not load the case index: '+error.message;}})();
+</script></body></html>
