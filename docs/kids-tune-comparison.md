@@ -39,6 +39,36 @@ native sample. The replay reuses its saved Python workflow states for the
 numerical comparison, checking the model, normalization and raw I/Q first.
 Failure flags and finite-value masks must also agree. When verification runs
 without a solved product, it computes an explicitly reported Python prefix.
+The recipe saves its Python product receipts before starting native verification.
+A failed native check exits unsuccessfully, retains `solving.json`, and marks
+`native_verification: failed` in `replay.json`; it does not discard the Python
+products or label the comparison as passed.
+
+### Installed-wheel check on 145609
+
+The 2026-11-22 installation check fitted both acquired Tune blocks and processed
+the first 256 measured samples of scan 2 with all 632 acquired probes. This short
+sample tests the installed workflow and artifact round trip; it is not the
+full-record signal/noise measurement. The same fitting configuration routes 480
+groups in block 0 and 473 groups in block 1.
+
+| Check | Affine baseline | Affine plus delay |
+| --- | ---: | ---: |
+| Fitted components retained for scan 2 | 625 | 625 |
+| Components with complete solutions and spectra in the 256-sample check | 549 | 552 |
+| Declared artifacts in the solved product | 452 | 453 |
+| Controlled Python/native samples per routed group, both Tune blocks | 16, passed | 16, passed |
+| Native ECSV/stub equality over all measured samples | 7,802, passed | 7,802, passed |
+| Strict Python/native comparison on the measured prefix | Failed | Failed |
+
+The measured comparison exposes differences that the controlled trajectories do
+not exercise. Some rejected samples have different reason flags; some
+overdetermined groups disagree on numerical convergence or the returned state
+within the comparison tolerance. These remain explicit failures of the native
+comparison. Transport equality does not imply Python/native solving parity, and
+neither establishes scientific acceptance of a fitted detector. The comparison
+bundle includes the group-by-group report and does not present its native path
+as an interchangeable, validated replacement for the Python baseline.
 
 ## Follow the selected model
 
