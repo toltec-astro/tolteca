@@ -53,6 +53,15 @@ The number of resonators can differ between groups. Affine gain retains `f_g`,
 `gain_a`, `tau`. Consumers evaluate the gain at the recorded probes. They must
 not replace the full group with an effective independent channel model.
 
+Fixed-probe routing is distinct from sweep membership. Select a group only when
+its measured fitted frequency range uniquely contains the acquired probe.
+Edge-only samples from another group do not establish a competing readout
+route. Multiple containing ranges remain unselected; do not use residuals or
+optimizer success as a tie-break. Export all resonators of a selected group,
+using only its selected probe rows. Missing simultaneous measurements and
+resulting rank failures remain explicit. Selected channel quality inherits its
+selected group's warnings, not warnings from an unrelated sweep-edge fit.
+
 ## ECSV-to-stub representation
 
 The model-header variable pair is an atomic override/default group:
@@ -115,12 +124,99 @@ b_j = 2 a_nl,j r_reference,j³
 ```
 
 Gain, coupling, probe frequencies and `b` remain fixed during solving. Loss and
-intrinsic resonance frequency vary. Thus `a_nl = b/(2*r³)` varies with loss;
-holding fitted `a_nl` constant would change the assumed drive power.
+intrinsic resonance frequency vary. This supplies a local constitutive assumption
+that separates intrinsic detuning from the nonlinear shift. The measured I/Q
+does not also determine an independent time-varying drive coefficient.
+Re-expressing solved loss as `b/(2*r³)` adds no measurement and must not be
+presented as a detector-quality observable. When calibrated `b` is zero,
+changing loss creates no nonlinear correction.
+
+The Tune comparison fits `a_nl` continuously for every resonator, including
+singlets and members of coupled groups. Near-linear and strongly nonlinear
+coverage bins are diagnostic summaries of the same model. They do not select
+different model families, replace a fitted value by zero, or create a scientific
+acceptance cut. The generic fitting API still permits an explicitly linear
+experiment; the comparison configuration enables nonlinearity uniformly.
+
+Fixed `b` is a local solving hypothesis, not an empirical guarantee across a
+Skydip or other loading change. In this hypothesis, `a₂/a₁ = (r₁/r₂)³`.
+Prior power/loading experiments must be read with their gain, coupling and
+fitting-window assumptions. Changes in an inferred `b` are not by themselves
+evidence of changing detector drive power.
 
 The response Jacobian includes the implicit detuning derivatives at fixed `b`,
 including the loss derivative. Returned `x` is intrinsic detuning `x_0`, indexed
 by channel and resonator. The report's original resonator identities are retained.
+Reports denote `x_effective` by `x′` (effective detuning) and returned `x` by
+`x_opt` (optical detuning). Both coordinates describe readout at a probe frequency.
+`x_opt` removes the modeled readout-power shift at the same optical loading.
+It does not separate optical signals from other intrinsic frequency changes.
+The difference need not require an overdrive threshold. The returned arrays
+contain absolute loss and intrinsic detuning. Subtracting a reference or median
+is a subsequent analysis operation. Intrinsic frequency is
+`f_res = f_probe / (1 + x)`.
+
+The local optical response relates `delta r = R_r*delta P_opt` and
+`delta x_opt = R_x*delta P_opt`. The current solver does not impose this relation
+or a network-wide ratio. Reports must distinguish this physical loading response,
+nonlinearity measured by separate sweep fits, and the fixed-`b` prediction.
+An error estimate at fixed loss does not represent the full optical response.
+Trajectory correlations include optical, intrinsic, readout and calibration
+fluctuations. They must not be identified with optical responsivity without
+independent evidence. Conditional signal-direction projections must state the
+source of that direction and use separate data for weight selection and noise
+assessment. Their unit assumed transfer does not validate optical transfer.
+
+Noise-quality reports must separate optical response class, observation/identity
+association, calibration suitability and numerical solving status. Multiplicity
+and fitted nonlinearity subdivide these assessments; they do not replace them.
+A finder dark flag or high Qr must not establish an optical class, and a model-local
+resonator ID must not establish a persistent detector identity. Dark candidates,
+unclassified components and inadequate readouts must not silently enter an
+active-detector sensitivity estimate. Retain them in coverage and diagnostic
+tables with their evidence and unresolved status. Native-valid, low-noise output
+alone does not qualify a detector for science or dark-reference use.
+
+For a dark detector, the optical response ratio is undefined when both responses
+vanish; reports must not assign a responsive-population beta to it. The equality
+of loss and effective-detuning noise is conditional on locally isotropic additive
+IQ noise and calibrated singlet gain/coupling. Nonlinear conversion to x_opt
+requires the full covariance transformation, even for dark detectors. The
+scientific formulation is in `design/manuscripts/detector-noise-quality.md`.
+
+An evidence-based comparison must retain exact source product/namespace, block
+and finding-row receipts. A saved finding plan can bind a current model term
+only after checking its original finding ID, initial frequency/loss and group.
+Cross-acquisition frequency matches remain reviewable associations unless the
+roster workflow accepts them. Preserve competing identities, repeated-scan
+support, contradictory response evidence and declared matching thresholds.
+Do not promote an association or physical response class as a side effect of
+making a noise report.
+
+Network reports must state the denominator for established identities, acquired
+findings, model components and response-law subsets separately. An isolated
+response-law study must not define the network's active-detector yield.
+Cross-tabulate observation/response evidence and numerical quality independently.
+Report fit adequacy, numerical validity and selection-policy limits separately.
+Fit adequacy retains the measured residual and its declared comparison threshold.
+Numerical validity retains convergence, complete-sample coverage and exact flags.
+Policy limits retain bound/initialization warnings, domain/continuation limits
+and parity-tolerance misses without relabelling them as optimizer failures.
+An unselected route is unassessed, not a numerical failure. The domain flag can
+represent a physical boundary or an anchor restriction; the flag alone does not
+distinguish them. Preserve the existing 5% residual criterion and other comparison
+cuts when separating these diagnostics. Preserve every component and
+established UID in the accounting, including known identities with unresolved
+target-acquisition correspondence.
+
+The 145609 active comparison uses individual Skydip response laws only for its
+qualified cohort. Convert `beta` and its error by `f_ref/f_probe` when the Skydip
+and timestream detuning reference frequencies differ. Apply readout checks
+without optimizing the measured noise or cutting on fitted nonlinearity.
+Publish threshold sensitivity, complete-record exclusions and paired model-family
+comparisons. Response conflicts and incomplete loss laws remain separate groups.
+The current numerical study uses the thresholds recorded in
+`active-response/method.json`; these are not instrument-wide acceptance limits.
 
 The `unique` branch is qualified for `0 <= a_nl <= 0.75`. The directional branches
 select the stable quasistatic response reached from increasing or decreasing
@@ -131,6 +227,16 @@ Positive physical state, finite values and sufficient response rank are required
 Failed solutions remain flagged NaNs. No zero-nonlinearity or independent-model
 fallback is permitted. Covariance is conditional on the calibration and supplied
 I/Q weights; unit weights must not be described as measured readout noise.
+
+For an independent resonator, define `D = 1 + 2*b*x_effective/(r²+x_effective²)²`
+and `mu = 2*b*r/(r²+x_effective²)²`. A fractional calibration error of magnitude
+`epsilon` in `b` gives the local conditional source-amplitude bias bound
+`epsilon*abs((D-1)/D)`. This assumes an intrinsic-frequency signal at fixed loss
+and otherwise correct calibration. It differs from readout-noise propagation:
+with isotropic I/Q noise and fixed correct gain/coupling, `x_opt` ASD divided
+by `x′` ASD is `hypot(D, mu)`. Neither quantity is total astronomical noise
+or a measured calibration uncertainty. Multiplets require the full response
+Jacobian and covariance; a singlet working-zone plot is not their validity mask.
 
 ## Sweep-anchored solution selection
 
@@ -196,6 +302,166 @@ Show `r` and `x` as dimensionless numbers in scientific notation; use Hz or
 kHz for resonance-frequency displacements. Keep fitting residuals visible
 separately from solving/selection diagnostics.
 
+## Post-solving response and noise diagnostics
+
+### Coordinates and ownership
+
+Diagnostics consume the already solved group states and the **same fitted group
+model** used for solving. `JointTimestreamSolver.evaluate(fr, r)` evaluates that
+response without fitting or solving again. It returns predicted complex I/Q for
+every group probe, detector frequency/loss, and probe-by-detector `x_prime`,
+`x_opt`, `D` and `mu`. The solver and diagnostic evaluator share their forward
+response implementation. A multiplet component's `x_prime` is model-derived;
+applying an isolated-circle formula to a blended channel is not permitted.
+
+The calibrated drive coefficient remains fixed for this diagnostic:
+
+```{math}
+x_{\mathrm{opt},kj}=\frac{f_{p,k}}{f_{r,j}}-1,\qquad
+x'_{kj}=x_{\mathrm{opt},kj}+\frac{b_j}{r_j^2+x_{kj}'^2},\qquad
+b_j=2a_{\mathrm{ref},j}r_{\mathrm{ref},j}^3.
+```
+
+This is a local fixed-drive model assumption. Neither `x_opt` nor the inferred
+loss is attributed entirely to optical loading, and no instantaneous measured
+nonlinearity is inferred from loss fluctuations. Failure/evidence labels remain
+in the surrounding component ledger. Evaluating an accepted state does not
+promote its fit adequacy or scientific quality.
+
+### Spectral contract
+
+`tolteca_kidsproc.timestream_diagnostics.coordinate_spectra` accepts complete,
+uniformly sampled real trajectories. The caller validates acquisition continuity;
+the estimator rejects nonfinite arrays and never removes flagged samples or
+fills gaps. The 145609 recipe verifies contiguous packet counters, constant
+clock increments, the recorded sampling rate, and equality of the saved I/Q
+with the raw acquisition. It uses all 7,802 samples at 122.0703125 Hz, with
+1,024-sample Hann windows, half-window overlap, constant detrending and one-sided
+spectral density. The summary band is 5–20 Hz. Display decimation does not affect
+spectra.
+
+The complex cross-spectrum convention is
+{math}`C_{uv}=\langle\widetilde u^*\widetilde v\rangle`.
+Retain the complete Hermitian matrix for `(x_prime, x_opt, r, correction)`, where
+`correction = x_prime - x_opt`, together with magnitude-squared coherence.
+At the group's median recovered frequency/loss state, the same response gives
+
+```{math}
+D=1+\frac{2bx'}{(r^2+x'^2)^2},\qquad
+\mu=\frac{2br}{(r^2+x'^2)^2},\qquad
+\delta x_{\mathrm{opt}}\simeq D\delta x'+\mu\delta r.
+```
+
+The local predicted PSD must include the **signed** cross term:
+
+```{math}
+P_{\mathrm{opt}}^{\mathrm{local}}
+=D^2P_{x'}+\mu^2P_r+2D\mu\operatorname{Re}C_{x'r}.
+```
+
+Report all three terms, their sum, the measured nonlinear `x_opt` PSD, and the
+PSD of the first-order remainder. Retain the range of D and mu over the record.
+The exact identity {math}`P_{\mathrm{opt}}=P_{x'}+P_c-2\operatorname{Re}C_{x'c}`
+checks spectral algebra only; it cannot validate the physical calibration.
+
+### Performance and evidence accounting
+
+Every model component must remain in the report, including absent routes,
+incomplete estimates, poor fits, dark candidates and unresolved identities.
+The fitting nonlinearity bins summarize the same model across the population;
+they do not switch solving algorithms or establish acceptance thresholds.
+Preserve fit adequacy, numerical validity, selection-policy exclusions and
+independent Skydip/APT evidence as separate fields.
+
+For a qualified independent Skydip direction {math}`s=R_r/R_x`, compare the two
+coordinates at equal assumed signal response:
+
+```{math}
+T_{x'}=\frac{1-\mu s}{D},\qquad
+\mathrm{ASD}_{x',\mathrm{signal}}=\frac{\mathrm{ASD}_{x'}}{|T_{x'}|}.
+```
+
+A zero local transfer is explicitly undefined. Missing or unqualified response
+evidence permits a measured coordinate-noise comparison, but no signal-referred
+performance claim. The source direction may have been measured at a different
+loading; this conditional calculation does not supply absolute responsivity,
+NEFD or mapping speed. Retain full cross-component spectra for joint groups;
+do not combine correlated detector estimates as independent inverse variances.
+
+Forward I/Q residuals use all probes and the same fitted gain/coupling. Keep
+rank, conditioning, noise-source assumptions and sweep fit quality alongside
+those residuals. A square system can reproduce I/Q closely without establishing
+physical accuracy. Singlets with multiple probes retain the existing declared
+probe estimate; diagnostics do not introduce a new combination of estimates.
+
+### Reproducible 145609 artifacts
+
+The first Tune block establishes identity repeatability. The final Tune block
+alone supplies calibration for scan 2. Both gain families retain all 625 final
+model components. `examples/tune_model_comparison/network_postsolve.py` produces:
+
+| Artifact | Content |
+| --- | --- |
+| `components.csv`, `catalog.json` | Full component accounting, coordinates, noise metrics and unchanged evidence/selection fields |
+| `performance.csv`, `matrix.csv` | Population and nonlinearity-bin counts; conditional performance summaries |
+| `arrays/<model>-<group>-<component>.npz` | Complete coordinate series, complex spectral matrix, coherence and signed noise terms |
+| `arrays/<model>-group-<group>-cross.npz` | Full cross-component complex spectra with component labels |
+| `iq-residuals.csv`, `cross-components.csv` | Group forward-response checks and pairwise noise correlations |
+| `cases/*.json`, `index.html` | Interactive trajectories, PSDs, cross-spectra and noise decomposition |
+| `measurement.json`, `method.json`, `sources.json`, `verification.json` | Acquisition continuity, numerical conventions, input/code hashes and validation |
+
+The local run retains 552 affine and 554 delay complete trajectories. The
+unchanged comparison cohort has independent response evidence for 108 singlets
+and five multiplet components per family. For the affine cohort, median
+ASD(`x_opt`)/ASD(`x_prime`) is 1.377 for singlets and 1.226 for multiplets;
+medians after referring the prime coordinate to the assumed signal direction
+are 1.125 and 1.201. These summaries do not treat the unqualified population as
+failed or noise-free detectors.
+
+## Maintained workflow and persistence
+
+The Python KIDs consumer must resolve an exact model product before solving.
+`TimestreamSolve` reads that product's saved `ModelFit` groups and verifies their
+export against the bound ECSV. It must not repeat fitting or infer detector
+identity from channel order. `joint_solver` supplies the same fixed-drive
+response and ordered solving used by the numerical parity checks.
+
+The `solved_groups` tree contains a ledger of every fitted component, the
+acquired channel table, and one node per selected group. A group records its
+full calibration, original probe and detector identities, sample coordinates,
+accepted `fr` and `r`, `x_opt`, and validity flags. Components without selected
+probes remain in the ledger. Rejected samples remain NaN at their acquired
+positions. Group-local storage avoids a mostly empty network-wide
+channel-by-detector tensor.
+
+| Operation | Responsibility | Persistent result |
+| --- | --- | --- |
+| `ModelFit` | Fit each acquired sweep block with the Python backend | Full fit arrays, common model ECSV and fit diagnostics |
+| Context preparation and stub materialization | Bind the recorded final sweep and package its existing model | Exact calibration relation and target-acquisition stub |
+| `TimestreamSolve` | Route simultaneous probes to their saved group model | `solved_groups` in the scientific Zarr artifact |
+| `TimestreamDiagnostics` | Evaluate accepted states, compare measured I/Q and measure cross-spectra | Full detector ledger, coordinate arrays and spectral matrices |
+| `TimestreamPlot` | Construct figures from saved diagnostics | `VizBase` figures retained as step artifacts |
+| `DataProdOutput` | Materialize arrays and declared artifacts under one execution | `index.yaml`, `array.zarr`, ECSV and offline HTML artifacts |
+
+Spectra require complete accepted series and verified packet/clock continuity.
+The diagnostic step must not remove rejected samples or interpolate gaps to
+obtain a spectrum. The 5–20 Hz summary retains the signed prime/loss cross term.
+Its local derivatives are evaluated at the median accepted physical state.
+Full cross-component matrices remain available for jointly solved components.
+
+Optional response evidence is an ECSV input with `group_id`, `resonator_id`,
+`cohort`, `slope` and `reference_frequency_hz`. The slope is `R_r/R_x` at that
+reference frequency. Its metadata must identify the exact selected model with
+`model_sha256`. The consumer transforms the slope to its explicitly selected
+probe frequency, retains the original evidence bytes, and records the input
+hash. Unknown or duplicate component identities are errors. Missing evidence
+remains a separate state; it must not become a fit or solving failure.
+
+Fit residual policy, numerical completeness and external evidence are separate
+ledger columns. A policy cut must not erase a solved trajectory. Conditional
+signal-transfer comparisons require independently supplied response evidence;
+they must not infer absolute optical sensitivity or summed network mapping speed.
+
 ## Verification
 
 Required checks cover complete table/metadata round trips, independent block
@@ -216,3 +482,59 @@ invariance to ordered chunk sizes. The 145609 measured check uses all 7,802
 samples of scan 2, the final Tune block, unchanged acquired probes and an I/Q
 normalization divisor of 4. The first 4,096 samples remain the comparison
 viewer's displayed interval. Fit quality remains a separate unresolved review.
+
+## Group-aware population reconciliation
+
+A response/noise study must preserve complete target fitting groups and source
+Skydip groups when interpreting an existing tone-matcher candidate relation.
+`tolteca_kidsproc.segmentation.ordered_match_support` enumerates feasible support
+by dynamic programming: every order-preserving one-to-one assignment must cover
+the smaller feature list, while the larger list may contain omissions. Forced
+edges occur in every complete assignment. No complete assignment means unresolved
+coverage, not permission to select a partial nearest match. Equal frequencies
+are not a strict order. Group members without roster receipts remain candidates.
+This conditional topology test does not allocate or promote APT identities.
+
+The 145609 recipe requires forced support in five distinct Skydip acquisitions,
+no competing or unknown retained identity, one target finding per UID, and support
+in both Tune blocks. Exact product/interface/block/finding receipts bind source
+measurements to roster UIDs. The final block alone calibrates the timestream.
+
+The source response study must not exclude a component merely because it is in
+a connected group or has nonzero fitted nonlinearity. Require exact accepted
+finding/model correspondence, independently measured loss/detuning support and
+qualified source covariance. `fit_loss_response` uses the frequency/loss marginal
+of the full native covariance, including its cross term. The response slope is
+R_r/R_x; beta is R_x/R_r. Source covariance and regression uncertainties are
+conditional on the model; they exclude model inadequacy and unrepresented common
+errors. Leave-one-acquisition fits and reduced chi-square must remain inspectable.
+
+Use the full native joint solution for multiplets. Independent singlet IQ
+formulae cannot be applied to a blended probe. Per-component noise spectra are
+marginals, not proof of independent detectors. Retain cross-component evidence;
+do not sum their inverse variances into a network mapping speed. Any local
+signal-preserving projection must state its independently assumed response and
+separate training from held-out noise assessment.
+
+Maintain separate ledgers for established roster identities, target model
+components, unresolved observation correspondence, source response evidence,
+source quality warnings, target fit quality, route selection and solving
+validity. A smaller comparison population must not be called detector yield.
+
+### Complete group transport and diagnostic replay
+
+- Python model reports include every selected group in `joint_models`, including
+  singlets with one or several acquired probes. Independent rows remain channel
+  representations; they do not replace the full group for detector solving.
+- A native comparison must test the same serialized group model. A failure of
+  flags, finite masks or numerical tolerances fails the replay command after
+  saving its evidence. Controlled samples cover both Tune blocks; measured
+  sample comparisons declare their checked length.
+- Diagnostic replay requires the exact saved model realization and unchanged
+  group parameters, memberships and ordering. It reuses accepted states without
+  fitting or solving, creates a new run, and preserves the original source
+  product reference, resolved calibration and serialized step records.
+- The 5% fit-selection policy uses residual RMS divided by within-probe measured
+  sweep variation. It must not substitute residual divided by total IQ level.
+  Policy rejection, numerical failure and missing independent evidence remain
+  separate fields. Diagnostic policy does not remove stored states.
