@@ -20,6 +20,7 @@ from prepare_stubs import prepare_stubs
 
 from tolteca_datamodels.data_prod import DataProdIndex, DataProdStore, resolve_index
 from tolteca_datamodels.toltec import open_toltec_kids
+from tolteca_datamodels.toltec.metadata import ToltecRawObsMetadata
 from tolteca_kids.product import open_kids_product
 
 HERE = Path(__file__).resolve().parent
@@ -112,7 +113,11 @@ def main():  # noqa: PLR0915 -- sequential reviewable replay
     sources, uids = {}, []
     for path in (args.tune.resolve(), args.timestream.resolve()):
         with open_toltec_kids(path) as raw:
-            uids.append(raw.toltec_kids.meta.uid_raw_obs)
+            meta = raw.toltec_kids.meta
+            if not isinstance(meta, ToltecRawObsMetadata):
+                msg = "Comparison inputs must be raw acquisitions"
+                raise TypeError(msg)
+            uids.append(meta.uid_raw_obs)
         with path.open("rb") as stream:
             sources[str(path)] = hashlib.file_digest(stream, "sha256").hexdigest()
     manifest = {
@@ -182,28 +187,40 @@ def main():  # noqa: PLR0915 -- sequential reviewable replay
                 "numerical_complete": int(ledger.numerical_complete.sum()),
                 "spectral_complete": int((ledger.spectral_status == "complete").sum()),
                 "artifacts": len(index.product.data_items),
+                "native_verification": "pending" if args.native else "not_requested",
             }
-        if args.native:
-            command(
-                [
-                    sys.executable,
-                    str(HERE / "network_coverage.py"),
-                    str(model),
-                    str(args.tune.resolve()),
-                    str(args.timestream.resolve()),
-                    str(args.native.resolve()),
-                    str(root / f"native-{family}"),
-                    "--namespace",
-                    family,
-                    "--dataprod_path",
-                    str(root / "dataprod_toltec"),
-                    "--prepared",
-                    str(root / f"prepared-{family}.json"),
-                ],
-                root / "logs" / f"native-{family}.log",
-                workers=args.workers,
-            )
+        # The scientific products remain inspectable even when the optional
+        # native comparison rejects a flag or numerical mismatch.
         manifest["families"][family] = record
+        (root / "replay.json").write_text(json.dumps(manifest, indent=2))
+        if args.native:
+            try:
+                command(
+                    [
+                        sys.executable,
+                        str(HERE / "network_coverage.py"),
+                        str(model),
+                        str(args.tune.resolve()),
+                        str(args.timestream.resolve()),
+                        str(args.native.resolve()),
+                        str(root / f"native-{family}"),
+                        "--namespace",
+                        family,
+                        "--dataprod_path",
+                        str(root / "dataprod_toltec"),
+                        "--prepared",
+                        str(root / f"prepared-{family}.json"),
+                        "--solved_index",
+                        str(result),
+                    ],
+                    root / "logs" / f"native-{family}.log",
+                    workers=args.workers,
+                )
+            except subprocess.CalledProcessError:
+                record["native_verification"] = "failed"
+                (root / "replay.json").write_text(json.dumps(manifest, indent=2))
+                raise
+            record["native_verification"] = "passed"
         (root / "replay.json").write_text(json.dumps(manifest, indent=2))
         sys.stdout.write(json.dumps(record) + "\n")
         sys.stdout.flush()

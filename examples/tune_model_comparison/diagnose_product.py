@@ -56,8 +56,8 @@ def diagnose_product(  # noqa: PLR0913 -- explicit sources and diagnostic contro
             if saved.model is None or saved.model.product != model.product.reference:
                 msg = "Diagnostic model differs from the solved product's exact binding"
                 raise ValueError(msg)
-            cal = SweepCalItem.model_validate(
-                node["solved_groups"].attrs["calibration"]
+            cal = SweepCalItem.model_validate_json(
+                json.dumps(node["solved_groups"].attrs["calibration"])
             )
             [target] = cal.data_items
             if target.model != saved.model:

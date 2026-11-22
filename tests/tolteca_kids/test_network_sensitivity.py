@@ -2,6 +2,7 @@
 
 import json
 import runpy
+from contextlib import nullcontext
 from pathlib import Path
 
 import numpy as np
@@ -196,6 +197,67 @@ def test_stub_transport_checks_samples_after_python_prefix(tmp_path):
     corrupted.tofile(tmp_path / "native/stub/group-3/r.bin")
     with pytest.raises(ValueError, match="same_finite_mask"):
         module["require_parity"](check(tmp_path, report))
+
+
+def test_saved_parity_uses_exact_model_and_acquired_probe_order(
+    timestream_path, monkeypatch
+):
+    """Reusing states must not compare a different model or reordered I/Q."""
+    import copy
+
+    import xarray as xr
+    from tollan.accessor.xarray import ensure_datatree
+
+    from tolteca_datamodels.toltec import open_toltec_kids
+    from tolteca_kids import BlockCreate
+    from tolteca_kids.timestream_reduce import TimestreamReduce
+
+    module = runpy.run_path(
+        str(
+            Path(__file__).parents[2]
+            / "examples/tune_model_comparison/network_coverage.py"
+        )
+    )
+    read = module["saved_python_results"]
+    with open_toltec_kids(timestream_path) as acquisition:
+        raw = acquisition.isel(time=slice(0, 4))
+        i, q = (raw[name].to_numpy() for name in ("Data.Toltec.Is", "Data.Toltec.Qs"))
+        # The saved channel order differs from acquisition order; group identity
+        # also differs from its ordinal tree node name.
+        tree = BlockCreate()(ensure_datatree(raw.toltec_kids.select_channels([5, 0])))
+        block = tree.toltec_kids.blocks[0].tree
+        TimestreamReduce(psd=None)(block)
+        model = {"group_id": "physical-group", "fr": [5e8], "channels": [5, 0]}
+        block["solved_groups"] = xr.DataTree(
+            dataset=xr.Dataset(attrs={"iq_normalization": 4.0})
+        )
+        block["solved_groups/groups/0"] = xr.DataTree(
+            dataset=xr.Dataset(
+                {
+                    "fr": (("time", "resonator"), np.full((4, 1), 5e8)),
+                    "r": (("time", "resonator"), np.full((4, 1), 2e-5)),
+                    "flags": ("time", np.zeros(4, dtype="uint16")),
+                },
+                attrs={"model": model},
+            )
+        )
+        monkeypatch.setitem(
+            read.__globals__, "open_kids_product", lambda _: nullcontext(tree)
+        )
+        report = Table(meta={"joint_models": {"groups": [model]}})
+        actual = read("saved/index.yaml", report, i, q, 4.0)
+        assert list(actual) == ["physical-group"]
+        np.testing.assert_array_equal(actual["physical-group"][0], np.full((4, 1), 5e8))
+        with pytest.raises(ValueError, match="normalization"):
+            read("saved/index.yaml", report, i, q, 2.0)
+        changed = copy.deepcopy(report)
+        changed.meta["joint_models"]["groups"][0]["fr"][0] += 1
+        with pytest.raises(ValueError, match="different fitted group"):
+            read("saved/index.yaml", changed, i, q, 4.0)
+        wrong = i.copy()
+        wrong[0, 5] += 1
+        with pytest.raises(AssertionError):
+            read("saved/index.yaml", report, wrong, q, 4.0)
 
 
 def test_coverage_preserves_joint_components_and_missing_selection(tmp_path):

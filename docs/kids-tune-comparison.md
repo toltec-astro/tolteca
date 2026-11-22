@@ -35,8 +35,10 @@ tests the production Kidscpp readers and array solver used by Citlali. Python
 remains the fitting backend. The verification covers controlled data for both
 Tune blocks and recorded timestream data for the final block.
 For the measured acquisition, ECSV and stub transport must agree on every
-native sample. The Python/native numerical comparison checks an explicitly
-reported prefix; it must also agree on failure flags and finite-value masks.
+native sample. The replay reuses its saved Python workflow states for the
+numerical comparison, checking the model, normalization and raw I/Q first.
+Failure flags and finite-value masks must also agree. When verification runs
+without a solved product, it computes an explicitly reported Python prefix.
 
 ## Follow the selected model
 

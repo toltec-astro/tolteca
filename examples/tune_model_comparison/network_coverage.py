@@ -22,7 +22,7 @@ from tolteca_datamodels.data_prod import DataProdIndex
 from tolteca_datamodels.toltec import open_toltec_kids
 from tolteca_kids.model_fit import ModelFit
 from tolteca_kids.model_joint import joint_models, joint_solver
-from tolteca_kids.product import open_sweep_product
+from tolteca_kids.product import open_kids_product, open_sweep_product
 from tolteca_kidsproc.model_flags import ModelFitFlag
 from tolteca_kidsproc.recovery import SampleFlag
 from tolteca_kidsproc.timestream import TimestreamSolver
@@ -91,7 +91,7 @@ def compare_transports(root, report):
     for name, suffix, fields in scopes:
         folders = [root / "native" / mode / suffix for mode in ("ecsv", "stub")]
         flags = [np.fromfile(path / "flags.bin", dtype="uint16") for path in folders]
-        record = {"flags_equal": bool(np.array_equal(*flags))}
+        record = {"flags_equal": bool(np.array_equal(flags[0], flags[1]))}
         for field in fields:
             values = [
                 np.fromfile(path / f"{field}.bin", dtype="float64") for path in folders
@@ -101,8 +101,51 @@ def compare_transports(root, report):
     return result
 
 
+def saved_python_results(index, report, i, q, normalization):
+    """Reuse accepted workflow states after checking model, probes and raw I/Q."""
+    results = {}
+    with open_kids_product(index) as tree:
+        [block] = tree.toltec_kids.blocks
+        saved = block.tree["solved_groups"]
+        if saved.attrs["iq_normalization"] != normalization:
+            msg = "Saved workflow and native request have different normalization"
+            raise ValueError(msg)
+        signals = block.tree.toltec_kids.block.timestream.data_source
+        count = signals.sizes["time"]
+        if count > len(i):
+            msg = "Saved workflow exceeds the native request's sample range"
+            raise ValueError(msg)
+        channels = signals.chan.values
+        np.testing.assert_array_equal(
+            signals.I.transpose("time", "chan"), i[:count, channels]
+        )
+        np.testing.assert_array_equal(
+            signals.Q.transpose("time", "chan"), q[:count, channels]
+        )
+        groups = {
+            node.attrs["model"]["group_id"]: node
+            for node in saved["groups"].children.values()
+        }
+        for model in report.meta["joint_models"]["groups"]:
+            node = groups[model["group_id"]]
+            if node.attrs["model"] != model:
+                msg = "Saved workflow uses a different fitted group model"
+                raise ValueError(msg)
+            results[model["group_id"]] = tuple(
+                node[name].values for name in ("fr", "r", "flags")
+            )
+    return results
+
+
 def compare_native(  # noqa: PLR0913 - explicit replay and saved-result controls
-    request, report, native, root, *, run_native=True, reuse_python=False
+    request,
+    report,
+    native,
+    root,
+    *,
+    run_native=True,
+    reuse_python=False,
+    solved_index=None,
 ):
     """Execute native routes and compare every saved channel and group."""
     config = root / "request.json"
@@ -114,6 +157,11 @@ def compare_native(  # noqa: PLR0913 - explicit replay and saved-result controls
             )
     shape = request["samples"], request["channels"]
     i, q = [np.fromfile(request[k], dtype="float64").reshape(shape) for k in "IQ"]
+    solved = (
+        {}
+        if solved_index is None
+        else saved_python_results(solved_index, report, i, q, request["normalization"])
+    )
     r, x, flags = TimestreamSolver(report, report["chan"])(
         i, q, normalization=request["normalization"]
     )
@@ -121,6 +169,7 @@ def compare_native(  # noqa: PLR0913 - explicit replay and saved-result controls
     summary = {
         "native_transport": compare_transports(root, report),
         "native_samples": request["samples"],
+        "python_product": None if solved_index is None else str(solved_index),
         "independent": {},
         "joint": [],
     }
@@ -145,7 +194,11 @@ def compare_native(  # noqa: PLR0913 - explicit replay and saved-result controls
         sys.stdout.flush()
         checked = min(256, len(i))
         saved = root / f"python-group-{gid}.npz"
-        if reuse_python and saved.exists():
+        if solved_index is not None:
+            fr, loss, gf = solved[gid]
+            checked = len(fr)
+            np.savez_compressed(saved, fr=fr, r=loss, flags=gf)
+        elif reuse_python and saved.exists():
             with np.load(saved) as arrays:
                 fr, loss, gf = [arrays[key] for key in ("fr", "r", "flags")]
             assert fr.shape == (checked, len(group["resonator_ids"]))
@@ -238,6 +291,11 @@ def main():  # noqa: PLR0915 - sequential, inspectable replay recipe
     parser.add_argument("index", type=Path)
     parser.add_argument("tune", type=Path)
     parser.add_argument("timestream", type=Path)
+    parser.add_argument(
+        "--solved_index",
+        type=Path,
+        help="Reuse and verify the saved Python workflow states",
+    )
     parser.add_argument("native", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--prepare_only", action="store_true")
@@ -375,7 +433,9 @@ def main():  # noqa: PLR0915 - sequential, inspectable replay recipe
     }
     save(folder / "request.json", request)
     if not args.prepare_only:
-        compare_native(request, report, args.native, folder)
+        compare_native(
+            request, report, args.native, folder, solved_index=args.solved_index
+        )
 
 
 if __name__ == "__main__":
