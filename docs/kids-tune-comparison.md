@@ -70,6 +70,15 @@ neither establishes scientific acceptance of a fitted detector. The comparison
 bundle includes the group-by-group report and does not present its native path
 as an interchangeable, validated replacement for the Python baseline.
 
+Both installed-wheel products were subsequently reopened with
+`diagnose_product.py` and the exact Skydip/APT evidence table. The new
+`0001-diagnostics/index.yaml` products retain all `fr`, `r`, `x_opt` and flag
+arrays exactly, together with the original calibration binding and solve record.
+They add the evidence artifact and identify 113 response-qualified components;
+the remaining evidence categories stay separate in the 625-row ledger. This
+classification comes from the supplied baseline evidence, not from the short
+installation-test timestream.
+
 ## Follow the selected model
 
 | Entity or operation | What it contributes |
