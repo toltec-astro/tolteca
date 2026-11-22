@@ -9,12 +9,109 @@ from ._nonlinear import nonlinear_detuning, validate_nonlinearity
 from .models import KidsSweepWithAffineGain, KidsSweepWithDelayGain
 
 __all__ = [
+    "calibration_channels",
     "calibration_components",
     "calibration_pair_model",
     "evaluate_calibration",
     "group_covariance",
     "validate_calibration",
 ]
+
+
+def calibration_channels(fit, channels, probe_frequency):  # noqa: C901 -- Route and measurement-count checks stay together.
+    """Resolve fixed-probe routes within the measured ranges of saved fits.
+
+    Parameters
+    ----------
+    fit : xarray.Dataset
+        Channel/resonator/segment fit rows, including measured ``f_min,f_max``.
+    channels : array_like
+        Unique acquired channel identities, in acquisition order.
+    probe_frequency : array_like
+        Positive recorded probe frequencies in Hz, or NaN if not bound.
+
+    Returns
+    -------
+    xarray.Dataset
+        Channel properties without refitting or changing scientific fit rows.
+        A bound probe selects a group only when exactly one fitted range contains
+        it. Multiple containing groups remain unselected. Channels used only at
+        sweep edges do not become fixed-probe measurements of that group.
+        Selection does not certify fit adequacy or fixed-probe identifiability.
+
+    Raises
+    ------
+    ValueError
+        Channel identities or probe frequencies are invalid.
+    """
+    channels, fp = np.asarray(channels), np.asarray(probe_frequency, float)
+    if (
+        channels.ndim != 1
+        or len(channels) == 0
+        or len(set(channels.tolist())) != len(channels)
+        or fp.shape != channels.shape
+        or np.any(np.isinf(fp))
+        or np.any(fp[np.isfinite(fp)] <= 0)
+    ):
+        msg = "Require unique channels and one positive frequency or NaN per channel"
+        raise ValueError(msg)
+    records = []
+    for c, probe in zip(channels, fp, strict=True):
+        rows = fit.isel(row=np.flatnonzero(fit.chan.values == c))
+        groups = list(dict.fromkeys(rows.group_id.values.tolist()))
+        choices = groups
+        if np.isfinite(probe):
+            choices = [
+                g
+                for g in groups
+                if bool(
+                    (
+                        (rows.group_id == g)
+                        & (rows.f_min <= probe)
+                        & (rows.f_max >= probe)
+                    ).any()
+                )
+            ]
+        gid = choices[0] if len(choices) == 1 else ""
+        mode, reason = "not_assessed", "fixed_probe_recovery_not_assessed"
+        status = "not_selected" if groups else "not_fitted"
+        if not groups:
+            reason = "no_fit"
+        elif not choices:
+            mode, reason = "invalid", "probe_outside_fit_window"
+        elif len(choices) > 1:
+            reason = "multiple_group_responses_require_selection"
+        else:
+            selected = rows.where(rows.group_id == gid, drop=True)
+            status = str(selected.fit_status.values[0])
+            if status != "optimizer_converged":
+                mode, reason = "invalid", "optimizer_failed"
+        records.append(
+            {
+                "chan": c,
+                "group_id": gid,
+                "fp": probe,
+                "probe_status": "bound" if np.isfinite(probe) else "not_bound",
+                "fit_status": status,
+                "recovery_mode": mode,
+                "recovery_reason": reason,
+            }
+        )
+    # Count selected simultaneous probes, not all channels with sweep samples.
+    for record in records:
+        gid = record["group_id"]
+        if not gid or record["recovery_mode"] != "not_assessed":
+            continue
+        ids = set(fit.resonator_id.values[fit.group_id.values == gid])
+        count = sum(r["group_id"] == gid for r in records)
+        if count < len(ids):
+            record.update(
+                recovery_mode="unresolved",
+                recovery_reason="insufficient_simultaneous_measurements",
+            )
+    return xr.Dataset(
+        {k: ("chan", [r[k] for r in records]) for k in records[0]}
+    ).set_coords("chan")
 
 
 def _consistent(table, keys, fields):

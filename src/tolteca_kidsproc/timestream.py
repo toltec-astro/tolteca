@@ -139,7 +139,7 @@ class TimestreamSolver:
     share numerical scratch buffers. Source fit flags and model validity remain
     separate. The historical model preserves its effective r/x convention;
     the two physical models recover loss r and intrinsic detuning x. Version 1
-    sets b to zero. Version 2 uses x = x_driven - b/(r**2 + x_driven**2),
+    sets b to zero. Version 2 uses x_opt = x_prime - b/(r**2 + x_prime**2),
     holding b, gain and coupling fixed as the detector changes with loading.
     """
 

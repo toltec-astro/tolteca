@@ -9,12 +9,14 @@ from tolteca_kidsproc.model_flags import ModelFitFlag
 
 
 def joint_models(view, quality, *, iq_covariances=None, include_single=False):
-    """Export selected groups, retaining every channel and resonator.
+    """Export selected fixed-probe channels, retaining every group resonator.
 
     Parameters
     ----------
     view : KidsModelView
-        Saved physical fit with explicit channel-to-group selections.
+        Saved physical fit with explicit channel-to-group selections at the
+        acquired probes. Sweep-edge rows assigned to other groups are omitted
+        from readout, while every resonator remains in its group.
     quality : xarray.Dataset
         Saved group-quality flags.
     iq_covariances : mapping, optional
@@ -23,9 +25,9 @@ def joint_models(view, quality, *, iq_covariances=None, include_single=False):
         unit IQ weighting, explicitly labeled as weights rather than measured
         noise. No covariance is inferred from fit residuals.
     include_single : bool, optional
-        Include single-resonator groups for a complete detector-ordered APT,
-        default False. Their independent calibration rows remain available.
-        Ordinary channel consumers do not need duplicate group recovery.
+        Include single-resonator groups, default False. Full model reports and
+        detector-ordered consumers set True, including singlets measured by
+        several probes. Independent calibration rows remain available.
 
     Returns
     -------
@@ -40,18 +42,24 @@ def joint_models(view, quality, *, iq_covariances=None, include_single=False):
         rows = components.where(components.group_id == gid, drop=True)
         valid = rows.component_valid.values.astype(bool)
         ids = list(dict.fromkeys(rows.resonator_id.values[valid].tolist()))
-        channels = rows.chan.values.astype(int)
+        channels = [
+            int(c) for c in rows.chan.values if props.sel(chan=c).group_id.item() == gid
+        ]
         if not ids or (len(ids) == 1 and not include_single):
             continue
-        if any(props.sel(chan=c).group_id.item() != gid for c in channels):
+        if not channels:
             continue
+        all_rows, all_valid = rows, valid
+        rows = rows.isel(response=np.flatnonzero(np.isin(rows.chan.values, channels)))
+        valid = rows.component_valid.values.astype(bool)
+        channels = np.asarray(channels)
         probes = props.sel(chan=channels).fp.values
         fr, loss, strength = [], [], []
         for rid in ids:
-            mask = valid & (rows.resonator_id.values == rid)
-            fr.append(float(rows.fr.values[mask][0]))
-            loss.append(float(rows.r.values[mask][0]))
-            strength.append(float(rows.a_nl.values[mask][0]))
+            mask = all_valid & (all_rows.resonator_id.values == rid)
+            fr.append(float(all_rows.fr.values[mask][0]))
+            loss.append(float(all_rows.r.values[mask][0]))
+            strength.append(float(all_rows.a_nl.values[mask][0]))
         family = str(rows.gain_family.values[0])
         gain_fields = ("f_g", "H0_re", "H0_im") + (
             ("H1_re", "H1_im") if family == "affine" else ("gain_a", "tau")

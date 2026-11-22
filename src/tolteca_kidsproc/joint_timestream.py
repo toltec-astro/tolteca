@@ -337,9 +337,7 @@ class JointTimestreamSolver:
             **kwargs,
         )
 
-    def _response(self, state):
-        fr = self.fr * (1 + 2 * self.r * state[..., 1::2])
-        loss = self.r * (1 + state[..., ::2])
+    def _evaluate(self, fr, loss):
         x0 = self.probes[:, None] / fr[..., None, :] - 1
         strength = self.b / (2 * loss**3)
         allowed = np.isfinite(strength) & ((loss > 0) | (self.b == 0))
@@ -353,6 +351,67 @@ class JointTimestreamSolver:
         x = np.where(allowed[..., None, :], 2 * loss[..., None, :] * y, np.nan)
         w = loss[..., None, :] + 1j * x
         z = self.gain * (1 - np.sum(self.coupling / w, axis=-1))
+        return x0, x, slope, w, z
+
+    def evaluate(self, fr, r):
+        """Evaluate the fitted group at supplied detector states, without solving.
+
+        Parameters
+        ----------
+        fr, r : array_like, shape (sample, resonator)
+            Finite positive intrinsic resonance frequencies in Hz and loaded
+            losses, in this calibration's resonator order. Supply accepted
+            states; rejected samples must remain in the surrounding ledger.
+
+        Returns
+        -------
+        xarray.Dataset
+            Predicted I/Q in calibration units, fr/r per detector, and x_opt,
+            x_prime, D and mu per probe/detector. D and mu are the local
+            derivatives in dx_opt = D*dx_prime + mu*dr at fixed b. The same
+            stationary response and branch used during solving are evaluated.
+            Unsupported stationary states retain NaN responses. x_prime is a
+            model-derived coordinate, not an additional measurement.
+
+        Raises
+        ------
+        ValueError
+            States are not finite positive sample-by-resonator arrays.
+        """
+        fr, loss = np.asarray(fr, float), np.asarray(r, float)
+        if (
+            fr.ndim != _MATRIX_NDIM
+            or fr.shape != loss.shape
+            or fr.shape[1] != len(self.fr)
+            or not np.isfinite([fr, loss]).all()
+            or np.any(fr <= 0)
+            or np.any(loss <= 0)
+        ):
+            msg = "Require finite positive sample-by-resonator fr/r states"
+            raise ValueError(msg)
+        x0, xp, slope, w, iq = self._evaluate(fr, loss)
+        pair_dims = ("sample", "chan", "resonator")
+        return xr.Dataset(
+            {
+                "fr": (("sample", "resonator"), fr, {"units": "Hz"}),
+                "r": (("sample", "resonator"), loss, {"units": ""}),
+                "I": (("sample", "chan"), iq.real),
+                "Q": (("sample", "chan"), iq.imag),
+                "x_opt": (pair_dims, x0, {"units": ""}),
+                "x_prime": (pair_dims, xp, {"units": ""}),
+                "D": (pair_dims, slope),
+                "mu": (pair_dims, 2 * self.b * loss[:, None, :] / np.abs(w) ** 4),
+                "b": ("resonator", self.b),
+                "f_probe": ("chan", self.probes, {"units": "Hz"}),
+            },
+            coords={"chan": self.channels, "resonator": self.resonator_ids},
+            attrs={"nonlinear_branch": self.nonlinear_branch, "drive_model": "fixed_b"},
+        )
+
+    def _response(self, state):
+        fr = self.fr * (1 + 2 * self.r * state[..., 1::2])
+        loss = self.r * (1 + state[..., ::2])
+        _, _, slope, w, z = self._evaluate(fr, loss)
         derivative = self.gain[:, None] * self.coupling / w**2
         dx_dr = -2 * self.b * loss[..., None, :] / (np.abs(w) ** 4 * slope)
         dr = derivative * (1 + 1j * dx_dr) * self.r

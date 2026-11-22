@@ -9,6 +9,59 @@ import numpy as np
 import xarray as xr
 
 
+def ordered_match_support(allowed):
+    """Retain every ordered assignment covering the smaller candidate set.
+
+    Parameters
+    ----------
+    allowed : array_like of bool, shape (n, m)
+        Admissible edges between two strictly frequency-ordered feature lists.
+        The caller owns registration, frequency gates and group boundaries.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        Feasible edges and forced edges, both shape ``(n, m)``. A forced edge
+        occurs in every complete, order-preserving, one-to-one assignment.
+        The larger list may have unmatched features. If the smaller list cannot
+        be covered, both arrays are false; no partial best assignment is chosen.
+
+    Notes
+    -----
+    This is conditional correspondence evidence, not physical identity. It
+    never ranks edges by distance or ignores a competing complete assignment.
+    Unknown identities must remain in the candidate lists. Frequencies that
+    cannot be strictly ordered must be rejected by the caller.
+    """
+    allowed = np.asarray(allowed, dtype=bool)
+    dimensions = 2
+    if allowed.ndim != dimensions:
+        msg = "Expected a two-dimensional candidate matrix"
+        raise ValueError(msg)
+    n, m = allowed.shape
+    if n < m:
+        feasible, forced = ordered_match_support(allowed.T)
+        return feasible.T, forced.T
+    feasible = np.zeros_like(allowed)
+    if not m:
+        return feasible, feasible.copy()
+    forward = np.zeros((n + 1, m + 1), dtype=bool)
+    forward[0, 0] = True
+    for i in range(n):
+        forward[i + 1] = forward[i]
+        forward[i + 1, 1:] |= forward[i, :-1] & allowed[i]
+    if not forward[n, m]:
+        return feasible, feasible.copy()
+    backward = np.zeros_like(forward)
+    backward[n, m] = True
+    for i in range(n - 1, -1, -1):
+        backward[i] = backward[i + 1]
+        backward[i, :-1] |= backward[i + 1, 1:] & allowed[i]
+    feasible = forward[:-1, :-1] & allowed & backward[1:, 1:]
+    forced = feasible & (feasible.sum(axis=0)[None, :] == 1)
+    return feasible, forced
+
+
 class _Components:
     def __init__(self, keys):
         self.parents = {key: key for key in keys}

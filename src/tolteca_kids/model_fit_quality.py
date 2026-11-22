@@ -15,7 +15,8 @@ class ModelFitBitMask(IntFlag):
     """ModelFit quality/1 bits; independent of native kids.fit/1 flag values.
 
     Zero means no listed warning, not acceptance for timestream solving.
-    Group warnings propagate to every contributing channel. Selection and
+    Group warnings propagate to selected channels; unselected channels retain
+    warnings from all candidate groups. Selection and
     recovery warnings belong to channels; power warnings require a valid match.
     """
 
@@ -60,6 +61,36 @@ class ModelFitQualityConfig(FrozenBaseModel):
 def flag_names(value):
     """Return the names of all set ModelFit bits, or 'none'."""
     return ", ".join(f.name for f in ModelFitBitMask if int(value) & f) or "none"
+
+
+def residual_to_sweep_variation(samples):
+    """Measure one group's residual against its within-probe sweep excursion.
+
+    Parameters
+    ----------
+    samples : xarray.Dataset
+        Saved group samples with chan, fit_selected, I/Q and I/Q residuals.
+
+    Returns
+    -------
+    float
+        RMS residual divided by RMS measured variation after centering each
+        probe separately. Residuals are neither centered nor detrended. No
+        measured variation returns infinity, which cannot pass a finite cut.
+    """
+    selected = samples.isel(sample=np.flatnonzero(samples.fit_selected.values))
+    measured = selected.I.values + 1j * selected.Q.values
+    residual = selected.I_residual.values + 1j * selected.Q_residual.values
+    centered = measured.copy()
+    for channel in np.unique(selected.chan.values):
+        mask = selected.chan.values == channel
+        centered[mask] -= measured[mask].mean()
+    denominator = np.vdot(centered, centered).real
+    return (
+        float(np.sqrt(np.vdot(residual, residual).real / denominator))
+        if denominator > 0
+        else np.inf
+    )
 
 
 def model_fit_quality(view, config, power=None):
@@ -180,12 +211,14 @@ def model_fit_quality(view, config, power=None):
     by_group = dict(zip(joint.group_id.values, flags, strict=True))
     for i, chan in enumerate(channels.chan.values):
         groups = set(fit.group_id.values[fit.chan.values == chan])
-        for group in groups:
+        selected = channels.group_id[i].item()
+        for group in {selected} if selected else groups:
             chan_flags[i] |= by_group[group]
         reason = channels.recovery_reason[i].item()
         for name, enabled in {
             "no_fit": not groups,
-            "selection_required": len(groups) > 1,
+            "selection_required": reason
+            == "multiple_group_responses_require_selection",
             "recovery_unresolved": reason == "insufficient_simultaneous_measurements",
             "probe_outside_window": reason == "probe_outside_fit_window",
         }.items():

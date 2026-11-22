@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 import xarray as xr
 
-from .calibration import validate_calibration
+from .calibration import calibration_channels, validate_calibration
 from .fitting import fit_kids_model
 
 MULTI_DIM = 2
@@ -226,47 +226,6 @@ def _select_samples(inputs, rows, chans, gid):
     return fs, zs, ss, positions, fit_masks, unions, origins
 
 
-def _channel_properties(channels, fp, responses):
-    channel_rows = []
-    for ci, c in enumerate(channels):
-        choices = [g for g, ch in responses if ch == c]
-        selected_group = choices[0] if len(choices) == 1 else ""
-        info = responses.get((selected_group, c))
-        mode = "not_assessed"
-        reason = "fixed_probe_recovery_not_assessed"
-        if not choices:
-            reason = "no_fit"
-        elif len(choices) > 1:
-            reason = "multiple_group_responses_require_selection"
-        elif info["status"] != "optimizer_converged":
-            mode = "invalid"
-            reason = "optimizer_failed"
-        elif info["n_channels"] < info["n_resonators"]:
-            mode = "unresolved"
-            reason = "insufficient_simultaneous_measurements"
-        if (
-            info
-            and np.isfinite(fp[ci])
-            and not info["f_min"] <= fp[ci] <= info["f_max"]
-        ):
-            mode = "invalid"
-            reason = "probe_outside_fit_window"
-        channel_rows.append(
-            {
-                "chan": c,
-                "group_id": selected_group,
-                "fp": fp[ci],
-                "probe_status": "bound" if np.isfinite(fp[ci]) else "not_bound",
-                "fit_status": ("not_selected" if choices else "not_fitted")
-                if info is None
-                else info["status"],
-                "recovery_mode": mode,
-                "recovery_reason": reason,
-            }
-        )
-    return _table(channel_rows, "chan").set_coords("chan")
-
-
 def _pack_group(  # noqa: PLR0913, PLR0917 -- One joint fit, labels, offsets and diagnostics.
     result, gid, chans, rids, unit_text, sigma, pstart, cstart, bound_names, rank_rtol
 ):
@@ -367,7 +326,6 @@ def make_calibration(  # noqa: PLR0913, PLR0915 -- Explicit analysis inputs and 
     units = []
     covariance = []
     optimizer_rows = []
-    responses = {}
     pstart = cstart = 0
     for gid in dict.fromkeys(plan.group_id.values.tolist()):
         row_ids = np.flatnonzero(plan.group_id.values == gid)
@@ -508,13 +466,6 @@ def make_calibration(  # noqa: PLR0913, PLR0915 -- Explicit analysis inputs and 
                         "sigma_Q": s[1],
                     }
                 )
-            responses[gid, c] = {
-                "status": status,
-                "n_resonators": len(rids),
-                "n_channels": len(chans),
-                "f_min": fs[k].min(),
-                "f_max": fs[k].max(),
-            }
         record, group_labels, group_units, group_covariance = _pack_group(
             result,
             gid,
@@ -562,7 +513,7 @@ def make_calibration(  # noqa: PLR0913, PLR0915 -- Explicit analysis inputs and 
             "independent_samples_and_quadratures; fixed_membership_and_gain_family"
         ),
     )
-    chan_prop = _channel_properties(channels, fp, responses)
+    chan_prop = calibration_channels(fit, channels, fp)
     _assign_units(fit, samples, chan_prop, unit, unit_text)
     tree = xr.DataTree.from_dict(
         {

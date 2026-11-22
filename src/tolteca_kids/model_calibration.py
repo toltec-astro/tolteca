@@ -170,7 +170,10 @@ def calibration_report(view, block, *, quality=None):
             "scope": "fixed-drive singlets and joint groups",
         }
     )
-    report.meta["joint_models"] = joint_models(view, quality)
+    # Preserve the group model even for one resonator: several acquired probes
+    # can constrain that same detector. Independent rows remain available to
+    # channel readers, but must not silently replace a multi-probe group solve.
+    report.meta["joint_models"] = joint_models(view, quality, include_single=True)
     return report
 
 

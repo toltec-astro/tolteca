@@ -267,3 +267,39 @@ def test_power_reference_matches_tone_match_with_global_loading_shift():
     np.testing.assert_allclose(actual["reference_distance_unshifted_hz"], 230e3)
     assert np.all(actual["reference_status"] == "matched")
     assert np.max(abs(actual["reference_distance_hz"])) < 2e3
+
+
+def test_selected_probe_does_not_inherit_unrelated_edge_fit_failure(fitted):
+    """Failed alternative sweep fits remain visible without poisoning a route."""
+    view = fitted.kids.model_fit
+    fit = view.fit.copy(deep=True)
+    fit["group_id"] = xr.full_like(fit.group_id, "edge", dtype=object)
+    fit["fit_status"] = xr.full_like(fit.fit_status, "optimizer_failed", dtype=object)
+    samples = view.samples.copy(deep=True)
+    samples["group_id"] = xr.full_like(samples.group_id, "edge", dtype=object)
+    joint = view.joint.copy(deep=True)
+    joint["group_id"] = xr.full_like(joint.group_id, "edge", dtype=object)
+    joint["fit_status"] = xr.full_like(
+        joint.fit_status, "optimizer_failed", dtype=object
+    )
+    props = view.chan_prop.copy(deep=True)
+    combined = SimpleNamespace(
+        fit=xr.concat([view.fit, fit], dim="row", data_vars="minimal"),
+        samples=xr.concat([view.samples, samples], dim="sample", data_vars="minimal"),
+        joint=xr.concat([view.joint, joint], dim="group", data_vars="minimal"),
+        chan_prop=props,
+    )
+    quality = model_fit_quality(combined, ModelFitQualityConfig())
+    assert int(quality.group_flag[-1]) & ModelFitBitMask.not_converged
+    assert not int(quality.channel_flag.sel(chan=8)) & ModelFitBitMask.not_converged
+    assert (
+        not int(quality.channel_flag.sel(chan=8)) & ModelFitBitMask.selection_required
+    )
+    props["group_id"].loc[{"chan": 8}] = ""
+    props["recovery_reason"] = props.recovery_reason.astype(object)
+    props["recovery_reason"].loc[{"chan": 8}] = (
+        "multiple_group_responses_require_selection"
+    )
+    quality = model_fit_quality(combined, ModelFitQualityConfig())
+    assert int(quality.channel_flag.sel(chan=8)) & ModelFitBitMask.not_converged
+    assert int(quality.channel_flag.sel(chan=8)) & ModelFitBitMask.selection_required

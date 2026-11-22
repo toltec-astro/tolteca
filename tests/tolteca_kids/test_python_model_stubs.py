@@ -115,6 +115,27 @@ def test_python_joint_fit_to_published_stub(
             == (reports["blocks/1"].meta["model_schema"])
         )
     assert result["data_item"]["stubs"] == [{"filepath": str(path), "mode": "override"}]
+    _check_repeated_preparation(
+        prepare,
+        (tune, source),
+        {
+            "model_index": model.base_path,
+            "output_path": tmp_path,
+            "namespace": "tune-comparison",
+        },
+        index,
+        result,
+    )
+
+
+def _check_repeated_preparation(prepare, inputs, options, index, result):
+    # A second calibration realization reuses the same raw descriptors. It must
+    # not fail on their existence or rewrite the earlier preparation product.
+    before = index.base_path.joinpath("index.yaml").read_bytes()
+    repeated = prepare(*inputs, **options)
+    assert repeated["preparation_run_uid"] != result["preparation_run_uid"]
+    assert index.base_path.joinpath("index.yaml").read_bytes() == before
+    assert repeated["context"]["data_items"] == result["context"]["data_items"]
 
 
 def _pair_plan(sweep):
@@ -133,3 +154,34 @@ def _pair_plan(sweep):
             "r_initial": ("row", [1 / 40000] * 4),
         }
     )
+
+
+def test_singlet_report_retains_its_multiple_acquired_probes(data_lmt_path):
+    """Independent channel rows must not replace the fitted group measurement."""
+    from tolteca_kids.model_calibration import calibration_report
+
+    tune = data_lmt_path / (
+        "toltec/tcs/toltec0/toltec0_145609_000_0001_2025_10_31_09_26_59_tune.nc"
+    )
+    with open_toltec_kids(tune) as raw:
+        tree = BlockCreate()(ensure_datatree(raw))
+        SweepReduce()(tree)
+        block = tree.toltec_kids.blocks[1]
+        plan = _pair_plan(block.sweep)
+        plan = plan.isel(row=[0, 2])
+        ModelFit(
+            ModelFitConfig(
+                backend="python",
+                analysis=KidsModelAnalysis(gain_family="affine", nonlinear=True),
+            ),
+            plan=plan,
+        )(block.tree)
+        report = calibration_report(
+            ModelFit.view(block.tree),
+            block,
+            quality=block.tree["model_fit/quality"].to_dataset(),
+        )
+        [group] = report.meta["joint_models"]["groups"]
+        assert group["resonator_ids"] == ["a"]
+        assert group["channels"] == [494, 495]
+        assert np.asarray(group["coupling_re"]).shape == (2, 1)
