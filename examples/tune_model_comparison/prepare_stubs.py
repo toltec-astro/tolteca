@@ -17,9 +17,11 @@ from tolteca_datamodels.data_prod import (
 from tolteca_datamodels.raw_obs_context import (
     RawObsContext,
     RawObsDataItem,
+    SweepCalItem,
     prepare_run_inputs,
 )
 from tolteca_datamodels.toltec import open_toltec_kids
+from tolteca_datamodels.toltec.metadata import ToltecRawObsMetadata
 from tolteca_kids.model_binding import prepare_model_binding
 from tolteca_reduce.stubs import materialize_model_stubs
 
@@ -33,10 +35,22 @@ def prepare_stubs(tune, timestream, *, model_index, output_path, namespace):
         [tune, timestream],
         locations={"raw": Location(root="/", location_type="local")},
     )
-    raw_indexes = {
-        index.product.uid: DataProdIndex.read(store.write_index(index))
-        for index in batch.items
-    }
+    raw_indexes = {}
+    for index in batch.items:
+        assert isinstance(index, DataProdIndex)
+        kind = index.product.meta.data_prod_type
+        path = store.get_index_path(index.product.uid, kind)
+        if path.exists():
+            installed = DataProdIndex.read(path)
+            if (
+                installed.product.meta != index.product.meta
+                or installed.product.cal_refs != index.product.cal_refs
+            ):
+                msg = f"Installed acquisition metadata differs: {path}"
+                raise ValueError(msg)
+        else:
+            installed = DataProdIndex.read(store.write_index(index))
+        raw_indexes[index.product.uid] = installed
     products = {
         uid: index.product
         for uid, index in raw_indexes.items()
@@ -44,13 +58,16 @@ def prepare_stubs(tune, timestream, *, model_index, output_path, namespace):
     }
     with open_toltec_kids(timestream) as raw:
         meta = raw.toltec_kids.meta
+        assert isinstance(meta, ToltecRawObsMetadata)
         interface, uid = meta.interface, meta.uid_raw_obs
+        assert uid is not None
     context = RawObsContext.from_product(
         products[uid],
         data_items=(RawObsDataItem(interface=interface, block=0),),
         cal_products=products,
     )
     [sweep] = context.data_items[0].cal_items
+    assert isinstance(sweep, SweepCalItem)
     bound = prepare_model_binding(
         model,
         sweep=sweep,

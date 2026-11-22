@@ -190,3 +190,34 @@ def test_noop_then_timestream_export_and_alias(timestream_path, tmp_path):
         assert restored.make_step().context_key == TimestreamReduce.get_context_key(
             alias=alias
         )
+
+
+def test_reprocessed_product_preserves_prior_step_records(timestream_path, tmp_path):
+    """A new output execution retains the saved solver's record and calibration."""
+    from tolteca_kids.product import write_timestream_product
+
+    with open_toltec_kids(timestream_path) as raw:
+        data = raw.isel(time=slice(0, 128)).toltec_kids.select_channels([0])
+        tree = BlockCreate()(ensure_datatree(data))
+        block = tree.toltec_kids.blocks[0].tree
+        TimestreamReduce(psd=None)(block)
+        original_record = '{"completed": true, "model_source": "pinned-model.ecsv"}'
+        block["tolteca_kids"] = xr.DataTree(
+            dataset=xr.Dataset(
+                attrs={
+                    "tolteca_kids.timestream_solve:TimestreamSolve": original_record,
+                }
+            )
+        )
+        first = write_timestream_product(tree, tmp_path / "first")
+    with open_timestream_product(first) as tree:
+        block = tree.toltec_kids.blocks[0].tree
+        TimestreamReduce(psd=None)(block)
+        second = write_timestream_product(tree, tmp_path / "second")
+    with open_timestream_product(second) as tree:
+        assert (
+            tree["blocks/0/tolteca_kids"].attrs[
+                "tolteca_kids.timestream_solve:TimestreamSolve"
+            ]
+            == original_record
+        )

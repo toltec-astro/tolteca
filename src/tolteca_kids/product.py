@@ -443,9 +443,21 @@ def _product_tree(data, config):
     product = data.toltec_kids._get_export_tree(include_raw=True)
     for node, records in _step_records(data):
         target = product[node.relative_to(data)]
+        # A post-processing step may start from a reopened scientific product.
+        # Preserve earlier execution records while replacing steps rerun here.
+        saved = {
+            key: value
+            for key, value in (
+                target["tolteca_kids"].attrs.items()
+                if "tolteca_kids" in target.children
+                else ()
+            )
+            if ":" in key and isinstance(value, str)
+        }
         target["tolteca_kids"] = xr.DataTree(
             dataset=xr.Dataset(
-                attrs={
+                attrs=saved
+                | {
                     key: context.step_cls.dump_context(context)
                     for key, context in records.items()
                     if context.step_cls is not DataProdOutput

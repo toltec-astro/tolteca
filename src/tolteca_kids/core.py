@@ -24,7 +24,9 @@ from .sweep_check_plot import SweepCheckPlot
 from .sweep_reduce import SweepReduce
 from .timestream_check import TimestreamCheck
 from .timestream_check_plot import TimestreamCheckPlot
+from .timestream_diagnostics import TimestreamDiagnostics
 from .timestream_inspect import TimestreamInspect
+from .timestream_plot import TimestreamPlot
 from .timestream_reduce import TimestreamReduce
 from .tlaloc_output import TlalocOutput
 from .tone_prep import TonePrep
@@ -148,6 +150,16 @@ class Kids(SubConfigKeyTransformer[Literal["kids"]], ConfigHandler[KidsConfig]):
                 self.timestream_reduce,
                 self.timestream_check,
                 self.timestream_check_plot,
+                *(
+                    [TimestreamDiagnostics(self.config.timestream_diagnostics)]
+                    if self.config.timestream_diagnostics is not None
+                    else []
+                ),
+                *(
+                    [TimestreamPlot(self.config.timestream_plot)]
+                    if self.config.timestream_plot is not None
+                    else []
+                ),
                 *(
                     [TimestreamInspect(self.config.timestream_inspect)]
                     if self.config.timestream_inspect is not None

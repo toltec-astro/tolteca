@@ -28,7 +28,9 @@ from .sweep_check import SweepCheckConfig
 from .sweep_check_plot import SweepCheckPlotConfig
 from .timestream_check import TimestreamCheckConfig
 from .timestream_check_plot import TimestreamCheckPlotConfig
+from .timestream_diagnostics import TimestreamDiagnosticsConfig
 from .timestream_inspect import TimestreamInspectConfig
+from .timestream_plot import TimestreamPlotConfig
 from .timestream_solve import TimestreamSolveConfig
 from .tlaloc_output import TlalocOutputConfig
 from .tone_prep import TonePrepConfig
@@ -181,7 +183,13 @@ class KidsConfig(FrozenBaseModel):
         Calibrated native-window and slow-trend inspection policy. None omits
         inspection. Requires context and enabled calibrated solving.
     timestream_solve : TimestreamSolveConfig, optional
-        Native I/Q solving with the context's pinned model. Disabled by default.
+        I/Q solving with the context's pinned model. The Python workflow uses
+        complete saved physical groups. Disabled by default.
+    timestream_diagnostics : TimestreamDiagnosticsConfig or None, optional
+        Post-solving coordinates, cross-spectra and the complete detector ledger.
+        Optional response evidence is pinned to the exact model report.
+    timestream_plot : TimestreamPlotConfig or None, optional
+        Plot the saved post-solving diagnostics. Figures are step artifacts.
     sweep_reduce : SweepReduceConfig, optional
         Sweep-reduction settings. If omitted, use their defaults.
     timestream_reduce : TimestreamReduceConfig, optional
@@ -217,6 +225,8 @@ class KidsConfig(FrozenBaseModel):
     model_fit: ModelFitConfig | None = None
     model_fit_plot: ModelFitPlotConfig | None = None
     timestream_inspect: TimestreamInspectConfig | None = None
+    timestream_diagnostics: TimestreamDiagnosticsConfig | None = None
+    timestream_plot: TimestreamPlotConfig | None = None
     timestream_solve: TimestreamSolveConfig = Field(
         default_factory=TimestreamSolveConfig
     )
@@ -251,6 +261,23 @@ class KidsConfig(FrozenBaseModel):
 
     @model_validator(mode="after")
     def _tone_prerequisites(self):
+        if (
+            self.timestream_diagnostics is not None
+            and self.timestream_diagnostics.enabled
+            and not self.timestream_solve.enabled
+        ):
+            msg = "Post-solving diagnostics require calibrated solving"
+            raise ValueError(msg)
+        if (
+            self.timestream_plot is not None
+            and self.timestream_plot.enabled
+            and (
+                self.timestream_diagnostics is None
+                or not self.timestream_diagnostics.enabled
+            )
+        ):
+            msg = "Timestream plotting requires post-solving diagnostics"
+            raise ValueError(msg)
         if (self.context is not None) != self.timestream_solve.enabled:
             msg = (
                 "Calibrated solving requires both kids.context "

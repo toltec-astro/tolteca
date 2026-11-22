@@ -62,11 +62,13 @@ from .timestream_check_plot import (
     TimestreamCheckPlot,
     TimestreamCheckPlotConfig,
 )
+from .timestream_diagnostics import TimestreamDiagnostics, TimestreamDiagnosticsConfig
 from .timestream_inspect import (
     TimestreamInspect,
     TimestreamInspectConfig,
     TimestreamInspectContext,
 )
+from .timestream_plot import TimestreamPlot, TimestreamPlotConfig
 from .timestream_reduce import TimestreamReduce
 from .timestream_solve import (
     TimestreamSolve,

@@ -21,7 +21,8 @@ from tolteca_datamodels.raw_obs_context import (  # noqa: TC001 -- Pydantic eval
 from tolteca_kidsproc.timestream import solve_timestream
 
 from .model_calibration import calibration_accumlen
-from .model_fit import open_fit
+from .model_fit import ModelFit, open_fit
+from .timestream_model import solve_fitted_groups
 
 __all__ = [
     "TimestreamSolve",
@@ -80,6 +81,7 @@ class TimestreamSolveContext(StepContext["TimestreamSolve", TimestreamSolveConfi
     model: KidsModelBinding | None = None
     native_log: str = ""
     _calibration: SweepCalItem | None = PrivateAttr(default=None)
+    _model_index: object = PrivateAttr(default=None)
 
 
 class TimestreamSolve(Step[TimestreamSolveConfig, TimestreamSolveContext]):
@@ -99,6 +101,10 @@ class TimestreamSolve(Step[TimestreamSolveConfig, TimestreamSolveContext]):
     calibration : SweepCalItem or None, optional
         Recorded sweep with the exact model bound during input preparation.
         None requires supplying the binding before running.
+    model_index : DataProdIndex or None, optional
+        Exact model product supplied by input preparation. Python fits are read
+        as complete groups from this product and checked against their ECSV.
+        None supports the independent-channel table API only.
     """
 
     def __init__(  # noqa: PLR0913 -- exact calibration binding and optional native model application
@@ -110,9 +116,11 @@ class TimestreamSolve(Step[TimestreamSolveConfig, TimestreamSolveContext]):
         model_source=None,
         calibration=None,
         stubs=(),
+        model_index=None,
     ):
         super().__init__(config)
         self._calibration: SweepCalItem | None = calibration
+        self._model_index = model_index
         self._inputs = {
             "source": "" if source is None else str(source),
             "sweep_source": "" if sweep_source is None else str(sweep_source),
@@ -124,6 +132,7 @@ class TimestreamSolve(Step[TimestreamSolveConfig, TimestreamSolveContext]):
         """Create the block's execution record with its pinned calibration."""
         context = super().create_context(data)
         context._calibration = self._calibration
+        context._model_index = self._model_index
         context.model = (
             None if self._calibration is None else self._calibration.data_items[0].model
         )
@@ -133,7 +142,7 @@ class TimestreamSolve(Step[TimestreamSolveConfig, TimestreamSolveContext]):
 
     @classmethod
     def run(cls, data, context):
-        """Attach calibrated r/x and validity flags under ``solved``.
+        """Attach complete physical groups, or independent calibrated r/x arrays.
 
         Parameters
         ----------
@@ -148,6 +157,8 @@ class TimestreamSolve(Step[TimestreamSolveConfig, TimestreamSolveContext]):
             Python results remain lazy until computed or persisted with the raw
             source open. Native results are loaded before temporary files close.
             DataProdOutput persists the resulting tree.
+            Python ModelFit products use ``solved_groups`` with detector and
+            probe identities; legacy independent tables use ``solved``.
 
         Raises
         ------
@@ -166,6 +177,19 @@ class TimestreamSolve(Step[TimestreamSolveConfig, TimestreamSolveContext]):
             if context.stubs:
                 msg = "Explicit acquisition stubs require backend='kidscpp'"
                 raise ValueError(msg)
+            if context._model_index is not None:
+                from .product import (  # noqa: PLC0415 -- configuration cycle
+                    open_sweep_product,
+                )
+
+                with open_sweep_product(
+                    context._model_index, interface=block.meta.interface
+                ) as product:
+                    target = calibration.data_items[0]
+                    scope = product.toltec_kids.blocks[target.block].tree
+                    if ModelFit.result_path() in scope.children:
+                        _solve_python_groups(data, context, scope)
+                        return
             solved = solve_calibrated_timestream(
                 block,
                 calibration,
@@ -238,6 +262,50 @@ class TimestreamSolve(Step[TimestreamSolveConfig, TimestreamSolveContext]):
                 solved = native.load()
         solved.attrs["calibration"] = calibration.model_dump(mode="json")
         data["solved"] = xr.DataTree(dataset=solved)
+
+
+def _solve_python_groups(data, context, fitted):
+    """Bind the full scientific fit to its ECSV and the recorded sweep state."""
+    from .model_calibration import calibration_report  # noqa: PLC0415
+
+    block, calibration = data.toltec_kids.block, context._calibration
+    target = calibration.data_items[0]
+    with open_fit(context.sweep_source, context.model_source) as (report, sweep):
+        if (sweep.meta.uid_raw_obs, sweep.meta.interface, sweep.meta.block) != (
+            calibration.raw_obs.uid,
+            target.interface,
+            target.block,
+        ):
+            msg = "Model source differs from the pinned calibration"
+            raise ValueError(msg)
+        _validate_detector_state(sweep, block)
+        view = ModelFit.view(fitted)
+        quality = fitted[f"{ModelFit.result_path()}/quality"].to_dataset().load()
+        # The full product and native report must describe the very same fit.
+        exported = calibration_report(view, sweep, quality=quality)
+        if (
+            exported.meta != report.meta
+            or exported.colnames != report.colnames
+            or any(
+                not np.array_equal(exported[name], report[name], equal_nan=True)
+                for name in exported.colnames
+            )
+        ):
+            msg = "Saved Python fit differs from its bound model report"
+            raise ValueError(msg)
+        normalization = calibration_accumlen(block) / calibration_accumlen(sweep)
+        solved = solve_fitted_groups(
+            block.timestream.data_source[["I", "Q"]],
+            view,
+            quality,
+            normalization=normalization,
+            chunk_samples=context.config.chunk_samples,
+        )
+        solved.attrs.update(
+            calibration=calibration.model_dump(mode="json"),
+            calibration_source=context.model_source,
+        )
+        data["solved_groups"] = solved
 
 
 def solve_calibrated_timestream(  # noqa: PLR0913 -- Bound calibration plus explicit array selection.

@@ -114,6 +114,7 @@ def _run_blocks(
                 ),
                 model_source=fileloc(index.get_source_uri(artifact.source)).path,
                 calibration=calibration,
+                model_index=index,
                 stubs=context_inputs.stub_sources(
                     block.meta.uid_raw_obs, block.meta.interface
                 ),

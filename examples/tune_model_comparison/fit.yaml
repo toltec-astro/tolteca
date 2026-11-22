@@ -12,6 +12,7 @@ kids:
     analysis:
       gain_family: affine
       nonlinear: true
+      a_nl_max: 20.0
   model_fit_plot: {}
   tone_prep:
     enabled: false
