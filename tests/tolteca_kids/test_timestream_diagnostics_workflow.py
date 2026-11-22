@@ -18,6 +18,7 @@ from tolteca_kids.model_fit_quality import (
     residual_to_sweep_variation,
 )
 from tolteca_kids.model_joint import joint_models, joint_solver
+from tolteca_kids.product import KidsDataArtifact
 from tolteca_kids.timestream_diagnostics import (
     DiagnosticTables,
     _evidence,
@@ -234,3 +235,32 @@ def test_zero_signal_transfer_does_not_claim_zero_referred_noise():
     assert np.isnan(_signal_referred_ratio(row))
     row["D"] = 0
     assert np.isnan(_signal_referred_ratio(row))
+
+
+def test_group_artifact_consolidates_once_and_reopens(tmp_path, monkeypatch):
+    """Many independent groups share one final consolidated metadata tree."""
+    import zarr
+
+    from tolteca_kids import product
+
+    calls = []
+    consolidate = zarr.consolidate_metadata
+
+    def record(*args, **kwargs):
+        calls.append(args[0])
+        return consolidate(*args, **kwargs)
+
+    monkeypatch.setattr(zarr, "consolidate_metadata", record)
+    monkeypatch.setattr(product, "consolidate_metadata", record)
+    tree = xr.DataTree()
+    for i in range(12):
+        tree[f"groups/{i}"] = xr.DataTree(
+            dataset=xr.Dataset({"r": ("time", np.arange(8) + i)})
+        )
+    [artifact] = KidsDataArtifact().write(tree, path=tmp_path)
+    assert artifact.name == "Scientific data"
+    assert len(calls) == 1
+    with xr.open_datatree(
+        tmp_path / "array.zarr", engine="zarr", consolidated=True
+    ) as saved:
+        xr.testing.assert_equal(saved, tree)

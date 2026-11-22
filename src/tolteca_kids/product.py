@@ -43,6 +43,7 @@ from tollan.pipeline import (
     Pipeline,
 )
 from tollan.utils.fileloc import FileLoc, fileloc
+from zarr import consolidate_metadata
 from zarr.storage import FsspecStore, LocalStore
 
 from tolteca_datamodels.data_prod import (
@@ -202,7 +203,11 @@ class KidsDataArtifact(ArtifactSpec[xr.DataTree]):
             One Zarr directory receipt named ``Scientific data``.
         """
         target = path / "array.zarr"
-        data.to_zarr(target, mode="w-", zarr_format=2, consolidated=True)
+        # Xarray passes consolidation to every child store. Consolidating there
+        # repeatedly traverses the growing tree, which is costly for hundreds
+        # of independent detector groups. Build the same metadata once at end.
+        data.to_zarr(target, mode="w-", zarr_format=2, consolidated=False)
+        consolidate_metadata(target, zarr_format=2)
         return [ArtifactFile(target, "zarr", name="Scientific data")]
 
 
