@@ -229,3 +229,28 @@ def test_directional_roots_independent_of_batch_convergence(branch):
     singles = [nonlinear_detuning(v, strength, branch=branch) for v in y0]
     np.testing.assert_array_equal(batch[0], [s[0] for s in singles])
     np.testing.assert_array_equal(batch[1], [s[1] for s in singles])
+
+
+@pytest.mark.parametrize("branch", ["increasing", "decreasing"])
+def test_varying_strength_keeps_each_samples_physical_branch(branch):
+    """Loss-dependent strengths may repeat across probes or all be distinct."""
+    rng = np.random.default_rng(145609)
+    strength = np.r_[0, 0.75, rng.uniform(0.8, 12, 127)]
+    strength = np.tile(strength, 3).reshape(3, -1)
+    y0 = rng.uniform(-8, 4, strength.shape)
+    solved, slope = nonlinear_detuning(y0, strength, branch=branch)
+    expected = np.empty_like(y0)
+    for index in np.ndindex(y0.shape):
+        roots = np.roots([4, -4 * y0[index], 1, -y0[index] - strength[index]])
+        real = np.sort(roots.real[abs(roots.imag) < 1e-9])
+        expected[index] = real[-1] if branch == "decreasing" else real[0]
+    np.testing.assert_allclose(solved, expected, rtol=0, atol=2e-12)
+    assert np.all(slope > 0)
+    # Reordering a mixture of repeated and distinct strengths cannot change
+    # which fold belongs to a measured sample.
+    order = rng.permutation(y0.size)
+    reordered = nonlinear_detuning(
+        y0.ravel()[order], strength.ravel()[order], branch=branch
+    )
+    np.testing.assert_array_equal(reordered[0], solved.ravel()[order])
+    np.testing.assert_array_equal(reordered[1], slope.ravel()[order])

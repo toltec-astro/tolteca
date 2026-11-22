@@ -23,23 +23,29 @@ def validate_nonlinearity(a, branch):
 
 def _branch_brackets(y0, a, branch):
     low, high = y0.copy(), y0 + a
-    for value in np.unique(a[a > NONLINEARITY_CRITICAL]):
+    selected = a > NONLINEARITY_CRITICAL
+    values, positions = np.unique(a[selected], return_inverse=True)
+    left_roots, right_roots = np.empty(len(values)), np.empty(len(values))
+    for index, value in enumerate(values):
         middle = -1 / (2 * np.sqrt(3))
 
         def derivative(y, strength=value):
             return 1 + 8 * strength * y / (1 + 4 * y * y) ** 2
 
-        left = brentq(derivative, -(value + 1), middle, xtol=1e-14)
-        right = brentq(derivative, middle, 0, xtol=1e-14)
-        turn = left if branch == "increasing" else right
-        threshold = turn - value / (1 + 4 * turn * turn)
-        selected = a == value
-        lower = selected & (
-            (y0 < threshold) if branch == "increasing" else (y0 <= threshold)
-        )
-        upper = selected & ~lower
-        high = np.where(lower, np.minimum(high, left), high)
-        low = np.where(upper, np.maximum(low, right), low)
+        left_roots[index] = brentq(derivative, -(value + 1), middle, xtol=1e-14)
+        right_roots[index] = brentq(derivative, middle, 0, xtol=1e-14)
+    # Each distinct strength still uses the same scalar root calculation.
+    # Map its roots back once, instead of scanning every sample per strength.
+    left, right = left_roots[positions], right_roots[positions]
+    turn = left if branch == "increasing" else right
+    threshold = turn - a[selected] / (1 + 4 * turn * turn)
+    lower = (
+        (y0[selected] < threshold)
+        if branch == "increasing"
+        else (y0[selected] <= threshold)
+    )
+    high[selected] = np.where(lower, np.minimum(high[selected], left), high[selected])
+    low[selected] = np.where(lower, low[selected], np.maximum(low[selected], right))
     return low, high
 
 
