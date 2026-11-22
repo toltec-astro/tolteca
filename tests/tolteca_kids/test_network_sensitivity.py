@@ -6,6 +6,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
+from astropy.table import Table
 
 from tolteca_kidsproc._nonlinear import nonlinear_detuning
 
@@ -169,6 +171,31 @@ def test_parity_reports_different_failure_masks():
     # Hz-valued frequencies must not gain an implicit relative tolerance.
     large = module["same_arrays"]([5e8], [5e8 + 0.1], atol=0.02)
     assert not large["within_tolerance"]
+
+
+def test_stub_transport_checks_samples_after_python_prefix(tmp_path):
+    """A late transport corruption must fail even when the prefix agrees."""
+    module = runpy.run_path(
+        str(
+            Path(__file__).parents[2]
+            / "examples/tune_model_comparison/network_coverage.py"
+        )
+    )
+    report = Table(meta={"joint_models": {"groups": [{"group_id": "3"}]}})
+    for mode in ("ecsv", "stub"):
+        for suffix, fields in (("", ("r", "x")), ("group-3", ("fr", "r"))):
+            folder = tmp_path / "native" / mode / suffix
+            folder.mkdir(parents=True, exist_ok=True)
+            np.zeros(300, dtype="uint16").tofile(folder / "flags.bin")
+            for field in fields:
+                np.ones(300).tofile(folder / f"{field}.bin")
+    check = module["compare_transports"]
+    module["require_parity"](check(tmp_path, report))
+    corrupted = np.ones(300)
+    corrupted[-1] = np.nan
+    corrupted.tofile(tmp_path / "native/stub/group-3/r.bin")
+    with pytest.raises(ValueError, match="same_finite_mask"):
+        module["require_parity"](check(tmp_path, report))
 
 
 def test_coverage_preserves_joint_components_and_missing_selection(tmp_path):

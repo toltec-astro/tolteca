@@ -76,6 +76,31 @@ def require_parity(summary):
     visit(summary, "solving")
 
 
+def compare_transports(root, report):
+    """Compare every native sample through ECSV and stub transport.
+
+    This check is independent of the shorter Python comparison prefix. Identical
+    calibration values must produce identical states and failure flags.
+    """
+    groups = report.meta["joint_models"]["groups"]
+    result = {}
+    scopes = [("independent", "", ("r", "x"))] + [
+        (group["group_id"], f"group-{group['group_id']}", ("fr", "r"))
+        for group in groups
+    ]
+    for name, suffix, fields in scopes:
+        folders = [root / "native" / mode / suffix for mode in ("ecsv", "stub")]
+        flags = [np.fromfile(path / "flags.bin", dtype="uint16") for path in folders]
+        record = {"flags_equal": bool(np.array_equal(*flags))}
+        for field in fields:
+            values = [
+                np.fromfile(path / f"{field}.bin", dtype="float64") for path in folders
+            ]
+            record[field] = same_arrays(*values, atol=0)
+        result[name] = record
+    return result
+
+
 def compare_native(  # noqa: PLR0913 - explicit replay and saved-result controls
     request, report, native, root, *, run_native=True, reuse_python=False
 ):
@@ -93,7 +118,12 @@ def compare_native(  # noqa: PLR0913 - explicit replay and saved-result controls
         i, q, normalization=request["normalization"]
     )
     np.savez_compressed(root / "python-independent.npz", r=r, x=x, flags=flags)
-    summary = {"independent": {}, "joint": []}
+    summary = {
+        "native_transport": compare_transports(root, report),
+        "native_samples": request["samples"],
+        "independent": {},
+        "joint": [],
+    }
     for mode in ("ecsv", "stub"):
         folder = root / "native" / mode
         nr, nx = [

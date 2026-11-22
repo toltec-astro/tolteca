@@ -21,6 +21,7 @@ from tolteca_kids.model_joint import joint_models, joint_solver
 from tolteca_kids.timestream_diagnostics import (
     DiagnosticTables,
     _evidence,
+    _signal_referred_ratio,
     diagnose_group,
 )
 from tolteca_kids.timestream_model import solve_fitted_groups
@@ -215,3 +216,21 @@ def test_fit_policy_uses_sweep_variation_not_total_iq():
     assert residual_to_sweep_variation(samples) == pytest.approx(0.06)
     samples["I"][:] = 1
     assert np.isinf(residual_to_sweep_variation(samples))
+
+
+def test_zero_signal_transfer_does_not_claim_zero_referred_noise():
+    """Cancellation of the loading response cannot imply perfect sensitivity."""
+    row = {
+        "cohort": "active_suitable",
+        "fit_policy_pass": True,
+        "spectral_status": "complete",
+        "response_slope": 0.03,
+        "D": 2,
+        "mu": 0,
+        "coordinate_asd_ratio": 2,
+    }
+    assert _signal_referred_ratio(row) == pytest.approx(1)
+    row["mu"] = 1 / row["response_slope"]
+    assert np.isnan(_signal_referred_ratio(row))
+    row["D"] = 0
+    assert np.isnan(_signal_referred_ratio(row))

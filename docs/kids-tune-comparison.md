@@ -34,6 +34,9 @@ Kidscpp installation, and add `--native /path/to/tune_network`. This executable
 tests the production Kidscpp readers and array solver used by Citlali. Python
 remains the fitting backend. The verification covers controlled data for both
 Tune blocks and recorded timestream data for the final block.
+For the measured acquisition, ECSV and stub transport must agree on every
+native sample. The Python/native numerical comparison checks an explicitly
+reported prefix; it must also agree on failure flags and finite-value masks.
 
 ## Follow the selected model
 

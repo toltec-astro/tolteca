@@ -350,6 +350,23 @@ def _evidence(path, model_source):
     }
 
 
+def _signal_referred_ratio(row):
+    """Compare coordinate noise at equal response; a zero transfer is undefined."""
+    if (
+        row["cohort"] != "active_suitable"
+        or not row["fit_policy_pass"]
+        or row["spectral_status"] != "complete"
+        or not np.isfinite(row["response_slope"])
+        or not np.isfinite(row["D"])
+        or row["D"] == 0
+    ):
+        return np.nan
+    transfer = (1 - row["mu"] * row["response_slope"]) / row["D"]
+    if not np.isfinite(transfer) or transfer == 0:
+        return np.nan
+    return row["coordinate_asd_ratio"] * abs(transfer)
+
+
 class TimestreamDiagnostics(
     Step[TimestreamDiagnosticsConfig, TimestreamDiagnosticsContext]
 ):
@@ -406,17 +423,7 @@ class TimestreamDiagnostics(
                 * float(item["reference_frequency_hz"])
                 / row.get("probe_frequency_hz", np.nan)
             )
-            row["signal_referred_asd_ratio"] = np.nan
-            if (
-                row["cohort"] == "active_suitable"
-                and row["fit_policy_pass"]
-                and row["spectral_status"] == "complete"
-                and np.isfinite(row["response_slope"])
-            ):
-                transfer = (1 - row["mu"] * row["response_slope"]) / row["D"]
-                row["signal_referred_asd_ratio"] = row["coordinate_asd_ratio"] * abs(
-                    transfer
-                )
+            row["signal_referred_asd_ratio"] = _signal_referred_ratio(row)
         keys = set().union(*(row.keys() for row in ledger))
         dataset = xr.Dataset(
             {
