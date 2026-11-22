@@ -185,3 +185,38 @@ def test_singlet_report_retains_its_multiple_acquired_probes(data_lmt_path):
         assert group["resonator_ids"] == ["a"]
         assert group["channels"] == [494, 495]
         assert np.asarray(group["coupling_re"]).shape == (2, 1)
+
+
+def test_replay_configuration_resolves_canonical_acquisition_uids(
+    tmp_path, monkeypatch
+):
+    """Canonical TCS/ICS identity and on-disk descriptor names are different."""
+    from tolteca_kids.product import make_kids_product_index
+
+    examples = Path(__file__).parents[2] / "examples/tune_model_comparison"
+    monkeypatch.syspath_prepend(str(examples))
+    configure = runpy.run_path(str(examples / "replay.py"))["solve_config"]
+    for master in ("tcs", "ics"):
+        uids = [f"{master}-145609-0-{scan}" for scan in (1, 2)]
+        config = configure(
+            tmp_path,
+            master,
+            tune_uid=uids[0],
+            stream_uid=uids[1],
+            model_index=tmp_path / "model.yaml",
+        )
+        store = DataProdStore(tmp_path / "dataprod_toltec", namespace=master)
+        for uid, path in zip(
+            uids, config["kids"]["context"]["raw_indexes"], strict=True
+        ):
+            assert Path(path) == store.get_index_path(uid, "dp_raw_obs")
+            assert Path(path).parent.name == (
+                uid.removeprefix("tcs-") if master == "tcs" else uid
+            )
+        # Model/result discovery must use the same namespace placement.
+        index = make_kids_product_index(master, 145609, 0, 1)
+        assert (
+            store.get_product_path(uids[0], "dp_raw_obs_proc").parent
+            == Path(config["kids"]["context"]["raw_indexes"][0]).parent
+        )
+        assert index.product.meta.master == master

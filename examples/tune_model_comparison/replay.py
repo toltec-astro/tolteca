@@ -18,7 +18,7 @@ from pathlib import Path
 import yaml
 from prepare_stubs import prepare_stubs
 
-from tolteca_datamodels.data_prod import DataProdIndex, resolve_index
+from tolteca_datamodels.data_prod import DataProdIndex, DataProdStore, resolve_index
 from tolteca_datamodels.toltec import open_toltec_kids
 from tolteca_kids.product import open_kids_product
 
@@ -42,7 +42,7 @@ def solve_config(  # noqa: PLR0913 -- explicit source and destination identities
     root, namespace, *, tune_uid, stream_uid, model_index, evidence=None
 ):
     """Build a consumer configuration with exact raw and model indexes."""
-    ns = root / "dataprod_toltec" / namespace
+    store = DataProdStore(root / "dataprod_toltec", namespace=namespace)
     obsnum, subobsnum, scannum = map(int, stream_uid.split("-")[-3:])
     return {
         "kids": {
@@ -55,7 +55,8 @@ def solve_config(  # noqa: PLR0913 -- explicit source and destination identities
             },
             "context": {
                 "raw_indexes": [
-                    str(ns / uid / "dp_raw_obs.yaml") for uid in (tune_uid, stream_uid)
+                    str(store.get_index_path(uid, "dp_raw_obs"))
+                    for uid in (tune_uid, stream_uid)
                 ],
                 "models": [
                     {
@@ -132,8 +133,8 @@ def main():  # noqa: PLR0915 -- sequential reviewable replay
             root / "logs" / f"fit-{family}.log",
             workers=args.workers,
         )
-        ns = root / "dataprod_toltec" / family
-        model = resolve_index(ns / uids[0] / "dp_raw_obs_proc")
+        store = DataProdStore(root / "dataprod_toltec", namespace=family)
+        model = resolve_index(store.get_index_path(uids[0], "dp_raw_obs_proc"))
         prepared = prepare_stubs(
             args.tune,
             args.timestream,
@@ -165,7 +166,7 @@ def main():  # noqa: PLR0915 -- sequential reviewable replay
             root / "logs" / f"solve-{family}.log",
             workers=args.workers,
         )
-        result = resolve_index(ns / uids[1] / "dp_raw_obs_proc")
+        result = resolve_index(store.get_index_path(uids[1], "dp_raw_obs_proc"))
         index = DataProdIndex.read(result)
         with open_kids_product(index) as tree:
             ledger = (
