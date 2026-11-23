@@ -1,0 +1,4 @@
+# PDF serialization is binary even when ReportLab emits ASCII85 streams.
+*.pdf binary
+# Unified patch context contains meaningful single-space lines.
+examples/tune_model_comparison/native/*.patch -whitespace

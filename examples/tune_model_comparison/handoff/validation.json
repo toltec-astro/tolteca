@@ -1,0 +1,52 @@
+{
+  "release": "tune-model-comparison-20261123",
+  "python": {
+    "version": "3.13.9",
+    "fresh_install": true,
+    "installed_packages_dependency_check": 96,
+    "imports": true,
+    "kids_cli_help": true
+  },
+  "fresh_network0_fit": {
+    "observation": 152434,
+    "blocks": [
+      0,
+      1
+    ],
+    "calibration_columns_equal_to_completed_comparison": true,
+    "full_joint_metadata_equal": true,
+    "target_stub_prepared": true,
+    "apt_eligible": 523
+  },
+  "full_array_preparation": {
+    "observation": 152434,
+    "apt_columns_equal": true,
+    "joint_payload_equal": true,
+    "science_config_equal_except_materialized_paths": true,
+    "stub_numeric_variables_equal": 11,
+    "apt_eligible": 4141
+  },
+  "tests": {
+    "focused_python_passed": 74,
+    "focused_python_skipped": 0,
+    "ruff": "passed",
+    "handoff_type_checks": "passed",
+    "previous_native_kidscpp_passed": 17,
+    "previous_native_citlali_passed": 10,
+    "previous_native_external_fixture_skips": 3
+  },
+  "native": {
+    "pinned_git_trees_equal_to_tested_source_trees": true,
+    "fresh_linux_spack_build": "not_run"
+  },
+  "pdf": {
+    "pages": 6,
+    "all_pages_rendered_and_visually_reviewed": true
+  },
+  "limits": [
+    "V2-derived optical APT retained",
+    "145609 full-record Python/native discrepancies: 14 affine and 16 delay groups of 473",
+    "map weights per row; joint covariance retained diagnostically",
+    "a1400 map RMS 4.0 percent above matched legacy reference"
+  ]
+}

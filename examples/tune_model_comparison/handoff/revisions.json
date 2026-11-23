@@ -1,0 +1,44 @@
+{
+  "release": "tune-model-comparison-20261123",
+  "repositories": {
+    "tolteca": {
+      "url": "https://github.com/toltec-astro/tolteca.git",
+      "branch": "codex/grant-tune-comparison-20261120",
+      "revision": "self"
+    },
+    "tollan": {
+      "url": "https://github.com/toltec-astro/tollan.git",
+      "branch": "codex/grant-tune-comparison-20261120",
+      "revision": "eb4f1739f6dbf6572de8fd21c895a716b9552fcc"
+    },
+    "tula_cmake": {
+      "url": "https://github.com/toltec-astro/tula_cmake.git",
+      "branch": "codex/grant-tune-comparison-20261120",
+      "revision": "93c9b83d9c7b1e00605f5d9d35b0300871b189fa",
+      "spack_spec": "tula-cmake@3.2.0",
+      "spack_namespace": "toltec.tula_cmake"
+    },
+    "tula": {
+      "url": "https://github.com/toltec-astro/tula.git",
+      "branch": "codex/grant-tune-comparison-20261120",
+      "revision": "c688da001854d95fc917f3bf5b6d0fe5e54b671d",
+      "spack_spec": "tula@3.1.0",
+      "spack_namespace": "toltec.tula"
+    },
+    "kidscpp": {
+      "url": "https://github.com/toltec-astro/kidscpp.git",
+      "branch": "codex/grant-tune-comparison-20261120",
+      "revision": "1f04c1a1751e6f49f4203dc84f2a2e4e7e601d56",
+      "spack_spec": "kidscpp@3.1.0",
+      "spack_namespace": "toltec.kidscpp"
+    },
+    "citlali": {
+      "url": "https://github.com/toltec-astro/citlali.git",
+      "branch": "codex/grant-tune-comparison-20261120",
+      "revision": "a3a84b3a286d751993e22dfd6c8f520f3fc908b4",
+      "spack_spec": "citlali@4.1.0",
+      "spack_namespace": "toltec.citlali"
+    }
+  },
+  "scope": "Python fitting, ECSV/stubs, coordinated Citlali group solving and corrected map processing; original matched V2 APT retained."
+}
