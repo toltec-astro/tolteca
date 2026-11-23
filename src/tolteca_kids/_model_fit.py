@@ -6,6 +6,7 @@ import numpy as np
 import xarray as xr
 
 from tolteca_kidsproc.analysis import KidsModelAnalysis
+from tolteca_kidsproc.models import KidsSweepModel
 from tolteca_kidsproc.segmentation import group_intervals
 
 from ._model_history import bind_analysis
@@ -194,12 +195,15 @@ def fit_python(block, config, plan):
         origin = "supplied"
     result = xr.DataTree()
     analysis, history = bind_analysis(block, config.analysis or KidsModelAnalysis())
+    screened = screen_plan(
+        plan, frequency, signal, axis["chan"], mask=mask, analysis=analysis
+    )
     # Preserve measured IQ units and phase. No normalized or interpolated
     # quality-check samples are used as independent measurements.
     payload = sweep.data_source.assign_coords(frequency=sweep.frequency)
     analysis(
         payload.kids.sweep,
-        plan,
+        plan.isel(row=np.flatnonzero(screened.fit_eligible.values)),
         mask=mask,
         sigma=sigma,
         probe_frequency=axis["f_chan"].to_value("Hz"),
@@ -207,6 +211,16 @@ def fit_python(block, config, plan):
     )
     result.attrs["sweep_history"] = history
     result["plan"] = xr.DataTree(dataset=plan.copy(deep=True))
+    result["plan_quality"] = screened[
+        [
+            "group_id",
+            "chan",
+            "resonator_id",
+            "fit_eligible",
+            "fit_residual_dof",
+            "fit_plan_status",
+        ]
+    ]
     if origin == "kids_find":
         result["peak_links"] = make_peak_links(finding, result.kids.model_fit.fit)
     power = None
@@ -226,3 +240,73 @@ def fit_python(block, config, plan):
     result["quality"] = model_fit_quality(result.kids.model_fit, config.quality, power)
     result.attrs.update({"plan_source": origin, "config": config.model_dump_json()})
     return result
+
+
+def screen_plan(  # noqa: PLR0913 -- measured plan, samples, identity, mask and model
+    plan, frequency, signal, channels, *, mask, analysis
+):
+    """Retain undersampled groups as unattempted instead of aborting a network.
+
+    Parameter counts come from the same physical model used by the fitter.
+    There is no refit with fewer parameters and no change to the fit windows.
+    The original plan retains every group and its residual degrees of freedom;
+    channels without another usable model receive the usual no-model flag.
+    """
+    plan = plan.copy(deep=True)
+    eligible = np.ones(plan.sizes["row"], dtype=bool)
+    dof = np.zeros(plan.sizes["row"], dtype=int)
+    lookup = {int(c): i for i, c in enumerate(channels)}
+    for gid in dict.fromkeys(plan.group_id.values.tolist()):
+        rows = np.flatnonzero(plan.group_id.values == gid)
+        selected = plan.isel(row=rows)
+        chans = list(dict.fromkeys(selected.chan.values.tolist()))
+        resonators = list(dict.fromkeys(selected.resonator_id.values.tolist()))
+        frequencies = []
+        for channel in chans:
+            if channel not in lookup:
+                msg = "Fit plan refers to a channel absent from the measured sweep"
+                raise ValueError(msg)
+            ci = lookup[channel]
+            keep = np.zeros(frequency.shape[1], dtype=bool)
+            for row in rows[plan.chan.values[rows] == channel]:
+                keep[int(plan.sample_start[row]) : int(plan.sample_stop[row])] = True
+            keep &= mask[ci] & np.isfinite(signal[ci]) & np.isfinite(frequency[ci])
+            keep &= frequency[ci] > 0
+            frequencies.append(frequency[ci, keep])
+        first = [
+            int(np.flatnonzero(selected.resonator_id.values == r)[0])
+            for r in resonators
+        ]
+        associations = np.array(
+            [
+                [
+                    bool(
+                        np.any(
+                            (selected.chan.values == c)
+                            & (selected.resonator_id.values == r)
+                        )
+                    )
+                    for r in resonators
+                ]
+                for c in chans
+            ]
+        )
+        model = KidsSweepModel(
+            selected.fr_initial.values[first],
+            1 / (2 * selected.r_initial.values[first]),
+            frequencies,
+            associations=associations,
+            gain_family=analysis.gain_family,
+            nonlinear=analysis.nonlinear,
+            nonlinear_branch=analysis.nonlinear_branch,
+        )
+        degrees = 2 * sum(map(len, frequencies)) - len(model.names)
+        dof[rows] = degrees
+        eligible[rows] = degrees > 0
+    plan["fit_eligible"] = ("row", eligible)
+    plan["fit_residual_dof"] = ("row", dof)
+    plan["fit_plan_status"] = (
+        "row",
+        np.where(eligible, "eligible", "insufficient_residual_dof"),
+    )
+    return plan

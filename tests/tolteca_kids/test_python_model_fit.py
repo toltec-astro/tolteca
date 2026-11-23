@@ -24,6 +24,80 @@ from tolteca_kids.sweep_reduce import SweepReduce
 from tolteca_kidsproc.analysis import KidsModelAnalysis
 
 
+@pytest.mark.parametrize("nonlinear", [False, True])
+def test_undersampled_group_is_retained_but_not_sent_to_optimizer(nonlinear):
+    from tolteca_kids._model_fit import screen_plan
+
+    frequency = np.array([500e6, 501e6])[:, None] + np.arange(20) * 1000
+    plan = xr.Dataset(
+        {
+            "group_id": ("row", ["short", "measured"]),
+            "resonator_id": ("row", ["r0", "r1"]),
+            "chan": ("row", [8, 9]),
+            "sample_start": ("row", [0, 0]),
+            "sample_stop": ("row", [3, 20]),
+            "fr_initial": ("row", [500e6, 501e6]),
+            "r_initial": ("row", [1e-5, 1e-5]),
+        }
+    )
+    saved = plan.copy(deep=True)
+    result = screen_plan(
+        plan,
+        frequency,
+        np.ones_like(frequency, complex),
+        [8, 9],
+        mask=np.ones_like(frequency, bool),
+        analysis=KidsModelAnalysis(nonlinear=nonlinear),
+    )
+    np.testing.assert_array_equal(result.fit_eligible, [False, True])
+    np.testing.assert_array_equal(
+        result.fit_residual_dof, [-2 - nonlinear, 32 - nonlinear]
+    )
+    assert result.fit_plan_status.values[0] == "insufficient_residual_dof"
+    xr.testing.assert_identical(plan, saved)
+
+
+def test_undersampled_group_does_not_abort_neighboring_fit(target_sweep_path):
+    with xr.open_dataset(target_sweep_path) as raw:
+        source = raw.toltec_kids.select_channels([8, 9]).load()
+    tree = BlockCreate()(ensure_datatree(source))
+    SweepReduce()(tree)
+    block = tree.toltec_kids.blocks[0]
+    frequency = block.sweep.frequency.values
+    signal = block.sweep.I.values + 1j * block.sweep.Q.values
+    plan = xr.Dataset(
+        {
+            "group_id": ("row", ["short", "measured"]),
+            "resonator_id": ("row", ["r0", "r1"]),
+            "chan": ("row", [8, 9]),
+            "sample_start": ("row", [0, 0]),
+            "sample_stop": ("row", [3, signal.shape[1]]),
+            "fr_initial": (
+                "row",
+                [frequency[0, 1], frequency[1, np.argmin(abs(signal[1]))]],
+            ),
+            "r_initial": ("row", [1 / 20000, 1 / 20000]),
+        }
+    )
+    step = ModelFit(ModelFitConfig(analysis=KidsModelAnalysis(max_nfev=100)), plan=plan)
+    step(block.tree)
+    assert ModelFit.get_context(block.tree).completed
+    view = ModelFit.view(block.tree)
+    assert set(view.fit.group_id.values) == {"measured"}
+    assert block.tree["model_fit/plan_quality"].fit_plan_status.values.tolist() == [
+        "insufficient_residual_dof",
+        "eligible",
+    ]
+    xr.testing.assert_identical(
+        block.tree["model_fit/plan"].to_dataset(inherit=False), plan
+    )
+    report = calibration_report(view, block)
+    assert report["flag"][0] & ModelFitFlag.fit_no_model
+    assert report["flag"][0] & ModelFitFlag.fit_unusable
+    assert np.isnan(report["fr"][0])
+    assert np.isfinite(report["fr"][1])
+
+
 @pytest.mark.parametrize(
     "config",
     [
@@ -181,9 +255,9 @@ def test_step_matches_numerical_analysis_and_published_result(  # noqa: PLR0915 
     saved_plan = block.tree[f"model_fit_{family}/plan"].to_dataset(inherit=False)
     xr.testing.assert_identical(saved_plan, before)
     report = calibration_report(v, block)
-    assert report.meta["joint_models"]["groups"] == []
     quality = block.tree[f"model_fit_{family}/quality"].dataset
     complete = joint_models(v, quality, include_single=True)
+    assert report.meta["joint_models"]["groups"] == complete["groups"]
     assert len(complete["groups"]) == 1
     assert complete["groups"][0]["channels"] == [int(chan)]
     assert complete["groups"][0]["resonator_ids"] == ["r"]
