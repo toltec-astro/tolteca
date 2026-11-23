@@ -79,6 +79,76 @@ the remaining evidence categories stay separate in the 625-row ledger. This
 classification comes from the supplied baseline evidence, not from the short
 installation-test timestream.
 
+### Full-record replay from a fresh directory
+
+An isolated Python 3.13 environment installed the pinned application wheels and
+public-index dependencies. All 54 focused numerical and workflow tests passed
+with the normal warning-as-error settings. Package imports and dependency
+consistency were checked independently of the development environment.
+
+The raw-data replay used those wheels and the same pinned dependency versions
+in the local test runtime. It processes all 7,802 measured samples and all 632
+acquired probes. It fits both Tune blocks in each gain
+family, prepares the target-acquisition stub, and publishes the solved arrays,
+diagnostics and figures through `DataProdOutput`. All four newly generated
+block reports match the bundled ECSV reports byte-for-byte. Both raw-file
+hashes remain unchanged.
+
+| Full-record check | Affine baseline | Affine plus delay |
+| --- | ---: | ---: |
+| Fitted components retained | 625 | 625 |
+| Routed groups | 473 | 473 |
+| Components with complete trajectories and spectra | 544 | 547 |
+| Components passing the separate 5% fit-residual policy | 400 | 401 |
+| Response-qualified signal/noise comparisons | 113 | 113 |
+| Declared artifacts, all verified on disk | 453 | 454 |
+| Groups disagreeing with native solving over the full record | 14 | 16 |
+
+These rows describe independent checks. A complete numerical trajectory does
+not establish optical response or acceptable sweep fit. The full ledger keeps
+incomplete solutions, missing probes, fit-policy decisions and response-evidence
+categories separate. Both families retain all 625 component records, including
+those without a usable spectrum.
+
+For this fresh replay, each namespace contains `0000-models` for the Tune fit
+and `0001-solved` for the timestream product:
+
+```text
+dataprod_toltec/
+├── affine/
+│   ├── 145609-0-1/dp_raw_obs_proc/0000-models/index.yaml
+│   └── 145609-0-2/dp_raw_obs_proc/
+│       ├── <stub-run>/index.yaml
+│       └── 0001-solved/
+│           ├── index.yaml
+│           ├── array.zarr
+│           └── artifacts/toltec0/blocks/0/
+│               ├── tolteca_kids.timestream_diagnostics:TimestreamDiagnostics/
+│               │   ├── detectors.ecsv
+│               │   ├── performance.ecsv
+│               │   └── response_evidence.ecsv
+│               └── tolteca_kids.timestream_plot:TimestreamPlot/
+│                   ├── timestream.html
+│                   ├── summary.html
+│                   ├── group_*.html
+│                   └── plotly.min.js
+└── delay/                  # same layout, its own exact model and stub
+```
+
+The bundle's `evidence/full-replay.json` identifies every actual realization,
+including the UUID-named stub runs. `evidence/full-product-snapshots/` contains
+inspection copies of the generated configurations, indexes, completed run
+records and diagnostic tables. The index captures the execution during output
+creation; `run.yaml` records its completion. These copies omit the large Zarr
+payloads and are not relocated inventories. Running the maintained recipe
+recreates the complete product tree.
+
+The full-record native check remains failed. Exact native ECSV/stub equality
+passes on all samples, but Python/native validity flags, rejection reasons and
+some numerical solutions still differ. The bundle retains the strict comparison
+and its group-by-group results; no tolerance was relaxed to obtain a passing
+handoff.
+
 ## Follow the selected model
 
 | Entity or operation | What it contributes |
@@ -248,7 +318,7 @@ steps, and writes a new realization:
 
 ```sh
 python examples/tune_model_comparison/diagnose_product.py \
-  /comparison/dataprod_toltec/affine/145609-0-2/dp_raw_obs_proc/0000-solved/index.yaml \
+  /comparison/dataprod_toltec/affine/145609-0-2/dp_raw_obs_proc/0001-solved/index.yaml \
   /comparison/dataprod_toltec/affine/145609-0-1/dp_raw_obs_proc/0000-models/index.yaml \
   /comparison/dataprod_toltec --namespace affine \
   --evidence /comparison/response-evidence-affine.ecsv
