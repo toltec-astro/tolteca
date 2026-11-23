@@ -1,0 +1,228 @@
+--- a/include/citlali/core/engine/kids_readout.h
++++ b/include/citlali/core/engine/kids_readout.h
+@@ -18,6 +18,45 @@
+     if (network["nw"].as<int>() == nw)
+       return network;
+   return {};
++}
++
++/// Request only components declared by the APT; retain complete calibration.
++inline void select_readout_groups(kids::TimeStreamSolver::Config &options,
++                                  const Calib &calib, int nw) {
++  auto network=readout_network(calib,nw);
++  std::set<std::string> ids;
++  if (network.IsMap()) for (const auto &row:network["rows"])
++    ids.insert(row["group_id"].as<std::string>());
++  options.set("joint_output", !ids.empty());
++  if (!ids.empty()) {
++    YAML::Node selected(YAML::NodeType::Sequence);
++    for (const auto &id:ids) selected.push_back(id);
++    options.set("joint_groups", YAML::Dump(selected));
++  }
++}
++
++/// Keep legacy proximity flags on scalar rows within a mixed readout.
++/// Joint components are governed by the complete group's recovery diagnostics.
++inline void set_mixed_tone_flags(Calib &calib, int nw,
++                                 const Eigen::VectorXd &acquired, double minimum) {
++  auto network=readout_network(calib,nw);
++  if (!network.IsMap()) throw std::runtime_error("Mixed tone flags require a readout binding");
++  const auto [start,end]=calib.nw_limits.at(nw);
++  calib.apt["duplicate_tone"].segment(start,end-start).setZero();
++  if (!network["channel_rows"]) return;
++  for(auto row:network["channel_rows"]) {
++    auto local=row["apt_row"].as<Eigen::Index>();
++    auto channel=row["channel"].as<Eigen::Index>();
++    if(local<0 || local>=end-start || channel<0 || channel>=acquired.size() ||
++       calib.detector_uids.at(start+local)!=row["uid"].as<std::int64_t>())
++      throw std::runtime_error("Mixed scalar frequency binding differs from APT/acquisition");
++    auto index=start+local;
++    calib.apt["tone_freq"](index)=acquired(channel);
++    double distance=std::numeric_limits<double>::infinity();
++    if(channel>0) distance=std::min(distance,std::abs(acquired(channel)-acquired(channel-1)));
++    if(channel+1<acquired.size()) distance=std::min(distance,std::abs(acquired(channel+1)-acquired(channel)));
++    calib.apt["duplicate_tone"](index)=distance<minimum;
++  }
+ }
+ 
+ /// Reject stale APT bindings even when a different calibration reused local
+@@ -90,30 +129,44 @@
+     throw std::runtime_error(
+         "Joint detector APT requires rs or xs; raw IQ is channel-indexed");
+   std::map<std::int64_t, YAML::Node> rows;
++  std::map<Eigen::Index, kids::reduce::Index> channel_rows;
+   if (joint) {
+     for (const auto &row : network["rows"])
+       if (!rows.emplace(row["uid"].as<std::int64_t>(), row).second)
+         throw std::runtime_error(
+             "Duplicate detector UID in joint readout binding");
+-    if (rows.size() != static_cast<std::size_t>(count))
++    if (network["channel_rows"]) for (const auto &row:network["channel_rows"]) {
++      auto uid=row["uid"].as<std::int64_t>();
++      auto index=row["apt_row"].as<Eigen::Index>();
++      if (index<0 || index>=count || calib.detector_uids.at(start+index)!=uid)
++        throw std::runtime_error("Scalar APT row or recorded UID differs");
++      if (rows.contains(uid) || !channel_rows.emplace(index,row["channel"].as<kids::reduce::Index>()).second)
++        throw std::runtime_error("Duplicate APT row across scalar and component bindings");
++    }
++    if (rows.size()+channel_rows.size() != static_cast<std::size_t>(count))
+       throw std::runtime_error("Joint readout UID coverage differs from APT");
+   }
+   std::set<std::pair<std::string, std::string>> seen;
+   for (Eigen::Index i = 0; i < count; ++i) {
+     auto &flags = out.diagnostics.samples.at("kids_sample_flag");
+-    if (!joint) {
++    if (!joint || channel_rows.contains(i)) {
++      const auto channel = joint ? channel_rows.at(i) : i;
++      auto position=std::find(result.calibration.channels.begin(),result.calibration.channels.end(),channel);
++      if (position==result.calibration.channels.end())
++        throw std::runtime_error("APT scalar channel absent from calibration");
++      const auto column=position-result.calibration.channels.begin();
+       if (type == "rs")
+-        out.data.col(i) = result.data_out.rs.data.col(i);
++        out.data.col(i) = result.data_out.rs.data.col(column);
+       else if (type == "xs")
+-        out.data.col(i) = result.data_out.xs.data.col(i);
++        out.data.col(i) = result.data_out.xs.data.col(column);
+       else if (type == "is")
+-        out.data.col(i) = raw.is().col(i);
++        out.data.col(i) = raw.is().col(column);
+       else if (type == "qs")
+-        out.data.col(i) = raw.qs().col(i);
++        out.data.col(i) = raw.qs().col(column);
+       else
+         throw std::runtime_error("Unknown KIDs timestream quantity");
+       if (type == "rs" || type == "xs")
+-        flags.col(i) = result.flags.col(i).cast<double>();
++        flags.col(i) = result.flags.col(column).cast<double>();
+     } else {
+       auto row = rows.at(calib.detector_uids.at(start + i));
+       const auto gid = row["group_id"].as<std::string>(),
+--- a/include/citlali/core/engine/kidsproc.h
++++ b/include/citlali/core/engine/kidsproc.h
+@@ -247,7 +247,7 @@
+     for (auto &raw : loaded) {
+         int nw=raw.meta.template get_typed<int>("citlali_network");
+         auto options = model_config(raw);
+-        options.set("joint_output", engine::readout_network(calib, nw).IsMap());
++        engine::select_readout_groups(options, calib, nw);
+         auto result = this->solver()(raw, options);
+         auto projected=engine::project_kids(result,raw,calib,nw,data_type,acceptance);
+         auto [start,end]=calib.nw_limits.at(nw);
+@@ -335,7 +335,7 @@
+     for (auto &raw:loaded) {
+         int nw=raw.meta.template get_typed<int>("citlali_network");
+         auto options = model_config(raw);
+-        options.set("joint_output", engine::readout_network(calib, nw).IsMap());
++        engine::select_readout_groups(options, calib, nw);
+         auto result=this->solver()(raw,options);
+         auto projected=engine::project_kids(result,raw,calib,nw,data_type,acceptance);
+         const auto [start,end]=calib.nw_limits.at(nw);
+--- a/include/citlali/core/engine/todproc.h
++++ b/include/citlali/core/engine/todproc.h
+@@ -282,7 +282,10 @@
+         // not by a distance veto on the coordinate probes.
+         engine().calib.apt["duplicate_tone"].setZero(engine().calib.n_dets);
+         for (const auto &[nw, limits] : engine().calib.nw_limits) {
+-            if (engine::readout_network(engine().calib,nw).IsMap()) continue;
++            if (engine::readout_network(engine().calib,nw).IsMap()) {
++                engine::set_mixed_tone_flags(engine().calib,nw,tone_freqs[nw].col(0),engine().rtcproc.delta_f_min_Hz);
++                continue;
++            }
+             const auto [start,end]=limits;
+             if (tone_freqs[nw].size()!=end-start) throw std::runtime_error("APT channel count differs from acquired tones");
+             engine().calib.apt["tone_freq"].segment(start,end-start)=tone_freqs[nw].col(0);
+--- a/src/citlali/core/engine/calib.cpp
++++ b/src/citlali/core/engine/calib.cpp
+@@ -21,6 +21,8 @@
+             throw std::runtime_error("Invalid joint APT binding or noninteger detector UIDs");
+     }
+     if (kids_readout.IsMap()) for (auto network : kids_readout["networks"]) {
++        if (network["channel_rows"]) for (auto row:network["channel_rows"])
++            row["uid"].SetTag("tag:yaml.org,2002:str");
+         for (auto row : network["rows"]) for (const char *name : {"uid", "group_id", "resonator_id"})
+             row[name].SetTag("tag:yaml.org,2002:str");
+         for (auto group : network["groups"]) {
+--- a/tests/test_joint_mapmaking.cpp
++++ b/tests/test_joint_mapmaking.cpp
+@@ -271,3 +271,80 @@
+   EXPECT_EQ(table.at("kids_fit_flag"), calib.apt.at("kids_fit_flag"));
+   EXPECT_FALSE(original["kids_readout"]);
+ }
++
++TEST(JointMapmaking, MixedRealAPTUsesRecordedComponentsAndPreservesScalarControls) {
++  const auto *path=std::getenv("TOLTECA_MIXED_MAP_CONFIG");
++  if (!path) GTEST_SKIP() << "Set TOLTECA_MIXED_MAP_CONFIG to the broader map config";
++  if (!spdlog::get("citlali_logger")) spdlog::stdout_color_mt("citlali_logger");
++  auto config=YAML::LoadFile(path);
++  std::vector<std::string> files, interfaces;
++  for (auto item:config["inputs"][0]["data_items"]) if (item["stubs"] && item["meta"]["interface"].as<std::string>().starts_with("toltec")) {
++    files.push_back(item["filepath"].as<std::string>());
++    interfaces.push_back(item["meta"]["interface"].as<std::string>());
++  }
++  std::string apt;
++  for (auto item:config["inputs"][0]["cal_items"]) if (item["type"].as<std::string>()=="array_prop_table") apt=item["filepath"].as<std::string>();
++  engine::Calib calib{}; calib.get_apt(apt,files,interfaces);
++  for (auto item:config["inputs"][0]["data_items"]) {
++    auto interface=item["meta"]["interface"].as<std::string>();
++    if (!interface.starts_with("toltec")) continue;
++    const int nw=std::stoi(interface.substr(6));
++    auto source=item["filepath"].as<std::string>();
++    auto raw=kids::toltec::read_raw_timestream_slice(source,{0,8,1});
++    kids::TimeStreamSolver solver({{"model_params_nc",source},{"stubs",YAML::Dump(item["stubs"])}});
++    kids::TimeStreamSolver::Config options;
++    engine::select_readout_groups(options,calib,nw);
++    auto result=solver(raw,options);
++    auto scalar=solver(raw,{{"joint_output",false}});
++    auto network=engine::readout_network(calib,nw);
++    ASSERT_EQ(result.joint.size(),network["groups"].size());
++    auto projected=engine::project_kids(result,raw,calib,nw,"xs",kids::reduce::SampleAcceptance::numerical);
++    auto [start,end]=calib.nw_limits.at(nw);
++    auto scalar_calib=calib; scalar_calib.kids_readout.reset(YAML::Node{});
++    auto original=engine::project_kids(scalar,raw,scalar_calib,nw,"xs",kids::reduce::SampleAcceptance::numerical);
++    for (auto binding:network["channel_rows"]) {
++      auto i=binding["apt_row"].as<int>(), channel=binding["channel"].as<int>();
++      for (int s=0;s<8;++s) {
++        EXPECT_EQ(projected.diagnostics.samples.at("kids_sample_flag")(s,i),original.diagnostics.samples.at("kids_sample_flag")(s,channel));
++        if (!projected.mask(s,i)) EXPECT_DOUBLE_EQ(projected.data(s,i),original.data(s,channel));
++      }
++    }
++    for (auto binding:network["rows"]) {
++      auto uid=binding["uid"].as<std::int64_t>();
++      auto i=std::find(calib.detector_uids.begin()+start,calib.detector_uids.begin()+end,uid)-calib.detector_uids.begin()-start;
++      auto gid=binding["group_id"].as<std::string>();
++      auto rid=binding["resonator_id"].as<std::string>();
++      auto it=std::find_if(result.joint.begin(),result.joint.end(),[&](auto &g){return g.calibration.group_id==gid;});
++      ASSERT_NE(it,result.joint.end());
++      auto j=std::find(it->calibration.resonator_ids.begin(),it->calibration.resonator_ids.end(),rid)-it->calibration.resonator_ids.begin();
++      auto k=std::find(it->calibration.channels.begin(),it->calibration.channels.end(),binding["channel"].as<int>())-it->calibration.channels.begin();
++      for(int s=0;s<8;++s) if(!projected.mask(s,i))
++        EXPECT_DOUBLE_EQ(projected.data(s,i),it->x(s,k*it->calibration.resonator_ids.size()+j));
++    }
++    auto stale=calib;
++    stale.kids_readout.reset(YAML::Clone(calib.kids_readout));
++    for (auto net:stale.kids_readout["networks"]) if (net["nw"].as<int>()==nw) net["channel_rows"][0]["uid"]=-9876;
++    EXPECT_THROW(engine::project_kids(result,raw,stale,nw,"xs"),std::runtime_error);
++  }
++}
++
++
++TEST(JointMapmaking, MixedReadoutRetainsScalarProximityVeto) {
++  engine::Calib calib{}; calib.n_dets=3; calib.nw_limits[0]={0,3};
++  calib.detector_uids={10,11,0};
++  calib.apt["tone_freq"]=Eigen::VectorXd::Zero(3);
++  calib.apt["duplicate_tone"]=Eigen::VectorXd::Zero(3);
++  calib.kids_readout=YAML::Load(R"(
++networks:
++- nw: 0
++  rows: [{uid: 11, group_id: g, resonator_id: b, channel: 1}]
++  channel_rows: [{apt_row: 0, uid: 10, channel: 0}, {apt_row: 2, uid: 0, channel: 2}]
++)");
++  Eigen::VectorXd probes(3);probes<<500e6,500.01e6,501e6;
++  engine::set_mixed_tone_flags(calib,0,probes,60e3);
++  EXPECT_EQ(calib.apt["duplicate_tone"](0),1);
++  EXPECT_EQ(calib.apt["duplicate_tone"](1),0);
++  EXPECT_EQ(calib.apt["duplicate_tone"](2),0);
++  EXPECT_EQ(calib.apt["tone_freq"](0),probes(0));
++  EXPECT_EQ(calib.apt["tone_freq"](2),probes(2));
++}

@@ -1,0 +1,94 @@
+--- a/include/kids/reduce/timestream.h
++++ b/include/kids/reduce/timestream.h
+@@ -135,7 +135,8 @@
+ [[nodiscard]] std::vector<JointTimeStreamResult> solve_joint_timestream(
+     Samples i, Samples q, const TimeStreamSolver &, double normalization = 1.,
+     std::map<std::string, JointSolveCheckpoint> *checkpoints = nullptr,
+-    const std::vector<bool> &reset = {}, double state_step_max = .25);
++    const std::vector<bool> &reset = {}, double state_step_max = .25,
++    std::span<const std::string> requested_groups = {});
+ 
+ /// Owned (sample, channel) frequency-shift/loss outputs and SampleFlag bits.
+ struct TimeStreamSolverResult {
+--- a/src/kids/reduce/joint.cpp
++++ b/src/kids/reduce/joint.cpp
+@@ -7,12 +7,20 @@
+ solve_joint_timestream(Samples i, Samples q, const TimeStreamSolver &prepared,
+                        double normalization,
+                        std::map<std::string, JointSolveCheckpoint> *checkpoints,
+-                       const std::vector<bool> &reset, double state_step_max) {
++                       const std::vector<bool> &reset, double state_step_max,
++                       std::span<const std::string> requested_groups) {
+   const auto &table = prepared.model_params();
+   if (i.cols() != prepared.channels() || q.rows() != i.rows() ||
+       q.cols() != i.cols())
+     throw Error(ErrorCode::shape,
+                 "joint input axes differ from prepared channels");
++  std::set<std::string> requested(requested_groups.begin(), requested_groups.end());
++  if (requested.size()!=requested_groups.size())
++    throw Error(ErrorCode::selection, "Duplicate requested joint group");
++  for (const auto &id: requested)
++    if (std::none_of(table.joint_models.begin(), table.joint_models.end(),
++                    [&](const auto &g) { return g.group_id==id; }))
++      throw Error(ErrorCode::selection, "Requested joint group absent from calibration");
+   std::vector<JointTimeStreamResult> result;
+   std::set<std::string> group_ids;
+   std::set<Index> assigned;
+@@ -48,6 +56,7 @@
+       positions.push_back(position);
+       original.push_back(k);
+     }
++    if (!requested.empty() && !requested.contains(source.group_id)) continue;
+     if (positions.empty())
+       continue;
+     JointTimeStreamResult out;
+--- a/src/kids/timestream/solver.cpp
++++ b/src/kids/timestream/solver.cpp
+@@ -222,9 +222,14 @@
+     // an explicit component-to-detector binding. Preserve all calibration and
+     // flags while avoiding calculations that the caller will discard.
+     const bool joint_output = !options.has("joint_output") || options.get_typed<bool>("joint_output");
++    const auto requested_groups = options.has("joint_groups")
++        ? YAML::Load(options.get_typed<std::string>("joint_groups")).as<std::vector<std::string>>()
++        : std::vector<std::string>{};
++    if (joint_output && options.has("joint_groups") && requested_groups.empty())
++        throw kr::Error(kr::ErrorCode::selection, "Use joint_output=false for no joint groups");
+     if (joint_output)
+         result.joint = kr::solve_joint_timestream(data.is(), data.qs(), prepared, norm,
+-                                                nullptr, reset, state_step_max);
++                                                nullptr, reset, state_step_max, requested_groups);
+     result.data_out.meta = data.meta;
+     result.data_out.meta.set("modelspec", prepared.model_params().model.name);
+     result.data_out.meta.set("kind", std::string("SolvedTimeStream"));
+--- a/tests/test_solver.cpp
++++ b/tests/test_solver.cpp
+@@ -174,6 +174,29 @@
+         const auto all = solver(raw);
+         const auto channels = solver(raw, {{"joint_output",false}});
+         ASSERT_FALSE(all.joint.empty());
++        auto full=std::find_if(all.joint.begin(),all.joint.end(),[](auto &g){return g.calibration.resonator_ids.size()>1;});
++        ASSERT_NE(full,all.joint.end());
++        auto gid=full->calibration.group_id;
++        YAML::Node requested(YAML::NodeType::Sequence); requested.push_back(gid);
++        auto selected=solver(raw,{{"joint_groups",YAML::Dump(requested)}});
++        ASSERT_EQ(selected.joint.size(),1);
++        EXPECT_EQ(selected.joint.front().calibration.group_id,gid);
++        EXPECT_TRUE((selected.joint.front().flags==full->flags).all());
++        auto compare=[](const auto &left,const auto &right) {
++            ASSERT_EQ(left.rows(),right.rows()); ASSERT_EQ(left.cols(),right.cols());
++            for(Eigen::Index r=0;r<left.rows();++r) for(Eigen::Index c=0;c<left.cols();++c)
++                EXPECT_TRUE(left(r,c)==right(r,c) || (std::isnan(left(r,c))&&std::isnan(right(r,c))));
++        };
++        compare(selected.joint.front().r,full->r);
++        compare(selected.joint.front().fr,full->fr);
++        compare(selected.joint.front().x,full->x);
++        EXPECT_THROW(solver(raw,{{"joint_groups",std::string("[]")}}),kids::reduce::Error);
++        requested.push_back(gid);
++        EXPECT_THROW(solver(raw,{{"joint_groups",YAML::Dump(requested)}}),kids::reduce::Error);
++        EXPECT_EQ(selected.calibration.joint_models.size(),all.calibration.joint_models.size());
++        EXPECT_EQ(selected.flags,all.flags);
++        EXPECT_THROW(solver(raw,{{"joint_groups",std::string("[missing-group]")}}),kids::reduce::Error);
++
+         EXPECT_TRUE(channels.joint.empty());
+         EXPECT_EQ(all.calibration.joint_models.size(), channels.calibration.joint_models.size());
+         EXPECT_EQ(all.calibration.fit_flags, channels.calibration.fit_flags);

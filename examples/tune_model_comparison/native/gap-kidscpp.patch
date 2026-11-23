@@ -1,0 +1,120 @@
+--- a/include/kids/reduce/timestream.h
++++ b/include/kids/reduce/timestream.h
+@@ -14,6 +14,7 @@
+ #include <kids/data/views.h>
+ #include <kids/model/schema.h>
+ #include <optional>
++#include <stdexcept>
+ #include <map>
+ #include <string>
+ 
+@@ -89,6 +90,20 @@
+   unstable_response = 2048 ///< Fixed-b stationary derivative is nonpositive.
+ };
+ 
++/// Physical acceptance rejects finite domain/stability violations. Numerical
++/// acceptance retains those values and diagnostics; hard failures always reject.
++enum class SampleAcceptance { physical, numerical };
++inline std::uint16_t sample_exclusion_mask(SampleAcceptance acceptance) {
++    const auto warnings=condition_high | (acceptance==SampleAcceptance::numerical
++        ? outside_domain | unstable_response : 0);
++    return static_cast<std::uint16_t>(~warnings);
++}
++inline SampleAcceptance parse_sample_acceptance(const std::string &name) {
++    if(name=="physical") return SampleAcceptance::physical;
++    if(name=="numerical") return SampleAcceptance::numerical;
++    throw std::invalid_argument("sample_acceptance must be physical or numerical");
++}
++
+ /// Reusable scratch matrices; use a separate workspace for each concurrent call.
+ struct SolveWorkspace {
+   Matrix di, dq, u, v, denominator;
+@@ -134,7 +149,8 @@
+ /// Invalid responses produce NaN in both outputs and explicit flag bits.
+ void solve_into(Samples i, Samples q, const TimeStreamSolver &model_params,
+                 double normalization, Output x, Output r,
+-                Eigen::Ref<Mask> flags, SolveWorkspace &workspace);
++                Eigen::Ref<Mask> flags, SolveWorkspace &workspace,
++                SampleAcceptance acceptance = SampleAcceptance::physical);
+ /// Allocating convenience wrapper around solve_into(), in prepared channel order.
+ [[nodiscard]] TimeStreamSolverResult
+ solve_timestream(Samples i, Samples q, const TimeStreamSolver &model_params,
+--- a/src/kids/reduce/timestream.cpp
++++ b/src/kids/reduce/timestream.cpp
+@@ -212,7 +212,7 @@
+ 
+ void solve_into(Samples i, Samples q, const TimeStreamSolver &cal,
+                 double normalization, Output x, Output r,
+-                Eigen::Ref<Mask> flags, SolveWorkspace &w) {
++                Eigen::Ref<Mask> flags, SolveWorkspace &w, SampleAcceptance acceptance) {
+   if (i.rows() != q.rows() || i.cols() != q.cols() ||
+       i.cols() != cal.channels() || x.rows() != i.rows() ||
+       x.cols() != i.cols() || r.rows() != i.rows() || r.cols() != i.cols() ||
+@@ -319,7 +319,7 @@
+           flag |= outside_domain;
+       }
+       flags(s, ch) = flag;
+-      if (flag) {
++      if (flag & sample_exclusion_mask(acceptance)) {
+         x(s, ch) = nan;
+         r(s, ch) = nan;
+       }
+--- a/src/kids/timestream/solver.cpp
++++ b/src/kids/timestream/solver.cpp
+@@ -117,6 +117,8 @@
+         norm <= 0) {
+         throw kr::Error(kr::ErrorCode::input, "invalid I/Q shape or normalization");
+     }
++    const auto acceptance=kr::parse_sample_acceptance(options.has("sample_acceptance")
++        ? options.get_str("sample_acceptance") : "physical");
+     auto ex = tula::grppi_utils::dyn_ex(options.has("exmode") ? options.get_str("exmode") : "seq");
+     TimeStreamSolverResult result(data);
+     result.calibration = prepared.model_params();
+@@ -145,7 +147,7 @@
+             kr::solve_into(data.is().middleRows(start, count), data.qs().middleRows(start, count),
+                            prepared, norm, result.data_out.xs.data.middleRows(start, count),
+                            result.data_out.rs.data.middleRows(start, count),
+-                           result.flags.middleRows(start, count), w);
++                           result.flags.middleRows(start, count), w, acceptance);
+             if (result.extra_output) {
+                 result.its.middleRows(start, count) = w.u;
+                 result.qts.middleRows(start, count) = w.v;
+@@ -229,6 +231,7 @@
+     result.data_out.meta.set("calibration_source", cal.source);
+     result.data_out.meta.set("iq_normalization", norm);
+     result.data_out.meta.set("joint_output", joint_output);
++    result.data_out.meta.set("sample_acceptance", std::string(acceptance==kr::SampleAcceptance::physical ? "physical" : "numerical"));
+     result.data_out.meta.set("joint_branch_selection", std::string("sweep_continuity"));
+     result.data_out.meta.set("joint_state_step_max", state_step_max);
+     result.data_out.wcs = data.wcs;
+--- a/tests/test_physical_solver.cpp
++++ b/tests/test_physical_solver.cpp
+@@ -318,3 +318,28 @@
+   EXPECT_EQ(result.flags(0),ambiguous_solution);
+   EXPECT_TRUE(result.r.array().isNaN().all());
+ }
++
++TEST(PhysicalSolver, NumericalAcceptanceRetainsFinitePolicyFailuresAndAllFlags) {
++  ModelParamsTable table; table.channels={17};
++  table.f_in_hz=Eigen::VectorXd::Constant(1,500e6);
++  const double r0=2e-5,b=2*.4*r0*r0*r0;
++  table.model=KidsSweepWithAffineGain::schema(2);
++  table.parameters.resize(1,10);
++  table.parameters<<500e6,500e6,r0,1e-5,2e-6,2.,1.,0.,0.,b;
++  TimeStreamSolver cal(table,table.channels);
++  Matrix I(4,1),Q(4,1),X(4,1),R(4,1),XN(4,1),RN(4,1); Mask flags(4,1),fn(4,1); SolveWorkspace w;
++  const double loss[]{-r0,.4*r0,r0,r0},xp[]{r0,-.4*r0,r0,r0};
++  for(int k=0;k<4;++k) {
++    auto z=std::complex<double>(2.,1.)*(1.-std::complex<double>(1e-5,2e-6)/std::complex<double>(loss[k],xp[k]));
++    if(k==2) z={std::numeric_limits<double>::quiet_NaN(),0.};
++    if(k==3) z={2.,1.};
++    I(k,0)=z.real();Q(k,0)=z.imag();
++  }
++  solve_into(I,Q,cal,1.,X,R,flags,w);
++  solve_into(I,Q,cal,1.,XN,RN,fn,w,SampleAcceptance::numerical);
++  EXPECT_EQ(flags,fn);
++  EXPECT_TRUE(flags(0,0)&outside_domain); EXPECT_TRUE(flags(1,0)&unstable_response);
++  for(int k=0;k<2;++k) { EXPECT_TRUE(std::isnan(X(k,0)));EXPECT_TRUE(std::isfinite(XN(k,0))); EXPECT_NEAR(RN(k,0),loss[k],1e-15); }
++  for(int k=2;k<4;++k) EXPECT_TRUE(std::isnan(XN(k,0)));
++  EXPECT_THROW(parse_sample_acceptance("ignore_everything"),std::invalid_argument);
++}

@@ -1,5 +1,11 @@
 # Compare acquired Tune models
 
+For the recipient release, start with the [handoff package](handoff/README.md)
+and its [focused comparison summary](handoff/tune-model-comparison-summary.pdf).
+It pins the Python/native sources and provides a host-independent command for
+fitting a recorded Tune, preparing model stubs and mapping another observation.
+The sections below preserve the detailed investigation recipes and controls.
+
 Use this example to fit recorded target sweeps and both acquired sweep blocks
 of a Tune. Keep the original NetCDF files read-only. Start with one network and
 one acquisition, then expand the comparison after checking the frequencies and
@@ -589,3 +595,32 @@ instantaneous measured nonlinearity or claim absolute mapping speed.
 
 The shared numerical implementation and assumptions are specified in
 [the model-report contract](../../design/spec/kids-model-reports.md#post-solving-response-and-noise-diagnostics).
+
+### 152434: native gap handling and acceptance control
+
+`build_gap_control.py` applies `native/gap-kidscpp.patch` and
+`native/gap-citlali.patch` to a private copy of the pinned native comparison
+sources. The earlier executable and results remain unchanged. The correction
+shares gap filling with despiking, propagates rejection through FIR filtering,
+and uses valid-sample PCA amplitudes. Filled samples remain excluded from maps.
+
+`gap_control.py prepare` writes three configs using the original common APT and
+the same sensitivity-based weights: legacy numerical acceptance, V3 physical
+acceptance, and V3 numerical acceptance. The numerical option preserves finite
+domain/stability violations and their diagnostic bits; hard numerical or model
+failures remain excluded. `gap_control.py audit` verifies native outputs and
+`gap_control_report.py` updates the comparison review from saved products.
+See [the reproduction commands and interpretation](../../docs/kids-tune-comparison.md#scalar-controls-numerical-versus-physical-acceptance).
+
+### 152434: joint components in broader maps
+
+`prepare_joint_map_control.py` follows saved component/finding/channel matches
+to the existing observation APT, preserving scalar controls and excluded rows.
+`native/joint-map-{kidscpp,citlali}.patch` adds mixed explicit channel/component
+projection and a selected-group output request without replacing the model.
+Build with `build_gap_control.py --patch-prefix joint-map` against the completed
+gap-control sources. `joint_map_report.py` audits completed reductions, separates
+APT-row and fitted-component populations, and puts the broader maps first in
+the HTML review. The PDF builder includes the same audit and evidence.
+
+See [the broader map recipe](../../docs/kids-tune-comparison.md#map-the-broader-population-with-joint-components).

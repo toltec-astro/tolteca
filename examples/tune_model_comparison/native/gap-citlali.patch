@@ -1,0 +1,715 @@
+--- a/data/config.yaml
++++ b/data/config.yaml
+@@ -35,6 +35,10 @@
+   - hwpr: 0
+ kids: # KIDs timestream solving parameters
+   solver:
++    # physical: reject finite physical-domain/stability violations.
++    # numerical: retain finite algebraic results; always retain diagnostics.
++    # Failed joint recovery, invalid models and nonfinite values remain rejected.
++    sample_acceptance: physical
+     # Allowed motion from the sweep or last accepted joint state:
+     # dr/r_reference and dfr/(2*r_reference*f_reference).
+     joint_state_step_max: 0.25
+--- a/include/citlali/core/engine/engine.h
++++ b/include/citlali/core/engine/engine.h
+@@ -212,7 +212,8 @@
+             unsigned bits=0;std::size_t excluded=0;
+             for (Eigen::Index t=0;t<flags.rows();++t) {
+                 unsigned value=static_cast<unsigned>(flags(t,c));bits|=value;
+-                if (value & ~static_cast<unsigned>(kids::reduce::condition_high)) ++excluded;
++                if (value & (data.kids.metadata["map_exclusion_mask"]
++                    ? data.kids.metadata["map_exclusion_mask"].template as<unsigned>() : 65503U)) ++excluded;
+             }
+             row["samples"]=flags.rows();row["recovery_excluded"]=excluded;
+             row["sample_flag_union"]=bits;
+--- a/include/citlali/core/engine/kids_readout.h
++++ b/include/citlali/core/engine/kids_readout.h
+@@ -73,7 +73,7 @@
+ inline KidsProjection project_kids(const kids::TimeStreamSolverResult &result,
+                                    const kids::toltec::RawTimeStream &raw,
+                                    const Calib &calib, int nw,
+-                                   const std::string &type) {
++                                   const std::string &type, kids::reduce::SampleAcceptance acceptance=kids::reduce::SampleAcceptance::physical) {
+   const auto [start, end] = calib.nw_limits.at(nw);
+   const auto count = end - start, samples = result.data_out.rs.data.rows();
+   KidsProjection out;
+@@ -173,11 +173,11 @@
+       }
+     }
+     for (Eigen::Index s = 0; s < samples; ++s) {
+-      // Only bit 32 is a warning. Every other sample flag prohibits map use.
++      // Diagnostics remain intact; acceptance changes only finite policy violations.
+       if (!std::isfinite(out.data(s, i)) &&
+-          !(static_cast<int>(flags(s, i)) & ~static_cast<int>(kids::reduce::condition_high)))
++          !(static_cast<int>(flags(s, i)) & kids::reduce::sample_exclusion_mask(acceptance)))
+         flags(s, i) = static_cast<int>(flags(s, i)) | 4;
+-      out.mask(s, i) = (static_cast<int>(flags(s, i)) & ~static_cast<int>(kids::reduce::condition_high)) != 0 ||
++      out.mask(s, i) = !std::isfinite(out.data(s,i)) || (static_cast<int>(flags(s, i)) & kids::reduce::sample_exclusion_mask(acceptance)) != 0 ||
+                        calib.apt.at("flag")(start + i) != 0;
+       if (out.mask(s, i))
+         out.data(s, i) = 0.;
+--- a/include/citlali/core/engine/kidsproc.h
++++ b/include/citlali/core/engine/kidsproc.h
+@@ -31,6 +31,10 @@
+               {"exmode", this->config().get_str(std::tuple{"solver", "parallel_policy"})},
+               {"extra_output", false},
+           }} {
++        const auto policy_key=std::tuple{"solver", "sample_acceptance"};
++        if(this->config().has(policy_key)) sample_acceptance=this->config().get_str(policy_key);
++        acceptance=kids::reduce::parse_sample_acceptance(sample_acceptance);
++        m_solver.config.set("sample_acceptance", sample_acceptance);
+         const auto key=std::tuple{"solver", "joint_state_step_max"};
+         if (this->config().has(key))
+             m_solver.config.set("joint_state_step_max", this->config().get_typed<double>(key));
+@@ -120,6 +124,8 @@
+         return {{"model_params_nc", data.meta.get_typed<std::string>("model_params_nc")},
+                 {"stubs", data.meta.get_typed<std::string>("model_stubs")}};
+     }
++    std::string sample_acceptance="physical";
++    kids::reduce::SampleAcceptance acceptance=kids::reduce::SampleAcceptance::physical;
+     Solver m_solver;
+ };
+ 
+@@ -236,12 +242,14 @@
+     rtc.flags.data.setOnes(n_pts, n_det);
+     rtc.kids.allocate(n_pts, n_det);
+     rtc.kids.metadata["schema"]="kids.map_readout/1";
++    rtc.kids.metadata["sample_acceptance"]=sample_acceptance;
++    rtc.kids.metadata["map_exclusion_mask"]=kids::reduce::sample_exclusion_mask(acceptance);
+     for (auto &raw : loaded) {
+         int nw=raw.meta.template get_typed<int>("citlali_network");
+         auto options = model_config(raw);
+         options.set("joint_output", engine::readout_network(calib, nw).IsMap());
+         auto result = this->solver()(raw, options);
+-        auto projected=engine::project_kids(result,raw,calib,nw,data_type);
++        auto projected=engine::project_kids(result,raw,calib,nw,data_type,acceptance);
+         auto [start,end]=calib.nw_limits.at(nw);
+         if (projected.data.rows()!=n_pts) throw std::runtime_error("KIDs sample count differs from RTC");
+         data.middleCols(start,end-start)=projected.data;
+@@ -319,6 +327,8 @@
+     rtc.flags.data.setOnes(n_pts,n_det);
+     rtc.kids.allocate(n_pts,n_det);
+     rtc.kids.metadata["schema"]="kids.map_readout/1";
++    rtc.kids.metadata["sample_acceptance"]=sample_acceptance;
++    rtc.kids.metadata["map_exclusion_mask"]=kids::reduce::sample_exclusion_mask(acceptance);
+     rtc.kids.metadata["time_alignment"]="linear data interpolation; endpoint flag union, minimum rank, maximum condition and residual";
+     const double t0=t_common(scan_indices(2,scan)), t1=t_common(scan_indices(3,scan));
+     Eigen::Index j=0;
+@@ -327,7 +337,7 @@
+         auto options = model_config(raw);
+         options.set("joint_output", engine::readout_network(calib, nw).IsMap());
+         auto result=this->solver()(raw,options);
+-        auto projected=engine::project_kids(result,raw,calib,nw,data_type);
++        auto projected=engine::project_kids(result,raw,calib,nw,data_type,acceptance);
+         const auto [start,end]=calib.nw_limits.at(nw);
+         Eigen::Index first=0;
+         while (first<times[j].size()) {
+--- a/include/citlali/core/timestream/kids.h
++++ b/include/citlali/core/timestream/kids.h
+@@ -47,7 +47,10 @@
+         var.putAtt("flag_meanings",
+                    "nonfinite_input singular_response nonfinite_output "
+                    "invalid_model recovery_failed condition_high outside_domain unstable_response");
+-        var.putAtt("map_exclusion_mask", "65503; condition_high is a warning");
++        var.putAtt("map_exclusion_mask", metadata["map_exclusion_mask"]
++            ? std::to_string(metadata["map_exclusion_mask"].as<unsigned>()) : "65503");
++        var.putAtt("sample_acceptance", metadata["sample_acceptance"]
++            ? metadata["sample_acceptance"].as<std::string>() : "physical");
+       }
+       for (Eigen::Index i = 0; i < values.rows(); ++i) {
+         Eigen::VectorXd row = values.row(i);
+--- a/include/citlali/core/timestream/ptc/clean.h
++++ b/include/citlali/core/timestream/ptc/clean.h
+@@ -2,6 +2,7 @@
+ 
+ #include <string>
+ #include <Eigen/Core>
++#include <Eigen/Cholesky>
+ #include <Eigen/Eigenvalues>
+ #include <Spectra/SymEigsSolver.h>
+ 
+@@ -275,9 +276,33 @@
+ 
+     logger->debug("removing {} largest eigenvalue(s)", limit_index);
+ 
+-    // subtract out the desired eigenvectors
+-    Eigen::MatrixXd proj = scans.derived() * evecs.derived().leftCols(limit_index);
+-    cleaned_scans.derived().noalias() = scans.derived() - proj * evecs.derived().adjoint().topRows(limit_index);
++    // Estimate amplitudes only from observed values. Filled entries may be
++    // arbitrary without changing any valid output. Missing basis rows require
++    // a Gram correction; zeroing alone would shrink the removed amplitudes.
++    const Eigen::MatrixXd basis=evecs.derived().leftCols(limit_index);
++    Eigen::MatrixXd clean=scans.derived();
++    Eigen::Array<bool,Eigen::Dynamic,1> unsupported(scans.rows());
++    unsupported.setConstant(false);
++    if(!flags.derived().any()) {
++        cleaned_scans.derived()=clean-(clean*basis)*basis.transpose();
++        return unsupported;
++    }
++    for(Eigen::Index t=0;t<scans.rows();++t) {
++        Eigen::MatrixXd gram=Eigen::MatrixXd::Zero(limit_index,limit_index);
++        Eigen::VectorXd rhs=Eigen::VectorXd::Zero(limit_index);
++        for(Eigen::Index c=0;c<scans.cols();++c) if(!flags(t,c)) {
++            gram.noalias()+=basis.row(c).transpose()*basis.row(c);
++            rhs.noalias()+=basis.row(c).transpose()*scans(t,c);
++        }
++        if(limit_index==0) continue;
++        Eigen::LDLT<Eigen::MatrixXd> solve(gram);
++        if(solve.info()!=Eigen::Success || solve.vectorD().minCoeff()<1e-10) {
++            unsupported(t)=true; clean.row(t).setZero(); continue;
++        }
++        clean.row(t)-=(basis*solve.solve(rhs)).transpose();
++    }
++    cleaned_scans.derived()=clean;
++    return unsupported;
+ }
+ 
+ } // namespace timestream
+--- a/include/citlali/core/timestream/ptc/ptcproc.h
++++ b/include/citlali/core/timestream/ptc/ptcproc.h
+@@ -277,8 +277,11 @@
+                     }
+ 
+                     // remove eigenvalues from the data and reconstruct the tod
+-                    cleaner.remove_eig_values<timestream::Cleaner::SpectraBackend>(in_scans_block, masked_flags, evals, evecs, out_scans_block,
++                    const auto unsupported=cleaner.remove_eig_values<timestream::Cleaner::SpectraBackend>(in_scans_block, masked_flags, evals, evecs, out_scans_block,
+                                                                                    cleaner.n_eig_to_cut[arr_index](indx));
++
++                    for(Eigen::Index t=0;t<n_pts;++t) if(unsupported(t))
++                        out.flags.data.block(t,start_index,1,n_dets).setOnes();
+ 
+                     if (in.kernel.data.size()!=0) {
+                         // check if any good flags
+--- a/include/citlali/core/timestream/rtc/despike.h
++++ b/include/citlali/core/timestream/rtc/despike.h
+@@ -1,5 +1,6 @@
+ #pragma once
+ 
++#include <citlali/core/timestream/rtc/gaps.h>
+ #include <boost/random.hpp>
+ #include <boost/random/random_device.hpp>
+ 
+@@ -43,7 +44,7 @@
+     // replace flagged data with interpolation
+     template<typename DerivedA, typename DerivedB, typename apt_t>
+     void replace_spikes(Eigen::DenseBase<DerivedA> &, Eigen::DenseBase<DerivedB>&, apt_t &,
+-                        Eigen::Index);
++                        Eigen::Index, std::uint64_t seed=0);
+ 
+ private:
+     // this function loops through the delta timestream values and finds the
+@@ -326,271 +327,11 @@
+ 
+ template<typename DerivedA, typename DerivedB, typename apt_t>
+ void Despiker::replace_spikes(Eigen::DenseBase<DerivedA> &scans, Eigen::DenseBase<DerivedB> &flags,
+-                              apt_t &apt, Eigen::Index start_det) {
+-
+-    // declare random number generator
+-    thread_local boost::random::mt19937 eng;
+-
+-    Eigen::Index n_dets = flags.cols();
+-    Eigen::Index n_pts = flags.rows();
+-
+-    // figure out if there are any flag-free detectors
+-    Eigen::Index n_flagged = 0;
+-
+-    // if spike_free(detector) == 1, it contains a spike
+-    // otherwise none found
+-    auto spike_free = flags.colwise().maxCoeff();
+-    n_flagged = n_dets - spike_free.template cast<int>().sum();
+-
+-    logger->info("has spikes {}", spike_free);
+-    logger->info("n_flagged {}", n_flagged);
+-
+-    for (Eigen::Index det = 0; det < n_dets; det++) {
+-        if (apt["flag"](det + start_det)==0) {
+-            if (spike_free(det)) {
+-                // condition flags so that if there is a spike we can make
+-                // one long flagged or un-flagged region.
+-                // first do spikes from 0 to 1
+-                for (Eigen::Index j = 1; j < n_pts - 1; ++j) {
+-                    if (flags(j, det) == 0 && flags(j - 1, det) == 1 && flags(j + 1, det) == 1) {
+-                        flags(j, det) = 0;
+-                    }
+-                }
+-                // now do spikes from 1 to 0
+-                for (Eigen::Index j = 1; j < n_pts - 1; ++j) {
+-                    if (flags(j, det) == 1 && flags(j - 1, det) == 0 && flags(j + 1, det) == 0) {
+-                        flags(j, det) = 1;
+-                    }
+-                }
+-                // and the first and last samples
+-                flags(0, det) = flags(1, det);
+-                flags(n_pts - 1, det) = flags(n_pts - 2, det);
+-
+-                // count up the number of flagged regions of data in the scan
+-                Eigen::Index n_flagged_regions = 0;
+-
+-                if (flags(n_pts - 1, det) == 1) {
+-                    n_flagged_regions++;
+-                }
+-
+-                n_flagged_regions
+-                    += ((flags.col(det).tail(n_pts - 1) - flags.col(det).head(n_pts - 1)).array() < 0)
+-                           .count()/ 2;
+-                if (n_flagged_regions == 0) {
+-                    break;
+-                }
+-
+-                logger->info("n_flagged_regions {}",n_flagged_regions);
+-
+-                // find the start and end index for each flagged region
+-                Eigen::Matrix<int, Eigen::Dynamic, 1> si_flags(n_flagged_regions);
+-                Eigen::Matrix<int, Eigen::Dynamic, 1> ei_flags(n_flagged_regions);
+-
+-                si_flags.setConstant(-1);
+-                ei_flags.setConstant(-1);
+-
+-                int count = 0;
+-                Eigen::Index j = 0;
+-
+-                while (j < n_pts) {
+-                    if (flags(j, det) == 1) {
+-                        int jstart = j;
+-                        int samp_count = 0;
+-
+-                        while (flags(j, det) == 1 && j <= n_pts - 1) {
+-                            samp_count++;
+-                            j++;
+-                        }
+-                        if (samp_count > 1) {
+-                            si_flags(count) = jstart;
+-                            ei_flags(count) = j - 1;
+-                            count++;
+-                        } else {
+-                            j++;
+-                        }
+-                    } else {
+-                        j++;
+-                    }
+-                }
+-
+-                logger->info("count {}", count);
+-
+-                // now loop on the number of flagged regions for the fix
+-                Eigen::VectorXd xx(2);
+-                Eigen::VectorXd yy(2);
+-                Eigen::Matrix<Eigen::Index, 1, 1> tn_pts;
+-                tn_pts << 2;
+-
+-                for (Eigen::Index j = 0; j < n_flagged_regions; ++j) {
+-                    // determine the linear baseline for flagged region
+-                    //but use flat level if flagged at endpoints
+-                    Eigen::Index n_flags = ei_flags(j) - si_flags(j);
+-                    Eigen::VectorXd lin_offset(n_flags);
+-
+-                    if (si_flags(j) == 0) {
+-                        lin_offset.setConstant(scans(ei_flags(j) + 1, det));
+-                    }
+-
+-                    else if (ei_flags(j) == n_pts - 1) {
+-                        lin_offset.setConstant(scans(si_flags(j) - 1, det));
+-                    }
+-
+-                    else {
+-                        // linearly interpolate between the before and after good samples
+-                        xx(0) = si_flags(j) - 1;
+-                        xx(1) = ei_flags(j) + 1;
+-                        yy(0) = scans(si_flags(j) - 1, det);
+-                        yy(1) = scans(ei_flags(j) + 1, det);
+-
+-                        Eigen::VectorXd xlin_offset =
+-                            Eigen::VectorXd::LinSpaced(n_flags, si_flags(j), si_flags(j) + n_flags - 1);
+-
+-                        mlinterp::interp(tn_pts.data(), n_flags, yy.data(), lin_offset.data(), xx.data(),
+-                                         xlin_offset.data());
+-                        logger->info("xlin_offset {}", xlin_offset);
+-                    }
+-
+-                    logger->info("xx {}", xx);
+-                    logger->info("yy {}", yy);
+-                    logger->info("lin_offset {}", lin_offset);
+-
+-                    // all non-flagged detectors repeat for all detectors without spikes
+-                    // count up spike-free detectors and store their values
+-                    int det_count = 0;
+-                    if (use_all_det) {
+-                        det_count = (apt["flag"].segment(start_det,n_dets).array()==0).count();
+-                    }
+-                    else {
+-                        for (Eigen::Index ii=0;ii<n_dets;ii++) {
+-                            if (!spike_free(ii) && apt["flag"](ii + start_det)==0) {
+-                                det_count++;
+-                            }
+-                        }
+-                        //det_count = spike_free.template cast<int>().sum();
+-                    }
+-
+-                    logger->info("det_count {}", det_count);
+-
+-                    Eigen::MatrixXd detm(n_flags, det_count);
+-                    detm.setConstant(-99);
+-                    Eigen::VectorXd res(det_count);
+-
+-                    logger->info("si {}", si_flags);
+-                    int c = 0;
+-                    for (Eigen::Index ii = 0; ii < n_dets; ii++) {
+-                        if ((spike_free(ii) || use_all_det) && apt["flag"](ii + start_det)==0) {
+-                            detm.col(c) =
+-                                scans.block(si_flags(j), ii, n_flags, 1);
+-                            res(c) = apt["responsivity"](c + start_det);
+-                            c++;
+-                        }
+-                    }
+-
+-                    detm.transposeInPlace();
+-
+-                    logger->info("detm {}", detm);
+-
+-                    // for each of these go through and redo the offset
+-                    Eigen::MatrixXd lin_offset_others(det_count, n_flags);
+-
+-                    // first sample in scan is flagged so offset is flat
+-                    // with the value of the last sample in the flagged region
+-                    if (si_flags(j) == 0) {
+-                        lin_offset_others = detm.col(0).replicate(1, n_flags);
+-                    }
+-
+-                    // last sample in scan is flagged so offset is flat
+-                    // with the value of the first sample in the flagged region
+-                    else if (ei_flags(j) == n_pts - 1) {
+-                        lin_offset_others = detm.col(n_flags - 1).replicate(1, n_flags);
+-                    }
+-
+-                    else {
+-                        Eigen::VectorXd tmp_vec(n_flags);
+-                        Eigen::VectorXd xlin_offset =
+-                            Eigen::VectorXd::LinSpaced(n_flags, si_flags(j), si_flags(j) + n_flags - 1);
+-
+-                        xx(0) = si_flags(j) - 1;
+-                        xx(1) = ei_flags(j) + 1;
+-                        // do we need this loop?
+-                        for (Eigen::Index ii = 0; ii < det_count; ii++) {
+-                            yy(0) = detm(ii, 0);
+-                            yy(1) = detm(ii, n_flags - 1);
+-
+-                            mlinterp::interp(tn_pts.data(), n_flags, yy.data(), tmp_vec.data(), xx.data(),
+-                                             xlin_offset.data());
+-                            lin_offset_others.row(ii) = tmp_vec;
+-                        }
+-
+-                        logger->info("xlin_offset {}", xlin_offset);
+-                    }
+-
+-                    logger->info("xx {}", xx);
+-                    logger->info("yy {}", yy);
+-                    logger->info("lin_offset_others {}", lin_offset_others);
+-
+-                    detm.noalias() = detm - lin_offset_others;
+-
+-                    logger->info("detm {}", detm);
+-
+-                    // scale det by responsivities and average to make sky model
+-                    Eigen::VectorXd sky_model = Eigen::VectorXd::Zero(n_flags);
+-
+-                    //sky_model = sky_model.array() + (detm.array().colwise() / res.array()).rowwise().sum();
+-                    //sky_model /= det_count;
+-
+-                    for (Eigen::Index ii=0; ii<det_count; ii++) {
+-                        for (Eigen::Index l=0; l<n_flags; l++) {
+-                            sky_model(l) += detm(ii,l)/res(ii);
+-                        }
+-                    }
+-
+-                    sky_model = sky_model/det_count;
+-
+-                    logger->info("sky_model {}",sky_model);
+-
+-                    Eigen::VectorXd std_dev_ff = Eigen::VectorXd::Zero(det_count);
+-
+-                    for (Eigen::Index ii = 0; ii < det_count; ii++) {
+-                        Eigen::VectorXd tmp_vec = detm.row(ii).array() / res.array() - sky_model.transpose().array();
+-
+-                        double tmp_mean = tmp_vec.mean();
+-
+-                        std_dev_ff(ii) = (tmp_vec.array() - tmp_mean).pow(2).sum();
+-                        std_dev_ff(ii) = (n_flags == 1.) ? std_dev_ff(ii) / n_flags
+-                                                        : std_dev_ff(ii) / (n_flags - 1.);
+-
+-                    }
+-
+-                    logger->info("std_dev_ff {}",std_dev_ff);
+-
+-                    double mean_std_dev = (std_dev_ff.array().sqrt()).sum() / det_count;
+-
+-                    // add noise to the fake signal
+-                    //mean_std_dev *= apt["responsivity"](det + start_det); // not used
+-
+-                    // boost random number generator
+-                    boost::random::normal_distribution<> rands{0, mean_std_dev};
+-
+-                    Eigen::VectorXd error =
+-                        Eigen::VectorXd::Zero(n_flags).unaryExpr([&](double dummy){return rands(eng);});
+-
+-                    logger->info("error {}", error);
+-
+-                    // the noiseless fake data is then the sky model plus the
+-                    // flagged detectors linear offset
+-                    //Eigen::VectorXd fake = sky_model.array() * apt["responsivity"](det + start_det) + lin_offset.array() + error.array();
+-                    Eigen::VectorXd fake = sky_model.array() + lin_offset.array() + error.array();
+-
+-                    logger->info("fake {}", fake);
+-
+-                    logger->info("mean std dev {}", mean_std_dev);
+-
+-                    scans.col(det).segment(si_flags(j), n_flags) = fake;
+-                } // flagged regions
+-            } // if it has spikes
+-        } // apt flag
+-    } // main detector loop
++                              apt_t &apt, Eigen::Index start_det, std::uint64_t seed) {
++
++    fill_gaps(scans.derived(), flags.derived(),
++              apt["responsivity"].segment(start_det,scans.cols()),
++              apt["flag"].segment(start_det,scans.cols()), seed);
+ }
+ 
+ } // namespace timestream
+--- /dev/null
++++ b/include/citlali/core/timestream/rtc/gaps.h
+@@ -0,0 +1,80 @@
++#pragma once
++#include <Eigen/Core>
++#include <algorithm>
++#include <cmath>
++#include <cstdint>
++#include <random>
++#include <vector>
++
++namespace timestream {
++/// Fill only rejected samples, using the despiker's baseline + correlated
++/// network signal + residual noise construction. The science mask is immutable.
++/// Endpoint gaps use a constant baseline; an entirely missing channel remains
++/// zero and excluded. Random state is local and reproducible across scheduling.
++template<class Data, class Flags, class Response, class AptFlags>
++void fill_gaps(Data &data, const Flags &flags, const Response &response,
++               const AptFlags &apt_flags, std::uint64_t seed=0) {
++    const Eigen::MatrixXd source=data;
++    const auto n=data.rows(), nd=data.cols();
++    for(Eigen::Index c=0;c<nd;++c) {
++        std::vector<Eigen::Index> good;
++        for(Eigen::Index t=0;t<n;++t)
++            if(!flags(t,c) && std::isfinite(source(t,c))) good.push_back(t);
++        if(apt_flags(c)!=0 || good.size()<2) {
++            for(Eigen::Index t=0;t<n;++t) if(flags(t,c)) data(t,c)=0.;
++            continue;
++        }
++        std::vector<double> differences;
++        for(std::size_t j=1;j<good.size();++j)
++            if(good[j]==good[j-1]+1)
++                differences.push_back(std::abs(source(good[j],c)-source(good[j-1],c)));
++        double sigma=0.;
++        if(!differences.empty()) {
++            auto mid=differences.begin()+differences.size()/2;
++            std::nth_element(differences.begin(),mid,differences.end());
++            sigma=*mid/(.6744897501960817*std::sqrt(2.));
++        }
++        std::mt19937_64 rng(seed+0x9e3779b97f4a7c15ULL*(c+1));
++        std::normal_distribution<double> noise(0.,1.);
++        const double rc=std::isfinite(response(c)) && response(c)!=0 ? response(c) : 1.;
++        Eigen::Index t=0;
++        while(t<n) {
++            if(!flags(t,c)) {++t; continue;}
++            const auto begin=t;
++            while(t<n && flags(t,c)) ++t;
++            const auto end=t;
++            const auto left=begin>0 ? begin-1 : good.front();
++            const auto right=end<n ? end : good.back();
++            for(auto s=begin;s<end;++s) {
++                const double f=left==right ? 0. : std::clamp(double(s-left)/(right-left),0.,1.);
++                const double baseline=(1-f)*source(left,c)+f*source(right,c);
++                double common=0.; int count=0;
++                for(Eigen::Index d=0;d<nd;++d) {
++                    if(d==c || apt_flags(d)!=0 || flags(s,d) || flags(left,d) || flags(right,d)) continue;
++                    const double rd=std::isfinite(response(d)) && response(d)!=0 ? response(d) : 1.;
++                    common+=(source(s,d)-(1-f)*source(left,d)-f*source(right,d))*rc/rd;
++                    ++count;
++                }
++                data(s,c)=baseline+(count ? common/count : 0.)+sigma*noise(rng);
++            }
++        }
++    }
++}
++
++/// Every filter output touched by a rejected input remains rejected for maps.
++template<class Flags>
++void expand_filter_mask(Flags &flags, Eigen::Index radius) {
++    const Flags original=flags;
++    for(Eigen::Index c=0;c<flags.cols();++c) {
++        Eigen::Index count=0;
++        for(Eigen::Index t=0;t<flags.rows();++t) {
++            if(t==0) for(Eigen::Index j=0;j<=std::min(radius,flags.rows()-1);++j) count+=original(j,c);
++            else {
++                if(t-radius-1>=0) count-=original(t-radius-1,c);
++                if(t+radius<flags.rows()) count+=original(t+radius,c);
++            }
++            flags(t,c)=count>0;
++        }
++    }
++}
++} // namespace timestream
+--- a/include/citlali/core/timestream/rtc/rtcproc.h
++++ b/include/citlali/core/timestream/rtc/rtcproc.h
+@@ -326,10 +326,16 @@
+     if (run_despike) {
+         logger->debug("despiking");
+         // despike data
++        const auto input_flags=in.flags.data;
+         despiker.despike(in.scans.data, in.flags.data, calib.apt);
+-
++        in.flags.data=(in.flags.data.array() || input_flags.array()).matrix();
++
++        in.status.despiked = true;
++    }
++    // Fill numerical gaps independently of optional spike detection.
++    if(in.flags.data.any()) {
+         // we want to replace spikes on a per array or network basis
+-        auto grp_limits = get_grouping(despiker.grouping, calib, in.scans.data.cols());
++        auto grp_limits = get_grouping("nw", calib, in.scans.data.cols());
+ 
+         logger->debug("replacing spikes");
+         for (auto const& [key, val] : grp_limits) {
+@@ -354,23 +360,16 @@
+                          Eigen::OuterStride<>(in_flags_ref.outerStride()));
+ 
+             // replace spikes
+-            despiker.replace_spikes(in_scans, in_flags, calib.apt, start_index);
+-        }
+-
+-        in.status.despiked = true;
+-    }
+-
+-    // Reject filter support that contains a failed KIDs sample; zero padding is
+-    // only a numerical placeholder and must never acquire map weight.
+-    if (run_tod_filter && in.kids.samples.contains("kids_sample_flag")) {
+-        const auto &flags = in.kids.samples.at("kids_sample_flag");
+-        for (Eigen::Index c=0;c<flags.cols();++c) for (Eigen::Index s=0;s<flags.rows();++s)
+-            if (static_cast<int>(flags(s,c)) & ~static_cast<int>(kids::reduce::condition_high)) {
+-                const auto first=std::max<Eigen::Index>(0,s-filter.n_terms);
+-                const auto last=std::min<Eigen::Index>(flags.rows(),s+filter.n_terms+1);
+-                in.flags.data.block(first,c,last-first,1).setOnes();
+-            }
+-    }
++            despiker.replace_spikes(in_scans, in_flags, calib.apt, start_index,
++                static_cast<std::uint64_t>(in.index.data)*1000003+start_index);
++        }
++
++    }
++    in.kids.metadata["gap_filling"]="network_baseline_noise/1";
++    in.kids.metadata["filled_samples_map_eligible"]=false;
++
++    // Preserve rejection through the entire FIR support; filling is numerical.
++    if(run_tod_filter) expand_filter_mask(in.flags.data, filter.n_terms);
+     // timestream filtering
+     if (run_tod_filter) {
+         logger->debug("convolving signal with tod filter");
+--- a/tests/CMakeLists.txt
++++ b/tests/CMakeLists.txt
+@@ -1,7 +1,7 @@
+ find_package(GTest CONFIG REQUIRED)
+ 
+ include(GoogleTest)
+-set(_citlali_test_names gauss_models model_stubs joint_mapmaking clean)
++set(_citlali_test_names gauss_models model_stubs joint_mapmaking clean gaps)
+ if(CITLALI_HAS_REAL_TEST_DATA)
+     list(APPEND _citlali_test_names kidsproc)
+ endif()
+--- /dev/null
++++ b/tests/test_gaps.cpp
+@@ -0,0 +1,85 @@
++#include <citlali/core/engine/kidsproc.h>
++#include <citlali/core/engine/telescope.h>
++#include <citlali/core/mapmaking/naive_mm.h>
++#include <citlali/core/timestream/rtc/rtcproc.h>
++#include <citlali/core/timestream/ptc/ptcproc.h>
++#include <gtest/gtest.h>
++#include <spdlog/sinks/stdout_color_sinks.h>
++
++using Flags=Eigen::Matrix<bool,Eigen::Dynamic,Eigen::Dynamic>;
++TEST(Gaps, FillPreservesMaskAndMeasurementsIsDeterministicAndHandlesEdges) {
++    Eigen::MatrixXd x(20,4);
++    for(int t=0;t<20;++t) for(int d=0;d<4;++d) x(t,d)=10+d+.1*t;
++    Flags f=Flags::Zero(20,4);
++    f.block(0,0,3,1).setOnes(); f.block(6,1,5,1).setOnes();
++    f.block(17,2,3,1).setOnes(); f.col(3).setOnes();
++    auto original=x; auto mask=f;
++    x=f.select(Eigen::MatrixXd::Constant(20,4,1e30),x);
++    auto y=x;
++    Eigen::VectorXd response=Eigen::VectorXd::Ones(4),apt=Eigen::VectorXd::Zero(4);
++    timestream::fill_gaps(x,f,response,apt,42);
++    timestream::fill_gaps(y,f,response,apt,42);
++    EXPECT_TRUE((f.array()==mask.array()).all()); EXPECT_EQ(x,y);
++    EXPECT_TRUE(x.allFinite()); EXPECT_LT(x.cwiseAbs().maxCoeff(),100.);
++    for(int t=0;t<20;++t) for(int d=0;d<4;++d) if(!f(t,d)) EXPECT_EQ(x(t,d),original(t,d));
++    EXPECT_TRUE(x.col(3).isZero());
++}
++
++TEST(Gaps, FilterSupportIsExcludedAndUnrelatedSamplesAreUnchanged) {
++    Eigen::MatrixXd a(30,1),b;
++    for(int t=0;t<30;++t) a(t,0)=std::sin(.3*t);
++    b=a; b(15,0)=500.;
++    timestream::Filter filter{}; filter.n_terms=2;
++    filter.filter=Eigen::VectorXd::Constant(5,.2);
++    filter.convolve(a); filter.convolve(b);
++    Flags flags=Flags::Zero(30,1); flags(15,0)=true;
++    timestream::expand_filter_mask(flags,2);
++    EXPECT_EQ(flags.count(),5);
++    for(int t=0;t<30;++t) if(!flags(t,0)) EXPECT_EQ(a(t,0),b(t,0));
++}
++
++TEST(Gaps, PcaIgnoresFilledValuesAndReportsInsufficientSupport) {
++    if(!spdlog::get("citlali_logger")) spdlog::stdout_color_mt("citlali_logger");
++    Eigen::MatrixXd x(5,3); x<<1,1,1,2,2,2,3,3,3,4,4,4,5,5,5;
++    Flags f=Flags::Zero(5,3); f(2,0)=true; f.row(4).setOnes();
++    Eigen::MatrixXd basis=Eigen::MatrixXd::Constant(3,1,1/std::sqrt(3.));
++    Eigen::VectorXd values=Eigen::VectorXd::Ones(1);
++    Eigen::MatrixXd a=x,b=x; b(2,0)=1e20;
++    timestream::Cleaner cleaner{}; cleaner.stddev_limit=0;
++    auto rejected=cleaner.remove_eig_values<timestream::Cleaner::EigenBackend>(x,f,values,basis,a,1);
++    cleaner.remove_eig_values<timestream::Cleaner::EigenBackend>(b,f,values,basis,b,1);
++    EXPECT_TRUE(rejected(4)); EXPECT_EQ(rejected.count(),1);
++    EXPECT_NEAR(a(2,1),0.,1e-12); EXPECT_NEAR(b(2,1),a(2,1),1e-12);
++    EXPECT_NEAR(a(2,2),0.,1e-12); EXPECT_NEAR(b(2,2),a(2,2),1e-12);
++}
++
++TEST(Gaps, RtcFillFilterAndMapNeverGiveFilledSamplesWeight) {
++    if(!spdlog::get("citlali_logger")) spdlog::stdout_color_mt("citlali_logger");
++    const int n=24,nd=2;
++    timestream::TCData<timestream::TCDataKind::RTC,Eigen::MatrixXd> raw{};
++    raw.scans.data=Eigen::MatrixXd::Ones(n,nd); raw.scans.data(10,0)=1e15;
++    raw.flags.data=Flags::Zero(n,nd); raw.flags.data(10,0)=true;
++    raw.index.data=0; raw.scan_indices.data.resize(4); raw.scan_indices.data<<0,n-5,0,n-1;
++    raw.tel_data.data["TelElAct"]=Eigen::VectorXd::Constant(n,.9);
++    for(auto key:{"alt_phys","az_phys"}) raw.tel_data.data[key]=Eigen::VectorXd::Zero(n);
++    for(auto key:{"alt","az"}) raw.pointing_offsets_arcsec.data[key]=Eigen::VectorXd::Zero(n);
++    engine::Calib calib{}; calib.n_dets=nd; calib.n_arrays=1;
++    calib.arrays=Eigen::VectorXI::Zero(1);
++    calib.nw_limits[0]={0,nd}; calib.array_limits[0]={0,nd};
++    for(auto key:{"flag","nw","array","x_t","y_t"}) calib.apt[key]=Eigen::VectorXd::Zero(nd);
++    calib.apt["responsivity"]=Eigen::VectorXd::Ones(nd);
++    timestream::RTCProc rtc{}; rtc.run_tod_filter=true; rtc.filter.n_terms=2;
++    rtc.filter.filter=Eigen::VectorXd::Constant(5,.2);
++    engine::Telescope telescope{};
++    timestream::TCData<timestream::TCDataKind::PTC,Eigen::MatrixXd> out{};
++    auto indices=rtc.run(raw,out,calib,telescope,1.,"detector");
++    ASSERT_EQ(out.flags.data.col(0).count(),5); ASSERT_EQ(out.flags.data.col(1).count(),0);
++    EXPECT_LT(out.scans.data.cwiseAbs().maxCoeff(),2.);
++    out.weights.data=Eigen::VectorXd::Ones(nd);
++    mapmaking::MapBuffer map{},coadd{}; map.n_rows=3;map.n_cols=3;map.pixel_size_rad=1.;map.map_grouping="detector";
++    for(int d=0;d<nd;++d) {map.signal.push_back(Eigen::MatrixXd::Zero(3,3));map.weight.push_back(Eigen::MatrixXd::Zero(3,3));map.coverage.push_back(Eigen::MatrixXd::Zero(3,3));}
++    mapmaking::NaiveMapmaker maker{}; std::string axes="altaz";
++    maker.populate_maps_naive(out,map,coadd,indices,axes,calib.apt,1.,true,false);
++    EXPECT_DOUBLE_EQ(map.weight[0].sum(),out.scans.data.rows()-5);
++    EXPECT_DOUBLE_EQ(map.weight[1].sum(),out.scans.data.rows());
++}

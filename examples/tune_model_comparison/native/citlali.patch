@@ -1,0 +1,211 @@
+--- a/include/citlali/core/timestream/ptc/clean.h
++++ b/include/citlali/core/timestream/ptc/clean.h
+@@ -8,6 +8,27 @@
+ #include <citlali/core/utils/utils.h>
+ 
+ namespace timestream {
++
++/// Pairwise covariance of already centered samples. Fewer than two shared
++/// valid samples provide no covariance estimate; keep that matrix entry zero.
++/// The PTC caller rejects entire channels with fewer than two valid samples.
++template <typename DerivedA, typename DerivedB, typename DerivedC>
++Eigen::MatrixXd masked_covariance(const Eigen::DenseBase<DerivedA> &scans,
++                                 const Eigen::DenseBase<DerivedB> &flags,
++                                 const Eigen::DenseBase<DerivedC> &apt_flags) {
++    Eigen::MatrixXd valid = (!flags.derived().array()).template cast<double>();
++    for (Eigen::Index i=0; i<scans.cols(); ++i)
++        if (apt_flags.derived()(i)!=0) valid.col(i).setZero();
++    // Select rather than multiply: a masked NaN must not contaminate neighbors.
++    Eigen::MatrixXd samples = (valid.array()!=0).select(scans.derived(), 0.);
++    if (!samples.allFinite())
++        throw std::runtime_error("PCA received an unflagged nonfinite sample");
++    Eigen::MatrixXd counts = valid.adjoint() * valid;
++    Eigen::MatrixXd cov = samples.adjoint() * samples;
++    for (Eigen::Index i=0; i<cov.size(); ++i)
++        cov(i) = counts(i)>=2 ? cov(i)/(counts(i)-1) : 0.;
++    return cov;
++}
+ 
+ class Cleaner {
+ public:
+@@ -126,32 +147,8 @@
+ auto Cleaner::calc_eig_values(const Eigen::DenseBase<DerivedA> &scans, const Eigen::DenseBase<DerivedB> &flags,
+                               Eigen::DenseBase<DerivedC> &apt_flags, const Eigen::Index group_n_eig) {
+ 
+-    // dimensions
+-    Eigen::Index n_dets = scans.cols();
+-
+-    // make copy of flags
+-    Eigen::MatrixXd f = abs(flags.derived().template cast<double> ().array() - 1);
+-
+-    // zero out flagged detectors in apt table.  we need to do this because we want
+-    // to make maps of all detectors when in detector mode so the timestreams cannot
+-    // be completely flagged.
+-    for (Eigen::Index i=0; i<n_dets; i++) {
+-        if (apt_flags.derived()(i)!=0) {
+-            f.col(i).setZero();
+-        }
+-    }
+-
+-    // container for covariance matrix
+-    Eigen::MatrixXd pca_cov(n_dets, n_dets);
+-
+-    // number of unflagged samples
+-    auto denom = (f.adjoint() * f).array() - 1;
+-
+-    // multiply scans by flags to remove flagged signal
+-    auto det = (scans.derived().array()*f.array()).matrix();
+-
+-    // calculate the covariance matrix
+-    pca_cov.noalias() = ((det.adjoint() * det).array() / denom.array()).matrix();
++    const Eigen::Index n_dets = scans.cols();
++    Eigen::MatrixXd pca_cov = masked_covariance(scans, flags, apt_flags);
+ 
+     /*Eigen::VectorXd avg_corrs(n_dets);
+     avg_corrs.setZero();
+--- a/include/citlali/core/timestream/ptc/ptcproc.h
++++ b/include/citlali/core/timestream/ptc/ptcproc.h
+@@ -173,6 +173,19 @@
+ void PTCProc::run(TCData<TCDataKind::PTC, Eigen::MatrixXd> &in, TCData<TCDataKind::PTC, Eigen::MatrixXd> &out,
+                   calib_type &calib, std::string pixel_axes, std::string map_grouping) {
+ 
++    // Covariance and variance require at least two valid samples. Such a
++    // channel has no estimable fluctuation in this chunk and gets no map weight.
++    Eigen::Index undersampled = 0;
++    for (Eigen::Index i=0; i<in.flags.data.cols(); ++i) {
++        const auto count = (!in.flags.data.col(i).array()).count();
++        if (count == 1) {
++            in.flags.data.col(i).setOnes();
++            ++undersampled;
++        }
++    }
++    if (undersampled)
++        logger->warn("flagged {} channel(s) with fewer than two valid samples before PCA", undersampled);
++
+     // subtract mean from data and kernel
+     subtract_mean(in);
+ 
+--- a/include/citlali/core/engine/kidsproc.h
++++ b/include/citlali/core/engine/kidsproc.h
+@@ -237,8 +237,10 @@
+     rtc.kids.allocate(n_pts, n_det);
+     rtc.kids.metadata["schema"]="kids.map_readout/1";
+     for (auto &raw : loaded) {
+-        auto result = this->solver()(raw, model_config(raw));
+         int nw=raw.meta.template get_typed<int>("citlali_network");
++        auto options = model_config(raw);
++        options.set("joint_output", engine::readout_network(calib, nw).IsMap());
++        auto result = this->solver()(raw, options);
+         auto projected=engine::project_kids(result,raw,calib,nw,data_type);
+         auto [start,end]=calib.nw_limits.at(nw);
+         if (projected.data.rows()!=n_pts) throw std::runtime_error("KIDs sample count differs from RTC");
+@@ -321,8 +323,10 @@
+     const double t0=t_common(scan_indices(2,scan)), t1=t_common(scan_indices(3,scan));
+     Eigen::Index j=0;
+     for (auto &raw:loaded) {
+-        auto result=this->solver()(raw,model_config(raw));
+         int nw=raw.meta.template get_typed<int>("citlali_network");
++        auto options = model_config(raw);
++        options.set("joint_output", engine::readout_network(calib, nw).IsMap());
++        auto result=this->solver()(raw,options);
+         auto projected=engine::project_kids(result,raw,calib,nw,data_type);
+         const auto [start,end]=calib.nw_limits.at(nw);
+         Eigen::Index first=0;
+--- a/tests/CMakeLists.txt
++++ b/tests/CMakeLists.txt
+@@ -1,7 +1,7 @@
+ find_package(GTest CONFIG REQUIRED)
+ 
+ include(GoogleTest)
+-set(_citlali_test_names gauss_models model_stubs joint_mapmaking)
++set(_citlali_test_names gauss_models model_stubs joint_mapmaking clean)
+ if(CITLALI_HAS_REAL_TEST_DATA)
+     list(APPEND _citlali_test_names kidsproc)
+ endif()
+--- /dev/null
++++ b/tests/test_clean.cpp
+@@ -0,0 +1,84 @@
++#include <citlali/core/engine/kidsproc.h>
++#include <citlali/core/timestream/ptc/ptcproc.h>
++#include <gtest/gtest.h>
++#include <spdlog/sinks/stdout_color_sinks.h>
++#include <cstdlib>
++#include <fstream>
++#include <sstream>
++
++using Flags = Eigen::Matrix<bool,Eigen::Dynamic,Eigen::Dynamic>;
++TEST(Cleaner, PreservesOrdinaryCovarianceAndRejectsUnsupportedPairs) {
++    Eigen::MatrixXd scans(4,3); scans << 1,2,4, 2,4,3, 3,6,2, 4,8,1;
++    Flags flags=Flags::Zero(4,3);
++    Eigen::VectorXd apt=Eigen::VectorXd::Zero(3);
++    auto ordinary=timestream::masked_covariance(scans,flags,apt);
++    EXPECT_TRUE(ordinary.isApprox(scans.transpose()*scans/3.,0.));
++    // Two valid samples per channel, but only one shared sample.
++    flags.col(0)<<false,false,true,true;
++    flags.col(1)<<true,false,false,true;
++    auto partial=timestream::masked_covariance(scans,flags,apt);
++    EXPECT_EQ(partial(0,1),0.);
++    EXPECT_EQ(partial(1,0),0.);
++    EXPECT_EQ(partial(0,0),5.);
++    EXPECT_EQ(partial(1,1),52.);
++    scans(2,0)=std::numeric_limits<double>::quiet_NaN();
++    EXPECT_TRUE(timestream::masked_covariance(scans,flags,apt).allFinite());
++    flags(2,0)=false;
++    EXPECT_THROW(timestream::masked_covariance(scans,flags,apt),std::runtime_error);
++    apt(0)=1.;
++    EXPECT_TRUE(timestream::masked_covariance(scans,flags,apt).row(0).isZero());
++}
++
++TEST(Cleaner, SingleSampleChannelGetsNoMapContribution) {
++    if (!spdlog::get("citlali_logger")) spdlog::stdout_color_mt("citlali_logger");
++    timestream::PTCProc proc{}; proc.run_clean=false;
++    timestream::TCData<timestream::TCDataKind::PTC,Eigen::MatrixXd> data{};
++    data.scans.data=Eigen::MatrixXd::Random(4,3);
++    data.flags.data=Flags::Ones(4,3);
++    data.flags.data(1,0)=false;
++    data.flags.data.col(1).setZero();
++    engine::Calib calib{};
++    proc.run(data,data,calib,"altaz","array");
++    EXPECT_TRUE(data.flags.data.col(0).all());
++    EXPECT_TRUE((!data.flags.data.col(1).array()).all());
++    EXPECT_TRUE(data.flags.data.col(2).all());
++    EXPECT_TRUE(data.scans.data.allFinite());
++}
++
++namespace {
++Eigen::MatrixXd read_matrix(const std::string &path) {
++    std::ifstream f(path); std::string line; std::vector<std::vector<double>> rows;
++    while (std::getline(f,line)) {
++        std::istringstream s(line); double x; std::vector<double> r;
++        while(s>>x) r.push_back(x);
++        if(!r.empty()) rows.push_back(r);
++    }
++    if(rows.empty()) throw std::runtime_error("Missing captured matrix: "+path);
++    Eigen::MatrixXd m(rows.size(),rows.front().size());
++    for(std::size_t i=0;i<rows.size();++i) {
++        if(rows[i].size()!=rows.front().size()) throw std::runtime_error("Ragged matrix");
++        for(std::size_t j=0;j<rows[i].size();++j) m(i,j)=rows[i][j];
++    }
++    return m;
++}
++}
++TEST(Cleaner, CapturedSingleSampleFailureIsFiniteAndSpectraConverges) {
++    auto *path=std::getenv("CITLALI_COVARIANCE_FIXTURE");
++    if(!path) GTEST_SKIP()<<"Set CITLALI_COVARIANCE_FIXTURE to the captured 152434 PCA input";
++    if (!spdlog::get("citlali_logger")) spdlog::stdout_color_mt("citlali_logger");
++    const auto prefix=std::string(path)+"/failed";
++    timestream::TCData<timestream::TCDataKind::PTC,Eigen::MatrixXd> data{};
++    data.scans.data=read_matrix(prefix+"-scans.txt");
++    data.flags.data=read_matrix(prefix+"-flags.txt").cast<bool>();
++    Eigen::MatrixXd apt=read_matrix(prefix+"-apt-flags.txt");
++    ASSERT_EQ((!data.flags.data.col(250).array()).count(),1);
++    timestream::PTCProc proc{}; proc.run_clean=false;
++    engine::Calib calib{}; proc.run(data,data,calib,"altaz","array");
++    auto cov=timestream::masked_covariance(data.scans.data,data.flags.data,apt);
++    EXPECT_TRUE(cov.allFinite()); EXPECT_TRUE(cov.row(250).isZero());
++    timestream::Cleaner cleaner{};
++    auto [values,vectors]=cleaner.calc_eig_values<timestream::Cleaner::SpectraBackend>(data.scans.data,data.flags.data,apt,5);
++    EXPECT_TRUE(values.allFinite()); EXPECT_TRUE(vectors.allFinite());
++    for(int i=0;i<5;++i)
++        EXPECT_LT((cov*vectors.col(i)-values(i)*vectors.col(i)).norm()/values(i),1e-8);
++}

@@ -1,0 +1,82 @@
+--- a/src/kids/timestream/solver.cpp
++++ b/src/kids/timestream/solver.cpp
+@@ -216,13 +216,19 @@
+     }
+     const double state_step_max = options.has("joint_state_step_max")
+         ? number(options, "joint_state_step_max") : .25;
+-    result.joint = kr::solve_joint_timestream(data.is(), data.qs(), prepared, norm,
+-                                            nullptr, reset, state_step_max);
++    // A channel-indexed consumer cannot use joint component outputs without
++    // an explicit component-to-detector binding. Preserve all calibration and
++    // flags while avoiding calculations that the caller will discard.
++    const bool joint_output = !options.has("joint_output") || options.get_typed<bool>("joint_output");
++    if (joint_output)
++        result.joint = kr::solve_joint_timestream(data.is(), data.qs(), prepared, norm,
++                                                nullptr, reset, state_step_max);
+     result.data_out.meta = data.meta;
+     result.data_out.meta.set("modelspec", prepared.model_params().model.name);
+     result.data_out.meta.set("kind", std::string("SolvedTimeStream"));
+     result.data_out.meta.set("calibration_source", cal.source);
+     result.data_out.meta.set("iq_normalization", norm);
++    result.data_out.meta.set("joint_output", joint_output);
+     result.data_out.meta.set("joint_branch_selection", std::string("sweep_continuity"));
+     result.data_out.meta.set("joint_state_step_max", state_step_max);
+     result.data_out.wcs = data.wcs;
+--- a/include/kids/timestream/solver.h
++++ b/include/kids/timestream/solver.h
+@@ -17,6 +17,9 @@
+     TimeStreamSolver(const Config &config_);
+ 
+     /// @brief solve timestream
++    /// joint_output defaults to true. A consumer of channel-indexed outputs
++    /// alone may disable joint component calculation; fit_joint_required rows
++    /// remain invalid for independent solving and all calibration is retained.
+     TimeStreamSolverResult operator()(const RawTimeStreamData &,
+                                       const Config &config = {}) const;
+ 
+--- a/tests/test_solver.cpp
++++ b/tests/test_solver.cpp
+@@ -1,4 +1,8 @@
+ #include <gtest/gtest.h>
++#include <kids/toltec/timestream.h>
++#include <kids/model/flags.h>
++#include <yaml-cpp/yaml.h>
++#include <cstdlib>
+ #include <kids/timestream/solver.h>
+ #include <kids/data/types.h>
+ 
+@@ -155,3 +159,34 @@
+     kids::TimeStreamSolver solver({});
+     EXPECT_THROW((void)solver(data), kids::reduce::Error);
+ }
++
++TEST(TimestreamSolver, OmittingJointOutputsPreservesRealChannelResultsAndCalibration) {
++    const auto *path = std::getenv("KIDS_OUTPUT_SCOPE_MANIFEST");
++    if (!path) GTEST_SKIP() << "Set KIDS_OUTPUT_SCOPE_MANIFEST to the all-network comparison input config";
++    const auto config = YAML::LoadFile(path);
++    for (const auto &item : config["inputs"][0]["data_items"]) {
++        if (!item["stubs"]) continue;
++        const auto source = item["filepath"].as<std::string>();
++        SCOPED_TRACE(source);
++        auto raw = kids::toltec::read_raw_timestream_slice(source, {0, 8, 1});
++        kids::TimeStreamSolver solver({{"model_params_nc",source},
++                                      {"stubs",YAML::Dump(item["stubs"])}});
++        const auto all = solver(raw);
++        const auto channels = solver(raw, {{"joint_output",false}});
++        ASSERT_FALSE(all.joint.empty());
++        EXPECT_TRUE(channels.joint.empty());
++        EXPECT_EQ(all.calibration.joint_models.size(), channels.calibration.joint_models.size());
++        EXPECT_EQ(all.calibration.fit_flags, channels.calibration.fit_flags);
++        EXPECT_EQ(all.calibration.channels, channels.calibration.channels);
++        EXPECT_TRUE((all.calibration_flags == channels.calibration_flags).all());
++        EXPECT_EQ(all.flags, channels.flags);
++        for (Eigen::Index j=0;j<all.flags.cols();++j)
++            for (Eigen::Index i=0;i<all.flags.rows();++i) {
++                auto eq=[](double a,double b) {return a==b || (std::isnan(a)&&std::isnan(b));};
++                EXPECT_TRUE(eq(all.data_out.rs.data(i,j),channels.data_out.rs.data(i,j)));
++                EXPECT_TRUE(eq(all.data_out.xs.data(i,j),channels.data_out.xs.data(i,j)));
++                if (all.calibration.fit_flags[j] & kids::reduce::fit_joint_required)
++                    EXPECT_NE(channels.flags(i,j), 0);
++            }
++    }
++}

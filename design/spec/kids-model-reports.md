@@ -112,6 +112,37 @@ and diagnostics, with flagged NaN solutions. Zero flags do not certify scientifi
 acceptance. Bits 10 and 23 are reserved; consumer capability is not a fit-quality
 flag. Unsupported model schemas raise explicitly.
 
+### Sample diagnostics and map acceptance
+
+The native scalar solver records domain and stability diagnostics independently
+of acceptance. `SampleAcceptance::physical` is the default: finite results with
+`outside_domain` or `unstable_response` are rejected. The explicit
+`SampleAcceptance::numerical` comparison policy retains finite algebraic results
+with those bits, without removing the bits or changing the nonlinear model.
+Invalid models, singular/nonfinite responses and failed joint solving remain
+rejected. This option does not relax the joint solver's search domain or branch
+tracking, or manufacture a result when solving failed.
+
+Citlali exposes the policy as `kids.solver.sample_acceptance`, with values
+`physical` and `numerical`. Saved timestream diagnostics record that value and
+the corresponding `map_exclusion_mask`; sample flags alone must not be treated
+as the map mask. The numerical policy permits a model comparison without adding
+the physical-domain cuts absent from the legacy model. It does not certify
+those samples as scientifically calibrated.
+
+Gap filling is a separate numerical operation. The shared despiker/RTC filler
+uses an interpolated endpoint baseline, observed network fluctuations and
+reproducible residual noise. It preserves observed values and rejection masks;
+entirely missing channels remain excluded. Every FIR output whose support
+touches a rejected sample remains excluded from maps after filtering and
+decimation. Optional spike detection is not required to fill solver gaps.
+
+PCA covariance uses valid overlaps. Mode amplitudes are estimated from valid
+samples using the corresponding basis-row Gram matrix. Filled values never
+determine these amplitudes. Times with insufficient mode support are rejected
+for that network. The map accumulator continues to use the rejection mask,
+not the presence of a finite filled value.
+
 ## Nonlinear fixed-drive solving
 
 For channel `k` and resonator `j`, the response is
@@ -198,6 +229,17 @@ findings, model components and response-law subsets separately. An isolated
 response-law study must not define the network's active-detector yield.
 Cross-tabulate observation/response evidence and numerical quality independently.
 Report fit adequacy, numerical validity and selection-policy limits separately.
+
+Before fitting, the Python workflow counts the real residual constraints and
+free parameters of each planned group using the selected physical model. A
+group with nonpositive residual degrees of freedom is not fitted. The original
+group remains in `model_fit/plan`; `model_fit/plan_quality` records its
+`fit_residual_dof`, `fit_eligible` and `fit_plan_status`. The status is
+`insufficient_residual_dof` for such a group. Other groups proceed unchanged.
+Channels with no fitted model retain the common no-model and unusable flags;
+the workflow does not fabricate coefficients or reduce the model's complexity
+to obtain a nominal fit. Coverage reports must distinguish these unattempted
+groups from fitted groups and from missing detector-to-APT associations.
 Fit adequacy retains the measured residual and its declared comparison threshold.
 Numerical validity retains convergence, complete-sample coverage and exact flags.
 Policy limits retain bound/initialization warnings, domain/continuation limits
@@ -538,3 +580,35 @@ validity. A smaller comparison population must not be called detector yield.
   sweep variation. It must not substitute residual divided by total IQ level.
   Policy rejection, numerical failure and missing independent evidence remain
   separate fields. Diagnostic policy does not remove stored states.
+
+
+## Mixed channel and component map projection
+
+The acquisition retains its complete channel-indexed model report and joint
+payload. A map APT may use a subset of joint components alongside unchanged
+channel solutions. `kids.apt_readout/1` records, per network:
+
+- `rows`: unique detector UID, selected group/component IDs and acquired
+  coordinate-probe channel.
+- `channel_rows`: network-local APT row position, recorded UID and acquired
+  channel for unchanged scalar rows.
+- `groups`: the exact selected fitted groups and their gain evaluated at the
+  acquired probes, for calibration-consistency checks.
+
+The two binding sets cover each APT row exactly once. Scalar row/UID pairs are
+validated explicitly, including repeated placeholder UIDs on excluded rows.
+Component UIDs must be unique; no detector is inferred from row order or nearest
+fitted frequency. Scalar probes retain their existing solution, acquired probe frequencies, sample flags and nearby-tone veto. A network containing joint components must not bypass that scalar veto for its other rows. Joint components use group recovery instead of a scalar proximity test.
+Joint components use the full nonlinear group response and its diagnostic flags.
+The adapter requests only referenced joint groups through `joint_groups`; a
+missing or duplicate requested group is an error. Omitting that selector keeps
+standalone all-group output. Calibration metadata remains complete in either
+case; selecting outputs does not alter fitting or the scientific solving model.
+
+The 152434 comparison derives bindings from the saved ModelFit plan, KidsFind
+finding and unique saved channel match, followed by the existing observation
+APT identity. It preserves original beammap quality, beam positions, flux
+factors and sensitivity weights. This supports broader comparison maps but is
+not an independent measurement of each component's optical beam or flux
+response. Joint state covariance remains available in diagnostics; per-row map
+weights do not account for full cross-component covariance.
